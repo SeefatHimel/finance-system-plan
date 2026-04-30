@@ -110,3 +110,10 @@ mindmap
 - SMS parsing starts with provider-specific rules, not AI.
 - Manual balance reconciliation is allowed.
 - Lent money and debt affect account balances only when money actually moves.
+
+## Current Implementation Status
+
+- Planning documentation is complete for the first architecture pass.
+- Local PostgreSQL infrastructure is defined in `projects/finance-infra`.
+- Django API scaffold is started in `projects/finance-api`.
+- The first backend endpoint is `GET /api/health/`.

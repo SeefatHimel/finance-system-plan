@@ -22,6 +22,28 @@ finance-web
 For early development, run PostgreSQL in Docker and run API/web/mobile dev
 servers natively. This keeps feedback fast.
 
+## Start PostgreSQL
+
+From this directory:
+
+```bash
+cp .env.example .env
+docker compose up -d postgres
+```
+
+Stop it with:
+
+```bash
+docker compose down
+```
+
+Remove the local database volume only when you intentionally want to delete
+local data:
+
+```bash
+docker compose down -v
+```
+
 ## Suggested Local Environment
 
 ```txt
@@ -51,4 +73,3 @@ Future backup scripts should cover:
 - Uploaded attachments, if added.
 - OpenAPI contract version.
 - Restore procedure verification.
-

@@ -54,3 +54,36 @@ Then:
 - Web app displays backend health.
 - Mobile app displays backend health.
 
+## Current Backend Setup
+
+Start PostgreSQL:
+
+```bash
+cd projects/finance-infra
+cp .env.example .env
+docker compose up -d postgres
+```
+
+Start the Django API:
+
+```bash
+cd ../finance-api
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+cp .env.example .env
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8000
+```
+
+Check:
+
+```bash
+curl http://localhost:8000/api/health/
+```
+
+OpenAPI docs:
+
+```txt
+http://localhost:8000/api/docs/
+```

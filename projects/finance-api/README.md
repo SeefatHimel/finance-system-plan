@@ -2,6 +2,17 @@
 
 Django backend and source of truth for the finance system.
 
+## Current Status
+
+The API project is scaffolded with:
+
+- Django settings
+- Django REST Framework dependency
+- OpenAPI documentation dependency
+- CORS configuration
+- `/api/health/` endpoint
+- Health endpoint test
+
 ## Responsibilities
 
 - User authentication
@@ -25,6 +36,69 @@ Django backend and source of truth for the finance system.
 - pytest
 - django-filter
 - drf-spectacular for OpenAPI generation
+
+## Local Setup
+
+Create a virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+Create local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Start PostgreSQL from `../finance-infra`:
+
+```bash
+docker compose up -d postgres
+```
+
+Run migrations:
+
+```bash
+python manage.py migrate
+```
+
+Start the API:
+
+```bash
+python manage.py runserver 0.0.0.0:8000
+```
+
+Health check:
+
+```bash
+curl http://localhost:8000/api/health/
+```
+
+Expected response:
+
+```json
+{"status": "ok"}
+```
+
+API docs will be available at:
+
+```txt
+http://localhost:8000/api/docs/
+```
+
+## Verification
+
+```bash
+python manage.py test apps.health
+```
 
 ## Django Apps
 
@@ -84,7 +158,7 @@ confirms the candidate.
 
 ## Phase 1 Backend Milestones
 
-1. Health endpoint.
+1. Health endpoint. Done.
 2. Auth.
 3. Account CRUD.
 4. Category CRUD.
@@ -92,4 +166,3 @@ confirms the candidate.
 6. Monthly report endpoint.
 7. Balance snapshot endpoint.
 8. Reconciliation difference endpoint.
-

@@ -29,16 +29,16 @@ By the end of the first sprint:
 
 ### Infrastructure
 
-- Add Docker Compose for PostgreSQL.
-- Add local database credentials.
-- Document start/stop commands.
+- Add Docker Compose for PostgreSQL. Done.
+- Add local database credentials. Done.
+- Document start/stop commands. Done.
 
 ### Backend
 
-- Create Django project.
-- Add Django REST Framework.
-- Configure PostgreSQL.
-- Add health endpoint.
+- Create Django project. Done.
+- Add Django REST Framework. Done.
+- Configure PostgreSQL. Done.
+- Add health endpoint. Done.
 - Create custom user model if desired.
 - Create account model and CRUD API.
 - Create category model and CRUD API.
@@ -90,4 +90,3 @@ By the end of the first sprint:
 - Manual transaction affects monthly report totals.
 - Account/category choices are loaded from backend.
 - README setup instructions are accurate enough to repeat from a clean machine.
-
