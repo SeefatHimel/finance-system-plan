@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { getHealthStatus } from "@/lib/api";
 import { SessionPanel } from "@/components/session-panel";
 
@@ -20,7 +22,9 @@ export default async function HomePage() {
           </div>
           <nav className="nav" aria-label="Primary navigation">
             <span className="nav__item nav__item--active">Dashboard</span>
-            <span className="nav__item">Transactions</span>
+            <Link className="nav__item" href="/transactions">
+              Transactions
+            </Link>
             <span className="nav__item">Accounts</span>
             <span className="nav__item">Review</span>
           </nav>

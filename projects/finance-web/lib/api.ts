@@ -17,6 +17,46 @@ const currentUserSchema = z.object({
   username: z.string()
 });
 
+const accountSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.string()
+});
+
+const categorySchema = z.object({
+  id: z.string(),
+  kind: z.string(),
+  name: z.string()
+});
+
+const transactionSchema = z.object({
+  account: z.string(),
+  amount: z.string(),
+  category: z.string().nullable(),
+  date: z.string(),
+  id: z.string(),
+  note: z.string(),
+  source: z.string(),
+  transfer_account: z.string().nullable(),
+  type: z.string()
+});
+
+const paginatedSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
+  z.object({
+    count: z.number(),
+    next: z.string().nullable(),
+    previous: z.string().nullable(),
+    results: z.array(itemSchema)
+  });
+
+const collectionSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
+  z.union([z.array(itemSchema), paginatedSchema(itemSchema)]).transform((payload) => {
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+    return payload.results;
+  });
+
 export type HealthStatus = {
   apiBaseUrl: string;
   error?: string;
@@ -26,6 +66,20 @@ export type HealthStatus = {
 
 export type AuthTokens = z.infer<typeof tokenResponseSchema>;
 export type CurrentUser = z.infer<typeof currentUserSchema>;
+export type Account = z.infer<typeof accountSchema>;
+export type Category = z.infer<typeof categorySchema>;
+export type Transaction = z.infer<typeof transactionSchema>;
+
+export type CreateTransactionInput = {
+  account: string;
+  amount: string;
+  category?: string;
+  date: string;
+  note?: string;
+  source?: "web";
+  transfer_account?: string;
+  type: string;
+};
 
 export function getApiBaseUrl() {
   return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -94,4 +148,58 @@ export async function getCurrentUser(accessToken: string): Promise<CurrentUser> 
   }
 
   return currentUserSchema.parse(await response.json());
+}
+
+async function authenticatedFetch(path: string, accessToken: string, init?: RequestInit) {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    cache: "no-store",
+    headers: {
+      ...(init?.headers ?? {}),
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+
+  if (response.status === 401) {
+    throw new Error("Your session expired. Sign in again.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Request failed with HTTP ${response.status}.`);
+  }
+
+  return response;
+}
+
+export async function listAccounts(accessToken: string): Promise<Account[]> {
+  const response = await authenticatedFetch("/api/accounts/", accessToken);
+  return collectionSchema(accountSchema).parse(await response.json());
+}
+
+export async function listCategories(accessToken: string): Promise<Category[]> {
+  const response = await authenticatedFetch("/api/categories/", accessToken);
+  return collectionSchema(categorySchema).parse(await response.json());
+}
+
+export async function listTransactions(accessToken: string): Promise<Transaction[]> {
+  const response = await authenticatedFetch("/api/transactions/", accessToken);
+  return collectionSchema(transactionSchema).parse(await response.json());
+}
+
+export async function createTransaction(
+  accessToken: string,
+  input: CreateTransactionInput
+): Promise<Transaction> {
+  const response = await authenticatedFetch("/api/transactions/", accessToken, {
+    body: JSON.stringify({
+      ...input,
+      source: input.source ?? "web"
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  return transactionSchema.parse(await response.json());
 }

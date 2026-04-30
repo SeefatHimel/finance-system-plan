@@ -14,7 +14,9 @@ will combine server-rendered status, authenticated pages, and interactive forms.
 ## What is implemented in the web app right now?
 
 The web app has a Next.js scaffold, TypeScript setup, environment-based API URL,
-global styles, a dashboard shell, and a server-rendered backend health check.
+global styles, a dashboard shell, a server-rendered backend health check, a
+local JWT login flow, and a first transactions page for listing and creating
+manual transactions.
 
 ## Why start with a health-check dashboard?
 
@@ -57,6 +59,14 @@ Planned screens:
 It should feel close to the spreadsheet workflow: filter by month, account,
 category, type, and source; add/edit rows quickly; and support display modes
 like spreadsheet sign mode, ledger mode, and money-in/money-out mode.
+
+## What does the current transactions page do?
+
+The current transactions page uses the saved local JWT access token to load
+accounts, categories, and transactions from the Django API. It provides a manual
+transaction form and a recent transactions table. Account and category
+management screens are still planned, so initial accounts/categories can be
+created through the API or Django admin.
 
 ## Why not copy the spreadsheet exactly?
 

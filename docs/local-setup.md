@@ -145,6 +145,15 @@ cd ../finance-api
 python manage.py createsuperuser
 ```
 
+Manual transaction workflow:
+
+```txt
+http://localhost:3000/transactions
+```
+
+Create at least one account and optional categories through the backend API or
+Django admin before using the transaction form.
+
 Run web checks:
 
 ```bash

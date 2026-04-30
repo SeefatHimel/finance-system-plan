@@ -13,6 +13,8 @@ The web app is scaffolded with:
 - Initial dashboard shell
 - Login page connected to JWT auth
 - Dashboard session panel with sign out
+- Transactions page that loads accounts, categories, and transactions
+- Manual transaction creation form
 
 ## Responsibilities
 
@@ -86,6 +88,16 @@ For the local development version, JWT tokens are stored in browser
 `localStorage`. Before production deployment, move token handling to a safer
 cookie-based strategy.
 
+Transactions page:
+
+```txt
+http://localhost:3000/transactions
+```
+
+The transaction workflow expects at least one account to exist. Create accounts
+and categories through the API or Django admin until the web management screens
+are added.
+
 ## Verification
 
 ```bash
@@ -149,6 +161,6 @@ The user can enter the real-life balance for an account. The UI shows:
 3. Dashboard shell. Done.
 4. Accounts CRUD.
 5. Categories CRUD.
-6. Transaction table and form.
+6. Transaction table and form. Started.
 7. Monthly report.
 8. Balance reconciliation screen.

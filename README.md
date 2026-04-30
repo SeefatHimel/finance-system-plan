@@ -45,6 +45,7 @@ access control between backend, mobile, and web teams.
 - [Git Workflow](docs/git-workflow.md)
 - [Privacy And Security](docs/privacy-and-security.md)
 - [Project Q&A](qa/README.md)
+- [Agent Instructions](AGENTS.md)
 - [Backend Project](projects/finance-api/README.md)
 - [Web Project](projects/finance-web/README.md)
 - [Mobile Project](projects/finance-mobile/README.md)
@@ -123,3 +124,4 @@ mindmap
 - JWT authentication is available for web and mobile clients.
 - The Next.js web app shell is started and can display backend health.
 - The web app has a local-development login flow for JWT auth.
+- The web app has a first manual transaction page connected to the backend API.

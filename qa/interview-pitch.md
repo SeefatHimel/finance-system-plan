@@ -34,9 +34,9 @@ because the key automation feature is reading transaction SMS messages from
 user-approved senders.
 
 Right now the repo has the architecture docs, local PostgreSQL setup, JWT auth,
-account/category/transaction APIs, monthly reports, and a Next.js dashboard
-shell that checks backend health. Next I would build the web login and manual
-transaction workflow, then payment methods and SMS sender tracking.
+account/category/transaction APIs, monthly reports, a Next.js dashboard, a web
+login flow, and an initial manual transaction page. Next I would add account and
+category management screens, then payment methods and SMS sender tracking.
 
 ## Strong Technical Points To Mention
 
@@ -59,10 +59,10 @@ and report logic in the backend so the system can evolve.
 
 ## If Asked "What Would You Build Next?"
 
-I would build the web login flow and manual transaction UI first, because that
-makes the current backend usable. After that I would add payment methods, SMS
-sender rules, raw message import, and a review inbox. Then I would scaffold the
-Android app and connect it to the same auth and API contract.
+I would finish account and category management in the web app, because that
+makes the manual transaction workflow complete. After that I would add payment
+methods, SMS sender rules, raw message import, and a review inbox. Then I would
+scaffold the Android app and connect it to the same auth and API contract.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 
@@ -77,4 +77,3 @@ For production, I would harden auth token storage, add secure deployment
 configuration, set up database backups and restore testing, add monitoring,
 improve audit logs, and review Android SMS permission policy carefully before
 public distribution.
-
