@@ -328,6 +328,24 @@ Pagination:
 }
 ```
 
+## Implemented API Surface
+
+The backend currently implements the first manual finance loop:
+
+```txt
+GET    /api/health/
+GET    /api/accounts/
+POST   /api/accounts/
+GET    /api/categories/
+POST   /api/categories/
+GET    /api/transactions/
+POST   /api/transactions/
+GET    /api/reports/monthly/?month=YYYY-MM
+```
+
+The account, category, transaction, and report endpoints are authenticated and
+scoped to the current user.
+
 ## Transaction Create Example
 
 ```json
@@ -335,8 +353,8 @@ Pagination:
   "date": "2026-05-01",
   "type": "expense",
   "amount": "250.00",
-  "account_id": "account-id",
-  "category_id": "category-id",
+  "account": "account-id",
+  "category": "category-id",
   "note": "Lunch",
   "source": "mobile"
 }
@@ -378,4 +396,3 @@ Pagination:
 - Allow raw SMS deletion later.
 - Use per-user scoping on every query.
 - Keep audit-friendly timestamps on financial records.
-

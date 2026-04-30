@@ -87,3 +87,9 @@ OpenAPI docs:
 ```txt
 http://localhost:8000/api/docs/
 ```
+
+Run backend tests:
+
+```bash
+python manage.py test apps.health apps.accounts apps.categories apps.transactions apps.reports
+```

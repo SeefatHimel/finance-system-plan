@@ -12,6 +12,9 @@ The API project is scaffolded with:
 - CORS configuration
 - `/api/health/` endpoint
 - Health endpoint test
+- Account, category, and transaction models
+- Authenticated CRUD APIs for accounts, categories, and transactions
+- Basic monthly report endpoint
 
 ## Responsibilities
 
@@ -97,7 +100,7 @@ http://localhost:8000/api/docs/
 ## Verification
 
 ```bash
-python manage.py test apps.health
+python manage.py test apps.health apps.accounts apps.categories apps.transactions apps.reports
 ```
 
 ## Django Apps
@@ -130,6 +133,35 @@ reconciliation/
 /api/reconciliation/
 ```
 
+## Implemented Endpoints
+
+```txt
+GET    /api/health/
+GET    /api/accounts/
+POST   /api/accounts/
+GET    /api/accounts/{id}/
+PATCH  /api/accounts/{id}/
+DELETE /api/accounts/{id}/
+
+GET    /api/categories/
+POST   /api/categories/
+GET    /api/categories/{id}/
+PATCH  /api/categories/{id}/
+DELETE /api/categories/{id}/
+
+GET    /api/transactions/
+POST   /api/transactions/
+GET    /api/transactions/{id}/
+PATCH  /api/transactions/{id}/
+DELETE /api/transactions/{id}/
+
+GET    /api/reports/monthly/?month=YYYY-MM
+GET    /api/schema/
+GET    /api/docs/
+```
+
+All finance endpoints except `/api/health/` require authentication.
+
 ## Parser Design
 
 Use provider-specific parser classes:
@@ -160,9 +192,9 @@ confirms the candidate.
 
 1. Health endpoint. Done.
 2. Auth.
-3. Account CRUD.
-4. Category CRUD.
-5. Transaction CRUD.
-6. Monthly report endpoint.
+3. Account CRUD. Done.
+4. Category CRUD. Done.
+5. Transaction CRUD. Done.
+6. Monthly report endpoint. Done.
 7. Balance snapshot endpoint.
 8. Reconciliation difference endpoint.

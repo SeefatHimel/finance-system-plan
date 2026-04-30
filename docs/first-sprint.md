@@ -40,11 +40,11 @@ By the end of the first sprint:
 - Configure PostgreSQL. Done.
 - Add health endpoint. Done.
 - Create custom user model if desired.
-- Create account model and CRUD API.
-- Create category model and CRUD API.
-- Create transaction model and CRUD API.
-- Add monthly summary endpoint.
-- Add basic tests for account/category/transaction APIs.
+- Create account model and CRUD API. Done.
+- Create category model and CRUD API. Done.
+- Create transaction model and CRUD API. Done.
+- Add monthly summary endpoint. Done.
+- Add basic tests for account/category/transaction APIs. Done.
 
 ### Web
 

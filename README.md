@@ -117,3 +117,5 @@ mindmap
 - Local PostgreSQL infrastructure is defined in `projects/finance-infra`.
 - Django API scaffold is started in `projects/finance-api`.
 - The first backend endpoint is `GET /api/health/`.
+- The first manual finance API loop is started with accounts, categories,
+  transactions, and monthly reports.
