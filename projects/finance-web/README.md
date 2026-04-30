@@ -2,6 +2,16 @@
 
 Next.js web dashboard for managing and reviewing the finance system.
 
+## Current Status
+
+The web app is scaffolded with:
+
+- Next.js App Router
+- TypeScript
+- Environment-based API URL
+- Server-rendered backend health check
+- Initial dashboard shell
+
 ## Responsibilities
 
 - Main dashboard
@@ -24,6 +34,45 @@ Next.js web dashboard for managing and reviewing the finance system.
 - Zod
 - Tailwind CSS or the chosen design system
 - Generated API client from `finance-contracts` later
+
+## Local Setup
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Create local environment file:
+
+```bash
+cp .env.example .env.local
+```
+
+Start the backend API from `../finance-api`, then run the web app:
+
+```bash
+npm run dev
+```
+
+Open:
+
+```txt
+http://localhost:3000
+```
+
+The dashboard will call:
+
+```txt
+http://localhost:8000/api/health/
+```
+
+## Verification
+
+```bash
+npm run typecheck
+npm run lint
+```
 
 ## Primary Screens
 
@@ -76,7 +125,7 @@ The user can enter the real-life balance for an account. The UI shows:
 
 ## Phase 1 Web Milestones
 
-1. Connect to backend health endpoint.
+1. Connect to backend health endpoint. Done.
 2. Login screen.
 3. Dashboard shell.
 4. Accounts CRUD.
@@ -84,4 +133,3 @@ The user can enter the real-life balance for an account. The UI shows:
 6. Transaction table and form.
 7. Monthly report.
 8. Balance reconciliation screen.
-

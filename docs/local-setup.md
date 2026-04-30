@@ -51,7 +51,7 @@ Expected response:
 
 Then:
 
-- Web app displays backend health.
+- Web app displays backend health. Done.
 - Mobile app displays backend health.
 
 ## Current Backend Setup
@@ -113,4 +113,28 @@ Use the returned access token on protected endpoints:
 ```bash
 curl http://localhost:8000/api/auth/me/ \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Current Web Setup
+
+Start the web app:
+
+```bash
+cd projects/finance-web
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Open:
+
+```txt
+http://localhost:3000
+```
+
+Run web checks:
+
+```bash
+npm run typecheck
+npm run lint
 ```

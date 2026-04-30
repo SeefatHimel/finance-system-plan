@@ -120,3 +120,4 @@ mindmap
 - The first manual finance API loop is started with accounts, categories,
   transactions, and monthly reports.
 - JWT authentication is available for web and mobile clients.
+- The Next.js web app shell is started and can display backend health.
