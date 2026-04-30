@@ -44,6 +44,7 @@ access control between backend, mobile, and web teams.
 - [Local Setup](docs/local-setup.md)
 - [Git Workflow](docs/git-workflow.md)
 - [Privacy And Security](docs/privacy-and-security.md)
+- [Project Q&A](qa/README.md)
 - [Backend Project](projects/finance-api/README.md)
 - [Web Project](projects/finance-web/README.md)
 - [Mobile Project](projects/finance-mobile/README.md)
