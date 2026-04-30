@@ -122,3 +122,4 @@ mindmap
   transactions, and monthly reports.
 - JWT authentication is available for web and mobile clients.
 - The Next.js web app shell is started and can display backend health.
+- The web app has a local-development login flow for JWT auth.

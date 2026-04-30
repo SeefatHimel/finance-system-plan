@@ -53,6 +53,7 @@ By the end of the first sprint:
 - Create Next.js project. Done.
 - Configure API base URL. Done.
 - Add health check page or dashboard widget. Done.
+- Add login screen. Done.
 - Add transaction list.
 - Add transaction create form.
 - Add accounts and categories management.

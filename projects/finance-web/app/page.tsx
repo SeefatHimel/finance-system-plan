@@ -1,4 +1,5 @@
 import { getHealthStatus } from "@/lib/api";
+import { SessionPanel } from "@/components/session-panel";
 
 const formatter = new Intl.NumberFormat("en-BD", {
   currency: "BDT",
@@ -35,6 +36,10 @@ export default async function HomePage() {
                 The web app shell is ready to connect accounts, categories,
                 transactions, monthly summaries, and SMS review workflows.
               </p>
+
+              <div className="section-block">
+                <SessionPanel />
+              </div>
 
               <div className="metric-row" aria-label="Placeholder finance metrics">
                 <div className="metric">
@@ -85,4 +90,3 @@ export default async function HomePage() {
     </div>
   );
 }
-

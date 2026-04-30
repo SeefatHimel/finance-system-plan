@@ -132,6 +132,19 @@ Open:
 http://localhost:3000
 ```
 
+Sign in:
+
+```txt
+http://localhost:3000/login
+```
+
+Use a Django user created with:
+
+```bash
+cd ../finance-api
+python manage.py createsuperuser
+```
+
 Run web checks:
 
 ```bash

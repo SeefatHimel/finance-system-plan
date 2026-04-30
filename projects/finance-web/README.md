@@ -11,6 +11,8 @@ The web app is scaffolded with:
 - Environment-based API URL
 - Server-rendered backend health check
 - Initial dashboard shell
+- Login page connected to JWT auth
+- Dashboard session panel with sign out
 
 ## Responsibilities
 
@@ -66,6 +68,23 @@ The dashboard will call:
 ```txt
 http://localhost:8000/api/health/
 ```
+
+Create a backend user first:
+
+```bash
+cd ../finance-api
+python manage.py createsuperuser
+```
+
+Then open the login page:
+
+```txt
+http://localhost:3000/login
+```
+
+For the local development version, JWT tokens are stored in browser
+`localStorage`. Before production deployment, move token handling to a safer
+cookie-based strategy.
 
 ## Verification
 
@@ -126,8 +145,8 @@ The user can enter the real-life balance for an account. The UI shows:
 ## Phase 1 Web Milestones
 
 1. Connect to backend health endpoint. Done.
-2. Login screen.
-3. Dashboard shell.
+2. Login screen. Done.
+3. Dashboard shell. Done.
 4. Accounts CRUD.
 5. Categories CRUD.
 6. Transaction table and form.

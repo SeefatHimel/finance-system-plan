@@ -64,17 +64,17 @@ The spreadsheet is a useful mental model, but the app should improve structure,
 validation, filtering, reports, and review workflows. Copying every spreadsheet
 layout detail would preserve old limitations.
 
-## How will login work?
+## How does login work?
 
-The web app will submit username/password to `/api/auth/login/`, store the
-access token carefully, use it for API calls, and refresh it through
-`/api/auth/refresh/`.
+The current web app submits username/password to `/api/auth/login/`, stores the
+returned JWT tokens for local development, and calls `/api/auth/me/` to show the
+signed-in user on the dashboard.
 
 ## Where should auth tokens be stored?
 
-For a production product, secure HTTP-only cookies are usually preferable. For
-early local development, token storage can be simpler, but the architecture
-should move toward safer storage before deployment.
+For production, secure HTTP-only cookies are usually preferable. The current
+local-development version uses browser `localStorage`, which is simple for this
+stage but should be hardened before deployment.
 
 ## How will the web app fetch data?
 
@@ -98,4 +98,3 @@ tables may need column hiding, horizontal scroll, or mobile-friendly list views.
 The transaction table. It needs to be dense like a spreadsheet but safer and
 more ergonomic than a spreadsheet, with validation, filters, quick edits, and no
 layout breakage on smaller screens.
-
