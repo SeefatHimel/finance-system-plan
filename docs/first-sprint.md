@@ -39,7 +39,9 @@ By the end of the first sprint:
 - Add Django REST Framework. Done.
 - Configure PostgreSQL. Done.
 - Add health endpoint. Done.
-- Create custom user model if desired.
+- Add JWT authentication endpoints. Done.
+- Create custom user model if desired. Skipped for now; using Django's default
+  user model for the first personal version.
 - Create account model and CRUD API. Done.
 - Create category model and CRUD API. Done.
 - Create transaction model and CRUD API. Done.

@@ -91,5 +91,26 @@ http://localhost:8000/api/docs/
 Run backend tests:
 
 ```bash
-python manage.py test apps.health apps.accounts apps.categories apps.transactions apps.reports
+python manage.py test apps.health apps.users apps.accounts apps.categories apps.transactions apps.reports
+```
+
+Create a local admin/user for testing:
+
+```bash
+python manage.py createsuperuser
+```
+
+Log in through the API:
+
+```bash
+curl -X POST http://localhost:8000/api/auth/login/ \
+  -H "Content-Type: application/json" \
+  -d '{"username":"YOUR_USERNAME","password":"YOUR_PASSWORD"}'
+```
+
+Use the returned access token on protected endpoints:
+
+```bash
+curl http://localhost:8000/api/auth/me/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```

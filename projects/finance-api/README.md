@@ -15,6 +15,7 @@ The API project is scaffolded with:
 - Account, category, and transaction models
 - Authenticated CRUD APIs for accounts, categories, and transactions
 - Basic monthly report endpoint
+- JWT login, refresh, and current-user endpoints
 
 ## Responsibilities
 
@@ -100,7 +101,7 @@ http://localhost:8000/api/docs/
 ## Verification
 
 ```bash
-python manage.py test apps.health apps.accounts apps.categories apps.transactions apps.reports
+python manage.py test apps.health apps.users apps.accounts apps.categories apps.transactions apps.reports
 ```
 
 ## Django Apps
@@ -137,6 +138,10 @@ reconciliation/
 
 ```txt
 GET    /api/health/
+POST   /api/auth/login/
+POST   /api/auth/refresh/
+GET    /api/auth/me/
+
 GET    /api/accounts/
 POST   /api/accounts/
 GET    /api/accounts/{id}/
@@ -161,6 +166,12 @@ GET    /api/docs/
 ```
 
 All finance endpoints except `/api/health/` require authentication.
+
+Use the access token as a Bearer token:
+
+```txt
+Authorization: Bearer <access-token>
+```
 
 ## Parser Design
 
@@ -191,7 +202,7 @@ confirms the candidate.
 ## Phase 1 Backend Milestones
 
 1. Health endpoint. Done.
-2. Auth.
+2. Auth. Done.
 3. Account CRUD. Done.
 4. Category CRUD. Done.
 5. Transaction CRUD. Done.

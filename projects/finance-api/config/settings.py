@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "apps.health",
     "apps.reports",
     "apps.transactions",
+    "apps.users",
 ]
 
 MIDDLEWARE = [
@@ -123,6 +124,13 @@ CORS_ALLOWED_ORIGINS = env_list(
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
 }
 
 SPECTACULAR_SETTINGS = {

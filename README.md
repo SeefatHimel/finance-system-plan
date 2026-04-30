@@ -119,3 +119,4 @@ mindmap
 - The first backend endpoint is `GET /api/health/`.
 - The first manual finance API loop is started with accounts, categories,
   transactions, and monthly reports.
+- JWT authentication is available for web and mobile clients.

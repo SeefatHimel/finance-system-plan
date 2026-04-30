@@ -36,7 +36,7 @@ GET    /api/health/
 
 POST   /api/auth/login/
 POST   /api/auth/refresh/
-POST   /api/auth/logout/
+GET    /api/auth/me/
 
 GET    /api/accounts/
 POST   /api/accounts/
@@ -76,4 +76,3 @@ GET    /api/reports/accounts/?month=YYYY-MM
 POST   /api/reconciliation/snapshots/
 GET    /api/reconciliation/differences/
 ```
-

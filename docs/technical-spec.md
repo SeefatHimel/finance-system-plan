@@ -334,6 +334,9 @@ The backend currently implements the first manual finance loop:
 
 ```txt
 GET    /api/health/
+POST   /api/auth/login/
+POST   /api/auth/refresh/
+GET    /api/auth/me/
 GET    /api/accounts/
 POST   /api/accounts/
 GET    /api/categories/
@@ -345,6 +348,12 @@ GET    /api/reports/monthly/?month=YYYY-MM
 
 The account, category, transaction, and report endpoints are authenticated and
 scoped to the current user.
+
+Authenticated requests use JWT Bearer tokens:
+
+```txt
+Authorization: Bearer <access-token>
+```
 
 ## Transaction Create Example
 
