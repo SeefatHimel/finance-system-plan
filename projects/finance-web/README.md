@@ -15,6 +15,7 @@ The web app is scaffolded with:
 - Dashboard session panel with sign out
 - Transactions page that loads accounts, categories, and transactions
 - Manual transaction creation form
+- Transaction filters for month, type, account, and category
 - Accounts page with account and category creation/listing
 - Monthly reports page with income, expense, net, category, and account totals
 
@@ -174,6 +175,6 @@ The user can enter the real-life balance for an account. The UI shows:
 3. Dashboard shell. Done.
 4. Accounts CRUD. Started.
 5. Categories CRUD. Started.
-6. Transaction table and form. Started.
+6. Transaction table and form. Started with filters.
 7. Monthly report. Started.
 8. Balance reconciliation screen.

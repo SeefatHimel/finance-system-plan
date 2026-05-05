@@ -36,8 +36,8 @@ user-approved senders.
 Right now the repo has the architecture docs, local PostgreSQL setup, JWT auth,
 account/category/transaction APIs, monthly reports, a Next.js dashboard, a web
 login flow, account/category setup screens, and an initial manual transaction
-page with a monthly report page. Next I would improve transaction filtering and
-report depth, then add payment methods and SMS sender tracking.
+page with filters and a monthly report page. Next I would improve report depth
+and reconciliation, then add payment methods and SMS sender tracking.
 
 ## Strong Technical Points To Mention
 
@@ -60,10 +60,10 @@ and report logic in the backend so the system can evolve.
 
 ## If Asked "What Would You Build Next?"
 
-I would improve the manual transaction workflow with filters, better form
-validation, and reconciliation. After that I would add payment methods, SMS
-sender rules, raw message import, and a review inbox. Then I would scaffold the
-Android app and connect it to the same auth and API contract.
+I would improve the manual transaction workflow with better form validation and
+reconciliation. After that I would add payment methods, SMS sender rules, raw
+message import, and a review inbox. Then I would scaffold the Android app and
+connect it to the same auth and API contract.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 

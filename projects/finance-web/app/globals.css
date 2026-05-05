@@ -289,6 +289,14 @@ textarea {
   margin-top: 18px;
 }
 
+.filter-form {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto auto;
+  margin: 18px 0;
+}
+
 .list-stack {
   display: grid;
   gap: 10px;
@@ -442,6 +450,7 @@ textarea {
   }
 
   .dashboard-grid,
+  .filter-form,
   .setup-form,
   .transaction-form,
   .metric-row {

@@ -103,6 +103,13 @@ export type CreateTransactionInput = {
   type: string;
 };
 
+export type TransactionFilters = {
+  account?: string;
+  category?: string;
+  month?: string;
+  type?: string;
+};
+
 export type CreateAccountInput = {
   currency?: "BDT";
   name: string;
@@ -250,8 +257,21 @@ export async function createCategory(
   return categorySchema.parse(await response.json());
 }
 
-export async function listTransactions(accessToken: string): Promise<Transaction[]> {
-  const response = await authenticatedFetch("/api/transactions/", accessToken);
+export async function listTransactions(
+  accessToken: string,
+  filters: TransactionFilters = {}
+): Promise<Transaction[]> {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.toString();
+  const path = query ? `/api/transactions/?${query}` : "/api/transactions/";
+  const response = await authenticatedFetch(path, accessToken);
   return collectionSchema(transactionSchema).parse(await response.json());
 }
 

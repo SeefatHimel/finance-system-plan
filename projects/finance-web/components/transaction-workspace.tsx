@@ -38,17 +38,27 @@ const transactionTypes = [
   "repayment_paid"
 ];
 
+function currentMonth() {
+  return new Date().toISOString().slice(0, 7);
+}
+
 const moneyFormatter = new Intl.NumberFormat("en-BD", {
   currency: "BDT",
   style: "currency"
 });
 
 export function TransactionWorkspace() {
+  const [filters, setFilters] = useState({
+    account: "",
+    category: "",
+    month: currentMonth(),
+    type: ""
+  });
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function loadData() {
+  async function loadData(activeFilters = filters) {
     const accessToken = getAccessToken();
 
     if (!accessToken) {
@@ -62,7 +72,7 @@ export function TransactionWorkspace() {
       const [accounts, categories, transactions] = await Promise.all([
         listAccounts(accessToken),
         listCategories(accessToken),
-        listTransactions(accessToken)
+        listTransactions(accessToken, activeFilters)
       ]);
 
       setLoadState({ accounts, categories, status: "ready", transactions });
@@ -77,6 +87,22 @@ export function TransactionWorkspace() {
   useEffect(() => {
     void loadData();
   }, []);
+
+  function handleFilterSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void loadData(filters);
+  }
+
+  function clearFilters() {
+    const clearedFilters = {
+      account: "",
+      category: "",
+      month: "",
+      type: ""
+    };
+    setFilters(clearedFilters);
+    void loadData(clearedFilters);
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -106,7 +132,7 @@ export function TransactionWorkspace() {
         type
       });
       event.currentTarget.reset();
-      await loadData();
+      await loadData(filters);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not create transaction.");
     } finally {
@@ -242,7 +268,86 @@ export function TransactionWorkspace() {
 
       <section className="panel">
         <div className="panel__body">
-          <h2 className="section-title">Recent transactions</h2>
+          <div className="report-header">
+            <div>
+              <h2 className="section-title">Transactions</h2>
+              <p className="section-subtitle">
+                Filter records by month, account, category, and type.
+              </p>
+            </div>
+          </div>
+
+          <form className="filter-form" onSubmit={handleFilterSubmit}>
+            <label className="field">
+              <span className="field__label">Month</span>
+              <input
+                className="field__control"
+                name="month"
+                onChange={(event) => setFilters({ ...filters, month: event.target.value })}
+                type="month"
+                value={filters.month}
+              />
+            </label>
+
+            <label className="field">
+              <span className="field__label">Type</span>
+              <select
+                className="field__control"
+                name="type"
+                onChange={(event) => setFilters({ ...filters, type: event.target.value })}
+                value={filters.type}
+              >
+                <option value="">All types</option>
+                {transactionTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type.replaceAll("_", " ")}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span className="field__label">Account</span>
+              <select
+                className="field__control"
+                name="account"
+                onChange={(event) => setFilters({ ...filters, account: event.target.value })}
+                value={filters.account}
+              >
+                <option value="">All accounts</option>
+                {loadState.accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span className="field__label">Category</span>
+              <select
+                className="field__control"
+                name="category"
+                onChange={(event) => setFilters({ ...filters, category: event.target.value })}
+                value={filters.category}
+              >
+                <option value="">All categories</option>
+                {loadState.categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button className="button button--primary" type="submit">
+              Apply filters
+            </button>
+            <button className="button button--ghost" onClick={clearFilters} type="button">
+              Clear
+            </button>
+          </form>
+
           <p className="section-subtitle">
             Showing records from the authenticated backend API.
           </p>
