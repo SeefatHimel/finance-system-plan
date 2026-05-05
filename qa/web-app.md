@@ -17,7 +17,7 @@ The web app has a Next.js scaffold, TypeScript setup, environment-based API URL,
 global styles, a dashboard shell, a server-rendered backend health check, a
 local JWT login flow, and a first transactions page for listing and creating
 manual transactions. It also has an accounts page for creating and listing
-accounts and categories.
+accounts and categories, plus a monthly reports page.
 
 ## Why start with a health-check dashboard?
 
@@ -72,6 +72,12 @@ transaction form and a recent transactions table.
 The current accounts page uses the saved local JWT access token to create and
 list accounts and categories. This completes the minimum setup loop needed
 before adding manual transactions.
+
+## What does the current reports page do?
+
+The current reports page calls the Django monthly report endpoint and shows
+income, expense, net total, category totals, and account movement for a selected
+month. This is the first web version of the spreadsheet's monthly summary view.
 
 ## Why not copy the spreadsheet exactly?
 

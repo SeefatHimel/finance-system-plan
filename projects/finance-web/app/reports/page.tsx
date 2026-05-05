@@ -1,34 +1,35 @@
 import Link from "next/link";
 
-import { TransactionWorkspace } from "@/components/transaction-workspace";
+import { ReportWorkspace } from "@/components/report-workspace";
 
-export default function TransactionsPage() {
+export default function ReportsPage() {
   return (
     <div className="page-shell">
       <header className="app-header">
         <div className="app-header__inner">
           <div className="brand">
             <span className="brand__name">Finance System</span>
-            <span className="brand__meta">Manual transaction workflow</span>
+            <span className="brand__meta">Monthly reports</span>
           </div>
           <nav className="nav" aria-label="Primary navigation">
             <Link className="nav__item" href="/">
               Dashboard
             </Link>
-            <span className="nav__item nav__item--active">Transactions</span>
+            <Link className="nav__item" href="/transactions">
+              Transactions
+            </Link>
             <Link className="nav__item" href="/accounts">
               Accounts
             </Link>
-            <Link className="nav__item" href="/reports">
-              Reports
-            </Link>
+            <span className="nav__item nav__item--active">Reports</span>
           </nav>
         </div>
       </header>
 
       <main className="main">
-        <TransactionWorkspace />
+        <ReportWorkspace />
       </main>
     </div>
   );
 }
+

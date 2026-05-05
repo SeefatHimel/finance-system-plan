@@ -19,7 +19,9 @@ export default function AccountsPage() {
               Transactions
             </Link>
             <span className="nav__item nav__item--active">Accounts</span>
-            <span className="nav__item">Review</span>
+            <Link className="nav__item" href="/reports">
+              Reports
+            </Link>
           </nav>
         </div>
       </header>
@@ -30,4 +32,3 @@ export default function AccountsPage() {
     </div>
   );
 }
-

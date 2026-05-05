@@ -84,7 +84,7 @@ By the end of the first sprint:
 7. Backend: transactions.
 8. Web: transaction table and create form.
 9. Backend: monthly summary.
-10. Web: dashboard summary.
+10. Web: dashboard summary. Started with `/reports`.
 
 ## Definition Of Done
 

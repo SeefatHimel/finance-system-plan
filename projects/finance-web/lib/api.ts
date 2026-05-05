@@ -41,6 +41,27 @@ const transactionSchema = z.object({
   type: z.string()
 });
 
+const monthlyReportSchema = z.object({
+  accounts: z.array(
+    z.object({
+      money_in: z.string(),
+      money_out: z.string(),
+      name: z.string()
+    })
+  ),
+  categories: z.array(
+    z.object({
+      amount: z.string(),
+      name: z.string()
+    })
+  ),
+  currency: z.string(),
+  expense_total: z.string(),
+  income_total: z.string(),
+  month: z.string(),
+  net_total: z.string()
+});
+
 const paginatedSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
   z.object({
     count: z.number(),
@@ -69,6 +90,7 @@ export type CurrentUser = z.infer<typeof currentUserSchema>;
 export type Account = z.infer<typeof accountSchema>;
 export type Category = z.infer<typeof categorySchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
+export type MonthlyReport = z.infer<typeof monthlyReportSchema>;
 
 export type CreateTransactionInput = {
   account: string;
@@ -249,4 +271,13 @@ export async function createTransaction(
   });
 
   return transactionSchema.parse(await response.json());
+}
+
+export async function getMonthlyReport(
+  accessToken: string,
+  month: string
+): Promise<MonthlyReport> {
+  const params = new URLSearchParams({ month });
+  const response = await authenticatedFetch(`/api/reports/monthly/?${params}`, accessToken);
+  return monthlyReportSchema.parse(await response.json());
 }

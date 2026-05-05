@@ -16,6 +16,7 @@ The web app is scaffolded with:
 - Transactions page that loads accounts, categories, and transactions
 - Manual transaction creation form
 - Accounts page with account and category creation/listing
+- Monthly reports page with income, expense, net, category, and account totals
 
 ## Responsibilities
 
@@ -104,6 +105,12 @@ http://localhost:3000/accounts
 Create at least one account before using the transaction form. Categories are
 optional but recommended for useful monthly reports.
 
+Monthly reports:
+
+```txt
+http://localhost:3000/reports
+```
+
 ## Verification
 
 ```bash
@@ -168,5 +175,5 @@ The user can enter the real-life balance for an account. The UI shows:
 4. Accounts CRUD. Started.
 5. Categories CRUD. Started.
 6. Transaction table and form. Started.
-7. Monthly report.
+7. Monthly report. Started.
 8. Balance reconciliation screen.

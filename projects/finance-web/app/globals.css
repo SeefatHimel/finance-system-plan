@@ -310,6 +310,19 @@ textarea {
   color: var(--muted);
 }
 
+.report-header {
+  align-items: end;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+.month-form {
+  align-items: end;
+  display: flex;
+  gap: 10px;
+}
+
 .table-wrap {
   margin-top: 18px;
   overflow-x: auto;
@@ -436,6 +449,12 @@ textarea {
   }
 
   .session-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .month-form,
+  .report-header {
     align-items: stretch;
     flex-direction: column;
   }

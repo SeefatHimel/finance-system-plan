@@ -160,6 +160,12 @@ http://localhost:3000/accounts
 Create at least one account before using the transaction form. Categories are
 optional but recommended for useful monthly reports.
 
+Monthly reports:
+
+```txt
+http://localhost:3000/reports
+```
+
 Run web checks:
 
 ```bash

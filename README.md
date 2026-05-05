@@ -126,3 +126,4 @@ mindmap
 - The web app has a local-development login flow for JWT auth.
 - The web app has a first manual transaction page connected to the backend API.
 - The web app can create and list accounts and categories.
+- The web app has a first monthly reports page.
