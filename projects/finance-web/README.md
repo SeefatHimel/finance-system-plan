@@ -15,6 +15,7 @@ The web app is scaffolded with:
 - Dashboard session panel with sign out
 - Transactions page that loads accounts, categories, and transactions
 - Manual transaction creation form
+- Accounts page with account and category creation/listing
 
 ## Responsibilities
 
@@ -94,9 +95,14 @@ Transactions page:
 http://localhost:3000/transactions
 ```
 
-The transaction workflow expects at least one account to exist. Create accounts
-and categories through the API or Django admin until the web management screens
-are added.
+Accounts and categories:
+
+```txt
+http://localhost:3000/accounts
+```
+
+Create at least one account before using the transaction form. Categories are
+optional but recommended for useful monthly reports.
 
 ## Verification
 
@@ -159,8 +165,8 @@ The user can enter the real-life balance for an account. The UI shows:
 1. Connect to backend health endpoint. Done.
 2. Login screen. Done.
 3. Dashboard shell. Done.
-4. Accounts CRUD.
-5. Categories CRUD.
+4. Accounts CRUD. Started.
+5. Categories CRUD. Started.
 6. Transaction table and form. Started.
 7. Monthly report.
 8. Balance reconciliation screen.

@@ -25,7 +25,9 @@ export default async function HomePage() {
             <Link className="nav__item" href="/transactions">
               Transactions
             </Link>
-            <span className="nav__item">Accounts</span>
+            <Link className="nav__item" href="/accounts">
+              Accounts
+            </Link>
             <span className="nav__item">Review</span>
           </nav>
         </div>

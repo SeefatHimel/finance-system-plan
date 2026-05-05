@@ -151,8 +151,14 @@ Manual transaction workflow:
 http://localhost:3000/transactions
 ```
 
-Create at least one account and optional categories through the backend API or
-Django admin before using the transaction form.
+Accounts and categories:
+
+```txt
+http://localhost:3000/accounts
+```
+
+Create at least one account before using the transaction form. Categories are
+optional but recommended for useful monthly reports.
 
 Run web checks:
 

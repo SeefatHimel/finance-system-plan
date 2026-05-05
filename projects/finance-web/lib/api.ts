@@ -81,6 +81,18 @@ export type CreateTransactionInput = {
   type: string;
 };
 
+export type CreateAccountInput = {
+  currency?: "BDT";
+  name: string;
+  starting_balance?: string;
+  type: string;
+};
+
+export type CreateCategoryInput = {
+  kind: string;
+  name: string;
+};
+
 export function getApiBaseUrl() {
   return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 }
@@ -176,9 +188,44 @@ export async function listAccounts(accessToken: string): Promise<Account[]> {
   return collectionSchema(accountSchema).parse(await response.json());
 }
 
+export async function createAccount(
+  accessToken: string,
+  input: CreateAccountInput
+): Promise<Account> {
+  const response = await authenticatedFetch("/api/accounts/", accessToken, {
+    body: JSON.stringify({
+      currency: input.currency ?? "BDT",
+      name: input.name,
+      starting_balance: input.starting_balance || "0.00",
+      type: input.type
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  return accountSchema.parse(await response.json());
+}
+
 export async function listCategories(accessToken: string): Promise<Category[]> {
   const response = await authenticatedFetch("/api/categories/", accessToken);
   return collectionSchema(categorySchema).parse(await response.json());
+}
+
+export async function createCategory(
+  accessToken: string,
+  input: CreateCategoryInput
+): Promise<Category> {
+  const response = await authenticatedFetch("/api/categories/", accessToken, {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  return categorySchema.parse(await response.json());
 }
 
 export async function listTransactions(accessToken: string): Promise<Transaction[]> {

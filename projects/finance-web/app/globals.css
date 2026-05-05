@@ -282,6 +282,34 @@ textarea {
   margin-top: 18px;
 }
 
+.setup-form {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.list-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.list-row {
+  align-items: center;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.list-row span,
+.muted-text {
+  color: var(--muted);
+}
+
 .table-wrap {
   margin-top: 18px;
   overflow-x: auto;
@@ -401,6 +429,7 @@ textarea {
   }
 
   .dashboard-grid,
+  .setup-form,
   .transaction-form,
   .metric-row {
     grid-template-columns: 1fr;

@@ -125,3 +125,4 @@ mindmap
 - The Next.js web app shell is started and can display backend health.
 - The web app has a local-development login flow for JWT auth.
 - The web app has a first manual transaction page connected to the backend API.
+- The web app can create and list accounts and categories.

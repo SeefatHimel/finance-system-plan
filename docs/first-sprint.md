@@ -56,7 +56,7 @@ By the end of the first sprint:
 - Add login screen. Done.
 - Add transaction list. Started.
 - Add transaction create form. Started.
-- Add accounts and categories management.
+- Add accounts and categories management. Started.
 
 ### Mobile
 
