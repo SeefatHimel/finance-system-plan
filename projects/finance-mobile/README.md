@@ -2,6 +2,46 @@
 
 React Native Android app for quick capture and SMS-based transaction tracking.
 
+## Current Status
+
+Phase 1 scaffold now includes:
+
+- Expo + React Native TypeScript setup.
+- Environment-based API base URL (`EXPO_PUBLIC_API_BASE_URL`).
+- Health check screen that calls `GET /api/health/`.
+
+## Local Run (Current)
+
+Prerequisites:
+
+- Node.js installed
+- Android Studio emulator running (or physical Android device)
+- Backend API running on `http://localhost:8000`
+
+Setup:
+
+```bash
+cp .env.example .env
+npm install
+npm run start
+```
+
+From Expo terminal:
+
+- Press `a` to open Android emulator.
+
+If using Android emulator, default API base URL in `.env.example` already uses:
+
+```txt
+http://10.0.2.2:8000
+```
+
+If using a physical device, replace it with your machine's LAN IP:
+
+```txt
+EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:8000
+```
+
 ## Responsibilities
 
 - Quick manual transaction entry.
@@ -64,9 +104,9 @@ Settings
 
 ## Phase 1 Mobile Milestones
 
-1. Android app skeleton.
+1. Android app skeleton. Done.
 2. Login.
-3. Backend health check.
+3. Backend health check. Done.
 4. Account/category fetch.
 5. Quick add transaction.
 6. Transaction list.
@@ -78,4 +118,3 @@ Settings
 3. Local raw message cache.
 4. Raw message sync.
 5. Review inbox.
-

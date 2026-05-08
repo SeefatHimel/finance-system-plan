@@ -60,9 +60,9 @@ By the end of the first sprint:
 
 ### Mobile
 
-- Create React Native Android project.
-- Configure API base URL for emulator/device.
-- Add health check screen.
+- Create React Native Android project. Done.
+- Configure API base URL for emulator/device. Done.
+- Add health check screen. Done.
 - Add login placeholder or token input for local testing.
 - Add quick transaction form after backend auth is ready.
 

@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "allowJs": false,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2022"],
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "types": ["react", "react-native"]
+  },
+  "extends": "expo/tsconfig.base"
+}

@@ -52,7 +52,7 @@ Expected response:
 Then:
 
 - Web app displays backend health. Done.
-- Mobile app displays backend health.
+- Mobile app displays backend health. Done with initial scaffold.
 
 ## Current Backend Setup
 
@@ -172,3 +172,36 @@ Run web checks:
 npm run typecheck
 npm run lint
 ```
+
+## Current Mobile Setup
+
+Start the mobile app:
+
+```bash
+cd ../finance-mobile
+cp .env.example .env
+npm install
+npm run start
+```
+
+From the Expo terminal, press `a` to launch Android emulator.
+
+The app starts with a health-check screen and calls:
+
+```txt
+GET /api/health/
+```
+
+Environment variable:
+
+```txt
+EXPO_PUBLIC_API_BASE_URL
+```
+
+Default value for Android emulator:
+
+```txt
+http://10.0.2.2:8000
+```
+
+For physical Android devices, set this value to your machine LAN IP.

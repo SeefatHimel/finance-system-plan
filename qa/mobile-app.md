@@ -29,6 +29,16 @@ Expo is easier for general mobile development, but automatic SMS access may
 require native Android modules. If Expo managed workflow cannot support the SMS
 requirements, the project should use bare React Native.
 
+Current implementation status: phase-1 uses Expo for fast setup and health/API
+validation. The project keeps the option open to move to bare React Native
+before phase-2 SMS features if required.
+
+## What is currently implemented in the mobile app?
+
+- Project scaffold with Expo + TypeScript.
+- Environment-based API base URL (`EXPO_PUBLIC_API_BASE_URL`).
+- Initial health-check screen that calls backend `GET /api/health/`.
+
 ## How will SMS tracking work?
 
 The user enables tracking for specific sender numbers or names. The app reads
@@ -86,4 +96,3 @@ transaction. The user can edit, confirm, or ignore it.
 The app can avoid sending the same device message repeatedly, but the backend
 should still perform duplicate detection using message hashes, timestamps,
 sender, body, and provider reference numbers.
-
