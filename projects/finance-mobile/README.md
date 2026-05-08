@@ -9,6 +9,8 @@ Phase 1 scaffold now includes:
 - Expo + React Native TypeScript setup.
 - Environment-based API base URL (`EXPO_PUBLIC_API_BASE_URL`).
 - Health check screen that calls `GET /api/health/`.
+- Login test flow that calls `POST /api/auth/login/`.
+- Access-token validation flow that calls `GET /api/auth/me/`.
 
 ## Local Run (Current)
 
@@ -105,7 +107,7 @@ Settings
 ## Phase 1 Mobile Milestones
 
 1. Android app skeleton. Done.
-2. Login.
+2. Login. Done with placeholder/testing flow.
 3. Backend health check. Done.
 4. Account/category fetch.
 5. Quick add transaction.

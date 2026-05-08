@@ -38,6 +38,8 @@ before phase-2 SMS features if required.
 - Project scaffold with Expo + TypeScript.
 - Environment-based API base URL (`EXPO_PUBLIC_API_BASE_URL`).
 - Initial health-check screen that calls backend `GET /api/health/`.
+- Login testing flow (`POST /api/auth/login/`).
+- Access token validation flow (`GET /api/auth/me/`).
 
 ## How will SMS tracking work?
 

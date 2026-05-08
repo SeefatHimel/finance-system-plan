@@ -192,6 +192,20 @@ The app starts with a health-check screen and calls:
 GET /api/health/
 ```
 
+It also includes a login test flow:
+
+```txt
+POST /api/auth/login/
+GET /api/auth/me/
+```
+
+Use a Django user created from the backend project:
+
+```bash
+cd ../finance-api
+python manage.py createsuperuser
+```
+
 Environment variable:
 
 ```txt
