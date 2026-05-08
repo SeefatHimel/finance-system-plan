@@ -122,6 +122,26 @@ export type CreateCategoryInput = {
   name: string;
 };
 
+export type UpdateAccountInput = {
+  name?: string;
+  type?: string;
+};
+
+export type UpdateCategoryInput = {
+  kind?: string;
+  name?: string;
+};
+
+export type UpdateTransactionInput = {
+  account?: string;
+  amount?: string;
+  category?: string | null;
+  date?: string;
+  note?: string;
+  transfer_account?: string | null;
+  type?: string;
+};
+
 export function getApiBaseUrl() {
   return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 }
@@ -243,6 +263,21 @@ export async function deleteAccount(accessToken: string, id: string): Promise<vo
   });
 }
 
+export async function updateAccount(
+  accessToken: string,
+  id: string,
+  input: UpdateAccountInput
+): Promise<Account> {
+  const response = await authenticatedFetch(`/api/accounts/${id}/`, accessToken, {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "PATCH"
+  });
+  return accountSchema.parse(await response.json());
+}
+
 export async function listCategories(accessToken: string): Promise<Category[]> {
   const response = await authenticatedFetch("/api/categories/", accessToken);
   return collectionSchema(categorySchema).parse(await response.json());
@@ -267,6 +302,21 @@ export async function deleteCategory(accessToken: string, id: string): Promise<v
   await authenticatedFetch(`/api/categories/${id}/`, accessToken, {
     method: "DELETE"
   });
+}
+
+export async function updateCategory(
+  accessToken: string,
+  id: string,
+  input: UpdateCategoryInput
+): Promise<Category> {
+  const response = await authenticatedFetch(`/api/categories/${id}/`, accessToken, {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "PATCH"
+  });
+  return categorySchema.parse(await response.json());
 }
 
 export async function listTransactions(
@@ -309,6 +359,21 @@ export async function deleteTransaction(accessToken: string, id: string): Promis
   await authenticatedFetch(`/api/transactions/${id}/`, accessToken, {
     method: "DELETE"
   });
+}
+
+export async function updateTransaction(
+  accessToken: string,
+  id: string,
+  input: UpdateTransactionInput
+): Promise<Transaction> {
+  const response = await authenticatedFetch(`/api/transactions/${id}/`, accessToken, {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "PATCH"
+  });
+  return transactionSchema.parse(await response.json());
 }
 
 export async function getMonthlyReport(

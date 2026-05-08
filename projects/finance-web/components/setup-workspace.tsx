@@ -12,7 +12,9 @@ import {
   deleteAccount,
   deleteCategory,
   listAccounts,
-  listCategories
+  listCategories,
+  updateAccount,
+  updateCategory
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 
@@ -39,8 +41,16 @@ export function SetupWorkspace() {
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [isSavingAccount, setIsSavingAccount] = useState(false);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [isUpdatingAccount, setIsUpdatingAccount] = useState(false);
+  const [isUpdatingCategory, setIsUpdatingCategory] = useState(false);
   const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
+  const [editingAccountId, setEditingAccountId] = useState("");
+  const [editingAccountName, setEditingAccountName] = useState("");
+  const [editingAccountType, setEditingAccountType] = useState("cash");
+  const [editingCategoryId, setEditingCategoryId] = useState("");
+  const [editingCategoryName, setEditingCategoryName] = useState("");
+  const [editingCategoryKind, setEditingCategoryKind] = useState("expense");
 
   async function loadData() {
     const accessToken = getAccessToken();
@@ -177,6 +187,78 @@ export function SetupWorkspace() {
     }
   }
 
+  function handleSelectAccount(accountId: string) {
+    setEditingAccountId(accountId);
+    const selected = setupState.status === "ready"
+      ? setupState.accounts.find((account) => account.id === accountId)
+      : null;
+    setEditingAccountName(selected?.name ?? "");
+    setEditingAccountType(selected?.type ?? "cash");
+  }
+
+  function handleSelectCategory(categoryId: string) {
+    setEditingCategoryId(categoryId);
+    const selected = setupState.status === "ready"
+      ? setupState.categories.find((category) => category.id === categoryId)
+      : null;
+    setEditingCategoryName(selected?.name ?? "");
+    setEditingCategoryKind(selected?.kind ?? "expense");
+  }
+
+  async function handleAccountUpdate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      setAccountError("Sign in before updating an account.");
+      return;
+    }
+    if (!editingAccountId) {
+      setAccountError("Select an account to edit.");
+      return;
+    }
+
+    setAccountError(null);
+    setIsUpdatingAccount(true);
+    try {
+      await updateAccount(accessToken, editingAccountId, {
+        name: editingAccountName,
+        type: editingAccountType
+      });
+      await loadData();
+    } catch (error) {
+      setAccountError(error instanceof Error ? error.message : "Could not update account.");
+    } finally {
+      setIsUpdatingAccount(false);
+    }
+  }
+
+  async function handleCategoryUpdate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      setCategoryError("Sign in before updating a category.");
+      return;
+    }
+    if (!editingCategoryId) {
+      setCategoryError("Select a category to edit.");
+      return;
+    }
+
+    setCategoryError(null);
+    setIsUpdatingCategory(true);
+    try {
+      await updateCategory(accessToken, editingCategoryId, {
+        kind: editingCategoryKind,
+        name: editingCategoryName
+      });
+      await loadData();
+    } catch (error) {
+      setCategoryError(error instanceof Error ? error.message : "Could not update category.");
+    } finally {
+      setIsUpdatingCategory(false);
+    }
+  }
+
   if (setupState.status === "loading") {
     return (
       <div className="panel">
@@ -267,6 +349,55 @@ export function SetupWorkspace() {
               ))
             )}
           </div>
+
+          <form className="setup-form" onSubmit={handleAccountUpdate}>
+            <label className="field">
+              <span className="field__label">Edit account</span>
+              <select
+                className="field__control"
+                onChange={(event) => handleSelectAccount(event.target.value)}
+                value={editingAccountId}
+              >
+                <option value="">Select account</option>
+                {setupState.accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="field__label">New name</span>
+              <input
+                className="field__control"
+                onChange={(event) => setEditingAccountName(event.target.value)}
+                required
+                type="text"
+                value={editingAccountName}
+              />
+            </label>
+            <label className="field">
+              <span className="field__label">New type</span>
+              <select
+                className="field__control"
+                onChange={(event) => setEditingAccountType(event.target.value)}
+                value={editingAccountType}
+              >
+                {accountTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type.replaceAll("_", " ")}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="button button--ghost"
+              disabled={isUpdatingAccount}
+              type="submit"
+            >
+              {isUpdatingAccount ? "Updating..." : "Update account"}
+            </button>
+          </form>
         </div>
       </section>
 
@@ -323,6 +454,55 @@ export function SetupWorkspace() {
               ))
             )}
           </div>
+
+          <form className="setup-form" onSubmit={handleCategoryUpdate}>
+            <label className="field">
+              <span className="field__label">Edit category</span>
+              <select
+                className="field__control"
+                onChange={(event) => handleSelectCategory(event.target.value)}
+                value={editingCategoryId}
+              >
+                <option value="">Select category</option>
+                {setupState.categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="field__label">New name</span>
+              <input
+                className="field__control"
+                onChange={(event) => setEditingCategoryName(event.target.value)}
+                required
+                type="text"
+                value={editingCategoryName}
+              />
+            </label>
+            <label className="field">
+              <span className="field__label">New kind</span>
+              <select
+                className="field__control"
+                onChange={(event) => setEditingCategoryKind(event.target.value)}
+                value={editingCategoryKind}
+              >
+                {categoryKinds.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {kind}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="button button--ghost"
+              disabled={isUpdatingCategory}
+              type="submit"
+            >
+              {isUpdatingCategory ? "Updating..." : "Update category"}
+            </button>
+          </form>
         </div>
       </section>
     </div>

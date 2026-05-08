@@ -15,9 +15,10 @@ The web app is scaffolded with:
 - Dashboard session panel with sign out
 - Transactions page that loads accounts, categories, and transactions
 - Manual transaction creation form
+- Manual transaction update form
 - Transaction deletion from the list
 - Transaction filters for month, type, account, and category
-- Accounts page with account and category creation/listing/deletion
+- Accounts page with account and category creation/listing/updating/deletion
 - Monthly reports page with income, expense, net, category, and account totals
 
 ## Responsibilities
@@ -174,8 +175,8 @@ The user can enter the real-life balance for an account. The UI shows:
 1. Connect to backend health endpoint. Done.
 2. Login screen. Done.
 3. Dashboard shell. Done.
-4. Accounts CRUD. Partial (create/list/delete done; edit pending).
-5. Categories CRUD. Partial (create/list/delete done; edit pending).
-6. Transaction table and form. Partial (create/list/filter/delete done; edit pending).
+4. Accounts CRUD. Done.
+5. Categories CRUD. Done.
+6. Transaction table and form. Done.
 7. Monthly report. Started.
 8. Balance reconciliation screen.
