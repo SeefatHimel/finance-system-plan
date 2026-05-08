@@ -51,7 +51,7 @@ export function ReportWorkspace() {
   }
 
   useEffect(() => {
-    void loadReport(month);
+    void loadReport(currentMonth());
   }, []);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -182,4 +182,3 @@ export function ReportWorkspace() {
     </div>
   );
 }
-

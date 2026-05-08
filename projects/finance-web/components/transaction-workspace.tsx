@@ -97,7 +97,34 @@ export function TransactionWorkspace() {
   }
 
   useEffect(() => {
-    void loadData();
+    const accessToken = getAccessToken();
+
+    if (!accessToken) {
+      setLoadState({ message: "Sign in before managing transactions.", status: "error" });
+      return;
+    }
+
+    setLoadState({ status: "loading" });
+
+    void Promise.all([
+      listAccounts(accessToken),
+      listCategories(accessToken),
+      listTransactions(accessToken, {
+        account: "",
+        category: "",
+        month: currentMonth(),
+        type: ""
+      })
+    ])
+      .then(([accounts, categories, transactions]) => {
+        setLoadState({ accounts, categories, status: "ready", transactions });
+      })
+      .catch((error) => {
+        setLoadState({
+          message: error instanceof Error ? error.message : "Could not load transactions.",
+          status: "error"
+        });
+      });
   }, []);
 
   function handleFilterSubmit(event: React.FormEvent<HTMLFormElement>) {
