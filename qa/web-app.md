@@ -66,7 +66,7 @@ like spreadsheet sign mode, ledger mode, and money-in/money-out mode.
 The current transactions page uses the saved local JWT access token to load
 accounts, categories, and transactions from the Django API. It provides a manual
 transaction form and a transaction table with filters for month, type, account,
-and category.
+and category. It also supports deleting a transaction row with confirmation.
 
 ## Why add transaction filters early?
 
@@ -77,8 +77,9 @@ checking entries and comparing the transaction table with monthly reports.
 ## What does the current accounts page do?
 
 The current accounts page uses the saved local JWT access token to create and
-list accounts and categories. This completes the minimum setup loop needed
-before adding manual transactions.
+list accounts and categories. It now also supports deleting accounts and
+categories, with backend constraints still preventing deletion when records are
+referenced by transactions.
 
 ## What does the current reports page do?
 

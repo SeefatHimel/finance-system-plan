@@ -54,9 +54,9 @@ By the end of the first sprint:
 - Configure API base URL. Done.
 - Add health check page or dashboard widget. Done.
 - Add login screen. Done.
-- Add transaction list. Started with filters.
-- Add transaction create form. Started.
-- Add accounts and categories management. Started.
+- Add transaction list. Done.
+- Add transaction create form. Done.
+- Add accounts and categories management. Done.
 
 ### Mobile
 

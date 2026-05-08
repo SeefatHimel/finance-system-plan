@@ -237,6 +237,12 @@ export async function createAccount(
   return accountSchema.parse(await response.json());
 }
 
+export async function deleteAccount(accessToken: string, id: string): Promise<void> {
+  await authenticatedFetch(`/api/accounts/${id}/`, accessToken, {
+    method: "DELETE"
+  });
+}
+
 export async function listCategories(accessToken: string): Promise<Category[]> {
   const response = await authenticatedFetch("/api/categories/", accessToken);
   return collectionSchema(categorySchema).parse(await response.json());
@@ -255,6 +261,12 @@ export async function createCategory(
   });
 
   return categorySchema.parse(await response.json());
+}
+
+export async function deleteCategory(accessToken: string, id: string): Promise<void> {
+  await authenticatedFetch(`/api/categories/${id}/`, accessToken, {
+    method: "DELETE"
+  });
 }
 
 export async function listTransactions(
@@ -291,6 +303,12 @@ export async function createTransaction(
   });
 
   return transactionSchema.parse(await response.json());
+}
+
+export async function deleteTransaction(accessToken: string, id: string): Promise<void> {
+  await authenticatedFetch(`/api/transactions/${id}/`, accessToken, {
+    method: "DELETE"
+  });
 }
 
 export async function getMonthlyReport(

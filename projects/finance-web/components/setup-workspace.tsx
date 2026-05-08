@@ -9,6 +9,8 @@ import {
   type Category,
   createAccount,
   createCategory,
+  deleteAccount,
+  deleteCategory,
   listAccounts,
   listCategories
 } from "@/lib/api";
@@ -37,6 +39,8 @@ export function SetupWorkspace() {
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [isSavingAccount, setIsSavingAccount] = useState(false);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
 
   async function loadData() {
     const accessToken = getAccessToken();
@@ -121,6 +125,58 @@ export function SetupWorkspace() {
     }
   }
 
+  async function handleDeleteAccount(account: Account) {
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      setAccountError("Sign in before deleting an account.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete account "${account.name}"? This fails if transactions still reference it.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setAccountError(null);
+    setDeletingAccountId(account.id);
+    try {
+      await deleteAccount(accessToken, account.id);
+      await loadData();
+    } catch (error) {
+      setAccountError(error instanceof Error ? error.message : "Could not delete account.");
+    } finally {
+      setDeletingAccountId(null);
+    }
+  }
+
+  async function handleDeleteCategory(category: Category) {
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      setCategoryError("Sign in before deleting a category.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete category "${category.name}"? This fails if transactions still reference it.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setCategoryError(null);
+    setDeletingCategoryId(category.id);
+    try {
+      await deleteCategory(accessToken, category.id);
+      await loadData();
+    } catch (error) {
+      setCategoryError(error instanceof Error ? error.message : "Could not delete category.");
+    } finally {
+      setDeletingCategoryId(null);
+    }
+  }
+
   if (setupState.status === "loading") {
     return (
       <div className="panel">
@@ -196,7 +252,17 @@ export function SetupWorkspace() {
               setupState.accounts.map((account) => (
                 <div className="list-row" key={account.id}>
                   <strong>{account.name}</strong>
-                  <span>{account.type.replaceAll("_", " ")}</span>
+                  <div className="list-row__actions">
+                    <span>{account.type.replaceAll("_", " ")}</span>
+                    <button
+                      className="button button--danger"
+                      disabled={deletingAccountId === account.id}
+                      onClick={() => void handleDeleteAccount(account)}
+                      type="button"
+                    >
+                      {deletingAccountId === account.id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -242,7 +308,17 @@ export function SetupWorkspace() {
               setupState.categories.map((category) => (
                 <div className="list-row" key={category.id}>
                   <strong>{category.name}</strong>
-                  <span>{category.kind}</span>
+                  <div className="list-row__actions">
+                    <span>{category.kind}</span>
+                    <button
+                      className="button button--danger"
+                      disabled={deletingCategoryId === category.id}
+                      onClick={() => void handleDeleteCategory(category)}
+                      type="button"
+                    >
+                      {deletingCategoryId === category.id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -252,4 +328,3 @@ export function SetupWorkspace() {
     </div>
   );
 }
-

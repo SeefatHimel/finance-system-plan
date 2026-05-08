@@ -178,6 +178,16 @@ textarea {
   background: #f3f6f1;
 }
 
+.button--danger {
+  background: #fee4e2;
+  border-color: #fecdca;
+  color: var(--danger);
+}
+
+.button--danger:hover {
+  background: #ffd6d2;
+}
+
 .session-card {
   align-items: center;
   background: #f7faf5;
@@ -316,6 +326,12 @@ textarea {
 .list-row span,
 .muted-text {
   color: var(--muted);
+}
+
+.list-row__actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 10px;
 }
 
 .report-header {

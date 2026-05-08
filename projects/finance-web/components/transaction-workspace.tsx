@@ -9,6 +9,7 @@ import {
   type Category,
   type Transaction,
   createTransaction,
+  deleteTransaction,
   listAccounts,
   listCategories,
   listTransactions
@@ -57,6 +58,7 @@ export function TransactionWorkspace() {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
 
   async function loadData(activeFilters = filters) {
     const accessToken = getAccessToken();
@@ -137,6 +139,31 @@ export function TransactionWorkspace() {
       setFormError(error instanceof Error ? error.message : "Could not create transaction.");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteTransaction(transaction: Transaction) {
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      setFormError("Sign in before deleting a transaction.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete ${transaction.type.replaceAll("_", " ")} transaction on ${transaction.date}?`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingTransactionId(transaction.id);
+    try {
+      await deleteTransaction(accessToken, transaction.id);
+      await loadData(filters);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Could not delete transaction.");
+    } finally {
+      setDeletingTransactionId(null);
     }
   }
 
@@ -367,6 +394,7 @@ export function TransactionWorkspace() {
                     <th>Category</th>
                     <th>Amount</th>
                     <th>Note</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -382,6 +410,16 @@ export function TransactionWorkspace() {
                       </td>
                       <td>{moneyFormatter.format(Number(transaction.amount))}</td>
                       <td>{transaction.note || "-"}</td>
+                      <td>
+                        <button
+                          className="button button--danger"
+                          disabled={deletingTransactionId === transaction.id}
+                          onClick={() => void handleDeleteTransaction(transaction)}
+                          type="button"
+                        >
+                          {deletingTransactionId === transaction.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
