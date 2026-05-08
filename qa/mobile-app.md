@@ -42,6 +42,7 @@ before phase-2 SMS features if required.
 - Access token validation flow (`GET /api/auth/me/`).
 - Account/category fetch flow (`GET /api/accounts/`, `GET /api/categories/`).
 - Quick add transaction flow (`POST /api/transactions/`).
+- Transaction list flow (`GET /api/transactions/`).
 
 ## How will SMS tracking work?
 

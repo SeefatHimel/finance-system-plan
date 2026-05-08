@@ -16,6 +16,8 @@ Phase 1 scaffold now includes:
   - `GET /api/categories/`
 - Quick add transaction form:
   - `POST /api/transactions/`
+- Transaction list flow:
+  - `GET /api/transactions/`
 
 ## Local Run (Current)
 
@@ -116,7 +118,7 @@ Settings
 3. Backend health check. Done.
 4. Account/category fetch. Done.
 5. Quick add transaction. Done.
-6. Transaction list.
+6. Transaction list. Done.
 
 ## Phase 2 Mobile Milestones
 

@@ -36,6 +36,21 @@ export type CreateTransactionInput = {
   type: string;
 };
 
+export type Transaction = {
+  account: string;
+  amount: string;
+  category: string | null;
+  created_at: string;
+  date: string;
+  id: string;
+  needs_review: boolean;
+  note: string;
+  source: string;
+  transfer_account: string | null;
+  type: string;
+  updated_at: string;
+};
+
 export type HealthResult = {
   error?: string;
   ok: boolean;
@@ -160,4 +175,9 @@ export async function createTransaction(
   if (!response.ok) {
     throw new Error(`Transaction create failed with HTTP ${response.status}.`);
   }
+}
+
+export async function listTransactions(accessToken: string): Promise<Transaction[]> {
+  const response = await authenticatedFetch("/api/transactions/", accessToken);
+  return (await response.json()) as Transaction[];
 }

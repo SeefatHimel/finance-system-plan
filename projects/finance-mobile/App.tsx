@@ -18,10 +18,12 @@ import {
   getCurrentUser,
   listAccounts,
   listCategories,
+  listTransactions,
   login,
   type Account,
   type Category,
-  type HealthResult
+  type HealthResult,
+  type Transaction
 } from "./src/api";
 
 type ViewState = "idle" | "loading" | "success" | "error";
@@ -47,12 +49,35 @@ export default function App() {
   const [txNote, setTxNote] = useState("");
   const [txState, setTxState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [txMessage, setTxMessage] = useState("");
+  const [listState, setListState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [listMessage, setListMessage] = useState("");
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   const loadHealth = async () => {
     setState("loading");
     const nextResult = await checkHealth();
     setResult(nextResult);
     setState(nextResult.ok ? "success" : "error");
+  };
+
+  const handleLoadTransactions = async () => {
+    if (!accessToken.trim()) {
+      setListState("error");
+      setListMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+
+    setListState("loading");
+    setListMessage("");
+    try {
+      const payload = await listTransactions(accessToken.trim());
+      setTransactions(payload);
+      setListState("ok");
+      setListMessage(`Loaded ${payload.length} transaction(s).`);
+    } catch (error) {
+      setListState("error");
+      setListMessage(error instanceof Error ? error.message : "Could not load transactions.");
+    }
   };
 
   const handleLogin = async () => {
@@ -325,6 +350,24 @@ export default function App() {
           {txState === "loading" ? <ActivityIndicator /> : null}
           {txState === "ok" ? <Text style={styles.okText}>{txMessage}</Text> : null}
           {txState === "error" ? <Text style={styles.errorText}>{txMessage}</Text> : null}
+
+          <Text style={styles.sectionTitle}>Transactions</Text>
+          <Pressable onPress={handleLoadTransactions} style={styles.buttonSecondary}>
+            <Text style={styles.buttonText}>Load Transactions</Text>
+          </Pressable>
+          {listState === "loading" ? <ActivityIndicator /> : null}
+          {listState === "ok" ? <Text style={styles.okText}>{listMessage}</Text> : null}
+          {listState === "error" ? <Text style={styles.errorText}>{listMessage}</Text> : null}
+
+          {transactions.length ? (
+            <View style={styles.listSection}>
+              {transactions.map((transaction) => (
+                <Text key={transaction.id} style={styles.listItem}>
+                  {transaction.date} | {transaction.type} | {transaction.amount} | {transaction.note || "No note"}
+                </Text>
+              ))}
+            </View>
+          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>

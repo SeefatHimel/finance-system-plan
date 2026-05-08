@@ -66,6 +66,7 @@ By the end of the first sprint:
 - Add login placeholder or token input for local testing. Done.
 - Add quick transaction form after backend auth is ready. Done.
 - Account/category fetch for authenticated user. Done.
+- Add transaction list for authenticated user. Done.
 
 ### Contracts
 
