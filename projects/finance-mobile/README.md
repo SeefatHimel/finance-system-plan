@@ -11,6 +11,9 @@ Phase 1 scaffold now includes:
 - Health check screen that calls `GET /api/health/`.
 - Login test flow that calls `POST /api/auth/login/`.
 - Access-token validation flow that calls `GET /api/auth/me/`.
+- Account and category fetch flow for authenticated users:
+  - `GET /api/accounts/`
+  - `GET /api/categories/`
 
 ## Local Run (Current)
 
@@ -109,7 +112,7 @@ Settings
 1. Android app skeleton. Done.
 2. Login. Done with placeholder/testing flow.
 3. Backend health check. Done.
-4. Account/category fetch.
+4. Account/category fetch. Done.
 5. Quick add transaction.
 6. Transaction list.
 

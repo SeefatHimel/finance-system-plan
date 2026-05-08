@@ -197,6 +197,8 @@ It also includes a login test flow:
 ```txt
 POST /api/auth/login/
 GET /api/auth/me/
+GET /api/accounts/
+GET /api/categories/
 ```
 
 Use a Django user created from the backend project:

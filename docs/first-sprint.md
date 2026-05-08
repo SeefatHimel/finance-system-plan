@@ -65,6 +65,7 @@ By the end of the first sprint:
 - Add health check screen. Done.
 - Add login placeholder or token input for local testing. Done.
 - Add quick transaction form after backend auth is ready.
+- Account/category fetch for authenticated user. Done.
 
 ### Contracts
 

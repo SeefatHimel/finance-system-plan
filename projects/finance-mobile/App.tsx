@@ -11,7 +11,17 @@ import {
   View
 } from "react-native";
 
-import { checkHealth, getApiBaseUrl, getCurrentUser, login, type HealthResult } from "./src/api";
+import {
+  checkHealth,
+  getApiBaseUrl,
+  getCurrentUser,
+  listAccounts,
+  listCategories,
+  login,
+  type Account,
+  type Category,
+  type HealthResult
+} from "./src/api";
 
 type ViewState = "idle" | "loading" | "success" | "error";
 
@@ -24,6 +34,10 @@ export default function App() {
   const [refreshToken, setRefreshToken] = useState("");
   const [authState, setAuthState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [authMessage, setAuthMessage] = useState("");
+  const [dataState, setDataState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [dataMessage, setDataMessage] = useState("");
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   const loadHealth = async () => {
     setState("loading");
@@ -65,6 +79,33 @@ export default function App() {
     } catch (error) {
       setAuthState("error");
       setAuthMessage(error instanceof Error ? error.message : "Token check failed.");
+    }
+  };
+
+  const handleLoadReferenceData = async () => {
+    if (!accessToken.trim()) {
+      setDataState("error");
+      setDataMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+
+    setDataState("loading");
+    setDataMessage("");
+
+    try {
+      const [nextAccounts, nextCategories] = await Promise.all([
+        listAccounts(accessToken.trim()),
+        listCategories(accessToken.trim())
+      ]);
+      setAccounts(nextAccounts);
+      setCategories(nextCategories);
+      setDataState("ok");
+      setDataMessage(
+        `Loaded ${nextAccounts.length} account(s) and ${nextCategories.length} categor${nextCategories.length === 1 ? "y" : "ies"}.`
+      );
+    } catch (error) {
+      setDataState("error");
+      setDataMessage(error instanceof Error ? error.message : "Could not load accounts/categories.");
     }
   };
 
@@ -142,6 +183,37 @@ export default function App() {
           {authState === "loading" ? <ActivityIndicator /> : null}
           {authState === "ok" ? <Text style={styles.okText}>{authMessage}</Text> : null}
           {authState === "error" ? <Text style={styles.errorText}>{authMessage}</Text> : null}
+
+          <Text style={styles.sectionTitle}>Reference Data</Text>
+          <Pressable onPress={handleLoadReferenceData} style={styles.buttonSecondary}>
+            <Text style={styles.buttonText}>Load Accounts & Categories</Text>
+          </Pressable>
+
+          {dataState === "loading" ? <ActivityIndicator /> : null}
+          {dataState === "ok" ? <Text style={styles.okText}>{dataMessage}</Text> : null}
+          {dataState === "error" ? <Text style={styles.errorText}>{dataMessage}</Text> : null}
+
+          {accounts.length ? (
+            <View style={styles.listSection}>
+              <Text style={styles.listTitle}>Accounts</Text>
+              {accounts.map((account) => (
+                <Text key={account.id} style={styles.listItem}>
+                  {account.name} ({account.type})
+                </Text>
+              ))}
+            </View>
+          ) : null}
+
+          {categories.length ? (
+            <View style={styles.listSection}>
+              <Text style={styles.listTitle}>Categories</Text>
+              {categories.map((category) => (
+                <Text key={category.id} style={styles.listItem}>
+                  {category.name} ({category.kind})
+                </Text>
+              ))}
+            </View>
+          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -202,6 +274,19 @@ const styles = StyleSheet.create({
   meta: {
     color: "#334155",
     fontSize: 13
+  },
+  listItem: {
+    color: "#0f172a",
+    fontSize: 13
+  },
+  listSection: {
+    gap: 4,
+    marginTop: 8
+  },
+  listTitle: {
+    color: "#0f172a",
+    fontSize: 14,
+    fontWeight: "700"
   },
   okText: {
     color: "#065f46",

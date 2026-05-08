@@ -15,6 +15,18 @@ export type CurrentUser = {
   username: string;
 };
 
+export type Account = {
+  id: string;
+  name: string;
+  type: string;
+};
+
+export type Category = {
+  id: string;
+  kind: string;
+  name: string;
+};
+
 export type HealthResult = {
   error?: string;
   ok: boolean;
@@ -81,4 +93,32 @@ export async function getCurrentUser(accessToken: string): Promise<CurrentUser> 
   }
 
   return (await response.json()) as CurrentUser;
+}
+
+async function authenticatedFetch(path: string, accessToken: string): Promise<Response> {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+
+  if (response.status === 401) {
+    throw new Error("Your session expired. Sign in again.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Request failed with HTTP ${response.status}.`);
+  }
+
+  return response;
+}
+
+export async function listAccounts(accessToken: string): Promise<Account[]> {
+  const response = await authenticatedFetch("/api/accounts/", accessToken);
+  return (await response.json()) as Account[];
+}
+
+export async function listCategories(accessToken: string): Promise<Category[]> {
+  const response = await authenticatedFetch("/api/categories/", accessToken);
+  return (await response.json()) as Category[];
 }

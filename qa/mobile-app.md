@@ -40,6 +40,7 @@ before phase-2 SMS features if required.
 - Initial health-check screen that calls backend `GET /api/health/`.
 - Login testing flow (`POST /api/auth/login/`).
 - Access token validation flow (`GET /api/auth/me/`).
+- Account/category fetch flow (`GET /api/accounts/`, `GET /api/categories/`).
 
 ## How will SMS tracking work?
 
