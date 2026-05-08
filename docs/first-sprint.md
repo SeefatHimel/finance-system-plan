@@ -64,7 +64,7 @@ By the end of the first sprint:
 - Configure API base URL for emulator/device. Done.
 - Add health check screen. Done.
 - Add login placeholder or token input for local testing. Done.
-- Add quick transaction form after backend auth is ready.
+- Add quick transaction form after backend auth is ready. Done.
 - Account/category fetch for authenticated user. Done.
 
 ### Contracts

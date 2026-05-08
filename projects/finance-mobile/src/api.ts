@@ -27,6 +27,15 @@ export type Category = {
   name: string;
 };
 
+export type CreateTransactionInput = {
+  account: string;
+  amount: string;
+  category?: string;
+  date: string;
+  note?: string;
+  type: string;
+};
+
 export type HealthResult = {
   error?: string;
   ok: boolean;
@@ -121,4 +130,34 @@ export async function listAccounts(accessToken: string): Promise<Account[]> {
 export async function listCategories(accessToken: string): Promise<Category[]> {
   const response = await authenticatedFetch("/api/categories/", accessToken);
   return (await response.json()) as Category[];
+}
+
+export async function createTransaction(
+  accessToken: string,
+  input: CreateTransactionInput
+): Promise<void> {
+  const response = await fetch(`${getApiBaseUrl()}/api/transactions/`, {
+    body: JSON.stringify({
+      account: input.account,
+      amount: input.amount,
+      category: input.category || null,
+      date: input.date,
+      note: input.note || "",
+      source: "mobile",
+      type: input.type
+    }),
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  if (response.status === 401) {
+    throw new Error("Your session expired. Sign in again.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Transaction create failed with HTTP ${response.status}.`);
+  }
 }

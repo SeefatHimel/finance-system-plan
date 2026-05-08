@@ -199,6 +199,7 @@ POST /api/auth/login/
 GET /api/auth/me/
 GET /api/accounts/
 GET /api/categories/
+POST /api/transactions/
 ```
 
 Use a Django user created from the backend project:

@@ -13,6 +13,7 @@ import {
 
 import {
   checkHealth,
+  createTransaction,
   getApiBaseUrl,
   getCurrentUser,
   listAccounts,
@@ -38,6 +39,14 @@ export default function App() {
   const [dataMessage, setDataMessage] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [txAccountId, setTxAccountId] = useState("");
+  const [txCategoryId, setTxCategoryId] = useState("");
+  const [txDate, setTxDate] = useState(new Date().toISOString().slice(0, 10));
+  const [txType, setTxType] = useState("expense");
+  const [txAmount, setTxAmount] = useState("");
+  const [txNote, setTxNote] = useState("");
+  const [txState, setTxState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [txMessage, setTxMessage] = useState("");
 
   const loadHealth = async () => {
     setState("loading");
@@ -99,6 +108,12 @@ export default function App() {
       ]);
       setAccounts(nextAccounts);
       setCategories(nextCategories);
+      if (!txAccountId && nextAccounts.length > 0) {
+        setTxAccountId(nextAccounts[0].id);
+      }
+      if (!txCategoryId && nextCategories.length > 0) {
+        setTxCategoryId(nextCategories[0].id);
+      }
       setDataState("ok");
       setDataMessage(
         `Loaded ${nextAccounts.length} account(s) and ${nextCategories.length} categor${nextCategories.length === 1 ? "y" : "ies"}.`
@@ -106,6 +121,41 @@ export default function App() {
     } catch (error) {
       setDataState("error");
       setDataMessage(error instanceof Error ? error.message : "Could not load accounts/categories.");
+    }
+  };
+
+  const handleQuickAddTransaction = async () => {
+    if (!accessToken.trim()) {
+      setTxState("error");
+      setTxMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+
+    if (!txAccountId.trim() || !txDate.trim() || !txType.trim() || !txAmount.trim()) {
+      setTxState("error");
+      setTxMessage("Account, date, type, and amount are required.");
+      return;
+    }
+
+    setTxState("loading");
+    setTxMessage("");
+
+    try {
+      await createTransaction(accessToken.trim(), {
+        account: txAccountId.trim(),
+        amount: txAmount.trim(),
+        category: txCategoryId.trim() || undefined,
+        date: txDate.trim(),
+        note: txNote.trim(),
+        type: txType.trim()
+      });
+      setTxState("ok");
+      setTxMessage("Transaction created.");
+      setTxAmount("");
+      setTxNote("");
+    } catch (error) {
+      setTxState("error");
+      setTxMessage(error instanceof Error ? error.message : "Could not create transaction.");
     }
   };
 
@@ -197,9 +247,11 @@ export default function App() {
             <View style={styles.listSection}>
               <Text style={styles.listTitle}>Accounts</Text>
               {accounts.map((account) => (
-                <Text key={account.id} style={styles.listItem}>
-                  {account.name} ({account.type})
-                </Text>
+                <Pressable key={account.id} onPress={() => setTxAccountId(account.id)}>
+                  <Text style={styles.listItem}>
+                    {account.name} ({account.type})
+                  </Text>
+                </Pressable>
               ))}
             </View>
           ) : null}
@@ -208,12 +260,71 @@ export default function App() {
             <View style={styles.listSection}>
               <Text style={styles.listTitle}>Categories</Text>
               {categories.map((category) => (
-                <Text key={category.id} style={styles.listItem}>
-                  {category.name} ({category.kind})
-                </Text>
+                <Pressable key={category.id} onPress={() => setTxCategoryId(category.id)}>
+                  <Text style={styles.listItem}>
+                    {category.name} ({category.kind})
+                  </Text>
+                </Pressable>
               ))}
             </View>
           ) : null}
+
+          <Text style={styles.sectionTitle}>Quick Add Transaction</Text>
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setTxAccountId}
+            placeholder="Account ID"
+            style={styles.input}
+            value={txAccountId}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setTxCategoryId}
+            placeholder="Category ID (optional)"
+            style={styles.input}
+            value={txCategoryId}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setTxDate}
+            placeholder="Date (YYYY-MM-DD)"
+            style={styles.input}
+            value={txDate}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setTxType}
+            placeholder="Type (expense/income/transfer...)"
+            style={styles.input}
+            value={txType}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="decimal-pad"
+            onChangeText={setTxAmount}
+            placeholder="Amount (e.g. 1200.00)"
+            style={styles.input}
+            value={txAmount}
+          />
+          <TextInput
+            autoCapitalize="sentences"
+            onChangeText={setTxNote}
+            placeholder="Note (optional)"
+            style={styles.input}
+            value={txNote}
+          />
+          <Pressable onPress={handleQuickAddTransaction} style={styles.button}>
+            <Text style={styles.buttonText}>Create Transaction</Text>
+          </Pressable>
+
+          {txState === "loading" ? <ActivityIndicator /> : null}
+          {txState === "ok" ? <Text style={styles.okText}>{txMessage}</Text> : null}
+          {txState === "error" ? <Text style={styles.errorText}>{txMessage}</Text> : null}
         </View>
       </ScrollView>
     </SafeAreaView>
