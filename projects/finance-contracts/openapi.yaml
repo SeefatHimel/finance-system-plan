@@ -1,0 +1,817 @@
+openapi: 3.0.3
+info:
+  title: Personal Finance API
+  version: 0.1.0
+  description: |
+    Initial shared API contract for finance backend, web, and mobile clients.
+servers:
+  - url: http://localhost:8000
+    description: Local development
+tags:
+  - name: Health
+  - name: Auth
+  - name: Accounts
+  - name: Categories
+  - name: Transactions
+  - name: Reports
+paths:
+  /api/health/:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /api/auth/login/:
+    post:
+      tags: [Auth]
+      summary: Obtain JWT access and refresh tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: JWT token pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/auth/refresh/:
+    post:
+      tags: [Auth]
+      summary: Refresh JWT access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Refreshed access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessToken'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/auth/me/:
+    get:
+      tags: [Auth]
+      summary: Get current authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/accounts/:
+    get:
+      tags: [Accounts]
+      summary: List accounts for current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Account list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Accounts]
+      summary: Create an account
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountCreateRequest'
+      responses:
+        '201':
+          description: Created account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/accounts/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Accounts]
+      summary: Retrieve an account
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Accounts]
+      summary: Update an account
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountPatchRequest'
+      responses:
+        '200':
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Accounts]
+      summary: Delete an account
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Account deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/categories/:
+    get:
+      tags: [Categories]
+      summary: List categories for current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Category list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Categories]
+      summary: Create a category
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreateRequest'
+      responses:
+        '201':
+          description: Created category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/categories/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Categories]
+      summary: Retrieve a category
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Category details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Categories]
+      summary: Update a category
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryPatchRequest'
+      responses:
+        '200':
+          description: Updated category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Categories]
+      summary: Delete a category
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Category deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/transactions/:
+    get:
+      tags: [Transactions]
+      summary: List transactions for current user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: month
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}$'
+          description: Filter by month in YYYY-MM format.
+        - in: query
+          name: account
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: category
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: type
+          schema:
+            $ref: '#/components/schemas/TransactionType'
+      responses:
+        '200':
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Transactions]
+      summary: Create a transaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionCreateRequest'
+      responses:
+        '201':
+          description: Created transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/transactions/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Transactions]
+      summary: Retrieve a transaction
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Transactions]
+      summary: Update a transaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionPatchRequest'
+      responses:
+        '200':
+          description: Updated transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Transactions]
+      summary: Delete a transaction
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Transaction deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/reports/monthly/:
+    get:
+      tags: [Reports]
+      summary: Get monthly totals by category and account movement
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: month
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}$'
+          description: Month in YYYY-MM format. Defaults to current month.
+      responses:
+        '200':
+          description: Monthly report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyReport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    UuidPathId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    UnauthorizedError:
+      description: Authentication credentials were not provided or are invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorObject'
+    NotFoundError:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorObject'
+    ValidationError:
+      description: Request validation failed.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ErrorObject'
+              - type: object
+                additionalProperties:
+                  oneOf:
+                    - type: string
+                    - type: array
+                      items:
+                        type: string
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+    ErrorObject:
+      type: object
+      properties:
+        detail:
+          type: string
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+    RefreshRequest:
+      type: object
+      required: [refresh]
+      properties:
+        refresh:
+          type: string
+    TokenPair:
+      type: object
+      required: [access, refresh]
+      properties:
+        access:
+          type: string
+        refresh:
+          type: string
+    AccessToken:
+      type: object
+      required: [access]
+      properties:
+        access:
+          type: string
+    User:
+      type: object
+      required: [id, username, email, first_name, last_name]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+        last_name:
+          type: string
+    AccountType:
+      type: string
+      enum: [cash, home_cash, mobile_wallet, bank, credit_card, savings, other]
+    CategoryKind:
+      type: string
+      enum: [expense, income, transfer, debt, system]
+    TransactionType:
+      type: string
+      enum:
+        - expense
+        - income
+        - transfer
+        - adjustment
+        - fee
+        - refund
+        - lend
+        - borrow
+        - repayment_received
+        - repayment_paid
+    TransactionSource:
+      type: string
+      enum: [web, mobile, sms, import, system]
+    Account:
+      type: object
+      required:
+        [id, name, type, currency, starting_balance, is_active, display_order, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 120
+        type:
+          $ref: '#/components/schemas/AccountType'
+        currency:
+          type: string
+          maxLength: 3
+          default: BDT
+        starting_balance:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "0.00"
+        is_active:
+          type: boolean
+        display_order:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AccountCreateRequest:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        type:
+          $ref: '#/components/schemas/AccountType'
+        currency:
+          type: string
+          maxLength: 3
+          default: BDT
+        starting_balance:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "0.00"
+        is_active:
+          type: boolean
+          default: true
+        display_order:
+          type: integer
+          minimum: 0
+          default: 0
+    AccountPatchRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        type:
+          $ref: '#/components/schemas/AccountType'
+        currency:
+          type: string
+          maxLength: 3
+        starting_balance:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        is_active:
+          type: boolean
+        display_order:
+          type: integer
+          minimum: 0
+    Category:
+      type: object
+      required: [id, name, kind, parent, is_active, display_order, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 120
+        kind:
+          $ref: '#/components/schemas/CategoryKind'
+        parent:
+          type: string
+          format: uuid
+          nullable: true
+        is_active:
+          type: boolean
+        display_order:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CategoryCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        kind:
+          $ref: '#/components/schemas/CategoryKind'
+        parent:
+          type: string
+          format: uuid
+          nullable: true
+        is_active:
+          type: boolean
+          default: true
+        display_order:
+          type: integer
+          minimum: 0
+          default: 0
+    CategoryPatchRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        kind:
+          $ref: '#/components/schemas/CategoryKind'
+        parent:
+          type: string
+          format: uuid
+          nullable: true
+        is_active:
+          type: boolean
+        display_order:
+          type: integer
+          minimum: 0
+    Transaction:
+      type: object
+      required:
+        [id, account, transfer_account, category, date, type, amount, note, source, needs_review, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+        transfer_account:
+          type: string
+          format: uuid
+          nullable: true
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        date:
+          type: string
+          format: date
+        type:
+          $ref: '#/components/schemas/TransactionType'
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "1200.00"
+        note:
+          type: string
+        source:
+          $ref: '#/components/schemas/TransactionSource'
+        needs_review:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TransactionCreateRequest:
+      type: object
+      required: [account, date, type, amount]
+      properties:
+        account:
+          type: string
+          format: uuid
+        transfer_account:
+          type: string
+          format: uuid
+          nullable: true
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        date:
+          type: string
+          format: date
+        type:
+          $ref: '#/components/schemas/TransactionType'
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "1200.00"
+        note:
+          type: string
+          default: ""
+        source:
+          $ref: '#/components/schemas/TransactionSource'
+        needs_review:
+          type: boolean
+          default: false
+    TransactionPatchRequest:
+      type: object
+      properties:
+        account:
+          type: string
+          format: uuid
+        transfer_account:
+          type: string
+          format: uuid
+          nullable: true
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        date:
+          type: string
+          format: date
+        type:
+          $ref: '#/components/schemas/TransactionType'
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        note:
+          type: string
+        source:
+          $ref: '#/components/schemas/TransactionSource'
+        needs_review:
+          type: boolean
+    CategoryTotal:
+      type: object
+      required: [name, amount]
+      properties:
+        name:
+          type: string
+        amount:
+          type: string
+          example: "2500.00"
+    AccountReportTotal:
+      type: object
+      required: [name, money_in, money_out]
+      properties:
+        name:
+          type: string
+        money_in:
+          type: string
+          example: "50000.00"
+        money_out:
+          type: string
+          example: "21000.00"
+    MonthlyReport:
+      type: object
+      required: [month, currency, income_total, expense_total, net_total, categories, accounts]
+      properties:
+        month:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+        currency:
+          type: string
+          example: BDT
+        income_total:
+          type: string
+          example: "50000.00"
+        expense_total:
+          type: string
+          example: "21000.00"
+        net_total:
+          type: string
+          example: "29000.00"
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryTotal'
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountReportTotal'

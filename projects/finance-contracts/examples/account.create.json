@@ -1,0 +1,8 @@
+{
+  "name": "City Bank",
+  "type": "bank",
+  "currency": "BDT",
+  "starting_balance": "25000.00",
+  "is_active": true,
+  "display_order": 1
+}

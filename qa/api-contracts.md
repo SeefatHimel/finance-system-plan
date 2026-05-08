@@ -30,8 +30,18 @@ backward-compatible way, and keep changelogs for contract changes.
 
 ## What is the current contract state?
 
-The contracts README sketches the intended endpoints. The backend also exposes
-OpenAPI docs through `drf-spectacular` at `/api/schema/` and `/api/docs/`.
+The contracts project now includes `projects/finance-contracts/openapi.yaml`
+covering current phase-1 backend endpoints:
+
+- Health
+- Auth (`login`, `refresh`, `me`)
+- Accounts CRUD
+- Categories CRUD
+- Transactions CRUD and list filters
+- Monthly report
+
+The backend also exposes generated OpenAPI docs through `drf-spectacular` at
+`/api/schema/` and `/api/docs/`.
 
 ## Why is contract-first thinking useful here?
 
@@ -41,14 +51,17 @@ clients.
 
 ## What examples should be added?
 
-Useful examples:
+Current examples are available in `projects/finance-contracts/examples/`:
+
+- `account.create.json`
+- `category.create.json`
+- `transaction.create.json`
+- `transaction.list.response.json`
+- `report.monthly.response.json`
+
+Next useful additions:
 
 - Login request/response
-- Create account
-- Create category
-- Create transaction
-- Monthly report response
-- Import raw SMS
-- Confirm parsed message
-- Create debt and repayment
-
+- Auth `me` response
+- Validation error payload examples
+- Transfer transaction create example

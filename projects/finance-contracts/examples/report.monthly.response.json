@@ -1,0 +1,29 @@
+{
+  "month": "2026-05",
+  "currency": "BDT",
+  "income_total": "50000.00",
+  "expense_total": "21000.00",
+  "net_total": "29000.00",
+  "categories": [
+    {
+      "name": "Groceries",
+      "amount": "6200.00"
+    },
+    {
+      "name": "Salary",
+      "amount": "50000.00"
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Bkash",
+      "money_in": "0.00",
+      "money_out": "4200.00"
+    },
+    {
+      "name": "City Bank",
+      "money_in": "50000.00",
+      "money_out": "16800.00"
+    }
+  ]
+}

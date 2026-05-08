@@ -1,0 +1,7 @@
+{
+  "name": "Groceries",
+  "kind": "expense",
+  "parent": null,
+  "is_active": true,
+  "display_order": 10
+}

@@ -10,14 +10,16 @@ Shared API contract and integration documentation.
 - Generated clients later.
 - Contract changelog.
 
-## Files To Add Later
+## Current Files
 
 ```txt
 openapi.yaml
 examples/
+  account.create.json
+  category.create.json
   transaction.create.json
-  message.import.json
-  report.monthly.json
+  transaction.list.response.json
+  report.monthly.response.json
 CHANGELOG.md
 ```
 

@@ -1,0 +1,11 @@
+{
+  "account": "1a3d92d0-f97f-4faf-a855-d68589bf26f2",
+  "transfer_account": null,
+  "category": "83bb8f20-a319-4bd0-b771-0d79778ec8a8",
+  "date": "2026-05-01",
+  "type": "expense",
+  "amount": "1200.00",
+  "note": "Groceries",
+  "source": "web",
+  "needs_review": false
+}
