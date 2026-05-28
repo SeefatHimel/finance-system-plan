@@ -37,6 +37,8 @@ covering current phase-1 backend endpoints:
 - Auth (`login`, `refresh`, `me`)
 - Accounts CRUD
 - Categories CRUD
+- Payment methods CRUD
+- SMS sender rules CRUD
 - Transactions CRUD and list filters
 - Monthly report
 
@@ -55,6 +57,8 @@ Current examples are available in `projects/finance-contracts/examples/`:
 
 - `account.create.json`
 - `category.create.json`
+- `payment-method.create.json`
+- `sender-rule.create.json`
 - `transaction.create.json`
 - `transaction.list.response.json`
 - `report.monthly.response.json`

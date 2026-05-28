@@ -1,0 +1,106 @@
+# Next Steps Checklist
+
+Last updated: 2026-05-29
+
+## Current Snapshot
+
+- Sprint 1 implementation scope is complete.
+- Docker support is added for API, web, and optional mobile profile.
+- Next milestone is Phase 2 kickoff (payment methods + SMS sender management).
+
+## Done (Checked)
+
+### Sprint 1 Foundations
+
+- [x] Workspace structure created (`finance-api`, `finance-web`, `finance-mobile`, `finance-infra`, `finance-contracts`)
+- [x] PostgreSQL local setup with Docker Compose
+- [x] Django API scaffold and health endpoint
+- [x] JWT auth endpoints (`login`, `refresh`, `me`)
+- [x] Accounts, categories, transactions CRUD APIs
+- [x] Monthly reports endpoint
+- [x] Backend API tests for health/users/accounts/categories/transactions/reports
+
+### Web App
+
+- [x] Login flow + session panel
+- [x] Transactions create/list/filter
+- [x] Transactions update/delete
+- [x] Accounts create/list/update/delete
+- [x] Categories create/list/update/delete
+- [x] Monthly report screen
+
+### Mobile App
+
+- [x] Expo + TypeScript scaffold
+- [x] Health check flow
+- [x] Login and token validation flow
+- [x] Account/category fetch flow
+- [x] Quick transaction create flow
+- [x] Transaction list flow
+
+### Contracts
+
+- [x] Initial `openapi.yaml` added
+- [x] Account/category/transaction/report examples added
+- [x] Payment method and sender rule contract fields added
+- [x] Contract Q&A updated
+
+### Phase 2 Kickoff
+
+- [x] Define payment method model + API contract fields
+- [x] Define SMS sender rule model + API contract fields
+- [x] Add backend migrations and CRUD endpoints for payment methods
+- [x] Add backend migrations and CRUD endpoints for sender rules
+
+### Docker Runtime Support
+
+- [x] API Dockerfile + `.dockerignore`
+- [x] Web Dockerfile + `.dockerignore`
+- [x] Mobile Dockerfile + `.dockerignore`
+- [x] Compose stack updated for `postgres`, `finance-api`, `finance-web`
+- [x] Optional compose profile for `finance-mobile`
+- [x] Docker setup docs updated across infra + local setup + project READMEs
+
+## Pending (Unchecked)
+
+### Sprint 1 Closure (Operational)
+
+- [ ] Run `docker compose config` validation in an environment where Docker CLI is available
+- [ ] Smoke run full Docker stack locally (`postgres + finance-api + finance-web`)
+- [ ] Confirm optional mobile profile startup in Docker (`--profile mobile`)
+- [ ] Group and commit checkpoints in clean commit sequence
+
+### Phase 2 Kickoff
+
+- [ ] Add raw message import endpoint and duplicate-detection baseline
+- [ ] Add web management screens for payment methods and sender rules
+- [ ] Add mobile sender selection UI + permission gate scaffold
+
+## Verification Matrix
+
+- [x] Backend tests:
+  - Command: `python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports`
+  - Result: pass
+- [x] Web typecheck:
+  - Command: `npm run typecheck`
+  - Result: pass
+- [x] Web lint:
+  - Command: `npm run lint`
+  - Result: pass
+- [ ] Compose config validation:
+  - Command: `docker compose config`
+  - Result: blocked in current environment (no Docker CLI available)
+
+## Checkpoint Commit Messages
+
+- `contracts: add initial OpenAPI spec and phase-1 API examples`
+- `mobile: scaffold expo app and add backend health check flow`
+- `mobile: add jwt login placeholder and token validation flow`
+- `mobile: add authenticated account and category fetch flow`
+- `mobile: add quick transaction create flow with authenticated api submit`
+- `mobile: add authenticated transaction list flow`
+- `web: add delete actions for accounts categories and transactions`
+- `web: add account category and transaction update flows`
+- `web: resolve remaining hook lint warnings and complete sprint-1 verification`
+- `infra: add docker support for api web and optional mobile with full setup docs`
+- `api: add payment methods and sms sender rule management`

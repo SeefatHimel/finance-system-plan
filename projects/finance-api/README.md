@@ -14,6 +14,7 @@ The API project is scaffolded with:
 - Health endpoint test
 - Account, category, and transaction models
 - Authenticated CRUD APIs for accounts, categories, and transactions
+- Authenticated CRUD APIs for payment methods and SMS sender rules
 - Basic monthly report endpoint
 - JWT login, refresh, and current-user endpoints
 
@@ -112,7 +113,7 @@ The API service runs migrations on startup and then serves on port `8000`.
 ## Verification
 
 ```bash
-python manage.py test apps.health apps.users apps.accounts apps.categories apps.transactions apps.reports
+python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports
 ```
 
 ## Django Apps
@@ -164,6 +165,18 @@ POST   /api/categories/
 GET    /api/categories/{id}/
 PATCH  /api/categories/{id}/
 DELETE /api/categories/{id}/
+
+GET    /api/payment-methods/
+POST   /api/payment-methods/
+GET    /api/payment-methods/{id}/
+PATCH  /api/payment-methods/{id}/
+DELETE /api/payment-methods/{id}/
+
+GET    /api/messages/sender-rules/
+POST   /api/messages/sender-rules/
+GET    /api/messages/sender-rules/{id}/
+PATCH  /api/messages/sender-rules/{id}/
+DELETE /api/messages/sender-rules/{id}/
 
 GET    /api/transactions/
 POST   /api/transactions/

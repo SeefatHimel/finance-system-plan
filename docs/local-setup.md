@@ -3,6 +3,8 @@
 This document describes the intended local development setup. The actual
 projects will be scaffolded in later steps.
 
+Execution tracker: see `docs/next-steps-checklist.md` for current done/pending status.
+
 ## Required Tools
 
 - Git
@@ -126,7 +128,7 @@ http://localhost:8000/api/docs/
 Run backend tests:
 
 ```bash
-python manage.py test apps.health apps.users apps.accounts apps.categories apps.transactions apps.reports
+python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports
 ```
 
 Create a local admin/user for testing:

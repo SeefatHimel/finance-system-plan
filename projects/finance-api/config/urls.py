@@ -7,12 +7,16 @@ from rest_framework.routers import DefaultRouter
 
 from apps.accounts.views import AccountViewSet
 from apps.categories.views import CategoryViewSet
+from apps.messages.views import SenderRuleViewSet
+from apps.payment_methods.views import PaymentMethodViewSet
 from apps.transactions.views import TransactionViewSet
 
 
 router = DefaultRouter()
 router.register("accounts", AccountViewSet, basename="account")
 router.register("categories", CategoryViewSet, basename="category")
+router.register("payment-methods", PaymentMethodViewSet, basename="payment-method")
+router.register("messages/sender-rules", SenderRuleViewSet, basename="sender-rule")
 router.register("transactions", TransactionViewSet, basename="transaction")
 
 

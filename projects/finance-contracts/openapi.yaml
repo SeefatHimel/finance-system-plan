@@ -12,6 +12,8 @@ tags:
   - name: Auth
   - name: Accounts
   - name: Categories
+  - name: Payment Methods
+  - name: Sender Rules
   - name: Transactions
   - name: Reports
 paths:
@@ -263,6 +265,194 @@ paths:
       responses:
         '204':
           description: Category deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/payment-methods/:
+    get:
+      tags: [Payment Methods]
+      summary: List payment methods for current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Payment method list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentMethod'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Payment Methods]
+      summary: Create a payment method
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentMethodCreateRequest'
+      responses:
+        '201':
+          description: Created payment method
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethod'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/payment-methods/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Payment Methods]
+      summary: Retrieve a payment method
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Payment method details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethod'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Payment Methods]
+      summary: Update a payment method
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentMethodPatchRequest'
+      responses:
+        '200':
+          description: Updated payment method
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethod'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Payment Methods]
+      summary: Delete a payment method
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Payment method deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/messages/sender-rules/:
+    get:
+      tags: [Sender Rules]
+      summary: List SMS sender rules for current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sender rule list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SenderRule'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Sender Rules]
+      summary: Create an SMS sender rule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SenderRuleCreateRequest'
+      responses:
+        '201':
+          description: Created sender rule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SenderRule'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/messages/sender-rules/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Sender Rules]
+      summary: Retrieve an SMS sender rule
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sender rule details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SenderRule'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Sender Rules]
+      summary: Update an SMS sender rule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SenderRulePatchRequest'
+      responses:
+        '200':
+          description: Updated sender rule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SenderRule'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Sender Rules]
+      summary: Delete an SMS sender rule
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Sender rule deleted
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
@@ -528,6 +718,15 @@ components:
     TransactionSource:
       type: string
       enum: [web, mobile, sms, import, system]
+    PaymentProvider:
+      type: string
+      enum: [cash, bkash, nagad, rocket, city_bank, bank, card, manual, other]
+    SenderRuleProvider:
+      type: string
+      enum: [bkash, nagad, rocket, city_bank, bank, card, other]
+    SenderRuleMatchType:
+      type: string
+      enum: [exact, contains, regex]
     Account:
       type: object
       required:
@@ -603,6 +802,186 @@ components:
         display_order:
           type: integer
           minimum: 0
+    PaymentMethod:
+      type: object
+      required:
+        [id, account, name, provider, identifier, is_active, display_order, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 120
+        provider:
+          $ref: '#/components/schemas/PaymentProvider'
+        identifier:
+          type: string
+          maxLength: 120
+          description: Optional masked phone, card suffix, bank nickname, or other user-safe identifier.
+        is_active:
+          type: boolean
+        display_order:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PaymentMethodCreateRequest:
+      type: object
+      required: [account, name, provider]
+      properties:
+        account:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 120
+        provider:
+          $ref: '#/components/schemas/PaymentProvider'
+        identifier:
+          type: string
+          maxLength: 120
+          default: ""
+        is_active:
+          type: boolean
+          default: true
+        display_order:
+          type: integer
+          minimum: 0
+          default: 0
+    PaymentMethodPatchRequest:
+      type: object
+      properties:
+        account:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 120
+        provider:
+          $ref: '#/components/schemas/PaymentProvider'
+        identifier:
+          type: string
+          maxLength: 120
+        is_active:
+          type: boolean
+        display_order:
+          type: integer
+          minimum: 0
+    SenderRule:
+      type: object
+      required:
+        [id, account, payment_method, name, provider, sender, match_type, pattern, priority, is_active, notes, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+        payment_method:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          maxLength: 120
+        provider:
+          $ref: '#/components/schemas/SenderRuleProvider'
+        sender:
+          type: string
+          maxLength: 120
+        match_type:
+          $ref: '#/components/schemas/SenderRuleMatchType'
+        pattern:
+          type: string
+          maxLength: 255
+          description: Optional matching pattern, especially for contains or regex rules.
+        priority:
+          type: integer
+          minimum: 0
+        is_active:
+          type: boolean
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    SenderRuleCreateRequest:
+      type: object
+      required: [account, name, provider, sender]
+      properties:
+        account:
+          type: string
+          format: uuid
+        payment_method:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          maxLength: 120
+        provider:
+          $ref: '#/components/schemas/SenderRuleProvider'
+        sender:
+          type: string
+          maxLength: 120
+        match_type:
+          $ref: '#/components/schemas/SenderRuleMatchType'
+        pattern:
+          type: string
+          maxLength: 255
+          default: ""
+        priority:
+          type: integer
+          minimum: 0
+          default: 100
+        is_active:
+          type: boolean
+          default: true
+        notes:
+          type: string
+          default: ""
+    SenderRulePatchRequest:
+      type: object
+      properties:
+        account:
+          type: string
+          format: uuid
+        payment_method:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          maxLength: 120
+        provider:
+          $ref: '#/components/schemas/SenderRuleProvider'
+        sender:
+          type: string
+          maxLength: 120
+        match_type:
+          $ref: '#/components/schemas/SenderRuleMatchType'
+        pattern:
+          type: string
+          maxLength: 255
+        priority:
+          type: integer
+          minimum: 0
+        is_active:
+          type: boolean
+        notes:
+          type: string
     Category:
       type: object
       required: [id, name, kind, parent, is_active, display_order, created_at, updated_at]

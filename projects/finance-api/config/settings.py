@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.categories",
     "apps.health",
+    "apps.messages",
+    "apps.payment_methods",
     "apps.reports",
     "apps.transactions",
     "apps.users",

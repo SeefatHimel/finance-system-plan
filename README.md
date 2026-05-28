@@ -40,6 +40,7 @@ access control between backend, mobile, and web teams.
 - [Technical Spec](docs/technical-spec.md)
 - [Roadmap](docs/roadmap.md)
 - [First Sprint Plan](docs/first-sprint.md)
+- [Next Steps Checklist](docs/next-steps-checklist.md)
 - [Decisions And Questions](docs/decisions-and-questions.md)
 - [Local Setup](docs/local-setup.md)
 - [Git Workflow](docs/git-workflow.md)
@@ -122,6 +123,8 @@ mindmap
 - The first backend endpoint is `GET /api/health/`.
 - The first manual finance API loop is started with accounts, categories,
   transactions, and monthly reports.
+- Phase 2 backend kickoff is started with payment method and SMS sender rule
+  CRUD APIs.
 - JWT authentication is available for web and mobile clients.
 - The Next.js web app shell is started and can display backend health.
 - The web app has a local-development login flow for JWT auth.

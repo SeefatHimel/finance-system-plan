@@ -1,0 +1,8 @@
+{
+  "account": "11111111-1111-4111-8111-111111111111",
+  "name": "Personal bKash",
+  "provider": "bkash",
+  "identifier": "01700000000",
+  "is_active": true,
+  "display_order": 10
+}

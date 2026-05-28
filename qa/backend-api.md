@@ -50,13 +50,13 @@ Implemented:
 - `users`
 - `accounts`
 - `categories`
+- `payment_methods`
+- `messages` for sender rule management
 - `transactions`
 - `reports`
 
 Planned:
 
-- `payment_methods`
-- `messages`
 - `debts`
 - `reconciliation`
 
@@ -115,6 +115,10 @@ GET    /api/accounts/
 POST   /api/accounts/
 GET    /api/categories/
 POST   /api/categories/
+GET    /api/payment-methods/
+POST   /api/payment-methods/
+GET    /api/messages/sender-rules/
+POST   /api/messages/sender-rules/
 GET    /api/transactions/
 POST   /api/transactions/
 GET    /api/reports/monthly/?month=YYYY-MM
@@ -130,9 +134,9 @@ parent categories belong to the current authenticated user.
 
 ## How would you add payment methods?
 
-I would add a `payment_methods` app with provider, identifier, linked account,
-and active status. Sender rules and SMS parsers would reference payment methods
-to map messages to accounts.
+The `payment_methods` app now stores user-scoped methods with a provider,
+identifier, linked account, active status, and display order. Sender rules and
+future SMS parsers can reference payment methods to map messages to accounts.
 
 ## How would you add SMS parsing?
 
@@ -163,4 +167,3 @@ reconciliation math.
 It has the first manual finance loop, but it does not yet include payment
 methods, SMS message storage, debts, reconciliation, or production deployment
 configuration.
-

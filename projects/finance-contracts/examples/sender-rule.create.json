@@ -1,0 +1,12 @@
+{
+  "account": "11111111-1111-4111-8111-111111111111",
+  "payment_method": "22222222-2222-4222-8222-222222222222",
+  "name": "bKash sender",
+  "provider": "bkash",
+  "sender": "bKash",
+  "match_type": "exact",
+  "pattern": "",
+  "priority": 10,
+  "is_active": true,
+  "notes": "Default sender for personal bKash transaction SMS."
+}

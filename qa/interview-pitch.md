@@ -34,10 +34,11 @@ because the key automation feature is reading transaction SMS messages from
 user-approved senders.
 
 Right now the repo has the architecture docs, local PostgreSQL setup, JWT auth,
-account/category/transaction APIs, monthly reports, a Next.js dashboard, a web
-login flow, account/category setup screens, and an initial manual transaction
-page with filters and a monthly report page. Next I would improve report depth
-and reconciliation, then add payment methods and SMS sender tracking.
+account/category/transaction APIs, payment method and SMS sender rule APIs,
+monthly reports, a Next.js dashboard, a web login flow, account/category setup
+screens, and an initial manual transaction page with filters and a monthly
+report page. Next I would add raw SMS import with duplicate detection, then
+build the Phase 2 web and mobile management flows.
 
 ## Strong Technical Points To Mention
 
@@ -48,7 +49,7 @@ and reconciliation, then add payment methods and SMS sender tracking.
 - Rule-based parsing comes before AI for explainability.
 - Reconciliation is planned because real-life balances can drift.
 - Projects are separate to preserve clean ownership.
-- OpenAPI/contracts are planned to keep web and mobile aligned.
+- OpenAPI/contracts keep web and mobile aligned.
 
 ## If Asked "What Was The Hardest Part?"
 
@@ -60,10 +61,9 @@ and report logic in the backend so the system can evolve.
 
 ## If Asked "What Would You Build Next?"
 
-I would improve the manual transaction workflow with better form validation and
-reconciliation. After that I would add payment methods, SMS sender rules, raw
-message import, and a review inbox. Then I would scaffold the Android app and
-connect it to the same auth and API contract.
+I would add raw message import and duplicate detection, then build the review
+inbox and connect web/mobile management screens for payment methods and sender
+rules. After that I would add reconciliation and debt workflows.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 

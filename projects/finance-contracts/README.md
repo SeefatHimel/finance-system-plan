@@ -17,6 +17,8 @@ openapi.yaml
 examples/
   account.create.json
   category.create.json
+  payment-method.create.json
+  sender-rule.create.json
   transaction.create.json
   transaction.list.response.json
   report.monthly.response.json
@@ -50,7 +52,9 @@ PATCH  /api/categories/{id}/
 
 GET    /api/payment-methods/
 POST   /api/payment-methods/
+GET    /api/payment-methods/{id}/
 PATCH  /api/payment-methods/{id}/
+DELETE /api/payment-methods/{id}/
 
 GET    /api/transactions/
 POST   /api/transactions/
@@ -60,7 +64,9 @@ DELETE /api/transactions/{id}/
 
 GET    /api/messages/sender-rules/
 POST   /api/messages/sender-rules/
+GET    /api/messages/sender-rules/{id}/
 PATCH  /api/messages/sender-rules/{id}/
+DELETE /api/messages/sender-rules/{id}/
 
 POST   /api/messages/import/
 GET    /api/messages/review/
