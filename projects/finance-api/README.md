@@ -98,6 +98,17 @@ API docs will be available at:
 http://localhost:8000/api/docs/
 ```
 
+## Docker
+
+From `projects/finance-infra`:
+
+```bash
+cp .env.example .env
+docker compose up --build -d postgres finance-api
+```
+
+The API service runs migrations on startup and then serves on port `8000`.
+
 ## Verification
 
 ```bash

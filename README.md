@@ -116,7 +116,8 @@ mindmap
 ## Current Implementation Status
 
 - Planning documentation is complete for the first architecture pass.
-- Local PostgreSQL infrastructure is defined in `projects/finance-infra`.
+- Local Docker infrastructure is defined in `projects/finance-infra` for
+  PostgreSQL, API, web, and optional mobile runtime.
 - Django API scaffold is started in `projects/finance-api`.
 - The first backend endpoint is `GET /api/health/`.
 - The first manual finance API loop is started with accounts, categories,

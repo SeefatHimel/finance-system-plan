@@ -17,18 +17,49 @@ Infrastructure, local development, and deployment support.
 postgres
 finance-api
 finance-web
+finance-mobile (optional profile)
 ```
 
-For early development, run PostgreSQL in Docker and run API/web/mobile dev
-servers natively. This keeps feedback fast.
+You can now run all runtime projects through Docker Compose from this directory.
+Mobile is optional and provided through a dedicated Compose profile.
 
-## Start PostgreSQL
+## Start Core Stack (Postgres + API + Web)
 
 From this directory:
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres
+docker compose up --build -d postgres finance-api finance-web
+```
+
+Or equivalently:
+
+```bash
+docker compose up --build -d
+```
+
+Health checks:
+
+```bash
+curl http://localhost:8000/api/health/
+open http://localhost:3000
+```
+
+## Start Mobile Container (Optional)
+
+The mobile service is profile-gated because Expo workflows are often easier
+directly on the host machine.
+
+```bash
+docker compose --profile mobile up --build finance-mobile
+```
+
+Default exposed ports:
+
+```txt
+Metro: 8081
+Expo: 19000
+Expo DevTools: 19001
 ```
 
 Stop it with:
@@ -53,6 +84,8 @@ POSTGRES_PASSWORD=finance
 DATABASE_URL=postgres://finance:finance@localhost:5432/finance
 DJANGO_SECRET_KEY=local-dev-secret
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+NEXT_SERVER_API_BASE_URL=http://finance-api:8000
+EXPO_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
 ## Deployment Later

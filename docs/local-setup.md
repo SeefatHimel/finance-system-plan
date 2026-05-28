@@ -54,7 +54,42 @@ Then:
 - Web app displays backend health. Done.
 - Mobile app displays backend health. Done with initial scaffold.
 
-## Current Backend Setup
+## Docker Setup (All Runtime Projects)
+
+Run from infrastructure directory:
+
+```bash
+cd projects/finance-infra
+cp .env.example .env
+docker compose up --build -d postgres finance-api finance-web
+```
+
+Open:
+
+```txt
+API: http://localhost:8000/api/health/
+Web: http://localhost:3000
+```
+
+Optional mobile container:
+
+```bash
+docker compose --profile mobile up --build finance-mobile
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
+Remove database data intentionally:
+
+```bash
+docker compose down -v
+```
+
+## Current Backend Setup (Native)
 
 Start PostgreSQL:
 
@@ -115,7 +150,7 @@ curl http://localhost:8000/api/auth/me/ \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
-## Current Web Setup
+## Current Web Setup (Native)
 
 Start the web app:
 
@@ -173,7 +208,7 @@ npm run typecheck
 npm run lint
 ```
 
-## Current Mobile Setup
+## Current Mobile Setup (Native)
 
 Start the mobile app:
 

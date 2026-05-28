@@ -114,6 +114,20 @@ Monthly reports:
 http://localhost:3000/reports
 ```
 
+## Docker
+
+From `projects/finance-infra`:
+
+```bash
+cp .env.example .env
+docker compose up --build -d postgres finance-api finance-web
+```
+
+Important environment note:
+
+- `NEXT_PUBLIC_API_BASE_URL` is used by browser-side calls.
+- `NEXT_SERVER_API_BASE_URL` is used by server-rendered calls.
+
 ## Verification
 
 ```bash

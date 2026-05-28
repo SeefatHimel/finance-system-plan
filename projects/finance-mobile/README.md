@@ -51,6 +51,17 @@ If using a physical device, replace it with your machine's LAN IP:
 EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:8000
 ```
 
+## Docker (Optional)
+
+From `projects/finance-infra`:
+
+```bash
+cp .env.example .env
+docker compose --profile mobile up --build finance-mobile
+```
+
+For day-to-day development, native Expo on host is still the recommended path.
+
 ## Responsibilities
 
 - Quick manual transaction entry.

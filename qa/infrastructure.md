@@ -7,14 +7,15 @@ environment templates, deployment notes, and future backup/restore scripts.
 
 ## Why start with Docker Compose?
 
-Docker Compose makes local PostgreSQL setup repeatable. It avoids manual
-database installation differences between machines.
+Docker Compose makes local setup repeatable and now supports the full runtime
+stack: PostgreSQL, Django API, Next.js web, and an optional mobile container.
 
 ## Why run app servers natively instead of in Docker at first?
 
-Running Django, Next.js, and mobile tooling natively usually gives faster
-feedback during early development. PostgreSQL is the main service that benefits
-immediately from Docker.
+Running Django, Next.js, and mobile tooling natively can still give faster
+iteration in some workflows, especially for React Native device/emulator loops.
+Docker support now exists for all runtime projects, but native mode remains a
+valid option when preferred.
 
 ## What services are planned locally?
 
@@ -29,8 +30,11 @@ React Native Metro: 8081
 
 ## What is implemented now?
 
-`finance-infra` includes a Docker Compose file for PostgreSQL and an environment
-example for local database credentials.
+`finance-infra` now includes:
+
+- Docker Compose services for `postgres`, `finance-api`, and `finance-web`
+- Optional `finance-mobile` service under the `mobile` profile
+- Shared `.env.example` values for stack ports and runtime URLs
 
 ## Why not decide production hosting now?
 
@@ -60,4 +64,3 @@ been verified.
 
 Secrets belong in environment variables or secret managers, never in git. The
 repo commits `.env.example` files but ignores real `.env` files.
-

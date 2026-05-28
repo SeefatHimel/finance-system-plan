@@ -17,6 +17,61 @@ services:
       timeout: 5s
       retries: 5
 
+  finance-api:
+    build:
+      context: ../finance-api
+      dockerfile: Dockerfile
+    container_name: finance-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-dev-secret}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,finance-api}
+      DJANGO_CORS_ALLOWED_ORIGINS: ${DJANGO_CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      DATABASE_URL: postgres://${POSTGRES_USER:-finance}:${POSTGRES_PASSWORD:-finance}@postgres:5432/${POSTGRES_DB:-finance}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ../finance-api:/app
+
+  finance-web:
+    build:
+      context: ../finance-web
+      dockerfile: Dockerfile
+    container_name: finance-web
+    restart: unless-stopped
+    depends_on:
+      - finance-api
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      NEXT_SERVER_API_BASE_URL: ${NEXT_SERVER_API_BASE_URL:-http://finance-api:8000}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - ../finance-web:/app
+      - finance_web_node_modules:/app/node_modules
+
+  finance-mobile:
+    profiles: ["mobile"]
+    build:
+      context: ../finance-mobile
+      dockerfile: Dockerfile
+    container_name: finance-mobile
+    restart: unless-stopped
+    environment:
+      EXPO_PUBLIC_API_BASE_URL: ${EXPO_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "${MOBILE_METRO_PORT:-8081}:8081"
+      - "${MOBILE_EXPO_PORT:-19000}:19000"
+      - "${MOBILE_EXPO_DEVTOOLS_PORT:-19001}:19001"
+    volumes:
+      - ../finance-mobile:/app
+      - finance_mobile_node_modules:/app/node_modules
+
 volumes:
   finance_postgres_data:
-
+  finance_web_node_modules:
+  finance_mobile_node_modules:
