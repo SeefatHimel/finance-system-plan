@@ -26,6 +26,8 @@ examples/
   transaction.create.json
   transaction.list.response.json
   report.monthly.response.json
+  reconciliation.snapshot.create.json
+  reconciliation.snapshot.response.json
 CHANGELOG.md
 ```
 
@@ -85,6 +87,7 @@ GET    /api/reports/monthly/?month=YYYY-MM
 GET    /api/reports/categories/?from=YYYY-MM-DD&to=YYYY-MM-DD
 GET    /api/reports/accounts/?month=YYYY-MM
 
+GET    /api/reconciliation/snapshots/
 POST   /api/reconciliation/snapshots/
-GET    /api/reconciliation/differences/
+GET    /api/reconciliation/accounts/{account_id}/
 ```

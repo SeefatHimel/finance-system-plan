@@ -191,6 +191,12 @@ PATCH  /api/transactions/{id}/
 DELETE /api/transactions/{id}/
 
 GET    /api/reports/monthly/?month=YYYY-MM
+GET    /api/reconciliation/snapshots/
+POST   /api/reconciliation/snapshots/
+GET    /api/reconciliation/snapshots/{id}/
+PATCH  /api/reconciliation/snapshots/{id}/
+DELETE /api/reconciliation/snapshots/{id}/
+GET    /api/reconciliation/accounts/{account_id}/
 GET    /api/schema/
 GET    /api/docs/
 ```

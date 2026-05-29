@@ -15,6 +15,7 @@ from apps.messages.views import (
     SenderRuleViewSet,
 )
 from apps.payment_methods.views import PaymentMethodViewSet
+from apps.reconciliation.views import AccountReconciliationView, BalanceSnapshotViewSet
 from apps.transactions.views import TransactionViewSet
 
 
@@ -22,6 +23,7 @@ router = DefaultRouter()
 router.register("accounts", AccountViewSet, basename="account")
 router.register("categories", CategoryViewSet, basename="category")
 router.register("payment-methods", PaymentMethodViewSet, basename="payment-method")
+router.register("reconciliation/snapshots", BalanceSnapshotViewSet, basename="balance-snapshot")
 router.register("messages/sender-rules", SenderRuleViewSet, basename="sender-rule")
 router.register("transactions", TransactionViewSet, basename="transaction")
 
@@ -44,6 +46,11 @@ urlpatterns = [
         name="message-candidate-ignore",
     ),
     path("api/reports/", include("apps.reports.urls")),
+    path(
+        "api/reconciliation/accounts/<uuid:account_id>/",
+        AccountReconciliationView.as_view(),
+        name="account-reconciliation",
+    ),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",

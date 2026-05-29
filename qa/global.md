@@ -121,8 +121,9 @@ better foundation. AI can be added later for categorization or ambiguous cases.
 ## How are balances handled?
 
 Expected balances are calculated from confirmed transactions. Real-life balance
-checks are stored as snapshots. If actual and expected balances differ, the
-system shows the missing or extra amount and lets the user create an adjustment.
+checks are stored as snapshots with expected balance, actual balance,
+difference, and status. If actual and expected balances differ, the system shows
+the missing or extra amount and can later create an adjustment.
 
 ## Why support manual reconciliation?
 

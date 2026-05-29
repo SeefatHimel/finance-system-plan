@@ -97,7 +97,7 @@ Last updated: 2026-05-30
 - [x] Add internal transfer matching hints for bank-to-wallet and own-account transfers
 - [x] Add web SMS review inbox UI
 - [x] Add mobile SMS review inbox UI
-- [ ] Add balance snapshot and reconciliation endpoints
+- [x] Add balance snapshot and reconciliation endpoints
 - [ ] Add debt/lend workflow models and APIs
 - [ ] Add production-ready auth/token storage plan
 
@@ -143,3 +143,4 @@ Last updated: 2026-05-30
 - `api: add internal transfer sms matching hints`
 - `web: add sms review inbox`
 - `mobile: add sms review inbox`
+- `api: add balance snapshot reconciliation endpoints`

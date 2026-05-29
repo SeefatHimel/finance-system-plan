@@ -43,6 +43,7 @@ covering current phase-1 backend endpoints:
 - Parsed SMS review candidate list, confirm, and ignore endpoints
 - Transactions CRUD and list filters
 - Monthly report
+- Balance snapshot and account reconciliation endpoints
 
 Phase 3 contract work now includes parser fields for provider, message kind,
 reference, balance, fee, and possible internal transfer/source-destination

@@ -550,6 +550,126 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/reconciliation/snapshots/:
+    get:
+      tags: [Reconciliation]
+      summary: List balance snapshots
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: account
+          schema:
+            type: string
+            format: uuid
+          description: Optional account filter.
+      responses:
+        '200':
+          description: Balance snapshot list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BalanceSnapshot'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Reconciliation]
+      summary: Create a balance snapshot
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BalanceSnapshotCreateRequest'
+      responses:
+        '201':
+          description: Balance snapshot created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceSnapshot'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/reconciliation/snapshots/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Reconciliation]
+      summary: Get a balance snapshot
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Balance snapshot detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceSnapshot'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Reconciliation]
+      summary: Update a balance snapshot note
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BalanceSnapshotPatchRequest'
+      responses:
+        '200':
+          description: Updated balance snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceSnapshot'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Reconciliation]
+      summary: Delete a balance snapshot
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Balance snapshot deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/reconciliation/accounts/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Reconciliation]
+      summary: Get expected balance and latest snapshot for an account
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Account reconciliation summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountReconciliation'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /api/transactions/:
     get:
       tags: [Transactions]
@@ -826,6 +946,9 @@ components:
     ParsedMessageCandidateStatus:
       type: string
       enum: [needs_review, confirmed, ignored]
+    BalanceSnapshotStatus:
+      type: string
+      enum: [matched, missing_money, extra_money, adjusted, ignored]
     ParsedMessageKind:
       type: string
       enum:
@@ -1270,6 +1393,87 @@ components:
           type: string
         type:
           $ref: '#/components/schemas/TransactionType'
+    BalanceSnapshot:
+      type: object
+      required:
+        [id, account, checked_at, actual_balance, expected_balance, difference, status, adjustment_transaction, note, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+        checked_at:
+          type: string
+          format: date-time
+        actual_balance:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "980.00"
+        expected_balance:
+          type: string
+          example: "1000.00"
+        difference:
+          type: string
+          example: "-20.00"
+        status:
+          $ref: '#/components/schemas/BalanceSnapshotStatus'
+        adjustment_transaction:
+          type: string
+          format: uuid
+          nullable: true
+        note:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    BalanceSnapshotCreateRequest:
+      type: object
+      required: [account, checked_at, actual_balance]
+      properties:
+        account:
+          type: string
+          format: uuid
+        checked_at:
+          type: string
+          format: date-time
+        actual_balance:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        note:
+          type: string
+          default: ""
+    BalanceSnapshotPatchRequest:
+      type: object
+      properties:
+        checked_at:
+          type: string
+          format: date-time
+        actual_balance:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        note:
+          type: string
+    AccountReconciliation:
+      type: object
+      required: [account, account_name, expected_balance, latest_snapshot]
+      properties:
+        account:
+          type: string
+          format: uuid
+        account_name:
+          type: string
+        expected_balance:
+          type: string
+          example: "1000.00"
+        latest_snapshot:
+          allOf:
+            - $ref: '#/components/schemas/BalanceSnapshot'
+          nullable: true
     Category:
       type: object
       required: [id, name, kind, parent, is_active, display_order, created_at, updated_at]
