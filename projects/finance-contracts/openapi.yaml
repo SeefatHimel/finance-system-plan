@@ -487,6 +487,69 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/messages/review/:
+    get:
+      tags: [Messages]
+      summary: List parsed SMS candidates waiting for review
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Review candidate list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParsedMessageCandidate'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/messages/review/{id}/confirm/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    post:
+      tags: [Messages]
+      summary: Confirm a parsed SMS candidate as a transaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParsedMessageConfirmRequest'
+      responses:
+        '200':
+          description: Confirmed candidate with linked transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParsedMessageCandidate'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/messages/review/{id}/ignore/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    post:
+      tags: [Messages]
+      summary: Ignore a parsed SMS candidate
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Ignored candidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParsedMessageCandidate'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /api/transactions/:
     get:
       tags: [Transactions]
@@ -760,6 +823,9 @@ components:
     RawMessageStatus:
       type: string
       enum: [imported, duplicate, ignored]
+    ParsedMessageCandidateStatus:
+      type: string
+      enum: [needs_review, confirmed, ignored]
     Account:
       type: object
       required:
@@ -1066,12 +1132,86 @@ components:
           default: ""
     RawMessageImportResponse:
       type: object
-      required: [is_duplicate, message]
+      required: [candidate, is_duplicate, message]
       properties:
+        candidate:
+          allOf:
+            - $ref: '#/components/schemas/ParsedMessageCandidate'
+          nullable: true
         is_duplicate:
           type: boolean
         message:
           $ref: '#/components/schemas/RawMessage'
+    ParsedMessageCandidate:
+      type: object
+      required:
+        [id, raw_message, sender_rule, account, payment_method, transaction, transaction_type, amount, confidence, status, parser_name, parser_notes, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        raw_message:
+          $ref: '#/components/schemas/RawMessage'
+        sender_rule:
+          type: string
+          format: uuid
+          nullable: true
+        account:
+          type: string
+          format: uuid
+          nullable: true
+        payment_method:
+          type: string
+          format: uuid
+          nullable: true
+        transaction:
+          type: string
+          format: uuid
+          nullable: true
+        transaction_type:
+          $ref: '#/components/schemas/TransactionType'
+        amount:
+          type: string
+          nullable: true
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "500.00"
+        confidence:
+          type: string
+          example: "0.70"
+        status:
+          $ref: '#/components/schemas/ParsedMessageCandidateStatus'
+        parser_name:
+          type: string
+        parser_notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ParsedMessageConfirmRequest:
+      type: object
+      properties:
+        account:
+          type: string
+          format: uuid
+          description: Required if the candidate did not match an account.
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: Required if the baseline parser did not extract an amount.
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        date:
+          type: string
+          format: date
+        note:
+          type: string
+        type:
+          $ref: '#/components/schemas/TransactionType'
     Category:
       type: object
       required: [id, name, kind, parent, is_active, display_order, created_at, updated_at]

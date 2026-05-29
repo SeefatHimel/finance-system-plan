@@ -246,6 +246,10 @@ POST /api/transactions/
 GET /api/transactions/
 GET /api/payment-methods/
 GET /api/messages/sender-rules/
+POST /api/messages/import/
+GET /api/messages/review/
+POST /api/messages/review/{id}/confirm/
+POST /api/messages/review/{id}/ignore/
 ```
 
 Use a Django user created from the backend project:

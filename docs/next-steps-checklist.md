@@ -77,7 +77,7 @@ Last updated: 2026-05-29
 
 ### Phase 2 Follow-up
 
-- [ ] Add parser-backed SMS review inbox
+- [x] Add parser-backed SMS review inbox
 - [ ] Add native Android SMS permission/module decision
 - [ ] Add local raw message cache and sync queue
 
@@ -114,3 +114,4 @@ Last updated: 2026-05-29
 - `api: add payment methods and sms sender rule management`
 - `web: add sms settings management screen`
 - `mobile: add sms sender selection scaffold`
+- `api: add parser-backed sms review inbox`

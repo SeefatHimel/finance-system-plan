@@ -18,6 +18,8 @@ examples/
   account.create.json
   category.create.json
   payment-method.create.json
+  message-review.confirm.json
+  message-review.list.response.json
   raw-message.import.json
   raw-message.import.response.json
   sender-rule.create.json
@@ -72,8 +74,8 @@ DELETE /api/messages/sender-rules/{id}/
 
 POST   /api/messages/import/
 GET    /api/messages/review/
-POST   /api/messages/{id}/confirm/
-POST   /api/messages/{id}/ignore/
+POST   /api/messages/review/{id}/confirm/
+POST   /api/messages/review/{id}/ignore/
 
 GET    /api/debts/
 POST   /api/debts/

@@ -40,6 +40,7 @@ covering current phase-1 backend endpoints:
 - Payment methods CRUD
 - SMS sender rules CRUD
 - Raw SMS import with duplicate response shape
+- Parsed SMS review candidate list, confirm, and ignore endpoints
 - Transactions CRUD and list filters
 - Monthly report
 
@@ -61,6 +62,8 @@ Current examples are available in `projects/finance-contracts/examples/`:
 - `payment-method.create.json`
 - `raw-message.import.json`
 - `raw-message.import.response.json`
+- `message-review.confirm.json`
+- `message-review.list.response.json`
 - `sender-rule.create.json`
 - `transaction.create.json`
 - `transaction.list.response.json`

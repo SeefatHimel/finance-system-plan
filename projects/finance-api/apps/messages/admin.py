@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import RawMessage, SenderRule
+from .models import ParsedMessageCandidate, RawMessage, SenderRule
 
 
 @admin.register(SenderRule)
@@ -16,3 +16,10 @@ class RawMessageAdmin(admin.ModelAdmin):
     list_filter = ("status", "sender")
     search_fields = ("sender", "body", "device_message_id", "user__username")
     readonly_fields = ("body_hash", "created_at")
+
+
+@admin.register(ParsedMessageCandidate)
+class ParsedMessageCandidateAdmin(admin.ModelAdmin):
+    list_display = ("raw_message", "status", "amount", "confidence", "account", "transaction")
+    list_filter = ("status", "parser_name")
+    search_fields = ("raw_message__sender", "raw_message__body", "parser_notes", "user__username")

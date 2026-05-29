@@ -120,6 +120,9 @@ POST   /api/payment-methods/
 GET    /api/messages/sender-rules/
 POST   /api/messages/sender-rules/
 POST   /api/messages/import/
+GET    /api/messages/review/
+POST   /api/messages/review/{id}/confirm/
+POST   /api/messages/review/{id}/ignore/
 GET    /api/transactions/
 POST   /api/transactions/
 GET    /api/reports/monthly/?month=YYYY-MM
@@ -142,10 +145,10 @@ future SMS parsers can reference payment methods to map messages to accounts.
 ## How would you add SMS parsing?
 
 Raw message import now stores the sender, body, received time, optional device
-message ID, and a deterministic body hash. Next I would add parsed message
-models and parser classes per provider. Each parser would return a candidate
-transaction with confidence and parser metadata. Low-confidence items would go
-to a review inbox.
+message ID, and a deterministic body hash. The backend creates a parsed message
+candidate with matched sender rule metadata, baseline amount extraction,
+confidence, and parser notes. Candidates can be reviewed, confirmed into an
+SMS-sourced transaction, or ignored.
 
 ## How would you prevent duplicate SMS transactions?
 

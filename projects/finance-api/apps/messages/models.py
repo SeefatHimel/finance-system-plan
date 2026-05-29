@@ -1,7 +1,9 @@
 import uuid
+from decimal import Decimal
 from hashlib import sha256
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -121,3 +123,91 @@ class RawMessage(models.Model):
 
     def __str__(self) -> str:
         return f"{self.sender} {self.received_at}"
+
+
+class ParsedMessageCandidate(models.Model):
+    class Status(models.TextChoices):
+        NEEDS_REVIEW = "needs_review", "Needs review"
+        CONFIRMED = "confirmed", "Confirmed"
+        IGNORED = "ignored", "Ignored"
+
+    class TransactionType(models.TextChoices):
+        EXPENSE = "expense", "Expense"
+        INCOME = "income", "Income"
+        TRANSFER = "transfer", "Transfer"
+        ADJUSTMENT = "adjustment", "Adjustment"
+        FEE = "fee", "Fee"
+        REFUND = "refund", "Refund"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="parsed_message_candidates",
+    )
+    raw_message = models.OneToOneField(
+        RawMessage,
+        on_delete=models.CASCADE,
+        related_name="candidate",
+    )
+    sender_rule = models.ForeignKey(
+        SenderRule,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="parsed_candidates",
+    )
+    account = models.ForeignKey(
+        "accounts.Account",
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        related_name="parsed_message_candidates",
+    )
+    payment_method = models.ForeignKey(
+        "payment_methods.PaymentMethod",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="parsed_message_candidates",
+    )
+    transaction = models.ForeignKey(
+        "transactions.Transaction",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="parsed_message_candidates",
+    )
+    transaction_type = models.CharField(
+        max_length=32,
+        choices=TransactionType.choices,
+        default=TransactionType.EXPENSE,
+    )
+    amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
+    confidence = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("1"))],
+    )
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.NEEDS_REVIEW)
+    parser_name = models.CharField(max_length=120, blank=True)
+    parser_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=("user", "status")),
+            models.Index(fields=("user", "created_at")),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.raw_message.sender} {self.status}"

@@ -1,5 +1,5 @@
-{
-  "candidate": {
+[
+  {
     "id": "44444444-4444-4444-8444-444444444444",
     "raw_message": {
       "id": "33333333-3333-4333-8333-333333333333",
@@ -24,17 +24,5 @@
     "parser_notes": "Matched sender rule: bKash sender. Extracted amount with the baseline Tk/BDT parser.",
     "created_at": "2026-05-29T10:30:05+06:00",
     "updated_at": "2026-05-29T10:30:05+06:00"
-  },
-  "is_duplicate": false,
-  "message": {
-    "id": "33333333-3333-4333-8333-333333333333",
-    "sender": "bKash",
-    "body": "Cash Out Tk 500.00 from 01700000000 successful.",
-    "received_at": "2026-05-29T10:30:00+06:00",
-    "device_message_id": "sms-100",
-    "body_hash": "3d1a4c27f2df5c4f0efb5dca56f1c1f87f84209d1fcb2437dc4e51cf2a6fc735",
-    "status": "imported",
-    "duplicate_of": null,
-    "created_at": "2026-05-29T10:30:05+06:00"
   }
-}
+]

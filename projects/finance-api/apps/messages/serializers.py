@@ -1,9 +1,13 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from apps.accounts.models import Account
+from apps.categories.models import Category
 from apps.payment_methods.models import PaymentMethod
+from apps.transactions.models import Transaction
 
-from .models import RawMessage, SenderRule
+from .models import ParsedMessageCandidate, RawMessage, SenderRule
 
 
 class SenderRuleSerializer(serializers.ModelSerializer):
@@ -93,3 +97,67 @@ class RawMessageImportSerializer(serializers.Serializer):
         required=False,
         allow_blank=True,
     )
+
+
+class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
+    raw_message = RawMessageSerializer(read_only=True)
+
+    class Meta:
+        model = ParsedMessageCandidate
+        fields = (
+            "id",
+            "raw_message",
+            "sender_rule",
+            "account",
+            "payment_method",
+            "transaction",
+            "transaction_type",
+            "amount",
+            "confidence",
+            "status",
+            "parser_name",
+            "parser_notes",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "raw_message",
+            "sender_rule",
+            "account",
+            "payment_method",
+            "transaction",
+            "transaction_type",
+            "amount",
+            "confidence",
+            "status",
+            "parser_name",
+            "parser_notes",
+            "created_at",
+            "updated_at",
+        )
+
+
+class ParsedMessageConfirmSerializer(serializers.Serializer):
+    account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none(), required=False)
+    amount = serializers.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        required=False,
+    )
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.none(),
+        required=False,
+        allow_null=True,
+    )
+    date = serializers.DateField(required=False)
+    note = serializers.CharField(required=False, allow_blank=True)
+    type = serializers.ChoiceField(choices=Transaction.Type.choices, required=False)
+
+    def get_fields(self):
+        fields = super().get_fields()
+        user = self.context["request"].user
+        fields["account"].queryset = Account.objects.filter(user=user, is_active=True)
+        fields["category"].queryset = Category.objects.filter(user=user, is_active=True)
+        return fields

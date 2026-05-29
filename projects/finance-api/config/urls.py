@@ -7,7 +7,13 @@ from rest_framework.routers import DefaultRouter
 
 from apps.accounts.views import AccountViewSet
 from apps.categories.views import CategoryViewSet
-from apps.messages.views import RawMessageImportView, SenderRuleViewSet
+from apps.messages.views import (
+    MessageCandidateConfirmView,
+    MessageCandidateIgnoreView,
+    MessageReviewListView,
+    RawMessageImportView,
+    SenderRuleViewSet,
+)
 from apps.payment_methods.views import PaymentMethodViewSet
 from apps.transactions.views import TransactionViewSet
 
@@ -26,6 +32,17 @@ urlpatterns = [
     path("api/", include(router.urls)),
     path("api/health/", include("apps.health.urls")),
     path("api/messages/import/", RawMessageImportView.as_view(), name="raw-message-import"),
+    path("api/messages/review/", MessageReviewListView.as_view(), name="message-review-list"),
+    path(
+        "api/messages/review/<uuid:candidate_id>/confirm/",
+        MessageCandidateConfirmView.as_view(),
+        name="message-candidate-confirm",
+    ),
+    path(
+        "api/messages/review/<uuid:candidate_id>/ignore/",
+        MessageCandidateIgnoreView.as_view(),
+        name="message-candidate-ignore",
+    ),
     path("api/reports/", include("apps.reports.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
