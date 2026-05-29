@@ -43,12 +43,19 @@ before phase-2 SMS features if required.
 - Account/category fetch flow (`GET /api/accounts/`, `GET /api/categories/`).
 - Quick add transaction flow (`POST /api/transactions/`).
 - Transaction list flow (`GET /api/transactions/`).
+- SMS tracking settings scaffold that loads payment methods and sender rules,
+  shows a permission gate placeholder, and lets the user locally enable trusted
+  sender rules for future import.
 
 ## How will SMS tracking work?
 
 The user enables tracking for specific sender numbers or names. The app reads
 matching SMS messages, stores the raw message locally, and syncs it to the
 backend. The backend parses and returns whether it needs review.
+
+Current scaffold status: the app can load backend sender rules and payment
+methods after login, then locally toggle which sender rules should be enabled.
+Actual inbox reading still needs a native Android SMS permission/module decision.
 
 ## Why not read every SMS?
 

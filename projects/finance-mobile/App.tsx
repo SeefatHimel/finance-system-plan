@@ -18,15 +18,20 @@ import {
   getCurrentUser,
   listAccounts,
   listCategories,
+  listPaymentMethods,
+  listSenderRules,
   listTransactions,
   login,
   type Account,
   type Category,
   type HealthResult,
+  type PaymentMethod,
+  type SenderRule,
   type Transaction
 } from "./src/api";
 
 type ViewState = "idle" | "loading" | "success" | "error";
+type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
 
 export default function App() {
   const [result, setResult] = useState<HealthResult | null>(null);
@@ -52,6 +57,15 @@ export default function App() {
   const [listState, setListState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [listMessage, setListMessage] = useState("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [smsPermissionState, setSmsPermissionState] = useState<SmsPermissionState>("unknown");
+  const [smsPermissionMessage, setSmsPermissionMessage] = useState(
+    "Native SMS permission is not wired in this Expo scaffold yet."
+  );
+  const [smsSettingsState, setSmsSettingsState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [smsSettingsMessage, setSmsSettingsMessage] = useState("");
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [senderRules, setSenderRules] = useState<SenderRule[]>([]);
+  const [enabledSenderRuleIds, setEnabledSenderRuleIds] = useState<string[]>([]);
 
   const loadHealth = async () => {
     setState("loading");
@@ -78,6 +92,52 @@ export default function App() {
       setListState("error");
       setListMessage(error instanceof Error ? error.message : "Could not load transactions.");
     }
+  };
+
+  const handleRequestSmsPermission = () => {
+    setSmsPermissionState("checking");
+    setSmsPermissionMessage(
+      "Permission gate reached. Add a native Android SMS permission module before reading inbox messages."
+    );
+    setSmsPermissionState("denied");
+  };
+
+  const handleLoadSmsSettings = async () => {
+    if (!accessToken.trim()) {
+      setSmsSettingsState("error");
+      setSmsSettingsMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+
+    setSmsSettingsState("loading");
+    setSmsSettingsMessage("");
+    try {
+      const [nextPaymentMethods, nextSenderRules] = await Promise.all([
+        listPaymentMethods(accessToken.trim()),
+        listSenderRules(accessToken.trim())
+      ]);
+      setPaymentMethods(nextPaymentMethods);
+      setSenderRules(nextSenderRules);
+      setEnabledSenderRuleIds((currentIds) =>
+        currentIds.filter((ruleId) => nextSenderRules.some((rule) => rule.id === ruleId))
+      );
+      setSmsSettingsState("ok");
+      setSmsSettingsMessage(
+        `Loaded ${nextPaymentMethods.length} payment method(s) and ${nextSenderRules.length} sender rule(s).`
+      );
+    } catch (error) {
+      setSmsSettingsState("error");
+      setSmsSettingsMessage(error instanceof Error ? error.message : "Could not load SMS settings.");
+    }
+  };
+
+  const handleToggleSenderRule = (senderRuleId: string) => {
+    setEnabledSenderRuleIds((currentIds) => {
+      if (currentIds.includes(senderRuleId)) {
+        return currentIds.filter((id) => id !== senderRuleId);
+      }
+      return [...currentIds, senderRuleId];
+    });
   };
 
   const handleLogin = async () => {
@@ -369,6 +429,65 @@ export default function App() {
             </View>
           ) : null}
         </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>SMS Tracking Settings</Text>
+          <Text style={styles.meta}>
+            Choose trusted backend sender rules before any future native SMS reader imports messages.
+          </Text>
+
+          <View style={styles.permissionBox}>
+            <Text style={styles.listTitle}>Permission gate</Text>
+            <Text style={styles.meta}>Status: {smsPermissionState}</Text>
+            <Text style={styles.meta}>{smsPermissionMessage}</Text>
+            <Pressable onPress={handleRequestSmsPermission} style={styles.buttonSecondary}>
+              <Text style={styles.buttonText}>Check SMS Permission Scaffold</Text>
+            </Pressable>
+          </View>
+
+          <Pressable onPress={handleLoadSmsSettings} style={styles.button}>
+            <Text style={styles.buttonText}>Load Payment Methods & Sender Rules</Text>
+          </Pressable>
+
+          {smsSettingsState === "loading" ? <ActivityIndicator /> : null}
+          {smsSettingsState === "ok" ? <Text style={styles.okText}>{smsSettingsMessage}</Text> : null}
+          {smsSettingsState === "error" ? <Text style={styles.errorText}>{smsSettingsMessage}</Text> : null}
+
+          {paymentMethods.length ? (
+            <View style={styles.listSection}>
+              <Text style={styles.listTitle}>Payment Methods</Text>
+              {paymentMethods.map((method) => (
+                <Text key={method.id} style={styles.listItem}>
+                  {method.name} ({method.provider}){method.identifier ? ` - ${method.identifier}` : ""}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+
+          {senderRules.length ? (
+            <View style={styles.listSection}>
+              <Text style={styles.listTitle}>Tracked Senders</Text>
+              {senderRules.map((rule) => {
+                const isEnabled = enabledSenderRuleIds.includes(rule.id);
+                return (
+                  <Pressable
+                    key={rule.id}
+                    onPress={() => handleToggleSenderRule(rule.id)}
+                    style={isEnabled ? styles.senderRuleSelected : styles.senderRule}
+                  >
+                    <Text style={styles.listTitle}>{rule.sender}</Text>
+                    <Text style={styles.listItem}>
+                      {rule.name} | {rule.provider} | {rule.match_type} | priority {rule.priority}
+                    </Text>
+                    <Text style={isEnabled ? styles.okText : styles.meta}>
+                      {isEnabled ? "Enabled for future import" : "Tap to enable"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -447,6 +566,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600"
   },
+  permissionBox: {
+    backgroundColor: "#f8fafc",
+    borderColor: "#cbd5e1",
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 6,
+    marginTop: 8,
+    padding: 12
+  },
   screen: {
     backgroundColor: "#f8fafc",
     flex: 1,
@@ -477,6 +605,22 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 14,
     paddingVertical: 10
+  },
+  senderRule: {
+    backgroundColor: "#ffffff",
+    borderColor: "#cbd5e1",
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 4,
+    padding: 12
+  },
+  senderRuleSelected: {
+    backgroundColor: "#ecfdf5",
+    borderColor: "#10b981",
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 4,
+    padding: 12
   },
   title: {
     color: "#0f172a",

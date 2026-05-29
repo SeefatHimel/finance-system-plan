@@ -133,3 +133,5 @@ mindmap
 - The web app can manage payment methods and SMS sender rules.
 - The web app has a first monthly reports page.
 - The web transaction list supports month, type, account, and category filters.
+- The mobile app has an SMS tracking settings scaffold for permission gating
+  and sender rule selection.

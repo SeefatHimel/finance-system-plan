@@ -38,6 +38,7 @@ Last updated: 2026-05-29
 - [x] Account/category fetch flow
 - [x] Quick transaction create flow
 - [x] Transaction list flow
+- [x] SMS sender selection UI + permission gate scaffold
 
 ### Contracts
 
@@ -54,6 +55,7 @@ Last updated: 2026-05-29
 - [x] Add backend migrations and CRUD endpoints for sender rules
 - [x] Add raw message import endpoint and duplicate-detection baseline
 - [x] Add web management screens for payment methods and sender rules
+- [x] Add mobile sender selection UI + permission gate scaffold
 
 ### Docker Runtime Support
 
@@ -73,9 +75,11 @@ Last updated: 2026-05-29
 - [ ] Confirm optional mobile profile startup in Docker (`--profile mobile`)
 - [ ] Group and commit checkpoints in clean commit sequence
 
-### Phase 2 Kickoff
+### Phase 2 Follow-up
 
-- [ ] Add mobile sender selection UI + permission gate scaffold
+- [ ] Add parser-backed SMS review inbox
+- [ ] Add native Android SMS permission/module decision
+- [ ] Add local raw message cache and sync queue
 
 ## Verification Matrix
 
@@ -109,3 +113,4 @@ Last updated: 2026-05-29
 - `infra: add docker support for api web and optional mobile with full setup docs`
 - `api: add payment methods and sms sender rule management`
 - `web: add sms settings management screen`
+- `mobile: add sms sender selection scaffold`

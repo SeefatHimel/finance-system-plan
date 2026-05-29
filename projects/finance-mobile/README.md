@@ -18,6 +18,11 @@ Phase 1 scaffold now includes:
   - `POST /api/transactions/`
 - Transaction list flow:
   - `GET /api/transactions/`
+- SMS tracking settings scaffold:
+  - permission gate placeholder for native Android SMS access
+  - `GET /api/payment-methods/`
+  - `GET /api/messages/sender-rules/`
+  - local sender rule enable/disable selection
 
 ## Local Run (Current)
 
@@ -130,11 +135,13 @@ Settings
 4. Account/category fetch. Done.
 5. Quick add transaction. Done.
 6. Transaction list. Done.
+7. SMS sender selection scaffold. Done.
 
 ## Phase 2 Mobile Milestones
 
-1. SMS permission flow.
-2. Sender number management.
-3. Local raw message cache.
-4. Raw message sync.
-5. Review inbox.
+1. SMS permission gate scaffold. Done.
+2. Sender number management scaffold. Done.
+3. Native Android SMS module decision.
+4. Local raw message cache.
+5. Raw message sync.
+6. Review inbox.

@@ -1,3 +1,9 @@
+declare const process: {
+  env: {
+    EXPO_PUBLIC_API_BASE_URL?: string;
+  };
+};
+
 export type HealthResponse = {
   status: "ok";
 };
@@ -25,6 +31,25 @@ export type Category = {
   id: string;
   kind: string;
   name: string;
+};
+
+export type PaymentMethod = {
+  account: string;
+  id: string;
+  identifier: string;
+  name: string;
+  provider: string;
+};
+
+export type SenderRule = {
+  account: string;
+  id: string;
+  match_type: string;
+  name: string;
+  payment_method: string | null;
+  priority: number;
+  provider: string;
+  sender: string;
 };
 
 export type CreateTransactionInput = {
@@ -145,6 +170,16 @@ export async function listAccounts(accessToken: string): Promise<Account[]> {
 export async function listCategories(accessToken: string): Promise<Category[]> {
   const response = await authenticatedFetch("/api/categories/", accessToken);
   return (await response.json()) as Category[];
+}
+
+export async function listPaymentMethods(accessToken: string): Promise<PaymentMethod[]> {
+  const response = await authenticatedFetch("/api/payment-methods/", accessToken);
+  return (await response.json()) as PaymentMethod[];
+}
+
+export async function listSenderRules(accessToken: string): Promise<SenderRule[]> {
+  const response = await authenticatedFetch("/api/messages/sender-rules/", accessToken);
+  return (await response.json()) as SenderRule[];
 }
 
 export async function createTransaction(

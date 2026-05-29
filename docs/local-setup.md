@@ -244,6 +244,8 @@ GET /api/accounts/
 GET /api/categories/
 POST /api/transactions/
 GET /api/transactions/
+GET /api/payment-methods/
+GET /api/messages/sender-rules/
 ```
 
 Use a Django user created from the backend project:
