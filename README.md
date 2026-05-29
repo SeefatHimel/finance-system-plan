@@ -136,3 +136,5 @@ mindmap
 - The web transaction list supports month, type, account, and category filters.
 - The mobile app has an SMS tracking settings scaffold for permission gating
   and sender rule selection.
+- The mobile app can queue raw SMS messages locally and sync them to the backend
+  import endpoint.

@@ -52,6 +52,22 @@ export type SenderRule = {
   sender: string;
 };
 
+export type RawMessageImportInput = {
+  body: string;
+  device_message_id?: string;
+  received_at: string;
+  sender: string;
+};
+
+export type RawMessageImportResult = {
+  is_duplicate: boolean;
+  message: {
+    id: string;
+    sender: string;
+    status: string;
+  };
+};
+
 export type CreateTransactionInput = {
   account: string;
   amount: string;
@@ -210,6 +226,35 @@ export async function createTransaction(
   if (!response.ok) {
     throw new Error(`Transaction create failed with HTTP ${response.status}.`);
   }
+}
+
+export async function importRawMessage(
+  accessToken: string,
+  input: RawMessageImportInput
+): Promise<RawMessageImportResult> {
+  const response = await fetch(`${getApiBaseUrl()}/api/messages/import/`, {
+    body: JSON.stringify({
+      body: input.body,
+      device_message_id: input.device_message_id || "",
+      received_at: input.received_at,
+      sender: input.sender
+    }),
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  if (response.status === 401) {
+    throw new Error("Your session expired. Sign in again.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Raw message import failed with HTTP ${response.status}.`);
+  }
+
+  return (await response.json()) as RawMessageImportResult;
 }
 
 export async function listTransactions(accessToken: string): Promise<Transaction[]> {

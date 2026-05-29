@@ -160,8 +160,8 @@ workflow, and an Expo Android-oriented mobile scaffold.
 ## What is not implemented yet?
 
 Provider-specific SMS parsing, debt workflows, reconciliation endpoints, native
-Android SMS capture implementation, local message sync, and production
-deployment setup are still planned future work.
+Android SMS capture implementation, production-grade local sync hardening, and
+production deployment setup are still planned future work.
 
 ## What is the biggest technical risk?
 

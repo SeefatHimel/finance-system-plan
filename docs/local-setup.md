@@ -252,6 +252,9 @@ POST /api/messages/review/{id}/confirm/
 POST /api/messages/review/{id}/ignore/
 ```
 
+The SMS tracking section can queue raw messages locally on the device and sync
+them to `POST /api/messages/import/` when an access token is available.
+
 Use a Django user created from the backend project:
 
 ```bash

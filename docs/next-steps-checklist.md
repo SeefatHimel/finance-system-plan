@@ -79,7 +79,7 @@ Last updated: 2026-05-29
 
 - [x] Add parser-backed SMS review inbox
 - [x] Add native Android SMS permission/module decision
-- [ ] Add local raw message cache and sync queue
+- [x] Add local raw message cache and sync queue
 
 ## Verification Matrix
 
@@ -116,3 +116,4 @@ Last updated: 2026-05-29
 - `mobile: add sms sender selection scaffold`
 - `api: add parser-backed sms review inbox`
 - `docs: decide mobile sms permission path`
+- `mobile: add local raw message sync queue`

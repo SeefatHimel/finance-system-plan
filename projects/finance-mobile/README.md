@@ -23,6 +23,10 @@ Phase 1 scaffold now includes:
   - `GET /api/payment-methods/`
   - `GET /api/messages/sender-rules/`
   - local sender rule enable/disable selection
+- Local raw message queue:
+  - stores queued raw messages with AsyncStorage
+  - syncs queued messages to `POST /api/messages/import/`
+  - keeps failed sync items queued for retry
 - Native SMS permission/module decision documented in
   `docs/mobile-sms-permission-decision.md`.
 
@@ -143,12 +147,13 @@ Settings
 5. Quick add transaction. Done.
 6. Transaction list. Done.
 7. SMS sender selection scaffold. Done.
+8. Local raw message cache and sync queue. Done.
 
 ## Phase 2 Mobile Milestones
 
 1. SMS permission gate scaffold. Done.
 2. Sender number management scaffold. Done.
 3. Native Android SMS module decision. Done.
-4. Local raw message cache.
-5. Raw message sync.
+4. Local raw message cache. Done.
+5. Raw message sync. Done.
 6. Review inbox.

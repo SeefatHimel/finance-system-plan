@@ -1,4 +1,5 @@
 import { StatusBar } from "expo-status-bar";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,6 +17,7 @@ import {
   createTransaction,
   getApiBaseUrl,
   getCurrentUser,
+  importRawMessage,
   listAccounts,
   listCategories,
   listPaymentMethods,
@@ -32,6 +34,15 @@ import {
 
 type ViewState = "idle" | "loading" | "success" | "error";
 type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
+type QueuedRawMessage = {
+  body: string;
+  deviceMessageId: string;
+  id: string;
+  receivedAt: string;
+  sender: string;
+};
+
+const rawMessageQueueKey = "finance.rawMessageQueue";
 
 export default function App() {
   const [result, setResult] = useState<HealthResult | null>(null);
@@ -66,6 +77,13 @@ export default function App() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [senderRules, setSenderRules] = useState<SenderRule[]>([]);
   const [enabledSenderRuleIds, setEnabledSenderRuleIds] = useState<string[]>([]);
+  const [rawSender, setRawSender] = useState("");
+  const [rawBody, setRawBody] = useState("");
+  const [rawReceivedAt, setRawReceivedAt] = useState(new Date().toISOString());
+  const [rawDeviceMessageId, setRawDeviceMessageId] = useState("");
+  const [rawQueue, setRawQueue] = useState<QueuedRawMessage[]>([]);
+  const [rawQueueState, setRawQueueState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [rawQueueMessage, setRawQueueMessage] = useState("");
 
   const loadHealth = async () => {
     setState("loading");
@@ -138,6 +156,83 @@ export default function App() {
       }
       return [...currentIds, senderRuleId];
     });
+  };
+
+  const saveRawQueue = async (nextQueue: QueuedRawMessage[]) => {
+    setRawQueue(nextQueue);
+    await AsyncStorage.setItem(rawMessageQueueKey, JSON.stringify(nextQueue));
+  };
+
+  const handleQueueRawMessage = async () => {
+    if (!rawSender.trim() || !rawBody.trim() || !rawReceivedAt.trim()) {
+      setRawQueueState("error");
+      setRawQueueMessage("Sender, body, and received time are required.");
+      return;
+    }
+
+    const queuedMessage: QueuedRawMessage = {
+      body: rawBody.trim(),
+      deviceMessageId: rawDeviceMessageId.trim(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      receivedAt: rawReceivedAt.trim(),
+      sender: rawSender.trim()
+    };
+
+    try {
+      await saveRawQueue([...rawQueue, queuedMessage]);
+      setRawQueueState("ok");
+      setRawQueueMessage("Raw message queued locally.");
+      setRawBody("");
+      setRawDeviceMessageId("");
+      setRawReceivedAt(new Date().toISOString());
+    } catch (error) {
+      setRawQueueState("error");
+      setRawQueueMessage(error instanceof Error ? error.message : "Could not save raw message.");
+    }
+  };
+
+  const handleSyncRawQueue = async () => {
+    if (!accessToken.trim()) {
+      setRawQueueState("error");
+      setRawQueueMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+    if (rawQueue.length === 0) {
+      setRawQueueState("ok");
+      setRawQueueMessage("No queued raw messages to sync.");
+      return;
+    }
+
+    setRawQueueState("loading");
+    setRawQueueMessage("");
+
+    const remainingQueue: QueuedRawMessage[] = [];
+    let syncedCount = 0;
+
+    for (const queuedMessage of rawQueue) {
+      try {
+        await importRawMessage(accessToken.trim(), {
+          body: queuedMessage.body,
+          device_message_id: queuedMessage.deviceMessageId,
+          received_at: queuedMessage.receivedAt,
+          sender: queuedMessage.sender
+        });
+        syncedCount += 1;
+      } catch {
+        remainingQueue.push(queuedMessage);
+      }
+    }
+
+    try {
+      await saveRawQueue(remainingQueue);
+      setRawQueueState(remainingQueue.length === 0 ? "ok" : "error");
+      setRawQueueMessage(
+        `Synced ${syncedCount} message(s). ${remainingQueue.length} message(s) remain queued.`
+      );
+    } catch (error) {
+      setRawQueueState("error");
+      setRawQueueMessage(error instanceof Error ? error.message : "Could not update local queue.");
+    }
   };
 
   const handleLogin = async () => {
@@ -246,6 +341,16 @@ export default function App() {
 
   useEffect(() => {
     void loadHealth();
+    AsyncStorage.getItem(rawMessageQueueKey)
+      .then((storedQueue) => {
+        if (storedQueue) {
+          setRawQueue(JSON.parse(storedQueue) as QueuedRawMessage[]);
+        }
+      })
+      .catch(() => {
+        setRawQueueState("error");
+        setRawQueueMessage("Could not load local raw message queue.");
+      });
   }, []);
 
   return (
@@ -487,6 +592,62 @@ export default function App() {
               })}
             </View>
           ) : null}
+
+          <Text style={styles.sectionTitle}>Local Raw Message Queue</Text>
+          <Text style={styles.meta}>
+            This is the offline-safe handoff point for future native SMS capture.
+          </Text>
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setRawSender}
+            placeholder="Sender (for example bKash)"
+            style={styles.input}
+            value={rawSender}
+          />
+          <TextInput
+            autoCapitalize="sentences"
+            multiline
+            onChangeText={setRawBody}
+            placeholder="Raw SMS body"
+            style={styles.inputMultiline}
+            value={rawBody}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setRawReceivedAt}
+            placeholder="Received at ISO time"
+            style={styles.input}
+            value={rawReceivedAt}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setRawDeviceMessageId}
+            placeholder="Device message ID (optional)"
+            style={styles.input}
+            value={rawDeviceMessageId}
+          />
+          <Pressable onPress={handleQueueRawMessage} style={styles.buttonSecondary}>
+            <Text style={styles.buttonText}>Queue Raw Message</Text>
+          </Pressable>
+          <Pressable onPress={handleSyncRawQueue} style={styles.button}>
+            <Text style={styles.buttonText}>Sync Queued Messages</Text>
+          </Pressable>
+
+          {rawQueueState === "loading" ? <ActivityIndicator /> : null}
+          {rawQueueState === "ok" ? <Text style={styles.okText}>{rawQueueMessage}</Text> : null}
+          {rawQueueState === "error" ? <Text style={styles.errorText}>{rawQueueMessage}</Text> : null}
+
+          <View style={styles.listSection}>
+            <Text style={styles.listTitle}>Queued Messages ({rawQueue.length})</Text>
+            {rawQueue.map((queuedMessage) => (
+              <Text key={queuedMessage.id} style={styles.listItem}>
+                {queuedMessage.sender} | {queuedMessage.receivedAt} | {queuedMessage.body}
+              </Text>
+            ))}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
