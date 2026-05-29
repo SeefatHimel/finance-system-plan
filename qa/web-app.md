@@ -16,8 +16,9 @@ will combine server-rendered status, authenticated pages, and interactive forms.
 The web app has a Next.js scaffold, TypeScript setup, environment-based API URL,
 global styles, a dashboard shell, a server-rendered backend health check, a
 local JWT login flow, and a first transactions page for listing and creating
-manual transactions. It also has an accounts page for creating and listing
-accounts and categories, plus a monthly reports page.
+manual transactions. It also has an accounts page for managing accounts and
+categories, an SMS settings page for managing payment methods and sender rules,
+plus a monthly reports page.
 
 ## Why start with a health-check dashboard?
 
@@ -49,6 +50,7 @@ Planned screens:
 - Accounts
 - Categories
 - Payment Methods
+- SMS Sender Rules
 - SMS Review
 - Monthly Reports
 - Debts
@@ -80,6 +82,13 @@ The current accounts page uses the saved local JWT access token to create and
 list accounts and categories. It now supports full CRUD for accounts and
 categories, with backend constraints still preventing deletion when records are
 referenced by transactions.
+
+## What does the current SMS settings page do?
+
+The SMS settings page uses the saved local JWT access token to load accounts,
+payment methods, and sender rules. It supports creating, listing, updating, and
+deleting payment methods and sender rules so SMS import can map trusted senders
+back to real accounts.
 
 ## What does the current reports page do?
 

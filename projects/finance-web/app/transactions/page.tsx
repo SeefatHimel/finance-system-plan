@@ -19,6 +19,9 @@ export default function TransactionsPage() {
             <Link className="nav__item" href="/accounts">
               Accounts
             </Link>
+            <Link className="nav__item" href="/sms-settings">
+              SMS settings
+            </Link>
             <Link className="nav__item" href="/reports">
               Reports
             </Link>

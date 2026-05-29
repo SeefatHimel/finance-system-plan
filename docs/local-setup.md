@@ -197,6 +197,12 @@ http://localhost:3000/accounts
 Create at least one account before using the transaction form. Categories are
 optional but recommended for useful monthly reports.
 
+Payment methods and SMS sender rules:
+
+```txt
+http://localhost:3000/sms-settings
+```
+
 Monthly reports:
 
 ```txt

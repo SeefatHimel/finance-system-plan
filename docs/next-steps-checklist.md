@@ -27,6 +27,7 @@ Last updated: 2026-05-29
 - [x] Transactions update/delete
 - [x] Accounts create/list/update/delete
 - [x] Categories create/list/update/delete
+- [x] Payment method and sender rule management screen
 - [x] Monthly report screen
 
 ### Mobile App
@@ -52,6 +53,7 @@ Last updated: 2026-05-29
 - [x] Add backend migrations and CRUD endpoints for payment methods
 - [x] Add backend migrations and CRUD endpoints for sender rules
 - [x] Add raw message import endpoint and duplicate-detection baseline
+- [x] Add web management screens for payment methods and sender rules
 
 ### Docker Runtime Support
 
@@ -73,7 +75,6 @@ Last updated: 2026-05-29
 
 ### Phase 2 Kickoff
 
-- [ ] Add web management screens for payment methods and sender rules
 - [ ] Add mobile sender selection UI + permission gate scaffold
 
 ## Verification Matrix
@@ -86,6 +87,9 @@ Last updated: 2026-05-29
   - Result: pass
 - [x] Web lint:
   - Command: `npm run lint`
+  - Result: pass
+- [x] Web build:
+  - Command: `npm run build`
   - Result: pass
 - [ ] Compose config validation:
   - Command: `docker compose config`
@@ -104,3 +108,4 @@ Last updated: 2026-05-29
 - `web: resolve remaining hook lint warnings and complete sprint-1 verification`
 - `infra: add docker support for api web and optional mobile with full setup docs`
 - `api: add payment methods and sms sender rule management`
+- `web: add sms settings management screen`

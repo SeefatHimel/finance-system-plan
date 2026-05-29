@@ -19,6 +19,7 @@ The web app is scaffolded with:
 - Transaction deletion from the list
 - Transaction filters for month, type, account, and category
 - Accounts page with account and category creation/listing/updating/deletion
+- SMS settings page with payment method and sender rule creation/listing/updating/deletion
 - Monthly reports page with income, expense, net, category, and account totals
 
 ## Responsibilities
@@ -114,6 +115,12 @@ Monthly reports:
 http://localhost:3000/reports
 ```
 
+Payment methods and SMS sender rules:
+
+```txt
+http://localhost:3000/sms-settings
+```
+
 ## Docker
 
 From `projects/finance-infra`:
@@ -141,8 +148,7 @@ npm run lint
 /dashboard
 /transactions
 /accounts
-/payment-methods
-/categories
+/sms-settings
 /messages/review
 /debts
 /reports/monthly
@@ -192,5 +198,6 @@ The user can enter the real-life balance for an account. The UI shows:
 4. Accounts CRUD. Done.
 5. Categories CRUD. Done.
 6. Transaction table and form. Done.
-7. Monthly report. Started.
-8. Balance reconciliation screen.
+7. Monthly report. Done.
+8. Payment methods and sender rules. Done.
+9. Balance reconciliation screen.

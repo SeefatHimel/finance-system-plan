@@ -29,6 +29,28 @@ const categorySchema = z.object({
   name: z.string()
 });
 
+const paymentMethodSchema = z.object({
+  account: z.string(),
+  id: z.string(),
+  identifier: z.string(),
+  is_active: z.boolean(),
+  name: z.string(),
+  provider: z.string()
+});
+
+const senderRuleSchema = z.object({
+  account: z.string(),
+  id: z.string(),
+  is_active: z.boolean(),
+  match_type: z.string(),
+  name: z.string(),
+  payment_method: z.string().nullable(),
+  pattern: z.string(),
+  priority: z.number(),
+  provider: z.string(),
+  sender: z.string()
+});
+
 const transactionSchema = z.object({
   account: z.string(),
   amount: z.string(),
@@ -89,6 +111,8 @@ export type AuthTokens = z.infer<typeof tokenResponseSchema>;
 export type CurrentUser = z.infer<typeof currentUserSchema>;
 export type Account = z.infer<typeof accountSchema>;
 export type Category = z.infer<typeof categorySchema>;
+export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+export type SenderRule = z.infer<typeof senderRuleSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
 export type MonthlyReport = z.infer<typeof monthlyReportSchema>;
 
@@ -130,6 +154,42 @@ export type UpdateAccountInput = {
 export type UpdateCategoryInput = {
   kind?: string;
   name?: string;
+};
+
+export type CreatePaymentMethodInput = {
+  account: string;
+  identifier?: string;
+  name: string;
+  provider: string;
+};
+
+export type UpdatePaymentMethodInput = {
+  account?: string;
+  identifier?: string;
+  name?: string;
+  provider?: string;
+};
+
+export type CreateSenderRuleInput = {
+  account: string;
+  match_type?: string;
+  name: string;
+  payment_method?: string | null;
+  pattern?: string;
+  priority?: number;
+  provider: string;
+  sender: string;
+};
+
+export type UpdateSenderRuleInput = {
+  account?: string;
+  match_type?: string;
+  name?: string;
+  payment_method?: string | null;
+  pattern?: string;
+  priority?: number;
+  provider?: string;
+  sender?: string;
 };
 
 export type UpdateTransactionInput = {
@@ -320,6 +380,97 @@ export async function updateCategory(
     method: "PATCH"
   });
   return categorySchema.parse(await response.json());
+}
+
+export async function listPaymentMethods(accessToken: string): Promise<PaymentMethod[]> {
+  const response = await authenticatedFetch("/api/payment-methods/", accessToken);
+  return collectionSchema(paymentMethodSchema).parse(await response.json());
+}
+
+export async function createPaymentMethod(
+  accessToken: string,
+  input: CreatePaymentMethodInput
+): Promise<PaymentMethod> {
+  const response = await authenticatedFetch("/api/payment-methods/", accessToken, {
+    body: JSON.stringify({
+      ...input,
+      identifier: input.identifier ?? ""
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  return paymentMethodSchema.parse(await response.json());
+}
+
+export async function deletePaymentMethod(accessToken: string, id: string): Promise<void> {
+  await authenticatedFetch(`/api/payment-methods/${id}/`, accessToken, {
+    method: "DELETE"
+  });
+}
+
+export async function updatePaymentMethod(
+  accessToken: string,
+  id: string,
+  input: UpdatePaymentMethodInput
+): Promise<PaymentMethod> {
+  const response = await authenticatedFetch(`/api/payment-methods/${id}/`, accessToken, {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "PATCH"
+  });
+  return paymentMethodSchema.parse(await response.json());
+}
+
+export async function listSenderRules(accessToken: string): Promise<SenderRule[]> {
+  const response = await authenticatedFetch("/api/messages/sender-rules/", accessToken);
+  return collectionSchema(senderRuleSchema).parse(await response.json());
+}
+
+export async function createSenderRule(
+  accessToken: string,
+  input: CreateSenderRuleInput
+): Promise<SenderRule> {
+  const response = await authenticatedFetch("/api/messages/sender-rules/", accessToken, {
+    body: JSON.stringify({
+      ...input,
+      match_type: input.match_type ?? "exact",
+      payment_method: input.payment_method || null,
+      pattern: input.pattern ?? "",
+      priority: input.priority ?? 100
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  return senderRuleSchema.parse(await response.json());
+}
+
+export async function deleteSenderRule(accessToken: string, id: string): Promise<void> {
+  await authenticatedFetch(`/api/messages/sender-rules/${id}/`, accessToken, {
+    method: "DELETE"
+  });
+}
+
+export async function updateSenderRule(
+  accessToken: string,
+  id: string,
+  input: UpdateSenderRuleInput
+): Promise<SenderRule> {
+  const response = await authenticatedFetch(`/api/messages/sender-rules/${id}/`, accessToken, {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "PATCH"
+  });
+  return senderRuleSchema.parse(await response.json());
 }
 
 export async function listTransactions(

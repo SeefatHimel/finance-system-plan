@@ -300,7 +300,7 @@ textarea {
 }
 
 .filter-form {
-  align-items: end;
+  align-items: flex-end;
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(4, minmax(0, 1fr)) auto auto;
@@ -328,6 +328,12 @@ textarea {
   color: var(--muted);
 }
 
+.list-row__meta {
+  display: block;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
 .list-row__actions {
   align-items: center;
   display: inline-flex;
@@ -335,14 +341,14 @@ textarea {
 }
 
 .report-header {
-  align-items: end;
+  align-items: flex-end;
   display: flex;
   gap: 18px;
   justify-content: space-between;
 }
 
 .month-form {
-  align-items: end;
+  align-items: flex-end;
   display: flex;
   gap: 10px;
 }

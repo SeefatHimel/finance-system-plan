@@ -28,6 +28,9 @@ export default async function HomePage() {
             <Link className="nav__item" href="/accounts">
               Accounts
             </Link>
+            <Link className="nav__item" href="/sms-settings">
+              SMS settings
+            </Link>
             <Link className="nav__item" href="/reports">
               Reports
             </Link>
