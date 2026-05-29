@@ -1,12 +1,15 @@
 # Next Steps Checklist
 
-Last updated: 2026-05-29
+Last updated: 2026-05-30
 
 ## Current Snapshot
 
 - Sprint 1 implementation scope is complete.
 - Docker support is added for API, web, and optional mobile profile.
-- Next milestone is Phase 2 kickoff (payment methods + SMS sender management).
+- Phase 2 kickoff is complete: payment methods, sender rules, raw SMS import,
+  review candidates, web/mobile management, and local mobile queue are in place.
+- Next milestone is Phase 3 planning: provider-specific parsing,
+  reconciliation, debts, and production hardening.
 
 ## Done (Checked)
 
@@ -39,12 +42,14 @@ Last updated: 2026-05-29
 - [x] Quick transaction create flow
 - [x] Transaction list flow
 - [x] SMS sender selection UI + permission gate scaffold
+- [x] Local raw message cache and sync queue
 
 ### Contracts
 
 - [x] Initial `openapi.yaml` added
 - [x] Account/category/transaction/report examples added
 - [x] Payment method and sender rule contract fields added
+- [x] Raw message import and review inbox contract fields/examples added
 - [x] Contract Q&A updated
 
 ### Phase 2 Kickoff
@@ -81,6 +86,14 @@ Last updated: 2026-05-29
 - [x] Add native Android SMS permission/module decision
 - [x] Add local raw message cache and sync queue
 
+### Phase 3 Candidates
+
+- [ ] Add provider-specific SMS parsers for bKash and one bank/card provider
+- [ ] Add web/mobile SMS review inbox UI
+- [ ] Add balance snapshot and reconciliation endpoints
+- [ ] Add debt/lend workflow models and APIs
+- [ ] Add production-ready auth/token storage plan
+
 ## Verification Matrix
 
 - [x] Backend tests:
@@ -97,7 +110,7 @@ Last updated: 2026-05-29
   - Result: pass
 - [ ] Compose config validation:
   - Command: `docker compose config`
-  - Result: blocked in current environment (no Docker CLI available)
+  - Result: blocked on 2026-05-30 in current environment (`docker` command not found)
 
 ## Checkpoint Commit Messages
 

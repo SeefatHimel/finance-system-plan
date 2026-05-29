@@ -60,29 +60,30 @@ Goal: prepare the system for automated SMS tracking.
 
 Backend:
 
-- Payment method model
-- SMS sender rule model
-- Raw message import API
-- Duplicate message detection by hash/device id/body/time
+- Payment method model. Done.
+- SMS sender rule model. Done.
+- Raw message import API. Done.
+- Duplicate message detection by hash/device id/body/time. Done.
+- Baseline parsed review candidate creation. Done.
 
 Web:
 
-- Payment methods management
-- SMS sender rules management
-- Raw message review list
+- Payment methods management. Done.
+- SMS sender rules management. Done.
+- Raw message review list. Planned for Phase 3 UI polish.
 
 Mobile:
 
-- UI to select tracked SMS sender numbers
-- Android permissions
-- Local raw message storage
-- Sync raw messages to backend
+- UI to select tracked SMS sender numbers. Done.
+- Android permission/module decision. Done.
+- Local raw message storage. Done.
+- Sync raw messages to backend. Done.
 
 Exit criteria:
 
-- User can choose which SMS senders are tracked.
-- Raw messages appear in backend and web review inbox.
-- Duplicate raw messages are not imported repeatedly.
+- User can choose which SMS senders are tracked. Done.
+- Raw messages appear in backend review inbox. Done.
+- Duplicate raw messages are not imported repeatedly. Done.
 
 ## Phase 3: Rule-Based SMS Parsing
 
@@ -175,4 +176,3 @@ Exit criteria:
 - User can trust the system as the main finance record.
 - Data can be exported and backed up.
 - Architecture is ready for online deployment.
-

@@ -124,8 +124,9 @@ mindmap
 - The first backend endpoint is `GET /api/health/`.
 - The first manual finance API loop is started with accounts, categories,
   transactions, and monthly reports.
-- Phase 2 backend kickoff is started with payment method and SMS sender rule
-  CRUD APIs, raw SMS import duplicate detection, and a parsed SMS review inbox.
+- Phase 2 kickoff is complete across API, contracts, web, and mobile scaffolds:
+  payment methods, sender rules, raw SMS import, duplicate detection, parsed
+  review candidates, and local mobile raw-message queue.
 - JWT authentication is available for web and mobile clients.
 - The Next.js web app shell is started and can display backend health.
 - The web app has a local-development login flow for JWT auth.
@@ -138,3 +139,9 @@ mindmap
   and sender rule selection.
 - The mobile app can queue raw SMS messages locally and sync them to the backend
   import endpoint.
+
+## Next Milestone
+
+Phase 3 should focus on turning the SMS scaffolding into a fuller workflow:
+provider-specific parsers, web/mobile review inbox UI, reconciliation endpoints,
+debt/lend workflows, and production hardening.
