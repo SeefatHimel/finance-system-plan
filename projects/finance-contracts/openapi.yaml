@@ -813,10 +813,10 @@ components:
       enum: [web, mobile, sms, import, system]
     PaymentProvider:
       type: string
-      enum: [cash, bkash, nagad, rocket, city_bank, bank, card, manual, other]
+      enum: [cash, bkash, nagad, rocket, ebl, city_bank, pathao_pay, bank, card, manual, other]
     SenderRuleProvider:
       type: string
-      enum: [bkash, nagad, rocket, city_bank, bank, card, other]
+      enum: [bkash, nagad, rocket, ebl, city_bank, pathao_pay, bank, card, other]
     SenderRuleMatchType:
       type: string
       enum: [exact, contains, regex]
@@ -826,6 +826,24 @@ components:
     ParsedMessageCandidateStatus:
       type: string
       enum: [needs_review, confirmed, ignored]
+    ParsedMessageKind:
+      type: string
+      enum:
+        - purchase
+        - cash_in
+        - cash_out
+        - send_money
+        - receive_money
+        - bank_transfer_in
+        - bank_transfer_out
+        - card_purchase
+        - card_payment
+        - fee
+        - refund
+        - reversal
+        - balance_notice
+        - otp_or_security
+        - unknown
     Account:
       type: object
       required:
@@ -1145,7 +1163,7 @@ components:
     ParsedMessageCandidate:
       type: object
       required:
-        [id, raw_message, sender_rule, account, payment_method, transaction, transaction_type, amount, confidence, status, parser_name, parser_notes, created_at, updated_at]
+        [id, raw_message, sender_rule, account, payment_method, destination_account, destination_payment_method, transaction, provider, message_kind, transaction_type, amount, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, confidence, status, parser_name, parser_notes, created_at, updated_at]
       properties:
         id:
           type: string
@@ -1164,10 +1182,24 @@ components:
           type: string
           format: uuid
           nullable: true
+        destination_account:
+          type: string
+          format: uuid
+          nullable: true
+          description: Destination account hint for transfer-aware review.
+        destination_payment_method:
+          type: string
+          format: uuid
+          nullable: true
+          description: Destination payment method hint for transfer-aware review.
         transaction:
           type: string
           format: uuid
           nullable: true
+        provider:
+          $ref: '#/components/schemas/SenderRuleProvider'
+        message_kind:
+          $ref: '#/components/schemas/ParsedMessageKind'
         transaction_type:
           $ref: '#/components/schemas/TransactionType'
         amount:
@@ -1175,6 +1207,24 @@ components:
           nullable: true
           pattern: '^\d+(\.\d{1,2})?$'
           example: "500.00"
+        counterparty_text:
+          type: string
+          maxLength: 255
+        reference:
+          type: string
+          maxLength: 120
+        balance_after:
+          type: string
+          nullable: true
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "1500.00"
+        fee_amount:
+          type: string
+          nullable: true
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "0.00"
+        possible_internal_transfer:
+          type: boolean
         confidence:
           type: string
           example: "0.70"

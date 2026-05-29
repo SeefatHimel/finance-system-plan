@@ -44,7 +44,7 @@ covering current phase-1 backend endpoints:
 - Transactions CRUD and list filters
 - Monthly report
 
-Phase 3 contract work should add parser fields for provider, message kind,
+Phase 3 contract work now includes parser fields for provider, message kind,
 reference, balance, fee, and possible internal transfer/source-destination
 hints.
 

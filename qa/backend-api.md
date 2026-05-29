@@ -144,15 +144,16 @@ future SMS parsers can reference payment methods to map messages to accounts.
 
 ## How would you add SMS parsing?
 
-Raw message import now stores the sender, body, received time, optional device
+Raw message import stores the sender, body, received time, optional device
 message ID, and a deterministic body hash. The backend creates a parsed message
-candidate with matched sender rule metadata, baseline amount extraction,
-confidence, and parser notes. Candidates can be reviewed, confirmed into an
-SMS-sourced transaction, or ignored.
+candidate with matched sender rule metadata, amount extraction, confidence, and
+parser notes. Candidates can be reviewed, confirmed into an SMS-sourced
+transaction, or ignored.
 
-Phase 3 should add provider-specific parsers for bKash, EBL, City Bank, and
-Pathao Pay. The parsers should detect message kind, amount, reference, balance,
-fee, source/destination payment method hints, and possible internal transfers.
+Phase 3 now has transfer-aware candidate fields and an initial bKash parser.
+The bKash parser detects message kind, amount, reference, balance, fee, and
+possible internal transfers for cash-in/cash-out style messages. EBL, City
+Bank, and Pathao Pay remain the next provider-specific parser targets.
 
 ## How would you prevent duplicate SMS transactions?
 

@@ -8,9 +8,9 @@ Last updated: 2026-05-30
 - Docker support is added for API, web, and optional mobile profile.
 - Phase 2 kickoff is complete: payment methods, sender rules, raw SMS import,
   review candidates, web/mobile management, and local mobile queue are in place.
-- Next milestone is Phase 3 planning: provider-specific parsing for bKash, EBL,
-  City Bank, and Pathao Pay; transfer-aware review; reconciliation; debts; and
-  production hardening.
+- Next milestone is Phase 3 implementation: provider-specific parsing for
+  bKash, EBL, City Bank, and Pathao Pay; transfer-aware review;
+  reconciliation; debts; and production hardening.
 
 ## Done (Checked)
 
@@ -90,8 +90,10 @@ Last updated: 2026-05-30
 ### Phase 3 Candidates
 
 - [ ] Collect anonymized SMS fixtures for bKash, EBL, City Bank, and Pathao Pay
-- [ ] Add transfer-aware parsed candidate fields
-- [ ] Add provider-specific SMS parsers for bKash and one bank/card provider
+- [x] Add starter anonymized-style SMS fixture files for bKash, EBL, City Bank, and Pathao Pay
+- [x] Add transfer-aware parsed candidate fields
+- [x] Add provider-specific bKash SMS parser
+- [ ] Add provider-specific parser for one bank/card provider
 - [ ] Add internal transfer matching hints for bank-to-wallet and own-account transfers
 - [ ] Add web/mobile SMS review inbox UI
 - [ ] Add balance snapshot and reconciliation endpoints
@@ -135,3 +137,4 @@ Last updated: 2026-05-30
 - `docs: decide mobile sms permission path`
 - `mobile: add local raw message sync queue`
 - `docs: plan phase 3 provider sms parsing`
+- `api: add transfer-aware bkash sms parser`

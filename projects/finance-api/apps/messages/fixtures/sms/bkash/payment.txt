@@ -1,0 +1,1 @@
+Payment Tk 350.00 to SAMPLE MERCHANT successful. Balance Tk 1,150.00. TrxID DEF456XYZ.

@@ -1,9 +1,12 @@
 import re
 from decimal import Decimal, InvalidOperation
 
-from .models import SenderRule
+from .models import ParsedMessageCandidate, SenderRule
 
 _AMOUNT_PATTERN = re.compile(r"(?:tk|bdt)\s*([0-9][0-9,]*(?:\.\d{1,2})?)|([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:tk|bdt)", re.IGNORECASE)
+_BALANCE_PATTERN = re.compile(r"(?:balance|bal)\s*(?:is|:)?\s*(?:tk|bdt)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
+_FEE_PATTERN = re.compile(r"(?:charge|fee)\s*(?:is|:)?\s*(?:tk|bdt)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
+_REFERENCE_PATTERN = re.compile(r"(?:trxid|trx id|txnid|txn id|ref|reference)\s*[:#-]?\s*([a-z0-9-]+)", re.IGNORECASE)
 
 
 def find_sender_rule(*, user, sender: str):
@@ -20,6 +23,11 @@ def find_sender_rule(*, user, sender: str):
 
 def parse_raw_message(raw_message):
     sender_rule = find_sender_rule(user=raw_message.user, sender=raw_message.sender)
+    provider = _detect_provider(sender_rule=sender_rule, sender=raw_message.sender)
+
+    if provider == SenderRule.Provider.BKASH:
+        return _parse_bkash_message(raw_message=raw_message, sender_rule=sender_rule)
+
     amount = _extract_amount(raw_message.body)
     parser_notes = []
 
@@ -36,8 +44,17 @@ def parse_raw_message(raw_message):
     return {
         "account": sender_rule.account if sender_rule else None,
         "amount": amount,
+        "balance_after": _extract_balance(raw_message.body),
         "confidence": Decimal("0.70") if sender_rule and amount is not None else Decimal("0.30"),
+        "counterparty_text": "",
+        "destination_account": None,
+        "destination_payment_method": None,
+        "fee_amount": _extract_fee(raw_message.body),
+        "message_kind": ParsedMessageCandidate.MessageKind.UNKNOWN,
         "payment_method": sender_rule.payment_method if sender_rule else None,
+        "possible_internal_transfer": False,
+        "provider": provider,
+        "reference": _extract_reference(raw_message.body),
         "parser_name": "baseline_amount_parser",
         "parser_notes": " ".join(parser_notes),
         "sender_rule": sender_rule,
@@ -71,3 +88,123 @@ def _extract_amount(body: str):
         return Decimal(amount_text)
     except (InvalidOperation, ValueError):
         return None
+
+
+def _parse_bkash_message(*, raw_message, sender_rule):
+    body = raw_message.body
+    normalized = _normalize_text(body)
+    amount = _extract_amount(body)
+    message_kind = ParsedMessageCandidate.MessageKind.UNKNOWN
+    transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
+    possible_internal_transfer = False
+    confidence = Decimal("0.75") if sender_rule and amount is not None else Decimal("0.45")
+    notes = []
+
+    if sender_rule:
+        notes.append(f"Matched sender rule: {sender_rule.name}.")
+    else:
+        notes.append("No active sender rule matched this bKash-like message.")
+
+    if any(keyword in normalized for keyword in ("cash in", "cash-in", "add money")):
+        message_kind = ParsedMessageCandidate.MessageKind.CASH_IN
+        transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
+        possible_internal_transfer = True
+        confidence = Decimal("0.88") if amount is not None else Decimal("0.60")
+        notes.append("Detected bKash cash-in/add-money wording.")
+    elif any(keyword in normalized for keyword in ("cash out", "cash-out")):
+        message_kind = ParsedMessageCandidate.MessageKind.CASH_OUT
+        transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
+        possible_internal_transfer = True
+        confidence = Decimal("0.84") if amount is not None else Decimal("0.55")
+        notes.append("Detected bKash cash-out wording.")
+    elif "send money" in normalized:
+        message_kind = ParsedMessageCandidate.MessageKind.SEND_MONEY
+        transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
+        confidence = Decimal("0.80") if amount is not None else Decimal("0.50")
+        notes.append("Detected bKash send-money wording.")
+    elif any(keyword in normalized for keyword in ("received", "receive money")):
+        message_kind = ParsedMessageCandidate.MessageKind.RECEIVE_MONEY
+        transaction_type = ParsedMessageCandidate.TransactionType.INCOME
+        confidence = Decimal("0.80") if amount is not None else Decimal("0.50")
+        notes.append("Detected bKash receive-money wording.")
+    elif any(keyword in normalized for keyword in ("payment", "paid to", "merchant")):
+        message_kind = ParsedMessageCandidate.MessageKind.PURCHASE
+        transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
+        confidence = Decimal("0.82") if amount is not None else Decimal("0.50")
+        notes.append("Detected bKash payment/purchase wording.")
+
+    if amount is None:
+        notes.append("Could not extract an amount with the Tk/BDT parser.")
+    else:
+        notes.append("Extracted amount with the Tk/BDT parser.")
+
+    return {
+        "account": sender_rule.account if sender_rule else None,
+        "amount": amount,
+        "balance_after": _extract_balance(body),
+        "confidence": confidence,
+        "counterparty_text": _extract_counterparty_text(body),
+        "destination_account": None,
+        "destination_payment_method": None,
+        "fee_amount": _extract_fee(body),
+        "message_kind": message_kind,
+        "payment_method": sender_rule.payment_method if sender_rule else None,
+        "possible_internal_transfer": possible_internal_transfer,
+        "provider": SenderRule.Provider.BKASH,
+        "reference": _extract_reference(body),
+        "parser_name": "bkash_sms_parser",
+        "parser_notes": " ".join(notes),
+        "sender_rule": sender_rule,
+        "transaction_type": transaction_type,
+    }
+
+
+def _detect_provider(*, sender_rule, sender: str) -> str:
+    if sender_rule:
+        return sender_rule.provider
+
+    normalized_sender = sender.strip().lower().replace(" ", "")
+    if "bkash" in normalized_sender:
+        return SenderRule.Provider.BKASH
+    if normalized_sender == "ebl" or "easternbank" in normalized_sender:
+        return SenderRule.Provider.EBL
+    if "city" in normalized_sender:
+        return SenderRule.Provider.CITY_BANK
+    if "pathao" in normalized_sender:
+        return SenderRule.Provider.PATHAO_PAY
+    return SenderRule.Provider.OTHER
+
+
+def _extract_balance(body: str):
+    return _extract_decimal_with_pattern(_BALANCE_PATTERN, body)
+
+
+def _extract_fee(body: str):
+    return _extract_decimal_with_pattern(_FEE_PATTERN, body)
+
+
+def _extract_reference(body: str) -> str:
+    match = _REFERENCE_PATTERN.search(body)
+    return match.group(1).strip() if match else ""
+
+
+def _extract_decimal_with_pattern(pattern, body: str):
+    match = pattern.search(body)
+    if not match:
+        return None
+
+    try:
+        return Decimal(match.group(1).replace(",", ""))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _extract_counterparty_text(body: str) -> str:
+    match = re.search(r"\b(?:to|from)\s+(.+?)(?:\.| trxid| txnid| ref| balance| fee| charge|$)", body, flags=re.IGNORECASE)
+    if not match:
+        return ""
+    return match.group(1).strip()[:255]
+
+
+def _normalize_text(value: str) -> str:
+    return " ".join(value.lower().replace("-", " ").split())

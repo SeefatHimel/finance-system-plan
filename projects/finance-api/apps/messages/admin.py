@@ -20,6 +20,16 @@ class RawMessageAdmin(admin.ModelAdmin):
 
 @admin.register(ParsedMessageCandidate)
 class ParsedMessageCandidateAdmin(admin.ModelAdmin):
-    list_display = ("raw_message", "status", "amount", "confidence", "account", "transaction")
-    list_filter = ("status", "parser_name")
+    list_display = (
+        "raw_message",
+        "status",
+        "provider",
+        "message_kind",
+        "amount",
+        "confidence",
+        "account",
+        "possible_internal_transfer",
+        "transaction",
+    )
+    list_filter = ("status", "provider", "message_kind", "parser_name")
     search_fields = ("raw_message__sender", "raw_message__body", "parser_notes", "user__username")

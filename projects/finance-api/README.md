@@ -209,16 +209,18 @@ Use provider-specific parser classes:
 
 ```txt
 BaseMessageParser
-BkashMessageParser
+BkashMessageParser (initial transfer-aware implementation)
+EblMessageParser
 CityBankMessageParser
-NagadMessageParser
-RocketMessageParser
+PathaoPayMessageParser
 CustomRegexMessageParser
 ```
 
 Each parser returns a parsed candidate, not a final transaction. The backend
-should create transactions only when confidence is high enough or the user
-confirms the candidate.
+should create transactions only when the user confirms the candidate. Parsed
+candidates preserve provider, message kind, reference, fee, balance, and
+possible internal-transfer hints so bank-to-wallet movement does not become a
+fake expense or income.
 
 ## Balance Rules
 

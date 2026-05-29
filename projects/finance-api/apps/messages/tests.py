@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APITestCase
@@ -6,6 +8,8 @@ from apps.accounts.models import Account
 from apps.messages.models import ParsedMessageCandidate, SenderRule
 from apps.payment_methods.models import PaymentMethod
 from apps.transactions.models import Transaction
+
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "sms"
 
 
 class SenderRuleApiTests(APITestCase):
@@ -106,6 +110,88 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(response.data["message"]["sender"], "bKash")
         self.assertEqual(response.data["candidate"]["amount"], "500.00")
         self.assertEqual(response.data["candidate"]["status"], "needs_review")
+
+    def test_bkash_cash_in_import_creates_transfer_aware_candidate(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(
+            user=user,
+            name="Bkash Wallet",
+            type=Account.Type.MOBILE_WALLET,
+        )
+        payment_method = PaymentMethod.objects.create(
+            user=user,
+            account=account,
+            name="Personal bKash",
+            provider=PaymentMethod.Provider.BKASH,
+            identifier="01700000000",
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            payment_method=payment_method,
+            name="bKash sender",
+            provider=SenderRule.Provider.BKASH,
+            sender="bKash",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "bKash",
+                "body": (FIXTURE_DIR / "bkash" / "cash_in.txt").read_text(),
+                "received_at": "2026-05-30T10:30:00+06:00",
+                "device_message_id": "sms-bkash-cash-in-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["provider"], "bkash")
+        self.assertEqual(candidate["message_kind"], "cash_in")
+        self.assertEqual(candidate["transaction_type"], "transfer")
+        self.assertEqual(candidate["amount"], "1000.00")
+        self.assertEqual(candidate["balance_after"], "1500.00")
+        self.assertEqual(candidate["fee_amount"], "0.00")
+        self.assertEqual(candidate["reference"], "ABC123XYZ")
+        self.assertTrue(candidate["possible_internal_transfer"])
+
+    def test_bkash_payment_import_creates_purchase_candidate(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(
+            user=user,
+            name="Bkash Wallet",
+            type=Account.Type.MOBILE_WALLET,
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="bKash sender",
+            provider=SenderRule.Provider.BKASH,
+            sender="bKash",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "bKash",
+                "body": (FIXTURE_DIR / "bkash" / "payment.txt").read_text(),
+                "received_at": "2026-05-30T11:30:00+06:00",
+                "device_message_id": "sms-bkash-payment-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["provider"], "bkash")
+        self.assertEqual(candidate["message_kind"], "purchase")
+        self.assertEqual(candidate["transaction_type"], "expense")
+        self.assertEqual(candidate["amount"], "350.00")
+        self.assertEqual(candidate["counterparty_text"], "SAMPLE MERCHANT successful")
+        self.assertFalse(candidate["possible_internal_transfer"])
 
     def test_duplicate_raw_message_returns_existing_message(self):
         user = get_user_model().objects.create_user(username="himel", password="password")

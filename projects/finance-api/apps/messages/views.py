@@ -118,8 +118,17 @@ class RawMessageImportView(APIView):
             sender_rule=parsed["sender_rule"],
             account=parsed["account"],
             payment_method=parsed["payment_method"],
+            destination_account=parsed["destination_account"],
+            destination_payment_method=parsed["destination_payment_method"],
+            provider=parsed["provider"],
+            message_kind=parsed["message_kind"],
             transaction_type=parsed["transaction_type"],
             amount=parsed["amount"],
+            counterparty_text=parsed["counterparty_text"],
+            reference=parsed["reference"],
+            balance_after=parsed["balance_after"],
+            fee_amount=parsed["fee_amount"],
+            possible_internal_transfer=parsed["possible_internal_transfer"],
             confidence=parsed["confidence"],
             parser_name=parsed["parser_name"],
             parser_notes=parsed["parser_notes"],
@@ -135,7 +144,15 @@ class MessageReviewListView(APIView):
                 user=request.user,
                 status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
             )
-            .select_related("raw_message", "sender_rule", "account", "payment_method", "transaction")
+            .select_related(
+                "raw_message",
+                "sender_rule",
+                "account",
+                "payment_method",
+                "destination_account",
+                "destination_payment_method",
+                "transaction",
+            )
         )
         return Response(ParsedMessageCandidateSerializer(candidates, many=True).data)
 
@@ -195,6 +212,8 @@ class MessageCandidateConfirmView(APIView):
                 "sender_rule",
                 "account",
                 "payment_method",
+                "destination_account",
+                "destination_payment_method",
                 "transaction",
             ),
             user=user,

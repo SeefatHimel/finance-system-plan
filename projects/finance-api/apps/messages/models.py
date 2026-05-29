@@ -12,7 +12,9 @@ class SenderRule(models.Model):
         BKASH = "bkash", "bKash"
         NAGAD = "nagad", "Nagad"
         ROCKET = "rocket", "Rocket"
+        EBL = "ebl", "EBL"
         CITY_BANK = "city_bank", "City Bank"
+        PATHAO_PAY = "pathao_pay", "Pathao Pay"
         BANK = "bank", "Bank"
         CARD = "card", "Card"
         OTHER = "other", "Other"
@@ -139,6 +141,23 @@ class ParsedMessageCandidate(models.Model):
         FEE = "fee", "Fee"
         REFUND = "refund", "Refund"
 
+    class MessageKind(models.TextChoices):
+        PURCHASE = "purchase", "Purchase"
+        CASH_IN = "cash_in", "Cash in"
+        CASH_OUT = "cash_out", "Cash out"
+        SEND_MONEY = "send_money", "Send money"
+        RECEIVE_MONEY = "receive_money", "Receive money"
+        BANK_TRANSFER_IN = "bank_transfer_in", "Bank transfer in"
+        BANK_TRANSFER_OUT = "bank_transfer_out", "Bank transfer out"
+        CARD_PURCHASE = "card_purchase", "Card purchase"
+        CARD_PAYMENT = "card_payment", "Card payment"
+        FEE = "fee", "Fee"
+        REFUND = "refund", "Refund"
+        REVERSAL = "reversal", "Reversal"
+        BALANCE_NOTICE = "balance_notice", "Balance notice"
+        OTP_OR_SECURITY = "otp_or_security", "OTP or security"
+        UNKNOWN = "unknown", "Unknown"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -171,12 +190,32 @@ class ParsedMessageCandidate(models.Model):
         null=True,
         related_name="parsed_message_candidates",
     )
+    destination_account = models.ForeignKey(
+        "accounts.Account",
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        related_name="destination_parsed_message_candidates",
+    )
+    destination_payment_method = models.ForeignKey(
+        "payment_methods.PaymentMethod",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="destination_parsed_message_candidates",
+    )
     transaction = models.ForeignKey(
         "transactions.Transaction",
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
         related_name="parsed_message_candidates",
+    )
+    provider = models.CharField(max_length=32, choices=SenderRule.Provider.choices, blank=True, default="")
+    message_kind = models.CharField(
+        max_length=32,
+        choices=MessageKind.choices,
+        default=MessageKind.UNKNOWN,
     )
     transaction_type = models.CharField(
         max_length=32,
@@ -190,6 +229,11 @@ class ParsedMessageCandidate(models.Model):
         null=True,
         validators=[MinValueValidator(Decimal("0.01"))],
     )
+    counterparty_text = models.CharField(max_length=255, blank=True, default="")
+    reference = models.CharField(max_length=120, blank=True, default="")
+    balance_after = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)
+    fee_amount = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)
+    possible_internal_transfer = models.BooleanField(default=False)
     confidence = models.DecimalField(
         max_digits=4,
         decimal_places=2,
