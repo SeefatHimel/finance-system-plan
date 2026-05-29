@@ -14,6 +14,7 @@ tags:
   - name: Categories
   - name: Payment Methods
   - name: Sender Rules
+  - name: Messages
   - name: Transactions
   - name: Reports
 paths:
@@ -457,6 +458,35 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/messages/import/:
+    post:
+      tags: [Messages]
+      summary: Import a raw SMS message and detect duplicates
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RawMessageImportRequest'
+      responses:
+        '201':
+          description: Message imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RawMessageImportResponse'
+        '200':
+          description: Duplicate message detected; existing message returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RawMessageImportResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /api/transactions/:
     get:
       tags: [Transactions]
@@ -727,6 +757,9 @@ components:
     SenderRuleMatchType:
       type: string
       enum: [exact, contains, regex]
+    RawMessageStatus:
+      type: string
+      enum: [imported, duplicate, ignored]
     Account:
       type: object
       required:
@@ -982,6 +1015,63 @@ components:
           type: boolean
         notes:
           type: string
+    RawMessage:
+      type: object
+      required:
+        [id, sender, body, received_at, device_message_id, body_hash, status, duplicate_of, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sender:
+          type: string
+          maxLength: 120
+        body:
+          type: string
+        received_at:
+          type: string
+          format: date-time
+        device_message_id:
+          type: string
+          maxLength: 120
+          description: Optional Android/device SMS row ID when available.
+        body_hash:
+          type: string
+          maxLength: 64
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/RawMessageStatus'
+        duplicate_of:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    RawMessageImportRequest:
+      type: object
+      required: [sender, body, received_at]
+      properties:
+        sender:
+          type: string
+          maxLength: 120
+        body:
+          type: string
+        received_at:
+          type: string
+          format: date-time
+        device_message_id:
+          type: string
+          maxLength: 120
+          default: ""
+    RawMessageImportResponse:
+      type: object
+      required: [is_duplicate, message]
+      properties:
+        is_duplicate:
+          type: boolean
+        message:
+          $ref: '#/components/schemas/RawMessage'
     Category:
       type: object
       required: [id, name, kind, parent, is_active, display_order, created_at, updated_at]

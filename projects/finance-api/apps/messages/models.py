@@ -1,4 +1,5 @@
 import uuid
+from hashlib import sha256
 
 from django.conf import settings
 from django.db import models
@@ -63,3 +64,60 @@ class SenderRule(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class RawMessage(models.Model):
+    class Status(models.TextChoices):
+        IMPORTED = "imported", "Imported"
+        DUPLICATE = "duplicate", "Duplicate"
+        IGNORED = "ignored", "Ignored"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="raw_messages",
+    )
+    sender = models.CharField(max_length=120)
+    body = models.TextField()
+    received_at = models.DateTimeField()
+    device_message_id = models.CharField(max_length=120, blank=True)
+    body_hash = models.CharField(max_length=64)
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.IMPORTED)
+    duplicate_of = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="duplicates",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-received_at", "-created_at")
+        indexes = [
+            models.Index(fields=("user", "sender")),
+            models.Index(fields=("user", "received_at")),
+            models.Index(fields=("user", "body_hash")),
+            models.Index(fields=("user", "device_message_id")),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user", "body_hash"),
+                name="unique_raw_message_hash_per_user",
+            )
+        ]
+
+    @classmethod
+    def build_body_hash(cls, *, sender: str, body: str, received_at) -> str:
+        normalized = "|".join(
+            [
+                sender.strip().lower(),
+                received_at.isoformat(),
+                " ".join(body.split()),
+            ]
+        )
+        return sha256(normalized.encode("utf-8")).hexdigest()
+
+    def __str__(self) -> str:
+        return f"{self.sender} {self.received_at}"

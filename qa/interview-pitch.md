@@ -34,11 +34,11 @@ because the key automation feature is reading transaction SMS messages from
 user-approved senders.
 
 Right now the repo has the architecture docs, local PostgreSQL setup, JWT auth,
-account/category/transaction APIs, payment method and SMS sender rule APIs,
-monthly reports, a Next.js dashboard, a web login flow, account/category setup
-screens, and an initial manual transaction page with filters and a monthly
-report page. Next I would add raw SMS import with duplicate detection, then
-build the Phase 2 web and mobile management flows.
+account/category/transaction APIs, payment method and SMS sender rule APIs, raw
+SMS import with duplicate detection, monthly reports, a Next.js dashboard, a
+web login flow, account/category setup screens, and an initial manual
+transaction page with filters and a monthly report page. Next I would build the
+Phase 2 web/mobile management flows and add parser-backed review inboxes.
 
 ## Strong Technical Points To Mention
 
@@ -61,9 +61,9 @@ and report logic in the backend so the system can evolve.
 
 ## If Asked "What Would You Build Next?"
 
-I would add raw message import and duplicate detection, then build the review
-inbox and connect web/mobile management screens for payment methods and sender
-rules. After that I would add reconciliation and debt workflows.
+I would build the review inbox and parser layer, then connect web/mobile
+management screens for payment methods and sender rules. After that I would add
+reconciliation and debt workflows.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 

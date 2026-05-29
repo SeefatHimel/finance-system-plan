@@ -18,6 +18,8 @@ examples/
   account.create.json
   category.create.json
   payment-method.create.json
+  raw-message.import.json
+  raw-message.import.response.json
   sender-rule.create.json
   transaction.create.json
   transaction.list.response.json

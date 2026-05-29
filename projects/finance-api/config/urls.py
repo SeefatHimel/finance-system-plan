@@ -7,7 +7,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.accounts.views import AccountViewSet
 from apps.categories.views import CategoryViewSet
-from apps.messages.views import SenderRuleViewSet
+from apps.messages.views import RawMessageImportView, SenderRuleViewSet
 from apps.payment_methods.views import PaymentMethodViewSet
 from apps.transactions.views import TransactionViewSet
 
@@ -25,6 +25,7 @@ urlpatterns = [
     path("api/auth/", include("apps.users.urls")),
     path("api/", include(router.urls)),
     path("api/health/", include("apps.health.urls")),
+    path("api/messages/import/", RawMessageImportView.as_view(), name="raw-message-import"),
     path("api/reports/", include("apps.reports.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

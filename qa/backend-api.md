@@ -119,6 +119,7 @@ GET    /api/payment-methods/
 POST   /api/payment-methods/
 GET    /api/messages/sender-rules/
 POST   /api/messages/sender-rules/
+POST   /api/messages/import/
 GET    /api/transactions/
 POST   /api/transactions/
 GET    /api/reports/monthly/?month=YYYY-MM
@@ -140,15 +141,18 @@ future SMS parsers can reference payment methods to map messages to accounts.
 
 ## How would you add SMS parsing?
 
-I would add raw message and parsed message models, then create parser classes
-per provider. Each parser would return a candidate transaction with confidence
-and parser metadata. Low-confidence items would go to a review inbox.
+Raw message import now stores the sender, body, received time, optional device
+message ID, and a deterministic body hash. Next I would add parsed message
+models and parser classes per provider. Each parser would return a candidate
+transaction with confidence and parser metadata. Low-confidence items would go
+to a review inbox.
 
 ## How would you prevent duplicate SMS transactions?
 
-I would store a hash of sender, body, received time, and device message ID.
-Duplicate checks would happen before parsing and before transaction creation.
-Provider reference numbers could add another duplicate signal.
+The raw import endpoint checks duplicates by device message ID when available
+and by a deterministic hash of sender, body, and received time. Duplicate
+checks happen before parsing or transaction creation. Provider reference
+numbers can add another duplicate signal later.
 
 ## How would you handle migrations safely?
 

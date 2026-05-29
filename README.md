@@ -124,7 +124,7 @@ mindmap
 - The first manual finance API loop is started with accounts, categories,
   transactions, and monthly reports.
 - Phase 2 backend kickoff is started with payment method and SMS sender rule
-  CRUD APIs.
+  CRUD APIs plus raw SMS import duplicate detection.
 - JWT authentication is available for web and mobile clients.
 - The Next.js web app shell is started and can display backend health.
 - The web app has a local-development login flow for JWT auth.

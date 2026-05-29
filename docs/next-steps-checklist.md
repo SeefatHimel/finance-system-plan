@@ -51,6 +51,7 @@ Last updated: 2026-05-29
 - [x] Define SMS sender rule model + API contract fields
 - [x] Add backend migrations and CRUD endpoints for payment methods
 - [x] Add backend migrations and CRUD endpoints for sender rules
+- [x] Add raw message import endpoint and duplicate-detection baseline
 
 ### Docker Runtime Support
 
@@ -72,7 +73,6 @@ Last updated: 2026-05-29
 
 ### Phase 2 Kickoff
 
-- [ ] Add raw message import endpoint and duplicate-detection baseline
 - [ ] Add web management screens for payment methods and sender rules
 - [ ] Add mobile sender selection UI + permission gate scaffold
 

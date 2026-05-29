@@ -15,6 +15,7 @@ The API project is scaffolded with:
 - Account, category, and transaction models
 - Authenticated CRUD APIs for accounts, categories, and transactions
 - Authenticated CRUD APIs for payment methods and SMS sender rules
+- Raw SMS import endpoint with duplicate-detection baseline
 - Basic monthly report endpoint
 - JWT login, refresh, and current-user endpoints
 
@@ -177,6 +178,7 @@ POST   /api/messages/sender-rules/
 GET    /api/messages/sender-rules/{id}/
 PATCH  /api/messages/sender-rules/{id}/
 DELETE /api/messages/sender-rules/{id}/
+POST   /api/messages/import/
 
 GET    /api/transactions/
 POST   /api/transactions/

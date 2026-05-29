@@ -69,3 +69,45 @@ class SenderRuleApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+
+class RawMessageImportApiTests(APITestCase):
+    def test_authenticated_user_can_import_raw_message(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "bKash",
+                "body": "Cash Out Tk 500.00 from 01700000000 successful.",
+                "received_at": "2026-05-29T10:30:00+06:00",
+                "device_message_id": "sms-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertFalse(response.data["is_duplicate"])
+        self.assertEqual(response.data["message"]["sender"], "bKash")
+
+    def test_duplicate_raw_message_returns_existing_message(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        self.client.force_authenticate(user)
+        payload = {
+            "sender": "bKash",
+            "body": "Cash Out Tk 500.00 from 01700000000 successful.",
+            "received_at": "2026-05-29T10:30:00+06:00",
+            "device_message_id": "sms-100",
+        }
+
+        first_response = self.client.post(reverse("raw-message-import"), payload, format="json")
+        duplicate_response = self.client.post(reverse("raw-message-import"), payload, format="json")
+
+        self.assertEqual(first_response.status_code, 201)
+        self.assertEqual(duplicate_response.status_code, 200)
+        self.assertTrue(duplicate_response.data["is_duplicate"])
+        self.assertEqual(
+            duplicate_response.data["message"]["id"],
+            first_response.data["message"]["id"],
+        )

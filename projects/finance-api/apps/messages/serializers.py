@@ -3,7 +3,7 @@ from rest_framework import serializers
 from apps.accounts.models import Account
 from apps.payment_methods.models import PaymentMethod
 
-from .models import SenderRule
+from .models import RawMessage, SenderRule
 
 
 class SenderRuleSerializer(serializers.ModelSerializer):
@@ -59,3 +59,37 @@ class SenderRuleSerializer(serializers.ModelSerializer):
             is_active=True,
         )
         return fields
+
+
+class RawMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RawMessage
+        fields = (
+            "id",
+            "sender",
+            "body",
+            "received_at",
+            "device_message_id",
+            "body_hash",
+            "status",
+            "duplicate_of",
+            "created_at",
+        )
+        read_only_fields = (
+            "id",
+            "body_hash",
+            "status",
+            "duplicate_of",
+            "created_at",
+        )
+
+
+class RawMessageImportSerializer(serializers.Serializer):
+    sender = serializers.CharField(max_length=120)
+    body = serializers.CharField()
+    received_at = serializers.DateTimeField()
+    device_message_id = serializers.CharField(
+        max_length=120,
+        required=False,
+        allow_blank=True,
+    )

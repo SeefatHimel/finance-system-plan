@@ -153,14 +153,15 @@ transactions, categories, accounts, reports, debts, and balance snapshots.
 
 The repository currently has planning docs, local PostgreSQL infrastructure,
 Django API foundations, JWT auth, account/category/transaction APIs, payment
-method and SMS sender rule management APIs, a monthly report endpoint, a
-Next.js dashboard workflow, and an Expo Android-oriented mobile scaffold.
+method and SMS sender rule management APIs, raw SMS import duplicate detection,
+a monthly report endpoint, a Next.js dashboard workflow, and an Expo
+Android-oriented mobile scaffold.
 
 ## What is not implemented yet?
 
-Raw SMS import, SMS parsing, review inbox, debt workflows, reconciliation
-endpoints, web management screens for Phase 2 settings, and production
-deployment setup are still planned future work.
+SMS parsing, review inbox, debt workflows, reconciliation endpoints, web
+management screens for Phase 2 settings, and production deployment setup are
+still planned future work.
 
 ## What is the biggest technical risk?
 
