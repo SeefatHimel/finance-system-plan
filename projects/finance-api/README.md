@@ -190,6 +190,13 @@ GET    /api/transactions/{id}/
 PATCH  /api/transactions/{id}/
 DELETE /api/transactions/{id}/
 
+GET    /api/debts/
+POST   /api/debts/
+GET    /api/debts/{id}/
+PATCH  /api/debts/{id}/
+DELETE /api/debts/{id}/
+POST   /api/debts/{id}/payments/
+
 GET    /api/reports/monthly/?month=YYYY-MM
 GET    /api/reconciliation/snapshots/
 POST   /api/reconciliation/snapshots/

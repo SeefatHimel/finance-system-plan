@@ -136,7 +136,8 @@ ledger honest.
 Debt and lend records are tracked separately from normal expenses, but money
 movement still affects account balances. If I lend money, the source account
 decreases and a receivable debt is created. If I get repaid, the account
-increases and the debt balance decreases.
+increases and the debt balance decreases. The backend now stores debt records
+with direction, principal, current balance, status, and repayment entries.
 
 ## Why store transaction amounts as positive values?
 

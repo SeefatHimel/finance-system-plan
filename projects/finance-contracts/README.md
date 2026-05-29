@@ -17,6 +17,8 @@ openapi.yaml
 examples/
   account.create.json
   category.create.json
+  debt.create.json
+  debt.payment.create.json
   payment-method.create.json
   message-review.confirm.json
   message-review.list.response.json

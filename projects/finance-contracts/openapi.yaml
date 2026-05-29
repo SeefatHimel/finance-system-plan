@@ -550,6 +550,136 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/debts/:
+    get:
+      tags: [Debts]
+      summary: List debt records
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/DebtStatus'
+        - in: query
+          name: direction
+          schema:
+            $ref: '#/components/schemas/DebtDirection'
+      responses:
+        '200':
+          description: Debt list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Debt'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Debts]
+      summary: Create a debt record
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DebtCreateRequest'
+      responses:
+        '201':
+          description: Debt created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Debt'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/debts/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Debts]
+      summary: Get a debt record
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Debt detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Debt'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Debts]
+      summary: Update a debt record
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DebtPatchRequest'
+      responses:
+        '200':
+          description: Updated debt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Debt'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Debts]
+      summary: Delete a debt record
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Debt deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/debts/{id}/payments/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    post:
+      tags: [Debts]
+      summary: Record a debt repayment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DebtPaymentCreateRequest'
+      responses:
+        '201':
+          description: Debt payment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebtPayment'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /api/reconciliation/snapshots/:
     get:
       tags: [Reconciliation]
@@ -949,6 +1079,12 @@ components:
     BalanceSnapshotStatus:
       type: string
       enum: [matched, missing_money, extra_money, adjusted, ignored]
+    DebtDirection:
+      type: string
+      enum: [lent_by_me, borrowed_by_me]
+    DebtStatus:
+      type: string
+      enum: [open, partially_paid, paid, written_off]
     ParsedMessageKind:
       type: string
       enum:
@@ -1474,6 +1610,131 @@ components:
           allOf:
             - $ref: '#/components/schemas/BalanceSnapshot'
           nullable: true
+    Debt:
+      type: object
+      required:
+        [id, counterparty_name, opened_transaction, direction, principal_amount, current_balance, opened_at, due_date, status, note, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        counterparty_name:
+          type: string
+          maxLength: 160
+        opened_transaction:
+          type: string
+          format: uuid
+          nullable: true
+        direction:
+          $ref: '#/components/schemas/DebtDirection'
+        principal_amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "500.00"
+        current_balance:
+          type: string
+          example: "300.00"
+        opened_at:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/DebtStatus'
+        note:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    DebtCreateRequest:
+      type: object
+      required: [counterparty_name, direction, principal_amount, opened_at]
+      properties:
+        counterparty_name:
+          type: string
+          maxLength: 160
+        opened_transaction:
+          type: string
+          format: uuid
+          nullable: true
+        direction:
+          $ref: '#/components/schemas/DebtDirection'
+        principal_amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        opened_at:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        note:
+          type: string
+          default: ""
+    DebtPatchRequest:
+      type: object
+      properties:
+        counterparty_name:
+          type: string
+          maxLength: 160
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        note:
+          type: string
+    DebtPayment:
+      type: object
+      required: [id, debt, transaction, amount, paid_at, note, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        debt:
+          type: string
+          format: uuid
+        transaction:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "200.00"
+        paid_at:
+          type: string
+          format: date
+        note:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    DebtPaymentCreateRequest:
+      type: object
+      required: [amount, paid_at]
+      properties:
+        transaction:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        paid_at:
+          type: string
+          format: date
+        note:
+          type: string
+          default: ""
     Category:
       type: object
       required: [id, name, kind, parent, is_active, display_order, created_at, updated_at]

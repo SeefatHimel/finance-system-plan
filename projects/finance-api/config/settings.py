@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "apps.accounts",
     "apps.categories",
+    "apps.debts",
     "apps.health",
     "apps.messages",
     "apps.payment_methods",

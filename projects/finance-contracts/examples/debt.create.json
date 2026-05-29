@@ -1,0 +1,9 @@
+{
+  "counterparty_name": "Friend",
+  "direction": "lent_by_me",
+  "opened_transaction": "77777777-7777-4777-8777-777777777777",
+  "principal_amount": "500.00",
+  "opened_at": "2026-05-30",
+  "due_date": "2026-06-30",
+  "note": "Lunch loan"
+}
