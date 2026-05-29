@@ -66,6 +66,10 @@ If using a physical device, replace it with your machine's LAN IP:
 EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:8000
 ```
 
+The current login flow is for local testing. Production mobile auth should use
+OS-backed secure storage for refresh tokens. See
+`../../docs/auth-token-storage-plan.md`.
+
 ## Docker (Optional)
 
 From `projects/finance-infra`:

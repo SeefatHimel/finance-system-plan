@@ -53,6 +53,10 @@ bare React Native when real automatic SMS capture is ready to be implemented.
 - Local raw message queue backed by AsyncStorage, with sync to
   `POST /api/messages/import/` and retry behavior for failed submissions.
 
+The login/token flow is still a local testing scaffold. Production mobile auth
+should store refresh tokens in OS-backed secure storage, as documented in
+`docs/auth-token-storage-plan.md`.
+
 ## How will SMS tracking work?
 
 The user enables tracking for specific sender numbers or names. The app reads

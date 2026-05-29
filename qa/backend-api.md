@@ -19,6 +19,10 @@ JWT works well for separate web and mobile clients. The API provides login and
 refresh endpoints, and clients send the access token with protected requests.
 This avoids coupling the clients to browser-only session behavior.
 
+For production, the plan is to keep access tokens short-lived, rotate refresh
+tokens, and avoid storing refresh tokens in browser JavaScript-readable storage.
+See `docs/auth-token-storage-plan.md`.
+
 ## What auth endpoints exist?
 
 Current auth endpoints:

@@ -80,4 +80,5 @@ just tag expenses.
 For production, I would harden auth token storage, add secure deployment
 configuration, set up database backups and restore testing, add monitoring,
 improve audit logs, and review Android SMS permission policy carefully before
-public distribution.
+public distribution. The repo includes a production auth/token storage plan for
+web cookies, mobile secure storage, and refresh-token rotation.

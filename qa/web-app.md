@@ -120,7 +120,8 @@ signed-in user on the dashboard.
 
 For production, secure HTTP-only cookies are usually preferable. The current
 local-development version uses browser `localStorage`, which is simple for this
-stage but should be hardened before deployment.
+stage but should be hardened before deployment. The production direction is
+documented in `docs/auth-token-storage-plan.md`.
 
 ## How will the web app fetch data?
 

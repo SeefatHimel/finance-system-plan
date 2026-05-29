@@ -93,7 +93,7 @@ http://localhost:3000/login
 
 For the local development version, JWT tokens are stored in browser
 `localStorage`. Before production deployment, move token handling to a safer
-cookie-based strategy.
+cookie-based strategy. See `../../docs/auth-token-storage-plan.md`.
 
 Transactions page:
 

@@ -42,6 +42,7 @@ access control between backend, mobile, and web teams.
 - [First Sprint Plan](docs/first-sprint.md)
 - [Next Steps Checklist](docs/next-steps-checklist.md)
 - [Phase 3 SMS Parser Plan](docs/phase-3-sms-parser-plan.md)
+- [Auth Token Storage Plan](docs/auth-token-storage-plan.md)
 - [Mobile SMS Permission Decision](docs/mobile-sms-permission-decision.md)
 - [Decisions And Questions](docs/decisions-and-questions.md)
 - [Local Setup](docs/local-setup.md)

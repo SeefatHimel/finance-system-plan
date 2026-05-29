@@ -99,7 +99,7 @@ Last updated: 2026-05-30
 - [x] Add mobile SMS review inbox UI
 - [x] Add balance snapshot and reconciliation endpoints
 - [x] Add debt/lend workflow models and APIs
-- [ ] Add production-ready auth/token storage plan
+- [x] Add production-ready auth/token storage plan
 
 ## Verification Matrix
 
@@ -145,3 +145,4 @@ Last updated: 2026-05-30
 - `mobile: add sms review inbox`
 - `api: add balance snapshot reconciliation endpoints`
 - `api: add debt and repayment workflow endpoints`
+- `docs: add production auth token storage plan`
