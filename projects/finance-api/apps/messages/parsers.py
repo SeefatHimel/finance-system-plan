@@ -27,6 +27,12 @@ def parse_raw_message(raw_message):
 
     if provider == SenderRule.Provider.BKASH:
         return _parse_bkash_message(raw_message=raw_message, sender_rule=sender_rule)
+    if provider in (SenderRule.Provider.EBL, SenderRule.Provider.CITY_BANK):
+        return _parse_bank_card_message(
+            raw_message=raw_message,
+            sender_rule=sender_rule,
+            provider=provider,
+        )
 
     amount = _extract_amount(raw_message.body)
     parser_notes = []
@@ -159,6 +165,69 @@ def _parse_bkash_message(*, raw_message, sender_rule):
     }
 
 
+def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
+    body = raw_message.body
+    normalized = _normalize_text(body)
+    amount = _extract_amount(body)
+    message_kind = ParsedMessageCandidate.MessageKind.UNKNOWN
+    transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
+    possible_internal_transfer = False
+    confidence = Decimal("0.72") if sender_rule and amount is not None else Decimal("0.42")
+    notes = []
+
+    if sender_rule:
+        notes.append(f"Matched sender rule: {sender_rule.name}.")
+    else:
+        notes.append("No active sender rule matched this bank/card-like message.")
+
+    if any(keyword in normalized for keyword in ("used for", "purchase", "spent", "pos", "at ")):
+        message_kind = ParsedMessageCandidate.MessageKind.CARD_PURCHASE
+        transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
+        confidence = Decimal("0.84") if amount is not None else Decimal("0.52")
+        notes.append("Detected bank/card purchase wording.")
+    elif any(keyword in normalized for keyword in ("card payment", "payment received", "bill payment")):
+        message_kind = ParsedMessageCandidate.MessageKind.CARD_PAYMENT
+        transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
+        possible_internal_transfer = True
+        confidence = Decimal("0.82") if amount is not None else Decimal("0.50")
+        notes.append("Detected card payment wording.")
+    elif any(keyword in normalized for keyword in ("transfer", "fund transfer", "debited", "credited")):
+        if any(keyword in normalized for keyword in ("credited", "received")):
+            message_kind = ParsedMessageCandidate.MessageKind.BANK_TRANSFER_IN
+            transaction_type = ParsedMessageCandidate.TransactionType.INCOME
+        else:
+            message_kind = ParsedMessageCandidate.MessageKind.BANK_TRANSFER_OUT
+            transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
+            possible_internal_transfer = True
+        confidence = Decimal("0.78") if amount is not None else Decimal("0.48")
+        notes.append("Detected bank transfer wording.")
+
+    if amount is None:
+        notes.append("Could not extract an amount with the Tk/BDT parser.")
+    else:
+        notes.append("Extracted amount with the Tk/BDT parser.")
+
+    return {
+        "account": sender_rule.account if sender_rule else None,
+        "amount": amount,
+        "balance_after": _extract_balance(body),
+        "confidence": confidence,
+        "counterparty_text": _extract_merchant_text(body) or _extract_counterparty_text(body),
+        "destination_account": None,
+        "destination_payment_method": None,
+        "fee_amount": _extract_fee(body),
+        "message_kind": message_kind,
+        "payment_method": sender_rule.payment_method if sender_rule else None,
+        "possible_internal_transfer": possible_internal_transfer,
+        "provider": provider,
+        "reference": _extract_reference(body),
+        "parser_name": f"{provider}_card_sms_parser",
+        "parser_notes": " ".join(notes),
+        "sender_rule": sender_rule,
+        "transaction_type": transaction_type,
+    }
+
+
 def _detect_provider(*, sender_rule, sender: str) -> str:
     if sender_rule:
         return sender_rule.provider
@@ -201,6 +270,13 @@ def _extract_decimal_with_pattern(pattern, body: str):
 
 def _extract_counterparty_text(body: str) -> str:
     match = re.search(r"\b(?:to|from)\s+(.+?)(?:\.| trxid| txnid| ref| balance| fee| charge|$)", body, flags=re.IGNORECASE)
+    if not match:
+        return ""
+    return match.group(1).strip()[:255]
+
+
+def _extract_merchant_text(body: str) -> str:
+    match = re.search(r"\bat\s+(.+?)(?:\s+on\b|\.| ref\b| balance\b| available\b|$)", body, flags=re.IGNORECASE)
     if not match:
         return ""
     return match.group(1).strip()[:255]

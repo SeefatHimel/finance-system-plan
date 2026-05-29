@@ -210,8 +210,8 @@ Use provider-specific parser classes:
 ```txt
 BaseMessageParser
 BkashMessageParser (initial transfer-aware implementation)
-EblMessageParser
-CityBankMessageParser
+EblMessageParser (initial card purchase implementation)
+CityBankMessageParser (initial card purchase implementation)
 PathaoPayMessageParser
 CustomRegexMessageParser
 ```

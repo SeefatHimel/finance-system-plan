@@ -150,10 +150,11 @@ candidate with matched sender rule metadata, amount extraction, confidence, and
 parser notes. Candidates can be reviewed, confirmed into an SMS-sourced
 transaction, or ignored.
 
-Phase 3 now has transfer-aware candidate fields and an initial bKash parser.
-The bKash parser detects message kind, amount, reference, balance, fee, and
-possible internal transfers for cash-in/cash-out style messages. EBL, City
-Bank, and Pathao Pay remain the next provider-specific parser targets.
+Phase 3 now has transfer-aware candidate fields, an initial bKash parser, and
+initial EBL/City Bank card purchase parsing. The parsers detect message kind,
+amount, reference, balance, fee, merchant/counterparty text, and possible
+internal transfers for cash-in/cash-out style messages. Pathao Pay and deeper
+bank transfer/card payment cases remain provider-specific parser targets.
 
 ## How would you prevent duplicate SMS transactions?
 

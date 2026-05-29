@@ -193,6 +193,88 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(candidate["counterparty_text"], "SAMPLE MERCHANT successful")
         self.assertFalse(candidate["possible_internal_transfer"])
 
+    def test_ebl_card_purchase_import_creates_card_purchase_candidate(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(
+            user=user,
+            name="EBL Card",
+            type=Account.Type.CREDIT_CARD,
+        )
+        payment_method = PaymentMethod.objects.create(
+            user=user,
+            account=account,
+            name="EBL Visa",
+            provider=PaymentMethod.Provider.EBL,
+            identifier="****1234",
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            payment_method=payment_method,
+            name="EBL card sender",
+            provider=SenderRule.Provider.EBL,
+            sender="EBL",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "EBL",
+                "body": (FIXTURE_DIR / "ebl" / "card_purchase.txt").read_text(),
+                "received_at": "2026-05-30T12:30:00+06:00",
+                "device_message_id": "sms-ebl-card-purchase-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["provider"], "ebl")
+        self.assertEqual(candidate["message_kind"], "card_purchase")
+        self.assertEqual(candidate["transaction_type"], "expense")
+        self.assertEqual(candidate["amount"], "750.00")
+        self.assertEqual(candidate["counterparty_text"], "SAMPLE SHOP")
+        self.assertEqual(candidate["reference"], "EBL123456")
+        self.assertFalse(candidate["possible_internal_transfer"])
+
+    def test_city_bank_card_purchase_import_creates_card_purchase_candidate(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(
+            user=user,
+            name="City Bank Card",
+            type=Account.Type.CREDIT_CARD,
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank sender",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": (FIXTURE_DIR / "city_bank" / "card_purchase.txt").read_text(),
+                "received_at": "2026-05-30T13:30:00+06:00",
+                "device_message_id": "sms-city-card-purchase-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["provider"], "city_bank")
+        self.assertEqual(candidate["message_kind"], "card_purchase")
+        self.assertEqual(candidate["transaction_type"], "expense")
+        self.assertEqual(candidate["amount"], "1200.00")
+        self.assertEqual(candidate["counterparty_text"], "SAMPLE STORE")
+        self.assertEqual(candidate["reference"], "CITY123456")
+        self.assertFalse(candidate["possible_internal_transfer"])
+
     def test_duplicate_raw_message_returns_existing_message(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         self.client.force_authenticate(user)

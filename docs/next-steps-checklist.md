@@ -93,7 +93,7 @@ Last updated: 2026-05-30
 - [x] Add starter anonymized-style SMS fixture files for bKash, EBL, City Bank, and Pathao Pay
 - [x] Add transfer-aware parsed candidate fields
 - [x] Add provider-specific bKash SMS parser
-- [ ] Add provider-specific parser for one bank/card provider
+- [x] Add provider-specific parser for bank/card purchase messages
 - [ ] Add internal transfer matching hints for bank-to-wallet and own-account transfers
 - [ ] Add web/mobile SMS review inbox UI
 - [ ] Add balance snapshot and reconciliation endpoints
@@ -138,3 +138,4 @@ Last updated: 2026-05-30
 - `mobile: add local raw message sync queue`
 - `docs: plan phase 3 provider sms parsing`
 - `api: add transfer-aware bkash sms parser`
+- `api: add bank card sms purchase parsing`
