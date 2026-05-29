@@ -46,7 +46,9 @@ covering current phase-1 backend endpoints:
 
 Phase 3 contract work now includes parser fields for provider, message kind,
 reference, balance, fee, and possible internal transfer/source-destination
-hints.
+hints. Parsed candidates can also expose a `possible_related_candidate` and
+`related_match_reason` when another SMS may be the other side of the same
+internal transfer.
 
 The backend also exposes generated OpenAPI docs through `drf-spectacular` at
 `/api/schema/` and `/api/docs/`.

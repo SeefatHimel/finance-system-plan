@@ -124,8 +124,8 @@ one from bKash. The backend should eventually group likely pairs using:
 - Providers that map to the user's own payment methods.
 - Reference number or masked account/card/wallet hints.
 
-Initial implementation can be conservative: show a "possible related message"
-in review rather than auto-merging.
+Initial implementation is conservative: matching candidates are linked as a
+"possible related message" review hint rather than auto-merged.
 
 ## Fixtures Needed
 

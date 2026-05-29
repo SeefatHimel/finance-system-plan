@@ -1163,7 +1163,7 @@ components:
     ParsedMessageCandidate:
       type: object
       required:
-        [id, raw_message, sender_rule, account, payment_method, destination_account, destination_payment_method, transaction, provider, message_kind, transaction_type, amount, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, confidence, status, parser_name, parser_notes, created_at, updated_at]
+        [id, raw_message, sender_rule, account, payment_method, destination_account, destination_payment_method, transaction, possible_related_candidate, provider, message_kind, transaction_type, amount, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, related_match_reason, confidence, status, parser_name, parser_notes, created_at, updated_at]
       properties:
         id:
           type: string
@@ -1196,6 +1196,11 @@ components:
           type: string
           format: uuid
           nullable: true
+        possible_related_candidate:
+          type: string
+          format: uuid
+          nullable: true
+          description: Candidate that may represent the other side of the same internal transfer.
         provider:
           $ref: '#/components/schemas/SenderRuleProvider'
         message_kind:
@@ -1225,6 +1230,9 @@ components:
           example: "0.00"
         possible_internal_transfer:
           type: boolean
+        related_match_reason:
+          type: string
+          maxLength: 255
         confidence:
           type: string
           example: "0.70"

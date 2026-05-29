@@ -128,6 +128,8 @@ Important fields:
 - detected_balance
 - detected_fee
 - possible_internal_transfer
+- possible_related_candidate, optional
+- related_match_reason
 - confidence_score
 - needs_review
 - parser_version
@@ -137,7 +139,9 @@ Internal transfers are important enough to model explicitly. A bank-to-bKash
 top-up, wallet cash-in, card bill payment, or transfer between the user's own
 accounts should not become a fake expense or fake income. The parsed candidate
 should preserve source and destination hints so the review flow can confirm a
-transfer when both sides are known.
+transfer when both sides are known. When two SMS messages look like opposite
+sides of the same movement, the backend can link them as possible related
+candidates without auto-merging them.
 
 ## Transaction
 

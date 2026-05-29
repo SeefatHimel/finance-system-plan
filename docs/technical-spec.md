@@ -182,6 +182,8 @@ detected_reference
 detected_balance
 detected_fee
 possible_internal_transfer
+possible_related_candidate_id
+related_match_reason
 confidence_score
 needs_review
 parser_name
@@ -203,6 +205,9 @@ pathao_pay
 Internal transfer candidates should carry both source and destination hints when
 available. If the parser only knows one side, confirmation should require the
 user to select the missing account before creating a transfer transaction.
+Candidates may also link to a possible related candidate when another review
+item has the same user, amount, close received timestamp, and a different
+provider. This is a review hint only, not an automatic merge.
 
 ### transactions_transaction
 

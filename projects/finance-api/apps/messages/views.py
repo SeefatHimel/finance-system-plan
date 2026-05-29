@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -77,6 +79,7 @@ class RawMessageImportView(APIView):
                     body_hash=body_hash,
                 )
                 candidate = self._create_candidate(raw_message)
+                self._link_possible_related_candidate(candidate)
         except IntegrityError:
             raw_message = RawMessage.objects.get(user=request.user, body_hash=body_hash)
             candidate = getattr(raw_message, "candidate", None)
@@ -134,6 +137,52 @@ class RawMessageImportView(APIView):
             parser_notes=parsed["parser_notes"],
         )
 
+    def _link_possible_related_candidate(self, candidate):
+        if not candidate.possible_internal_transfer or candidate.amount is None:
+            return
+
+        start = candidate.raw_message.received_at - timedelta(minutes=10)
+        end = candidate.raw_message.received_at + timedelta(minutes=10)
+        related = (
+            ParsedMessageCandidate.objects.filter(
+                user=candidate.user,
+                status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
+                possible_internal_transfer=True,
+                amount=candidate.amount,
+                raw_message__received_at__range=(start, end),
+            )
+            .exclude(id=candidate.id)
+            .exclude(provider=candidate.provider)
+            .select_related("raw_message")
+            .order_by("-raw_message__received_at")
+            .first()
+        )
+
+        if related is None:
+            return
+
+        reason = "Same amount, close timestamp, and different provider."
+        candidate.possible_related_candidate = related
+        candidate.related_match_reason = reason
+        candidate.save(
+            update_fields=(
+                "possible_related_candidate",
+                "related_match_reason",
+                "updated_at",
+            )
+        )
+
+        if related.possible_related_candidate_id is None:
+            related.possible_related_candidate = candidate
+            related.related_match_reason = reason
+            related.save(
+                update_fields=(
+                    "possible_related_candidate",
+                    "related_match_reason",
+                    "updated_at",
+                )
+            )
+
 
 class MessageReviewListView(APIView):
     permission_classes = (IsAuthenticated,)
@@ -151,6 +200,7 @@ class MessageReviewListView(APIView):
                 "payment_method",
                 "destination_account",
                 "destination_payment_method",
+                "possible_related_candidate",
                 "transaction",
             )
         )
@@ -214,6 +264,7 @@ class MessageCandidateConfirmView(APIView):
                 "payment_method",
                 "destination_account",
                 "destination_payment_method",
+                "possible_related_candidate",
                 "transaction",
             ),
             user=user,

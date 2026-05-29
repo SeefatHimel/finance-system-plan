@@ -211,6 +211,13 @@ class ParsedMessageCandidate(models.Model):
         null=True,
         related_name="parsed_message_candidates",
     )
+    possible_related_candidate = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="related_candidates",
+    )
     provider = models.CharField(max_length=32, choices=SenderRule.Provider.choices, blank=True, default="")
     message_kind = models.CharField(
         max_length=32,
@@ -234,6 +241,7 @@ class ParsedMessageCandidate(models.Model):
     balance_after = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)
     fee_amount = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)
     possible_internal_transfer = models.BooleanField(default=False)
+    related_match_reason = models.CharField(max_length=255, blank=True, default="")
     confidence = models.DecimalField(
         max_digits=4,
         decimal_places=2,

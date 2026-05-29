@@ -156,6 +156,11 @@ amount, reference, balance, fee, merchant/counterparty text, and possible
 internal transfers for cash-in/cash-out style messages. Pathao Pay and deeper
 bank transfer/card payment cases remain provider-specific parser targets.
 
+For internal transfers, the backend now links possible related candidates when
+two review items belong to the same user, have the same amount, close received
+timestamps, and different providers. The link is only a review hint; it does
+not auto-confirm or merge transactions.
+
 ## How would you prevent duplicate SMS transactions?
 
 The raw import endpoint checks duplicates by device message ID when available
@@ -168,8 +173,8 @@ numbers can add another duplicate signal later.
 Bank-to-bKash, bKash-to-bank, card bill payments, and transfers between the
 user's own accounts are not expenses or income. If the parser only extracts an
 amount and direction from one SMS, it can create misleading reports. Internal
-transfer candidates should preserve source and destination hints and require
-review when one side is uncertain.
+transfer candidates preserve source/destination hints and possible related SMS
+links so the review flow can confirm the movement without double-counting it.
 
 ## How would you handle migrations safely?
 

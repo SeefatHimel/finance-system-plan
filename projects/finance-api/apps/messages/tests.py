@@ -275,6 +275,85 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(candidate["reference"], "CITY123456")
         self.assertFalse(candidate["possible_internal_transfer"])
 
+    def test_internal_transfer_candidates_link_possible_related_message(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        bank_account = Account.objects.create(
+            user=user,
+            name="EBL Account",
+            type=Account.Type.BANK,
+        )
+        wallet_account = Account.objects.create(
+            user=user,
+            name="Bkash Wallet",
+            type=Account.Type.MOBILE_WALLET,
+        )
+        ebl_method = PaymentMethod.objects.create(
+            user=user,
+            account=bank_account,
+            name="EBL Bank",
+            provider=PaymentMethod.Provider.EBL,
+            identifier="****1234",
+        )
+        bkash_method = PaymentMethod.objects.create(
+            user=user,
+            account=wallet_account,
+            name="Personal bKash",
+            provider=PaymentMethod.Provider.BKASH,
+            identifier="01700000000",
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=bank_account,
+            payment_method=ebl_method,
+            name="EBL sender",
+            provider=SenderRule.Provider.EBL,
+            sender="EBL",
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=wallet_account,
+            payment_method=bkash_method,
+            name="bKash sender",
+            provider=SenderRule.Provider.BKASH,
+            sender="bKash",
+        )
+        self.client.force_authenticate(user)
+
+        bank_response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "EBL",
+                "body": (FIXTURE_DIR / "ebl" / "bank_to_bkash.txt").read_text(),
+                "received_at": "2026-05-30T14:00:00+06:00",
+                "device_message_id": "sms-ebl-to-bkash-100",
+            },
+            format="json",
+        )
+        wallet_response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "bKash",
+                "body": (FIXTURE_DIR / "bkash" / "cash_in.txt").read_text(),
+                "received_at": "2026-05-30T14:04:00+06:00",
+                "device_message_id": "sms-bkash-cash-in-related-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(bank_response.status_code, 201)
+        self.assertEqual(wallet_response.status_code, 201)
+        bank_candidate = ParsedMessageCandidate.objects.get(id=bank_response.data["candidate"]["id"])
+        wallet_candidate = wallet_response.data["candidate"]
+        self.assertEqual(bank_candidate.message_kind, ParsedMessageCandidate.MessageKind.BANK_TRANSFER_OUT)
+        self.assertTrue(bank_candidate.possible_internal_transfer)
+        self.assertEqual(str(wallet_candidate["possible_related_candidate"]), str(bank_candidate.id))
+        self.assertEqual(
+            wallet_candidate["related_match_reason"],
+            "Same amount, close timestamp, and different provider.",
+        )
+        bank_candidate.refresh_from_db()
+        self.assertEqual(str(bank_candidate.possible_related_candidate_id), str(wallet_candidate["id"]))
+
     def test_duplicate_raw_message_returns_existing_message(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         self.client.force_authenticate(user)

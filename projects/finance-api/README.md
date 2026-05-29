@@ -220,7 +220,9 @@ Each parser returns a parsed candidate, not a final transaction. The backend
 should create transactions only when the user confirms the candidate. Parsed
 candidates preserve provider, message kind, reference, fee, balance, and
 possible internal-transfer hints so bank-to-wallet movement does not become a
-fake expense or income.
+fake expense or income. When two review candidates have the same user, amount,
+close timestamps, and different providers, the backend links them as possible
+related messages for review instead of auto-merging them.
 
 ## Balance Rules
 
