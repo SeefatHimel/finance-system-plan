@@ -43,3 +43,5 @@ For Play Store distribution later, SMS permissions may require policy review.
 For personal APK use, development is simpler, but the app should still be built
 with product-level privacy behavior.
 
+Current decision: keep the Expo managed scaffold for Phase 2 UI/API work and do
+not add broad SMS permissions yet. See `docs/mobile-sms-permission-decision.md`.

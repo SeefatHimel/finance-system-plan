@@ -33,6 +33,10 @@ Current implementation status: phase-1 uses Expo for fast setup and health/API
 validation. The project keeps the option open to move to bare React Native
 before phase-2 SMS features if required.
 
+Current SMS decision: keep Expo managed for Phase 2 UI/API work, avoid broad
+SMS permissions for now, and only move to Expo prebuild/custom dev client or
+bare React Native when real automatic SMS capture is ready to be implemented.
+
 ## What is currently implemented in the mobile app?
 
 - Project scaffold with Expo + TypeScript.
@@ -55,7 +59,12 @@ backend. The backend parses and returns whether it needs review.
 
 Current scaffold status: the app can load backend sender rules and payment
 methods after login, then locally toggle which sender rules should be enabled.
-Actual inbox reading still needs a native Android SMS permission/module decision.
+Actual inbox reading still needs the native Android module implementation.
+
+Decision status: the native path is deferred until automatic capture work starts.
+The documented direction is a narrow native Android module for personal APK use,
+with manual/non-SMS-permission alternatives if public distribution policy makes
+broad SMS access unsuitable.
 
 ## Why not read every SMS?
 
@@ -78,6 +87,14 @@ protected where possible.
 The backend should own final IDs and timestamps. The mobile app can keep local
 temporary IDs for queued items, then replace them with server records after
 sync.
+
+## What is the SMS permission decision?
+
+Do not add `READ_SMS` or `RECEIVE_SMS` in the current Expo managed scaffold.
+Build the sender-selection, raw import, duplicate detection, and review flows
+first. If automatic capture is still needed, move to Expo prebuild/custom dev
+client or bare React Native and add the smallest native Android module that only
+processes user-enabled sender rules.
 
 ## What will the main mobile screens be?
 

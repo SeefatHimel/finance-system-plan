@@ -15,6 +15,11 @@
 - Projects should remain separate.
 - Payment methods need their own management area.
 - Mobile app must let the user track SMS messages from selected sender numbers.
+- Keep the current mobile app in Expo managed mode for Phase 2 UI/API work.
+- Do not add broad Android SMS permissions until a native Android path is
+  explicitly chosen.
+- If automatic SMS capture remains required, use Expo prebuild/custom dev client
+  or bare React Native for the smallest sender-scoped native module.
 - Account balances can be calculated and manually reconciled.
 - Missing balance differences should be shown.
 - Debt/lend records are tracked separately, but money movement affects account
@@ -60,6 +65,8 @@ When to split into separate repositories:
    summaries be cached after phase 1?
 8. Should credit card purchases reduce available cash immediately, or only
    affect cash when the bill is paid?
+9. If this becomes publicly distributed, does the app qualify for Google Play
+   SMS permission use, or should SMS import stay manual/non-Play?
 
 ## Suggested Answers For Phase 1
 
@@ -73,4 +80,5 @@ When to split into separate repositories:
 - Calculate reports live first, cache later if performance requires it.
 - Track credit card spending as card liability immediately, and cash movement
   only when the card bill is paid.
-
+- Keep SMS automation as personal-APK/native-module work until privacy,
+  distribution, and policy constraints are settled.

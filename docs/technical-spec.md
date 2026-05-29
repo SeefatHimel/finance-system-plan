@@ -153,6 +153,17 @@ duplicate
 error
 ```
 
+### Mobile SMS Capture Boundary
+
+The current mobile implementation does not request Android SMS permissions.
+Sender rules, raw message import, duplicate detection, and review candidates are
+implemented first so native SMS capture can be added later behind a narrow,
+sender-scoped permission flow.
+
+If automatic capture is still required, use Expo prebuild/custom dev client or
+bare React Native for a native Android module. Keep manual import as a fallback
+for distributions where broad SMS permissions are not allowed.
+
 ### messages_parsedmessage
 
 ```txt

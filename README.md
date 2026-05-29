@@ -41,6 +41,7 @@ access control between backend, mobile, and web teams.
 - [Roadmap](docs/roadmap.md)
 - [First Sprint Plan](docs/first-sprint.md)
 - [Next Steps Checklist](docs/next-steps-checklist.md)
+- [Mobile SMS Permission Decision](docs/mobile-sms-permission-decision.md)
 - [Decisions And Questions](docs/decisions-and-questions.md)
 - [Local Setup](docs/local-setup.md)
 - [Git Workflow](docs/git-workflow.md)

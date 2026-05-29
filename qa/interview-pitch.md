@@ -37,8 +37,9 @@ Right now the repo has the architecture docs, local PostgreSQL setup, JWT auth,
 account/category/transaction APIs, payment method and SMS sender rule APIs, raw
 SMS import with duplicate detection, a parsed SMS review inbox, monthly
 reports, a Next.js dashboard, web management screens, and an Expo mobile
-scaffold. Next I would decide the native Android SMS module path and add local
-message caching/sync.
+scaffold. The SMS permission decision is documented: keep Expo managed for now
+and only move to a native Android module when automatic capture is ready. Next I
+would add local message caching/sync.
 
 ## Strong Technical Points To Mention
 
@@ -61,9 +62,9 @@ and report logic in the backend so the system can evolve.
 
 ## If Asked "What Would You Build Next?"
 
-I would decide the native Android SMS module path, add local message
-caching/sync, and improve provider-specific parsing. After that I would add
-reconciliation and debt workflows.
+I would add local message caching/sync, then implement the native Android SMS
+module only if automatic capture is still required. After that I would improve
+provider-specific parsing and add reconciliation and debt workflows.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 

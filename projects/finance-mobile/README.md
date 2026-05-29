@@ -23,6 +23,8 @@ Phase 1 scaffold now includes:
   - `GET /api/payment-methods/`
   - `GET /api/messages/sender-rules/`
   - local sender rule enable/disable selection
+- Native SMS permission/module decision documented in
+  `docs/mobile-sms-permission-decision.md`.
 
 ## Local Run (Current)
 
@@ -93,6 +95,11 @@ use bare React Native.
 
 ## Android SMS Tracking Flow
 
+Current decision: do not add broad Android SMS permissions in the Expo managed
+scaffold. Build sender selection, import, duplicate detection, and review flows
+first. If automatic capture is still required, move to Expo prebuild/custom dev
+client or bare React Native and add a narrow native Android SMS module.
+
 ```mermaid
 flowchart TD
   A["User opens SMS tracking settings"] --> B["User grants SMS permission"]
@@ -141,7 +148,7 @@ Settings
 
 1. SMS permission gate scaffold. Done.
 2. Sender number management scaffold. Done.
-3. Native Android SMS module decision.
+3. Native Android SMS module decision. Done.
 4. Local raw message cache.
 5. Raw message sync.
 6. Review inbox.
