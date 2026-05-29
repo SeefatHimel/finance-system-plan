@@ -37,10 +37,10 @@ Right now the repo has the architecture docs, local PostgreSQL setup, JWT auth,
 account/category/transaction APIs, payment method and SMS sender rule APIs, raw
 SMS import with duplicate detection, a parsed SMS review inbox, monthly
 reports, a Next.js dashboard, web management and SMS review screens, and an Expo mobile
-scaffold with local raw-message queuing and sync. The SMS permission decision is
+scaffold with local raw-message queuing, sync, and SMS review. The SMS permission decision is
 documented: keep Expo managed for now and only move to a native Android module
-when automatic capture is ready. Next I would build mobile review, harden local
-sync, and add reconciliation.
+when automatic capture is ready. Next I would harden local sync and add
+reconciliation.
 
 ## Strong Technical Points To Mention
 
@@ -65,8 +65,8 @@ and report logic in the backend so the system can evolve.
 
 I would build provider-specific SMS parsers for bKash, EBL, City Bank, and
 Pathao Pay, with special handling for internal transfers like bank-to-bKash or
-own-account movement. Then I would build the mobile review inbox UI, harden
-local sync, and add reconciliation and debt workflows.
+own-account movement. Then I would harden local sync and add reconciliation and
+debt workflows.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 

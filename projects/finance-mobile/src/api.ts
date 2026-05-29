@@ -60,12 +60,61 @@ export type RawMessageImportInput = {
 };
 
 export type RawMessageImportResult = {
+  candidate?: ParsedMessageCandidate | null;
   is_duplicate: boolean;
   message: {
     id: string;
     sender: string;
     status: string;
   };
+};
+
+export type RawMessage = {
+  body: string;
+  body_hash: string;
+  created_at: string;
+  device_message_id: string;
+  duplicate_of: string | null;
+  id: string;
+  received_at: string;
+  sender: string;
+  status: string;
+};
+
+export type ParsedMessageCandidate = {
+  account: string | null;
+  amount: string | null;
+  balance_after: string | null;
+  confidence: string;
+  counterparty_text: string;
+  created_at: string;
+  destination_account: string | null;
+  destination_payment_method: string | null;
+  fee_amount: string | null;
+  id: string;
+  message_kind: string;
+  parser_name: string;
+  parser_notes: string;
+  payment_method: string | null;
+  possible_internal_transfer: boolean;
+  possible_related_candidate: string | null;
+  provider: string;
+  raw_message: RawMessage;
+  reference: string;
+  related_match_reason: string;
+  sender_rule: string | null;
+  status: string;
+  transaction: string | null;
+  transaction_type: string;
+  updated_at: string;
+};
+
+export type ConfirmMessageCandidateInput = {
+  account?: string;
+  amount?: string;
+  date?: string;
+  note?: string;
+  type?: string;
 };
 
 export type CreateTransactionInput = {
@@ -160,9 +209,11 @@ export async function getCurrentUser(accessToken: string): Promise<CurrentUser> 
   return (await response.json()) as CurrentUser;
 }
 
-async function authenticatedFetch(path: string, accessToken: string): Promise<Response> {
+async function authenticatedFetch(path: string, accessToken: string, init?: RequestInit): Promise<Response> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
     headers: {
+      ...(init?.headers ?? {}),
       Authorization: `Bearer ${accessToken}`
     }
   });
@@ -196,6 +247,36 @@ export async function listPaymentMethods(accessToken: string): Promise<PaymentMe
 export async function listSenderRules(accessToken: string): Promise<SenderRule[]> {
   const response = await authenticatedFetch("/api/messages/sender-rules/", accessToken);
   return (await response.json()) as SenderRule[];
+}
+
+export async function listMessageCandidates(accessToken: string): Promise<ParsedMessageCandidate[]> {
+  const response = await authenticatedFetch("/api/messages/review/", accessToken);
+  return (await response.json()) as ParsedMessageCandidate[];
+}
+
+export async function confirmMessageCandidate(
+  accessToken: string,
+  id: string,
+  input: ConfirmMessageCandidateInput
+): Promise<ParsedMessageCandidate> {
+  const response = await authenticatedFetch(`/api/messages/review/${id}/confirm/`, accessToken, {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return (await response.json()) as ParsedMessageCandidate;
+}
+
+export async function ignoreMessageCandidate(
+  accessToken: string,
+  id: string
+): Promise<ParsedMessageCandidate> {
+  const response = await authenticatedFetch(`/api/messages/review/${id}/ignore/`, accessToken, {
+    method: "POST"
+  });
+  return (await response.json()) as ParsedMessageCandidate;
 }
 
 export async function createTransaction(

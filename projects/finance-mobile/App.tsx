@@ -14,12 +14,15 @@ import {
 
 import {
   checkHealth,
+  confirmMessageCandidate,
   createTransaction,
   getApiBaseUrl,
   getCurrentUser,
+  ignoreMessageCandidate,
   importRawMessage,
   listAccounts,
   listCategories,
+  listMessageCandidates,
   listPaymentMethods,
   listSenderRules,
   listTransactions,
@@ -27,6 +30,7 @@ import {
   type Account,
   type Category,
   type HealthResult,
+  type ParsedMessageCandidate,
   type PaymentMethod,
   type SenderRule,
   type Transaction
@@ -84,6 +88,10 @@ export default function App() {
   const [rawQueue, setRawQueue] = useState<QueuedRawMessage[]>([]);
   const [rawQueueState, setRawQueueState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [rawQueueMessage, setRawQueueMessage] = useState("");
+  const [reviewState, setReviewState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [reviewCandidates, setReviewCandidates] = useState<ParsedMessageCandidate[]>([]);
+  const [reviewActionCandidateId, setReviewActionCandidateId] = useState("");
 
   const loadHealth = async () => {
     setState("loading");
@@ -109,6 +117,80 @@ export default function App() {
     } catch (error) {
       setListState("error");
       setListMessage(error instanceof Error ? error.message : "Could not load transactions.");
+    }
+  };
+
+  const handleLoadReviewCandidates = async () => {
+    if (!accessToken.trim()) {
+      setReviewState("error");
+      setReviewMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+
+    setReviewState("loading");
+    setReviewMessage("");
+    try {
+      const candidates = await listMessageCandidates(accessToken.trim());
+      setReviewCandidates(candidates);
+      setReviewState("ok");
+      setReviewMessage(`Loaded ${candidates.length} SMS candidate(s).`);
+    } catch (error) {
+      setReviewState("error");
+      setReviewMessage(error instanceof Error ? error.message : "Could not load SMS review inbox.");
+    }
+  };
+
+  const handleConfirmReviewCandidate = async (candidate: ParsedMessageCandidate) => {
+    if (!accessToken.trim()) {
+      setReviewState("error");
+      setReviewMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+
+    if (!candidate.account || !candidate.amount) {
+      setReviewState("error");
+      setReviewMessage("This candidate is missing account or amount. Finish it in the web review inbox.");
+      return;
+    }
+
+    setReviewActionCandidateId(candidate.id);
+    setReviewState("loading");
+    setReviewMessage("");
+    try {
+      await confirmMessageCandidate(accessToken.trim(), candidate.id, {
+        account: candidate.account,
+        amount: candidate.amount,
+        date: candidate.raw_message.received_at.slice(0, 10),
+        note: candidate.raw_message.body,
+        type: candidate.transaction_type
+      });
+      await handleLoadReviewCandidates();
+    } catch (error) {
+      setReviewState("error");
+      setReviewMessage(error instanceof Error ? error.message : "Could not confirm SMS candidate.");
+    } finally {
+      setReviewActionCandidateId("");
+    }
+  };
+
+  const handleIgnoreReviewCandidate = async (candidateId: string) => {
+    if (!accessToken.trim()) {
+      setReviewState("error");
+      setReviewMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+
+    setReviewActionCandidateId(candidateId);
+    setReviewState("loading");
+    setReviewMessage("");
+    try {
+      await ignoreMessageCandidate(accessToken.trim(), candidateId);
+      await handleLoadReviewCandidates();
+    } catch (error) {
+      setReviewState("error");
+      setReviewMessage(error instanceof Error ? error.message : "Could not ignore SMS candidate.");
+    } finally {
+      setReviewActionCandidateId("");
     }
   };
 
@@ -649,6 +731,67 @@ export default function App() {
             ))}
           </View>
         </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>SMS Review Inbox</Text>
+          <Text style={styles.meta}>
+            Review backend parser candidates before they become transactions. Mobile confirm uses detected account, amount, date, and type.
+          </Text>
+          <Pressable onPress={handleLoadReviewCandidates} style={styles.button}>
+            <Text style={styles.buttonText}>Load SMS Review Inbox</Text>
+          </Pressable>
+
+          {reviewState === "loading" ? <ActivityIndicator /> : null}
+          {reviewState === "ok" ? <Text style={styles.okText}>{reviewMessage}</Text> : null}
+          {reviewState === "error" ? <Text style={styles.errorText}>{reviewMessage}</Text> : null}
+
+          {reviewCandidates.length ? (
+            <View style={styles.listSection}>
+              {reviewCandidates.map((candidate) => {
+                const isWorking = reviewActionCandidateId === candidate.id;
+                return (
+                  <View key={candidate.id} style={styles.reviewCandidate}>
+                    <Text style={styles.listTitle}>
+                      {candidate.provider} / {candidate.message_kind} / BDT {candidate.amount ?? "missing"}
+                    </Text>
+                    <Text style={styles.listItem}>
+                      {candidate.raw_message.sender} | {candidate.transaction_type} | confidence {candidate.confidence}
+                    </Text>
+                    <Text style={styles.meta}>
+                      Counterparty: {candidate.counterparty_text || "Not detected"}
+                    </Text>
+                    <Text style={styles.meta}>
+                      Ref: {candidate.reference || "None"} | Balance: {candidate.balance_after ?? "missing"} | Fee: {candidate.fee_amount ?? "missing"}
+                    </Text>
+                    {candidate.possible_internal_transfer ? (
+                      <Text style={styles.warningText}>
+                        Possible internal transfer{candidate.possible_related_candidate ? ` linked to ${candidate.possible_related_candidate}` : ""}.
+                      </Text>
+                    ) : null}
+                    <Text style={styles.rawSmsText}>{candidate.raw_message.body}</Text>
+                    <Text style={styles.meta}>{candidate.parser_notes}</Text>
+                    <View style={styles.actionRow}>
+                      <Pressable
+                        disabled={isWorking}
+                        onPress={() => void handleConfirmReviewCandidate(candidate)}
+                        style={isWorking ? styles.buttonDisabled : styles.button}
+                      >
+                        <Text style={styles.buttonText}>{isWorking ? "Working..." : "Confirm"}</Text>
+                      </Pressable>
+                      <Pressable
+                        disabled={isWorking}
+                        onPress={() => void handleIgnoreReviewCandidate(candidate.id)}
+                        style={isWorking ? styles.buttonDisabled : styles.buttonDanger}
+                      >
+                        <Text style={styles.buttonText}>Ignore</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -659,6 +802,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f766e",
     borderRadius: 8,
     marginTop: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10
+  },
+  buttonDanger: {
+    backgroundColor: "#b91c1c",
+    borderRadius: 8,
+    flex: 1,
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10
+  },
+  buttonDisabled: {
+    backgroundColor: "#94a3b8",
+    borderRadius: 8,
+    flex: 1,
+    marginTop: 8,
     paddingHorizontal: 14,
     paddingVertical: 10
   },
@@ -722,6 +881,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700"
   },
+  actionRow: {
+    flexDirection: "row",
+    gap: 8
+  },
   okText: {
     color: "#065f46",
     fontSize: 14,
@@ -734,6 +897,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 6,
     marginTop: 8,
+    padding: 12
+  },
+  rawSmsText: {
+    color: "#475569",
+    fontSize: 12,
+    lineHeight: 18
+  },
+  reviewCandidate: {
+    backgroundColor: "#f8fafc",
+    borderColor: "#cbd5e1",
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 6,
     padding: 12
   },
   screen: {
@@ -787,5 +963,10 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     fontSize: 22,
     fontWeight: "700"
+  },
+  warningText: {
+    color: "#92400e",
+    fontSize: 13,
+    fontWeight: "600"
   }
 });

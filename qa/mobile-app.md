@@ -65,7 +65,15 @@ selecting source and destination accounts when the parser is unsure.
 
 Current scaffold status: the app can load backend sender rules and payment
 methods after login, then locally toggle which sender rules should be enabled.
-Actual inbox reading still needs the native Android module implementation.
+It can also queue raw SMS messages locally, sync them to the backend import
+endpoint, and review parsed SMS candidates from the backend review inbox.
+Actual automatic inbox reading still needs the native Android module
+implementation.
+
+The mobile SMS review section shows parser hints, raw SMS evidence,
+internal-transfer flags, and lets the user confirm or ignore candidates. Mobile
+confirmation currently uses the detected account, amount, date, and type; more
+complex edits can still be handled in the web review inbox.
 
 Decision status: the native path is deferred until automatic capture work starts.
 The documented direction is a narrow native Android module for personal APK use,

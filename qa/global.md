@@ -155,14 +155,15 @@ The repository currently has planning docs, local PostgreSQL infrastructure,
 Django API foundations, JWT auth, account/category/transaction APIs, payment
 method and SMS sender rule management APIs, raw SMS import duplicate detection,
 a parsed SMS review inbox, a monthly report endpoint, a Next.js dashboard
-workflow, web SMS review UI, and an Expo Android-oriented mobile scaffold.
+workflow, web SMS review UI, and an Expo Android-oriented mobile scaffold with
+local raw-message queueing and SMS review.
 
 ## What is not implemented yet?
 
 More provider-specific SMS parsing for bKash, EBL, City Bank, and Pathao Pay;
-mobile review UI; debt workflows; reconciliation endpoints; native Android SMS
-capture implementation; production-grade local sync hardening; and production
-deployment setup are still planned future work.
+debt workflows; reconciliation endpoints; native Android SMS capture
+implementation; production-grade local sync hardening; and production deployment
+setup are still planned future work.
 
 ## What is the biggest technical risk?
 

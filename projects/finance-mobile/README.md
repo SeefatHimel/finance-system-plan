@@ -27,6 +27,10 @@ Phase 1 scaffold now includes:
   - stores queued raw messages with AsyncStorage
   - syncs queued messages to `POST /api/messages/import/`
   - keeps failed sync items queued for retry
+- SMS review inbox:
+  - loads parsed candidates from `GET /api/messages/review/`
+  - shows parser hints, raw SMS evidence, and internal-transfer flags
+  - confirms or ignores candidates through the review endpoints
 - Native SMS permission/module decision documented in
   `docs/mobile-sms-permission-decision.md`.
 
@@ -156,4 +160,4 @@ Settings
 3. Native Android SMS module decision. Done.
 4. Local raw message cache. Done.
 5. Raw message sync. Done.
-6. Review inbox.
+6. Review inbox. Done.

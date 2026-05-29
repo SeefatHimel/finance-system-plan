@@ -141,10 +141,11 @@ mindmap
   and sender rule selection.
 - The mobile app can queue raw SMS messages locally and sync them to the backend
   import endpoint.
+- The mobile app can review parsed SMS candidates and confirm or ignore them.
 
 ## Next Milestone
 
 Phase 3 should focus on turning the SMS scaffolding into a fuller workflow:
 provider-specific parsers for bKash, EBL, City Bank, and Pathao Pay;
-transfer-aware review; mobile review inbox UI; reconciliation endpoints;
+transfer-aware review; reconciliation endpoints;
 debt/lend workflows; and production hardening.
