@@ -95,7 +95,8 @@ Last updated: 2026-05-30
 - [x] Add provider-specific bKash SMS parser
 - [x] Add provider-specific parser for bank/card purchase messages
 - [x] Add internal transfer matching hints for bank-to-wallet and own-account transfers
-- [ ] Add web/mobile SMS review inbox UI
+- [x] Add web SMS review inbox UI
+- [ ] Add mobile SMS review inbox UI
 - [ ] Add balance snapshot and reconciliation endpoints
 - [ ] Add debt/lend workflow models and APIs
 - [ ] Add production-ready auth/token storage plan
@@ -140,3 +141,4 @@ Last updated: 2026-05-30
 - `api: add transfer-aware bkash sms parser`
 - `api: add bank card sms purchase parsing`
 - `api: add internal transfer sms matching hints`
+- `web: add sms review inbox`

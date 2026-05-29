@@ -203,6 +203,12 @@ Payment methods and SMS sender rules:
 http://localhost:3000/sms-settings
 ```
 
+SMS review inbox:
+
+```txt
+http://localhost:3000/messages/review
+```
+
 Monthly reports:
 
 ```txt

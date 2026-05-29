@@ -24,6 +24,9 @@ export default function ReportsPage() {
             <Link className="nav__item" href="/sms-settings">
               SMS settings
             </Link>
+            <Link className="nav__item" href="/messages/review">
+              SMS review
+            </Link>
             <span className="nav__item nav__item--active">Reports</span>
           </nav>
         </div>

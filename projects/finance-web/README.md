@@ -20,6 +20,7 @@ The web app is scaffolded with:
 - Transaction filters for month, type, account, and category
 - Accounts page with account and category creation/listing/updating/deletion
 - SMS settings page with payment method and sender rule creation/listing/updating/deletion
+- SMS review inbox with parsed candidate details, internal-transfer hints, confirm, and ignore actions
 - Monthly reports page with income, expense, net, category, and account totals
 
 ## Responsibilities
@@ -119,6 +120,12 @@ Payment methods and SMS sender rules:
 
 ```txt
 http://localhost:3000/sms-settings
+```
+
+SMS review inbox:
+
+```txt
+http://localhost:3000/messages/review
 ```
 
 ## Docker

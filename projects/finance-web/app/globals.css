@@ -340,6 +340,109 @@ textarea {
   gap: 10px;
 }
 
+.review-hero {
+  align-items: flex-start;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+.review-list {
+  display: grid;
+  gap: 16px;
+}
+
+.review-card__header {
+  align-items: flex-start;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+.review-card__eyebrow {
+  color: var(--muted);
+  display: block;
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.review-card__amount {
+  font-size: 26px;
+  line-height: 1.2;
+  margin: 4px 0 0;
+}
+
+.review-facts {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 18px 0 0;
+}
+
+.review-facts div {
+  border-top: 1px solid var(--panel-border);
+  padding-top: 10px;
+}
+
+.review-facts dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.review-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.review-hint {
+  background: #fff6e6;
+  border: 1px solid #ffd99a;
+  border-radius: 8px;
+  color: #6f3f00;
+  display: grid;
+  gap: 4px;
+  margin-top: 18px;
+  padding: 12px;
+}
+
+.raw-message {
+  background: #f7faf5;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  margin-top: 18px;
+  padding: 12px;
+}
+
+.raw-message summary {
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.raw-message p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 10px 0 0;
+}
+
+.review-form {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.review-actions {
+  align-items: flex-end;
+  display: flex;
+  gap: 10px;
+  grid-column: 1 / -1;
+}
+
 .report-header {
   align-items: flex-end;
   display: flex;
@@ -473,6 +576,8 @@ textarea {
 
   .dashboard-grid,
   .filter-form,
+  .review-facts,
+  .review-form,
   .setup-form,
   .transaction-form,
   .metric-row {
@@ -485,7 +590,9 @@ textarea {
   }
 
   .month-form,
-  .report-header {
+  .report-header,
+  .review-card__header,
+  .review-hero {
     align-items: stretch;
     flex-direction: column;
   }

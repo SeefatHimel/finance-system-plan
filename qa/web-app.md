@@ -18,7 +18,7 @@ global styles, a dashboard shell, a server-rendered backend health check, a
 local JWT login flow, and a first transactions page for listing and creating
 manual transactions. It also has an accounts page for managing accounts and
 categories, an SMS settings page for managing payment methods and sender rules,
-plus a monthly reports page.
+an SMS review inbox for parsed message candidates, plus a monthly reports page.
 
 ## Why start with a health-check dashboard?
 
@@ -89,6 +89,14 @@ The SMS settings page uses the saved local JWT access token to load accounts,
 payment methods, and sender rules. It supports creating, listing, updating, and
 deleting payment methods and sender rules so SMS import can map trusted senders
 back to real accounts.
+
+## What does the current SMS review page do?
+
+The SMS review page uses the saved local JWT access token to load pending parsed
+message candidates, accounts, and categories. It shows raw SMS evidence, parser
+notes, detected provider/message kind, amount, reference, balance, fee,
+counterparty text, and possible internal-transfer/related-message hints. The
+user can confirm a candidate into an SMS-sourced transaction or ignore it.
 
 ## What does the current reports page do?
 

@@ -1,15 +1,15 @@
 import Link from "next/link";
 
-import { SmsSettingsWorkspace } from "@/components/sms-settings-workspace";
+import { MessageReviewWorkspace } from "@/components/message-review-workspace";
 
-export default function SmsSettingsPage() {
+export default function MessageReviewPage() {
   return (
     <div className="page-shell">
       <header className="app-header">
         <div className="app-header__inner">
           <div className="brand">
             <span className="brand__name">Finance System</span>
-            <span className="brand__meta">Payment methods and SMS sender rules</span>
+            <span className="brand__meta">Parsed SMS review inbox</span>
           </div>
           <nav className="nav" aria-label="Primary navigation">
             <Link className="nav__item" href="/">
@@ -21,10 +21,10 @@ export default function SmsSettingsPage() {
             <Link className="nav__item" href="/accounts">
               Accounts
             </Link>
-            <span className="nav__item nav__item--active">SMS settings</span>
-            <Link className="nav__item" href="/messages/review">
-              SMS review
+            <Link className="nav__item" href="/sms-settings">
+              SMS settings
             </Link>
+            <span className="nav__item nav__item--active">SMS review</span>
             <Link className="nav__item" href="/reports">
               Reports
             </Link>
@@ -33,7 +33,7 @@ export default function SmsSettingsPage() {
       </header>
 
       <main className="main">
-        <SmsSettingsWorkspace />
+        <MessageReviewWorkspace />
       </main>
     </div>
   );

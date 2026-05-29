@@ -51,6 +51,46 @@ const senderRuleSchema = z.object({
   sender: z.string()
 });
 
+const rawMessageSchema = z.object({
+  body: z.string(),
+  body_hash: z.string(),
+  created_at: z.string(),
+  device_message_id: z.string(),
+  duplicate_of: z.string().nullable(),
+  id: z.string(),
+  received_at: z.string(),
+  sender: z.string(),
+  status: z.string()
+});
+
+const parsedMessageCandidateSchema = z.object({
+  account: z.string().nullable(),
+  amount: z.string().nullable(),
+  balance_after: z.string().nullable(),
+  confidence: z.string(),
+  counterparty_text: z.string(),
+  created_at: z.string(),
+  destination_account: z.string().nullable(),
+  destination_payment_method: z.string().nullable(),
+  fee_amount: z.string().nullable(),
+  id: z.string(),
+  message_kind: z.string(),
+  parser_name: z.string(),
+  parser_notes: z.string(),
+  payment_method: z.string().nullable(),
+  possible_internal_transfer: z.boolean(),
+  possible_related_candidate: z.string().nullable(),
+  provider: z.string(),
+  raw_message: rawMessageSchema,
+  reference: z.string(),
+  related_match_reason: z.string(),
+  sender_rule: z.string().nullable(),
+  status: z.string(),
+  transaction: z.string().nullable(),
+  transaction_type: z.string(),
+  updated_at: z.string()
+});
+
 const transactionSchema = z.object({
   account: z.string(),
   amount: z.string(),
@@ -113,6 +153,7 @@ export type Account = z.infer<typeof accountSchema>;
 export type Category = z.infer<typeof categorySchema>;
 export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 export type SenderRule = z.infer<typeof senderRuleSchema>;
+export type ParsedMessageCandidate = z.infer<typeof parsedMessageCandidateSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
 export type MonthlyReport = z.infer<typeof monthlyReportSchema>;
 
@@ -190,6 +231,15 @@ export type UpdateSenderRuleInput = {
   priority?: number;
   provider?: string;
   sender?: string;
+};
+
+export type ConfirmMessageCandidateInput = {
+  account?: string;
+  amount?: string;
+  category?: string | null;
+  date?: string;
+  note?: string;
+  type?: string;
 };
 
 export type UpdateTransactionInput = {
@@ -471,6 +521,36 @@ export async function updateSenderRule(
     method: "PATCH"
   });
   return senderRuleSchema.parse(await response.json());
+}
+
+export async function listMessageCandidates(accessToken: string): Promise<ParsedMessageCandidate[]> {
+  const response = await authenticatedFetch("/api/messages/review/", accessToken);
+  return collectionSchema(parsedMessageCandidateSchema).parse(await response.json());
+}
+
+export async function confirmMessageCandidate(
+  accessToken: string,
+  id: string,
+  input: ConfirmMessageCandidateInput
+): Promise<ParsedMessageCandidate> {
+  const response = await authenticatedFetch(`/api/messages/review/${id}/confirm/`, accessToken, {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return parsedMessageCandidateSchema.parse(await response.json());
+}
+
+export async function ignoreMessageCandidate(
+  accessToken: string,
+  id: string
+): Promise<ParsedMessageCandidate> {
+  const response = await authenticatedFetch(`/api/messages/review/${id}/ignore/`, accessToken, {
+    method: "POST"
+  });
+  return parsedMessageCandidateSchema.parse(await response.json());
 }
 
 export async function listTransactions(

@@ -22,6 +22,9 @@ export default function AccountsPage() {
             <Link className="nav__item" href="/sms-settings">
               SMS settings
             </Link>
+            <Link className="nav__item" href="/messages/review">
+              SMS review
+            </Link>
             <Link className="nav__item" href="/reports">
               Reports
             </Link>

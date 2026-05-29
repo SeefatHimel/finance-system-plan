@@ -134,6 +134,7 @@ mindmap
 - The web app has a first manual transaction page connected to the backend API.
 - The web app can create and list accounts and categories.
 - The web app can manage payment methods and SMS sender rules.
+- The web app can review parsed SMS candidates and confirm or ignore them.
 - The web app has a first monthly reports page.
 - The web transaction list supports month, type, account, and category filters.
 - The mobile app has an SMS tracking settings scaffold for permission gating
@@ -145,5 +146,5 @@ mindmap
 
 Phase 3 should focus on turning the SMS scaffolding into a fuller workflow:
 provider-specific parsers for bKash, EBL, City Bank, and Pathao Pay;
-transfer-aware review; web/mobile review inbox UI; reconciliation endpoints;
+transfer-aware review; mobile review inbox UI; reconciliation endpoints;
 debt/lend workflows; and production hardening.
