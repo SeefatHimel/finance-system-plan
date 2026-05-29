@@ -18,6 +18,8 @@ The API project is scaffolded with:
 - Raw SMS import endpoint with duplicate-detection baseline
 - Parsed SMS review inbox with confirm/ignore actions
 - Basic monthly report endpoint
+- Debt and repayment workflow endpoints
+- Balance snapshot and reconciliation endpoints
 - JWT login, refresh, and current-user endpoints
 
 ## Responsibilities
@@ -115,7 +117,7 @@ The API service runs migrations on startup and then serves on port `8000`.
 ## Verification
 
 ```bash
-python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports
+python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts
 ```
 
 ## Django Apps

@@ -155,13 +155,29 @@ projects/finance-api/apps/messages/fixtures/sms/pathao_pay/
 
 ## First Implementation Slice
 
-1. Add parser fixture files for bKash, EBL, City Bank, and Pathao Pay.
-2. Add parser test cases from anonymized fixtures.
-3. Add `message_kind`, reference, balance, fee, and transfer hint fields to parsed candidates.
-4. Implement bKash parser first.
+1. Add parser fixture files for bKash, EBL, City Bank, and Pathao Pay. Done
+   with starter anonymized-style examples.
+2. Add parser test cases from anonymized fixtures. Done for the starter parser
+   coverage.
+3. Add `message_kind`, reference, balance, fee, and transfer hint fields to
+   parsed candidates. Done.
+4. Implement bKash parser first. Done.
 5. Implement one bank/card parser next, preferably the provider with the most
-   frequent SMS messages.
+   frequent SMS messages. Done for starter EBL and City Bank card purchase
+   parsing.
 6. Add review UI fields for transfer source/destination before confirmation.
+   Partially done: web/mobile review screens show parser and internal-transfer
+   hints; richer edit controls are still future UI polish.
+
+## Current Follow-Up Slice
+
+1. Collect real anonymized SMS fixtures from bKash, EBL, City Bank, and Pathao
+   Pay.
+2. Expand parser coverage for Pathao Pay, bank transfers, card bill payments,
+   refunds, fees, and reversals.
+3. Add richer source/destination account editing in web and mobile review.
+4. Keep internal-transfer matching conservative until fixture coverage proves
+   the matching rules.
 
 ## Open Questions
 

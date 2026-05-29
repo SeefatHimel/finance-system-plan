@@ -26,9 +26,11 @@ made, how the architecture works, and what tradeoffs remain.
 ## Current Project Status
 
 - Product plan and architecture are documented.
-- Django backend has health, JWT auth, accounts, categories, transactions, and
-  monthly report foundations.
-- Next.js web app has an initial dashboard shell and backend health check.
+- Django backend has health, JWT auth, accounts, categories, transactions,
+  payment methods, SMS import/review, reports, debts, and reconciliation
+  foundations.
+- Next.js web app has dashboard, login, transaction, account/category, SMS
+  settings, SMS review, and report workflows.
 - PostgreSQL local infrastructure is documented through Docker Compose.
-- Mobile app is planned but not scaffolded yet.
-
+- Mobile app is scaffolded with Expo, auth/API checks, quick transaction entry,
+  sender rule selection, local raw-message queueing, sync, and SMS review.

@@ -5,8 +5,8 @@
 This is a personal finance system that turns my spreadsheet-based finance
 tracking into a real full-stack product. It uses a Django REST API with
 PostgreSQL as the source of truth, a Next.js web dashboard for management and
-reports, and a planned React Native Android app for quick entry and SMS-based
-transaction capture.
+reports, and an Expo React Native Android app for quick entry and SMS-based
+transaction workflows.
 
 ## Longer Pitch
 
@@ -29,18 +29,20 @@ designed a system to make that workflow structured and eventually automated.
 
 The backend is Django REST Framework with PostgreSQL because the financial data
 needs to be consistent, relational, and secure. The web app is Next.js for the
-dashboard and management UI. The mobile app is planned in React Native Android
-because the key automation feature is reading transaction SMS messages from
-user-approved senders.
+dashboard and management UI. The mobile app is Expo React Native because the key
+automation feature is Android-first SMS transaction capture from user-approved
+senders.
 
 Right now the repo has the architecture docs, local PostgreSQL setup, JWT auth,
 account/category/transaction APIs, payment method and SMS sender rule APIs, raw
 SMS import with duplicate detection, a parsed SMS review inbox, monthly
-reports, a Next.js dashboard, web management and SMS review screens, and an Expo mobile
-scaffold with local raw-message queuing, sync, and SMS review. The SMS permission decision is
+reports, debt/repayment and reconciliation endpoints, a Next.js dashboard, web
+management and SMS review screens, and an Expo mobile scaffold with local
+raw-message queuing, sync, and SMS review. The SMS permission decision is
 documented: keep Expo managed for now and only move to a native Android module
-when automatic capture is ready. Next I would harden local sync and add
-reconciliation.
+when automatic capture is ready. Next I would collect real anonymized SMS
+fixtures, deepen provider-specific parsing, and polish the debt and
+reconciliation UI.
 
 ## Strong Technical Points To Mention
 
@@ -49,7 +51,7 @@ reconciliation.
 - Amounts are stored as positive values; transaction type controls direction.
 - SMS capture is sender-rule based for privacy.
 - Rule-based parsing comes before AI for explainability.
-- Reconciliation is planned because real-life balances can drift.
+- Reconciliation exists because real-life balances can drift.
 - Projects are separate to preserve clean ownership.
 - OpenAPI/contracts keep web and mobile aligned.
 
@@ -63,10 +65,11 @@ and report logic in the backend so the system can evolve.
 
 ## If Asked "What Would You Build Next?"
 
-I would build provider-specific SMS parsers for bKash, EBL, City Bank, and
-Pathao Pay, with special handling for internal transfers like bank-to-bKash or
-own-account movement. Then I would harden local sync and add reconciliation and
-debt workflows.
+I would collect real anonymized SMS fixtures for bKash, EBL, City Bank, and
+Pathao Pay, then use them to deepen provider-specific parsing and internal
+transfer matching. After that I would polish debt/reconciliation screens,
+harden local sync, add a generated API client, and prepare production
+deployment.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 

@@ -29,9 +29,11 @@ Expo is easier for general mobile development, but automatic SMS access may
 require native Android modules. If Expo managed workflow cannot support the SMS
 requirements, the project should use bare React Native.
 
-Current implementation status: phase-1 uses Expo for fast setup and health/API
-validation. The project keeps the option open to move to bare React Native
-before phase-2 SMS features if required.
+Current implementation status: the app uses Expo for fast setup, health/API
+validation, login testing, quick transaction entry, sender-rule selection,
+local raw-message queueing, sync, and SMS review. The project keeps the option
+open to move to Expo prebuild/custom dev client or bare React Native when
+automatic SMS capture requires a native Android module.
 
 Current SMS decision: keep Expo managed for Phase 2 UI/API work, avoid broad
 SMS permissions for now, and only move to Expo prebuild/custom dev client or

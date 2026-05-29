@@ -156,16 +156,18 @@ transactions, categories, accounts, reports, debts, and balance snapshots.
 The repository currently has planning docs, local PostgreSQL infrastructure,
 Django API foundations, JWT auth, account/category/transaction APIs, payment
 method and SMS sender rule management APIs, raw SMS import duplicate detection,
-a parsed SMS review inbox, a monthly report endpoint, a Next.js dashboard
-workflow, web SMS review UI, and an Expo Android-oriented mobile scaffold with
-local raw-message queueing and SMS review.
+a parsed SMS review inbox, provider-specific starter SMS parsers, internal
+transfer matching hints, debt and repayment APIs, reconciliation APIs, a monthly
+report endpoint, a Next.js dashboard workflow, web SMS review UI, and an Expo
+Android-oriented mobile scaffold with local raw-message queueing and SMS review.
 
 ## What is not implemented yet?
 
-More provider-specific SMS parsing for bKash, EBL, City Bank, and Pathao Pay;
-debt workflows; reconciliation endpoints; native Android SMS capture
-implementation; production-grade local sync hardening; and production deployment
-setup are still planned future work.
+Real anonymized SMS fixture collection for bKash, EBL, City Bank, and Pathao
+Pay; deeper provider-specific parser coverage; web/mobile UI polish for debt
+and reconciliation workflows; native Android SMS capture implementation;
+production-grade local sync hardening; and production deployment setup are still
+planned future work.
 
 ## What is the biggest technical risk?
 
@@ -188,6 +190,6 @@ store policy compliance, monitoring, and deployment automation.
 
 ## What would you improve with more time?
 
-I would add a generated API client, build the web transaction workflow, scaffold
-the mobile app, implement payment methods and sender rules, add SMS parsers,
-and then add reconciliation and debt workflows.
+I would collect real anonymized SMS fixtures, deepen provider-specific parsing,
+build fuller web/mobile debt and reconciliation screens, harden local sync, add
+a generated API client, and prepare the Docker/deployment path for production.

@@ -70,7 +70,7 @@ Web:
 
 - Payment methods management. Done.
 - SMS sender rules management. Done.
-- Raw message review list. Planned for Phase 3 UI polish.
+- Raw message review list. Done.
 
 Mobile:
 
@@ -91,27 +91,29 @@ Goal: create transactions from SMS with review.
 
 Backend:
 
-- Provider parser interface
-- bKash parser
-- EBL parser
-- City Bank parser
-- Pathao Pay parser
-- Transfer-aware parsing for bank-to-wallet and own-account movement
-- Possible related-message matching for two-sided internal transfers
+- Provider parser interface. Done.
+- bKash parser. Done.
+- EBL parser. Done for starter card purchase parsing.
+- City Bank parser. Done for starter card purchase parsing.
+- Pathao Pay parser. Planned.
+- Transfer-aware parsing for bank-to-wallet and own-account movement. Done for
+  candidate hints.
+- Possible related-message matching for two-sided internal transfers. Done.
 - Custom regex parser support
 - Parsed message confidence scoring
-- Confirm/ignore/edit parsed candidates
+- Confirm/ignore parsed candidates. Done.
+- Edit parsed candidates
 
 Web:
 
-- Review inbox for parsed candidates
+- Review inbox for parsed candidates. Done.
 - Transfer review controls for source and destination accounts
 - Bulk confirm and ignore
 - Parser error view
 
 Mobile:
 
-- Review parsed messages
+- Review parsed messages. Done.
 - Confirm/edit from phone
 - Select source/destination account for possible internal transfers
 - Background or periodic sync
@@ -130,8 +132,8 @@ Goal: cover the richer spreadsheet sections.
 Backend:
 
 - Counterparties
-- Debt records
-- Debt payments
+- Debt records. Done.
+- Debt payments. Done.
 - Credit card bill tracking
 - Recurring bills
 

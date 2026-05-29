@@ -58,9 +58,6 @@ Implemented:
 - `messages` for sender rule management
 - `transactions`
 - `reports`
-
-Planned:
-
 - `debts`
 - `reconciliation`
 
@@ -129,11 +126,18 @@ POST   /api/messages/review/{id}/confirm/
 POST   /api/messages/review/{id}/ignore/
 GET    /api/transactions/
 POST   /api/transactions/
+GET    /api/debts/
+POST   /api/debts/
+POST   /api/debts/{id}/payments/
 GET    /api/reports/monthly/?month=YYYY-MM
+GET    /api/reconciliation/snapshots/
+POST   /api/reconciliation/snapshots/
+GET    /api/reconciliation/accounts/{account_id}/
 ```
 
 The DRF routers also provide detail, update, and delete endpoints for accounts,
-categories, and transactions.
+categories, payment methods, sender rules, transactions, debts, and balance
+snapshots.
 
 ## How do you validate cross-user object access?
 
@@ -194,6 +198,8 @@ reconciliation math.
 
 ## What is a limitation of the current backend?
 
-It has the first manual finance loop, but it does not yet include payment
-methods, SMS message storage, debts, reconciliation, or production deployment
-configuration.
+It has the first manual finance loop, SMS import/review, debt records, and
+reconciliation endpoints, but the provider parsers are still early. It still
+needs real anonymized SMS fixture coverage, deeper provider-specific transfer
+cases, production deployment configuration, and UI polish around debt and
+reconciliation workflows.

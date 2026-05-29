@@ -8,9 +8,12 @@ Last updated: 2026-05-30
 - Docker support is added for API, web, and optional mobile profile.
 - Phase 2 kickoff is complete: payment methods, sender rules, raw SMS import,
   review candidates, web/mobile management, and local mobile queue are in place.
-- Next milestone is Phase 3 implementation: provider-specific parsing for
-  bKash, EBL, City Bank, and Pathao Pay; transfer-aware review;
-  reconciliation; debts; and production hardening.
+- Phase 3 backend foundations are in place: provider parser starters,
+  transfer-aware review, reconciliation endpoints, debt/lend APIs, and
+  production auth/token planning.
+- Next milestone is validating the workflow with real anonymized SMS fixtures,
+  polishing debt/reconciliation UI, hardening mobile sync, and preparing
+  production deployment.
 
 ## Done (Checked)
 
@@ -104,7 +107,7 @@ Last updated: 2026-05-30
 ## Verification Matrix
 
 - [x] Backend tests:
-  - Command: `python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports`
+  - Command: `python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts`
   - Result: pass
 - [x] Web typecheck:
   - Command: `npm run typecheck`

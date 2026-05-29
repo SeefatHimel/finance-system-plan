@@ -122,15 +122,19 @@ mindmap
 - Planning documentation is complete for the first architecture pass.
 - Local Docker infrastructure is defined in `projects/finance-infra` for
   PostgreSQL, API, web, and optional mobile runtime.
-- Django API scaffold is started in `projects/finance-api`.
-- The first backend endpoint is `GET /api/health/`.
-- The first manual finance API loop is started with accounts, categories,
-  transactions, and monthly reports.
+- Django API is implemented in `projects/finance-api` with health, auth,
+  accounts, categories, payment methods, messages, transactions, reports,
+  debts, and reconciliation modules.
+- The manual finance API loop covers accounts, categories, transactions,
+  monthly reports, debts, repayments, and balance snapshots.
 - Phase 2 kickoff is complete across API, contracts, web, and mobile scaffolds:
   payment methods, sender rules, raw SMS import, duplicate detection, parsed
   review candidates, and local mobile raw-message queue.
+- Phase 3 backend foundations are in place for starter provider parsers,
+  internal-transfer hints, debt/repayment workflows, reconciliation snapshots,
+  and production auth/token planning.
 - JWT authentication is available for web and mobile clients.
-- The Next.js web app shell is started and can display backend health.
+- The Next.js web app can display backend health.
 - The web app has a local-development login flow for JWT auth.
 - The web app has a first manual transaction page connected to the backend API.
 - The web app can create and list accounts and categories.
@@ -146,7 +150,7 @@ mindmap
 
 ## Next Milestone
 
-Phase 3 should focus on turning the SMS scaffolding into a fuller workflow:
-provider-specific parsers for bKash, EBL, City Bank, and Pathao Pay;
-transfer-aware review; reconciliation endpoints;
-debt/lend workflows; and production hardening.
+Phase 3 should now focus on validating the workflow with real anonymized SMS
+fixtures, deepening bKash/EBL/City Bank/Pathao Pay parser coverage, polishing
+debt and reconciliation UI, hardening mobile sync, and preparing production
+deployment.
