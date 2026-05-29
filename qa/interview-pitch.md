@@ -63,10 +63,10 @@ and report logic in the backend so the system can evolve.
 
 ## If Asked "What Would You Build Next?"
 
-I would build the mobile/web review inbox UI, harden local sync, then implement
-the native Android SMS module only if automatic capture is still required. After
-that I would improve provider-specific parsing and add reconciliation and debt
-workflows.
+I would build provider-specific SMS parsers for bKash, EBL, City Bank, and
+Pathao Pay, with special handling for internal transfers like bank-to-bKash or
+own-account movement. Then I would build the mobile/web review inbox UI, harden
+local sync, and add reconciliation and debt workflows.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 

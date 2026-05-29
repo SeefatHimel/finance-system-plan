@@ -20,6 +20,9 @@
   explicitly chosen.
 - If automatic SMS capture remains required, use Expo prebuild/custom dev client
   or bare React Native for the smallest sender-scoped native module.
+- Phase 3 parser priority providers are bKash, EBL, City Bank, and Pathao Pay.
+- Internal transfers are feature-worthy and should be handled explicitly so
+  bank-to-wallet and own-account movement is not misclassified.
 - Account balances can be calculated and manually reconciled.
 - Missing balance differences should be shown.
 - Debt/lend records are tracked separately, but money movement affects account
@@ -67,6 +70,10 @@ When to split into separate repositories:
    affect cash when the bill is paid?
 9. If this becomes publicly distributed, does the app qualify for Google Play
    SMS permission use, or should SMS import stay manual/non-Play?
+10. Which anonymized SMS examples should be collected first for bKash, EBL,
+    City Bank, and Pathao Pay?
+11. Should obvious internal transfer pairs ever auto-confirm, or should they
+    always require review?
 
 ## Suggested Answers For Phase 1
 

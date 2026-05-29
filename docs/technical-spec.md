@@ -169,13 +169,19 @@ for distributions where broad SMS permissions are not allowed.
 ```txt
 id
 raw_message_id
+provider
+message_kind
 detected_type
 detected_amount
 detected_date
 detected_account_id
+detected_destination_account_id
 detected_category_id
 detected_counterparty_text
 detected_reference
+detected_balance
+detected_fee
+possible_internal_transfer
 confidence_score
 needs_review
 parser_name
@@ -184,6 +190,19 @@ error_reason
 created_at
 updated_at
 ```
+
+Phase 3 parser priority providers:
+
+```txt
+bkash
+ebl
+city_bank
+pathao_pay
+```
+
+Internal transfer candidates should carry both source and destination hints when
+available. If the parser only knows one side, confirmation should require the
+user to select the missing account before creating a transfer transaction.
 
 ### transactions_transaction
 

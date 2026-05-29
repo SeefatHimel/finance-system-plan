@@ -41,6 +41,7 @@ access control between backend, mobile, and web teams.
 - [Roadmap](docs/roadmap.md)
 - [First Sprint Plan](docs/first-sprint.md)
 - [Next Steps Checklist](docs/next-steps-checklist.md)
+- [Phase 3 SMS Parser Plan](docs/phase-3-sms-parser-plan.md)
 - [Mobile SMS Permission Decision](docs/mobile-sms-permission-decision.md)
 - [Decisions And Questions](docs/decisions-and-questions.md)
 - [Local Setup](docs/local-setup.md)
@@ -143,5 +144,6 @@ mindmap
 ## Next Milestone
 
 Phase 3 should focus on turning the SMS scaffolding into a fuller workflow:
-provider-specific parsers, web/mobile review inbox UI, reconciliation endpoints,
-debt/lend workflows, and production hardening.
+provider-specific parsers for bKash, EBL, City Bank, and Pathao Pay;
+transfer-aware review; web/mobile review inbox UI; reconciliation endpoints;
+debt/lend workflows; and production hardening.

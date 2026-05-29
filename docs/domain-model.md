@@ -115,16 +115,29 @@ Stores what the system thinks the SMS means.
 Important fields:
 
 - raw_message
+- provider
+- message_kind: purchase, cash_in, cash_out, transfer, fee, refund, reversal,
+  balance_notice, unknown
 - detected_amount
 - detected_date
 - detected_account
+- detected_destination_account, optional
 - detected_type
 - detected_counterparty
 - detected_reference
+- detected_balance
+- detected_fee
+- possible_internal_transfer
 - confidence_score
 - needs_review
 - parser_version
 - error_reason
+
+Internal transfers are important enough to model explicitly. A bank-to-bKash
+top-up, wallet cash-in, card bill payment, or transfer between the user's own
+accounts should not become a fake expense or fake income. The parsed candidate
+should preserve source and destination hints so the review flow can confirm a
+transfer when both sides are known.
 
 ## Transaction
 
@@ -205,4 +218,3 @@ and mobile apps can provide display options:
 - Spreadsheet mode: expenses show negative, income shows positive.
 - Ledger mode: amount is positive and type/status shows direction.
 - Account mode: show money in and money out columns.
-

@@ -59,6 +59,10 @@ The user enables tracking for specific sender numbers or names. The app reads
 matching SMS messages, stores the raw message locally, and syncs it to the
 backend. The backend parses and returns whether it needs review.
 
+The first provider targets are bKash, EBL, City Bank, and Pathao Pay. The mobile
+review flow should eventually support internal transfer confirmation, including
+selecting source and destination accounts when the parser is unsure.
+
 Current scaffold status: the app can load backend sender rules and payment
 methods after login, then locally toggle which sender rules should be enabled.
 Actual inbox reading still needs the native Android module implementation.

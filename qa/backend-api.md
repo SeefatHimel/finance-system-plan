@@ -150,12 +150,24 @@ candidate with matched sender rule metadata, baseline amount extraction,
 confidence, and parser notes. Candidates can be reviewed, confirmed into an
 SMS-sourced transaction, or ignored.
 
+Phase 3 should add provider-specific parsers for bKash, EBL, City Bank, and
+Pathao Pay. The parsers should detect message kind, amount, reference, balance,
+fee, source/destination payment method hints, and possible internal transfers.
+
 ## How would you prevent duplicate SMS transactions?
 
 The raw import endpoint checks duplicates by device message ID when available
 and by a deterministic hash of sender, body, and received time. Duplicate
 checks happen before parsing or transaction creation. Provider reference
 numbers can add another duplicate signal later.
+
+## Why do internal transfers need special handling?
+
+Bank-to-bKash, bKash-to-bank, card bill payments, and transfers between the
+user's own accounts are not expenses or income. If the parser only extracts an
+amount and direction from one SMS, it can create misleading reports. Internal
+transfer candidates should preserve source and destination hints and require
+review when one side is uncertain.
 
 ## How would you handle migrations safely?
 

@@ -92,8 +92,12 @@ Goal: create transactions from SMS with review.
 Backend:
 
 - Provider parser interface
-- Bkash parser
-- City Bank or card parser
+- bKash parser
+- EBL parser
+- City Bank parser
+- Pathao Pay parser
+- Transfer-aware parsing for bank-to-wallet and own-account movement
+- Possible related-message matching for two-sided internal transfers
 - Custom regex parser support
 - Parsed message confidence scoring
 - Confirm/ignore/edit parsed candidates
@@ -101,6 +105,7 @@ Backend:
 Web:
 
 - Review inbox for parsed candidates
+- Transfer review controls for source and destination accounts
 - Bulk confirm and ignore
 - Parser error view
 
@@ -108,6 +113,7 @@ Mobile:
 
 - Review parsed messages
 - Confirm/edit from phone
+- Select source/destination account for possible internal transfers
 - Background or periodic sync
 
 Exit criteria:
@@ -115,6 +121,7 @@ Exit criteria:
 - Common transaction SMS messages become reviewable transaction candidates.
 - Confirmed candidates create real transactions.
 - Low-confidence messages require user review.
+- Bank-to-wallet and own-account transfers are not misclassified as expenses or income.
 
 ## Phase 4: Debt, Lending, Credit Card, Bills
 
