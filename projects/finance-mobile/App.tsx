@@ -15,6 +15,8 @@ import {
 import {
   checkHealth,
   confirmMessageCandidate,
+  createCreditCardBill,
+  createCreditCardPayment,
   createDebt,
   createDebtPayment,
   createTransaction,
@@ -24,6 +26,7 @@ import {
   importRawMessage,
   listAccounts,
   listCategories,
+  listCreditCardBills,
   listDebts,
   listMessageCandidates,
   listPaymentMethods,
@@ -32,6 +35,7 @@ import {
   login,
   type Account,
   type Category,
+  type CreditCardBill,
   type Debt,
   type HealthResult,
   type ParsedMessageCandidate,
@@ -139,6 +143,20 @@ export default function App() {
   const [debtPaymentAmount, setDebtPaymentAmount] = useState("");
   const [debtPaymentDate, setDebtPaymentDate] = useState(today());
   const [debtPaymentNote, setDebtPaymentNote] = useState("");
+  const [cardBillState, setCardBillState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [cardBillMessage, setCardBillMessage] = useState("");
+  const [cardBills, setCardBills] = useState<CreditCardBill[]>([]);
+  const [cardAccountId, setCardAccountId] = useState("");
+  const [cardStatementBalance, setCardStatementBalance] = useState("");
+  const [cardMinimumDue, setCardMinimumDue] = useState("");
+  const [cardStatementDate, setCardStatementDate] = useState(today());
+  const [cardDueDate, setCardDueDate] = useState("");
+  const [cardReference, setCardReference] = useState("");
+  const [cardNote, setCardNote] = useState("");
+  const [cardPaymentBillId, setCardPaymentBillId] = useState("");
+  const [cardPaymentAmount, setCardPaymentAmount] = useState("");
+  const [cardPaymentDate, setCardPaymentDate] = useState(today());
+  const [cardPaymentNote, setCardPaymentNote] = useState("");
   const [smsPermissionState, setSmsPermissionState] = useState<SmsPermissionState>("unknown");
   const [smsPermissionMessage, setSmsPermissionMessage] = useState(
     "Native SMS permission is not wired in this Expo scaffold yet."
@@ -268,6 +286,101 @@ export default function App() {
     } catch (error) {
       setDebtState("error");
       setDebtMessage(error instanceof Error ? error.message : "Could not record repayment.");
+    }
+  };
+
+  const handleLoadCreditCardBills = async () => {
+    if (!accessToken.trim()) {
+      setCardBillState("error");
+      setCardBillMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+
+    setCardBillState("loading");
+    setCardBillMessage("");
+    try {
+      const [nextBills, nextAccounts] = await Promise.all([
+        listCreditCardBills(accessToken.trim()),
+        accounts.length ? Promise.resolve(accounts) : listAccounts(accessToken.trim())
+      ]);
+      setCardBills(nextBills);
+      if (!accounts.length) {
+        setAccounts(nextAccounts);
+      }
+      const firstCard = nextAccounts.find((account) => account.type === "credit_card");
+      if (!cardAccountId && firstCard) {
+        setCardAccountId(firstCard.id);
+      }
+      setCardBillState("ok");
+      setCardBillMessage(`Loaded ${nextBills.length} credit card bill(s).`);
+    } catch (error) {
+      setCardBillState("error");
+      setCardBillMessage(error instanceof Error ? error.message : "Could not load credit card bills.");
+    }
+  };
+
+  const handleCreateCreditCardBill = async () => {
+    if (!accessToken.trim()) {
+      setCardBillState("error");
+      setCardBillMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+    if (!cardAccountId || !cardStatementBalance.trim() || !cardStatementDate.trim() || !cardDueDate.trim()) {
+      setCardBillState("error");
+      setCardBillMessage("Card account, statement balance, statement date, and due date are required.");
+      return;
+    }
+
+    setCardBillState("loading");
+    setCardBillMessage("");
+    try {
+      await createCreditCardBill(accessToken.trim(), {
+        account: cardAccountId,
+        due_date: cardDueDate.trim(),
+        minimum_due: cardMinimumDue.trim() || "0.00",
+        note: cardNote.trim(),
+        reference: cardReference.trim(),
+        statement_balance: cardStatementBalance.trim(),
+        statement_date: cardStatementDate.trim()
+      });
+      setCardStatementBalance("");
+      setCardMinimumDue("");
+      setCardDueDate("");
+      setCardReference("");
+      setCardNote("");
+      await handleLoadCreditCardBills();
+    } catch (error) {
+      setCardBillState("error");
+      setCardBillMessage(error instanceof Error ? error.message : "Could not create credit card bill.");
+    }
+  };
+
+  const handleCreateCreditCardPayment = async () => {
+    if (!accessToken.trim()) {
+      setCardBillState("error");
+      setCardBillMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+    if (!cardPaymentBillId || !cardPaymentAmount.trim() || !cardPaymentDate.trim()) {
+      setCardBillState("error");
+      setCardBillMessage("Bill, amount, and paid date are required.");
+      return;
+    }
+
+    setCardBillState("loading");
+    setCardBillMessage("");
+    try {
+      await createCreditCardPayment(accessToken.trim(), cardPaymentBillId, {
+        amount: cardPaymentAmount.trim(),
+        note: cardPaymentNote.trim(),
+        paid_at: cardPaymentDate.trim()
+      });
+      setCardPaymentAmount("");
+      setCardPaymentNote("");
+      await handleLoadCreditCardBills();
+    } catch (error) {
+      setCardBillState("error");
+      setCardBillMessage(error instanceof Error ? error.message : "Could not record card payment.");
     }
   };
 
@@ -634,6 +747,8 @@ export default function App() {
   }, []);
 
   const openDebts = debts.filter((debt) => debt.status !== "paid");
+  const cardAccounts = accounts.filter((account) => account.type === "credit_card");
+  const openCardBills = cardBills.filter((bill) => bill.status !== "paid");
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -943,6 +1058,146 @@ export default function App() {
                 <Text key={debt.id} style={styles.listItem}>
                   {debt.counterparty_name} | {debt.direction.replaceAll("_", " ")} | {debt.current_balance} | {debt.status}
                   {debt.due_date ? ` | due ${debt.due_date}` : ""}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Credit Card Bills</Text>
+          <Text style={styles.meta}>
+            Track statement balances, due dates, minimum dues, and card bill payments from mobile.
+          </Text>
+
+          <Pressable onPress={handleLoadCreditCardBills} style={styles.buttonSecondary}>
+            <Text style={styles.buttonText}>Load Card Bills</Text>
+          </Pressable>
+          {cardBillState === "loading" ? <ActivityIndicator /> : null}
+          {cardBillState === "ok" ? <Text style={styles.okText}>{cardBillMessage}</Text> : null}
+          {cardBillState === "error" ? <Text style={styles.errorText}>{cardBillMessage}</Text> : null}
+
+          <Text style={styles.sectionTitle}>Add Statement Bill</Text>
+          {cardAccounts.length ? (
+            <View style={styles.choiceRow}>
+              {cardAccounts.map((account) => (
+                <Pressable
+                  key={account.id}
+                  onPress={() => setCardAccountId(account.id)}
+                  style={cardAccountId === account.id ? styles.choiceSelected : styles.choice}
+                >
+                  <Text style={cardAccountId === account.id ? styles.choiceTextSelected : styles.choiceText}>
+                    {account.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.meta}>Load or create a credit-card account before adding card bills.</Text>
+          )}
+          <TextInput
+            keyboardType="decimal-pad"
+            onChangeText={setCardStatementBalance}
+            placeholder="Statement balance"
+            style={styles.input}
+            value={cardStatementBalance}
+          />
+          <TextInput
+            keyboardType="decimal-pad"
+            onChangeText={setCardMinimumDue}
+            placeholder="Minimum due"
+            style={styles.input}
+            value={cardMinimumDue}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setCardStatementDate}
+            placeholder="Statement date (YYYY-MM-DD)"
+            style={styles.input}
+            value={cardStatementDate}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setCardDueDate}
+            placeholder="Due date (YYYY-MM-DD)"
+            style={styles.input}
+            value={cardDueDate}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setCardReference}
+            placeholder="Reference (optional)"
+            style={styles.input}
+            value={cardReference}
+          />
+          <TextInput
+            autoCapitalize="sentences"
+            onChangeText={setCardNote}
+            placeholder="Note (optional)"
+            style={styles.input}
+            value={cardNote}
+          />
+          <Pressable onPress={handleCreateCreditCardBill} style={styles.button}>
+            <Text style={styles.buttonText}>Save Card Bill</Text>
+          </Pressable>
+
+          <Text style={styles.sectionTitle}>Record Card Payment</Text>
+          {openCardBills.length ? (
+            <View style={styles.choiceRow}>
+              {openCardBills.map((bill) => (
+                <Pressable
+                  key={bill.id}
+                  onPress={() => setCardPaymentBillId(bill.id)}
+                  style={cardPaymentBillId === bill.id ? styles.choiceSelected : styles.choice}
+                >
+                  <Text style={cardPaymentBillId === bill.id ? styles.choiceTextSelected : styles.choiceText}>
+                    {bill.due_date} | {bill.remaining_balance}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.meta}>No open card bills loaded.</Text>
+          )}
+          <TextInput
+            keyboardType="decimal-pad"
+            onChangeText={setCardPaymentAmount}
+            placeholder="Payment amount"
+            style={styles.input}
+            value={cardPaymentAmount}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setCardPaymentDate}
+            placeholder="Paid date (YYYY-MM-DD)"
+            style={styles.input}
+            value={cardPaymentDate}
+          />
+          <TextInput
+            autoCapitalize="sentences"
+            onChangeText={setCardPaymentNote}
+            placeholder="Payment note (optional)"
+            style={styles.input}
+            value={cardPaymentNote}
+          />
+          <Pressable
+            disabled={openCardBills.length === 0}
+            onPress={handleCreateCreditCardPayment}
+            style={openCardBills.length === 0 ? styles.buttonDisabled : styles.button}
+          >
+            <Text style={styles.buttonText}>Record Card Payment</Text>
+          </Pressable>
+
+          {cardBills.length ? (
+            <View style={styles.listSection}>
+              <Text style={styles.listTitle}>Card bill balances</Text>
+              {cardBills.map((bill) => (
+                <Text key={bill.id} style={styles.listItem}>
+                  {bill.statement_date} | due {bill.due_date} | remaining {bill.remaining_balance} | {bill.status}
                 </Text>
               ))}
             </View>

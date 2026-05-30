@@ -52,6 +52,10 @@ bare React Native when real automatic SMS capture is ready to be implemented.
 - Debt/lending flow (`GET /api/debts/`, `POST /api/debts/`, and
   `POST /api/debts/{id}/payments/`) for creating lent/borrowed records,
   seeing balances, and recording repayments.
+- Credit-card bill flow (`GET /api/credit-card-bills/`,
+  `POST /api/credit-card-bills/`, and
+  `POST /api/credit-card-bills/{id}/payments/`) for creating statement bills,
+  seeing remaining balances, and recording card payments.
 - SMS tracking settings scaffold that loads payment methods and sender rules,
   shows a permission gate placeholder, and lets the user locally enable trusted
   sender rules for future import.
@@ -68,6 +72,13 @@ The mobile debt section loads debt/lending records from the backend, creates
 new lent-by-me or borrowed-by-me records, shows current balances and due dates,
 and records repayments against open debt records. It is intentionally compact so
 it works as a quick on-phone companion to the fuller web dashboard.
+
+## What does the mobile credit-card section do?
+
+The mobile credit-card section loads card bills, lets the user create statement
+bills against credit-card accounts, shows remaining balances and due dates, and
+records payments against open bills. It is a mobile companion to the web
+credit-card bill dashboard.
 
 ## How will SMS tracking work?
 

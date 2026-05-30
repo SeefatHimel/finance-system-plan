@@ -157,7 +157,7 @@ Mobile:
 - Add lent/borrowed money. Done for first mobile scaffold.
 - Mark repayment. Done for first mobile scaffold.
 - See due items. Done for first mobile scaffold.
-- Add credit card bill checks
+- Add credit card bill checks. Done for first mobile scaffold.
 - Add recurring bill checks
 - Add reconciliation checks
 

@@ -194,6 +194,40 @@ export type CreateDebtPaymentInput = {
   transaction?: string | null;
 };
 
+export type CreditCardBill = {
+  account: string;
+  created_at: string;
+  due_date: string;
+  id: string;
+  minimum_due: string;
+  note: string;
+  paid_amount: string;
+  reference: string;
+  remaining_balance: string;
+  statement_balance: string;
+  statement_date: string;
+  statement_transaction: string | null;
+  status: string;
+  updated_at: string;
+};
+
+export type CreateCreditCardBillInput = {
+  account: string;
+  due_date: string;
+  minimum_due?: string;
+  note?: string;
+  reference?: string;
+  statement_balance: string;
+  statement_date: string;
+};
+
+export type CreateCreditCardPaymentInput = {
+  amount: string;
+  note?: string;
+  paid_at: string;
+  transaction?: string | null;
+};
+
 export type HealthResult = {
   error?: string;
   ok: boolean;
@@ -336,6 +370,52 @@ export async function createDebtPayment(
   input: CreateDebtPaymentInput
 ): Promise<void> {
   await authenticatedFetch(`/api/debts/${debtId}/payments/`, accessToken, {
+    body: JSON.stringify({
+      amount: input.amount,
+      note: input.note || "",
+      paid_at: input.paid_at,
+      transaction: input.transaction || null
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+}
+
+export async function listCreditCardBills(accessToken: string): Promise<CreditCardBill[]> {
+  const response = await authenticatedFetch("/api/credit-card-bills/", accessToken);
+  return (await response.json()) as CreditCardBill[];
+}
+
+export async function createCreditCardBill(
+  accessToken: string,
+  input: CreateCreditCardBillInput
+): Promise<CreditCardBill> {
+  const response = await authenticatedFetch("/api/credit-card-bills/", accessToken, {
+    body: JSON.stringify({
+      account: input.account,
+      due_date: input.due_date,
+      minimum_due: input.minimum_due || "0.00",
+      note: input.note || "",
+      reference: input.reference || "",
+      statement_balance: input.statement_balance,
+      statement_date: input.statement_date
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return (await response.json()) as CreditCardBill;
+}
+
+export async function createCreditCardPayment(
+  accessToken: string,
+  billId: string,
+  input: CreateCreditCardPaymentInput
+): Promise<void> {
+  await authenticatedFetch(`/api/credit-card-bills/${billId}/payments/`, accessToken, {
     body: JSON.stringify({
       amount: input.amount,
       note: input.note || "",
