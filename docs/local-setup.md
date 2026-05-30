@@ -250,6 +250,7 @@ GET /api/accounts/
 GET /api/categories/
 POST /api/transactions/
 GET /api/transactions/
+GET /api/transactions/export/?month=YYYY-MM
 GET /api/payment-methods/
 GET /api/messages/sender-rules/
 POST /api/messages/import/

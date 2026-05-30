@@ -54,6 +54,7 @@ recurring-bill, and reconciliation workflows.
 - SMS capture is sender-rule based for privacy.
 - Rule-based parsing comes before AI for explainability.
 - Reconciliation exists because real-life balances can drift.
+- CSV export keeps a spreadsheet/backup path available while the app matures.
 - Projects are separate to preserve clean ownership.
 - OpenAPI/contracts keep web and mobile aligned.
 

@@ -174,7 +174,7 @@ Goal: make the system dependable long term.
 
 Backend:
 
-- CSV/Excel export
+- CSV/Excel export. Started with authenticated filtered transaction CSV export.
 - Import tools from existing spreadsheet
 - Audit log
 - Backup/restore support

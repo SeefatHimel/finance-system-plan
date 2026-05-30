@@ -136,6 +136,7 @@ POST   /api/messages/review/{id}/confirm/
 POST   /api/messages/review/{id}/ignore/
 GET    /api/transactions/
 POST   /api/transactions/
+GET    /api/transactions/export/?month=YYYY-MM
 GET    /api/debts/
 POST   /api/debts/
 POST   /api/debts/{id}/payments/
@@ -227,7 +228,8 @@ rollouts.
 
 I would test serializers, permissions, model constraints, API endpoints,
 monthly report calculations, SMS parser cases, duplicate detection, and
-reconciliation math.
+reconciliation math. Export endpoints should be tested for user scoping,
+filters, CSV headers, and ledger evidence fields.
 
 ## What is a limitation of the current backend?
 

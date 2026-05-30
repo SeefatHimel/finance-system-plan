@@ -200,6 +200,7 @@ POST   /api/transactions/
 GET    /api/transactions/{id}/
 PATCH  /api/transactions/{id}/
 DELETE /api/transactions/{id}/
+GET    /api/transactions/export/?month=YYYY-MM
 
 GET    /api/debts/
 POST   /api/debts/

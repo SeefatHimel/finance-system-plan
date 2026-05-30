@@ -175,6 +175,8 @@ redacted after parsing while keeping duplicate hashes and parsed ledger fields.
 The mobile raw-message queue also records sync attempts and failure reasons,
 blocks obvious local duplicates, and lets invalid queued messages be removed
 before retry.
+The backend can export filtered transactions as CSV for spreadsheet backup or
+external review.
 
 ## What is not implemented yet?
 
@@ -183,7 +185,8 @@ Pay; deeper provider-specific parser coverage for bank account transfers and
 additional real-world provider variants; mobile UI polish for debt,
 credit-card, recurring-bill, and reconciliation workflows; native Android SMS
 capture implementation; deeper production-grade local sync hardening; and
-production deployment setup are still planned future work.
+web export UI, production deployment setup, and broader backup/restore support
+are still planned future work.
 
 ## What is the biggest technical risk?
 

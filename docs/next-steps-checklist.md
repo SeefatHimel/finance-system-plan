@@ -126,6 +126,10 @@ Last updated: 2026-05-31
 - [x] Add credit card bill tracking
 - [x] Add recurring bills
 
+### Phase 5 Follow-up
+
+- [x] Add authenticated filtered transaction CSV export endpoint
+
 ## Verification Matrix
 
 - [x] Backend tests:
