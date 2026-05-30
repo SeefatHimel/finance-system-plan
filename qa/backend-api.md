@@ -168,11 +168,12 @@ candidate with matched sender rule metadata, amount extraction, confidence, and
 parser notes. Candidates can be reviewed, confirmed into an SMS-sourced
 transaction, or ignored.
 
-Phase 3 now has transfer-aware candidate fields, an initial bKash parser, and
-initial EBL/City Bank card purchase parsing. The parsers detect message kind,
-amount, reference, balance, fee, merchant/counterparty text, and possible
-internal transfers for cash-in/cash-out style messages. Pathao Pay and deeper
-bank transfer/card payment cases remain provider-specific parser targets.
+Phase 3 now has transfer-aware candidate fields, an initial bKash parser,
+initial EBL/City Bank card purchase parsing, and starter Pathao Pay parsing for
+top-up, payment, send-money, and withdraw confirmations. The parsers detect
+message kind, amount, reference, balance, fee, merchant/counterparty text, and
+possible internal transfers for cash-in/cash-out style messages. Deeper bank
+transfer/card payment cases remain provider-specific parser targets.
 
 For internal transfers, the backend now links possible related candidates when
 two review items belong to the same user, have the same amount, close received

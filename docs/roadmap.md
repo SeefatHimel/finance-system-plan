@@ -95,7 +95,8 @@ Backend:
 - bKash parser. Done.
 - EBL parser. Done for starter card purchase parsing.
 - City Bank parser. Done for starter card purchase parsing.
-- Pathao Pay parser. Planned.
+- Pathao Pay parser. Done for starter top-up, payment, send-money, and
+  withdraw parsing.
 - Final transaction ledger evidence fields for SMS confirmation. Done.
 - Transfer-aware parsing for bank-to-wallet and own-account movement. Done for
   candidate hints.

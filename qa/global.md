@@ -167,8 +167,9 @@ payment method, raw message link, and duplicate key.
 ## What is not implemented yet?
 
 Real anonymized SMS fixture collection for bKash, EBL, City Bank, and Pathao
-Pay; deeper provider-specific parser coverage; web/mobile UI polish for debt
-and reconciliation workflows; native Android SMS capture implementation;
+Pay; deeper provider-specific parser coverage for bank transfers, card
+payments, fees, refunds, and reversals; web/mobile UI polish for debt and
+reconciliation workflows; native Android SMS capture implementation;
 production-grade local sync hardening; and production deployment setup are still
 planned future work.
 

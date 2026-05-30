@@ -66,10 +66,10 @@ and report logic in the backend so the system can evolve.
 ## If Asked "What Would You Build Next?"
 
 I would collect real anonymized SMS fixtures for bKash, EBL, City Bank, and
-Pathao Pay, then use them to deepen provider-specific parsing and internal
-transfer matching. After that I would polish debt/reconciliation screens,
-harden local sync, add a generated API client, and prepare production
-deployment.
+Pathao Pay, then use them to deepen bank transfer, card payment, fee, refund,
+reversal, and internal-transfer matching. After that I would polish
+debt/reconciliation screens, harden local sync, add a generated API client, and
+prepare production deployment.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 

@@ -111,7 +111,7 @@ Last updated: 2026-05-31
 ### Phase 3 Follow-up
 
 - [ ] Add richer source/destination extraction for bKash sender/receiver account numbers
-- [ ] Add Pathao Pay parser coverage for make payment, top-up, send money, and withdraw confirmations
+- [x] Add Pathao Pay parser coverage for make payment, top-up, send money, and withdraw confirmations
 - [ ] Add source/destination account controls to mobile SMS review
 - [ ] Add parser confidence/duplicate reason display in review inbox
 - [ ] Add raw SMS deletion/redaction workflow
@@ -162,3 +162,4 @@ Last updated: 2026-05-31
 - `api: add debt and repayment workflow endpoints`
 - `docs: add production auth token storage plan`
 - `api: preserve sms ledger evidence on transactions`
+- `api: add pathao pay sms parser coverage`

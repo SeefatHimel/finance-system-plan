@@ -275,6 +275,108 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(candidate["reference"], "CITY123456")
         self.assertFalse(candidate["possible_internal_transfer"])
 
+    def test_pathao_pay_import_creates_provider_specific_candidates(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(
+            user=user,
+            name="Pathao Pay Wallet",
+            type=Account.Type.MOBILE_WALLET,
+        )
+        payment_method = PaymentMethod.objects.create(
+            user=user,
+            account=account,
+            name="Pathao Pay",
+            provider=PaymentMethod.Provider.PATHAO_PAY,
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            payment_method=payment_method,
+            name="Pathao Pay sender",
+            provider=SenderRule.Provider.PATHAO_PAY,
+            sender="PATHAOPAY",
+        )
+        self.client.force_authenticate(user)
+
+        cases = (
+            {
+                "amount": "500.00",
+                "balance_after": "800.00",
+                "counterparty_text": "SAMPLE BANK",
+                "device_message_id": "sms-pathao-top-up-100",
+                "fee_amount": None,
+                "fixture": "top_up.txt",
+                "message_kind": "cash_in",
+                "possible_internal_transfer": True,
+                "reference": "PATHAO123",
+                "transaction_type": "transfer",
+            },
+            {
+                "amount": "220.00",
+                "balance_after": "580.00",
+                "counterparty_text": "SAMPLE MERCHANT successful",
+                "device_message_id": "sms-pathao-payment-100",
+                "fee_amount": None,
+                "fixture": "payment.txt",
+                "message_kind": "purchase",
+                "possible_internal_transfer": False,
+                "reference": "PATHPAY456",
+                "transaction_type": "expense",
+            },
+            {
+                "amount": "300.00",
+                "balance_after": "280.00",
+                "counterparty_text": "SAMPLE USER successful",
+                "device_message_id": "sms-pathao-send-money-100",
+                "fee_amount": None,
+                "fixture": "send_money.txt",
+                "message_kind": "send_money",
+                "possible_internal_transfer": False,
+                "reference": "PATHSEND789",
+                "transaction_type": "expense",
+            },
+            {
+                "amount": "400.00",
+                "balance_after": "174.00",
+                "counterparty_text": "SAMPLE BANK successful",
+                "device_message_id": "sms-pathao-withdraw-100",
+                "fee_amount": "6.00",
+                "fixture": "withdraw.txt",
+                "message_kind": "cash_out",
+                "possible_internal_transfer": True,
+                "reference": "PATHWD321",
+                "transaction_type": "transfer",
+            },
+        )
+
+        for case in cases:
+            with self.subTest(fixture=case["fixture"]):
+                response = self.client.post(
+                    reverse("raw-message-import"),
+                    {
+                        "sender": "PATHAOPAY",
+                        "body": (FIXTURE_DIR / "pathao_pay" / case["fixture"]).read_text(),
+                        "received_at": "2026-05-30T15:30:00+06:00",
+                        "device_message_id": case["device_message_id"],
+                    },
+                    format="json",
+                )
+
+                self.assertEqual(response.status_code, 201)
+                candidate = response.data["candidate"]
+                self.assertEqual(candidate["provider"], "pathao_pay")
+                self.assertEqual(candidate["message_kind"], case["message_kind"])
+                self.assertEqual(candidate["transaction_type"], case["transaction_type"])
+                self.assertEqual(candidate["amount"], case["amount"])
+                self.assertEqual(candidate["balance_after"], case["balance_after"])
+                self.assertEqual(candidate["counterparty_text"], case["counterparty_text"])
+                self.assertEqual(candidate["fee_amount"], case["fee_amount"])
+                self.assertEqual(candidate["reference"], case["reference"])
+                self.assertEqual(
+                    candidate["possible_internal_transfer"],
+                    case["possible_internal_transfer"],
+                )
+
     def test_internal_transfer_candidates_link_possible_related_message(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         bank_account = Account.objects.create(

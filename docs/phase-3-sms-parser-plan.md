@@ -221,7 +221,8 @@ projects/finance-api/apps/messages/fixtures/sms/pathao_pay/
 1. Collect real anonymized SMS fixtures from bKash, EBL, City Bank, and Pathao
    Pay.
 2. Expand parser coverage for Pathao Pay, bank transfers, card bill payments,
-   refunds, fees, and reversals.
+   refunds, fees, and reversals. Done for starter Pathao Pay top-up, payment,
+   send-money, and withdraw confirmations.
 3. Extract bKash sender/receiver account text, counter/till, and provider
    timestamps where available.
 4. Add richer source/destination account editing in mobile review.

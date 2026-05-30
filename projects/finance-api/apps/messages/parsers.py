@@ -33,6 +33,8 @@ def parse_raw_message(raw_message):
             sender_rule=sender_rule,
             provider=provider,
         )
+    if provider == SenderRule.Provider.PATHAO_PAY:
+        return _parse_pathao_pay_message(raw_message=raw_message, sender_rule=sender_rule)
 
     amount = _extract_amount(raw_message.body)
     parser_notes = []
@@ -222,6 +224,75 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
         "provider": provider,
         "reference": _extract_reference(body),
         "parser_name": f"{provider}_card_sms_parser",
+        "parser_notes": " ".join(notes),
+        "sender_rule": sender_rule,
+        "transaction_type": transaction_type,
+    }
+
+
+def _parse_pathao_pay_message(*, raw_message, sender_rule):
+    body = raw_message.body
+    normalized = _normalize_text(body)
+    amount = _extract_amount(body)
+    message_kind = ParsedMessageCandidate.MessageKind.UNKNOWN
+    transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
+    possible_internal_transfer = False
+    confidence = Decimal("0.72") if sender_rule and amount is not None else Decimal("0.42")
+    notes = []
+
+    if sender_rule:
+        notes.append(f"Matched sender rule: {sender_rule.name}.")
+    else:
+        notes.append("No active sender rule matched this Pathao Pay-like message.")
+
+    if any(keyword in normalized for keyword in ("top up", "top-up", "add money", "cash in")):
+        message_kind = ParsedMessageCandidate.MessageKind.CASH_IN
+        transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
+        possible_internal_transfer = True
+        confidence = Decimal("0.84") if amount is not None else Decimal("0.52")
+        notes.append("Detected Pathao Pay top-up/add-money wording.")
+    elif any(keyword in normalized for keyword in ("withdraw", "cash out", "cash-out")):
+        message_kind = ParsedMessageCandidate.MessageKind.CASH_OUT
+        transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
+        possible_internal_transfer = True
+        confidence = Decimal("0.82") if amount is not None else Decimal("0.50")
+        notes.append("Detected Pathao Pay withdraw/cash-out wording.")
+    elif "send money" in normalized:
+        message_kind = ParsedMessageCandidate.MessageKind.SEND_MONEY
+        transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
+        confidence = Decimal("0.80") if amount is not None else Decimal("0.50")
+        notes.append("Detected Pathao Pay send-money wording.")
+    elif any(keyword in normalized for keyword in ("received", "receive money")):
+        message_kind = ParsedMessageCandidate.MessageKind.RECEIVE_MONEY
+        transaction_type = ParsedMessageCandidate.TransactionType.INCOME
+        confidence = Decimal("0.80") if amount is not None else Decimal("0.50")
+        notes.append("Detected Pathao Pay receive-money wording.")
+    elif any(keyword in normalized for keyword in ("payment", "paid", "purchase")):
+        message_kind = ParsedMessageCandidate.MessageKind.PURCHASE
+        transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
+        confidence = Decimal("0.80") if amount is not None else Decimal("0.50")
+        notes.append("Detected Pathao Pay payment/purchase wording.")
+
+    if amount is None:
+        notes.append("Could not extract an amount with the Tk/BDT parser.")
+    else:
+        notes.append("Extracted amount with the Tk/BDT parser.")
+
+    return {
+        "account": sender_rule.account if sender_rule else None,
+        "amount": amount,
+        "balance_after": _extract_balance(body),
+        "confidence": confidence,
+        "counterparty_text": _extract_counterparty_text(body),
+        "destination_account": None,
+        "destination_payment_method": None,
+        "fee_amount": _extract_fee(body),
+        "message_kind": message_kind,
+        "payment_method": sender_rule.payment_method if sender_rule else None,
+        "possible_internal_transfer": possible_internal_transfer,
+        "provider": SenderRule.Provider.PATHAO_PAY,
+        "reference": _extract_reference(body),
+        "parser_name": "pathao_pay_sms_parser",
         "parser_notes": " ".join(notes),
         "sender_rule": sender_rule,
         "transaction_type": transaction_type,

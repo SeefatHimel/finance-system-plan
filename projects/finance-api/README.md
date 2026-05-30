@@ -227,7 +227,7 @@ BaseMessageParser
 BkashMessageParser (initial transfer-aware implementation)
 EblMessageParser (initial card purchase implementation)
 CityBankMessageParser (initial card purchase implementation)
-PathaoPayMessageParser
+PathaoPayMessageParser (initial top-up, payment, send-money, and withdraw implementation)
 CustomRegexMessageParser
 ```
 
