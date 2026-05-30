@@ -10,6 +10,7 @@ import {
   type Transaction,
   createTransaction,
   deleteTransaction,
+  exportTransactionsCsv,
   listAccounts,
   listCategories,
   listTransactions,
@@ -60,6 +61,8 @@ export function TransactionWorkspace() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState("");
   const [editingDate, setEditingDate] = useState("");
@@ -145,6 +148,36 @@ export function TransactionWorkspace() {
     };
     setFilters(clearedFilters);
     void loadData(clearedFilters);
+  }
+
+  async function handleExportTransactions() {
+    const accessToken = getAccessToken();
+
+    if (!accessToken) {
+      setFormError("Sign in before exporting transactions.");
+      return;
+    }
+
+    setExportMessage(null);
+    setFormError(null);
+    setIsExporting(true);
+
+    try {
+      const blob = await exportTransactionsCsv(accessToken, filters);
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `transactions-${filters.month || "all"}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+      setExportMessage("CSV export downloaded.");
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Could not export transactions.");
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -665,7 +698,17 @@ export function TransactionWorkspace() {
             <button className="button button--ghost" onClick={clearFilters} type="button">
               Clear
             </button>
+            <button
+              className="button button--ghost"
+              disabled={isExporting}
+              onClick={() => void handleExportTransactions()}
+              type="button"
+            >
+              {isExporting ? "Exporting..." : "Export CSV"}
+            </button>
           </form>
+
+          {exportMessage ? <p className="section-subtitle">{exportMessage}</p> : null}
 
           <p className="section-subtitle">
             Showing records from the authenticated backend API.

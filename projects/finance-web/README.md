@@ -18,6 +18,7 @@ The web app is scaffolded with:
 - Manual transaction update form
 - Transaction deletion from the list
 - Transaction filters for month, type, account, and category
+- Transaction CSV export using the active filters
 - Accounts page with account and category creation/listing/updating/deletion
 - SMS settings page with payment method and sender rule creation/listing/updating/deletion
 - SMS review inbox with parsed candidate details, parser confidence,
@@ -190,7 +191,7 @@ npm run lint
   - ledger mode: positive amount plus transaction type
   - money in/out mode: separate columns
 - Bulk edit later.
-- Export later.
+- CSV export. Done for active transaction filters.
 
 ## Dashboard Requirements
 

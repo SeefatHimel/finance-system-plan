@@ -298,6 +298,7 @@ export type CreateTransactionInput = {
 export type TransactionFilters = {
   account?: string;
   category?: string;
+  direction?: string;
   month?: string;
   type?: string;
 };
@@ -799,6 +800,24 @@ export async function listTransactions(
   const path = query ? `/api/transactions/?${query}` : "/api/transactions/";
   const response = await authenticatedFetch(path, accessToken);
   return collectionSchema(transactionSchema).parse(await response.json());
+}
+
+export async function exportTransactionsCsv(
+  accessToken: string,
+  filters: TransactionFilters = {}
+): Promise<Blob> {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.toString();
+  const path = query ? `/api/transactions/export/?${query}` : "/api/transactions/export/";
+  const response = await authenticatedFetch(path, accessToken);
+  return response.blob();
 }
 
 export async function createTransaction(

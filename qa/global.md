@@ -176,7 +176,8 @@ The mobile raw-message queue also records sync attempts and failure reasons,
 blocks obvious local duplicates, and lets invalid queued messages be removed
 before retry.
 The backend can export filtered transactions as CSV for spreadsheet backup or
-external review.
+external review, and the web transactions page exposes that export through the
+active filters.
 
 ## What is not implemented yet?
 

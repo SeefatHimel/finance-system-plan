@@ -76,7 +76,8 @@ like spreadsheet sign mode, ledger mode, and money-in/money-out mode.
 The current transactions page uses the saved local JWT access token to load
 accounts, categories, and transactions from the Django API. It provides a manual
 transaction form and a transaction table with filters for month, type, account,
-and category. It also supports updating and deleting transaction rows.
+and category. It supports updating and deleting transaction rows, and can
+download a CSV export using the same active filters.
 
 ## Why add transaction filters early?
 
@@ -143,8 +144,10 @@ payment that advances the next due date.
 
 The transaction table shows date, type, debit/credit direction, account,
 category, amount, balance after, provider transaction id/reference,
-sent-to/received-from text, note, and delete actions. This makes SMS-confirmed
-transactions inspectable without opening the raw message every time.
+sent-to/received-from text, note, and delete actions. The page can export the
+filtered rows as CSV for spreadsheet backup or external review. This makes
+SMS-confirmed transactions inspectable without opening the raw message every
+time.
 
 ## Why not copy the spreadsheet exactly?
 

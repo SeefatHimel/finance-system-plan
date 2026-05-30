@@ -35,6 +35,7 @@ Last updated: 2026-05-31
 - [x] Login flow + session panel
 - [x] Transactions create/list/filter
 - [x] Transactions update/delete
+- [x] Transactions CSV export button
 - [x] Accounts create/list/update/delete
 - [x] Categories create/list/update/delete
 - [x] Payment method and sender rule management screen
@@ -129,6 +130,7 @@ Last updated: 2026-05-31
 ### Phase 5 Follow-up
 
 - [x] Add authenticated filtered transaction CSV export endpoint
+- [x] Add web transaction CSV export action
 
 ## Verification Matrix
 

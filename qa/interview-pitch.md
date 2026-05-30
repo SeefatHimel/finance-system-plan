@@ -40,7 +40,8 @@ reports, debt/repayment, credit card bill, recurring bill, and reconciliation
 endpoints, a Next.js dashboard, web management, SMS review, debt, credit-card,
 recurring-bill, and reconciliation screens, and an Expo mobile scaffold with
 local raw-message queuing, retry metadata, duplicate checks, sync, and SMS
-review. The SMS permission decision is
+review. The transactions page can also download filtered CSV exports for
+spreadsheet backup. The SMS permission decision is
 documented: keep Expo managed for now and only move to a native Android module
 when automatic capture is ready. Next I would collect real anonymized SMS
 fixtures, deepen bank transfer parsing, and polish mobile debt, credit-card,
