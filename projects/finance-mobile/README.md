@@ -30,6 +30,7 @@ Phase 1 scaffold now includes:
 - SMS review inbox:
   - loads parsed candidates from `GET /api/messages/review/`
   - shows parser hints, raw SMS evidence, and internal-transfer flags
+  - shows parser confidence, raw message status, and review/duplicate reasons
   - lets the user select transaction type plus source/destination accounts
     before confirming transfers
   - confirms or ignores candidates through the review endpoints

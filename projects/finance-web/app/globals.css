@@ -374,6 +374,13 @@ textarea {
   margin: 4px 0 0;
 }
 
+.review-card__confidence {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+  margin: 6px 0 0;
+}
+
 .review-facts {
   display: grid;
   gap: 12px;

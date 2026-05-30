@@ -53,6 +53,47 @@ type QueuedRawMessage = {
 
 const rawMessageQueueKey = "finance.rawMessageQueue";
 
+function confidencePercent(value: string) {
+  const score = Number(value);
+  if (Number.isNaN(score)) {
+    return "unknown";
+  }
+  return `${Math.round(score * 100)}%`;
+}
+
+function confidenceLabel(value: string) {
+  const score = Number(value);
+  if (Number.isNaN(score)) {
+    return "Unknown confidence";
+  }
+  if (score >= 0.85) {
+    return "High confidence";
+  }
+  if (score >= 0.65) {
+    return "Medium confidence";
+  }
+  return "Low confidence";
+}
+
+function candidateReviewReason(candidate: ParsedMessageCandidate) {
+  if (candidate.raw_message.duplicate_of) {
+    return `Duplicate raw message of ${candidate.raw_message.duplicate_of}.`;
+  }
+  if (candidate.related_match_reason) {
+    return candidate.related_match_reason;
+  }
+  if (candidate.possible_internal_transfer) {
+    return "Possible internal transfer; verify both accounts before confirming.";
+  }
+  if (!candidate.account || !candidate.amount) {
+    return "Missing account or amount; complete required fields before confirming.";
+  }
+  if (Number(candidate.confidence) < 0.65) {
+    return "Low parser confidence; compare against the raw SMS before confirming.";
+  }
+  return "Parser matched known fields; verify the ledger details before confirming.";
+}
+
 export default function App() {
   const [result, setResult] = useState<HealthResult | null>(null);
   const [state, setState] = useState<ViewState>("idle");
@@ -809,8 +850,9 @@ export default function App() {
                       {candidate.provider} / {candidate.message_kind} / BDT {candidate.amount ?? "missing"}
                     </Text>
                     <Text style={styles.listItem}>
-                      {candidate.raw_message.sender} | {candidate.transaction_type} | confidence {candidate.confidence}
+                      {candidate.raw_message.sender} | {candidate.transaction_type} | {confidenceLabel(candidate.confidence)} ({confidencePercent(candidate.confidence)})
                     </Text>
+                    <Text style={styles.warningText}>{candidateReviewReason(candidate)}</Text>
                     <Text style={styles.meta}>
                       Counterparty: {candidate.counterparty_text || "Not detected"}
                     </Text>
@@ -889,6 +931,7 @@ export default function App() {
                     </View>
                     <Text style={styles.rawSmsText}>{candidate.raw_message.body}</Text>
                     <Text style={styles.meta}>{candidate.parser_notes}</Text>
+                    <Text style={styles.meta}>Raw message status: {candidate.raw_message.status}</Text>
                     <View style={styles.actionRow}>
                       <Pressable
                         disabled={isWorking}

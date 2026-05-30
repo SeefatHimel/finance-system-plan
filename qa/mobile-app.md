@@ -78,10 +78,10 @@ Actual automatic inbox reading still needs the native Android module
 implementation.
 
 The mobile SMS review section shows parser hints, raw SMS evidence,
-internal-transfer flags, account selection chips, and lets the user confirm or
-ignore candidates. Mobile confirmation sends the selected source account,
-destination account for transfers, amount, date, type, and parser evidence
-fields.
+parser confidence, review or duplicate reason, internal-transfer flags, account
+selection chips, and lets the user confirm or ignore candidates. Mobile
+confirmation sends the selected source account, destination account for
+transfers, amount, date, type, and parser evidence fields.
 
 Decision status: the native path is deferred until automatic capture work starts.
 The documented direction is a narrow native Android module for personal APK use,

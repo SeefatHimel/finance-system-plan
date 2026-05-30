@@ -110,6 +110,7 @@ Web:
 
 - Review inbox for parsed candidates. Done.
 - Transfer review controls for source and destination accounts
+- Parser confidence and review/duplicate reason display. Done.
 - Show debit/credit direction, reference, balance after, and counterparty in
   transaction tables. Done for the first transaction screen.
 - Bulk confirm and ignore
@@ -120,6 +121,7 @@ Mobile:
 - Review parsed messages. Done.
 - Confirm/edit from phone. Done for account/type edits in SMS review.
 - Select source/destination account for possible internal transfers. Done.
+- Parser confidence and review/duplicate reason display. Done.
 - Background or periodic sync
 
 Exit criteria:

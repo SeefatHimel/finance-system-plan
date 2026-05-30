@@ -40,6 +40,50 @@ function fieldValue(value: string | null | undefined, fallback = "Not detected")
   return value && value.length > 0 ? value : fallback;
 }
 
+function confidencePercent(value: string) {
+  const score = Number(value);
+  if (Number.isNaN(score)) {
+    return "Unknown";
+  }
+  return `${Math.round(score * 100)}%`;
+}
+
+function confidenceLabel(value: string) {
+  const score = Number(value);
+  if (Number.isNaN(score)) {
+    return "Unknown confidence";
+  }
+  if (score >= 0.85) {
+    return "High confidence";
+  }
+  if (score >= 0.65) {
+    return "Medium confidence";
+  }
+  return "Low confidence";
+}
+
+function reviewReason(candidate: ParsedMessageCandidate, related: ParsedMessageCandidate | null) {
+  if (candidate.raw_message.duplicate_of) {
+    return `Duplicate raw message of ${candidate.raw_message.duplicate_of}.`;
+  }
+  if (candidate.related_match_reason) {
+    return candidate.related_match_reason;
+  }
+  if (related) {
+    return `Possible related ${formatLabel(related.provider)} ${formatLabel(related.message_kind)} candidate.`;
+  }
+  if (candidate.possible_internal_transfer) {
+    return "Possible internal transfer; verify both accounts before confirming.";
+  }
+  if (!candidate.account || !candidate.amount) {
+    return "Missing account or amount; complete required fields before confirming.";
+  }
+  if (Number(candidate.confidence) < 0.65) {
+    return "Low parser confidence; compare against the raw SMS before confirming.";
+  }
+  return "Parser matched known fields; verify the ledger details before confirming.";
+}
+
 export function MessageReviewWorkspace() {
   const [reviewState, setReviewState] = useState<ReviewState>({ status: "loading" });
   const [actionError, setActionError] = useState<string | null>(null);
@@ -194,11 +238,12 @@ export function MessageReviewWorkspace() {
         <div className="review-list">
           {reviewState.candidates.map((candidate) => {
             const related = candidate.possible_related_candidate
-              ? candidateById.get(candidate.possible_related_candidate)
+              ? candidateById.get(candidate.possible_related_candidate) ?? null
               : null;
             const isWorking = workingCandidateId === candidate.id;
             const defaultAccount = candidate.account ?? "";
             const defaultDate = candidate.raw_message.received_at.slice(0, 10);
+            const reason = reviewReason(candidate, related);
 
             return (
               <article className="panel review-card" key={candidate.id}>
@@ -211,6 +256,9 @@ export function MessageReviewWorkspace() {
                       <h2 className="review-card__amount">
                         {candidate.amount ? `BDT ${candidate.amount}` : "Amount missing"}
                       </h2>
+                      <p className="review-card__confidence">
+                        {confidenceLabel(candidate.confidence)} ({confidencePercent(candidate.confidence)})
+                      </p>
                     </div>
                     <span className={`status-badge ${candidate.possible_internal_transfer ? "status-badge--idle" : "status-badge--ok"}`}>
                       {candidate.possible_internal_transfer ? "Transfer review" : formatLabel(candidate.transaction_type)}
@@ -244,15 +292,21 @@ export function MessageReviewWorkspace() {
                         {fieldValue(candidate.balance_after, "Balance missing")} / {fieldValue(candidate.fee_amount, "Fee missing")}
                       </dd>
                     </div>
+                    <div>
+                      <dt>Review reason</dt>
+                      <dd>{reason}</dd>
+                    </div>
                   </dl>
 
-                  {candidate.possible_internal_transfer ? (
+                  {candidate.possible_internal_transfer || candidate.raw_message.duplicate_of ? (
                     <div className="review-hint">
-                      <strong>Possible internal transfer</strong>
+                      <strong>
+                        {candidate.raw_message.duplicate_of ? "Duplicate check" : "Possible internal transfer"}
+                      </strong>
                       <span>
                         {related
                           ? `May relate to ${formatLabel(related.provider)} ${related.message_kind} for BDT ${related.amount}.`
-                          : candidate.related_match_reason || "No related message matched yet."}
+                          : reason}
                       </span>
                     </div>
                   ) : null}
@@ -261,6 +315,7 @@ export function MessageReviewWorkspace() {
                     <summary>Raw SMS and parser notes</summary>
                     <p>{candidate.raw_message.body}</p>
                     <p>{candidate.parser_notes}</p>
+                    <p>Raw message status: {candidate.raw_message.status}</p>
                   </details>
 
                   <form className="review-form" onSubmit={(event) => void handleConfirm(candidate, event)}>

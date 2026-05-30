@@ -20,7 +20,8 @@ The web app is scaffolded with:
 - Transaction filters for month, type, account, and category
 - Accounts page with account and category creation/listing/updating/deletion
 - SMS settings page with payment method and sender rule creation/listing/updating/deletion
-- SMS review inbox with parsed candidate details, internal-transfer hints, confirm, and ignore actions
+- SMS review inbox with parsed candidate details, parser confidence,
+  review/duplicate reasons, internal-transfer hints, confirm, and ignore actions
 - Transaction table displays debit/credit direction, balance after, provider
   reference, and sent-to/received-from text when available
 - Monthly reports page with income, expense, net, category, and account totals
