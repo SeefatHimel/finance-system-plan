@@ -17,6 +17,8 @@ openapi.yaml
 examples/
   account.create.json
   category.create.json
+  credit-card-bill.create.json
+  credit-card-bill.payment.create.json
   debt.create.json
   debt.payment.create.json
   payment-method.create.json
@@ -31,6 +33,8 @@ examples/
   report.monthly.response.json
   reconciliation.snapshot.create.json
   reconciliation.snapshot.response.json
+  recurring-bill.create.json
+  recurring-bill.payment.create.json
 CHANGELOG.md
 ```
 
@@ -90,6 +94,16 @@ POST   /api/messages/review/{id}/ignore/
 GET    /api/debts/
 POST   /api/debts/
 POST   /api/debts/{id}/payments/
+
+GET    /api/credit-card-bills/
+POST   /api/credit-card-bills/
+PATCH  /api/credit-card-bills/{id}/
+POST   /api/credit-card-bills/{id}/payments/
+
+GET    /api/recurring-bills/
+POST   /api/recurring-bills/
+PATCH  /api/recurring-bills/{id}/
+POST   /api/recurring-bills/{id}/payments/
 
 GET    /api/reports/monthly/?month=YYYY-MM
 GET    /api/reports/categories/?from=YYYY-MM-DD&to=YYYY-MM-DD

@@ -17,6 +17,10 @@ tags:
   - name: Messages
   - name: Transactions
   - name: Reports
+  - name: Debts
+  - name: Credit Cards
+  - name: Recurring Bills
+  - name: Reconciliation
 paths:
   /api/health/:
     get:
@@ -699,6 +703,258 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/credit-card-bills/:
+    get:
+      tags: [Credit Cards]
+      summary: List credit card bills
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/CreditCardBillStatus'
+      responses:
+        '200':
+          description: Credit card bill list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CreditCardBill'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Credit Cards]
+      summary: Create a credit card bill
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditCardBillCreateRequest'
+      responses:
+        '201':
+          description: Credit card bill created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditCardBill'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/credit-card-bills/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Credit Cards]
+      summary: Get a credit card bill
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Credit card bill detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditCardBill'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Credit Cards]
+      summary: Update a credit card bill
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditCardBillPatchRequest'
+      responses:
+        '200':
+          description: Updated credit card bill
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditCardBill'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Credit Cards]
+      summary: Delete a credit card bill
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Credit card bill deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/credit-card-bills/{id}/payments/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    post:
+      tags: [Credit Cards]
+      summary: Record a credit card bill payment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditCardPaymentCreateRequest'
+      responses:
+        '201':
+          description: Credit card payment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditCardPayment'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/recurring-bills/:
+    get:
+      tags: [Recurring Bills]
+      summary: List recurring bills
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/RecurringBillStatus'
+      responses:
+        '200':
+          description: Recurring bill list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecurringBill'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Recurring Bills]
+      summary: Create a recurring bill
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurringBillCreateRequest'
+      responses:
+        '201':
+          description: Recurring bill created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringBill'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/recurring-bills/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Recurring Bills]
+      summary: Get a recurring bill
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Recurring bill detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringBill'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Recurring Bills]
+      summary: Update a recurring bill
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurringBillPatchRequest'
+      responses:
+        '200':
+          description: Updated recurring bill
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringBill'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Recurring Bills]
+      summary: Delete a recurring bill
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Recurring bill deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/recurring-bills/{id}/payments/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    post:
+      tags: [Recurring Bills]
+      summary: Record a recurring bill payment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurringBillPaymentCreateRequest'
+      responses:
+        '201':
+          description: Recurring bill payment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringBillPayment'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /api/reconciliation/snapshots/:
     get:
       tags: [Reconciliation]
@@ -1107,6 +1363,15 @@ components:
     DebtStatus:
       type: string
       enum: [open, partially_paid, paid, written_off]
+    CreditCardBillStatus:
+      type: string
+      enum: [unpaid, partially_paid, paid, waived]
+    RecurringBillFrequency:
+      type: string
+      enum: [weekly, monthly, quarterly, yearly]
+    RecurringBillStatus:
+      type: string
+      enum: [active, paused, ended]
     ParsedMessageKind:
       type: string
       enum:
@@ -1774,6 +2039,318 @@ components:
           type: string
           format: date-time
     DebtPaymentCreateRequest:
+      type: object
+      required: [amount, paid_at]
+      properties:
+        transaction:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        paid_at:
+          type: string
+          format: date
+        note:
+          type: string
+          default: ""
+    CreditCardBill:
+      type: object
+      required:
+        [id, account, statement_transaction, statement_balance, minimum_due, paid_amount, remaining_balance, statement_date, due_date, status, reference, note, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+          description: Must be a credit-card account owned by the current user.
+        statement_transaction:
+          type: string
+          format: uuid
+          nullable: true
+        statement_balance:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "25000.00"
+        minimum_due:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "2500.00"
+        paid_amount:
+          type: string
+          example: "5000.00"
+        remaining_balance:
+          type: string
+          example: "20000.00"
+        statement_date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/CreditCardBillStatus'
+        reference:
+          type: string
+          maxLength: 120
+        note:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreditCardBillCreateRequest:
+      type: object
+      required: [account, statement_balance, statement_date, due_date]
+      properties:
+        account:
+          type: string
+          format: uuid
+        statement_transaction:
+          type: string
+          format: uuid
+          nullable: true
+        statement_balance:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        minimum_due:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          default: "0.00"
+        statement_date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        reference:
+          type: string
+          maxLength: 120
+          default: ""
+        note:
+          type: string
+          default: ""
+    CreditCardBillPatchRequest:
+      type: object
+      properties:
+        account:
+          type: string
+          format: uuid
+        statement_transaction:
+          type: string
+          format: uuid
+          nullable: true
+        statement_balance:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        minimum_due:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        statement_date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        reference:
+          type: string
+          maxLength: 120
+        note:
+          type: string
+    CreditCardPayment:
+      type: object
+      required: [id, bill, transaction, amount, paid_at, note, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        bill:
+          type: string
+          format: uuid
+        transaction:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "5000.00"
+        paid_at:
+          type: string
+          format: date
+        note:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreditCardPaymentCreateRequest:
+      type: object
+      required: [amount, paid_at]
+      properties:
+        transaction:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        paid_at:
+          type: string
+          format: date
+        note:
+          type: string
+          default: ""
+    RecurringBill:
+      type: object
+      required:
+        [id, account, category, name, amount, frequency, next_due_date, status, auto_create_transaction, reminder_days_before, note, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          maxLength: 160
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "1500.00"
+        frequency:
+          $ref: '#/components/schemas/RecurringBillFrequency'
+        next_due_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/RecurringBillStatus'
+        auto_create_transaction:
+          type: boolean
+        reminder_days_before:
+          type: integer
+          minimum: 0
+          maximum: 60
+        note:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    RecurringBillCreateRequest:
+      type: object
+      required: [account, name, amount, frequency, next_due_date]
+      properties:
+        account:
+          type: string
+          format: uuid
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          maxLength: 160
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        frequency:
+          $ref: '#/components/schemas/RecurringBillFrequency'
+        next_due_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/RecurringBillStatus'
+        auto_create_transaction:
+          type: boolean
+          default: false
+        reminder_days_before:
+          type: integer
+          minimum: 0
+          maximum: 60
+          default: 3
+        note:
+          type: string
+          default: ""
+    RecurringBillPatchRequest:
+      type: object
+      properties:
+        account:
+          type: string
+          format: uuid
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          maxLength: 160
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        frequency:
+          $ref: '#/components/schemas/RecurringBillFrequency'
+        next_due_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/RecurringBillStatus'
+        auto_create_transaction:
+          type: boolean
+        reminder_days_before:
+          type: integer
+          minimum: 0
+          maximum: 60
+        note:
+          type: string
+    RecurringBillPayment:
+      type: object
+      required: [id, bill, transaction, amount, due_date, paid_at, note, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        bill:
+          type: string
+          format: uuid
+        transaction:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "1500.00"
+        due_date:
+          type: string
+          format: date
+          description: Due date captured from the recurring bill before advancing it.
+        paid_at:
+          type: string
+          format: date
+        note:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    RecurringBillPaymentCreateRequest:
       type: object
       required: [amount, paid_at]
       properties:

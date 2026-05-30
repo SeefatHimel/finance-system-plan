@@ -1,0 +1,11 @@
+{
+  "account": "33333333-3333-4333-8333-333333333333",
+  "category": "44444444-4444-4444-8444-444444444444",
+  "name": "Internet bill",
+  "amount": "1500.00",
+  "frequency": "monthly",
+  "next_due_date": "2026-06-10",
+  "auto_create_transaction": false,
+  "reminder_days_before": 3,
+  "note": "Home broadband"
+}

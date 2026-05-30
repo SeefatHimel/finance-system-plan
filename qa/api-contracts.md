@@ -15,7 +15,8 @@ for web and mobile work to proceed without reading backend internals.
 
 The schema should include auth endpoints, account endpoints, category endpoints,
 transaction endpoints, report endpoints, message endpoints, debt endpoints, and
-reconciliation endpoints.
+reconciliation endpoints. The current API also includes credit-card bill and
+recurring-bill endpoints, so those shapes belong in the shared contract too.
 
 ## Why generate clients later?
 
@@ -78,11 +79,20 @@ Current examples are available in `projects/finance-contracts/examples/`:
 
 - `account.create.json`
 - `category.create.json`
+- `credit-card-bill.create.json`
+- `credit-card-bill.payment.create.json`
+- `debt.create.json`
+- `debt.payment.create.json`
 - `payment-method.create.json`
 - `raw-message.import.json`
 - `raw-message.import.response.json`
 - `message-review.confirm.json`
 - `message-review.list.response.json`
+- `message-review.redact.response.json`
+- `reconciliation.snapshot.create.json`
+- `reconciliation.snapshot.response.json`
+- `recurring-bill.create.json`
+- `recurring-bill.payment.create.json`
 - `sender-rule.create.json`
 - `transaction.create.json`
 - `transaction.list.response.json`

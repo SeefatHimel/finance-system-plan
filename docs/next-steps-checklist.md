@@ -57,6 +57,7 @@ Last updated: 2026-05-31
 - [x] Account/category/transaction/report examples added
 - [x] Payment method and sender rule contract fields added
 - [x] Raw message import and review inbox contract fields/examples added
+- [x] Credit-card bill and recurring-bill contract fields/examples added
 - [x] Contract Q&A updated
 
 ### Phase 2 Kickoff
