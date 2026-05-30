@@ -66,8 +66,9 @@ matching SMS messages, stores the raw message locally, and syncs it to the
 backend. The backend parses and returns whether it needs review.
 
 The first provider targets are bKash, EBL, City Bank, and Pathao Pay. The mobile
-review flow should eventually support internal transfer confirmation, including
-selecting source and destination accounts when the parser is unsure.
+review flow now supports internal transfer confirmation by letting the user
+choose transaction type plus source and destination accounts when the parser is
+unsure.
 
 Current scaffold status: the app can load backend sender rules and payment
 methods after login, then locally toggle which sender rules should be enabled.
@@ -77,10 +78,10 @@ Actual automatic inbox reading still needs the native Android module
 implementation.
 
 The mobile SMS review section shows parser hints, raw SMS evidence,
-internal-transfer flags, and lets the user confirm or ignore candidates. Mobile
-confirmation currently uses the detected account, amount, date, type, and
-parser evidence fields. More complex transfer source/destination edits can
-still be handled in the web review inbox.
+internal-transfer flags, account selection chips, and lets the user confirm or
+ignore candidates. Mobile confirmation sends the selected source account,
+destination account for transfers, amount, date, type, and parser evidence
+fields.
 
 Decision status: the native path is deferred until automatic capture work starts.
 The documented direction is a narrow native Android module for personal APK use,

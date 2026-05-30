@@ -38,6 +38,11 @@ import {
 
 type ViewState = "idle" | "loading" | "success" | "error";
 type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
+type ReviewCandidateDraft = {
+  accountId: string;
+  transferAccountId: string;
+  transactionType: string;
+};
 type QueuedRawMessage = {
   body: string;
   deviceMessageId: string;
@@ -92,6 +97,7 @@ export default function App() {
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewCandidates, setReviewCandidates] = useState<ParsedMessageCandidate[]>([]);
   const [reviewActionCandidateId, setReviewActionCandidateId] = useState("");
+  const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewCandidateDraft>>({});
 
   const loadHealth = async () => {
     setState("loading");
@@ -130,8 +136,21 @@ export default function App() {
     setReviewState("loading");
     setReviewMessage("");
     try {
-      const candidates = await listMessageCandidates(accessToken.trim());
+      const [candidates, nextAccounts] = await Promise.all([
+        listMessageCandidates(accessToken.trim()),
+        accounts.length ? Promise.resolve(accounts) : listAccounts(accessToken.trim())
+      ]);
       setReviewCandidates(candidates);
+      if (!accounts.length) {
+        setAccounts(nextAccounts);
+      }
+      setReviewDrafts((currentDrafts) => {
+        const nextDrafts: Record<string, ReviewCandidateDraft> = {};
+        for (const candidate of candidates) {
+          nextDrafts[candidate.id] = currentDrafts[candidate.id] ?? buildReviewDraft(candidate);
+        }
+        return nextDrafts;
+      });
       setReviewState("ok");
       setReviewMessage(`Loaded ${candidates.length} SMS candidate(s).`);
     } catch (error) {
@@ -147,9 +166,20 @@ export default function App() {
       return;
     }
 
-    if (!candidate.account || !candidate.amount) {
+    const draft = getReviewDraft(candidate);
+    if (!draft.accountId || !candidate.amount) {
       setReviewState("error");
-      setReviewMessage("This candidate is missing account or amount. Finish it in the web review inbox.");
+      setReviewMessage("Select a source account before confirming this candidate.");
+      return;
+    }
+    if (draft.transactionType === "transfer" && !draft.transferAccountId) {
+      setReviewState("error");
+      setReviewMessage("Select a destination account before confirming this transfer.");
+      return;
+    }
+    if (draft.transactionType === "transfer" && draft.accountId === draft.transferAccountId) {
+      setReviewState("error");
+      setReviewMessage("Source and destination accounts must be different.");
       return;
     }
 
@@ -158,11 +188,12 @@ export default function App() {
     setReviewMessage("");
     try {
       await confirmMessageCandidate(accessToken.trim(), candidate.id, {
-        account: candidate.account,
+        account: draft.accountId,
         amount: candidate.amount,
         date: candidate.raw_message.received_at.slice(0, 10),
         note: candidate.raw_message.body,
-        type: candidate.transaction_type
+        transfer_account: draft.transactionType === "transfer" ? draft.transferAccountId : null,
+        type: draft.transactionType
       });
       await handleLoadReviewCandidates();
     } catch (error) {
@@ -172,6 +203,28 @@ export default function App() {
       setReviewActionCandidateId("");
     }
   };
+
+  const buildReviewDraft = (candidate: ParsedMessageCandidate): ReviewCandidateDraft => ({
+    accountId: candidate.account ?? "",
+    transactionType: candidate.transaction_type,
+    transferAccountId: candidate.destination_account ?? ""
+  });
+
+  const getReviewDraft = (candidate: ParsedMessageCandidate): ReviewCandidateDraft =>
+    reviewDrafts[candidate.id] ?? buildReviewDraft(candidate);
+
+  const updateReviewDraft = (candidate: ParsedMessageCandidate, patch: Partial<ReviewCandidateDraft>) => {
+    setReviewDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [candidate.id]: {
+        ...(currentDrafts[candidate.id] ?? buildReviewDraft(candidate)),
+        ...patch
+      }
+    }));
+  };
+
+  const accountName = (accountId: string | null) =>
+    accounts.find((account) => account.id === accountId)?.name ?? (accountId ? "Unknown account" : "Not selected");
 
   const handleIgnoreReviewCandidate = async (candidateId: string) => {
     if (!accessToken.trim()) {
@@ -735,7 +788,7 @@ export default function App() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>SMS Review Inbox</Text>
           <Text style={styles.meta}>
-            Review backend parser candidates before they become transactions. Mobile confirm uses detected account, amount, date, and type.
+            Review backend parser candidates before they become transactions. Choose source and destination accounts before confirming transfers.
           </Text>
           <Pressable onPress={handleLoadReviewCandidates} style={styles.button}>
             <Text style={styles.buttonText}>Load SMS Review Inbox</Text>
@@ -749,6 +802,7 @@ export default function App() {
             <View style={styles.listSection}>
               {reviewCandidates.map((candidate) => {
                 const isWorking = reviewActionCandidateId === candidate.id;
+                const draft = getReviewDraft(candidate);
                 return (
                   <View key={candidate.id} style={styles.reviewCandidate}>
                     <Text style={styles.listTitle}>
@@ -768,6 +822,71 @@ export default function App() {
                         Possible internal transfer{candidate.possible_related_candidate ? ` linked to ${candidate.possible_related_candidate}` : ""}.
                       </Text>
                     ) : null}
+                    <View style={styles.reviewControls}>
+                      <Text style={styles.listTitle}>Type</Text>
+                      <View style={styles.choiceRow}>
+                        {["expense", "income", "transfer"].map((type) => (
+                          <Pressable
+                            key={type}
+                            onPress={() =>
+                              updateReviewDraft(candidate, {
+                                transactionType: type,
+                                transferAccountId: type === "transfer" ? draft.transferAccountId : ""
+                              })
+                            }
+                            style={draft.transactionType === type ? styles.choiceSelected : styles.choice}
+                          >
+                            <Text style={draft.transactionType === type ? styles.choiceTextSelected : styles.choiceText}>
+                              {type}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+
+                      <Text style={styles.listTitle}>Source account: {accountName(draft.accountId)}</Text>
+                      {accounts.length ? (
+                        <View style={styles.choiceRow}>
+                          {accounts.map((account) => (
+                            <Pressable
+                              key={account.id}
+                              onPress={() => updateReviewDraft(candidate, { accountId: account.id })}
+                              style={draft.accountId === account.id ? styles.choiceSelected : styles.choice}
+                            >
+                              <Text style={draft.accountId === account.id ? styles.choiceTextSelected : styles.choiceText}>
+                                {account.name}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      ) : (
+                        <Text style={styles.warningText}>Load accounts before confirming from mobile.</Text>
+                      )}
+
+                      {draft.transactionType === "transfer" ? (
+                        <>
+                          <Text style={styles.listTitle}>
+                            Destination account: {accountName(draft.transferAccountId)}
+                          </Text>
+                          {accounts.length ? (
+                            <View style={styles.choiceRow}>
+                              {accounts.map((account) => (
+                                <Pressable
+                                  key={account.id}
+                                  onPress={() => updateReviewDraft(candidate, { transferAccountId: account.id })}
+                                  style={draft.transferAccountId === account.id ? styles.choiceSelected : styles.choice}
+                                >
+                                  <Text
+                                    style={draft.transferAccountId === account.id ? styles.choiceTextSelected : styles.choiceText}
+                                  >
+                                    {account.name}
+                                  </Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </View>
                     <Text style={styles.rawSmsText}>{candidate.raw_message.body}</Text>
                     <Text style={styles.meta}>{candidate.parser_notes}</Text>
                     <View style={styles.actionRow}>
@@ -835,6 +954,37 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 20,
     width: "100%"
+  },
+  choice: {
+    backgroundColor: "#ffffff",
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
+  choiceRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  choiceSelected: {
+    backgroundColor: "#0f766e",
+    borderColor: "#0f766e",
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
+  choiceText: {
+    color: "#0f172a",
+    fontSize: 12,
+    fontWeight: "600"
+  },
+  choiceTextSelected: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "700"
   },
   content: {
     gap: 14,
@@ -911,6 +1061,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 6,
     padding: 12
+  },
+  reviewControls: {
+    gap: 8,
+    marginTop: 4
   },
   screen: {
     backgroundColor: "#f8fafc",

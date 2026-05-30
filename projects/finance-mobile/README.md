@@ -30,6 +30,8 @@ Phase 1 scaffold now includes:
 - SMS review inbox:
   - loads parsed candidates from `GET /api/messages/review/`
   - shows parser hints, raw SMS evidence, and internal-transfer flags
+  - lets the user select transaction type plus source/destination accounts
+    before confirming transfers
   - confirms or ignores candidates through the review endpoints
 - Transaction API types include strict ledger evidence fields such as
   debit/credit direction, balance after, reference, counterparty text, payment
@@ -168,3 +170,4 @@ Settings
 4. Local raw message cache. Done.
 5. Raw message sync. Done.
 6. Review inbox. Done.
+7. Source/destination transfer controls. Done.

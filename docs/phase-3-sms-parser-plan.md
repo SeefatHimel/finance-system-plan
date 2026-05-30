@@ -227,7 +227,8 @@ projects/finance-api/apps/messages/fixtures/sms/pathao_pay/
    timestamps where available. Done for matching known payment method
    identifiers from bKash cash-in, cash-out, send-money, and receive-money
    counterparty text; counter/till and provider timestamp extraction remain.
-4. Add richer source/destination account editing in mobile review.
+4. Add richer source/destination account editing in mobile review. Done for
+   account chips in the mobile SMS review card.
 5. Keep internal-transfer matching conservative until fixture coverage proves
    the matching rules.
 

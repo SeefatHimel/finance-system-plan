@@ -118,8 +118,8 @@ Web:
 Mobile:
 
 - Review parsed messages. Done.
-- Confirm/edit from phone
-- Select source/destination account for possible internal transfers
+- Confirm/edit from phone. Done for account/type edits in SMS review.
+- Select source/destination account for possible internal transfers. Done.
 - Background or periodic sync
 
 Exit criteria:
