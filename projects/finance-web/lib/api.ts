@@ -235,6 +235,19 @@ const accountReconciliationSchema = z.object({
   latest_snapshot: balanceSnapshotSchema.nullable()
 });
 
+const auditSnapshotSchema = z.record(z.unknown()).nullable();
+
+const auditLogEntrySchema = z.object({
+  action: z.string(),
+  after: auditSnapshotSchema,
+  before: auditSnapshotSchema,
+  created_at: z.string(),
+  entity_id: z.string(),
+  entity_type: z.string(),
+  id: z.string(),
+  metadata: z.record(z.unknown())
+});
+
 const paginatedSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
   z.object({
     count: z.number(),
@@ -276,6 +289,7 @@ export type RecurringBill = z.infer<typeof recurringBillSchema>;
 export type RecurringBillPayment = z.infer<typeof recurringBillPaymentSchema>;
 export type BalanceSnapshot = z.infer<typeof balanceSnapshotSchema>;
 export type AccountReconciliation = z.infer<typeof accountReconciliationSchema>;
+export type AuditLogEntry = z.infer<typeof auditLogEntrySchema>;
 
 export type CreateTransactionInput = {
   account: string;
@@ -461,6 +475,12 @@ export type CreateRecurringBillPaymentInput = {
 
 export type BalanceSnapshotFilters = {
   account?: string;
+};
+
+export type AuditLogFilters = {
+  action?: string;
+  entity_id?: string;
+  entity_type?: string;
 };
 
 export type CreateBalanceSnapshotInput = {
@@ -1077,4 +1097,22 @@ export async function getAccountReconciliation(
 ): Promise<AccountReconciliation> {
   const response = await authenticatedFetch(`/api/reconciliation/accounts/${accountId}/`, accessToken);
   return accountReconciliationSchema.parse(await response.json());
+}
+
+export async function listAuditLogs(
+  accessToken: string,
+  filters: AuditLogFilters = {}
+): Promise<AuditLogEntry[]> {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.toString();
+  const path = query ? `/api/audit-logs/?${query}` : "/api/audit-logs/";
+  const response = await authenticatedFetch(path, accessToken);
+  return collectionSchema(auditLogEntrySchema).parse(await response.json());
 }

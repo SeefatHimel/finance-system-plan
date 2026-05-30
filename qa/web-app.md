@@ -4,7 +4,7 @@
 
 The web app is the command center for managing transactions, accounts,
 categories, reports, SMS review, debts, credit cards, recurring bills, payment
-methods, and reconciliation.
+methods, reconciliation, and audit review.
 
 ## Why Next.js App Router?
 
@@ -24,7 +24,8 @@ a debt/lending dashboard for creating debt records and repayments, a credit
 card bills page for statement balances, due dates, minimum dues, and payments,
 and a recurring bills page for repeating payment schedules. It also has a
 reconciliation page for expected-vs-actual account balance checks and balance
-snapshot history.
+snapshot history, plus an audit logs page for transaction create/update/delete
+history.
 
 ## Why start with a health-check dashboard?
 
@@ -63,6 +64,7 @@ Planned screens:
 - Credit Cards
 - Recurring Bills
 - Reconciliation
+- Audit Logs
 - Settings
 
 ## How should the transaction table work?
@@ -125,6 +127,12 @@ expected balances from the Django API. The user can select an account, compare
 the expected ledger balance with the latest real-life snapshot, save a new
 actual balance snapshot, and review warning reasons such as missing expenses,
 missing income, or duplicate transactions.
+
+## What does the current audit logs page do?
+
+The audit logs page loads read-only audit entries from the Django API. It can
+filter by action, entity type, and entity id, summarizes create/update/delete
+counts, and shows expandable before/after snapshots for transaction changes.
 
 ## What does the current credit cards page do?
 

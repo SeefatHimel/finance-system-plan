@@ -1,15 +1,15 @@
 import Link from "next/link";
 
-import { DebtWorkspace } from "@/components/debt-workspace";
+import { AuditLogWorkspace } from "@/components/audit-log-workspace";
 
-export default function DebtsPage() {
+export default function AuditLogsPage() {
   return (
     <div className="page-shell">
       <header className="app-header">
         <div className="app-header__inner">
           <div className="brand">
             <span className="brand__name">Finance System</span>
-            <span className="brand__meta">Debt and lending workflow</span>
+            <span className="brand__meta">Transaction audit history</span>
           </div>
           <nav className="nav" aria-label="Primary navigation">
             <Link className="nav__item" href="/">
@@ -30,7 +30,9 @@ export default function DebtsPage() {
             <Link className="nav__item" href="/reports">
               Reports
             </Link>
-            <span className="nav__item nav__item--active">Debts</span>
+            <Link className="nav__item" href="/debts">
+              Debts
+            </Link>
             <Link className="nav__item" href="/credit-cards">
               Credit cards
             </Link>
@@ -40,15 +42,13 @@ export default function DebtsPage() {
             <Link className="nav__item" href="/reconciliation">
               Reconciliation
             </Link>
-            <Link className="nav__item" href="/audit-logs">
-              Audit logs
-            </Link>
+            <span className="nav__item nav__item--active">Audit logs</span>
           </nav>
         </div>
       </header>
 
       <main className="main">
-        <DebtWorkspace />
+        <AuditLogWorkspace />
       </main>
     </div>
   );

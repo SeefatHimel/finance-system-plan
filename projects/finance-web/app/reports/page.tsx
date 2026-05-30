@@ -40,6 +40,9 @@ export default function ReportsPage() {
             <Link className="nav__item" href="/reconciliation">
               Reconciliation
             </Link>
+            <Link className="nav__item" href="/audit-logs">
+              Audit logs
+            </Link>
           </nav>
         </div>
       </header>

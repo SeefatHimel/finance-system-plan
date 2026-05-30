@@ -38,6 +38,7 @@ Last updated: 2026-05-31
 - [x] Transactions create/list/filter
 - [x] Transactions update/delete
 - [x] Transactions CSV export button
+- [x] Transaction audit log viewer
 - [x] Accounts create/list/update/delete
 - [x] Categories create/list/update/delete
 - [x] Payment method and sender rule management screen
@@ -138,6 +139,7 @@ Last updated: 2026-05-31
 - [x] Add OpenAPI-generated TypeScript client workflow
 - [x] Add transaction audit log API and contract coverage
 - [x] Add missing auth, transfer, validation, and audit log contract examples
+- [x] Add web transaction audit log viewer
 
 ## Verification Matrix
 

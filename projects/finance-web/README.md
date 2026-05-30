@@ -35,6 +35,8 @@ The web app is scaffolded with:
   reminder windows, and payment recording
 - Reconciliation page with expected-vs-actual balance checks, snapshot history,
   status warnings, and likely missing/duplicate money causes
+- Audit logs page with transaction create/update/delete history, filters, and
+  before/after snapshots
 
 ## Responsibilities
 
@@ -49,6 +51,7 @@ The web app is scaffolded with:
 - Credit card bill management
 - Recurring bill management
 - Reconciliation workflow
+- Transaction audit review
 
 ## Suggested Stack
 
@@ -143,6 +146,12 @@ SMS review inbox:
 http://localhost:3000/messages/review
 ```
 
+Audit logs:
+
+```txt
+http://localhost:3000/audit-logs
+```
+
 ## Docker
 
 From `projects/finance-infra`:
@@ -177,6 +186,7 @@ npm run lint
 /recurring-bills
 /reports/monthly
 /reconciliation
+/audit-logs
 /settings
 ```
 

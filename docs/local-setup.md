@@ -186,6 +186,7 @@ Manual transaction workflow:
 
 ```txt
 http://localhost:3000/transactions
+http://localhost:3000/audit-logs
 ```
 
 Accounts and categories:

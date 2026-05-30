@@ -307,6 +307,10 @@ textarea {
   margin: 18px 0;
 }
 
+.audit-filter-form {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto auto;
+}
+
 .list-stack {
   display: grid;
   gap: 10px;
@@ -338,6 +342,55 @@ textarea {
   align-items: center;
   display: inline-flex;
   gap: 10px;
+}
+
+.audit-row {
+  align-items: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+}
+
+.audit-row__title {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.audit-details {
+  width: 100%;
+}
+
+.audit-details summary {
+  color: var(--accent-strong);
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.audit-snapshot-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 10px;
+}
+
+.audit-snapshot {
+  min-width: 0;
+}
+
+.audit-json {
+  background: #f7faf5;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 6px 0 0;
+  max-height: 280px;
+  overflow: auto;
+  padding: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .review-hero {
@@ -556,6 +609,10 @@ textarea {
   margin-top: 18px;
 }
 
+.audit-metric-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .metric {
   border: 1px solid var(--panel-border);
   border-radius: 8px;
@@ -586,12 +643,16 @@ textarea {
   }
 
   .dashboard-grid,
+  .audit-filter-form,
+  .audit-row,
+  .audit-snapshot-grid,
   .filter-form,
   .review-facts,
   .review-form,
   .setup-form,
   .transaction-form,
-  .metric-row {
+  .metric-row,
+  .audit-metric-row {
     grid-template-columns: 1fr;
   }
 
