@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "apps.health",
     "apps.messages",
     "apps.payment_methods",
+    "apps.recurring_bills",
     "apps.reconciliation",
     "apps.reports",
     "apps.transactions",

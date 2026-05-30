@@ -30,6 +30,8 @@ The web app is scaffolded with:
   repayment recording
 - Credit card bills page with statement balances, due dates, minimum dues,
   open/overdue totals, and payment recording
+- Recurring bills page with repeating payment schedules, due/overdue totals,
+  reminder windows, and payment recording
 - Reconciliation page with expected-vs-actual balance checks, snapshot history,
   status warnings, and likely missing/duplicate money causes
 
@@ -44,6 +46,7 @@ The web app is scaffolded with:
 - SMS review inbox
 - Debt and lend management
 - Credit card bill management
+- Recurring bill management
 - Reconciliation workflow
 
 ## Suggested Stack
@@ -170,6 +173,7 @@ npm run lint
 /messages/review
 /debts
 /credit-cards
+/recurring-bills
 /reports/monthly
 /reconciliation
 /settings
@@ -222,3 +226,4 @@ The user can enter the real-life balance for an account. The UI shows:
 9. Debt/lending dashboard. Done.
 10. Balance reconciliation screen. Done.
 11. Credit card bill tracking. Done.
+12. Recurring bill tracking. Done.

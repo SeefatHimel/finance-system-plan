@@ -32,6 +32,7 @@ The backend owns:
 - Reports and summaries
 - Debt and repayment tracking
 - Credit card bill tracking
+- Recurring bill tracking
 - Balance reconciliation
 
 ### finance-web

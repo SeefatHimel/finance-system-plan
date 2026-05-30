@@ -186,6 +186,34 @@ const creditCardPaymentSchema = z.object({
   updated_at: z.string()
 });
 
+const recurringBillSchema = z.object({
+  account: z.string(),
+  amount: z.string(),
+  auto_create_transaction: z.boolean(),
+  category: z.string().nullable(),
+  created_at: z.string(),
+  frequency: z.string(),
+  id: z.string(),
+  name: z.string(),
+  next_due_date: z.string(),
+  note: z.string(),
+  reminder_days_before: z.number(),
+  status: z.string(),
+  updated_at: z.string()
+});
+
+const recurringBillPaymentSchema = z.object({
+  amount: z.string(),
+  bill: z.string(),
+  created_at: z.string(),
+  due_date: z.string(),
+  id: z.string(),
+  note: z.string(),
+  paid_at: z.string(),
+  transaction: z.string().nullable(),
+  updated_at: z.string()
+});
+
 const balanceSnapshotSchema = z.object({
   account: z.string(),
   actual_balance: z.string(),
@@ -244,6 +272,8 @@ export type Debt = z.infer<typeof debtSchema>;
 export type DebtPayment = z.infer<typeof debtPaymentSchema>;
 export type CreditCardBill = z.infer<typeof creditCardBillSchema>;
 export type CreditCardPayment = z.infer<typeof creditCardPaymentSchema>;
+export type RecurringBill = z.infer<typeof recurringBillSchema>;
+export type RecurringBillPayment = z.infer<typeof recurringBillPaymentSchema>;
 export type BalanceSnapshot = z.infer<typeof balanceSnapshotSchema>;
 export type AccountReconciliation = z.infer<typeof accountReconciliationSchema>;
 
@@ -396,6 +426,32 @@ export type CreateCreditCardBillInput = {
 };
 
 export type CreateCreditCardPaymentInput = {
+  amount: string;
+  note?: string;
+  paid_at: string;
+  transaction?: string | null;
+};
+
+export type RecurringBillFilters = {
+  account?: string;
+  due?: string;
+  status?: string;
+};
+
+export type CreateRecurringBillInput = {
+  account: string;
+  amount: string;
+  auto_create_transaction?: boolean;
+  category?: string | null;
+  frequency: string;
+  name: string;
+  next_due_date: string;
+  note?: string;
+  reminder_days_before?: number;
+  status?: string;
+};
+
+export type CreateRecurringBillPaymentInput = {
   amount: string;
   note?: string;
   paid_at: string;
@@ -896,6 +952,69 @@ export async function createCreditCardPayment(
     method: "POST"
   });
   return creditCardPaymentSchema.parse(await response.json());
+}
+
+export async function listRecurringBills(
+  accessToken: string,
+  filters: RecurringBillFilters = {}
+): Promise<RecurringBill[]> {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.toString();
+  const path = query ? `/api/recurring-bills/?${query}` : "/api/recurring-bills/";
+  const response = await authenticatedFetch(path, accessToken);
+  return collectionSchema(recurringBillSchema).parse(await response.json());
+}
+
+export async function createRecurringBill(
+  accessToken: string,
+  input: CreateRecurringBillInput
+): Promise<RecurringBill> {
+  const response = await authenticatedFetch("/api/recurring-bills/", accessToken, {
+    body: JSON.stringify({
+      account: input.account,
+      amount: input.amount,
+      auto_create_transaction: input.auto_create_transaction ?? false,
+      category: input.category || null,
+      frequency: input.frequency,
+      name: input.name,
+      next_due_date: input.next_due_date,
+      note: input.note || "",
+      reminder_days_before: input.reminder_days_before ?? 3,
+      status: input.status ?? "active"
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return recurringBillSchema.parse(await response.json());
+}
+
+export async function createRecurringBillPayment(
+  accessToken: string,
+  billId: string,
+  input: CreateRecurringBillPaymentInput
+): Promise<RecurringBillPayment> {
+  const response = await authenticatedFetch(`/api/recurring-bills/${billId}/payments/`, accessToken, {
+    body: JSON.stringify({
+      amount: input.amount,
+      note: input.note || "",
+      paid_at: input.paid_at,
+      transaction: input.transaction || null
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return recurringBillPaymentSchema.parse(await response.json());
 }
 
 export async function listBalanceSnapshots(

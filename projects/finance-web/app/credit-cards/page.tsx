@@ -34,6 +34,9 @@ export default function CreditCardsPage() {
               Debts
             </Link>
             <span className="nav__item nav__item--active">Credit cards</span>
+            <Link className="nav__item" href="/recurring-bills">
+              Recurring bills
+            </Link>
             <Link className="nav__item" href="/reconciliation">
               Reconciliation
             </Link>

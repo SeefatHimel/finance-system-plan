@@ -121,12 +121,12 @@ Last updated: 2026-05-31
 - [x] Add first web debt/lending dashboard
 - [x] Add reconciliation web screen
 - [x] Add credit card bill tracking
-- [ ] Add recurring bills
+- [x] Add recurring bills
 
 ## Verification Matrix
 
 - [x] Backend tests:
-  - Command: `python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards`
+  - Command: `python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards apps.recurring_bills`
   - Result: pass
 - [x] Web typecheck:
   - Command: `npm run typecheck`

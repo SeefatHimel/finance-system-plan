@@ -44,6 +44,7 @@ covering current phase-1 backend endpoints:
 - Transactions CRUD and list filters
 - Debt CRUD and repayment endpoint
 - Credit card bill CRUD and payment endpoint
+- Recurring bill CRUD and payment endpoint
 - Monthly report
 - Balance snapshot and account reconciliation endpoints
 

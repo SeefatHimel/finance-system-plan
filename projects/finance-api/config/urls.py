@@ -18,6 +18,7 @@ from apps.messages.views import (
     SenderRuleViewSet,
 )
 from apps.payment_methods.views import PaymentMethodViewSet
+from apps.recurring_bills.views import RecurringBillPaymentCreateView, RecurringBillViewSet
 from apps.reconciliation.views import AccountReconciliationView, BalanceSnapshotViewSet
 from apps.transactions.views import TransactionViewSet
 
@@ -28,6 +29,7 @@ router.register("categories", CategoryViewSet, basename="category")
 router.register("credit-card-bills", CreditCardBillViewSet, basename="credit-card-bill")
 router.register("debts", DebtViewSet, basename="debt")
 router.register("payment-methods", PaymentMethodViewSet, basename="payment-method")
+router.register("recurring-bills", RecurringBillViewSet, basename="recurring-bill")
 router.register("reconciliation/snapshots", BalanceSnapshotViewSet, basename="balance-snapshot")
 router.register("messages/sender-rules", SenderRuleViewSet, basename="sender-rule")
 router.register("transactions", TransactionViewSet, basename="transaction")
@@ -65,6 +67,11 @@ urlpatterns = [
         "api/credit-card-bills/<uuid:bill_id>/payments/",
         CreditCardPaymentCreateView.as_view(),
         name="credit-card-payment-create",
+    ),
+    path(
+        "api/recurring-bills/<uuid:bill_id>/payments/",
+        RecurringBillPaymentCreateView.as_view(),
+        name="recurring-bill-payment-create",
     ),
     path("api/debts/<uuid:debt_id>/payments/", DebtPaymentCreateView.as_view(), name="debt-payment-create"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

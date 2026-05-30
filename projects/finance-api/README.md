@@ -20,6 +20,7 @@ The API project is scaffolded with:
 - Basic monthly report endpoint
 - Debt and repayment workflow endpoints
 - Credit card bill and payment workflow endpoints
+- Recurring bill schedule and payment workflow endpoints
 - Balance snapshot and reconciliation endpoints
 - JWT login, refresh, and current-user endpoints
 
@@ -35,6 +36,7 @@ The API project is scaffolded with:
 - Duplicate detection
 - Debt and repayment tracking
 - Credit card bill tracking
+- Recurring bill tracking
 - Balance snapshots and reconciliation
 - Reports for web and mobile
 
@@ -119,7 +121,7 @@ The API service runs migrations on startup and then serves on port `8000`.
 ## Verification
 
 ```bash
-python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards
+python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards apps.recurring_bills
 ```
 
 ## Django Apps
@@ -134,6 +136,7 @@ payment_methods/
 messages/
 debts/
 credit_cards/
+recurring_bills/
 reports/
 reconciliation/
 ```
@@ -150,6 +153,7 @@ reconciliation/
 /api/messages/sender-rules/
 /api/debts/
 /api/credit-card-bills/
+/api/recurring-bills/
 /api/reports/
 /api/reconciliation/
 ```
@@ -210,6 +214,13 @@ GET    /api/credit-card-bills/{id}/
 PATCH  /api/credit-card-bills/{id}/
 DELETE /api/credit-card-bills/{id}/
 POST   /api/credit-card-bills/{id}/payments/
+
+GET    /api/recurring-bills/
+POST   /api/recurring-bills/
+GET    /api/recurring-bills/{id}/
+PATCH  /api/recurring-bills/{id}/
+DELETE /api/recurring-bills/{id}/
+POST   /api/recurring-bills/{id}/payments/
 
 GET    /api/reports/monthly/?month=YYYY-MM
 GET    /api/reconciliation/snapshots/

@@ -36,14 +36,14 @@ senders.
 Right now the repo has the architecture docs, local PostgreSQL setup, JWT auth,
 account/category/transaction APIs, payment method and SMS sender rule APIs, raw
 SMS import with duplicate detection, a parsed SMS review inbox, monthly
-reports, debt/repayment, credit card bill, and reconciliation endpoints, a
-Next.js dashboard, web management, SMS review, debt, credit-card, and
-reconciliation screens, and an Expo mobile scaffold with local raw-message
+reports, debt/repayment, credit card bill, recurring bill, and reconciliation
+endpoints, a Next.js dashboard, web management, SMS review, debt, credit-card,
+recurring-bill, and reconciliation screens, and an Expo mobile scaffold with local raw-message
 queuing, sync, and SMS review. The SMS permission decision is
 documented: keep Expo managed for now and only move to a native Android module
 when automatic capture is ready. Next I would collect real anonymized SMS
 fixtures, deepen provider-specific parsing, and polish mobile debt,
-credit-card, and reconciliation workflows.
+credit-card, recurring-bill, and reconciliation workflows.
 
 ## Strong Technical Points To Mention
 

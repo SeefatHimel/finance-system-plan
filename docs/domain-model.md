@@ -219,6 +219,24 @@ Important fields:
 - linked_statement_transaction, optional
 - note
 
+## Recurring Bill
+
+Tracks repeating commitments like rent, internet, utilities, subscriptions, and
+memberships before they appear as one-off expenses.
+
+Important fields:
+
+- account
+- category, optional
+- name
+- amount
+- frequency: weekly, monthly, quarterly, yearly
+- next_due_date
+- status: active, paused, ended
+- reminder_days_before
+- auto_create_transaction, future automation flag
+- note
+
 ## Balance Snapshot
 
 Manual real-life check of an account balance.

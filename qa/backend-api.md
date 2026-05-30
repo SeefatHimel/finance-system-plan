@@ -142,6 +142,9 @@ POST   /api/debts/{id}/payments/
 GET    /api/credit-card-bills/
 POST   /api/credit-card-bills/
 POST   /api/credit-card-bills/{id}/payments/
+GET    /api/recurring-bills/
+POST   /api/recurring-bills/
+POST   /api/recurring-bills/{id}/payments/
 GET    /api/reports/monthly/?month=YYYY-MM
 GET    /api/reconciliation/snapshots/
 POST   /api/reconciliation/snapshots/
@@ -150,7 +153,7 @@ GET    /api/reconciliation/accounts/{account_id}/
 
 The DRF routers also provide detail, update, and delete endpoints for accounts,
 categories, payment methods, sender rules, transactions, debts, credit card
-bills, and balance snapshots.
+bills, recurring bills, and balance snapshots.
 
 ## How do you validate cross-user object access?
 

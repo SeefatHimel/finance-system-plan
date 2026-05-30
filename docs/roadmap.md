@@ -141,7 +141,7 @@ Backend:
 - Debt records. Done.
 - Debt payments. Done.
 - Credit card bill tracking. Done for first API and web screen.
-- Recurring bills
+- Recurring bills. Done for first API and web screen.
 
 Web:
 
@@ -150,6 +150,7 @@ Web:
 - Due/done tracking. Done for first web screen.
 - Balance reconciliation screen. Done for first web screen.
 - Credit card bills view. Done for first web screen.
+- Recurring bills view. Done for first web screen.
 
 Mobile:
 

@@ -382,6 +382,57 @@ created_at
 updated_at
 ```
 
+### recurring_bills_recurringbill
+
+```txt
+id
+user_id
+account_id
+category_id
+name
+amount
+frequency
+next_due_date
+status
+auto_create_transaction
+reminder_days_before
+note
+created_at
+updated_at
+```
+
+Allowed `frequency` values:
+
+```txt
+weekly
+monthly
+quarterly
+yearly
+```
+
+Allowed `status` values:
+
+```txt
+active
+paused
+ended
+```
+
+### recurring_bills_recurringbillpayment
+
+```txt
+id
+user_id
+bill_id
+transaction_id
+amount
+due_date
+paid_at
+note
+created_at
+updated_at
+```
+
 ### reconciliation_balancesnapshot
 
 ```txt
