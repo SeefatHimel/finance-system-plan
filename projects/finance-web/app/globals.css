@@ -436,6 +436,10 @@ textarea {
   margin: 10px 0 0;
 }
 
+.review-redact-button {
+  margin-top: 10px;
+}
+
 .review-form {
   display: grid;
   gap: 14px;

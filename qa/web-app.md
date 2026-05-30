@@ -100,6 +100,8 @@ possible internal-transfer/related-message hints. The user can confirm a
 candidate into an SMS-sourced transaction or ignore it. The confirmation flow
 now supports debit/credit direction and transfer destination selection, and the
 resulting transaction preserves reference, balance, and counterparty evidence.
+The page can also redact the raw SMS body after review while keeping parsed
+ledger evidence available.
 
 ## What does the current reports page do?
 

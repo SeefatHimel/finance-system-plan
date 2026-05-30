@@ -5,6 +5,7 @@ from hashlib import sha256
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 
 class SenderRule(models.Model):
@@ -75,6 +76,7 @@ class RawMessage(models.Model):
         IMPORTED = "imported", "Imported"
         DUPLICATE = "duplicate", "Duplicate"
         IGNORED = "ignored", "Ignored"
+        REDACTED = "redacted", "Redacted"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -96,6 +98,7 @@ class RawMessage(models.Model):
         related_name="duplicates",
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    redacted_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         ordering = ("-received_at", "-created_at")
@@ -125,6 +128,13 @@ class RawMessage(models.Model):
 
     def __str__(self) -> str:
         return f"{self.sender} {self.received_at}"
+
+    def redact(self):
+        self.body = "[redacted]"
+        self.device_message_id = ""
+        self.status = self.Status.REDACTED
+        self.redacted_at = timezone.now()
+        self.save(update_fields=("body", "device_message_id", "status", "redacted_at"))
 
 
 class ParsedMessageCandidate(models.Model):

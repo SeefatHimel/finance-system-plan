@@ -31,7 +31,9 @@ Never commit:
 - Do not scan or upload the whole SMS inbox. Automatic capture, if enabled for
   a personal APK, should only process messages whose sender matches an active
   sender rule and whose body looks transaction-related.
-- Allow raw message deletion later.
+- Allow raw message redaction. Redaction should remove the original SMS body
+  and device message id while preserving parsed ledger evidence, duplicate
+  hashes, and audit links.
 - Use HTTPS in production.
 - Scope every backend query by user.
 - Keep audit timestamps on financial records.

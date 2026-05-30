@@ -192,6 +192,16 @@ also creates a transaction `external_key` from provider/reference data when
 available, or from the raw message id as a fallback, and rejects another
 transaction with the same key.
 
+## How do you handle raw SMS privacy after parsing?
+
+The backend now exposes a raw SMS redaction endpoint. It replaces the raw body
+with `[redacted]`, clears the device message id, marks the raw message as
+`redacted`, and records `redacted_at`. Parsed candidate fields, transaction
+reference, balance, counterparty, amount, raw message link, and duplicate hash
+remain, so reports and duplicate checks still work without keeping the original
+SMS text. If a confirmed transaction note exactly copied the SMS body, redaction
+changes that note to `SMS body redacted.`
+
 ## Why do internal transfers need special handling?
 
 Bank-to-bKash, bKash-to-bank, card bill payments, and transfers between the

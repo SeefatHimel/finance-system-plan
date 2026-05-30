@@ -114,7 +114,7 @@ Last updated: 2026-05-31
 - [x] Add Pathao Pay parser coverage for make payment, top-up, send money, and withdraw confirmations
 - [x] Add source/destination account controls to mobile SMS review
 - [x] Add parser confidence/duplicate reason display in review inbox
-- [ ] Add raw SMS deletion/redaction workflow
+- [x] Add raw SMS deletion/redaction workflow
 
 ## Verification Matrix
 
@@ -166,3 +166,4 @@ Last updated: 2026-05-31
 - `api: match bkash transfer account hints`
 - `mobile: add sms transfer review controls`
 - `web: surface sms review confidence reasons`
+- `api: add raw sms redaction workflow`

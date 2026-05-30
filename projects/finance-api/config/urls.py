@@ -13,6 +13,7 @@ from apps.messages.views import (
     MessageCandidateIgnoreView,
     MessageReviewListView,
     RawMessageImportView,
+    RawMessageRedactView,
     SenderRuleViewSet,
 )
 from apps.payment_methods.views import PaymentMethodViewSet
@@ -36,6 +37,11 @@ urlpatterns = [
     path("api/", include(router.urls)),
     path("api/health/", include("apps.health.urls")),
     path("api/messages/import/", RawMessageImportView.as_view(), name="raw-message-import"),
+    path(
+        "api/messages/raw/<uuid:message_id>/redact/",
+        RawMessageRedactView.as_view(),
+        name="raw-message-redact",
+    ),
     path("api/messages/review/", MessageReviewListView.as_view(), name="message-review-list"),
     path(
         "api/messages/review/<uuid:candidate_id>/confirm/",

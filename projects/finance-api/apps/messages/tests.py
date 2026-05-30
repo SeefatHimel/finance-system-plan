@@ -5,7 +5,7 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import Account
-from apps.messages.models import ParsedMessageCandidate, SenderRule
+from apps.messages.models import ParsedMessageCandidate, RawMessage, SenderRule
 from apps.payment_methods.models import PaymentMethod
 from apps.transactions.models import Transaction
 
@@ -672,3 +672,48 @@ class MessageReviewApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "ignored")
+
+    def test_user_can_redact_raw_sms_body(self):
+        candidate = self.import_payment_message()
+        raw_message_id = candidate["raw_message"]["id"]
+
+        response = self.client.post(
+            reverse("raw-message-redact", kwargs={"message_id": raw_message_id}),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        raw_message = RawMessage.objects.get(id=raw_message_id)
+        self.assertEqual(raw_message.body, "[redacted]")
+        self.assertEqual(raw_message.status, RawMessage.Status.REDACTED)
+        self.assertEqual(raw_message.device_message_id, "")
+        self.assertIsNotNone(raw_message.redacted_at)
+        self.assertEqual(response.data["message"]["body"], "[redacted]")
+        self.assertEqual(response.data["candidate"]["raw_message"]["body"], "[redacted]")
+
+    def test_redacting_confirmed_sms_clears_copied_transaction_note(self):
+        candidate = self.import_payment_message()
+        raw_message_id = candidate["raw_message"]["id"]
+        original_body = candidate["raw_message"]["body"]
+
+        confirm_response = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": candidate["id"]}),
+            {},
+            format="json",
+        )
+        self.assertEqual(confirm_response.status_code, 200)
+        transaction = Transaction.objects.get(id=confirm_response.data["transaction"])
+        self.assertEqual(transaction.note, original_body)
+
+        response = self.client.post(
+            reverse("raw-message-redact", kwargs={"message_id": raw_message_id}),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        transaction.refresh_from_db()
+        self.assertEqual(transaction.note, "SMS body redacted.")
+        self.assertEqual(transaction.reference, "DEF456XYZ")
+        self.assertEqual(transaction.raw_message_id, RawMessage.objects.get(id=raw_message_id).id)

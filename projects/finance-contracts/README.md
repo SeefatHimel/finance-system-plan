@@ -22,6 +22,7 @@ examples/
   payment-method.create.json
   message-review.confirm.json
   message-review.list.response.json
+  message-review.redact.response.json
   raw-message.import.json
   raw-message.import.response.json
   sender-rule.create.json
@@ -81,6 +82,7 @@ PATCH  /api/messages/sender-rules/{id}/
 DELETE /api/messages/sender-rules/{id}/
 
 POST   /api/messages/import/
+POST   /api/messages/raw/{id}/redact/
 GET    /api/messages/review/
 POST   /api/messages/review/{id}/confirm/
 POST   /api/messages/review/{id}/ignore/

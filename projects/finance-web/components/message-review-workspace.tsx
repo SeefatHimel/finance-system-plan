@@ -11,7 +11,8 @@ import {
   ignoreMessageCandidate,
   listAccounts,
   listCategories,
-  listMessageCandidates
+  listMessageCandidates,
+  redactRawMessage
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 
@@ -185,6 +186,34 @@ export function MessageReviewWorkspace() {
     }
   }
 
+  async function handleRedactRawMessage(candidate: ParsedMessageCandidate) {
+    const accessToken = getAccessToken();
+
+    if (!accessToken) {
+      setActionError("Sign in before redacting raw SMS messages.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Redact the raw SMS body? Parsed fields and transaction evidence stay, but the original SMS text will be replaced."
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setActionError(null);
+    setWorkingCandidateId(candidate.id);
+
+    try {
+      await redactRawMessage(accessToken, candidate.raw_message.id);
+      await loadData();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Could not redact raw SMS.");
+    } finally {
+      setWorkingCandidateId(null);
+    }
+  }
+
   if (reviewState.status === "loading") {
     return (
       <section className="panel">
@@ -317,6 +346,16 @@ export function MessageReviewWorkspace() {
                     <p>{candidate.parser_notes}</p>
                     <p>Raw message status: {candidate.raw_message.status}</p>
                   </details>
+                  {candidate.raw_message.status !== "redacted" ? (
+                    <button
+                      className="button button--ghost review-redact-button"
+                      disabled={isWorking}
+                      onClick={() => void handleRedactRawMessage(candidate)}
+                      type="button"
+                    >
+                      Redact raw SMS
+                    </button>
+                  ) : null}
 
                   <form className="review-form" onSubmit={(event) => void handleConfirm(candidate, event)}>
                     <label className="field">

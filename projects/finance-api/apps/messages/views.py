@@ -367,3 +367,30 @@ class MessageCandidateIgnoreView(APIView):
         candidate.status = ParsedMessageCandidate.Status.IGNORED
         candidate.save(update_fields=("status", "updated_at"))
         return Response(ParsedMessageCandidateSerializer(candidate).data)
+
+
+class RawMessageRedactView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, message_id):
+        raw_message = get_object_or_404(RawMessage, user=request.user, id=message_id)
+        original_body = raw_message.body
+        raw_message.redact()
+
+        Transaction.objects.filter(
+            user=request.user,
+            raw_message=raw_message,
+            note=original_body,
+        ).update(note="SMS body redacted.")
+
+        candidate = getattr(raw_message, "candidate", None)
+        return Response(
+            {
+                "candidate": (
+                    ParsedMessageCandidateSerializer(candidate).data
+                    if candidate
+                    else None
+                ),
+                "message": RawMessageSerializer(raw_message).data,
+            }
+        )

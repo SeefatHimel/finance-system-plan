@@ -182,6 +182,7 @@ GET    /api/messages/sender-rules/{id}/
 PATCH  /api/messages/sender-rules/{id}/
 DELETE /api/messages/sender-rules/{id}/
 POST   /api/messages/import/
+POST   /api/messages/raw/{id}/redact/
 GET    /api/messages/review/
 POST   /api/messages/review/{id}/confirm/
 POST   /api/messages/review/{id}/ignore/

@@ -10,7 +10,8 @@
       "body_hash": "3d1a4c27f2df5c4f0efb5dca56f1c1f87f84209d1fcb2437dc4e51cf2a6fc735",
       "status": "imported",
       "duplicate_of": null,
-      "created_at": "2026-05-29T10:30:05+06:00"
+      "created_at": "2026-05-29T10:30:05+06:00",
+      "redacted_at": null
     },
     "sender_rule": "55555555-5555-4555-8555-555555555555",
     "account": "11111111-1111-4111-8111-111111111111",
@@ -46,6 +47,7 @@
     "body_hash": "3d1a4c27f2df5c4f0efb5dca56f1c1f87f84209d1fcb2437dc4e51cf2a6fc735",
     "status": "imported",
     "duplicate_of": null,
-    "created_at": "2026-05-29T10:30:05+06:00"
+    "created_at": "2026-05-29T10:30:05+06:00",
+    "redacted_at": null
   }
 }

@@ -76,6 +76,7 @@ export type RawMessage = {
   device_message_id: string;
   duplicate_of: string | null;
   id: string;
+  redacted_at: string | null;
   received_at: string;
   sender: string;
   status: string;

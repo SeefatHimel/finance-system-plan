@@ -129,29 +129,29 @@ ignore
 ```txt
 id
 user_id
-sender_rule_id
 sender
 body
 received_at
 device_message_id
-message_hash
-source_device_id
+body_hash
 status
 created_at
-updated_at
+redacted_at
 ```
 
 Allowed `status` values:
 
 ```txt
-new
-parsed
-needs_review
-confirmed
+imported
 ignored
 duplicate
-error
+redacted
 ```
+
+Raw SMS redaction replaces `body` with `[redacted]`, clears
+`device_message_id`, sets `status=redacted`, and records `redacted_at`. Parsed
+candidate fields and confirmed transaction evidence remain available so reports
+do not depend on storing the original SMS text forever.
 
 ### Mobile SMS Capture Boundary
 
@@ -404,6 +404,11 @@ GET    /api/categories/
 POST   /api/categories/
 GET    /api/transactions/
 POST   /api/transactions/
+POST   /api/messages/import/
+POST   /api/messages/raw/{id}/redact/
+GET    /api/messages/review/
+POST   /api/messages/review/{id}/confirm/
+POST   /api/messages/review/{id}/ignore/
 GET    /api/reports/monthly/?month=YYYY-MM
 ```
 

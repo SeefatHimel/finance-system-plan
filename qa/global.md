@@ -163,7 +163,8 @@ Android-oriented mobile scaffold with local raw-message queueing and SMS review
 including source/destination transfer account selection.
 Confirmed SMS transactions preserve normalized ledger evidence such as
 debit/credit direction, reference or TrxID, balance after, counterparty text,
-payment method, raw message link, and duplicate key.
+payment method, raw message link, and duplicate key. Raw SMS bodies can now be
+redacted after parsing while keeping duplicate hashes and parsed ledger fields.
 
 ## What is not implemented yet?
 

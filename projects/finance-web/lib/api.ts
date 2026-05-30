@@ -58,6 +58,7 @@ const rawMessageSchema = z.object({
   device_message_id: z.string(),
   duplicate_of: z.string().nullable(),
   id: z.string(),
+  redacted_at: z.string().nullable(),
   received_at: z.string(),
   sender: z.string(),
   status: z.string()
@@ -161,6 +162,7 @@ export type Category = z.infer<typeof categorySchema>;
 export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 export type SenderRule = z.infer<typeof senderRuleSchema>;
 export type ParsedMessageCandidate = z.infer<typeof parsedMessageCandidateSchema>;
+export type RawMessage = z.infer<typeof rawMessageSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
 export type MonthlyReport = z.infer<typeof monthlyReportSchema>;
 
@@ -578,6 +580,19 @@ export async function ignoreMessageCandidate(
     method: "POST"
   });
   return parsedMessageCandidateSchema.parse(await response.json());
+}
+
+export async function redactRawMessage(
+  accessToken: string,
+  id: string
+): Promise<{ candidate: ParsedMessageCandidate | null; message: RawMessage }> {
+  const response = await authenticatedFetch(`/api/messages/raw/${id}/redact/`, accessToken, {
+    method: "POST"
+  });
+  return z.object({
+    candidate: parsedMessageCandidateSchema.nullable(),
+    message: rawMessageSchema
+  }).parse(await response.json());
 }
 
 export async function listTransactions(

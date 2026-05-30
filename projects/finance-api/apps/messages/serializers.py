@@ -78,6 +78,7 @@ class RawMessageSerializer(serializers.ModelSerializer):
             "status",
             "duplicate_of",
             "created_at",
+            "redacted_at",
         )
         read_only_fields = (
             "id",
@@ -85,6 +86,7 @@ class RawMessageSerializer(serializers.ModelSerializer):
             "status",
             "duplicate_of",
             "created_at",
+            "redacted_at",
         )
 
 

@@ -40,7 +40,7 @@ covering current phase-1 backend endpoints:
 - Payment methods CRUD
 - SMS sender rules CRUD
 - Raw SMS import with duplicate response shape
-- Parsed SMS review candidate list, confirm, and ignore endpoints
+- Parsed SMS review candidate list, confirm, ignore, and raw SMS redaction endpoints
 - Transactions CRUD and list filters
 - Debt CRUD and repayment endpoint
 - Monthly report
@@ -56,6 +56,10 @@ Transaction contracts now include strict ledger evidence fields: `direction`,
 `balance_after`, `reference`, `counterparty_text`, `payment_method`,
 `raw_message`, and `external_key`. The SMS confirm request can override the
 same values when the parser needs user correction.
+
+Raw message contracts now include `redacted_at` and the `redacted` status so
+clients can show when original SMS text has been removed while parsed evidence
+is retained.
 
 The backend also exposes generated OpenAPI docs through `drf-spectacular` at
 `/api/schema/` and `/api/docs/`.

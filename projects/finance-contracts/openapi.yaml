@@ -487,6 +487,25 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/messages/raw/{id}/redact/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    post:
+      tags: [Messages]
+      summary: Redact raw SMS body while preserving parsed ledger evidence
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Raw message redacted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RawMessageRedactResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /api/messages/review/:
     get:
       tags: [Messages]
@@ -1075,7 +1094,7 @@ components:
       enum: [exact, contains, regex]
     RawMessageStatus:
       type: string
-      enum: [imported, duplicate, ignored]
+      enum: [imported, duplicate, ignored, redacted]
     ParsedMessageCandidateStatus:
       type: string
       enum: [needs_review, confirmed, ignored]
@@ -1364,7 +1383,7 @@ components:
     RawMessage:
       type: object
       required:
-        [id, sender, body, received_at, device_message_id, body_hash, status, duplicate_of, created_at]
+        [id, sender, body, received_at, device_message_id, body_hash, status, duplicate_of, created_at, redacted_at]
       properties:
         id:
           type: string
@@ -1394,6 +1413,10 @@ components:
         created_at:
           type: string
           format: date-time
+        redacted_at:
+          type: string
+          format: date-time
+          nullable: true
     RawMessageImportRequest:
       type: object
       required: [sender, body, received_at]
@@ -1420,6 +1443,16 @@ components:
           nullable: true
         is_duplicate:
           type: boolean
+        message:
+          $ref: '#/components/schemas/RawMessage'
+    RawMessageRedactResponse:
+      type: object
+      required: [candidate, message]
+      properties:
+        candidate:
+          allOf:
+            - $ref: '#/components/schemas/ParsedMessageCandidate'
+          nullable: true
         message:
           $ref: '#/components/schemas/RawMessage'
     ParsedMessageCandidate:

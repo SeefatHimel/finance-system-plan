@@ -231,7 +231,9 @@ projects/finance-api/apps/messages/fixtures/sms/pathao_pay/
    account chips in the mobile SMS review card.
 5. Surface parser confidence and duplicate/review reasons in review inboxes.
    Done for web and mobile.
-6. Keep internal-transfer matching conservative until fixture coverage proves
+6. Add raw SMS redaction for privacy after parsing/confirmation. Done with
+   soft redaction that keeps parsed evidence and duplicate hashes.
+7. Keep internal-transfer matching conservative until fixture coverage proves
    the matching rules.
 
 ## Open Questions

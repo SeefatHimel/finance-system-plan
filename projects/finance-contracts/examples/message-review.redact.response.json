@@ -1,0 +1,52 @@
+{
+  "candidate": {
+    "id": "candidate-id",
+    "raw_message": {
+      "id": "raw-message-id",
+      "sender": "bKash",
+      "body": "[redacted]",
+      "received_at": "2026-05-01T12:30:00+06:00",
+      "device_message_id": "",
+      "body_hash": "hash",
+      "status": "redacted",
+      "duplicate_of": null,
+      "created_at": "2026-05-01T12:31:00+06:00",
+      "redacted_at": "2026-05-01T12:40:00+06:00"
+    },
+    "sender_rule": "sender-rule-id",
+    "account": "account-id",
+    "payment_method": "payment-method-id",
+    "destination_account": null,
+    "destination_payment_method": null,
+    "transaction": null,
+    "possible_related_candidate": null,
+    "provider": "bkash",
+    "message_kind": "purchase",
+    "transaction_type": "expense",
+    "amount": "350.00",
+    "counterparty_text": "SAMPLE MERCHANT",
+    "reference": "DEF456XYZ",
+    "balance_after": "1150.00",
+    "fee_amount": "0.00",
+    "possible_internal_transfer": false,
+    "related_match_reason": "",
+    "confidence": "0.82",
+    "status": "needs_review",
+    "parser_name": "bkash_sms_parser",
+    "parser_notes": "Matched sender rule and parser template.",
+    "created_at": "2026-05-01T12:31:00+06:00",
+    "updated_at": "2026-05-01T12:31:00+06:00"
+  },
+  "message": {
+    "id": "raw-message-id",
+    "sender": "bKash",
+    "body": "[redacted]",
+    "received_at": "2026-05-01T12:30:00+06:00",
+    "device_message_id": "",
+    "body_hash": "hash",
+    "status": "redacted",
+    "duplicate_of": null,
+    "created_at": "2026-05-01T12:31:00+06:00",
+    "redacted_at": "2026-05-01T12:40:00+06:00"
+  }
+}
