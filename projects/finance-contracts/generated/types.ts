@@ -45,6 +45,8 @@ export type TransactionSource = "web" | "mobile" | "sms" | "import" | "system";
 
 export type TransactionDirection = "debit" | "credit";
 
+export type AuditLogAction = "created" | "updated" | "deleted";
+
 export type PaymentProvider = "cash" | "bkash" | "nagad" | "rocket" | "ebl" | "city_bank" | "pathao_pay" | "bank" | "card" | "manual" | "other";
 
 export type SenderRuleProvider = "bkash" | "nagad" | "rocket" | "ebl" | "city_bank" | "pathao_pay" | "bank" | "card" | "other";
@@ -68,6 +70,17 @@ export type RecurringBillFrequency = "weekly" | "monthly" | "quarterly" | "yearl
 export type RecurringBillStatus = "active" | "paused" | "ended";
 
 export type ParsedMessageKind = "purchase" | "cash_in" | "cash_out" | "send_money" | "receive_money" | "bank_transfer_in" | "bank_transfer_out" | "card_purchase" | "card_payment" | "fee" | "refund" | "reversal" | "balance_notice" | "otp_or_security" | "unknown";
+
+export interface AuditLogEntry {
+  id: string;
+  action: AuditLogAction;
+  entity_type: string;
+  entity_id: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
 
 export interface Account {
   id: string;

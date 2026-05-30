@@ -128,7 +128,7 @@ http://localhost:8000/api/docs/
 Run backend tests:
 
 ```bash
-python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards apps.recurring_bills
+python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards apps.recurring_bills apps.audit_logs
 ```
 
 Create a local admin/user for testing:
@@ -251,6 +251,7 @@ GET /api/categories/
 POST /api/transactions/
 GET /api/transactions/
 GET /api/transactions/export/?month=YYYY-MM
+GET /api/audit-logs/
 GET /api/payment-methods/
 GET /api/messages/sender-rules/
 POST /api/messages/import/

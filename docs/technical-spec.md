@@ -498,16 +498,21 @@ GET    /api/categories/
 POST   /api/categories/
 GET    /api/transactions/
 POST   /api/transactions/
+GET    /api/transactions/export/?month=YYYY-MM
 POST   /api/messages/import/
 POST   /api/messages/raw/{id}/redact/
 GET    /api/messages/review/
 POST   /api/messages/review/{id}/confirm/
 POST   /api/messages/review/{id}/ignore/
 GET    /api/reports/monthly/?month=YYYY-MM
+GET    /api/audit-logs/
 ```
 
 The account, category, transaction, and report endpoints are authenticated and
 scoped to the current user.
+
+Transaction create, update, and delete actions write read-only audit log entries
+with before/after snapshots of normalized ledger fields.
 
 Authenticated requests use JWT Bearer tokens:
 

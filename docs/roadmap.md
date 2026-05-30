@@ -176,7 +176,8 @@ Backend:
 
 - CSV/Excel export. Started with authenticated filtered transaction CSV export.
 - Import tools from existing spreadsheet
-- Audit log
+- Audit log. Started with transaction create/update/delete history and a
+  read-only API.
 - Backup/restore support
 - AI categorization extension point
 

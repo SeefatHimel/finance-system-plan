@@ -79,6 +79,8 @@ bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
 - SMS-confirmed transactions should preserve normalized evidence fields such as
   provider reference, balance after, counterparty text, payment method, raw
   message id, and duplicate key.
+- Transaction create, update, and delete actions expose read-only audit log
+  entries with normalized before/after snapshots.
 - Display sign preference belongs to clients.
 
 ## Initial Endpoint Sketch
@@ -144,4 +146,7 @@ GET    /api/reports/accounts/?month=YYYY-MM
 GET    /api/reconciliation/snapshots/
 POST   /api/reconciliation/snapshots/
 GET    /api/reconciliation/accounts/{account_id}/
+
+GET    /api/audit-logs/
+GET    /api/audit-logs/{id}/
 ```

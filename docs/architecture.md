@@ -89,7 +89,7 @@ sequenceDiagram
   Client->>API: POST /api/transactions/
   API->>API: Validate account, category, amount
   API->>DB: Save transaction
-  API->>DB: Update or invalidate report cache
+  API->>DB: Save transaction audit entry
   API-->>Client: Transaction response
   Client-->>User: Updated list and balances
 ```

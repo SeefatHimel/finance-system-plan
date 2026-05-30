@@ -22,6 +22,7 @@ The API project is scaffolded with:
 - Credit card bill and payment workflow endpoints
 - Recurring bill schedule and payment workflow endpoints
 - Balance snapshot and reconciliation endpoints
+- Read-only audit log endpoint for transaction creates, updates, and deletes
 - JWT login, refresh, and current-user endpoints
 
 ## Responsibilities
@@ -38,6 +39,7 @@ The API project is scaffolded with:
 - Credit card bill tracking
 - Recurring bill tracking
 - Balance snapshots and reconciliation
+- Transaction audit trail
 - Reports for web and mobile
 
 ## Suggested Stack
@@ -121,7 +123,7 @@ The API service runs migrations on startup and then serves on port `8000`.
 ## Verification
 
 ```bash
-python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards apps.recurring_bills
+python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards apps.recurring_bills apps.audit_logs
 ```
 
 ## Django Apps
@@ -139,6 +141,7 @@ credit_cards/
 recurring_bills/
 reports/
 reconciliation/
+audit_logs/
 ```
 
 ## Important API Groups
@@ -156,6 +159,7 @@ reconciliation/
 /api/recurring-bills/
 /api/reports/
 /api/reconciliation/
+/api/audit-logs/
 ```
 
 ## Implemented Endpoints
@@ -230,9 +234,16 @@ GET    /api/reconciliation/snapshots/{id}/
 PATCH  /api/reconciliation/snapshots/{id}/
 DELETE /api/reconciliation/snapshots/{id}/
 GET    /api/reconciliation/accounts/{account_id}/
+GET    /api/audit-logs/
+GET    /api/audit-logs/{id}/
 GET    /api/schema/
 GET    /api/docs/
 ```
+
+Transaction create, update, and delete actions write user-scoped audit entries
+with before/after snapshots of normalized ledger fields. Audit log entries are
+read-only through the API and can be filtered by `action`, `entity_type`, and
+`entity_id`.
 
 All finance endpoints except `/api/health/` require authentication.
 

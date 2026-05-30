@@ -6,6 +6,9 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 
+from apps.audit_logs.models import AuditLogEntry
+from apps.audit_logs.services import create_audit_log, transaction_snapshot
+
 from .models import Transaction
 from .serializers import TransactionSerializer
 
@@ -49,7 +52,34 @@ class TransactionViewSet(ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        transaction = serializer.save(user=self.request.user)
+        create_audit_log(
+            user=self.request.user,
+            action=AuditLogEntry.Action.CREATED,
+            entity=transaction,
+            after=transaction_snapshot(transaction),
+        )
+
+    def perform_update(self, serializer):
+        before = transaction_snapshot(serializer.instance)
+        transaction = serializer.save()
+        create_audit_log(
+            user=self.request.user,
+            action=AuditLogEntry.Action.UPDATED,
+            entity=transaction,
+            before=before,
+            after=transaction_snapshot(transaction),
+        )
+
+    def perform_destroy(self, instance):
+        before = transaction_snapshot(instance)
+        create_audit_log(
+            user=self.request.user,
+            action=AuditLogEntry.Action.DELETED,
+            entity=instance,
+            before=before,
+        )
+        instance.delete()
 
     @action(detail=False, methods=("get",), url_path="export")
     def export(self, request):

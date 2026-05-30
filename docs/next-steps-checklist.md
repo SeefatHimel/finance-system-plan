@@ -14,6 +14,8 @@ Last updated: 2026-05-31
 - Transactions now preserve stricter ledger evidence from SMS confirmations:
   debit/credit direction, provider reference, balance after, counterparty text,
   payment method, raw SMS link, and duplicate key.
+- Transaction creates, updates, and deletes now write user-scoped audit logs
+  with normalized before/after snapshots.
 - Next milestone is validating the workflow with real anonymized SMS fixtures,
   polishing reconciliation UI, hardening mobile sync, and preparing production
   deployment.
@@ -133,11 +135,12 @@ Last updated: 2026-05-31
 - [x] Add authenticated filtered transaction CSV export endpoint
 - [x] Add web transaction CSV export action
 - [x] Add OpenAPI-generated TypeScript client workflow
+- [x] Add transaction audit log API and contract coverage
 
 ## Verification Matrix
 
 - [x] Backend tests:
-  - Command: `python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards apps.recurring_bills`
+  - Command: `python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards apps.recurring_bills apps.audit_logs`
   - Result: pass
 - [x] Web typecheck:
   - Command: `npm run typecheck`

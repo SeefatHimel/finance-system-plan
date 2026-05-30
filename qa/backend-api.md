@@ -4,8 +4,8 @@
 
 The backend owns authentication, user-scoped data, accounts, categories,
 transactions, reports, SMS ingestion, parsing rules, debt records,
-reconciliation, and API contracts. It is the source of truth for all financial
-data.
+reconciliation, audit logs, and API contracts. It is the source of truth for
+all financial data.
 
 ## Why Django REST Framework?
 
@@ -60,12 +60,13 @@ Implemented:
 - `reports`
 - `debts`
 - `reconciliation`
+- `audit_logs`
 
 ## Why separate apps by domain?
 
 Separate apps keep ownership clear. Accounts, categories, transactions, reports,
-messages, debts, and reconciliation each have different rules and can grow
-without one large tangled module.
+messages, debts, reconciliation, and audit logs each have different rules and
+can grow without one large tangled module.
 
 ## Why use UUID primary keys for finance models?
 
@@ -101,6 +102,14 @@ important normalized fields into the ledger row: debit/credit direction,
 provider reference or TrxID, balance after, counterparty text, payment method,
 raw message id, and an external duplicate key. This lets reports and exports use
 structured fields without reparsing SMS bodies.
+
+## How are transaction changes audited?
+
+Transaction creates, updates, and deletes write user-scoped audit entries. Each
+entry records the action, entity type, entity id, normalized before snapshot,
+normalized after snapshot, metadata, and creation timestamp. The API exposes the
+audit trail as read-only data, filterable by `action`, `entity_type`, and
+`entity_id`.
 
 ## How are monthly reports calculated?
 
@@ -150,6 +159,8 @@ GET    /api/reports/monthly/?month=YYYY-MM
 GET    /api/reconciliation/snapshots/
 POST   /api/reconciliation/snapshots/
 GET    /api/reconciliation/accounts/{account_id}/
+GET    /api/audit-logs/
+GET    /api/audit-logs/{id}/
 ```
 
 The DRF routers also provide detail, update, and delete endpoints for accounts,
@@ -229,7 +240,9 @@ rollouts.
 I would test serializers, permissions, model constraints, API endpoints,
 monthly report calculations, SMS parser cases, duplicate detection, and
 reconciliation math. Export endpoints should be tested for user scoping,
-filters, CSV headers, and ledger evidence fields.
+filters, CSV headers, and ledger evidence fields. Audit endpoints should be
+tested for user scoping, read-only behavior, filters, and before/after
+snapshots on transaction mutations.
 
 ## What is a limitation of the current backend?
 
@@ -237,4 +250,5 @@ It has the first manual finance loop, SMS import/review, debt records, and
 reconciliation endpoints, but the provider parsers are still early. It still
 needs real anonymized SMS fixture coverage, deeper provider-specific bank
 transfer cases, production deployment configuration, and UI polish around debt
-and reconciliation workflows.
+and reconciliation workflows. Audit logging currently covers transaction
+mutations first; other finance domains can be added as the product hardens.

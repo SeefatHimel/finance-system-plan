@@ -28,7 +28,7 @@ made, how the architecture works, and what tradeoffs remain.
 - Product plan and architecture are documented.
 - Django backend has health, JWT auth, accounts, categories, transactions,
   payment methods, SMS import/review, reports, debts, credit cards, recurring
-  bills, and reconciliation foundations.
+  bills, reconciliation foundations, and transaction audit logs.
 - Next.js web app has dashboard, login, transaction, account/category, SMS
   settings, SMS review, report, debt, credit-card, recurring-bill, and
   reconciliation workflows.

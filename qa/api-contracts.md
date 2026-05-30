@@ -14,9 +14,10 @@ for web and mobile work to proceed without reading backend internals.
 ## What should be in the OpenAPI schema?
 
 The schema should include auth endpoints, account endpoints, category endpoints,
-transaction endpoints, report endpoints, message endpoints, debt endpoints, and
-reconciliation endpoints. The current API also includes credit-card bill and
-recurring-bill endpoints, so those shapes belong in the shared contract too.
+transaction endpoints, report endpoints, message endpoints, debt endpoints,
+reconciliation endpoints, and audit log endpoints. The current API also
+includes credit-card bill and recurring-bill endpoints, so those shapes belong
+in the shared contract too.
 
 ## Why generate clients later?
 
@@ -51,6 +52,7 @@ covering current phase-1 backend endpoints:
 - Recurring bill CRUD and payment endpoint
 - Monthly report
 - Balance snapshot and account reconciliation endpoints
+- Read-only audit log endpoints for transaction mutation history
 
 Phase 3 contract work now includes parser fields for provider, message kind,
 reference, balance, fee, and possible internal transfer/source-destination
@@ -66,6 +68,9 @@ same values when the parser needs user correction.
 Raw message contracts now include `redacted_at` and the `redacted` status so
 clients can show when original SMS text has been removed while parsed evidence
 is retained.
+
+Audit log contracts expose action, entity type, entity id, metadata, timestamp,
+and nullable before/after snapshots. They are read-only and user-scoped.
 
 The contracts project now generates `generated/types.ts` and
 `generated/client.ts` from the shared OpenAPI schema. The generated client is a

@@ -21,6 +21,7 @@ tags:
   - name: Credit Cards
   - name: Recurring Bills
   - name: Reconciliation
+  - name: Audit Logs
 paths:
   /api/health/:
     get:
@@ -1235,6 +1236,57 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/audit-logs/:
+    get:
+      tags: [Audit Logs]
+      summary: List audit log entries for current user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: action
+          schema:
+            $ref: '#/components/schemas/AuditLogAction'
+        - in: query
+          name: entity_type
+          schema:
+            type: string
+          description: Django model label such as `transactions.transaction`.
+        - in: query
+          name: entity_id
+          schema:
+            type: string
+          description: UUID or primary key of the audited entity.
+      responses:
+        '200':
+          description: Audit log entry list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditLogEntry'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/audit-logs/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Audit Logs]
+      summary: Retrieve an audit log entry
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Audit log entry details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogEntry'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /api/reports/monthly/:
     get:
       tags: [Reports]
@@ -1382,6 +1434,9 @@ components:
     TransactionDirection:
       type: string
       enum: [debit, credit]
+    AuditLogAction:
+      type: string
+      enum: [created, updated, deleted]
     PaymentProvider:
       type: string
       enum: [cash, bkash, nagad, rocket, ebl, city_bank, pathao_pay, bank, card, manual, other]
@@ -1433,6 +1488,38 @@ components:
         - balance_notice
         - otp_or_security
         - unknown
+    AuditLogEntry:
+      type: object
+      required: [id, action, entity_type, entity_id, before, after, metadata, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          $ref: '#/components/schemas/AuditLogAction'
+        entity_type:
+          type: string
+          example: transactions.transaction
+        entity_id:
+          type: string
+          example: 11111111-1111-1111-1111-111111111111
+        before:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Snapshot before the change; null for creates.
+        after:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Snapshot after the change; null for deletes.
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Non-sensitive audit metadata, including recorded timestamp.
+        created_at:
+          type: string
+          format: date-time
     Account:
       type: object
       required:

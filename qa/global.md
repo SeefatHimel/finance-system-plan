@@ -178,6 +178,8 @@ before retry.
 The backend can export filtered transactions as CSV for spreadsheet backup or
 external review, and the web transactions page exposes that export through the
 active filters.
+Transaction creates, updates, and deletes are also recorded in a read-only,
+user-scoped audit log with normalized before/after snapshots.
 The contracts project now generates TypeScript schema types and a lightweight
 fetch client from the OpenAPI file so the web and mobile clients have a shared
 typing migration path.
@@ -188,9 +190,9 @@ Real anonymized SMS fixture collection for bKash, EBL, City Bank, and Pathao
 Pay; deeper provider-specific parser coverage for bank account transfers and
 additional real-world provider variants; mobile UI polish for debt,
 credit-card, recurring-bill, and reconciliation workflows; native Android SMS
-capture implementation; deeper production-grade local sync hardening; and
-web export UI, production deployment setup, and broader backup/restore support
-are still planned future work.
+capture implementation; deeper production-grade local sync hardening;
+production deployment setup; and broader backup/restore support are still
+planned future work.
 
 ## What is the biggest technical risk?
 

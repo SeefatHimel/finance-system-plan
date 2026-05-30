@@ -41,7 +41,8 @@ endpoints, a Next.js dashboard, web management, SMS review, debt, credit-card,
 recurring-bill, and reconciliation screens, and an Expo mobile scaffold with
 local raw-message queuing, retry metadata, duplicate checks, sync, and SMS
 review. The transactions page can also download filtered CSV exports for
-spreadsheet backup. The SMS permission decision is
+spreadsheet backup, and transaction changes are captured in a read-only audit
+trail. The SMS permission decision is
 documented: keep Expo managed for now and only move to a native Android module
 when automatic capture is ready. Next I would collect real anonymized SMS
 fixtures, deepen bank transfer parsing, and polish mobile debt, credit-card,
@@ -56,6 +57,7 @@ recurring-bill, and reconciliation workflows.
 - Rule-based parsing comes before AI for explainability.
 - Reconciliation exists because real-life balances can drift.
 - CSV export keeps a spreadsheet/backup path available while the app matures.
+- Transaction audit logs make edits and deletions inspectable.
 - The OpenAPI contract can generate shared TypeScript types and a fetch client.
 - Projects are separate to preserve clean ownership.
 - OpenAPI/contracts keep web and mobile aligned.

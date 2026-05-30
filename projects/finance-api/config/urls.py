@@ -6,6 +6,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.routers import DefaultRouter
 
 from apps.accounts.views import AccountViewSet
+from apps.audit_logs.views import AuditLogEntryViewSet
 from apps.categories.views import CategoryViewSet
 from apps.credit_cards.views import CreditCardBillViewSet, CreditCardPaymentCreateView
 from apps.debts.views import DebtPaymentCreateView, DebtViewSet
@@ -25,6 +26,7 @@ from apps.transactions.views import TransactionViewSet
 
 router = DefaultRouter()
 router.register("accounts", AccountViewSet, basename="account")
+router.register("audit-logs", AuditLogEntryViewSet, basename="audit-log")
 router.register("categories", CategoryViewSet, basename="category")
 router.register("credit-card-bills", CreditCardBillViewSet, basename="credit-card-bill")
 router.register("debts", DebtViewSet, basename="debt")
