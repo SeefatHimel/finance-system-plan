@@ -158,6 +158,27 @@ const debtPaymentSchema = z.object({
   updated_at: z.string()
 });
 
+const balanceSnapshotSchema = z.object({
+  account: z.string(),
+  actual_balance: z.string(),
+  adjustment_transaction: z.string().nullable(),
+  checked_at: z.string(),
+  created_at: z.string(),
+  difference: z.string(),
+  expected_balance: z.string(),
+  id: z.string(),
+  note: z.string(),
+  status: z.string(),
+  updated_at: z.string()
+});
+
+const accountReconciliationSchema = z.object({
+  account: z.string(),
+  account_name: z.string(),
+  expected_balance: z.string(),
+  latest_snapshot: balanceSnapshotSchema.nullable()
+});
+
 const paginatedSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
   z.object({
     count: z.number(),
@@ -193,6 +214,8 @@ export type Transaction = z.infer<typeof transactionSchema>;
 export type MonthlyReport = z.infer<typeof monthlyReportSchema>;
 export type Debt = z.infer<typeof debtSchema>;
 export type DebtPayment = z.infer<typeof debtPaymentSchema>;
+export type BalanceSnapshot = z.infer<typeof balanceSnapshotSchema>;
+export type AccountReconciliation = z.infer<typeof accountReconciliationSchema>;
 
 export type CreateTransactionInput = {
   account: string;
@@ -324,6 +347,17 @@ export type CreateDebtPaymentInput = {
   note?: string;
   paid_at: string;
   transaction?: string | null;
+};
+
+export type BalanceSnapshotFilters = {
+  account?: string;
+};
+
+export type CreateBalanceSnapshotInput = {
+  account: string;
+  actual_balance: string;
+  checked_at?: string;
+  note?: string;
 };
 
 export function getApiBaseUrl() {
@@ -748,4 +782,47 @@ export async function createDebtPayment(
     method: "POST"
   });
   return debtPaymentSchema.parse(await response.json());
+}
+
+export async function listBalanceSnapshots(
+  accessToken: string,
+  filters: BalanceSnapshotFilters = {}
+): Promise<BalanceSnapshot[]> {
+  const params = new URLSearchParams();
+
+  if (filters.account) {
+    params.set("account", filters.account);
+  }
+
+  const query = params.toString();
+  const path = query ? `/api/reconciliation/snapshots/?${query}` : "/api/reconciliation/snapshots/";
+  const response = await authenticatedFetch(path, accessToken);
+  return collectionSchema(balanceSnapshotSchema).parse(await response.json());
+}
+
+export async function createBalanceSnapshot(
+  accessToken: string,
+  input: CreateBalanceSnapshotInput
+): Promise<BalanceSnapshot> {
+  const response = await authenticatedFetch("/api/reconciliation/snapshots/", accessToken, {
+    body: JSON.stringify({
+      account: input.account,
+      actual_balance: input.actual_balance,
+      checked_at: input.checked_at,
+      note: input.note || ""
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return balanceSnapshotSchema.parse(await response.json());
+}
+
+export async function getAccountReconciliation(
+  accessToken: string,
+  accountId: string
+): Promise<AccountReconciliation> {
+  const response = await authenticatedFetch(`/api/reconciliation/accounts/${accountId}/`, accessToken);
+  return accountReconciliationSchema.parse(await response.json());
 }

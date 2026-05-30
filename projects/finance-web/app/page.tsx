@@ -40,6 +40,9 @@ export default async function HomePage() {
             <Link className="nav__item" href="/debts">
               Debts
             </Link>
+            <Link className="nav__item" href="/reconciliation">
+              Reconciliation
+            </Link>
           </nav>
         </div>
       </header>

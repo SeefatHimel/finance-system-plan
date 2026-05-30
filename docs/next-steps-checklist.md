@@ -119,7 +119,7 @@ Last updated: 2026-05-31
 ### Phase 4 Follow-up
 
 - [x] Add first web debt/lending dashboard
-- [ ] Add reconciliation web screen
+- [x] Add reconciliation web screen
 - [ ] Add credit card bill tracking
 - [ ] Add recurring bills
 

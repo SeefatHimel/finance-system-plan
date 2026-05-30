@@ -31,6 +31,9 @@ export default function MessageReviewPage() {
             <Link className="nav__item" href="/debts">
               Debts
             </Link>
+            <Link className="nav__item" href="/reconciliation">
+              Reconciliation
+            </Link>
           </nav>
         </div>
       </header>

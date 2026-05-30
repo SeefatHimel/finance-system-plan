@@ -28,6 +28,8 @@ The web app is scaffolded with:
 - Monthly reports page with income, expense, net, category, and account totals
 - Debts page with debt/lend creation, person-wise balances, due tracking, and
   repayment recording
+- Reconciliation page with expected-vs-actual balance checks, snapshot history,
+  status warnings, and likely missing/duplicate money causes
 
 ## Responsibilities
 
@@ -214,4 +216,4 @@ The user can enter the real-life balance for an account. The UI shows:
 7. Monthly report. Done.
 8. Payment methods and sender rules. Done.
 9. Debt/lending dashboard. Done.
-10. Balance reconciliation screen.
+10. Balance reconciliation screen. Done.

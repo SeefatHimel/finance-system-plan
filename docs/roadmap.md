@@ -148,6 +148,7 @@ Web:
 - Debt/lend dashboard. Done for first web screen.
 - Person-wise totals. Done for first web screen.
 - Due/done tracking. Done for first web screen.
+- Balance reconciliation screen. Done for first web screen.
 - Credit card bills view
 
 Mobile:

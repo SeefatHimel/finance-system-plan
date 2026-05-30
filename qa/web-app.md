@@ -19,7 +19,9 @@ local JWT login flow, and a first transactions page for listing and creating
 manual transactions. It also has an accounts page for managing accounts and
 categories, an SMS settings page for managing payment methods and sender rules,
 an SMS review inbox for parsed message candidates, a monthly reports page, and
-a debt/lending dashboard for creating debt records and repayments.
+a debt/lending dashboard for creating debt records and repayments. It also has
+a reconciliation page for expected-vs-actual account balance checks and balance
+snapshot history.
 
 ## Why start with a health-check dashboard?
 
@@ -109,6 +111,14 @@ ledger evidence available.
 The current reports page calls the Django monthly report endpoint and shows
 income, expense, net total, category totals, and account movement for a selected
 month. This is the first web version of the spreadsheet's monthly summary view.
+
+## What does the current reconciliation page do?
+
+The reconciliation page loads accounts, balance snapshots, and per-account
+expected balances from the Django API. The user can select an account, compare
+the expected ledger balance with the latest real-life snapshot, save a new
+actual balance snapshot, and review warning reasons such as missing expenses,
+missing income, or duplicate transactions.
 
 ## What does the transaction table show now?
 
