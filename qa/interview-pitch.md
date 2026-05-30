@@ -56,6 +56,7 @@ recurring-bill, and reconciliation workflows.
 - Rule-based parsing comes before AI for explainability.
 - Reconciliation exists because real-life balances can drift.
 - CSV export keeps a spreadsheet/backup path available while the app matures.
+- The OpenAPI contract can generate shared TypeScript types and a fetch client.
 - Projects are separate to preserve clean ownership.
 - OpenAPI/contracts keep web and mobile aligned.
 
@@ -72,8 +73,8 @@ and report logic in the backend so the system can evolve.
 I would collect real anonymized SMS fixtures for bKash, EBL, City Bank, and
 Pathao Pay, then use them to deepen bank transfer and internal-transfer
 matching. After that I would polish mobile debt, credit-card, recurring-bill,
-and reconciliation screens, harden local sync, add a generated API client, and
-prepare production deployment.
+and reconciliation screens, harden local sync, broaden backup/restore support,
+and prepare production deployment.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 

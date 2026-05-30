@@ -7,13 +7,20 @@ Shared API contract and integration documentation.
 - OpenAPI schema.
 - API examples.
 - Data shape documentation.
-- Generated clients later.
+- Generated TypeScript client and schema types.
 - Contract changelog.
 
 ## Current Files
 
 ```txt
 openapi.yaml
+generated/
+  client.ts
+  types.ts
+scripts/
+  generate_ts_client.py
+requirements.txt
+tsconfig.generated.json
 examples/
   account.create.json
   category.create.json
@@ -37,6 +44,30 @@ examples/
   recurring-bill.payment.create.json
 CHANGELOG.md
 ```
+
+## Generated TypeScript Client
+
+The generated files in `generated/` are produced from `openapi.yaml`:
+
+```bash
+python3 scripts/generate_ts_client.py
+```
+
+The generator uses Python and PyYAML. If PyYAML is not already installed:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+To typecheck the generated client with the web project's TypeScript install:
+
+```bash
+../finance-web/node_modules/.bin/tsc -p tsconfig.generated.json
+```
+
+`generated/types.ts` exports OpenAPI component schema types. `generated/client.ts`
+exports `FinanceApiClient`, a lightweight fetch-based client with typed request
+bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
 
 ## Contract Principles
 

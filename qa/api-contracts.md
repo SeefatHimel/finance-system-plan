@@ -21,8 +21,10 @@ recurring-bill endpoints, so those shapes belong in the shared contract too.
 ## Why generate clients later?
 
 Generated clients reduce repeated request/response typing in web and mobile.
-The project should wait until the API stabilizes enough that generation saves
-time instead of creating churn.
+The project now has a first generated TypeScript client workflow in
+`projects/finance-contracts/generated/`, produced from `openapi.yaml` by
+`scripts/generate_ts_client.py`. Web and mobile still use their local API
+helpers today, but this gives the migration target.
 
 ## How do you avoid breaking clients?
 
@@ -64,6 +66,11 @@ same values when the parser needs user correction.
 Raw message contracts now include `redacted_at` and the `redacted` status so
 clients can show when original SMS text has been removed while parsed evidence
 is retained.
+
+The contracts project now generates `generated/types.ts` and
+`generated/client.ts` from the shared OpenAPI schema. The generated client is a
+small fetch wrapper with typed request bodies, path parameters, query objects,
+JSON responses, and CSV `Blob` downloads.
 
 The backend also exposes generated OpenAPI docs through `drf-spectacular` at
 `/api/schema/` and `/api/docs/`.

@@ -180,6 +180,11 @@ Backend:
 - Backup/restore support
 - AI categorization extension point
 
+Contracts:
+
+- Generated TypeScript API client. Done for the first OpenAPI-generated
+  fetch client and schema types.
+
 Web:
 
 - Trend reports

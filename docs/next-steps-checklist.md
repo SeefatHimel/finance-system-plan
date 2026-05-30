@@ -59,6 +59,7 @@ Last updated: 2026-05-31
 - [x] Payment method and sender rule contract fields added
 - [x] Raw message import and review inbox contract fields/examples added
 - [x] Credit-card bill and recurring-bill contract fields/examples added
+- [x] Generated TypeScript API client and schema types added
 - [x] Contract Q&A updated
 
 ### Phase 2 Kickoff
@@ -131,6 +132,7 @@ Last updated: 2026-05-31
 
 - [x] Add authenticated filtered transaction CSV export endpoint
 - [x] Add web transaction CSV export action
+- [x] Add OpenAPI-generated TypeScript client workflow
 
 ## Verification Matrix
 

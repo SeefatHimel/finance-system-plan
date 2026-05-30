@@ -178,6 +178,9 @@ before retry.
 The backend can export filtered transactions as CSV for spreadsheet backup or
 external review, and the web transactions page exposes that export through the
 active filters.
+The contracts project now generates TypeScript schema types and a lightweight
+fetch client from the OpenAPI file so the web and mobile clients have a shared
+typing migration path.
 
 ## What is not implemented yet?
 
@@ -214,4 +217,5 @@ store policy compliance, monitoring, and deployment automation.
 
 I would collect real anonymized SMS fixtures, deepen provider-specific bank
 transfer parsing, polish the mobile finance workflows, harden local sync, add a
-generated API client, and prepare the Docker/deployment path for production.
+broader backup/restore path, and prepare the Docker/deployment path for
+production.
