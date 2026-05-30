@@ -158,9 +158,10 @@ Django API foundations, JWT auth, account/category/transaction APIs, payment
 method and SMS sender rule management APIs, raw SMS import duplicate detection,
 a parsed SMS review inbox, provider-specific starter SMS parsers, internal
 transfer matching hints, debt and repayment APIs, reconciliation APIs, a monthly
-report endpoint, a Next.js dashboard workflow, web SMS review UI, and an Expo
-Android-oriented mobile scaffold with local raw-message queueing and SMS review
-including source/destination transfer account selection.
+report endpoint, a Next.js dashboard workflow, web SMS review UI, a web
+debt/lending dashboard, and an Expo Android-oriented mobile scaffold with local
+raw-message queueing and SMS review including source/destination transfer
+account selection.
 Confirmed SMS transactions preserve normalized ledger evidence such as
 debit/credit direction, reference or TrxID, balance after, counterparty text,
 payment method, raw message link, and duplicate key. Raw SMS bodies can now be
@@ -171,9 +172,9 @@ redacted after parsing while keeping duplicate hashes and parsed ledger fields.
 Real anonymized SMS fixture collection for bKash, EBL, City Bank, and Pathao
 Pay; deeper provider-specific parser coverage for bank transfers, card
 payments, fees, refunds, and reversals; web/mobile UI polish for debt and
-reconciliation workflows; native Android SMS capture implementation;
-production-grade local sync hardening; and production deployment setup are still
-planned future work.
+reconciliation workflows beyond the first web debt screen; native Android SMS
+capture implementation; production-grade local sync hardening; and production
+deployment setup are still planned future work.
 
 ## What is the biggest technical risk?
 
@@ -199,5 +200,5 @@ store policy compliance, monitoring, and deployment automation.
 ## What would you improve with more time?
 
 I would collect real anonymized SMS fixtures, deepen provider-specific parsing,
-build fuller web/mobile debt and reconciliation screens, harden local sync, add
-a generated API client, and prepare the Docker/deployment path for production.
+build fuller reconciliation and mobile debt screens, harden local sync, add a
+generated API client, and prepare the Docker/deployment path for production.

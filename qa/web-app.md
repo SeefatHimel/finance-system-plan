@@ -18,7 +18,8 @@ global styles, a dashboard shell, a server-rendered backend health check, a
 local JWT login flow, and a first transactions page for listing and creating
 manual transactions. It also has an accounts page for managing accounts and
 categories, an SMS settings page for managing payment methods and sender rules,
-an SMS review inbox for parsed message candidates, plus a monthly reports page.
+an SMS review inbox for parsed message candidates, a monthly reports page, and
+a debt/lending dashboard for creating debt records and repayments.
 
 ## Why start with a health-check dashboard?
 

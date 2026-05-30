@@ -15,8 +15,8 @@ Last updated: 2026-05-31
   debit/credit direction, provider reference, balance after, counterparty text,
   payment method, raw SMS link, and duplicate key.
 - Next milestone is validating the workflow with real anonymized SMS fixtures,
-  polishing debt/reconciliation UI, hardening mobile sync, and preparing
-  production deployment.
+  polishing reconciliation UI, hardening mobile sync, and preparing production
+  deployment.
 
 ## Done (Checked)
 
@@ -116,6 +116,13 @@ Last updated: 2026-05-31
 - [x] Add parser confidence/duplicate reason display in review inbox
 - [x] Add raw SMS deletion/redaction workflow
 
+### Phase 4 Follow-up
+
+- [x] Add first web debt/lending dashboard
+- [ ] Add reconciliation web screen
+- [ ] Add credit card bill tracking
+- [ ] Add recurring bills
+
 ## Verification Matrix
 
 - [x] Backend tests:
@@ -167,3 +174,4 @@ Last updated: 2026-05-31
 - `mobile: add sms transfer review controls`
 - `web: surface sms review confidence reasons`
 - `api: add raw sms redaction workflow`
+- `web: add debt and lending dashboard`

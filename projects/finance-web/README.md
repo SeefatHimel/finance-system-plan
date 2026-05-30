@@ -26,6 +26,8 @@ The web app is scaffolded with:
 - Transaction table displays debit/credit direction, balance after, provider
   reference, and sent-to/received-from text when available
 - Monthly reports page with income, expense, net, category, and account totals
+- Debts page with debt/lend creation, person-wise balances, due tracking, and
+  repayment recording
 
 ## Responsibilities
 
@@ -211,4 +213,5 @@ The user can enter the real-life balance for an account. The UI shows:
 6. Transaction table and form. Done.
 7. Monthly report. Done.
 8. Payment methods and sender rules. Done.
-9. Balance reconciliation screen.
+9. Debt/lending dashboard. Done.
+10. Balance reconciliation screen.

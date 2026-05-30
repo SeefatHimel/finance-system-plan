@@ -28,6 +28,9 @@ export default function ReportsPage() {
               SMS review
             </Link>
             <span className="nav__item nav__item--active">Reports</span>
+            <Link className="nav__item" href="/debts">
+              Debts
+            </Link>
           </nav>
         </div>
       </header>

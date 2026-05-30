@@ -145,9 +145,9 @@ Backend:
 
 Web:
 
-- Debt/lend dashboard
-- Person-wise totals
-- Due/done tracking
+- Debt/lend dashboard. Done for first web screen.
+- Person-wise totals. Done for first web screen.
+- Due/done tracking. Done for first web screen.
 - Credit card bills view
 
 Mobile:

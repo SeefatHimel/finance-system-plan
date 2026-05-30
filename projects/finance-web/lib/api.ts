@@ -132,6 +132,32 @@ const monthlyReportSchema = z.object({
   net_total: z.string()
 });
 
+const debtSchema = z.object({
+  counterparty_name: z.string(),
+  created_at: z.string(),
+  current_balance: z.string(),
+  direction: z.string(),
+  due_date: z.string().nullable(),
+  id: z.string(),
+  note: z.string(),
+  opened_at: z.string(),
+  opened_transaction: z.string().nullable(),
+  principal_amount: z.string(),
+  status: z.string(),
+  updated_at: z.string()
+});
+
+const debtPaymentSchema = z.object({
+  amount: z.string(),
+  created_at: z.string(),
+  debt: z.string(),
+  id: z.string(),
+  note: z.string(),
+  paid_at: z.string(),
+  transaction: z.string().nullable(),
+  updated_at: z.string()
+});
+
 const paginatedSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
   z.object({
     count: z.number(),
@@ -165,6 +191,8 @@ export type ParsedMessageCandidate = z.infer<typeof parsedMessageCandidateSchema
 export type RawMessage = z.infer<typeof rawMessageSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
 export type MonthlyReport = z.infer<typeof monthlyReportSchema>;
+export type Debt = z.infer<typeof debtSchema>;
+export type DebtPayment = z.infer<typeof debtPaymentSchema>;
 
 export type CreateTransactionInput = {
   account: string;
@@ -279,6 +307,23 @@ export type UpdateTransactionInput = {
   reference?: string;
   transfer_account?: string | null;
   type?: string;
+};
+
+export type CreateDebtInput = {
+  counterparty_name: string;
+  direction: string;
+  due_date?: string | null;
+  note?: string;
+  opened_at: string;
+  opened_transaction?: string | null;
+  principal_amount: string;
+};
+
+export type CreateDebtPaymentInput = {
+  amount: string;
+  note?: string;
+  paid_at: string;
+  transaction?: string | null;
 };
 
 export function getApiBaseUrl() {
@@ -659,4 +704,48 @@ export async function getMonthlyReport(
   const params = new URLSearchParams({ month });
   const response = await authenticatedFetch(`/api/reports/monthly/?${params}`, accessToken);
   return monthlyReportSchema.parse(await response.json());
+}
+
+export async function listDebts(accessToken: string): Promise<Debt[]> {
+  const response = await authenticatedFetch("/api/debts/", accessToken);
+  return collectionSchema(debtSchema).parse(await response.json());
+}
+
+export async function createDebt(accessToken: string, input: CreateDebtInput): Promise<Debt> {
+  const response = await authenticatedFetch("/api/debts/", accessToken, {
+    body: JSON.stringify({
+      counterparty_name: input.counterparty_name,
+      direction: input.direction,
+      due_date: input.due_date || null,
+      note: input.note || "",
+      opened_at: input.opened_at,
+      opened_transaction: input.opened_transaction || null,
+      principal_amount: input.principal_amount
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return debtSchema.parse(await response.json());
+}
+
+export async function createDebtPayment(
+  accessToken: string,
+  debtId: string,
+  input: CreateDebtPaymentInput
+): Promise<DebtPayment> {
+  const response = await authenticatedFetch(`/api/debts/${debtId}/payments/`, accessToken, {
+    body: JSON.stringify({
+      amount: input.amount,
+      note: input.note || "",
+      paid_at: input.paid_at,
+      transaction: input.transaction || null
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return debtPaymentSchema.parse(await response.json());
 }
