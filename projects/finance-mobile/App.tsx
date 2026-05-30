@@ -59,14 +59,90 @@ type ReviewCandidateDraft = {
   transactionType: string;
 };
 type QueuedRawMessage = {
+  attempts: number;
   body: string;
+  createdAt: string;
   deviceMessageId: string;
   id: string;
+  lastAttemptAt: string;
+  lastError: string;
   receivedAt: string;
   sender: string;
 };
 
 const rawMessageQueueKey = "finance.rawMessageQueue";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function rawMessageDedupeKey(input: Pick<QueuedRawMessage, "body" | "deviceMessageId" | "receivedAt" | "sender">) {
+  const sender = input.sender.trim().toLowerCase();
+  const receivedAt = input.receivedAt.trim();
+  const deviceMessageId = input.deviceMessageId.trim();
+  const body = input.body.trim();
+
+  return deviceMessageId
+    ? `device:${sender}:${deviceMessageId}`
+    : `body:${sender}:${receivedAt}:${body}`;
+}
+
+function normalizeRawQueue(storedQueue: string | null): QueuedRawMessage[] {
+  if (!storedQueue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(storedQueue) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    const nextQueue: QueuedRawMessage[] = [];
+    const seenKeys = new Set<string>();
+
+    for (const item of parsed) {
+      if (!isRecord(item)) {
+        continue;
+      }
+
+      const queuedMessage: QueuedRawMessage = {
+        attempts: numberValue(item.attempts),
+        body: stringValue(item.body),
+        createdAt: stringValue(item.createdAt) || stringValue(item.receivedAt) || new Date().toISOString(),
+        deviceMessageId: stringValue(item.deviceMessageId),
+        id: stringValue(item.id) || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        lastAttemptAt: stringValue(item.lastAttemptAt),
+        lastError: stringValue(item.lastError),
+        receivedAt: stringValue(item.receivedAt),
+        sender: stringValue(item.sender)
+      };
+
+      if (!queuedMessage.sender || !queuedMessage.body || !queuedMessage.receivedAt) {
+        continue;
+      }
+
+      const dedupeKey = rawMessageDedupeKey(queuedMessage);
+      if (seenKeys.has(dedupeKey)) {
+        continue;
+      }
+      seenKeys.add(dedupeKey);
+      nextQueue.push(queuedMessage);
+    }
+
+    return nextQueue;
+  } catch {
+    return [];
+  }
+}
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -752,12 +828,29 @@ export default function App() {
       return;
     }
 
-    const queuedMessage: QueuedRawMessage = {
+    const queuedInput = {
       body: rawBody.trim(),
       deviceMessageId: rawDeviceMessageId.trim(),
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       receivedAt: rawReceivedAt.trim(),
       sender: rawSender.trim()
+    };
+
+    if (rawQueue.some((queuedMessage) => rawMessageDedupeKey(queuedMessage) === rawMessageDedupeKey(queuedInput))) {
+      setRawQueueState("error");
+      setRawQueueMessage("This raw message is already queued locally.");
+      return;
+    }
+
+    const queuedMessage: QueuedRawMessage = {
+      attempts: 0,
+      body: queuedInput.body,
+      createdAt: new Date().toISOString(),
+      deviceMessageId: queuedInput.deviceMessageId,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      lastAttemptAt: "",
+      lastError: "",
+      receivedAt: queuedInput.receivedAt,
+      sender: queuedInput.sender
     };
 
     try {
@@ -792,16 +885,26 @@ export default function App() {
     let syncedCount = 0;
 
     for (const queuedMessage of rawQueue) {
+      const attemptedMessage: QueuedRawMessage = {
+        ...queuedMessage,
+        attempts: queuedMessage.attempts + 1,
+        lastAttemptAt: new Date().toISOString(),
+        lastError: ""
+      };
+
       try {
         await importRawMessage(accessToken.trim(), {
-          body: queuedMessage.body,
-          device_message_id: queuedMessage.deviceMessageId,
-          received_at: queuedMessage.receivedAt,
-          sender: queuedMessage.sender
+          body: attemptedMessage.body,
+          device_message_id: attemptedMessage.deviceMessageId,
+          received_at: attemptedMessage.receivedAt,
+          sender: attemptedMessage.sender
         });
         syncedCount += 1;
-      } catch {
-        remainingQueue.push(queuedMessage);
+      } catch (error) {
+        remainingQueue.push({
+          ...attemptedMessage,
+          lastError: error instanceof Error ? error.message : "Unknown sync error."
+        });
       }
     }
 
@@ -814,6 +917,17 @@ export default function App() {
     } catch (error) {
       setRawQueueState("error");
       setRawQueueMessage(error instanceof Error ? error.message : "Could not update local queue.");
+    }
+  };
+
+  const handleRemoveQueuedMessage = async (queuedMessageId: string) => {
+    try {
+      await saveRawQueue(rawQueue.filter((queuedMessage) => queuedMessage.id !== queuedMessageId));
+      setRawQueueState("ok");
+      setRawQueueMessage("Queued message removed.");
+    } catch (error) {
+      setRawQueueState("error");
+      setRawQueueMessage(error instanceof Error ? error.message : "Could not remove queued message.");
     }
   };
 
@@ -925,9 +1039,7 @@ export default function App() {
     void loadHealth();
     AsyncStorage.getItem(rawMessageQueueKey)
       .then((storedQueue) => {
-        if (storedQueue) {
-          setRawQueue(JSON.parse(storedQueue) as QueuedRawMessage[]);
-        }
+        setRawQueue(normalizeRawQueue(storedQueue));
       })
       .catch(() => {
         setRawQueueState("error");
@@ -1725,9 +1837,19 @@ export default function App() {
           <View style={styles.listSection}>
             <Text style={styles.listTitle}>Queued Messages ({rawQueue.length})</Text>
             {rawQueue.map((queuedMessage) => (
-              <Text key={queuedMessage.id} style={styles.listItem}>
-                {queuedMessage.sender} | {queuedMessage.receivedAt} | {queuedMessage.body}
-              </Text>
+              <View key={queuedMessage.id} style={styles.queueItem}>
+                <Text style={styles.listItem}>
+                  {queuedMessage.sender} | {queuedMessage.receivedAt} | attempts {queuedMessage.attempts}
+                </Text>
+                <Text style={styles.meta}>{queuedMessage.body}</Text>
+                {queuedMessage.lastAttemptAt ? (
+                  <Text style={styles.meta}>Last sync attempt: {queuedMessage.lastAttemptAt}</Text>
+                ) : null}
+                {queuedMessage.lastError ? <Text style={styles.errorText}>{queuedMessage.lastError}</Text> : null}
+                <Pressable onPress={() => void handleRemoveQueuedMessage(queuedMessage.id)} style={styles.buttonDanger}>
+                  <Text style={styles.buttonText}>Remove From Queue</Text>
+                </Pressable>
+              </View>
             ))}
           </View>
         </View>
@@ -1990,6 +2112,15 @@ const styles = StyleSheet.create({
     fontWeight: "600"
   },
   permissionBox: {
+    backgroundColor: "#f8fafc",
+    borderColor: "#cbd5e1",
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 6,
+    marginTop: 8,
+    padding: 12
+  },
+  queueItem: {
     backgroundColor: "#f8fafc",
     borderColor: "#cbd5e1",
     borderRadius: 10,

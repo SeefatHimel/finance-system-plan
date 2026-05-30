@@ -77,7 +77,8 @@ Mobile:
 - UI to select tracked SMS sender numbers. Done.
 - Android permission/module decision. Done.
 - Local raw message storage. Done.
-- Sync raw messages to backend. Done.
+- Sync raw messages to backend. Done with retry metadata, local duplicate
+  checks, and removal controls for invalid queued messages.
 
 Exit criteria:
 
@@ -188,7 +189,8 @@ Web:
 
 Mobile:
 
-- Better offline sync
+- Better offline sync. Started with raw SMS queue retry metadata, local
+  duplicate checks, per-message failure context, and manual queue removal.
 - Push notifications or local alerts
 
 Exit criteria:

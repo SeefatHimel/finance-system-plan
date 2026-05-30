@@ -116,6 +116,7 @@ Last updated: 2026-05-31
 - [x] Add parser confidence/duplicate reason display in review inbox
 - [x] Add raw SMS deletion/redaction workflow
 - [x] Add bank/card parser coverage for card payments, fees, refunds, and reversals
+- [x] Harden mobile raw SMS queue with retry metadata, local duplicate checks, and removal controls
 
 ### Phase 4 Follow-up
 

@@ -172,6 +172,9 @@ Confirmed SMS transactions preserve normalized ledger evidence such as
 debit/credit direction, reference or TrxID, balance after, counterparty text,
 payment method, raw message link, and duplicate key. Raw SMS bodies can now be
 redacted after parsing while keeping duplicate hashes and parsed ledger fields.
+The mobile raw-message queue also records sync attempts and failure reasons,
+blocks obvious local duplicates, and lets invalid queued messages be removed
+before retry.
 
 ## What is not implemented yet?
 
@@ -179,8 +182,8 @@ Real anonymized SMS fixture collection for bKash, EBL, City Bank, and Pathao
 Pay; deeper provider-specific parser coverage for bank account transfers and
 additional real-world provider variants; mobile UI polish for debt,
 credit-card, recurring-bill, and reconciliation workflows; native Android SMS
-capture implementation; production-grade local sync hardening; and production
-deployment setup are still planned future work.
+capture implementation; deeper production-grade local sync hardening; and
+production deployment setup are still planned future work.
 
 ## What is the biggest technical risk?
 

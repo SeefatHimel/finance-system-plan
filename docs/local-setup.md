@@ -259,7 +259,10 @@ POST /api/messages/review/{id}/ignore/
 ```
 
 The SMS tracking section can queue raw messages locally on the device and sync
-them to `POST /api/messages/import/` when an access token is available.
+them to `POST /api/messages/import/` when an access token is available. Failed
+sync attempts stay queued with attempt count, last attempt time, and the latest
+error message. The local queue also blocks obvious duplicate entries and lets
+you remove invalid queued messages before retrying.
 
 Use a Django user created from the backend project:
 

@@ -67,7 +67,8 @@ bare React Native when real automatic SMS capture is ready to be implemented.
   shows a permission gate placeholder, and lets the user locally enable trusted
   sender rules for future import.
 - Local raw message queue backed by AsyncStorage, with sync to
-  `POST /api/messages/import/` and retry behavior for failed submissions.
+  `POST /api/messages/import/`, local duplicate checks, per-message retry
+  metadata, and manual removal for invalid queued messages.
 
 The login/token flow is still a local testing scaffold. Production mobile auth
 should store refresh tokens in OS-backed secure storage, as documented in
@@ -148,8 +149,11 @@ sync status, and recent transactions. Sensitive data should be minimized and
 protected where possible.
 
 Current implementation status: raw SMS messages can be queued locally with
-sender, body, received time, and optional device message ID. Successful syncs
-are removed from the queue; failed syncs remain queued for retry.
+sender, body, received time, optional device message ID, attempt count, last
+attempt time, and latest sync error. Successful syncs are removed from the
+queue; failed syncs remain queued for retry. Obvious duplicate queued messages
+are blocked locally before backend sync, and invalid queued items can be
+removed manually.
 
 ## How will conflicts be handled?
 
@@ -195,6 +199,8 @@ The app can avoid sending the same device message repeatedly, but the backend
 should still perform duplicate detection using message hashes, timestamps,
 sender, body, and provider reference numbers.
 
-The current local queue removes messages after the backend accepts them. The
-backend still handles duplicate detection if the same raw message is submitted
-again.
+The current local queue blocks obvious duplicates using device message ID when
+available, or sender/body/received time as a fallback. It removes messages
+after the backend accepts them and keeps failed messages queued with retry
+metadata. The backend still handles duplicate detection if the same raw message
+is submitted again.

@@ -27,6 +27,9 @@ Phase 1 scaffold now includes:
   - stores queued raw messages with AsyncStorage
   - syncs queued messages to `POST /api/messages/import/`
   - keeps failed sync items queued for retry
+  - records attempt count, last attempt time, and last error per queued message
+  - blocks obvious local duplicate queue entries before backend sync
+  - lets the user remove invalid queued messages manually
 - SMS review inbox:
   - loads parsed candidates from `GET /api/messages/review/`
   - shows parser hints, raw SMS evidence, and internal-transfer flags
@@ -168,7 +171,8 @@ Settings
 
 - Manual transactions can be saved offline.
 - Raw SMS messages can be queued offline.
-- Sync retries when network is available.
+- Sync retries when network is available and keeps per-message failure context.
+- Obvious local duplicate raw messages are blocked before sync.
 - Conflicts are resolved by backend timestamps and ids.
 
 ## Phase 1 Mobile Milestones
@@ -188,7 +192,8 @@ Settings
 2. Sender number management scaffold. Done.
 3. Native Android SMS module decision. Done.
 4. Local raw message cache. Done.
-5. Raw message sync. Done.
+5. Raw message sync. Done with retry metadata, local duplicate checks, and
+   manual removal for invalid queued messages.
 6. Review inbox. Done.
 7. Source/destination transfer controls. Done.
 
