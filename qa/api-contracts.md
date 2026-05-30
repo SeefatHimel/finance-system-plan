@@ -43,6 +43,7 @@ covering current phase-1 backend endpoints:
 - Parsed SMS review candidate list, confirm, ignore, and raw SMS redaction endpoints
 - Transactions CRUD and list filters
 - Debt CRUD and repayment endpoint
+- Credit card bill CRUD and payment endpoint
 - Monthly report
 - Balance snapshot and account reconciliation endpoints
 

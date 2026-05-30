@@ -31,6 +31,9 @@ export default function TransactionsPage() {
             <Link className="nav__item" href="/debts">
               Debts
             </Link>
+            <Link className="nav__item" href="/credit-cards">
+              Credit cards
+            </Link>
             <Link className="nav__item" href="/reconciliation">
               Reconciliation
             </Link>

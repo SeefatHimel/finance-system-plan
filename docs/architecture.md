@@ -31,6 +31,7 @@ The backend owns:
 - Duplicate detection
 - Reports and summaries
 - Debt and repayment tracking
+- Credit card bill tracking
 - Balance reconciliation
 
 ### finance-web
@@ -146,4 +147,3 @@ finance-system/
 
 Run locally with Docker for PostgreSQL and native dev servers for backend, web,
 and mobile.
-

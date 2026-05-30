@@ -28,6 +28,8 @@ The web app is scaffolded with:
 - Monthly reports page with income, expense, net, category, and account totals
 - Debts page with debt/lend creation, person-wise balances, due tracking, and
   repayment recording
+- Credit card bills page with statement balances, due dates, minimum dues,
+  open/overdue totals, and payment recording
 - Reconciliation page with expected-vs-actual balance checks, snapshot history,
   status warnings, and likely missing/duplicate money causes
 
@@ -41,6 +43,7 @@ The web app is scaffolded with:
 - Monthly reports
 - SMS review inbox
 - Debt and lend management
+- Credit card bill management
 - Reconciliation workflow
 
 ## Suggested Stack
@@ -166,6 +169,7 @@ npm run lint
 /sms-settings
 /messages/review
 /debts
+/credit-cards
 /reports/monthly
 /reconciliation
 /settings
@@ -217,3 +221,4 @@ The user can enter the real-life balance for an account. The UI shows:
 8. Payment methods and sender rules. Done.
 9. Debt/lending dashboard. Done.
 10. Balance reconciliation screen. Done.
+11. Credit card bill tracking. Done.

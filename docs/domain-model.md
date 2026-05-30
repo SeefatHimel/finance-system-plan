@@ -200,6 +200,25 @@ Important fields:
 - linked_transaction
 - note
 
+## Credit Card Bill
+
+Tracks statement liability separately from cash movement. Card purchases can
+increase a credit-card account balance immediately, while bill payment is a
+separate cash transfer when money actually leaves a bank or wallet.
+
+Important fields:
+
+- account: credit_card account
+- statement_balance
+- minimum_due
+- paid_amount
+- remaining_balance
+- statement_date
+- due_date
+- status: unpaid, partially_paid, paid, waived
+- linked_statement_transaction, optional
+- note
+
 ## Balance Snapshot
 
 Manual real-life check of an account balance.

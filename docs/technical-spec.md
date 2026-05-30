@@ -339,6 +339,49 @@ created_at
 updated_at
 ```
 
+### credit_cards_creditcardbill
+
+```txt
+id
+user_id
+account_id
+statement_transaction_id
+statement_balance
+minimum_due
+paid_amount
+remaining_balance
+statement_date
+due_date
+status
+reference
+note
+created_at
+updated_at
+```
+
+Allowed `status` values:
+
+```txt
+unpaid
+partially_paid
+paid
+waived
+```
+
+### credit_cards_creditcardpayment
+
+```txt
+id
+user_id
+bill_id
+transaction_id
+amount
+paid_at
+note
+created_at
+updated_at
+```
+
 ### reconciliation_balancesnapshot
 
 ```txt

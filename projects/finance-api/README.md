@@ -19,6 +19,7 @@ The API project is scaffolded with:
 - Parsed SMS review inbox with confirm/ignore actions
 - Basic monthly report endpoint
 - Debt and repayment workflow endpoints
+- Credit card bill and payment workflow endpoints
 - Balance snapshot and reconciliation endpoints
 - JWT login, refresh, and current-user endpoints
 
@@ -33,6 +34,7 @@ The API project is scaffolded with:
 - Rule-based parsing
 - Duplicate detection
 - Debt and repayment tracking
+- Credit card bill tracking
 - Balance snapshots and reconciliation
 - Reports for web and mobile
 
@@ -117,7 +119,7 @@ The API service runs migrations on startup and then serves on port `8000`.
 ## Verification
 
 ```bash
-python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts
+python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards
 ```
 
 ## Django Apps
@@ -131,6 +133,7 @@ transactions/
 payment_methods/
 messages/
 debts/
+credit_cards/
 reports/
 reconciliation/
 ```
@@ -146,6 +149,7 @@ reconciliation/
 /api/messages/
 /api/messages/sender-rules/
 /api/debts/
+/api/credit-card-bills/
 /api/reports/
 /api/reconciliation/
 ```
@@ -199,6 +203,13 @@ GET    /api/debts/{id}/
 PATCH  /api/debts/{id}/
 DELETE /api/debts/{id}/
 POST   /api/debts/{id}/payments/
+
+GET    /api/credit-card-bills/
+POST   /api/credit-card-bills/
+GET    /api/credit-card-bills/{id}/
+PATCH  /api/credit-card-bills/{id}/
+DELETE /api/credit-card-bills/{id}/
+POST   /api/credit-card-bills/{id}/payments/
 
 GET    /api/reports/monthly/?month=YYYY-MM
 GET    /api/reconciliation/snapshots/

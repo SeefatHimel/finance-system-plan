@@ -1,15 +1,15 @@
 import Link from "next/link";
 
-import { ReportWorkspace } from "@/components/report-workspace";
+import { CreditCardWorkspace } from "@/components/credit-card-workspace";
 
-export default function ReportsPage() {
+export default function CreditCardsPage() {
   return (
     <div className="page-shell">
       <header className="app-header">
         <div className="app-header__inner">
           <div className="brand">
             <span className="brand__name">Finance System</span>
-            <span className="brand__meta">Monthly reports</span>
+            <span className="brand__meta">Credit card bill workflow</span>
           </div>
           <nav className="nav" aria-label="Primary navigation">
             <Link className="nav__item" href="/">
@@ -27,13 +27,13 @@ export default function ReportsPage() {
             <Link className="nav__item" href="/messages/review">
               SMS review
             </Link>
-            <span className="nav__item nav__item--active">Reports</span>
+            <Link className="nav__item" href="/reports">
+              Reports
+            </Link>
             <Link className="nav__item" href="/debts">
               Debts
             </Link>
-            <Link className="nav__item" href="/credit-cards">
-              Credit cards
-            </Link>
+            <span className="nav__item nav__item--active">Credit cards</span>
             <Link className="nav__item" href="/reconciliation">
               Reconciliation
             </Link>
@@ -42,7 +42,7 @@ export default function ReportsPage() {
       </header>
 
       <main className="main">
-        <ReportWorkspace />
+        <CreditCardWorkspace />
       </main>
     </div>
   );

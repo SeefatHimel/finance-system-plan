@@ -33,6 +33,9 @@ export default function ReconciliationPage() {
             <Link className="nav__item" href="/debts">
               Debts
             </Link>
+            <Link className="nav__item" href="/credit-cards">
+              Credit cards
+            </Link>
             <span className="nav__item nav__item--active">Reconciliation</span>
           </nav>
         </div>

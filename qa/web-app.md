@@ -3,7 +3,8 @@
 ## What is the web app responsible for?
 
 The web app is the command center for managing transactions, accounts,
-categories, reports, SMS review, debts, payment methods, and reconciliation.
+categories, reports, SMS review, debts, credit cards, payment methods, and
+reconciliation.
 
 ## Why Next.js App Router?
 
@@ -19,9 +20,10 @@ local JWT login flow, and a first transactions page for listing and creating
 manual transactions. It also has an accounts page for managing accounts and
 categories, an SMS settings page for managing payment methods and sender rules,
 an SMS review inbox for parsed message candidates, a monthly reports page, and
-a debt/lending dashboard for creating debt records and repayments. It also has
-a reconciliation page for expected-vs-actual account balance checks and balance
-snapshot history.
+a debt/lending dashboard for creating debt records and repayments, and a credit
+card bills page for statement balances, due dates, minimum dues, and payments.
+It also has a reconciliation page for expected-vs-actual account balance checks
+and balance snapshot history.
 
 ## Why start with a health-check dashboard?
 
@@ -57,6 +59,7 @@ Planned screens:
 - SMS Review
 - Monthly Reports
 - Debts
+- Credit Cards
 - Reconciliation
 - Settings
 
@@ -119,6 +122,13 @@ expected balances from the Django API. The user can select an account, compare
 the expected ledger balance with the latest real-life snapshot, save a new
 actual balance snapshot, and review warning reasons such as missing expenses,
 missing income, or duplicate transactions.
+
+## What does the current credit cards page do?
+
+The credit cards page loads credit-card accounts and bill records from the API.
+The user can create statement bills, track statement balance, minimum due,
+remaining balance, due status, and record payments against open bills. Payments
+reduce the remaining bill balance and move bills to partially paid or paid.
 
 ## What does the transaction table show now?
 

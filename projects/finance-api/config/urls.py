@@ -7,6 +7,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.accounts.views import AccountViewSet
 from apps.categories.views import CategoryViewSet
+from apps.credit_cards.views import CreditCardBillViewSet, CreditCardPaymentCreateView
 from apps.debts.views import DebtPaymentCreateView, DebtViewSet
 from apps.messages.views import (
     MessageCandidateConfirmView,
@@ -24,6 +25,7 @@ from apps.transactions.views import TransactionViewSet
 router = DefaultRouter()
 router.register("accounts", AccountViewSet, basename="account")
 router.register("categories", CategoryViewSet, basename="category")
+router.register("credit-card-bills", CreditCardBillViewSet, basename="credit-card-bill")
 router.register("debts", DebtViewSet, basename="debt")
 router.register("payment-methods", PaymentMethodViewSet, basename="payment-method")
 router.register("reconciliation/snapshots", BalanceSnapshotViewSet, basename="balance-snapshot")
@@ -58,6 +60,11 @@ urlpatterns = [
         "api/reconciliation/accounts/<uuid:account_id>/",
         AccountReconciliationView.as_view(),
         name="account-reconciliation",
+    ),
+    path(
+        "api/credit-card-bills/<uuid:bill_id>/payments/",
+        CreditCardPaymentCreateView.as_view(),
+        name="credit-card-payment-create",
     ),
     path("api/debts/<uuid:debt_id>/payments/", DebtPaymentCreateView.as_view(), name="debt-payment-create"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

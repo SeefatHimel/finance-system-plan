@@ -31,6 +31,9 @@ export default function DebtsPage() {
               Reports
             </Link>
             <span className="nav__item nav__item--active">Debts</span>
+            <Link className="nav__item" href="/credit-cards">
+              Credit cards
+            </Link>
             <Link className="nav__item" href="/reconciliation">
               Reconciliation
             </Link>

@@ -148,8 +148,9 @@ mode, and money-in/money-out mode.
 ## How does this map to the original spreadsheet?
 
 The spreadsheet had daily rows, categories, account sections, monthly summaries,
-and debt/lend sections. The system maps those into normalized database entities:
-transactions, categories, accounts, reports, debts, and balance snapshots.
+debt/lend sections, and credit card bill checks. The system maps those into
+normalized database entities: transactions, categories, accounts, reports,
+debts, credit card bills, and balance snapshots.
 
 ## What is implemented right now?
 
@@ -157,9 +158,10 @@ The repository currently has planning docs, local PostgreSQL infrastructure,
 Django API foundations, JWT auth, account/category/transaction APIs, payment
 method and SMS sender rule management APIs, raw SMS import duplicate detection,
 a parsed SMS review inbox, provider-specific starter SMS parsers, internal
-transfer matching hints, debt and repayment APIs, reconciliation APIs, a monthly
-report endpoint, a Next.js dashboard workflow, web SMS review UI, a web
-debt/lending dashboard, and an Expo Android-oriented mobile scaffold with local
+transfer matching hints, debt and repayment APIs, credit card bill APIs,
+reconciliation APIs, a monthly report endpoint, a Next.js dashboard workflow,
+web SMS review UI, web debt/lending and credit-card bill dashboards, and an
+Expo Android-oriented mobile scaffold with local
 raw-message queueing and SMS review including source/destination transfer
 account selection. The web app also exposes balance reconciliation so expected
 ledger balances can be compared with real account snapshots.
@@ -173,8 +175,8 @@ redacted after parsing while keeping duplicate hashes and parsed ledger fields.
 Real anonymized SMS fixture collection for bKash, EBL, City Bank, and Pathao
 Pay; deeper provider-specific parser coverage for bank transfers, card
 payments, fees, refunds, and reversals; mobile UI polish for debt and
-reconciliation workflows; native Android SMS
-capture implementation; production-grade local sync hardening; and production
+credit-card and reconciliation workflows; native Android SMS capture
+implementation; production-grade local sync hardening; and production
 deployment setup are still planned future work.
 
 ## What is the biggest technical risk?
@@ -201,5 +203,6 @@ store policy compliance, monitoring, and deployment automation.
 ## What would you improve with more time?
 
 I would collect real anonymized SMS fixtures, deepen provider-specific parsing,
-build mobile debt and reconciliation screens, harden local sync, add a generated
-API client, and prepare the Docker/deployment path for production.
+build mobile debt, credit-card, and reconciliation screens, harden local sync,
+add a generated API client, and prepare the Docker/deployment path for
+production.

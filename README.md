@@ -124,15 +124,15 @@ mindmap
   PostgreSQL, API, web, and optional mobile runtime.
 - Django API is implemented in `projects/finance-api` with health, auth,
   accounts, categories, payment methods, messages, transactions, reports,
-  debts, and reconciliation modules.
+  debts, credit cards, and reconciliation modules.
 - The manual finance API loop covers accounts, categories, transactions,
-  monthly reports, debts, repayments, and balance snapshots.
+  monthly reports, debts, repayments, credit card bills, and balance snapshots.
 - Phase 2 kickoff is complete across API, contracts, web, and mobile scaffolds:
   payment methods, sender rules, raw SMS import, duplicate detection, parsed
   review candidates, and local mobile raw-message queue.
 - Phase 3 backend foundations are in place for starter provider parsers,
-  internal-transfer hints, debt/repayment workflows, reconciliation snapshots,
-  and production auth/token planning.
+  internal-transfer hints, debt/repayment workflows, credit card bills,
+  reconciliation snapshots, and production auth/token planning.
 - JWT authentication is available for web and mobile clients.
 - The Next.js web app can display backend health.
 - The web app has a local-development login flow for JWT auth.
@@ -141,6 +141,7 @@ mindmap
 - The web app can manage payment methods and SMS sender rules.
 - The web app can review parsed SMS candidates and confirm or ignore them.
 - The web app has a first monthly reports page.
+- The web app has debt/lending, credit-card bill, and reconciliation screens.
 - The web transaction list supports month, type, account, and category filters.
 - The mobile app has an SMS tracking settings scaffold for permission gating
   and sender rule selection.
@@ -155,6 +156,7 @@ mindmap
 
 Phase 3 should now focus on validating the workflow with real anonymized SMS
 fixtures, deepening bKash/EBL/City Bank/Pathao Pay parser coverage, polishing
-debt and reconciliation UI, hardening mobile sync, and preparing production
-deployment. The next SMS parser pass should fill the richer final transaction
-fields rather than leaving important finance evidence only in raw SMS text.
+mobile debt, credit-card, and reconciliation UI, hardening mobile sync, and
+preparing production deployment. The next SMS parser pass should fill the richer
+final transaction fields rather than leaving important finance evidence only in
+raw SMS text.

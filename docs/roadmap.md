@@ -140,7 +140,7 @@ Backend:
 - Counterparties
 - Debt records. Done.
 - Debt payments. Done.
-- Credit card bill tracking
+- Credit card bill tracking. Done for first API and web screen.
 - Recurring bills
 
 Web:
@@ -149,7 +149,7 @@ Web:
 - Person-wise totals. Done for first web screen.
 - Due/done tracking. Done for first web screen.
 - Balance reconciliation screen. Done for first web screen.
-- Credit card bills view
+- Credit card bills view. Done for first web screen.
 
 Mobile:
 

@@ -158,6 +158,34 @@ const debtPaymentSchema = z.object({
   updated_at: z.string()
 });
 
+const creditCardBillSchema = z.object({
+  account: z.string(),
+  created_at: z.string(),
+  due_date: z.string(),
+  id: z.string(),
+  minimum_due: z.string(),
+  note: z.string(),
+  paid_amount: z.string(),
+  reference: z.string(),
+  remaining_balance: z.string(),
+  statement_balance: z.string(),
+  statement_date: z.string(),
+  statement_transaction: z.string().nullable(),
+  status: z.string(),
+  updated_at: z.string()
+});
+
+const creditCardPaymentSchema = z.object({
+  amount: z.string(),
+  bill: z.string(),
+  created_at: z.string(),
+  id: z.string(),
+  note: z.string(),
+  paid_at: z.string(),
+  transaction: z.string().nullable(),
+  updated_at: z.string()
+});
+
 const balanceSnapshotSchema = z.object({
   account: z.string(),
   actual_balance: z.string(),
@@ -214,6 +242,8 @@ export type Transaction = z.infer<typeof transactionSchema>;
 export type MonthlyReport = z.infer<typeof monthlyReportSchema>;
 export type Debt = z.infer<typeof debtSchema>;
 export type DebtPayment = z.infer<typeof debtPaymentSchema>;
+export type CreditCardBill = z.infer<typeof creditCardBillSchema>;
+export type CreditCardPayment = z.infer<typeof creditCardPaymentSchema>;
 export type BalanceSnapshot = z.infer<typeof balanceSnapshotSchema>;
 export type AccountReconciliation = z.infer<typeof accountReconciliationSchema>;
 
@@ -343,6 +373,29 @@ export type CreateDebtInput = {
 };
 
 export type CreateDebtPaymentInput = {
+  amount: string;
+  note?: string;
+  paid_at: string;
+  transaction?: string | null;
+};
+
+export type CreditCardBillFilters = {
+  account?: string;
+  status?: string;
+};
+
+export type CreateCreditCardBillInput = {
+  account: string;
+  due_date: string;
+  minimum_due?: string;
+  note?: string;
+  reference?: string;
+  statement_balance: string;
+  statement_date: string;
+  statement_transaction?: string | null;
+};
+
+export type CreateCreditCardPaymentInput = {
   amount: string;
   note?: string;
   paid_at: string;
@@ -782,6 +835,67 @@ export async function createDebtPayment(
     method: "POST"
   });
   return debtPaymentSchema.parse(await response.json());
+}
+
+export async function listCreditCardBills(
+  accessToken: string,
+  filters: CreditCardBillFilters = {}
+): Promise<CreditCardBill[]> {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.toString();
+  const path = query ? `/api/credit-card-bills/?${query}` : "/api/credit-card-bills/";
+  const response = await authenticatedFetch(path, accessToken);
+  return collectionSchema(creditCardBillSchema).parse(await response.json());
+}
+
+export async function createCreditCardBill(
+  accessToken: string,
+  input: CreateCreditCardBillInput
+): Promise<CreditCardBill> {
+  const response = await authenticatedFetch("/api/credit-card-bills/", accessToken, {
+    body: JSON.stringify({
+      account: input.account,
+      due_date: input.due_date,
+      minimum_due: input.minimum_due || "0.00",
+      note: input.note || "",
+      reference: input.reference || "",
+      statement_balance: input.statement_balance,
+      statement_date: input.statement_date,
+      statement_transaction: input.statement_transaction || null
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return creditCardBillSchema.parse(await response.json());
+}
+
+export async function createCreditCardPayment(
+  accessToken: string,
+  billId: string,
+  input: CreateCreditCardPaymentInput
+): Promise<CreditCardPayment> {
+  const response = await authenticatedFetch(`/api/credit-card-bills/${billId}/payments/`, accessToken, {
+    body: JSON.stringify({
+      amount: input.amount,
+      note: input.note || "",
+      paid_at: input.paid_at,
+      transaction: input.transaction || null
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return creditCardPaymentSchema.parse(await response.json());
 }
 
 export async function listBalanceSnapshots(
