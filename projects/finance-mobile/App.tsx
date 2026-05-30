@@ -19,6 +19,8 @@ import {
   createCreditCardPayment,
   createDebt,
   createDebtPayment,
+  createRecurringBill,
+  createRecurringBillPayment,
   createTransaction,
   getApiBaseUrl,
   getCurrentUser,
@@ -30,6 +32,7 @@ import {
   listDebts,
   listMessageCandidates,
   listPaymentMethods,
+  listRecurringBills,
   listSenderRules,
   listTransactions,
   login,
@@ -40,6 +43,7 @@ import {
   type HealthResult,
   type ParsedMessageCandidate,
   type PaymentMethod,
+  type RecurringBill,
   type SenderRule,
   type Transaction
 } from "./src/api";
@@ -157,6 +161,21 @@ export default function App() {
   const [cardPaymentAmount, setCardPaymentAmount] = useState("");
   const [cardPaymentDate, setCardPaymentDate] = useState(today());
   const [cardPaymentNote, setCardPaymentNote] = useState("");
+  const [recurringState, setRecurringState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [recurringMessage, setRecurringMessage] = useState("");
+  const [recurringBills, setRecurringBills] = useState<RecurringBill[]>([]);
+  const [recurringName, setRecurringName] = useState("");
+  const [recurringAccountId, setRecurringAccountId] = useState("");
+  const [recurringCategoryId, setRecurringCategoryId] = useState("");
+  const [recurringAmount, setRecurringAmount] = useState("");
+  const [recurringFrequency, setRecurringFrequency] = useState("monthly");
+  const [recurringNextDueDate, setRecurringNextDueDate] = useState(today());
+  const [recurringReminderDays, setRecurringReminderDays] = useState("3");
+  const [recurringNote, setRecurringNote] = useState("");
+  const [recurringPaymentBillId, setRecurringPaymentBillId] = useState("");
+  const [recurringPaymentAmount, setRecurringPaymentAmount] = useState("");
+  const [recurringPaymentDate, setRecurringPaymentDate] = useState(today());
+  const [recurringPaymentNote, setRecurringPaymentNote] = useState("");
   const [smsPermissionState, setSmsPermissionState] = useState<SmsPermissionState>("unknown");
   const [smsPermissionMessage, setSmsPermissionMessage] = useState(
     "Native SMS permission is not wired in this Expo scaffold yet."
@@ -381,6 +400,103 @@ export default function App() {
     } catch (error) {
       setCardBillState("error");
       setCardBillMessage(error instanceof Error ? error.message : "Could not record card payment.");
+    }
+  };
+
+  const handleLoadRecurringBills = async () => {
+    if (!accessToken.trim()) {
+      setRecurringState("error");
+      setRecurringMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+
+    setRecurringState("loading");
+    setRecurringMessage("");
+    try {
+      const [nextBills, nextAccounts, nextCategories] = await Promise.all([
+        listRecurringBills(accessToken.trim()),
+        accounts.length ? Promise.resolve(accounts) : listAccounts(accessToken.trim()),
+        categories.length ? Promise.resolve(categories) : listCategories(accessToken.trim())
+      ]);
+      setRecurringBills(nextBills);
+      if (!accounts.length) {
+        setAccounts(nextAccounts);
+      }
+      if (!categories.length) {
+        setCategories(nextCategories);
+      }
+      if (!recurringAccountId && nextAccounts[0]) {
+        setRecurringAccountId(nextAccounts[0].id);
+      }
+      setRecurringState("ok");
+      setRecurringMessage(`Loaded ${nextBills.length} recurring bill(s).`);
+    } catch (error) {
+      setRecurringState("error");
+      setRecurringMessage(error instanceof Error ? error.message : "Could not load recurring bills.");
+    }
+  };
+
+  const handleCreateRecurringBill = async () => {
+    if (!accessToken.trim()) {
+      setRecurringState("error");
+      setRecurringMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+    if (!recurringName.trim() || !recurringAccountId || !recurringAmount.trim() || !recurringNextDueDate.trim()) {
+      setRecurringState("error");
+      setRecurringMessage("Name, account, amount, and next due date are required.");
+      return;
+    }
+
+    setRecurringState("loading");
+    setRecurringMessage("");
+    try {
+      await createRecurringBill(accessToken.trim(), {
+        account: recurringAccountId,
+        amount: recurringAmount.trim(),
+        category: recurringCategoryId || null,
+        frequency: recurringFrequency,
+        name: recurringName.trim(),
+        next_due_date: recurringNextDueDate.trim(),
+        note: recurringNote.trim(),
+        reminder_days_before: Number(recurringReminderDays || 3)
+      });
+      setRecurringName("");
+      setRecurringAmount("");
+      setRecurringNote("");
+      await handleLoadRecurringBills();
+    } catch (error) {
+      setRecurringState("error");
+      setRecurringMessage(error instanceof Error ? error.message : "Could not create recurring bill.");
+    }
+  };
+
+  const handleCreateRecurringBillPayment = async () => {
+    if (!accessToken.trim()) {
+      setRecurringState("error");
+      setRecurringMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+    if (!recurringPaymentBillId || !recurringPaymentAmount.trim() || !recurringPaymentDate.trim()) {
+      setRecurringState("error");
+      setRecurringMessage("Bill, amount, and paid date are required.");
+      return;
+    }
+
+    setRecurringState("loading");
+    setRecurringMessage("");
+    try {
+      await createRecurringBillPayment(accessToken.trim(), recurringPaymentBillId, {
+        amount: recurringPaymentAmount.trim(),
+        note: recurringPaymentNote.trim(),
+        paid_at: recurringPaymentDate.trim()
+      });
+      setRecurringPaymentAmount("");
+      setRecurringPaymentNote("");
+      await handleLoadRecurringBills();
+    } catch (error) {
+      setRecurringState("error");
+      setRecurringMessage(error instanceof Error ? error.message : "Could not record recurring bill payment.");
     }
   };
 
@@ -749,6 +865,8 @@ export default function App() {
   const openDebts = debts.filter((debt) => debt.status !== "paid");
   const cardAccounts = accounts.filter((account) => account.type === "credit_card");
   const openCardBills = cardBills.filter((bill) => bill.status !== "paid");
+  const activeRecurringBills = recurringBills.filter((bill) => bill.status === "active");
+  const expenseCategories = categories.filter((category) => category.kind === "expense");
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -1198,6 +1316,165 @@ export default function App() {
               {cardBills.map((bill) => (
                 <Text key={bill.id} style={styles.listItem}>
                   {bill.statement_date} | due {bill.due_date} | remaining {bill.remaining_balance} | {bill.status}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Recurring Bills</Text>
+          <Text style={styles.meta}>
+            Track repeating bills and advance the next due date after each payment.
+          </Text>
+
+          <Pressable onPress={handleLoadRecurringBills} style={styles.buttonSecondary}>
+            <Text style={styles.buttonText}>Load Recurring Bills</Text>
+          </Pressable>
+          {recurringState === "loading" ? <ActivityIndicator /> : null}
+          {recurringState === "ok" ? <Text style={styles.okText}>{recurringMessage}</Text> : null}
+          {recurringState === "error" ? <Text style={styles.errorText}>{recurringMessage}</Text> : null}
+
+          <Text style={styles.sectionTitle}>Add Recurring Bill</Text>
+          <TextInput
+            autoCapitalize="words"
+            onChangeText={setRecurringName}
+            placeholder="Bill name"
+            style={styles.input}
+            value={recurringName}
+          />
+          {accounts.length ? (
+            <View style={styles.choiceRow}>
+              {accounts.map((account) => (
+                <Pressable
+                  key={account.id}
+                  onPress={() => setRecurringAccountId(account.id)}
+                  style={recurringAccountId === account.id ? styles.choiceSelected : styles.choice}
+                >
+                  <Text style={recurringAccountId === account.id ? styles.choiceTextSelected : styles.choiceText}>
+                    {account.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.meta}>Load accounts before adding recurring bills.</Text>
+          )}
+          {expenseCategories.length ? (
+            <View style={styles.choiceRow}>
+              {expenseCategories.map((category) => (
+                <Pressable
+                  key={category.id}
+                  onPress={() => setRecurringCategoryId(category.id)}
+                  style={recurringCategoryId === category.id ? styles.choiceSelected : styles.choice}
+                >
+                  <Text style={recurringCategoryId === category.id ? styles.choiceTextSelected : styles.choiceText}>
+                    {category.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          <TextInput
+            keyboardType="decimal-pad"
+            onChangeText={setRecurringAmount}
+            placeholder="Amount"
+            style={styles.input}
+            value={recurringAmount}
+          />
+          <View style={styles.choiceRow}>
+            {["weekly", "monthly", "quarterly", "yearly"].map((frequency) => (
+              <Pressable
+                key={frequency}
+                onPress={() => setRecurringFrequency(frequency)}
+                style={recurringFrequency === frequency ? styles.choiceSelected : styles.choice}
+              >
+                <Text style={recurringFrequency === frequency ? styles.choiceTextSelected : styles.choiceText}>
+                  {frequency}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setRecurringNextDueDate}
+            placeholder="Next due date (YYYY-MM-DD)"
+            style={styles.input}
+            value={recurringNextDueDate}
+          />
+          <TextInput
+            keyboardType="number-pad"
+            onChangeText={setRecurringReminderDays}
+            placeholder="Reminder days"
+            style={styles.input}
+            value={recurringReminderDays}
+          />
+          <TextInput
+            autoCapitalize="sentences"
+            onChangeText={setRecurringNote}
+            placeholder="Note (optional)"
+            style={styles.input}
+            value={recurringNote}
+          />
+          <Pressable onPress={handleCreateRecurringBill} style={styles.button}>
+            <Text style={styles.buttonText}>Save Recurring Bill</Text>
+          </Pressable>
+
+          <Text style={styles.sectionTitle}>Record Payment</Text>
+          {activeRecurringBills.length ? (
+            <View style={styles.choiceRow}>
+              {activeRecurringBills.map((bill) => (
+                <Pressable
+                  key={bill.id}
+                  onPress={() => setRecurringPaymentBillId(bill.id)}
+                  style={recurringPaymentBillId === bill.id ? styles.choiceSelected : styles.choice}
+                >
+                  <Text style={recurringPaymentBillId === bill.id ? styles.choiceTextSelected : styles.choiceText}>
+                    {bill.name} | {bill.next_due_date} | {bill.amount}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.meta}>No active recurring bills loaded.</Text>
+          )}
+          <TextInput
+            keyboardType="decimal-pad"
+            onChangeText={setRecurringPaymentAmount}
+            placeholder="Payment amount"
+            style={styles.input}
+            value={recurringPaymentAmount}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setRecurringPaymentDate}
+            placeholder="Paid date (YYYY-MM-DD)"
+            style={styles.input}
+            value={recurringPaymentDate}
+          />
+          <TextInput
+            autoCapitalize="sentences"
+            onChangeText={setRecurringPaymentNote}
+            placeholder="Payment note (optional)"
+            style={styles.input}
+            value={recurringPaymentNote}
+          />
+          <Pressable
+            disabled={activeRecurringBills.length === 0}
+            onPress={handleCreateRecurringBillPayment}
+            style={activeRecurringBills.length === 0 ? styles.buttonDisabled : styles.button}
+          >
+            <Text style={styles.buttonText}>Record Recurring Payment</Text>
+          </Pressable>
+
+          {recurringBills.length ? (
+            <View style={styles.listSection}>
+              <Text style={styles.listTitle}>Recurring schedule</Text>
+              {recurringBills.map((bill) => (
+                <Text key={bill.id} style={styles.listItem}>
+                  {bill.name} | {bill.frequency} | {bill.amount} | next {bill.next_due_date} | {bill.status}
                 </Text>
               ))}
             </View>

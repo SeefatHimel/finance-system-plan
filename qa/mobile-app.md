@@ -56,6 +56,10 @@ bare React Native when real automatic SMS capture is ready to be implemented.
   `POST /api/credit-card-bills/`, and
   `POST /api/credit-card-bills/{id}/payments/`) for creating statement bills,
   seeing remaining balances, and recording card payments.
+- Recurring-bill flow (`GET /api/recurring-bills/`,
+  `POST /api/recurring-bills/`, and
+  `POST /api/recurring-bills/{id}/payments/`) for creating schedules, seeing
+  due dates, and advancing the next due date after payment.
 - SMS tracking settings scaffold that loads payment methods and sender rules,
   shows a permission gate placeholder, and lets the user locally enable trusted
   sender rules for future import.
@@ -79,6 +83,12 @@ The mobile credit-card section loads card bills, lets the user create statement
 bills against credit-card accounts, shows remaining balances and due dates, and
 records payments against open bills. It is a mobile companion to the web
 credit-card bill dashboard.
+
+## What does the mobile recurring-bill section do?
+
+The mobile recurring-bill section loads repeating bill schedules, lets the user
+create weekly, monthly, quarterly, or yearly bills, and records payments against
+active bills. The backend advances the next due date when a payment is recorded.
 
 ## How will SMS tracking work?
 

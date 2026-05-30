@@ -228,6 +228,41 @@ export type CreateCreditCardPaymentInput = {
   transaction?: string | null;
 };
 
+export type RecurringBill = {
+  account: string;
+  amount: string;
+  auto_create_transaction: boolean;
+  category: string | null;
+  created_at: string;
+  frequency: string;
+  id: string;
+  name: string;
+  next_due_date: string;
+  note: string;
+  reminder_days_before: number;
+  status: string;
+  updated_at: string;
+};
+
+export type CreateRecurringBillInput = {
+  account: string;
+  amount: string;
+  auto_create_transaction?: boolean;
+  category?: string | null;
+  frequency: string;
+  name: string;
+  next_due_date: string;
+  note?: string;
+  reminder_days_before?: number;
+};
+
+export type CreateRecurringBillPaymentInput = {
+  amount: string;
+  note?: string;
+  paid_at: string;
+  transaction?: string | null;
+};
+
 export type HealthResult = {
   error?: string;
   ok: boolean;
@@ -416,6 +451,54 @@ export async function createCreditCardPayment(
   input: CreateCreditCardPaymentInput
 ): Promise<void> {
   await authenticatedFetch(`/api/credit-card-bills/${billId}/payments/`, accessToken, {
+    body: JSON.stringify({
+      amount: input.amount,
+      note: input.note || "",
+      paid_at: input.paid_at,
+      transaction: input.transaction || null
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+}
+
+export async function listRecurringBills(accessToken: string): Promise<RecurringBill[]> {
+  const response = await authenticatedFetch("/api/recurring-bills/", accessToken);
+  return (await response.json()) as RecurringBill[];
+}
+
+export async function createRecurringBill(
+  accessToken: string,
+  input: CreateRecurringBillInput
+): Promise<RecurringBill> {
+  const response = await authenticatedFetch("/api/recurring-bills/", accessToken, {
+    body: JSON.stringify({
+      account: input.account,
+      amount: input.amount,
+      auto_create_transaction: input.auto_create_transaction ?? false,
+      category: input.category || null,
+      frequency: input.frequency,
+      name: input.name,
+      next_due_date: input.next_due_date,
+      note: input.note || "",
+      reminder_days_before: input.reminder_days_before ?? 3
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return (await response.json()) as RecurringBill;
+}
+
+export async function createRecurringBillPayment(
+  accessToken: string,
+  billId: string,
+  input: CreateRecurringBillPaymentInput
+): Promise<void> {
+  await authenticatedFetch(`/api/recurring-bills/${billId}/payments/`, accessToken, {
     body: JSON.stringify({
       amount: input.amount,
       note: input.note || "",

@@ -158,7 +158,7 @@ Mobile:
 - Mark repayment. Done for first mobile scaffold.
 - See due items. Done for first mobile scaffold.
 - Add credit card bill checks. Done for first mobile scaffold.
-- Add recurring bill checks
+- Add recurring bill checks. Done for first mobile scaffold.
 - Add reconciliation checks
 
 Exit criteria:
