@@ -175,13 +175,14 @@ parser notes. Candidates can be reviewed, confirmed into an SMS-sourced
 transaction, or ignored.
 
 Phase 3 now has transfer-aware candidate fields, an initial bKash parser,
-initial EBL/City Bank card purchase parsing, and starter Pathao Pay parsing for
-top-up, payment, send-money, and withdraw confirmations. The parsers detect
-message kind, amount, reference, balance, fee, merchant/counterparty text, and
-possible internal transfers for cash-in/cash-out style messages. bKash
+starter EBL/City Bank card parsing for purchases, card payments, fees, refunds,
+and reversals, and starter Pathao Pay parsing for top-up, payment, send-money,
+and withdraw confirmations. The parsers detect message kind, amount, reference,
+balance, fee, merchant/counterparty text, and possible internal transfers for
+cash-in/cash-out and card-payment style messages. bKash
 transfer-like messages also try to match masked account or wallet identifiers
 against the user's configured payment methods so known source/destination
-accounts can be prefilled. Deeper bank transfer/card payment cases remain
+accounts can be prefilled. Deeper bank account transfer cases remain
 provider-specific parser targets.
 
 For internal transfers, the backend now links possible related candidates when
@@ -232,6 +233,6 @@ reconciliation math.
 
 It has the first manual finance loop, SMS import/review, debt records, and
 reconciliation endpoints, but the provider parsers are still early. It still
-needs real anonymized SMS fixture coverage, deeper provider-specific transfer
-cases, production deployment configuration, and UI polish around debt and
-reconciliation workflows.
+needs real anonymized SMS fixture coverage, deeper provider-specific bank
+transfer cases, production deployment configuration, and UI polish around debt
+and reconciliation workflows.

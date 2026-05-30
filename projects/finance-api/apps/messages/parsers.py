@@ -8,7 +8,7 @@ from .models import ParsedMessageCandidate, SenderRule
 _AMOUNT_PATTERN = re.compile(r"(?:tk|bdt)\s*([0-9][0-9,]*(?:\.\d{1,2})?)|([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:tk|bdt)", re.IGNORECASE)
 _BALANCE_PATTERN = re.compile(r"(?:balance|bal)\s*(?:is|:)?\s*(?:tk|bdt)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
 _FEE_PATTERN = re.compile(r"(?:charge|fee)\s*(?:is|:)?\s*(?:tk|bdt)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
-_REFERENCE_PATTERN = re.compile(r"(?:trxid|trx id|txnid|txn id|ref|reference)\s*[:#-]?\s*([a-z0-9-]+)", re.IGNORECASE)
+_REFERENCE_PATTERN = re.compile(r"\b(?:trxid|trx id|txnid|txn id|ref|reference)\b\s*[:#-]?\s*([a-z0-9-]+)", re.IGNORECASE)
 
 
 def find_sender_rule(*, user, sender: str):
@@ -219,7 +219,22 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
     else:
         notes.append("No active sender rule matched this bank/card-like message.")
 
-    if any(keyword in normalized for keyword in ("used for", "purchase", "spent", "pos", "at ")):
+    if any(keyword in normalized for keyword in ("reversed", "reversal", "void")):
+        message_kind = ParsedMessageCandidate.MessageKind.REVERSAL
+        transaction_type = ParsedMessageCandidate.TransactionType.REFUND
+        confidence = Decimal("0.82") if amount is not None else Decimal("0.50")
+        notes.append("Detected bank/card reversal wording.")
+    elif any(keyword in normalized for keyword in ("refund", "refunded", "cashback")):
+        message_kind = ParsedMessageCandidate.MessageKind.REFUND
+        transaction_type = ParsedMessageCandidate.TransactionType.REFUND
+        confidence = Decimal("0.82") if amount is not None else Decimal("0.50")
+        notes.append("Detected bank/card refund wording.")
+    elif any(keyword in normalized for keyword in ("fee", "charge", "vat")):
+        message_kind = ParsedMessageCandidate.MessageKind.FEE
+        transaction_type = ParsedMessageCandidate.TransactionType.FEE
+        confidence = Decimal("0.80") if amount is not None else Decimal("0.48")
+        notes.append("Detected bank/card fee or charge wording.")
+    elif any(keyword in normalized for keyword in ("used for", "purchase", "spent", "pos", "at ")):
         message_kind = ParsedMessageCandidate.MessageKind.CARD_PURCHASE
         transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
         confidence = Decimal("0.84") if amount is not None else Decimal("0.52")

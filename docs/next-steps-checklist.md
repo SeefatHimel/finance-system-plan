@@ -115,6 +115,7 @@ Last updated: 2026-05-31
 - [x] Add source/destination account controls to mobile SMS review
 - [x] Add parser confidence/duplicate reason display in review inbox
 - [x] Add raw SMS deletion/redaction workflow
+- [x] Add bank/card parser coverage for card payments, fees, refunds, and reversals
 
 ### Phase 4 Follow-up
 

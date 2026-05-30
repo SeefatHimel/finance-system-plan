@@ -350,6 +350,98 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(candidate["reference"], "CITY123456")
         self.assertFalse(candidate["possible_internal_transfer"])
 
+    def test_bank_card_followup_messages_create_specific_candidates(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        ebl_account = Account.objects.create(
+            user=user,
+            name="EBL Card",
+            type=Account.Type.CREDIT_CARD,
+        )
+        city_account = Account.objects.create(
+            user=user,
+            name="City Bank Card",
+            type=Account.Type.CREDIT_CARD,
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=ebl_account,
+            name="EBL card sender",
+            provider=SenderRule.Provider.EBL,
+            sender="EBL",
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=city_account,
+            name="City Bank sender",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+
+        cases = (
+            {
+                "amount": "5000.00",
+                "device_message_id": "sms-ebl-card-payment-100",
+                "fixture": FIXTURE_DIR / "ebl" / "card_bill_payment.txt",
+                "message_kind": "card_payment",
+                "possible_internal_transfer": True,
+                "reference": "EBLPAY5000",
+                "sender": "EBL",
+                "transaction_type": "transfer",
+            },
+            {
+                "amount": "1500.00",
+                "device_message_id": "sms-ebl-card-fee-100",
+                "fixture": FIXTURE_DIR / "ebl" / "card_fee.txt",
+                "message_kind": "fee",
+                "possible_internal_transfer": False,
+                "reference": "EBLFEE1500",
+                "sender": "EBL",
+                "transaction_type": "fee",
+            },
+            {
+                "amount": "850.00",
+                "device_message_id": "sms-city-card-refund-100",
+                "fixture": FIXTURE_DIR / "city_bank" / "card_refund.txt",
+                "message_kind": "refund",
+                "possible_internal_transfer": False,
+                "reference": "CITYREF850",
+                "sender": "CITYBANK",
+                "transaction_type": "refund",
+            },
+            {
+                "amount": "1200.00",
+                "device_message_id": "sms-city-card-reversal-100",
+                "fixture": FIXTURE_DIR / "city_bank" / "card_reversal.txt",
+                "message_kind": "reversal",
+                "possible_internal_transfer": False,
+                "reference": "CITYREV1200",
+                "sender": "CITYBANK",
+                "transaction_type": "refund",
+            },
+        )
+
+        for case in cases:
+            with self.subTest(fixture=case["fixture"].name):
+                response = self.client.post(
+                    reverse("raw-message-import"),
+                    {
+                        "sender": case["sender"],
+                        "body": case["fixture"].read_text(),
+                        "received_at": "2026-05-30T13:45:00+06:00",
+                        "device_message_id": case["device_message_id"],
+                    },
+                    format="json",
+                )
+
+                self.assertEqual(response.status_code, 201)
+                candidate = response.data["candidate"]
+                self.assertEqual(candidate["message_kind"], case["message_kind"])
+                self.assertEqual(candidate["transaction_type"], case["transaction_type"])
+                self.assertEqual(candidate["amount"], case["amount"])
+                self.assertEqual(candidate["reference"], case["reference"])
+                self.assertEqual(candidate["possible_internal_transfer"], case["possible_internal_transfer"])
+
     def test_pathao_pay_import_creates_provider_specific_candidates(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         account = Account.objects.create(

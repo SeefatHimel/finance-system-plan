@@ -176,10 +176,10 @@ redacted after parsing while keeping duplicate hashes and parsed ledger fields.
 ## What is not implemented yet?
 
 Real anonymized SMS fixture collection for bKash, EBL, City Bank, and Pathao
-Pay; deeper provider-specific parser coverage for bank transfers, card
-payments, fees, refunds, and reversals; mobile UI polish for debt and
-credit-card, recurring-bill, and reconciliation workflows; native Android SMS capture
-implementation; production-grade local sync hardening; and production
+Pay; deeper provider-specific parser coverage for bank account transfers and
+additional real-world provider variants; mobile UI polish for debt,
+credit-card, recurring-bill, and reconciliation workflows; native Android SMS
+capture implementation; production-grade local sync hardening; and production
 deployment setup are still planned future work.
 
 ## What is the biggest technical risk?
@@ -205,7 +205,6 @@ store policy compliance, monitoring, and deployment automation.
 
 ## What would you improve with more time?
 
-I would collect real anonymized SMS fixtures, deepen provider-specific parsing,
-build mobile debt, credit-card, and reconciliation screens, harden local sync,
-add a generated API client, and prepare the Docker/deployment path for
-production.
+I would collect real anonymized SMS fixtures, deepen provider-specific bank
+transfer parsing, polish the mobile finance workflows, harden local sync, add a
+generated API client, and prepare the Docker/deployment path for production.
