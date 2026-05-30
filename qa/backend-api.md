@@ -172,8 +172,11 @@ Phase 3 now has transfer-aware candidate fields, an initial bKash parser,
 initial EBL/City Bank card purchase parsing, and starter Pathao Pay parsing for
 top-up, payment, send-money, and withdraw confirmations. The parsers detect
 message kind, amount, reference, balance, fee, merchant/counterparty text, and
-possible internal transfers for cash-in/cash-out style messages. Deeper bank
-transfer/card payment cases remain provider-specific parser targets.
+possible internal transfers for cash-in/cash-out style messages. bKash
+transfer-like messages also try to match masked account or wallet identifiers
+against the user's configured payment methods so known source/destination
+accounts can be prefilled. Deeper bank transfer/card payment cases remain
+provider-specific parser targets.
 
 For internal transfers, the backend now links possible related candidates when
 two review items belong to the same user, have the same amount, close received

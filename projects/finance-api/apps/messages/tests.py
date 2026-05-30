@@ -118,12 +118,24 @@ class RawMessageImportApiTests(APITestCase):
             name="Bkash Wallet",
             type=Account.Type.MOBILE_WALLET,
         )
+        bank_account = Account.objects.create(
+            user=user,
+            name="Bank Account",
+            type=Account.Type.BANK,
+        )
         payment_method = PaymentMethod.objects.create(
             user=user,
             account=account,
             name="Personal bKash",
             provider=PaymentMethod.Provider.BKASH,
             identifier="01700000000",
+        )
+        bank_payment_method = PaymentMethod.objects.create(
+            user=user,
+            account=bank_account,
+            name="Source Bank",
+            provider=PaymentMethod.Provider.BANK,
+            identifier="****1234",
         )
         SenderRule.objects.create(
             user=user,
@@ -155,6 +167,69 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(candidate["balance_after"], "1500.00")
         self.assertEqual(candidate["fee_amount"], "0.00")
         self.assertEqual(candidate["reference"], "ABC123XYZ")
+        self.assertEqual(str(candidate["account"]), str(bank_account.id))
+        self.assertEqual(str(candidate["payment_method"]), str(bank_payment_method.id))
+        self.assertEqual(str(candidate["destination_account"]), str(account.id))
+        self.assertEqual(str(candidate["destination_payment_method"]), str(payment_method.id))
+        self.assertTrue(candidate["possible_internal_transfer"])
+
+    def test_bkash_send_money_to_known_wallet_creates_transfer_candidate(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        source_account = Account.objects.create(
+            user=user,
+            name="Personal bKash",
+            type=Account.Type.MOBILE_WALLET,
+        )
+        destination_account = Account.objects.create(
+            user=user,
+            name="Family bKash",
+            type=Account.Type.MOBILE_WALLET,
+        )
+        source_method = PaymentMethod.objects.create(
+            user=user,
+            account=source_account,
+            name="Personal bKash",
+            provider=PaymentMethod.Provider.BKASH,
+            identifier="01700000000",
+        )
+        destination_method = PaymentMethod.objects.create(
+            user=user,
+            account=destination_account,
+            name="Family bKash",
+            provider=PaymentMethod.Provider.BKASH,
+            identifier="01800000000",
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=source_account,
+            payment_method=source_method,
+            name="bKash sender",
+            provider=SenderRule.Provider.BKASH,
+            sender="bKash",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "bKash",
+                "body": (FIXTURE_DIR / "bkash" / "send_money.txt").read_text(),
+                "received_at": "2026-05-30T11:00:00+06:00",
+                "device_message_id": "sms-bkash-send-money-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["message_kind"], "send_money")
+        self.assertEqual(candidate["transaction_type"], "transfer")
+        self.assertEqual(candidate["amount"], "250.00")
+        self.assertEqual(candidate["fee_amount"], "5.00")
+        self.assertEqual(str(candidate["account"]), str(source_account.id))
+        self.assertEqual(str(candidate["payment_method"]), str(source_method.id))
+        self.assertEqual(str(candidate["destination_account"]), str(destination_account.id))
+        self.assertEqual(str(candidate["destination_payment_method"]), str(destination_method.id))
         self.assertTrue(candidate["possible_internal_transfer"])
 
     def test_bkash_payment_import_creates_purchase_candidate(self):

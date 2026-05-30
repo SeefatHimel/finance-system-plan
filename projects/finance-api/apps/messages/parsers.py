@@ -1,6 +1,8 @@
 import re
 from decimal import Decimal, InvalidOperation
 
+from apps.payment_methods.models import PaymentMethod
+
 from .models import ParsedMessageCandidate, SenderRule
 
 _AMOUNT_PATTERN = re.compile(r"(?:tk|bdt)\s*([0-9][0-9,]*(?:\.\d{1,2})?)|([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:tk|bdt)", re.IGNORECASE)
@@ -107,6 +109,10 @@ def _parse_bkash_message(*, raw_message, sender_rule):
     possible_internal_transfer = False
     confidence = Decimal("0.75") if sender_rule and amount is not None else Decimal("0.45")
     notes = []
+    account = sender_rule.account if sender_rule else None
+    payment_method = sender_rule.payment_method if sender_rule else None
+    destination_account = None
+    destination_payment_method = None
 
     if sender_rule:
         notes.append(f"Matched sender rule: {sender_rule.name}.")
@@ -141,22 +147,53 @@ def _parse_bkash_message(*, raw_message, sender_rule):
         confidence = Decimal("0.82") if amount is not None else Decimal("0.50")
         notes.append("Detected bKash payment/purchase wording.")
 
+    counterparty_text = _extract_counterparty_text(body)
+    matched_payment_method = _find_payment_method_hint(
+        user=raw_message.user,
+        text=counterparty_text or body,
+    )
+    if matched_payment_method and (
+        sender_rule is None or matched_payment_method.account_id != sender_rule.account_id
+    ):
+        if message_kind in (
+            ParsedMessageCandidate.MessageKind.CASH_IN,
+            ParsedMessageCandidate.MessageKind.RECEIVE_MONEY,
+        ):
+            account = matched_payment_method.account
+            payment_method = matched_payment_method
+            destination_account = sender_rule.account if sender_rule else None
+            destination_payment_method = sender_rule.payment_method if sender_rule else None
+            transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
+            possible_internal_transfer = True
+            confidence = max(confidence, Decimal("0.90"))
+            notes.append("Matched bKash transfer source payment method from counterparty text.")
+        elif message_kind in (
+            ParsedMessageCandidate.MessageKind.CASH_OUT,
+            ParsedMessageCandidate.MessageKind.SEND_MONEY,
+        ):
+            destination_account = matched_payment_method.account
+            destination_payment_method = matched_payment_method
+            transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
+            possible_internal_transfer = True
+            confidence = max(confidence, Decimal("0.88"))
+            notes.append("Matched bKash transfer destination payment method from counterparty text.")
+
     if amount is None:
         notes.append("Could not extract an amount with the Tk/BDT parser.")
     else:
         notes.append("Extracted amount with the Tk/BDT parser.")
 
     return {
-        "account": sender_rule.account if sender_rule else None,
+        "account": account,
         "amount": amount,
         "balance_after": _extract_balance(body),
         "confidence": confidence,
-        "counterparty_text": _extract_counterparty_text(body),
-        "destination_account": None,
-        "destination_payment_method": None,
+        "counterparty_text": counterparty_text,
+        "destination_account": destination_account,
+        "destination_payment_method": destination_payment_method,
         "fee_amount": _extract_fee(body),
         "message_kind": message_kind,
-        "payment_method": sender_rule.payment_method if sender_rule else None,
+        "payment_method": payment_method,
         "possible_internal_transfer": possible_internal_transfer,
         "provider": SenderRule.Provider.BKASH,
         "reference": _extract_reference(body),
@@ -351,6 +388,26 @@ def _extract_merchant_text(body: str) -> str:
     if not match:
         return ""
     return match.group(1).strip()[:255]
+
+
+def _find_payment_method_hint(*, user, text: str):
+    if not text:
+        return None
+
+    normalized_text = _normalize_identifier(text)
+    if not normalized_text:
+        return None
+
+    payment_methods = PaymentMethod.objects.filter(user=user, is_active=True).select_related("account")
+    for payment_method in payment_methods:
+        identifier = _normalize_identifier(payment_method.identifier)
+        if len(identifier) >= 4 and identifier in normalized_text:
+            return payment_method
+    return None
+
+
+def _normalize_identifier(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", value.lower())
 
 
 def _normalize_text(value: str) -> str:

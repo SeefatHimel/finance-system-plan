@@ -209,6 +209,12 @@ Candidates may also link to a possible related candidate when another review
 item has the same user, amount, close received timestamp, and a different
 provider. This is a review hint only, not an automatic merge.
 
+For bKash transfer-like messages, the parser now tries to match masked account
+or wallet identifiers in counterparty text against the user's configured payment
+methods. When a known other side is found, the candidate pre-fills both the
+primary account/payment method and the secondary transfer account/payment method
+for review.
+
 ### transactions_transaction
 
 ```txt
