@@ -165,8 +165,9 @@ dashboard workflow, web SMS review UI, web debt/lending, credit-card bill, and
 recurring-bill dashboards, and an Expo Android-oriented mobile scaffold with
 local raw-message queueing, SMS review including source/destination transfer
 account selection, compact debt/lending workflow, and compact credit-card bill
-and recurring-bill workflows. The web app also exposes balance reconciliation
-so expected ledger balances can be compared with real account snapshots.
+and recurring-bill workflows, and mobile balance reconciliation checks. The web
+app also exposes balance reconciliation so expected ledger balances can be
+compared with real account snapshots.
 Confirmed SMS transactions preserve normalized ledger evidence such as
 debit/credit direction, reference or TrxID, balance after, counterparty text,
 payment method, raw message link, and duplicate key. Raw SMS bodies can now be

@@ -49,6 +49,10 @@ Phase 1 scaffold now includes:
   - creates repeating bills through `POST /api/recurring-bills/`
   - records payments through `POST /api/recurring-bills/{id}/payments/`
   - advances the next due date after payment
+- Balance reconciliation section:
+  - loads expected balances from `GET /api/reconciliation/accounts/{account_id}/`
+  - saves real-life balance checks through `POST /api/reconciliation/snapshots/`
+  - shows latest snapshot status and difference context
 - Transaction API types include strict ledger evidence fields such as
   debit/credit direction, balance after, reference, counterparty text, payment
   method, raw message link, and duplicate key
@@ -193,4 +197,4 @@ Settings
 1. Debt/lending screen. Done for first mobile scaffold.
 2. Credit-card bill screen. Done for first mobile scaffold.
 3. Recurring-bill screen. Done for first mobile scaffold.
-4. Reconciliation screen.
+4. Reconciliation screen. Done for first mobile scaffold.

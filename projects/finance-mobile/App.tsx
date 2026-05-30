@@ -15,6 +15,7 @@ import {
 import {
   checkHealth,
   confirmMessageCandidate,
+  createBalanceSnapshot,
   createCreditCardBill,
   createCreditCardPayment,
   createDebt,
@@ -23,6 +24,7 @@ import {
   createRecurringBillPayment,
   createTransaction,
   getApiBaseUrl,
+  getAccountReconciliation,
   getCurrentUser,
   ignoreMessageCandidate,
   importRawMessage,
@@ -37,6 +39,7 @@ import {
   listTransactions,
   login,
   type Account,
+  type AccountReconciliation,
   type Category,
   type CreditCardBill,
   type Debt,
@@ -176,6 +179,12 @@ export default function App() {
   const [recurringPaymentAmount, setRecurringPaymentAmount] = useState("");
   const [recurringPaymentDate, setRecurringPaymentDate] = useState(today());
   const [recurringPaymentNote, setRecurringPaymentNote] = useState("");
+  const [reconciliationState, setReconciliationState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [reconciliationMessage, setReconciliationMessage] = useState("");
+  const [reconciliationAccountId, setReconciliationAccountId] = useState("");
+  const [reconciliation, setReconciliation] = useState<AccountReconciliation | null>(null);
+  const [snapshotActualBalance, setSnapshotActualBalance] = useState("");
+  const [snapshotNote, setSnapshotNote] = useState("");
   const [smsPermissionState, setSmsPermissionState] = useState<SmsPermissionState>("unknown");
   const [smsPermissionMessage, setSmsPermissionMessage] = useState(
     "Native SMS permission is not wired in this Expo scaffold yet."
@@ -497,6 +506,70 @@ export default function App() {
     } catch (error) {
       setRecurringState("error");
       setRecurringMessage(error instanceof Error ? error.message : "Could not record recurring bill payment.");
+    }
+  };
+
+  const handleLoadReconciliation = async (accountId = reconciliationAccountId) => {
+    if (!accessToken.trim()) {
+      setReconciliationState("error");
+      setReconciliationMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+
+    let selectedAccountId = accountId;
+    setReconciliationState("loading");
+    setReconciliationMessage("");
+    try {
+      let nextAccounts = accounts;
+      if (!nextAccounts.length) {
+        nextAccounts = await listAccounts(accessToken.trim());
+        setAccounts(nextAccounts);
+      }
+      selectedAccountId = selectedAccountId || nextAccounts[0]?.id || "";
+      if (!selectedAccountId) {
+        setReconciliationState("error");
+        setReconciliationMessage("Create an account before reconciling balances.");
+        return;
+      }
+      setReconciliationAccountId(selectedAccountId);
+      const payload = await getAccountReconciliation(accessToken.trim(), selectedAccountId);
+      setReconciliation(payload);
+      setReconciliationState("ok");
+      setReconciliationMessage(`Expected balance for ${payload.account_name}: ${payload.expected_balance}.`);
+    } catch (error) {
+      setReconciliationState("error");
+      setReconciliationMessage(error instanceof Error ? error.message : "Could not load reconciliation check.");
+    }
+  };
+
+  const handleCreateBalanceSnapshot = async () => {
+    if (!accessToken.trim()) {
+      setReconciliationState("error");
+      setReconciliationMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+    if (!reconciliationAccountId || !snapshotActualBalance.trim()) {
+      setReconciliationState("error");
+      setReconciliationMessage("Account and actual balance are required.");
+      return;
+    }
+
+    setReconciliationState("loading");
+    setReconciliationMessage("");
+    try {
+      const snapshot = await createBalanceSnapshot(accessToken.trim(), {
+        account: reconciliationAccountId,
+        actual_balance: snapshotActualBalance.trim(),
+        checked_at: new Date().toISOString(),
+        note: snapshotNote.trim()
+      });
+      setSnapshotActualBalance("");
+      setSnapshotNote("");
+      await handleLoadReconciliation(snapshot.account);
+      setReconciliationMessage(`Snapshot saved. Difference: ${snapshot.difference}.`);
+    } catch (error) {
+      setReconciliationState("error");
+      setReconciliationMessage(error instanceof Error ? error.message : "Could not save balance snapshot.");
     }
   };
 
@@ -1479,6 +1552,69 @@ export default function App() {
               ))}
             </View>
           ) : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Balance Reconciliation</Text>
+          <Text style={styles.meta}>
+            Compare the expected ledger balance with the real balance you see in cash, wallet, bank, or card apps.
+          </Text>
+
+          <Pressable onPress={() => void handleLoadReconciliation()} style={styles.buttonSecondary}>
+            <Text style={styles.buttonText}>Load Reconciliation Check</Text>
+          </Pressable>
+          {reconciliationState === "loading" ? <ActivityIndicator /> : null}
+          {reconciliationState === "ok" ? <Text style={styles.okText}>{reconciliationMessage}</Text> : null}
+          {reconciliationState === "error" ? <Text style={styles.errorText}>{reconciliationMessage}</Text> : null}
+
+          {accounts.length ? (
+            <View style={styles.choiceRow}>
+              {accounts.map((account) => (
+                <Pressable
+                  key={account.id}
+                  onPress={() => void handleLoadReconciliation(account.id)}
+                  style={reconciliationAccountId === account.id ? styles.choiceSelected : styles.choice}
+                >
+                  <Text style={reconciliationAccountId === account.id ? styles.choiceTextSelected : styles.choiceText}>
+                    {account.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.meta}>Load accounts to choose an account for reconciliation.</Text>
+          )}
+
+          {reconciliation ? (
+            <View style={styles.listSection}>
+              <Text style={styles.listTitle}>{reconciliation.account_name}</Text>
+              <Text style={styles.listItem}>Expected balance: {reconciliation.expected_balance}</Text>
+              <Text style={styles.listItem}>
+                Latest snapshot: {reconciliation.latest_snapshot?.actual_balance ?? "No snapshot"}
+              </Text>
+              <Text style={styles.listItem}>
+                Status: {reconciliation.latest_snapshot?.status ?? "not checked"}
+              </Text>
+            </View>
+          ) : null}
+
+          <TextInput
+            keyboardType="decimal-pad"
+            onChangeText={setSnapshotActualBalance}
+            placeholder="Actual balance"
+            style={styles.input}
+            value={snapshotActualBalance}
+          />
+          <TextInput
+            autoCapitalize="sentences"
+            onChangeText={setSnapshotNote}
+            placeholder="Snapshot note (optional)"
+            style={styles.input}
+            value={snapshotNote}
+          />
+          <Pressable onPress={handleCreateBalanceSnapshot} style={styles.button}>
+            <Text style={styles.buttonText}>Save Balance Snapshot</Text>
+          </Pressable>
         </View>
 
         <View style={styles.card}>

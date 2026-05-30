@@ -60,6 +60,9 @@ bare React Native when real automatic SMS capture is ready to be implemented.
   `POST /api/recurring-bills/`, and
   `POST /api/recurring-bills/{id}/payments/`) for creating schedules, seeing
   due dates, and advancing the next due date after payment.
+- Reconciliation flow (`GET /api/reconciliation/accounts/{account_id}/` and
+  `POST /api/reconciliation/snapshots/`) for checking expected balances against
+  real account balances from mobile.
 - SMS tracking settings scaffold that loads payment methods and sender rules,
   shows a permission gate placeholder, and lets the user locally enable trusted
   sender rules for future import.
@@ -89,6 +92,13 @@ credit-card bill dashboard.
 The mobile recurring-bill section loads repeating bill schedules, lets the user
 create weekly, monthly, quarterly, or yearly bills, and records payments against
 active bills. The backend advances the next due date when a payment is recorded.
+
+## What does the mobile reconciliation section do?
+
+The mobile reconciliation section loads the expected balance for a selected
+account, shows the latest balance snapshot if one exists, and lets the user save
+a new actual balance snapshot from the phone. This supports quick cash, wallet,
+bank, or card balance checks without opening the web dashboard.
 
 ## How will SMS tracking work?
 

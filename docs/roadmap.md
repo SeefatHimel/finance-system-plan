@@ -159,7 +159,7 @@ Mobile:
 - See due items. Done for first mobile scaffold.
 - Add credit card bill checks. Done for first mobile scaffold.
 - Add recurring bill checks. Done for first mobile scaffold.
-- Add reconciliation checks
+- Add reconciliation checks. Done for first mobile scaffold.
 
 Exit criteria:
 

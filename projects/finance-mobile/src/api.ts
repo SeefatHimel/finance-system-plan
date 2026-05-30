@@ -263,6 +263,34 @@ export type CreateRecurringBillPaymentInput = {
   transaction?: string | null;
 };
 
+export type BalanceSnapshot = {
+  account: string;
+  actual_balance: string;
+  adjustment_transaction: string | null;
+  checked_at: string;
+  created_at: string;
+  difference: string;
+  expected_balance: string;
+  id: string;
+  note: string;
+  status: string;
+  updated_at: string;
+};
+
+export type AccountReconciliation = {
+  account: string;
+  account_name: string;
+  expected_balance: string;
+  latest_snapshot: BalanceSnapshot | null;
+};
+
+export type CreateBalanceSnapshotInput = {
+  account: string;
+  actual_balance: string;
+  checked_at?: string;
+  note?: string;
+};
+
 export type HealthResult = {
   error?: string;
   ok: boolean;
@@ -510,6 +538,33 @@ export async function createRecurringBillPayment(
     },
     method: "POST"
   });
+}
+
+export async function createBalanceSnapshot(
+  accessToken: string,
+  input: CreateBalanceSnapshotInput
+): Promise<BalanceSnapshot> {
+  const response = await authenticatedFetch("/api/reconciliation/snapshots/", accessToken, {
+    body: JSON.stringify({
+      account: input.account,
+      actual_balance: input.actual_balance,
+      checked_at: input.checked_at,
+      note: input.note || ""
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return (await response.json()) as BalanceSnapshot;
+}
+
+export async function getAccountReconciliation(
+  accessToken: string,
+  accountId: string
+): Promise<AccountReconciliation> {
+  const response = await authenticatedFetch(`/api/reconciliation/accounts/${accountId}/`, accessToken);
+  return (await response.json()) as AccountReconciliation;
 }
 
 export async function confirmMessageCandidate(
