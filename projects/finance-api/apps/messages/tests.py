@@ -414,6 +414,20 @@ class MessageReviewApiTests(APITestCase):
         self.assertEqual(response.status_code, 201)
         return response.data["candidate"]
 
+    def import_payment_message(self):
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "bKash",
+                "body": (FIXTURE_DIR / "bkash" / "payment.txt").read_text(),
+                "received_at": "2026-05-29T11:30:00+06:00",
+                "device_message_id": "sms-review-payment-100",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        return response.data["candidate"]
+
     def test_review_inbox_lists_imported_candidates(self):
         candidate = self.import_message()
 
@@ -437,6 +451,38 @@ class MessageReviewApiTests(APITestCase):
         transaction = Transaction.objects.get(id=response.data["transaction"])
         self.assertEqual(transaction.amount, ParsedMessageCandidate.objects.get(id=candidate["id"]).amount)
         self.assertEqual(transaction.source, Transaction.Source.SMS)
+
+    def test_confirm_candidate_copies_sms_ledger_fields(self):
+        candidate = self.import_payment_message()
+
+        response = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": candidate["id"]}),
+            {"note": "Confirmed purchase"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        transaction = Transaction.objects.get(id=response.data["transaction"])
+        parsed_candidate = ParsedMessageCandidate.objects.get(id=candidate["id"])
+        self.assertEqual(transaction.direction, Transaction.Direction.DEBIT)
+        self.assertEqual(transaction.balance_after, parsed_candidate.balance_after)
+        self.assertEqual(transaction.reference, "DEF456XYZ")
+        self.assertEqual(transaction.counterparty_text, "SAMPLE MERCHANT successful")
+        self.assertEqual(transaction.payment_method, self.payment_method)
+        self.assertEqual(transaction.raw_message_id, parsed_candidate.raw_message_id)
+        self.assertEqual(transaction.external_key, "sms:bkash:def456xyz")
+
+    def test_transfer_candidate_requires_destination_account_on_confirm(self):
+        candidate = self.import_message()
+
+        response = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": candidate["id"]}),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("transfer_account", response.data)
 
     def test_user_can_ignore_candidate(self):
         candidate = self.import_message()

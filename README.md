@@ -147,10 +147,14 @@ mindmap
 - The mobile app can queue raw SMS messages locally and sync them to the backend
   import endpoint.
 - The mobile app can review parsed SMS candidates and confirm or ignore them.
+- Confirmed transactions now keep stricter ledger evidence fields including
+  debit/credit direction, provider reference, balance after, counterparty text,
+  payment method, raw SMS link, and duplicate-detection key.
 
 ## Next Milestone
 
 Phase 3 should now focus on validating the workflow with real anonymized SMS
 fixtures, deepening bKash/EBL/City Bank/Pathao Pay parser coverage, polishing
 debt and reconciliation UI, hardening mobile sync, and preparing production
-deployment.
+deployment. The next SMS parser pass should fill the richer final transaction
+fields rather than leaving important finance evidence only in raw SMS text.

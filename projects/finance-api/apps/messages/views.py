@@ -223,9 +223,19 @@ class MessageCandidateConfirmView(APIView):
         payload = serializer.validated_data
 
         account = payload.get("account") or candidate.account
+        transfer_account = payload.get("transfer_account") or candidate.destination_account
+        payment_method = payload.get("payment_method") or candidate.payment_method
         amount = payload.get("amount") or candidate.amount
+        balance_after = (
+            payload.get("balance_after")
+            if "balance_after" in payload
+            else candidate.balance_after
+        )
         transaction_date = payload.get("date") or candidate.raw_message.received_at.date()
         transaction_type = payload.get("type") or candidate.transaction_type
+        direction = payload.get("direction") or Transaction.default_direction_for_type(transaction_type)
+        reference = payload.get("reference", candidate.reference)
+        counterparty_text = payload.get("counterparty_text", candidate.counterparty_text)
 
         if account is None:
             return Response(
@@ -237,14 +247,59 @@ class MessageCandidateConfirmView(APIView):
                 {"amount": "Amount is required to confirm this message."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if transaction_type == Transaction.Type.TRANSFER and transfer_account is None:
+            return Response(
+                {"transfer_account": "Transfer transactions require a destination account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if transaction_type != Transaction.Type.TRANSFER and transfer_account is not None:
+            return Response(
+                {"transfer_account": "Only transfer transactions can use a destination account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if transfer_account and transfer_account.id == account.id:
+            return Response(
+                {"transfer_account": "Transfer account must be different from source account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if payment_method and payment_method.account_id != account.id:
+            return Response(
+                {"payment_method": "Payment method must belong to the selected account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        external_key = self._build_external_key(
+            candidate=candidate,
+            account=account,
+            amount=amount,
+            reference=reference,
+            transaction_date=transaction_date,
+            transaction_type=transaction_type,
+        )
+        if (
+            external_key
+            and Transaction.objects.filter(user=request.user, external_key=external_key).exists()
+        ):
+            return Response(
+                {"detail": "A transaction with the same SMS/reference key already exists."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         transaction_record = Transaction.objects.create(
             user=request.user,
             account=account,
+            transfer_account=transfer_account,
             category=payload.get("category"),
+            payment_method=payment_method,
+            raw_message=candidate.raw_message,
             date=transaction_date,
             type=transaction_type,
+            direction=direction,
             amount=amount,
+            balance_after=balance_after,
+            reference=reference,
+            counterparty_text=counterparty_text,
+            external_key=external_key,
             note=payload.get("note", candidate.raw_message.body),
             source=Transaction.Source.SMS,
             needs_review=False,
@@ -269,6 +324,34 @@ class MessageCandidateConfirmView(APIView):
             ),
             user=user,
             id=candidate_id,
+        )
+
+    def _build_external_key(
+        self,
+        *,
+        candidate,
+        account,
+        amount,
+        reference: str,
+        transaction_date,
+        transaction_type: str,
+    ) -> str:
+        normalized_reference = reference.strip().lower()
+        if normalized_reference:
+            provider = candidate.provider or "unknown"
+            return f"sms:{provider}:{normalized_reference}"
+
+        if candidate.raw_message_id:
+            return f"raw-message:{candidate.raw_message_id}"
+
+        return "|".join(
+            [
+                "sms-fallback",
+                str(account.id),
+                str(transaction_date),
+                transaction_type,
+                str(amount),
+            ]
         )
 
 

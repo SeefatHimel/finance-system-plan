@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
@@ -25,6 +26,10 @@ class Transaction(models.Model):
         IMPORT = "import", "Import"
         SYSTEM = "system", "System"
 
+    class Direction(models.TextChoices):
+        DEBIT = "debit", "Debit"
+        CREDIT = "credit", "Credit"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -50,13 +55,32 @@ class Transaction(models.Model):
         null=True,
         related_name="transactions",
     )
+    payment_method = models.ForeignKey(
+        "payment_methods.PaymentMethod",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="transactions",
+    )
+    raw_message = models.ForeignKey(
+        "finance_messages.RawMessage",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="transactions",
+    )
     date = models.DateField()
     type = models.CharField(max_length=32, choices=Type.choices)
+    direction = models.CharField(max_length=16, choices=Direction.choices, default=Direction.DEBIT)
     amount = models.DecimalField(
         max_digits=14,
         decimal_places=2,
-        validators=[MinValueValidator(0.01)],
+        validators=[MinValueValidator(Decimal("0.01"))],
     )
+    balance_after = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)
+    reference = models.CharField(max_length=120, blank=True, default="")
+    counterparty_text = models.CharField(max_length=255, blank=True, default="")
+    external_key = models.CharField(max_length=180, blank=True, default="")
     note = models.TextField(blank=True)
     source = models.CharField(max_length=32, choices=Source.choices, default=Source.WEB)
     needs_review = models.BooleanField(default=False)
@@ -68,8 +92,20 @@ class Transaction(models.Model):
         indexes = [
             models.Index(fields=("user", "date")),
             models.Index(fields=("user", "type")),
+            models.Index(fields=("user", "direction")),
+            models.Index(fields=("user", "reference")),
+            models.Index(fields=("user", "external_key")),
         ]
 
     def __str__(self) -> str:
         return f"{self.date} {self.type} {self.amount}"
 
+    @classmethod
+    def default_direction_for_type(cls, transaction_type: str) -> str:
+        credit_types = {
+            cls.Type.INCOME,
+            cls.Type.REFUND,
+            cls.Type.BORROW,
+            cls.Type.REPAYMENT_RECEIVED,
+        }
+        return cls.Direction.CREDIT if transaction_type in credit_types else cls.Direction.DEBIT

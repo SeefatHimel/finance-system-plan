@@ -1,6 +1,6 @@
 # Next Steps Checklist
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 ## Current Snapshot
 
@@ -11,6 +11,9 @@ Last updated: 2026-05-30
 - Phase 3 backend foundations are in place: provider parser starters,
   transfer-aware review, reconciliation endpoints, debt/lend APIs, and
   production auth/token planning.
+- Transactions now preserve stricter ledger evidence from SMS confirmations:
+  debit/credit direction, provider reference, balance after, counterparty text,
+  payment method, raw SMS link, and duplicate key.
 - Next milestone is validating the workflow with real anonymized SMS fixtures,
   polishing debt/reconciliation UI, hardening mobile sync, and preparing
   production deployment.
@@ -103,6 +106,15 @@ Last updated: 2026-05-30
 - [x] Add balance snapshot and reconciliation endpoints
 - [x] Add debt/lend workflow models and APIs
 - [x] Add production-ready auth/token storage plan
+- [x] Add strict transaction ledger fields for SMS evidence and duplicate keys
+
+### Phase 3 Follow-up
+
+- [ ] Add richer source/destination extraction for bKash sender/receiver account numbers
+- [ ] Add Pathao Pay parser coverage for make payment, top-up, send money, and withdraw confirmations
+- [ ] Add source/destination account controls to mobile SMS review
+- [ ] Add parser confidence/duplicate reason display in review inbox
+- [ ] Add raw SMS deletion/redaction workflow
 
 ## Verification Matrix
 
@@ -149,3 +161,4 @@ Last updated: 2026-05-30
 - `api: add balance snapshot reconciliation endpoints`
 - `api: add debt and repayment workflow endpoints`
 - `docs: add production auth token storage plan`
+- `api: preserve sms ledger evidence on transactions`

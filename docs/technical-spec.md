@@ -217,11 +217,16 @@ user_id
 account_id
 transfer_account_id
 category_id
-counterparty_id
+payment_method_id
 raw_message_id
 date
 type
+direction
 amount
+balance_after
+reference
+counterparty_text
+external_key
 note
 source
 needs_review
@@ -253,6 +258,21 @@ sms
 import
 system
 ```
+
+Allowed `direction` values:
+
+```txt
+debit
+credit
+```
+
+`direction` records whether the primary `account_id` was debited or credited.
+`type` records the business meaning. SMS-confirmed transactions should also
+carry provider evidence when available: `reference` or `TrxID`,
+`balance_after`, `counterparty_text`, `payment_method_id`, `raw_message_id`, and
+`external_key` for duplicate detection. The raw SMS remains stored as source
+evidence, but the final transaction row should be usable without reparsing the
+SMS body.
 
 ### counterparties_counterparty
 
@@ -396,9 +416,14 @@ Authorization: Bearer <access-token>
 {
   "date": "2026-05-01",
   "type": "expense",
+  "direction": "debit",
   "amount": "250.00",
   "account": "account-id",
   "category": "category-id",
+  "payment_method": "payment-method-id",
+  "balance_after": "1150.00",
+  "reference": "DEF456XYZ",
+  "counterparty_text": "SAMPLE MERCHANT",
   "note": "Lunch",
   "source": "mobile"
 }

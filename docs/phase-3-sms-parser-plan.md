@@ -1,6 +1,6 @@
 # Phase 3 SMS Parser Plan
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 ## Goal
 
@@ -30,6 +30,28 @@ Based on the user's current usage, parser work should prioritize:
 
 These should be treated as the first provider set for real examples, tests, and
 parser fixtures.
+
+## Public Format Research
+
+Public provider documentation supports this plan, but also shows why the parser
+must remain provider-specific and review-first:
+
+- bKash documents SMS/statement-style templates with amount, fee, balance,
+  reference text, `TrxID`, from/to parties, counter/till, and timestamps:
+  https://www.bkash.com/en/page/personal-retail-account
+- EBL documents SMS alert behavior for debited account transfers and missed-call
+  balance alerts with masked account/card information:
+  https://www.ebl.com.bd/download/internet_banking_user_handbook_english.pdf
+  and https://ebl.com.bd/retail-digital/ebl-missed-call-alert-service
+- Pathao Pay/Pay Later documentation emphasizes in-app transaction history,
+  wallet/card sources, withdrawals, and activation SMS. Parser support should
+  expect some finance events to arrive through app history or push/manual import
+  rather than every movement having a detailed SMS:
+  https://www.pathaopay.com.bd/faq/user and https://pathao.com/paylater/
+
+These sources confirm that the final transaction should preserve normalized
+ledger fields, not just raw SMS text. They also leave gaps for real-world
+fixture collection, especially City Bank and Pathao Pay transaction messages.
 
 ## Why Internal Transfers Matter
 
@@ -113,6 +135,28 @@ destination_account
 If only one side is known, the review inbox should ask the user to select the
 missing account before confirmation.
 
+## Final Transaction Evidence
+
+Raw SMS text is source evidence, not the final ledger. When a candidate is
+confirmed, the transaction row should preserve the normalized fields needed for
+strict finance review:
+
+```txt
+direction
+amount
+balance_after
+reference / TrxID
+counterparty_text
+payment_method
+raw_message
+external_key
+```
+
+The parser should prefer provider references such as bKash `TrxID`, bank/card
+`Ref`, or Pathao Pay references for `external_key`. If no provider reference is
+available, use the raw message id as the duplicate key and keep the candidate in
+review when confidence is low.
+
 ## Matching Two SMS Messages
 
 Some internal transfers may generate two messages, such as one from the bank and
@@ -166,8 +210,11 @@ projects/finance-api/apps/messages/fixtures/sms/pathao_pay/
    frequent SMS messages. Done for starter EBL and City Bank card purchase
    parsing.
 6. Add review UI fields for transfer source/destination before confirmation.
-   Partially done: web/mobile review screens show parser and internal-transfer
-   hints; richer edit controls are still future UI polish.
+   Partially done: web review can select a transfer destination; mobile review
+   still needs richer edit controls.
+7. Copy parser evidence into final transactions on confirmation. Done for
+   direction, balance after, reference, counterparty text, payment method, raw
+   message, and duplicate key.
 
 ## Current Follow-Up Slice
 
@@ -175,8 +222,10 @@ projects/finance-api/apps/messages/fixtures/sms/pathao_pay/
    Pay.
 2. Expand parser coverage for Pathao Pay, bank transfers, card bill payments,
    refunds, fees, and reversals.
-3. Add richer source/destination account editing in web and mobile review.
-4. Keep internal-transfer matching conservative until fixture coverage proves
+3. Extract bKash sender/receiver account text, counter/till, and provider
+   timestamps where available.
+4. Add richer source/destination account editing in mobile review.
+5. Keep internal-transfer matching conservative until fixture coverage proves
    the matching rules.
 
 ## Open Questions

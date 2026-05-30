@@ -107,7 +107,9 @@ export function MessageReviewWorkspace() {
         amount: String(formData.get("amount") ?? "") || undefined,
         category: String(formData.get("category") ?? "") || null,
         date: String(formData.get("date") ?? "") || undefined,
+        direction: String(formData.get("direction") ?? "") || undefined,
         note: String(formData.get("note") ?? ""),
+        transfer_account: String(formData.get("transfer_account") ?? "") || null,
         type: String(formData.get("type") ?? candidate.transaction_type)
       });
       await loadData();
@@ -288,6 +290,30 @@ export function MessageReviewWorkspace() {
                         <option value="fee">Fee</option>
                         <option value="refund">Refund</option>
                         <option value="adjustment">Adjustment</option>
+                      </select>
+                    </label>
+
+                    <label className="field">
+                      <span className="field__label">Debit / credit</span>
+                      <select
+                        className="field__control"
+                        defaultValue={candidate.transaction_type === "income" || candidate.transaction_type === "refund" ? "credit" : "debit"}
+                        name="direction"
+                      >
+                        <option value="debit">Debit</option>
+                        <option value="credit">Credit</option>
+                      </select>
+                    </label>
+
+                    <label className="field">
+                      <span className="field__label">Transfer destination</span>
+                      <select className="field__control" defaultValue={candidate.destination_account ?? ""} name="transfer_account">
+                        <option value="">No destination</option>
+                        {reviewState.accounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name}
+                          </option>
+                        ))}
                       </select>
                     </label>
 

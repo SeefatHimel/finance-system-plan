@@ -31,6 +31,9 @@ Phase 1 scaffold now includes:
   - loads parsed candidates from `GET /api/messages/review/`
   - shows parser hints, raw SMS evidence, and internal-transfer flags
   - confirms or ignores candidates through the review endpoints
+- Transaction API types include strict ledger evidence fields such as
+  debit/credit direction, balance after, reference, counterparty text, payment
+  method, raw message link, and duplicate key
 - Native SMS permission/module decision documented in
   `docs/mobile-sms-permission-decision.md`.
 

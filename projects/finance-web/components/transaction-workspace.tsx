@@ -64,10 +64,14 @@ export function TransactionWorkspace() {
   const [editingTransactionId, setEditingTransactionId] = useState("");
   const [editingDate, setEditingDate] = useState("");
   const [editingType, setEditingType] = useState("expense");
+  const [editingDirection, setEditingDirection] = useState("debit");
   const [editingAccountId, setEditingAccountId] = useState("");
   const [editingTransferAccountId, setEditingTransferAccountId] = useState("");
   const [editingCategoryId, setEditingCategoryId] = useState("");
   const [editingAmount, setEditingAmount] = useState("");
+  const [editingBalanceAfter, setEditingBalanceAfter] = useState("");
+  const [editingReference, setEditingReference] = useState("");
+  const [editingCounterpartyText, setEditingCounterpartyText] = useState("");
   const [editingNote, setEditingNote] = useState("");
 
   async function loadData(activeFilters = filters) {
@@ -164,9 +168,13 @@ export function TransactionWorkspace() {
       await createTransaction(accessToken, {
         account: String(formData.get("account") ?? ""),
         amount: String(formData.get("amount") ?? ""),
+        balance_after: String(formData.get("balance_after") ?? "") || null,
         category: category || undefined,
+        counterparty_text: String(formData.get("counterparty_text") ?? ""),
         date: String(formData.get("date") ?? ""),
+        direction: String(formData.get("direction") ?? "debit"),
         note: String(formData.get("note") ?? ""),
+        reference: String(formData.get("reference") ?? ""),
         transfer_account: type === "transfer" ? transferAccount : undefined,
         type
       });
@@ -215,10 +223,14 @@ export function TransactionWorkspace() {
     }
     setEditingDate(transaction.date);
     setEditingType(transaction.type);
+    setEditingDirection(transaction.direction);
     setEditingAccountId(transaction.account);
     setEditingTransferAccountId(transaction.transfer_account ?? "");
     setEditingCategoryId(transaction.category ?? "");
     setEditingAmount(transaction.amount);
+    setEditingBalanceAfter(transaction.balance_after ?? "");
+    setEditingReference(transaction.reference);
+    setEditingCounterpartyText(transaction.counterparty_text);
     setEditingNote(transaction.note ?? "");
   }
 
@@ -240,9 +252,13 @@ export function TransactionWorkspace() {
       await updateTransaction(accessToken, editingTransactionId, {
         account: editingAccountId,
         amount: editingAmount,
+        balance_after: editingBalanceAfter || null,
         category: editingCategoryId || null,
+        counterparty_text: editingCounterpartyText,
         date: editingDate,
+        direction: editingDirection,
         note: editingNote,
+        reference: editingReference,
         transfer_account: editingType === "transfer" ? editingTransferAccountId || null : null,
         type: editingType
       });
@@ -319,6 +335,14 @@ export function TransactionWorkspace() {
             </label>
 
             <label className="field">
+              <span className="field__label">Debit / credit</span>
+              <select className="field__control" defaultValue="debit" name="direction" required>
+                <option value="debit">Debit</option>
+                <option value="credit">Credit</option>
+              </select>
+            </label>
+
+            <label className="field">
               <span className="field__label">Account</span>
               <select className="field__control" name="account" required>
                 <option value="">Select account</option>
@@ -364,6 +388,21 @@ export function TransactionWorkspace() {
                 step="0.01"
                 type="number"
               />
+            </label>
+
+            <label className="field">
+              <span className="field__label">Balance after</span>
+              <input className="field__control" min="0" name="balance_after" step="0.01" type="number" />
+            </label>
+
+            <label className="field">
+              <span className="field__label">Transaction ID</span>
+              <input className="field__control" name="reference" type="text" />
+            </label>
+
+            <label className="field">
+              <span className="field__label">Sent to / received from</span>
+              <input className="field__control" name="counterparty_text" type="text" />
             </label>
 
             <label className="field field--wide">
@@ -419,6 +458,19 @@ export function TransactionWorkspace() {
                     {type.replaceAll("_", " ")}
                   </option>
                 ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span className="field__label">Debit / credit</span>
+              <select
+                className="field__control"
+                onChange={(event) => setEditingDirection(event.target.value)}
+                required
+                value={editingDirection}
+              >
+                <option value="debit">Debit</option>
+                <option value="credit">Credit</option>
               </select>
             </label>
 
@@ -481,6 +533,38 @@ export function TransactionWorkspace() {
                 step="0.01"
                 type="number"
                 value={editingAmount}
+              />
+            </label>
+
+            <label className="field">
+              <span className="field__label">Balance after</span>
+              <input
+                className="field__control"
+                min="0"
+                onChange={(event) => setEditingBalanceAfter(event.target.value)}
+                step="0.01"
+                type="number"
+                value={editingBalanceAfter}
+              />
+            </label>
+
+            <label className="field">
+              <span className="field__label">Transaction ID</span>
+              <input
+                className="field__control"
+                onChange={(event) => setEditingReference(event.target.value)}
+                type="text"
+                value={editingReference}
+              />
+            </label>
+
+            <label className="field">
+              <span className="field__label">Sent to / received from</span>
+              <input
+                className="field__control"
+                onChange={(event) => setEditingCounterpartyText(event.target.value)}
+                type="text"
+                value={editingCounterpartyText}
               />
             </label>
 
@@ -598,9 +682,13 @@ export function TransactionWorkspace() {
                   <tr>
                     <th>Date</th>
                     <th>Type</th>
+                    <th>Debit / credit</th>
                     <th>Account</th>
                     <th>Category</th>
                     <th>Amount</th>
+                    <th>Balance after</th>
+                    <th>Transaction ID</th>
+                    <th>Sent to / received from</th>
                     <th>Note</th>
                     <th>Actions</th>
                   </tr>
@@ -610,6 +698,7 @@ export function TransactionWorkspace() {
                     <tr key={transaction.id}>
                       <td>{transaction.date}</td>
                       <td>{transaction.type.replaceAll("_", " ")}</td>
+                      <td>{transaction.direction}</td>
                       <td>{accountNames.get(transaction.account) ?? "Unknown"}</td>
                       <td>
                         {transaction.category
@@ -617,6 +706,13 @@ export function TransactionWorkspace() {
                           : "None"}
                       </td>
                       <td>{moneyFormatter.format(Number(transaction.amount))}</td>
+                      <td>
+                        {transaction.balance_after
+                          ? moneyFormatter.format(Number(transaction.balance_after))
+                          : "-"}
+                      </td>
+                      <td>{transaction.reference || "-"}</td>
+                      <td>{transaction.counterparty_text || "-"}</td>
                       <td>{transaction.note || "-"}</td>
                       <td>
                         <button

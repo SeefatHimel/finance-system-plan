@@ -1061,6 +1061,9 @@ components:
     TransactionSource:
       type: string
       enum: [web, mobile, sms, import, system]
+    TransactionDirection:
+      type: string
+      enum: [debit, credit]
     PaymentProvider:
       type: string
       enum: [cash, bkash, nagad, rocket, ebl, city_bank, pathao_pay, bank, card, manual, other]
@@ -1514,17 +1517,36 @@ components:
           type: string
           format: uuid
           description: Required if the candidate did not match an account.
+        transfer_account:
+          type: string
+          format: uuid
+          nullable: true
+          description: Required when confirming a candidate as a transfer.
         amount:
           type: string
           pattern: '^\d+(\.\d{1,2})?$'
           description: Required if the baseline parser did not extract an amount.
+        balance_after:
+          type: string
+          nullable: true
+          pattern: '^\d+(\.\d{1,2})?$'
         category:
+          type: string
+          format: uuid
+          nullable: true
+        payment_method:
           type: string
           format: uuid
           nullable: true
         date:
           type: string
           format: date
+        direction:
+          $ref: '#/components/schemas/TransactionDirection'
+        reference:
+          type: string
+        counterparty_text:
+          type: string
         note:
           type: string
         type:
@@ -1802,7 +1824,7 @@ components:
     Transaction:
       type: object
       required:
-        [id, account, transfer_account, category, date, type, amount, note, source, needs_review, created_at, updated_at]
+        [id, account, transfer_account, category, payment_method, raw_message, date, type, direction, amount, balance_after, reference, counterparty_text, external_key, note, source, needs_review, created_at, updated_at]
       properties:
         id:
           type: string
@@ -1818,15 +1840,39 @@ components:
           type: string
           format: uuid
           nullable: true
+        payment_method:
+          type: string
+          format: uuid
+          nullable: true
+        raw_message:
+          type: string
+          format: uuid
+          nullable: true
         date:
           type: string
           format: date
         type:
           $ref: '#/components/schemas/TransactionType'
+        direction:
+          $ref: '#/components/schemas/TransactionDirection'
         amount:
           type: string
           pattern: '^\d+(\.\d{1,2})?$'
           example: "1200.00"
+        balance_after:
+          type: string
+          nullable: true
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "1150.00"
+        reference:
+          type: string
+          description: Provider transaction id, TrxID, reference, or bank/card reference.
+        counterparty_text:
+          type: string
+          description: Merchant, sender, receiver, or account text extracted from the source.
+        external_key:
+          type: string
+          description: Stable duplicate-detection key derived from source/reference when available.
         note:
           type: string
         source:
@@ -1854,15 +1900,35 @@ components:
           type: string
           format: uuid
           nullable: true
+        payment_method:
+          type: string
+          format: uuid
+          nullable: true
+        raw_message:
+          type: string
+          format: uuid
+          nullable: true
         date:
           type: string
           format: date
         type:
           $ref: '#/components/schemas/TransactionType'
+        direction:
+          $ref: '#/components/schemas/TransactionDirection'
         amount:
           type: string
           pattern: '^\d+(\.\d{1,2})?$'
           example: "1200.00"
+        balance_after:
+          type: string
+          nullable: true
+          pattern: '^\d+(\.\d{1,2})?$'
+        reference:
+          type: string
+        counterparty_text:
+          type: string
+        external_key:
+          type: string
         note:
           type: string
           default: ""
@@ -1885,14 +1951,34 @@ components:
           type: string
           format: uuid
           nullable: true
+        payment_method:
+          type: string
+          format: uuid
+          nullable: true
+        raw_message:
+          type: string
+          format: uuid
+          nullable: true
         date:
           type: string
           format: date
         type:
           $ref: '#/components/schemas/TransactionType'
+        direction:
+          $ref: '#/components/schemas/TransactionDirection'
         amount:
           type: string
           pattern: '^\d+(\.\d{1,2})?$'
+        balance_after:
+          type: string
+          nullable: true
+          pattern: '^\d+(\.\d{1,2})?$'
+        reference:
+          type: string
+        counterparty_text:
+          type: string
+        external_key:
+          type: string
         note:
           type: string
         source:

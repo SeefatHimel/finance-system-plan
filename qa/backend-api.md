@@ -78,6 +78,8 @@ creation is added later.
 A transaction has a positive amount, date, type, account, optional transfer
 account, optional category, source, note, and review flag. The type determines
 whether it is income, expense, transfer, lend, borrow, refund, fee, or repayment.
+The transaction row also stores ledger direction, so the primary account can be
+shown as debit or credit without clients guessing from display signs.
 
 ## Why not use double-entry accounting immediately?
 
@@ -91,6 +93,14 @@ later if needed.
 A transfer uses a source account and a destination `transfer_account`. The API
 validates that transfer transactions include a destination account and that
 non-transfer transactions do not.
+
+## What finance evidence is kept after SMS confirmation?
+
+The raw SMS is kept as source evidence, but confirmed transactions also copy the
+important normalized fields into the ledger row: debit/credit direction,
+provider reference or TrxID, balance after, counterparty text, payment method,
+raw message id, and an external duplicate key. This lets reports and exports use
+structured fields without reparsing SMS bodies.
 
 ## How are monthly reports calculated?
 
@@ -173,8 +183,10 @@ not auto-confirm or merge transactions.
 
 The raw import endpoint checks duplicates by device message ID when available
 and by a deterministic hash of sender, body, and received time. Duplicate
-checks happen before parsing or transaction creation. Provider reference
-numbers can add another duplicate signal later.
+checks happen before parsing or transaction creation. On confirmation, the API
+also creates a transaction `external_key` from provider/reference data when
+available, or from the raw message id as a fallback, and rejects another
+transaction with the same key.
 
 ## Why do internal transfers need special handling?
 

@@ -160,6 +160,9 @@ a parsed SMS review inbox, provider-specific starter SMS parsers, internal
 transfer matching hints, debt and repayment APIs, reconciliation APIs, a monthly
 report endpoint, a Next.js dashboard workflow, web SMS review UI, and an Expo
 Android-oriented mobile scaffold with local raw-message queueing and SMS review.
+Confirmed SMS transactions preserve normalized ledger evidence such as
+debit/credit direction, reference or TrxID, balance after, counterparty text,
+payment method, raw message link, and duplicate key.
 
 ## What is not implemented yet?
 
@@ -180,7 +183,9 @@ uses a review inbox.
 
 Trust. A finance tracker is only useful if the user believes the numbers. The
 project handles this by keeping audit-friendly records, allowing reconciliation,
-showing missing amounts, and preserving raw SMS evidence for parsed entries.
+showing missing amounts, preserving raw SMS evidence for parsed entries, and
+copying important SMS facts into final transaction fields so reports do not rely
+on reparsing message text.
 
 ## How would this become a product later?
 

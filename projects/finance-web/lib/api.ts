@@ -94,10 +94,17 @@ const parsedMessageCandidateSchema = z.object({
 const transactionSchema = z.object({
   account: z.string(),
   amount: z.string(),
+  balance_after: z.string().nullable(),
   category: z.string().nullable(),
+  counterparty_text: z.string(),
   date: z.string(),
+  direction: z.string(),
+  external_key: z.string(),
   id: z.string(),
   note: z.string(),
+  payment_method: z.string().nullable(),
+  raw_message: z.string().nullable(),
+  reference: z.string(),
   source: z.string(),
   transfer_account: z.string().nullable(),
   type: z.string()
@@ -160,9 +167,16 @@ export type MonthlyReport = z.infer<typeof monthlyReportSchema>;
 export type CreateTransactionInput = {
   account: string;
   amount: string;
+  balance_after?: string | null;
   category?: string;
+  counterparty_text?: string;
   date: string;
+  direction?: string;
+  external_key?: string;
   note?: string;
+  payment_method?: string | null;
+  raw_message?: string | null;
+  reference?: string;
   source?: "web";
   transfer_account?: string;
   type: string;
@@ -236,18 +250,31 @@ export type UpdateSenderRuleInput = {
 export type ConfirmMessageCandidateInput = {
   account?: string;
   amount?: string;
+  balance_after?: string | null;
   category?: string | null;
+  counterparty_text?: string;
   date?: string;
+  direction?: string;
   note?: string;
+  payment_method?: string | null;
+  reference?: string;
+  transfer_account?: string | null;
   type?: string;
 };
 
 export type UpdateTransactionInput = {
   account?: string;
   amount?: string;
+  balance_after?: string | null;
   category?: string | null;
+  counterparty_text?: string;
   date?: string;
+  direction?: string;
+  external_key?: string;
   note?: string;
+  payment_method?: string | null;
+  raw_message?: string | null;
+  reference?: string;
   transfer_account?: string | null;
   type?: string;
 };

@@ -112,29 +112,50 @@ export type ParsedMessageCandidate = {
 export type ConfirmMessageCandidateInput = {
   account?: string;
   amount?: string;
+  balance_after?: string | null;
+  counterparty_text?: string;
   date?: string;
+  direction?: string;
   note?: string;
+  payment_method?: string | null;
+  reference?: string;
+  transfer_account?: string | null;
   type?: string;
 };
 
 export type CreateTransactionInput = {
   account: string;
   amount: string;
+  balance_after?: string | null;
   category?: string;
+  counterparty_text?: string;
   date: string;
+  direction?: string;
+  external_key?: string;
   note?: string;
+  payment_method?: string | null;
+  raw_message?: string | null;
+  reference?: string;
+  transfer_account?: string | null;
   type: string;
 };
 
 export type Transaction = {
   account: string;
   amount: string;
+  balance_after: string | null;
   category: string | null;
+  counterparty_text: string;
   created_at: string;
   date: string;
+  direction: string;
+  external_key: string;
   id: string;
   needs_review: boolean;
   note: string;
+  payment_method: string | null;
+  raw_message: string | null;
+  reference: string;
   source: string;
   transfer_account: string | null;
   type: string;

@@ -1,4 +1,11 @@
 {
+  "account": "1a3d92d0-f97f-4faf-a855-d68589bf26f2",
+  "transfer_account": null,
   "type": "expense",
+  "direction": "debit",
+  "amount": "350.00",
+  "balance_after": "1150.00",
+  "reference": "DEF456XYZ",
+  "counterparty_text": "SAMPLE MERCHANT",
   "note": "Confirmed from SMS"
 }

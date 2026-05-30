@@ -38,6 +38,10 @@ class TransactionViewSet(ModelViewSet):
         if transaction_type:
             queryset = queryset.filter(type=transaction_type)
 
+        direction = self.request.query_params.get("direction")
+        if direction:
+            queryset = queryset.filter(direction=direction)
+
         return queryset
 
     def perform_create(self, serializer):

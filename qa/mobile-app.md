@@ -78,8 +78,9 @@ implementation.
 
 The mobile SMS review section shows parser hints, raw SMS evidence,
 internal-transfer flags, and lets the user confirm or ignore candidates. Mobile
-confirmation currently uses the detected account, amount, date, and type; more
-complex edits can still be handled in the web review inbox.
+confirmation currently uses the detected account, amount, date, type, and
+parser evidence fields. More complex transfer source/destination edits can
+still be handled in the web review inbox.
 
 Decision status: the native path is deferred until automatic capture work starts.
 The documented direction is a narrow native Android module for personal APK use,
@@ -89,7 +90,9 @@ broad SMS access unsuitable.
 ## Why not read every SMS?
 
 Privacy and noise. The app only needs transaction reports from selected senders.
-Reading every SMS would be unnecessary, risky, and harder to justify.
+Reading every SMS would be unnecessary, risky, and harder to justify. The target
+automatic-capture path is to process only active sender-rule matches and ignore
+messages that do not look transaction-related.
 
 ## How will the mobile app handle offline mode?
 

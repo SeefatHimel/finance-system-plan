@@ -21,9 +21,15 @@ __pycache__/
 
 # Build outputs
 .next/
+*.tsbuildinfo
 dist/
 build/
 coverage/
+
+# Local databases
+*.sqlite3
+*.sqlite
+*.db
 
 # Mobile/native outputs
 android/.gradle/
@@ -33,4 +39,3 @@ ios/Pods/
 # IDE
 .idea/
 .vscode/
-

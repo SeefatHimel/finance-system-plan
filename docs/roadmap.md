@@ -96,6 +96,7 @@ Backend:
 - EBL parser. Done for starter card purchase parsing.
 - City Bank parser. Done for starter card purchase parsing.
 - Pathao Pay parser. Planned.
+- Final transaction ledger evidence fields for SMS confirmation. Done.
 - Transfer-aware parsing for bank-to-wallet and own-account movement. Done for
   candidate hints.
 - Possible related-message matching for two-sided internal transfers. Done.
@@ -108,6 +109,8 @@ Web:
 
 - Review inbox for parsed candidates. Done.
 - Transfer review controls for source and destination accounts
+- Show debit/credit direction, reference, balance after, and counterparty in
+  transaction tables. Done for the first transaction screen.
 - Bulk confirm and ignore
 - Parser error view
 

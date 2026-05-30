@@ -28,6 +28,9 @@ Never commit:
 
 - Store only SMS messages from sender rules the user enabled.
 - Keep ignored sender messages out of backend storage.
+- Do not scan or upload the whole SMS inbox. Automatic capture, if enabled for
+  a personal APK, should only process messages whose sender matches an active
+  sender rule and whose body looks transaction-related.
 - Allow raw message deletion later.
 - Use HTTPS in production.
 - Scope every backend query by user.

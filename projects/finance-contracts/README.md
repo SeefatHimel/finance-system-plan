@@ -38,7 +38,11 @@ CHANGELOG.md
 - Backend owns the canonical schema.
 - Web and mobile consume the same API.
 - Breaking changes must be versioned or coordinated.
-- Transaction amount is stored as a positive value with an explicit type.
+- Transaction amount is stored as a positive value with explicit business type
+  and ledger direction (`debit` or `credit`).
+- SMS-confirmed transactions should preserve normalized evidence fields such as
+  provider reference, balance after, counterparty text, payment method, raw
+  message id, and duplicate key.
 - Display sign preference belongs to clients.
 
 ## Initial Endpoint Sketch

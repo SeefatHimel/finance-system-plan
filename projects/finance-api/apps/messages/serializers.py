@@ -162,18 +162,37 @@ class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
 
 class ParsedMessageConfirmSerializer(serializers.Serializer):
     account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none(), required=False)
+    transfer_account = serializers.PrimaryKeyRelatedField(
+        queryset=Account.objects.none(),
+        required=False,
+        allow_null=True,
+    )
     amount = serializers.DecimalField(
         max_digits=14,
         decimal_places=2,
         min_value=Decimal("0.01"),
         required=False,
     )
+    balance_after = serializers.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+    )
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.none(),
         required=False,
         allow_null=True,
     )
+    payment_method = serializers.PrimaryKeyRelatedField(
+        queryset=PaymentMethod.objects.none(),
+        required=False,
+        allow_null=True,
+    )
     date = serializers.DateField(required=False)
+    direction = serializers.ChoiceField(choices=Transaction.Direction.choices, required=False)
+    reference = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    counterparty_text = serializers.CharField(max_length=255, required=False, allow_blank=True)
     note = serializers.CharField(required=False, allow_blank=True)
     type = serializers.ChoiceField(choices=Transaction.Type.choices, required=False)
 
@@ -181,5 +200,7 @@ class ParsedMessageConfirmSerializer(serializers.Serializer):
         fields = super().get_fields()
         user = self.context["request"].user
         fields["account"].queryset = Account.objects.filter(user=user, is_active=True)
+        fields["transfer_account"].queryset = Account.objects.filter(user=user, is_active=True)
         fields["category"].queryset = Category.objects.filter(user=user, is_active=True)
+        fields["payment_method"].queryset = PaymentMethod.objects.filter(user=user, is_active=True)
         return fields

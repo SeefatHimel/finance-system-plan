@@ -52,6 +52,11 @@ hints. Parsed candidates can also expose a `possible_related_candidate` and
 `related_match_reason` when another SMS may be the other side of the same
 internal transfer.
 
+Transaction contracts now include strict ledger evidence fields: `direction`,
+`balance_after`, `reference`, `counterparty_text`, `payment_method`,
+`raw_message`, and `external_key`. The SMS confirm request can override the
+same values when the parser needs user correction.
+
 The backend also exposes generated OpenAPI docs through `drf-spectacular` at
 `/api/schema/` and `/api/docs/`.
 

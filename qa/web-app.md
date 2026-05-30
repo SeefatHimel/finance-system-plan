@@ -96,13 +96,23 @@ The SMS review page uses the saved local JWT access token to load pending parsed
 message candidates, accounts, and categories. It shows raw SMS evidence, parser
 notes, detected provider/message kind, amount, reference, balance, fee,
 counterparty text, and possible internal-transfer/related-message hints. The
-user can confirm a candidate into an SMS-sourced transaction or ignore it.
+user can confirm a candidate into an SMS-sourced transaction or ignore it. The
+confirmation flow now supports debit/credit direction and transfer destination
+selection, and the resulting transaction preserves reference, balance, and
+counterparty evidence.
 
 ## What does the current reports page do?
 
 The current reports page calls the Django monthly report endpoint and shows
 income, expense, net total, category totals, and account movement for a selected
 month. This is the first web version of the spreadsheet's monthly summary view.
+
+## What does the transaction table show now?
+
+The transaction table shows date, type, debit/credit direction, account,
+category, amount, balance after, provider transaction id/reference,
+sent-to/received-from text, note, and delete actions. This makes SMS-confirmed
+transactions inspectable without opening the raw message every time.
 
 ## Why not copy the spreadsheet exactly?
 
