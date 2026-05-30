@@ -162,10 +162,11 @@ a parsed SMS review inbox, provider-specific starter SMS parsers, internal
 transfer matching hints, debt and repayment APIs, credit card bill APIs,
 recurring bill APIs, reconciliation APIs, a monthly report endpoint, a Next.js
 dashboard workflow, web SMS review UI, web debt/lending, credit-card bill, and
-recurring-bill dashboards, and an Expo Android-oriented mobile scaffold with local
-raw-message queueing and SMS review including source/destination transfer
-account selection. The web app also exposes balance reconciliation so expected
-ledger balances can be compared with real account snapshots.
+recurring-bill dashboards, and an Expo Android-oriented mobile scaffold with
+local raw-message queueing, SMS review including source/destination transfer
+account selection, and a compact debt/lending workflow. The web app also
+exposes balance reconciliation so expected ledger balances can be compared with
+real account snapshots.
 Confirmed SMS transactions preserve normalized ledger evidence such as
 debit/credit direction, reference or TrxID, balance after, counterparty text,
 payment method, raw message link, and duplicate key. Raw SMS bodies can now be

@@ -49,6 +49,9 @@ bare React Native when real automatic SMS capture is ready to be implemented.
 - Account/category fetch flow (`GET /api/accounts/`, `GET /api/categories/`).
 - Quick add transaction flow (`POST /api/transactions/`).
 - Transaction list flow (`GET /api/transactions/`).
+- Debt/lending flow (`GET /api/debts/`, `POST /api/debts/`, and
+  `POST /api/debts/{id}/payments/`) for creating lent/borrowed records,
+  seeing balances, and recording repayments.
 - SMS tracking settings scaffold that loads payment methods and sender rules,
   shows a permission gate placeholder, and lets the user locally enable trusted
   sender rules for future import.
@@ -58,6 +61,13 @@ bare React Native when real automatic SMS capture is ready to be implemented.
 The login/token flow is still a local testing scaffold. Production mobile auth
 should store refresh tokens in OS-backed secure storage, as documented in
 `docs/auth-token-storage-plan.md`.
+
+## What does the mobile debt section do?
+
+The mobile debt section loads debt/lending records from the backend, creates
+new lent-by-me or borrowed-by-me records, shows current balances and due dates,
+and records repayments against open debt records. It is intentionally compact so
+it works as a quick on-phone companion to the fuller web dashboard.
 
 ## How will SMS tracking work?
 

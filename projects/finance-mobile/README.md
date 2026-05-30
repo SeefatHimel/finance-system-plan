@@ -34,6 +34,11 @@ Phase 1 scaffold now includes:
   - lets the user select transaction type plus source/destination accounts
     before confirming transfers
   - confirms or ignores candidates through the review endpoints
+- Debt/lending section:
+  - loads records from `GET /api/debts/`
+  - creates lent/borrowed records through `POST /api/debts/`
+  - records repayments through `POST /api/debts/{id}/payments/`
+  - shows open balances and due dates
 - Transaction API types include strict ledger evidence fields such as
   debit/credit direction, balance after, reference, counterparty text, payment
   method, raw message link, and duplicate key
@@ -172,3 +177,10 @@ Settings
 5. Raw message sync. Done.
 6. Review inbox. Done.
 7. Source/destination transfer controls. Done.
+
+## Phase 4 Mobile Milestones
+
+1. Debt/lending screen. Done for first mobile scaffold.
+2. Credit-card bill screen.
+3. Recurring-bill screen.
+4. Reconciliation screen.

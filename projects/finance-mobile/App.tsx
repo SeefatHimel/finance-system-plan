@@ -15,6 +15,8 @@ import {
 import {
   checkHealth,
   confirmMessageCandidate,
+  createDebt,
+  createDebtPayment,
   createTransaction,
   getApiBaseUrl,
   getCurrentUser,
@@ -22,6 +24,7 @@ import {
   importRawMessage,
   listAccounts,
   listCategories,
+  listDebts,
   listMessageCandidates,
   listPaymentMethods,
   listSenderRules,
@@ -29,6 +32,7 @@ import {
   login,
   type Account,
   type Category,
+  type Debt,
   type HealthResult,
   type ParsedMessageCandidate,
   type PaymentMethod,
@@ -52,6 +56,10 @@ type QueuedRawMessage = {
 };
 
 const rawMessageQueueKey = "finance.rawMessageQueue";
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function confidencePercent(value: string) {
   const score = Number(value);
@@ -118,6 +126,19 @@ export default function App() {
   const [listState, setListState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [listMessage, setListMessage] = useState("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [debtState, setDebtState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [debtMessage, setDebtMessage] = useState("");
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [debtCounterparty, setDebtCounterparty] = useState("");
+  const [debtDirection, setDebtDirection] = useState("lent_by_me");
+  const [debtPrincipal, setDebtPrincipal] = useState("");
+  const [debtOpenedAt, setDebtOpenedAt] = useState(today());
+  const [debtDueDate, setDebtDueDate] = useState("");
+  const [debtNote, setDebtNote] = useState("");
+  const [debtPaymentId, setDebtPaymentId] = useState("");
+  const [debtPaymentAmount, setDebtPaymentAmount] = useState("");
+  const [debtPaymentDate, setDebtPaymentDate] = useState(today());
+  const [debtPaymentNote, setDebtPaymentNote] = useState("");
   const [smsPermissionState, setSmsPermissionState] = useState<SmsPermissionState>("unknown");
   const [smsPermissionMessage, setSmsPermissionMessage] = useState(
     "Native SMS permission is not wired in this Expo scaffold yet."
@@ -164,6 +185,89 @@ export default function App() {
     } catch (error) {
       setListState("error");
       setListMessage(error instanceof Error ? error.message : "Could not load transactions.");
+    }
+  };
+
+  const handleLoadDebts = async () => {
+    if (!accessToken.trim()) {
+      setDebtState("error");
+      setDebtMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+
+    setDebtState("loading");
+    setDebtMessage("");
+    try {
+      const payload = await listDebts(accessToken.trim());
+      setDebts(payload);
+      setDebtState("ok");
+      setDebtMessage(`Loaded ${payload.length} debt record(s).`);
+    } catch (error) {
+      setDebtState("error");
+      setDebtMessage(error instanceof Error ? error.message : "Could not load debts.");
+    }
+  };
+
+  const handleCreateDebt = async () => {
+    if (!accessToken.trim()) {
+      setDebtState("error");
+      setDebtMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+    if (!debtCounterparty.trim() || !debtPrincipal.trim() || !debtOpenedAt.trim()) {
+      setDebtState("error");
+      setDebtMessage("Counterparty, principal, and opened date are required.");
+      return;
+    }
+
+    setDebtState("loading");
+    setDebtMessage("");
+    try {
+      await createDebt(accessToken.trim(), {
+        counterparty_name: debtCounterparty.trim(),
+        direction: debtDirection,
+        due_date: debtDueDate.trim() || null,
+        note: debtNote.trim(),
+        opened_at: debtOpenedAt.trim(),
+        principal_amount: debtPrincipal.trim()
+      });
+      setDebtCounterparty("");
+      setDebtPrincipal("");
+      setDebtDueDate("");
+      setDebtNote("");
+      await handleLoadDebts();
+    } catch (error) {
+      setDebtState("error");
+      setDebtMessage(error instanceof Error ? error.message : "Could not create debt record.");
+    }
+  };
+
+  const handleCreateDebtPayment = async () => {
+    if (!accessToken.trim()) {
+      setDebtState("error");
+      setDebtMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+    if (!debtPaymentId || !debtPaymentAmount.trim() || !debtPaymentDate.trim()) {
+      setDebtState("error");
+      setDebtMessage("Debt, amount, and paid date are required.");
+      return;
+    }
+
+    setDebtState("loading");
+    setDebtMessage("");
+    try {
+      await createDebtPayment(accessToken.trim(), debtPaymentId, {
+        amount: debtPaymentAmount.trim(),
+        note: debtPaymentNote.trim(),
+        paid_at: debtPaymentDate.trim()
+      });
+      setDebtPaymentAmount("");
+      setDebtPaymentNote("");
+      await handleLoadDebts();
+    } catch (error) {
+      setDebtState("error");
+      setDebtMessage(error instanceof Error ? error.message : "Could not record repayment.");
     }
   };
 
@@ -529,6 +633,8 @@ export default function App() {
       });
   }, []);
 
+  const openDebts = debts.filter((debt) => debt.status !== "paid");
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" />
@@ -705,6 +811,138 @@ export default function App() {
               {transactions.map((transaction) => (
                 <Text key={transaction.id} style={styles.listItem}>
                   {transaction.date} | {transaction.type} | {transaction.amount} | {transaction.note || "No note"}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Debts & Lending</Text>
+          <Text style={styles.meta}>
+            Create money owed records and mark repayments while away from the web dashboard.
+          </Text>
+
+          <Pressable onPress={handleLoadDebts} style={styles.buttonSecondary}>
+            <Text style={styles.buttonText}>Load Debts</Text>
+          </Pressable>
+          {debtState === "loading" ? <ActivityIndicator /> : null}
+          {debtState === "ok" ? <Text style={styles.okText}>{debtMessage}</Text> : null}
+          {debtState === "error" ? <Text style={styles.errorText}>{debtMessage}</Text> : null}
+
+          <Text style={styles.sectionTitle}>Add Debt Record</Text>
+          <TextInput
+            autoCapitalize="words"
+            onChangeText={setDebtCounterparty}
+            placeholder="Person or business"
+            style={styles.input}
+            value={debtCounterparty}
+          />
+          <View style={styles.choiceRow}>
+            {[
+              ["lent_by_me", "Lent by me"],
+              ["borrowed_by_me", "Borrowed by me"]
+            ].map(([value, label]) => (
+              <Pressable
+                key={value}
+                onPress={() => setDebtDirection(value)}
+                style={debtDirection === value ? styles.choiceSelected : styles.choice}
+              >
+                <Text style={debtDirection === value ? styles.choiceTextSelected : styles.choiceText}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput
+            keyboardType="decimal-pad"
+            onChangeText={setDebtPrincipal}
+            placeholder="Principal amount"
+            style={styles.input}
+            value={debtPrincipal}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setDebtOpenedAt}
+            placeholder="Opened date (YYYY-MM-DD)"
+            style={styles.input}
+            value={debtOpenedAt}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setDebtDueDate}
+            placeholder="Due date (optional)"
+            style={styles.input}
+            value={debtDueDate}
+          />
+          <TextInput
+            autoCapitalize="sentences"
+            onChangeText={setDebtNote}
+            placeholder="Note (optional)"
+            style={styles.input}
+            value={debtNote}
+          />
+          <Pressable onPress={handleCreateDebt} style={styles.button}>
+            <Text style={styles.buttonText}>Save Debt</Text>
+          </Pressable>
+
+          <Text style={styles.sectionTitle}>Record Repayment</Text>
+          {openDebts.length ? (
+            <View style={styles.choiceRow}>
+              {openDebts.map((debt) => (
+                <Pressable
+                  key={debt.id}
+                  onPress={() => setDebtPaymentId(debt.id)}
+                  style={debtPaymentId === debt.id ? styles.choiceSelected : styles.choice}
+                >
+                  <Text style={debtPaymentId === debt.id ? styles.choiceTextSelected : styles.choiceText}>
+                    {debt.counterparty_name} | {debt.current_balance}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.meta}>No open debt records loaded.</Text>
+          )}
+          <TextInput
+            keyboardType="decimal-pad"
+            onChangeText={setDebtPaymentAmount}
+            placeholder="Payment amount"
+            style={styles.input}
+            value={debtPaymentAmount}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setDebtPaymentDate}
+            placeholder="Paid date (YYYY-MM-DD)"
+            style={styles.input}
+            value={debtPaymentDate}
+          />
+          <TextInput
+            autoCapitalize="sentences"
+            onChangeText={setDebtPaymentNote}
+            placeholder="Payment note (optional)"
+            style={styles.input}
+            value={debtPaymentNote}
+          />
+          <Pressable
+            disabled={openDebts.length === 0}
+            onPress={handleCreateDebtPayment}
+            style={openDebts.length === 0 ? styles.buttonDisabled : styles.button}
+          >
+            <Text style={styles.buttonText}>Record Repayment</Text>
+          </Pressable>
+
+          {debts.length ? (
+            <View style={styles.listSection}>
+              <Text style={styles.listTitle}>People and balances</Text>
+              {debts.map((debt) => (
+                <Text key={debt.id} style={styles.listItem}>
+                  {debt.counterparty_name} | {debt.direction.replaceAll("_", " ")} | {debt.current_balance} | {debt.status}
+                  {debt.due_date ? ` | due ${debt.due_date}` : ""}
                 </Text>
               ))}
             </View>

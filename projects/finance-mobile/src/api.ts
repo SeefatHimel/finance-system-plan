@@ -163,6 +163,37 @@ export type Transaction = {
   updated_at: string;
 };
 
+export type Debt = {
+  counterparty_name: string;
+  created_at: string;
+  current_balance: string;
+  direction: string;
+  due_date: string | null;
+  id: string;
+  note: string;
+  opened_at: string;
+  opened_transaction: string | null;
+  principal_amount: string;
+  status: string;
+  updated_at: string;
+};
+
+export type CreateDebtInput = {
+  counterparty_name: string;
+  direction: string;
+  due_date?: string | null;
+  note?: string;
+  opened_at: string;
+  principal_amount: string;
+};
+
+export type CreateDebtPaymentInput = {
+  amount: string;
+  note?: string;
+  paid_at: string;
+  transaction?: string | null;
+};
+
 export type HealthResult = {
   error?: string;
   ok: boolean;
@@ -274,6 +305,48 @@ export async function listSenderRules(accessToken: string): Promise<SenderRule[]
 export async function listMessageCandidates(accessToken: string): Promise<ParsedMessageCandidate[]> {
   const response = await authenticatedFetch("/api/messages/review/", accessToken);
   return (await response.json()) as ParsedMessageCandidate[];
+}
+
+export async function listDebts(accessToken: string): Promise<Debt[]> {
+  const response = await authenticatedFetch("/api/debts/", accessToken);
+  return (await response.json()) as Debt[];
+}
+
+export async function createDebt(accessToken: string, input: CreateDebtInput): Promise<Debt> {
+  const response = await authenticatedFetch("/api/debts/", accessToken, {
+    body: JSON.stringify({
+      counterparty_name: input.counterparty_name,
+      direction: input.direction,
+      due_date: input.due_date || null,
+      note: input.note || "",
+      opened_at: input.opened_at,
+      principal_amount: input.principal_amount
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return (await response.json()) as Debt;
+}
+
+export async function createDebtPayment(
+  accessToken: string,
+  debtId: string,
+  input: CreateDebtPaymentInput
+): Promise<void> {
+  await authenticatedFetch(`/api/debts/${debtId}/payments/`, accessToken, {
+    body: JSON.stringify({
+      amount: input.amount,
+      note: input.note || "",
+      paid_at: input.paid_at,
+      transaction: input.transaction || null
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
 }
 
 export async function confirmMessageCandidate(
