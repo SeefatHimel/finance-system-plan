@@ -91,6 +91,10 @@ clients.
 Current examples are available in `projects/finance-contracts/examples/`:
 
 - `account.create.json`
+- `audit-log.list.response.json`
+- `auth.login.request.json`
+- `auth.login.response.json`
+- `auth.me.response.json`
 - `category.create.json`
 - `credit-card-bill.create.json`
 - `credit-card-bill.payment.create.json`
@@ -109,11 +113,12 @@ Current examples are available in `projects/finance-contracts/examples/`:
 - `sender-rule.create.json`
 - `transaction.create.json`
 - `transaction.list.response.json`
+- `transaction.transfer.create.json`
+- `validation-error.response.json`
 - `report.monthly.response.json`
 
 Next useful additions:
 
-- Login request/response
-- Auth `me` response
-- Validation error payload examples
-- Transfer transaction create example
+- Export CSV shape sample
+- Account reconciliation response example
+- Audit log detail response example

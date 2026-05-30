@@ -1,0 +1,18 @@
+{
+  "account": "1a3d92d0-f97f-4faf-a855-d68589bf26f2",
+  "transfer_account": "7d259c87-6ac4-4d3f-bc0f-e8c72be72b11",
+  "category": null,
+  "payment_method": null,
+  "raw_message": null,
+  "date": "2026-05-02",
+  "type": "transfer",
+  "direction": "debit",
+  "amount": "5000.00",
+  "balance_after": "20000.00",
+  "reference": "TRX-TRANSFER-001",
+  "counterparty_text": "Transfer to bKash wallet",
+  "external_key": "manual-transfer-2026-05-02-001",
+  "note": "Bank to wallet transfer",
+  "source": "web",
+  "needs_review": false
+}

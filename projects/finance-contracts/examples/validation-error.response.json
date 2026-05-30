@@ -1,0 +1,8 @@
+{
+  "amount": [
+    "Ensure that there are no more than 12 digits in total."
+  ],
+  "transfer_account": [
+    "Transfer transactions require a destination account."
+  ]
+}

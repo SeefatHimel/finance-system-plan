@@ -23,6 +23,10 @@ requirements.txt
 tsconfig.generated.json
 examples/
   account.create.json
+  audit-log.list.response.json
+  auth.login.request.json
+  auth.login.response.json
+  auth.me.response.json
   category.create.json
   credit-card-bill.create.json
   credit-card-bill.payment.create.json
@@ -37,6 +41,8 @@ examples/
   sender-rule.create.json
   transaction.create.json
   transaction.list.response.json
+  transaction.transfer.create.json
+  validation-error.response.json
   report.monthly.response.json
   reconciliation.snapshot.create.json
   reconciliation.snapshot.response.json

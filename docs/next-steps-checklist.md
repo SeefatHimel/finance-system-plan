@@ -63,6 +63,7 @@ Last updated: 2026-05-31
 - [x] Credit-card bill and recurring-bill contract fields/examples added
 - [x] Generated TypeScript API client and schema types added
 - [x] Contract Q&A updated
+- [x] Auth, transfer transaction, validation error, and audit log examples added
 
 ### Phase 2 Kickoff
 
@@ -136,6 +137,7 @@ Last updated: 2026-05-31
 - [x] Add web transaction CSV export action
 - [x] Add OpenAPI-generated TypeScript client workflow
 - [x] Add transaction audit log API and contract coverage
+- [x] Add missing auth, transfer, validation, and audit log contract examples
 
 ## Verification Matrix
 

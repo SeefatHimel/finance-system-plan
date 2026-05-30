@@ -1,0 +1,50 @@
+[
+  {
+    "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "action": "updated",
+    "entity_type": "transactions.transaction",
+    "entity_id": "f5e57b1e-14f5-4f77-93af-d7f90d7cbffc",
+    "before": {
+      "id": "f5e57b1e-14f5-4f77-93af-d7f90d7cbffc",
+      "account": "1a3d92d0-f97f-4faf-a855-d68589bf26f2",
+      "transfer_account": null,
+      "category": "83bb8f20-a319-4bd0-b771-0d79778ec8a8",
+      "payment_method": null,
+      "raw_message": null,
+      "date": "2026-05-01",
+      "type": "expense",
+      "direction": "debit",
+      "amount": "1200.00",
+      "balance_after": null,
+      "reference": "",
+      "counterparty_text": "Grocery shop",
+      "external_key": "",
+      "note": "Groceries",
+      "source": "web",
+      "needs_review": false
+    },
+    "after": {
+      "id": "f5e57b1e-14f5-4f77-93af-d7f90d7cbffc",
+      "account": "1a3d92d0-f97f-4faf-a855-d68589bf26f2",
+      "transfer_account": null,
+      "category": "83bb8f20-a319-4bd0-b771-0d79778ec8a8",
+      "payment_method": null,
+      "raw_message": null,
+      "date": "2026-05-01",
+      "type": "expense",
+      "direction": "debit",
+      "amount": "1200.00",
+      "balance_after": null,
+      "reference": "",
+      "counterparty_text": "Grocery shop",
+      "external_key": "",
+      "note": "Groceries and household items",
+      "source": "web",
+      "needs_review": false
+    },
+    "metadata": {
+      "recorded_at": "2026-05-01T04:12:22.219000Z"
+    },
+    "created_at": "2026-05-01T04:12:22.219000Z"
+  }
+]
