@@ -173,6 +173,8 @@ export function ReconciliationWorkspace() {
     );
   }, [state]);
 
+  const latestSnapshot = accountCheck?.latest_snapshot ?? null;
+
   async function handleAccountChange(accountId: string) {
     setSelectedAccountId(accountId);
     const accessToken = getAccessToken();
@@ -314,15 +316,31 @@ export function ReconciliationWorkspace() {
               <div className="metric">
                 <span className="metric__label">Latest snapshot</span>
                 <span className="metric__value">
-                  {accountCheck?.latest_snapshot
-                    ? formatMoney(accountCheck.latest_snapshot.actual_balance)
+                  {latestSnapshot
+                    ? formatMoney(latestSnapshot.actual_balance)
                     : "No snapshot"}
+                </span>
+              </div>
+              <div className="metric">
+                <span className="metric__label">Difference</span>
+                <span className="metric__value">
+                  {latestSnapshot ? formatMoney(latestSnapshot.difference) : "-"}
                 </span>
               </div>
               <div className="metric">
                 <span className="metric__label">Status</span>
                 <span className="metric__value">
-                  {accountCheck?.latest_snapshot ? formatLabel(accountCheck.latest_snapshot.status) : "-"}
+                  {latestSnapshot ? (
+                    <span className={statusBadgeClass(latestSnapshot.status)}>
+                      {formatLabel(latestSnapshot.status)}
+                    </span>
+                  ) : "-"}
+                </span>
+              </div>
+              <div className="metric field--wide">
+                <span className="metric__label">Likely check</span>
+                <span className="metric__value">
+                  {latestSnapshot ? differenceReason(latestSnapshot.status, latestSnapshot.difference) : "-"}
                 </span>
               </div>
             </div>
@@ -336,7 +354,13 @@ export function ReconciliationWorkspace() {
           <form className="transaction-form" onSubmit={handleCreateSnapshot}>
             <label className="field">
               <span className="field__label">Account</span>
-              <select className="field__control" defaultValue={selectedAccountId} name="account" required>
+              <select
+                className="field__control"
+                name="account"
+                onChange={(event) => void handleAccountChange(event.target.value)}
+                required
+                value={selectedAccountId}
+              >
                 <option value="">Select account</option>
                 {state.accounts.map((account) => (
                   <option key={account.id} value={account.id}>

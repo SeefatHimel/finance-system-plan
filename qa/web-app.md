@@ -142,8 +142,11 @@ month. This is the first web version of the spreadsheet's monthly summary view.
 The reconciliation page loads accounts, balance snapshots, and per-account
 expected balances from the Django API. The user can select an account, compare
 the expected ledger balance with the latest real-life snapshot, save a new
-actual balance snapshot, and review warning reasons such as missing expenses,
-missing income, or duplicate transactions.
+actual balance snapshot, and review the latest difference, status badge, and
+warning reason such as missing expenses, missing income, or duplicate
+transactions. The account selector is shared between checking and saving a
+snapshot, so users do not accidentally save a snapshot against a different
+account than the one they are inspecting.
 
 ## What does the current audit logs page do?
 

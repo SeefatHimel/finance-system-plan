@@ -226,6 +226,7 @@ The user can enter the real-life balance for an account. The UI shows:
 - Actual balance.
 - Difference.
 - Possible causes: missing expense, missing income, wrong account, duplicate.
+- Synced account selection between the check panel and snapshot form. Done.
 - Button to create an adjustment transaction.
 
 ## Phase 1 Web Milestones

@@ -135,6 +135,7 @@ Last updated: 2026-05-31
 
 - [x] Add first web debt/lending dashboard
 - [x] Add reconciliation web screen
+- [x] Polish reconciliation account check with difference, reason, and synced snapshot account
 - [x] Add credit card bill tracking
 - [x] Add recurring bills
 
