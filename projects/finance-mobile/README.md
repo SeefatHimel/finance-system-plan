@@ -16,6 +16,12 @@ Phase 1 scaffold now includes:
   - `GET /api/categories/`
 - Quick add transaction form:
   - `POST /api/transactions/`
+- Local manual transaction queue:
+  - stores manual transaction drafts with AsyncStorage
+  - syncs queued manual transactions to `POST /api/transactions/`
+  - uses retry metadata and capped retry backoff for failed syncs
+  - blocks obvious duplicate queued transactions
+  - lets the user remove invalid queued transactions manually
 - Transaction list flow:
   - `GET /api/transactions/`
 - SMS tracking settings scaffold:
@@ -170,7 +176,7 @@ Settings
 
 ## Offline Requirements
 
-- Manual transactions can be saved offline.
+- Manual transactions can be saved offline in a local queue and synced later.
 - Raw SMS messages can be queued offline.
 - Sync retries when network is available and keeps per-message failure context.
 - Failed raw SMS sync items wait for their next retry time before another attempt.
@@ -184,9 +190,11 @@ Settings
 3. Backend health check. Done.
 4. Account/category fetch. Done.
 5. Quick add transaction. Done.
-6. Transaction list. Done.
-7. SMS sender selection scaffold. Done.
-8. Local raw message cache and sync queue. Done.
+6. Local manual transaction queue. Done with retry metadata, capped retry
+   backoff, local duplicate checks, and manual removal.
+7. Transaction list. Done.
+8. SMS sender selection scaffold. Done.
+9. Local raw message cache and sync queue. Done.
 
 ## Phase 2 Mobile Milestones
 

@@ -47,7 +47,8 @@ bare React Native when real automatic SMS capture is ready to be implemented.
 - Login testing flow (`POST /api/auth/login/`).
 - Access token validation flow (`GET /api/auth/me/`).
 - Account/category fetch flow (`GET /api/accounts/`, `GET /api/categories/`).
-- Quick add transaction flow (`POST /api/transactions/`).
+- Quick add transaction flow (`POST /api/transactions/`) plus a local manual
+  transaction queue for offline saves and later sync.
 - Transaction list flow (`GET /api/transactions/`).
 - Debt/lending flow (`GET /api/debts/`, `POST /api/debts/`, and
   `POST /api/debts/{id}/payments/`) for creating lent/borrowed records,
@@ -140,8 +141,8 @@ messages that do not look transaction-related.
 
 ## How will the mobile app handle offline mode?
 
-Manual transactions and raw SMS messages should be stored in a local queue.
-When network returns, the app syncs queued items to the backend.
+Manual transactions and raw SMS messages should be stored in local queues. When
+network returns, the app syncs queued items to the backend.
 
 ## What data should be cached locally?
 
@@ -149,7 +150,12 @@ The app should cache account/category lists, pending local submissions, raw SMS
 sync status, and recent transactions. Sensitive data should be minimized and
 protected where possible.
 
-Current implementation status: raw SMS messages can be queued locally with
+Current implementation status: manual transactions can be queued locally with
+account, category, date, type, amount, note, retry metadata, capped retry
+backoff, and manual removal. Successful syncs are removed from the queue, and
+failed syncs stay queued until their next retry time.
+
+Raw SMS messages can also be queued locally with
 sender, body, received time, optional device message ID, attempt count, last
 attempt time, next retry time, and latest sync error. Successful syncs are
 removed from the queue; failed syncs remain queued with a next retry timestamp

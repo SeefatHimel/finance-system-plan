@@ -55,6 +55,7 @@ Last updated: 2026-05-31
 - [x] Login and token validation flow
 - [x] Account/category fetch flow
 - [x] Quick transaction create flow
+- [x] Local manual transaction queue and sync flow
 - [x] Transaction list flow
 - [x] SMS sender selection UI + permission gate scaffold
 - [x] Local raw message cache and sync queue
@@ -131,6 +132,7 @@ Last updated: 2026-05-31
 - [x] Add bank/card parser coverage for card payments, fees, refunds, and reversals
 - [x] Harden mobile raw SMS queue with retry metadata, local duplicate checks, and removal controls
 - [x] Add capped retry backoff and next retry display for mobile raw SMS queue
+- [x] Add offline manual transaction queue with retry backoff and removal controls
 
 ### Phase 4 Follow-up
 

@@ -41,6 +41,7 @@ import {
   type Account,
   type AccountReconciliation,
   type Category,
+  type CreateTransactionInput,
   type CreditCardBill,
   type Debt,
   type HealthResult,
@@ -70,8 +71,18 @@ type QueuedRawMessage = {
   receivedAt: string;
   sender: string;
 };
+type QueuedManualTransaction = {
+  attempts: number;
+  createdAt: string;
+  id: string;
+  input: CreateTransactionInput;
+  lastAttemptAt: string;
+  lastError: string;
+  nextRetryAt: string;
+};
 
 const rawMessageQueueKey = "finance.rawMessageQueue";
+const manualTransactionQueueKey = "finance.manualTransactionQueue";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -96,14 +107,14 @@ function rawMessageDedupeKey(input: Pick<QueuedRawMessage, "body" | "deviceMessa
     : `body:${sender}:${receivedAt}:${body}`;
 }
 
-function rawMessageRetryDelayMs(attempts: number) {
+function queueRetryDelayMs(attempts: number) {
   const retryNumber = Math.max(attempts, 1);
   const delaySeconds = Math.min(60 * 2 ** (retryNumber - 1), 60 * 60);
   return delaySeconds * 1000;
 }
 
-function nextRawMessageRetryAt(attempts: number) {
-  return new Date(Date.now() + rawMessageRetryDelayMs(attempts)).toISOString();
+function nextQueueRetryAt(attempts: number) {
+  return new Date(Date.now() + queueRetryDelayMs(attempts)).toISOString();
 }
 
 function isRawMessageRetryDue(queuedMessage: QueuedRawMessage, nowMs = Date.now()) {
@@ -111,6 +122,80 @@ function isRawMessageRetryDue(queuedMessage: QueuedRawMessage, nowMs = Date.now(
     return true;
   }
   const retryAtMs = new Date(queuedMessage.nextRetryAt).getTime();
+  return Number.isNaN(retryAtMs) || retryAtMs <= nowMs;
+}
+
+function manualTransactionDedupeKey(input: CreateTransactionInput) {
+  return [
+    input.account.trim(),
+    input.category?.trim() ?? "",
+    input.date.trim(),
+    input.type.trim(),
+    input.amount.trim(),
+    input.note?.trim() ?? ""
+  ].join(":");
+}
+
+function normalizeManualTransactionQueue(storedQueue: string | null): QueuedManualTransaction[] {
+  if (!storedQueue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(storedQueue) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    const nextQueue: QueuedManualTransaction[] = [];
+    const seenKeys = new Set<string>();
+
+    for (const item of parsed) {
+      if (!isRecord(item) || !isRecord(item.input)) {
+        continue;
+      }
+
+      const input: CreateTransactionInput = {
+        account: stringValue(item.input.account),
+        amount: stringValue(item.input.amount),
+        category: stringValue(item.input.category) || undefined,
+        date: stringValue(item.input.date),
+        note: stringValue(item.input.note),
+        type: stringValue(item.input.type)
+      };
+
+      if (!input.account || !input.amount || !input.date || !input.type) {
+        continue;
+      }
+
+      const dedupeKey = manualTransactionDedupeKey(input);
+      if (seenKeys.has(dedupeKey)) {
+        continue;
+      }
+      seenKeys.add(dedupeKey);
+
+      nextQueue.push({
+        attempts: numberValue(item.attempts),
+        createdAt: stringValue(item.createdAt) || new Date().toISOString(),
+        id: stringValue(item.id) || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        input,
+        lastAttemptAt: stringValue(item.lastAttemptAt),
+        lastError: stringValue(item.lastError),
+        nextRetryAt: stringValue(item.nextRetryAt)
+      });
+    }
+
+    return nextQueue;
+  } catch {
+    return [];
+  }
+}
+
+function isManualTransactionRetryDue(queuedTransaction: QueuedManualTransaction, nowMs = Date.now()) {
+  if (!queuedTransaction.nextRetryAt) {
+    return true;
+  }
+  const retryAtMs = new Date(queuedTransaction.nextRetryAt).getTime();
   return Number.isNaN(retryAtMs) || retryAtMs <= nowMs;
 }
 
@@ -230,6 +315,9 @@ export default function App() {
   const [txNote, setTxNote] = useState("");
   const [txState, setTxState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [txMessage, setTxMessage] = useState("");
+  const [transactionQueue, setTransactionQueue] = useState<QueuedManualTransaction[]>([]);
+  const [transactionQueueState, setTransactionQueueState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [transactionQueueMessage, setTransactionQueueMessage] = useState("");
   const [listState, setListState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [listMessage, setListMessage] = useState("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -935,7 +1023,7 @@ export default function App() {
         remainingQueue.push({
           ...attemptedMessage,
           lastError: error instanceof Error ? error.message : "Unknown sync error.",
-          nextRetryAt: nextRawMessageRetryAt(attemptedMessage.attempts)
+          nextRetryAt: nextQueueRetryAt(attemptedMessage.attempts)
         });
       }
     }
@@ -1032,6 +1120,63 @@ export default function App() {
     }
   };
 
+  const currentManualTransactionInput = (): CreateTransactionInput | null => {
+    if (!txAccountId.trim() || !txDate.trim() || !txType.trim() || !txAmount.trim()) {
+      return null;
+    }
+
+    return {
+      account: txAccountId.trim(),
+      amount: txAmount.trim(),
+      category: txCategoryId.trim() || undefined,
+      date: txDate.trim(),
+      note: txNote.trim(),
+      type: txType.trim()
+    };
+  };
+
+  const saveTransactionQueue = async (nextQueue: QueuedManualTransaction[]) => {
+    setTransactionQueue(nextQueue);
+    await AsyncStorage.setItem(manualTransactionQueueKey, JSON.stringify(nextQueue));
+  };
+
+  const handleQueueManualTransaction = async () => {
+    const input = currentManualTransactionInput();
+
+    if (!input) {
+      setTransactionQueueState("error");
+      setTransactionQueueMessage("Account, date, type, and amount are required.");
+      return;
+    }
+
+    if (transactionQueue.some((queuedTransaction) => manualTransactionDedupeKey(queuedTransaction.input) === manualTransactionDedupeKey(input))) {
+      setTransactionQueueState("error");
+      setTransactionQueueMessage("This manual transaction is already queued locally.");
+      return;
+    }
+
+    const queuedTransaction: QueuedManualTransaction = {
+      attempts: 0,
+      createdAt: new Date().toISOString(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      input,
+      lastAttemptAt: "",
+      lastError: "",
+      nextRetryAt: ""
+    };
+
+    try {
+      await saveTransactionQueue([...transactionQueue, queuedTransaction]);
+      setTransactionQueueState("ok");
+      setTransactionQueueMessage("Manual transaction queued locally.");
+      setTxAmount("");
+      setTxNote("");
+    } catch (error) {
+      setTransactionQueueState("error");
+      setTransactionQueueMessage(error instanceof Error ? error.message : "Could not save queued transaction.");
+    }
+  };
+
   const handleQuickAddTransaction = async () => {
     if (!accessToken.trim()) {
       setTxState("error");
@@ -1039,7 +1184,9 @@ export default function App() {
       return;
     }
 
-    if (!txAccountId.trim() || !txDate.trim() || !txType.trim() || !txAmount.trim()) {
+    const input = currentManualTransactionInput();
+
+    if (!input) {
       setTxState("error");
       setTxMessage("Account, date, type, and amount are required.");
       return;
@@ -1049,14 +1196,7 @@ export default function App() {
     setTxMessage("");
 
     try {
-      await createTransaction(accessToken.trim(), {
-        account: txAccountId.trim(),
-        amount: txAmount.trim(),
-        category: txCategoryId.trim() || undefined,
-        date: txDate.trim(),
-        note: txNote.trim(),
-        type: txType.trim()
-      });
+      await createTransaction(accessToken.trim(), input);
       setTxState("ok");
       setTxMessage("Transaction created.");
       setTxAmount("");
@@ -1067,8 +1207,87 @@ export default function App() {
     }
   };
 
+  const handleSyncTransactionQueue = async () => {
+    if (!accessToken.trim()) {
+      setTransactionQueueState("error");
+      setTransactionQueueMessage("Sign in first or paste a valid access token.");
+      return;
+    }
+    if (transactionQueue.length === 0) {
+      setTransactionQueueState("ok");
+      setTransactionQueueMessage("No queued manual transactions to sync.");
+      return;
+    }
+
+    setTransactionQueueState("loading");
+    setTransactionQueueMessage("");
+
+    const remainingQueue: QueuedManualTransaction[] = [];
+    const nowMs = Date.now();
+    let failedCount = 0;
+    let skippedCount = 0;
+    let syncedCount = 0;
+
+    for (const queuedTransaction of transactionQueue) {
+      if (!isManualTransactionRetryDue(queuedTransaction, nowMs)) {
+        remainingQueue.push(queuedTransaction);
+        skippedCount += 1;
+        continue;
+      }
+
+      const attemptedTransaction: QueuedManualTransaction = {
+        ...queuedTransaction,
+        attempts: queuedTransaction.attempts + 1,
+        lastAttemptAt: new Date().toISOString(),
+        lastError: ""
+      };
+
+      try {
+        await createTransaction(accessToken.trim(), attemptedTransaction.input);
+        syncedCount += 1;
+      } catch (error) {
+        failedCount += 1;
+        remainingQueue.push({
+          ...attemptedTransaction,
+          lastError: error instanceof Error ? error.message : "Unknown sync error.",
+          nextRetryAt: nextQueueRetryAt(attemptedTransaction.attempts)
+        });
+      }
+    }
+
+    try {
+      await saveTransactionQueue(remainingQueue);
+      setTransactionQueueState(failedCount > 0 ? "error" : "ok");
+      setTransactionQueueMessage(
+        `Synced ${syncedCount} transaction(s). ${failedCount} failed. ${skippedCount} waiting for retry. ${remainingQueue.length} transaction(s) remain queued.`
+      );
+    } catch (error) {
+      setTransactionQueueState("error");
+      setTransactionQueueMessage(error instanceof Error ? error.message : "Could not update transaction queue.");
+    }
+  };
+
+  const handleRemoveQueuedTransaction = async (queuedTransactionId: string) => {
+    try {
+      await saveTransactionQueue(transactionQueue.filter((queuedTransaction) => queuedTransaction.id !== queuedTransactionId));
+      setTransactionQueueState("ok");
+      setTransactionQueueMessage("Queued transaction removed.");
+    } catch (error) {
+      setTransactionQueueState("error");
+      setTransactionQueueMessage(error instanceof Error ? error.message : "Could not remove queued transaction.");
+    }
+  };
+
   useEffect(() => {
     void loadHealth();
+    AsyncStorage.getItem(manualTransactionQueueKey)
+      .then((storedQueue) => {
+        setTransactionQueue(normalizeManualTransactionQueue(storedQueue));
+      })
+      .catch(() => {
+        setTransactionQueueState("error");
+        setTransactionQueueMessage("Could not load local transaction queue.");
+      });
     AsyncStorage.getItem(rawMessageQueueKey)
       .then((storedQueue) => {
         setRawQueue(normalizeRawQueue(storedQueue));
@@ -1243,10 +1462,48 @@ export default function App() {
           <Pressable onPress={handleQuickAddTransaction} style={styles.button}>
             <Text style={styles.buttonText}>Create Transaction</Text>
           </Pressable>
+          <Pressable onPress={handleQueueManualTransaction} style={styles.buttonSecondary}>
+            <Text style={styles.buttonText}>Queue Transaction Offline</Text>
+          </Pressable>
+          <Pressable onPress={handleSyncTransactionQueue} style={styles.buttonSecondary}>
+            <Text style={styles.buttonText}>Sync Queued Transactions</Text>
+          </Pressable>
 
           {txState === "loading" ? <ActivityIndicator /> : null}
           {txState === "ok" ? <Text style={styles.okText}>{txMessage}</Text> : null}
           {txState === "error" ? <Text style={styles.errorText}>{txMessage}</Text> : null}
+          {transactionQueueState === "loading" ? <ActivityIndicator /> : null}
+          {transactionQueueState === "ok" ? <Text style={styles.okText}>{transactionQueueMessage}</Text> : null}
+          {transactionQueueState === "error" ? <Text style={styles.errorText}>{transactionQueueMessage}</Text> : null}
+
+          <View style={styles.listSection}>
+            <Text style={styles.listTitle}>Queued Transactions ({transactionQueue.length})</Text>
+            {transactionQueue.map((queuedTransaction) => (
+              <View key={queuedTransaction.id} style={styles.queueItem}>
+                <Text style={styles.listItem}>
+                  {queuedTransaction.input.date} | {queuedTransaction.input.type} | {queuedTransaction.input.amount} | attempts {queuedTransaction.attempts}
+                </Text>
+                <Text style={styles.meta}>Account: {queuedTransaction.input.account}</Text>
+                {queuedTransaction.input.category ? (
+                  <Text style={styles.meta}>Category: {queuedTransaction.input.category}</Text>
+                ) : null}
+                {queuedTransaction.input.note ? <Text style={styles.meta}>{queuedTransaction.input.note}</Text> : null}
+                {queuedTransaction.lastAttemptAt ? (
+                  <Text style={styles.meta}>Last sync attempt: {queuedTransaction.lastAttemptAt}</Text>
+                ) : null}
+                {queuedTransaction.nextRetryAt ? (
+                  <Text style={styles.meta}>Next retry after: {queuedTransaction.nextRetryAt}</Text>
+                ) : null}
+                {queuedTransaction.lastError ? <Text style={styles.errorText}>{queuedTransaction.lastError}</Text> : null}
+                <Pressable
+                  onPress={() => void handleRemoveQueuedTransaction(queuedTransaction.id)}
+                  style={styles.buttonDanger}
+                >
+                  <Text style={styles.buttonText}>Remove From Queue</Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
 
           <Text style={styles.sectionTitle}>Transactions</Text>
           <Pressable onPress={handleLoadTransactions} style={styles.buttonSecondary}>
