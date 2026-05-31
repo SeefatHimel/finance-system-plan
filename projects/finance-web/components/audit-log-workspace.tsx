@@ -21,6 +21,19 @@ const defaultAuditFilters = {
   entity_type: "transactions.transaction"
 };
 
+function filtersFromUrl() {
+  if (typeof window === "undefined") {
+    return defaultAuditFilters;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return {
+    action: params.get("action") ?? "",
+    entity_id: params.get("entity_id") ?? "",
+    entity_type: params.get("entity_type") ?? defaultAuditFilters.entity_type
+  };
+}
+
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-BD", {
     dateStyle: "medium",
@@ -102,7 +115,9 @@ export function AuditLogWorkspace() {
   }, []);
 
   useEffect(() => {
-    void loadAuditLogs(defaultAuditFilters);
+    const initialFilters = filtersFromUrl();
+    setFilters(initialFilters);
+    void loadAuditLogs(initialFilters);
   }, [loadAuditLogs]);
 
   const summary = useMemo(() => {

@@ -758,14 +758,22 @@ export function TransactionWorkspace() {
                       <td>{transaction.counterparty_text || "-"}</td>
                       <td>{transaction.note || "-"}</td>
                       <td>
-                        <button
-                          className="button button--danger"
-                          disabled={deletingTransactionId === transaction.id}
-                          onClick={() => void handleDeleteTransaction(transaction)}
-                          type="button"
-                        >
-                          {deletingTransactionId === transaction.id ? "Deleting..." : "Delete"}
-                        </button>
+                        <div className="list-row__actions">
+                          <Link
+                            className="button button--ghost"
+                            href={`/audit-logs?entity_type=transactions.transaction&entity_id=${transaction.id}`}
+                          >
+                            History
+                          </Link>
+                          <button
+                            className="button button--danger"
+                            disabled={deletingTransactionId === transaction.id}
+                            onClick={() => void handleDeleteTransaction(transaction)}
+                            type="button"
+                          >
+                            {deletingTransactionId === transaction.id ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

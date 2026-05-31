@@ -79,7 +79,8 @@ The current transactions page uses the saved local JWT access token to load
 accounts, categories, and transactions from the Django API. It provides a manual
 transaction form and a transaction table with filters for month, type, account,
 and category. It supports updating and deleting transaction rows, and can
-download a CSV export using the same active filters.
+download a CSV export using the same active filters. Each transaction row also
+links to the audit log page filtered to that transaction id.
 
 ## Why add transaction filters early?
 
@@ -132,7 +133,9 @@ missing income, or duplicate transactions.
 
 The audit logs page loads read-only audit entries from the Django API. It can
 filter by action, entity type, and entity id, summarizes create/update/delete
-counts, and shows expandable before/after snapshots for transaction changes.
+counts, and shows expandable before/after snapshots for transaction changes. It
+also reads URL query filters, so transaction rows can deep-link directly to
+their history.
 
 ## What does the current credit cards page do?
 
@@ -152,10 +155,10 @@ payment that advances the next due date.
 
 The transaction table shows date, type, debit/credit direction, account,
 category, amount, balance after, provider transaction id/reference,
-sent-to/received-from text, note, and delete actions. The page can export the
-filtered rows as CSV for spreadsheet backup or external review. This makes
-SMS-confirmed transactions inspectable without opening the raw message every
-time.
+sent-to/received-from text, note, history links, and delete actions. The page
+can export the filtered rows as CSV for spreadsheet backup or external review.
+This makes SMS-confirmed transactions inspectable without opening the raw
+message every time.
 
 ## Why not copy the spreadsheet exactly?
 

@@ -39,6 +39,7 @@ Last updated: 2026-05-31
 - [x] Transactions update/delete
 - [x] Transactions CSV export button
 - [x] Transaction audit log viewer
+- [x] Per-transaction history links to filtered audit logs
 - [x] Accounts create/list/update/delete
 - [x] Categories create/list/update/delete
 - [x] Payment method and sender rule management screen
@@ -140,6 +141,7 @@ Last updated: 2026-05-31
 - [x] Add transaction audit log API and contract coverage
 - [x] Add missing auth, transfer, validation, and audit log contract examples
 - [x] Add web transaction audit log viewer
+- [x] Add transaction row history links into audit logs
 
 ## Verification Matrix
 

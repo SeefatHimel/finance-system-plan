@@ -19,6 +19,7 @@ The web app is scaffolded with:
 - Transaction deletion from the list
 - Transaction filters for month, type, account, and category
 - Transaction CSV export using the active filters
+- Per-transaction history links into the audit log viewer
 - Accounts page with account and category creation/listing/updating/deletion
 - SMS settings page with payment method and sender rule creation/listing/updating/deletion
 - SMS review inbox with parsed candidate details, parser confidence,
@@ -35,8 +36,8 @@ The web app is scaffolded with:
   reminder windows, and payment recording
 - Reconciliation page with expected-vs-actual balance checks, snapshot history,
   status warnings, and likely missing/duplicate money causes
-- Audit logs page with transaction create/update/delete history, filters, and
-  before/after snapshots
+- Audit logs page with transaction create/update/delete history, URL-backed
+  filters, and before/after snapshots
 
 ## Responsibilities
 
