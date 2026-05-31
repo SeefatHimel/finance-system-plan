@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+import type {
+  TransactionDirection,
+  TransactionSource,
+  TransactionType
+} from "../../finance-contracts/generated/types";
+
+export type {
+  TransactionDirection,
+  TransactionSource,
+  TransactionType
+} from "../../finance-contracts/generated/types";
+
 const healthResponseSchema = z.object({
   status: z.literal("ok")
 });
@@ -298,25 +310,25 @@ export type CreateTransactionInput = {
   category?: string;
   counterparty_text?: string;
   date: string;
-  direction?: string;
+  direction?: TransactionDirection;
   external_key?: string;
   note?: string;
   payment_method?: string | null;
   raw_message?: string | null;
   reference?: string;
-  source?: "web";
+  source?: TransactionSource;
   transfer_account?: string;
-  type: string;
+  type: TransactionType;
 };
 
 export type TransactionFilters = {
   account?: string;
   category?: string;
-  direction?: string;
+  direction?: TransactionDirection | "";
   month?: string;
   search?: string;
-  source?: string;
-  type?: string;
+  source?: TransactionSource | "";
+  type?: TransactionType | "";
 };
 
 export type CreateAccountInput = {
@@ -399,14 +411,14 @@ export type UpdateTransactionInput = {
   category?: string | null;
   counterparty_text?: string;
   date?: string;
-  direction?: string;
+  direction?: TransactionDirection;
   external_key?: string;
   note?: string;
   payment_method?: string | null;
   raw_message?: string | null;
   reference?: string;
   transfer_account?: string | null;
-  type?: string;
+  type?: TransactionType;
 };
 
 export type CreateDebtInput = {

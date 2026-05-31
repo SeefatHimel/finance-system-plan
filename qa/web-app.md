@@ -42,6 +42,14 @@ local development.
 TypeScript reduces mistakes in data-heavy UI work. It becomes more valuable as
 forms, filters, reports, and generated API clients are added.
 
+## How does the web app use generated contract types?
+
+The web API wrapper still validates responses with local Zod schemas, but its
+transaction create/update input and filter types now reuse generated OpenAPI
+enum types for transaction type, debit/credit direction, and source. This is a
+small compatibility step before replacing more hand-written API types with the
+generated client.
+
 ## Why use Zod?
 
 Zod validates API responses and form data at runtime. TypeScript helps at build

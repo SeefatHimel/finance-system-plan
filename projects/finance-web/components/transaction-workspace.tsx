@@ -8,12 +8,16 @@ import {
   type Account,
   type Category,
   type Transaction,
+  type TransactionDirection,
   createTransaction,
   deleteTransaction,
   exportTransactionsCsv,
   listAccounts,
   listCategories,
   listTransactions,
+  type TransactionFilters,
+  type TransactionSource,
+  type TransactionType,
   updateTransaction
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
@@ -28,7 +32,7 @@ type LoadState =
       transactions: Transaction[];
     };
 
-const transactionTypes = [
+const transactionTypes: TransactionType[] = [
   "expense",
   "income",
   "transfer",
@@ -41,7 +45,14 @@ const transactionTypes = [
   "repayment_paid"
 ];
 
-const transactionSources = ["web", "mobile", "sms", "import", "system"];
+const transactionSources: TransactionSource[] = ["web", "mobile", "sms", "import", "system"];
+
+type TransactionFilterState = Required<Pick<TransactionFilters, "direction" | "source" | "type">> & {
+  account: string;
+  category: string;
+  month: string;
+  search: string;
+};
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
@@ -53,7 +64,7 @@ const moneyFormatter = new Intl.NumberFormat("en-BD", {
 });
 
 export function TransactionWorkspace() {
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<TransactionFilterState>({
     account: "",
     category: "",
     direction: "",
@@ -71,8 +82,8 @@ export function TransactionWorkspace() {
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState("");
   const [editingDate, setEditingDate] = useState("");
-  const [editingType, setEditingType] = useState("expense");
-  const [editingDirection, setEditingDirection] = useState("debit");
+  const [editingType, setEditingType] = useState<TransactionType>("expense");
+  const [editingDirection, setEditingDirection] = useState<TransactionDirection>("debit");
   const [editingAccountId, setEditingAccountId] = useState("");
   const [editingTransferAccountId, setEditingTransferAccountId] = useState("");
   const [editingCategoryId, setEditingCategoryId] = useState("");
@@ -148,7 +159,7 @@ export function TransactionWorkspace() {
   }
 
   function clearFilters() {
-    const clearedFilters = {
+    const clearedFilters: TransactionFilterState = {
       account: "",
       category: "",
       direction: "",
@@ -201,7 +212,8 @@ export function TransactionWorkspace() {
     }
 
     const formData = new FormData(event.currentTarget);
-    const type = String(formData.get("type") ?? "expense");
+    const type = String(formData.get("type") ?? "expense") as TransactionType;
+    const direction = String(formData.get("direction") ?? "debit") as TransactionDirection;
     const transferAccount = String(formData.get("transfer_account") ?? "");
     const category = String(formData.get("category") ?? "");
 
@@ -216,7 +228,7 @@ export function TransactionWorkspace() {
         category: category || undefined,
         counterparty_text: String(formData.get("counterparty_text") ?? ""),
         date: String(formData.get("date") ?? ""),
-        direction: String(formData.get("direction") ?? "debit"),
+        direction,
         note: String(formData.get("note") ?? ""),
         reference: String(formData.get("reference") ?? ""),
         transfer_account: type === "transfer" ? transferAccount : undefined,
@@ -266,8 +278,8 @@ export function TransactionWorkspace() {
       return;
     }
     setEditingDate(transaction.date);
-    setEditingType(transaction.type);
-    setEditingDirection(transaction.direction);
+    setEditingType(transaction.type as TransactionType);
+    setEditingDirection(transaction.direction as TransactionDirection);
     setEditingAccountId(transaction.account);
     setEditingTransferAccountId(transaction.transfer_account ?? "");
     setEditingCategoryId(transaction.category ?? "");
@@ -493,7 +505,7 @@ export function TransactionWorkspace() {
               <span className="field__label">Type</span>
               <select
                 className="field__control"
-                onChange={(event) => setEditingType(event.target.value)}
+                onChange={(event) => setEditingType(event.target.value as TransactionType)}
                 required
                 value={editingType}
               >
@@ -509,7 +521,7 @@ export function TransactionWorkspace() {
               <span className="field__label">Debit / credit</span>
               <select
                 className="field__control"
-                onChange={(event) => setEditingDirection(event.target.value)}
+                onChange={(event) => setEditingDirection(event.target.value as TransactionDirection)}
                 required
                 value={editingDirection}
               >
@@ -657,7 +669,9 @@ export function TransactionWorkspace() {
               <select
                 className="field__control"
                 name="type"
-                onChange={(event) => setFilters({ ...filters, type: event.target.value })}
+                onChange={(event) =>
+                  setFilters({ ...filters, type: event.target.value as TransactionFilterState["type"] })
+                }
                 value={filters.type}
               >
                 <option value="">All types</option>
@@ -674,7 +688,12 @@ export function TransactionWorkspace() {
               <select
                 className="field__control"
                 name="direction"
-                onChange={(event) => setFilters({ ...filters, direction: event.target.value })}
+                onChange={(event) =>
+                  setFilters({
+                    ...filters,
+                    direction: event.target.value as TransactionFilterState["direction"]
+                  })
+                }
                 value={filters.direction}
               >
                 <option value="">All directions</option>
@@ -688,7 +707,9 @@ export function TransactionWorkspace() {
               <select
                 className="field__control"
                 name="source"
-                onChange={(event) => setFilters({ ...filters, source: event.target.value })}
+                onChange={(event) =>
+                  setFilters({ ...filters, source: event.target.value as TransactionFilterState["source"] })
+                }
                 value={filters.source}
               >
                 <option value="">All sources</option>

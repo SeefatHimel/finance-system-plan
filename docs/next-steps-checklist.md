@@ -142,6 +142,7 @@ Last updated: 2026-05-31
 - [x] Add authenticated filtered transaction CSV export endpoint
 - [x] Add web transaction CSV export action
 - [x] Add OpenAPI-generated TypeScript client workflow
+- [x] Reuse generated transaction enum types in the web transaction API wrapper
 - [x] Add transaction audit log API and contract coverage
 - [x] Add missing auth, transfer, validation, and audit log contract examples
 - [x] Add web transaction audit log viewer

@@ -19,6 +19,7 @@ The web app is scaffolded with:
 - Transaction deletion from the list
 - Transaction filters for month, type, debit/credit direction, source, account, category, and search text
 - Transaction CSV export using the active filters
+- Transaction API input/filter typing reuses generated transaction enum types
 - Per-transaction history links into the audit log viewer
 - Accounts page with account and category creation/listing/updating/deletion
 - SMS settings page with payment method and sender rule creation/listing/updating/deletion
