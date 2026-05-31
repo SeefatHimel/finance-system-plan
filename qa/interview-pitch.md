@@ -43,7 +43,8 @@ local raw-message queuing, retry metadata, duplicate checks, sync, and SMS
 review. The transactions page can also download filtered CSV exports for
 spreadsheet backup, and transaction changes are captured in a read-only audit
 trail. Local PostgreSQL dump and guarded restore scripts provide the first
-database backup path. The SMS permission decision is
+database backup path, and the deployment runbook captures production readiness
+gates and rollback expectations. The SMS permission decision is
 documented: keep Expo managed for now and only move to a native Android module
 when automatic capture is ready. Next I would collect real anonymized SMS
 fixtures, expand additional bank transfer variants, and polish mobile debt,

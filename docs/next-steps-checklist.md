@@ -94,6 +94,7 @@ Last updated: 2026-05-31
 - [x] Optional compose profile for `finance-mobile`
 - [x] Docker setup docs updated across infra + local setup + project READMEs
 - [x] Local PostgreSQL backup and guarded restore scripts
+- [x] Production deployment readiness runbook
 
 ## Pending (Unchecked)
 
@@ -151,6 +152,7 @@ Last updated: 2026-05-31
 - [x] Add authenticated filtered transaction CSV export endpoint
 - [x] Add web transaction CSV export action
 - [x] Add local PostgreSQL backup/restore scripts for first backup path
+- [x] Add production deployment readiness checklist and rollback plan
 - [x] Add OpenAPI-generated TypeScript client workflow
 - [x] Reuse generated transaction enum types in the web transaction API wrapper
 - [x] Reuse generated OpenAPI request/enum types across web API inputs

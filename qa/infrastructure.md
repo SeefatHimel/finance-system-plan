@@ -48,13 +48,16 @@ PostgreSQL, app hosting, or separate services.
 
 A practical first deployment could use a VPS with Docker Compose or a managed
 PostgreSQL database plus hosted backend/frontend services. The mobile app would
-point to the deployed API.
+point to the deployed API. The current deployment runbook is documented in
+`docs/production-deployment-plan.md`.
 
 ## What needs to be added before production?
 
 Production needs HTTPS, secure secret management, database backups, monitoring,
 logging, deployment automation, CORS hardening, allowed hosts, and a proper
-static/media file strategy.
+static/media file strategy. The deployment plan now lists concrete gates for
+debug mode, allowed hosts, CORS origins, PostgreSQL, auth storage, backups,
+restore drills, and rollback.
 
 ## How should backups work?
 

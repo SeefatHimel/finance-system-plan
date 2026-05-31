@@ -65,7 +65,7 @@ The infrastructure project owns:
 - PostgreSQL setup
 - Environment templates
 - Deployment notes
-- Backup and restore scripts later
+- Local backup and restore scripts
 
 ### finance-contracts
 

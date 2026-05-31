@@ -205,4 +205,5 @@ Exit criteria:
 - User can trust the system as the main finance record.
 - Data can be exported and backed up. Started with transaction CSV export and
   local PostgreSQL dump/restore helpers.
-- Architecture is ready for online deployment.
+- Architecture is ready for online deployment. Started with a production
+  deployment readiness checklist and rollback plan.

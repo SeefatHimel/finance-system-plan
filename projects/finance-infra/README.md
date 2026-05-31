@@ -8,7 +8,7 @@ Infrastructure, local development, and deployment support.
 - PostgreSQL container.
 - Environment templates.
 - Backend/web/mobile local setup docs.
-- Deployment documentation later.
+- Production deployment planning.
 - Local PostgreSQL backup and restore scripts.
 
 ## Local Development Services
@@ -97,6 +97,8 @@ Options:
 - Separate backend and frontend hosting.
 
 Do not decide final deployment until phase 1 and phase 2 prove the workflows.
+See `../../docs/production-deployment-plan.md` for the current production
+readiness checklist, environment gates, backup requirements, and rollback plan.
 
 ## Backup Requirements
 
