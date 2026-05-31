@@ -49,6 +49,8 @@ Implementation notes:
 - The web app now disables the temporary `localStorage` token path in
   production unless `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=true` is set
   deliberately as an escape hatch.
+- In local-development mode, the web API wrapper uses the stored refresh token
+  to rotate tokens and retry authenticated API calls once after a 401.
 - Add a visible code comment or env guard before production deployment.
 - Use `SameSite=Lax` for normal same-site app usage unless cross-site embedding
   is explicitly required.
@@ -105,7 +107,8 @@ Deployment/security requirements:
 3. Add web server-side login/logout/refresh routes.
 4. Replace web `localStorage` usage with cookie-backed session helpers.
 5. Add mobile secure token storage.
-6. Add automatic token refresh in web and mobile API clients.
+6. Add automatic token refresh in web and mobile API clients. Done for the
+   local-development web API wrapper; mobile remains pending.
 7. Add tests for refresh, logout, expired access token, and invalid refresh
    token behavior.
 8. Update privacy docs and deployment docs before production use.

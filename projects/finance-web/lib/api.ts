@@ -22,6 +22,11 @@ import type {
   TransactionSource,
   TransactionType
 } from "../../finance-contracts/generated/types";
+import {
+  clearTokens,
+  getRefreshToken,
+  saveTokens
+} from "./auth-storage";
 
 export type {
   AccountType,
@@ -479,19 +484,41 @@ export async function login(username: string, password: string): Promise<AuthTok
   return tokenResponseSchema.parse(await response.json());
 }
 
-export async function getCurrentUser(accessToken: string): Promise<CurrentUser> {
-  const response = await fetch(`${getApiBaseUrl()}/api/auth/me/`, {
-    cache: "no-store",
+export async function refreshAuthTokens(refreshToken: string): Promise<AuthTokens> {
+  const response = await fetch(`${getApiBaseUrl()}/api/auth/refresh/`, {
+    body: JSON.stringify({ refresh: refreshToken }),
     headers: {
-      Authorization: `Bearer ${accessToken}`
-    }
+      "Content-Type": "application/json"
+    },
+    method: "POST"
   });
 
   if (!response.ok) {
-    throw new Error("Could not load the current user.");
+    throw new Error(response.status === 401 ? "Stored session expired. Sign in again." : "Could not refresh session.");
   }
 
+  return tokenResponseSchema.parse(await response.json());
+}
+
+export async function getCurrentUser(accessToken: string): Promise<CurrentUser> {
+  const response = await authenticatedFetch("/api/auth/me/", accessToken);
   return currentUserSchema.parse(await response.json());
+}
+
+async function refreshStoredLocalSession() {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    return null;
+  }
+
+  try {
+    const tokens = await refreshAuthTokens(refreshToken);
+    saveTokens(tokens);
+    return tokens.access;
+  } catch {
+    clearTokens();
+    return null;
+  }
 }
 
 async function authenticatedFetch(path: string, accessToken: string, init?: RequestInit) {
@@ -505,6 +532,25 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
   });
 
   if (response.status === 401) {
+    const refreshedAccessToken = await refreshStoredLocalSession();
+    if (refreshedAccessToken) {
+      const retryResponse = await fetch(`${getApiBaseUrl()}${path}`, {
+        ...init,
+        cache: "no-store",
+        headers: {
+          ...(init?.headers ?? {}),
+          Authorization: `Bearer ${refreshedAccessToken}`
+        }
+      });
+
+      if (retryResponse.ok) {
+        return retryResponse;
+      }
+      if (retryResponse.status !== 401) {
+        throw new Error(`Request failed with HTTP ${retryResponse.status}.`);
+      }
+    }
+
     throw new Error("Your session expired. Sign in again.");
   }
 

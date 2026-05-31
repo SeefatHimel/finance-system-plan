@@ -154,6 +154,7 @@ Last updated: 2026-05-31
 - [x] Add local PostgreSQL backup/restore scripts for first backup path
 - [x] Add production deployment readiness checklist and rollback plan
 - [x] Add production guard around temporary web localStorage token flow
+- [x] Add local-development web token refresh and single retry on 401
 - [x] Add backend production settings guard for unsafe debug-off configuration
 - [x] Enable backend JWT refresh-token rotation and blacklist-after-rotation
 - [x] Add OpenAPI-generated TypeScript client workflow

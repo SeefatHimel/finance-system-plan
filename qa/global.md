@@ -187,6 +187,8 @@ and restore expectations, and a rollback plan.
 The web app also has a production guard around the temporary browser
 `localStorage` JWT path so production auth hardening cannot be skipped
 silently.
+For local development, the web API wrapper can rotate stored refresh tokens and
+retry authenticated requests once after an expired access token response.
 The backend settings also fail closed for unsafe debug-off configurations, such
 as default secrets, SQLite, localhost-only hosts, or localhost CORS origins.
 Backend JWT refresh tokens rotate on use and old refresh tokens are blacklisted

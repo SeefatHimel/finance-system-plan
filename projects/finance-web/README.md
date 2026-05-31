@@ -116,6 +116,8 @@ For the local development version, JWT tokens are stored in browser
 `localStorage`. Before production deployment, move token handling to a safer
 cookie-based strategy. Production builds disable this temporary browser token
 storage unless `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=true` is set deliberately.
+For local development, authenticated web API calls use the stored refresh token
+to rotate tokens and retry once after an expired access token response.
 See `../../docs/auth-token-storage-plan.md`.
 
 Transactions page:

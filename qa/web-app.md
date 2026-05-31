@@ -200,8 +200,9 @@ production unless `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=true` is set
 deliberately, so accidental production refresh-token storage in browser
 `localStorage` is harder to miss. The production direction is documented in
 `docs/auth-token-storage-plan.md`. Backend refresh-token rotation and
-blacklisting are already enabled, but web still needs the cookie-backed session
-flow before production.
+blacklisting are already enabled, and the local-development web API wrapper
+uses the stored refresh token to retry authenticated API calls once after a 401.
+Web still needs the cookie-backed session flow before production.
 
 ## How will the web app fetch data?
 

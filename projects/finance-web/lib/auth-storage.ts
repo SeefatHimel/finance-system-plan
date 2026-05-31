@@ -29,6 +29,13 @@ export function getAccessToken() {
   return window.localStorage.getItem(accessTokenKey);
 }
 
+export function getRefreshToken() {
+  if (!canUseLocalTokenStorage()) {
+    return null;
+  }
+  return window.localStorage.getItem(refreshTokenKey);
+}
+
 export function clearTokens() {
   if (!canUseLocalTokenStorage()) {
     return;
