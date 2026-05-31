@@ -39,6 +39,7 @@ access control between backend, mobile, and web teams.
 - [Domain Model](docs/domain-model.md)
 - [Technical Spec](docs/technical-spec.md)
 - [Roadmap](docs/roadmap.md)
+- [Future Implementation And Upgrade Plan](docs/future-implementation-plan.md)
 - [First Sprint Plan](docs/first-sprint.md)
 - [Next Steps Checklist](docs/next-steps-checklist.md)
 - [Phase 3 SMS Parser Plan](docs/phase-3-sms-parser-plan.md)

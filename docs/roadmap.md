@@ -210,3 +210,11 @@ Exit criteria:
   pruning.
 - Architecture is ready for online deployment. Started with a production
   deployment readiness checklist and rollback plan.
+
+## Future Implementation And Upgrade Plan
+
+The longer-term backlog is tracked in
+[Future Implementation And Upgrade Plan](future-implementation-plan.md). It
+prioritizes real-device/runtime validation first, then SMS parsing accuracy,
+ledger reliability, workflow polish, deployment/security, analytics, and a
+possible multi-user product path.

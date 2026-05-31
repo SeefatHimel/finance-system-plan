@@ -26,6 +26,8 @@ made, how the architecture works, and what tradeoffs remain.
 ## Current Project Status
 
 - Product plan and architecture are documented.
+- Future implementation and upgrade priorities are documented in
+  `../docs/future-implementation-plan.md`.
 - Django backend has health, JWT auth, accounts, categories, transactions,
   payment methods, SMS import/review, reports, debts, credit cards, recurring
   bills, reconciliation foundations, and transaction audit logs.

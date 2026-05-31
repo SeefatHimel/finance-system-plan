@@ -19,6 +19,8 @@ Last updated: 2026-05-31
 - Next milestone is validating the workflow with real anonymized SMS fixtures,
   expanding parser coverage from real-world variants, continuing mobile polish,
   and preparing production deployment.
+- Future implementation and upgrade priorities are documented in
+  `docs/future-implementation-plan.md`.
 
 ## Done (Checked)
 
@@ -100,6 +102,11 @@ Last updated: 2026-05-31
 - [x] Production deployment readiness runbook
 
 ## Pending (Unchecked)
+
+### Future Planning
+
+- [x] Add future implementation and upgrade plan
+- [ ] Start Priority 1 validation and hardening from `docs/future-implementation-plan.md`
 
 ### Sprint 1 Closure (Operational)
 
