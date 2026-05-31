@@ -78,15 +78,17 @@ like spreadsheet sign mode, ledger mode, and money-in/money-out mode.
 The current transactions page uses the saved local JWT access token to load
 accounts, categories, and transactions from the Django API. It provides a manual
 transaction form and a transaction table with filters for month, type, account,
-and category. It supports updating and deleting transaction rows, and can
-download a CSV export using the same active filters. Each transaction row also
-links to the audit log page filtered to that transaction id.
+category, and debit/credit direction. It supports updating and deleting
+transaction rows, and can download a CSV export using the same active filters.
+Each transaction row also links to the audit log page filtered to that
+transaction id.
 
 ## Why add transaction filters early?
 
 Filtering is essential for a finance workflow because transaction lists grow
-quickly. Month, account, category, and type filters make the web app useful for
-checking entries and comparing the transaction table with monthly reports.
+quickly. Month, account, category, type, and debit/credit filters make the web
+app useful for checking entries and comparing the transaction table with
+monthly reports.
 
 ## What does the current accounts page do?
 

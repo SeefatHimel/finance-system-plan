@@ -36,6 +36,7 @@ Last updated: 2026-05-31
 
 - [x] Login flow + session panel
 - [x] Transactions create/list/filter
+- [x] Transactions debit/credit direction filter
 - [x] Transactions update/delete
 - [x] Transactions CSV export button
 - [x] Transaction audit log viewer
@@ -142,6 +143,7 @@ Last updated: 2026-05-31
 - [x] Add missing auth, transfer, validation, and audit log contract examples
 - [x] Add web transaction audit log viewer
 - [x] Add transaction row history links into audit logs
+- [x] Add web debit/credit transaction filter
 
 ## Verification Matrix
 

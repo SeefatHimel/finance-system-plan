@@ -292,6 +292,7 @@ export class FinanceApiClient {
   account?: string;
   category?: string;
   type?: TransactionType;
+  direction?: TransactionDirection;
 }): Promise<Transaction[]> {
     return this.request<Transaction[]>("/api/transactions/", { method: "GET", query });
   }

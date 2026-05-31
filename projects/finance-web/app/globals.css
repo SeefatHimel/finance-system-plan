@@ -303,7 +303,7 @@ textarea {
   align-items: flex-end;
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) auto auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto auto auto;
   margin: 18px 0;
 }
 

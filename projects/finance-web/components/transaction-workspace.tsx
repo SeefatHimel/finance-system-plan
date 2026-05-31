@@ -54,6 +54,7 @@ export function TransactionWorkspace() {
   const [filters, setFilters] = useState({
     account: "",
     category: "",
+    direction: "",
     month: currentMonth(),
     type: ""
   });
@@ -119,6 +120,7 @@ export function TransactionWorkspace() {
       listTransactions(accessToken, {
         account: "",
         category: "",
+        direction: "",
         month: currentMonth(),
         type: ""
       })
@@ -143,6 +145,7 @@ export function TransactionWorkspace() {
     const clearedFilters = {
       account: "",
       category: "",
+      direction: "",
       month: "",
       type: ""
     };
@@ -624,7 +627,7 @@ export function TransactionWorkspace() {
             <div>
               <h2 className="section-title">Transactions</h2>
               <p className="section-subtitle">
-                Filter records by month, account, category, and type.
+                Filter records by month, account, category, type, and debit/credit direction.
               </p>
             </div>
           </div>
@@ -655,6 +658,20 @@ export function TransactionWorkspace() {
                     {type.replaceAll("_", " ")}
                   </option>
                 ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span className="field__label">Debit / credit</span>
+              <select
+                className="field__control"
+                name="direction"
+                onChange={(event) => setFilters({ ...filters, direction: event.target.value })}
+                value={filters.direction}
+              >
+                <option value="">All directions</option>
+                <option value="debit">Debit</option>
+                <option value="credit">Credit</option>
               </select>
             </label>
 

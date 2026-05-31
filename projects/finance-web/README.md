@@ -17,7 +17,7 @@ The web app is scaffolded with:
 - Manual transaction creation form
 - Manual transaction update form
 - Transaction deletion from the list
-- Transaction filters for month, type, account, and category
+- Transaction filters for month, type, debit/credit direction, account, and category
 - Transaction CSV export using the active filters
 - Per-transaction history links into the audit log viewer
 - Accounts page with account and category creation/listing/updating/deletion

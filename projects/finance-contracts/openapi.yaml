@@ -1146,6 +1146,10 @@ paths:
           name: type
           schema:
             $ref: '#/components/schemas/TransactionType'
+        - in: query
+          name: direction
+          schema:
+            $ref: '#/components/schemas/TransactionDirection'
       responses:
         '200':
           description: Transaction list
