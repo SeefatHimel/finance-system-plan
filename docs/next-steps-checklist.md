@@ -169,7 +169,7 @@ Last updated: 2026-05-31
   - Result: pass
 - [ ] Compose config validation:
   - Command: `docker compose config`
-  - Result: blocked on 2026-05-30 in current environment (`docker` command not found)
+  - Result: still blocked on 2026-05-31 in current environment (`docker` command not found)
 
 ## Checkpoint Commit Messages
 
