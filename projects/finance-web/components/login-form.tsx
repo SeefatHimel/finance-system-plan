@@ -5,7 +5,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { login } from "@/lib/api";
-import { saveTokens } from "@/lib/auth-storage";
+import { canUseLocalTokenStorage, saveTokens } from "@/lib/auth-storage";
+import { loginWithCookieSession } from "@/lib/session-api";
 
 export function LoginForm() {
   const router = useRouter();
@@ -23,8 +24,12 @@ export function LoginForm() {
     setIsSubmitting(true);
 
     try {
-      const tokens = await login(username, password);
-      saveTokens(tokens);
+      if (canUseLocalTokenStorage()) {
+        const tokens = await login(username, password);
+        saveTokens(tokens);
+      } else {
+        await loginWithCookieSession(username, password);
+      }
       router.push("/");
       router.refresh();
     } catch (caughtError) {

@@ -189,7 +189,10 @@ layout detail would preserve old limitations.
 
 The current web app submits username/password to `/api/auth/login/`, stores the
 returned JWT tokens for local development, and calls `/api/auth/me/` to show the
-signed-in user on the dashboard.
+signed-in user on the dashboard. When browser token storage is disabled, the
+login form uses same-origin Next.js auth routes that call the backend and store
+access/refresh tokens in HTTP-only cookies for session status, refresh, and
+logout.
 
 ## Where should auth tokens be stored?
 
@@ -202,7 +205,9 @@ deliberately, so accidental production refresh-token storage in browser
 `docs/auth-token-storage-plan.md`. Backend refresh-token rotation and
 blacklisting are already enabled, and the local-development web API wrapper
 uses the stored refresh token to retry authenticated API calls once after a 401.
-Web still needs the cookie-backed session flow before production.
+Web now has cookie-backed login/session/logout route handlers, but the
+authenticated workspace API calls still need to move behind same-origin proxy
+routes or server actions before production.
 
 ## How will the web app fetch data?
 

@@ -191,7 +191,8 @@ Production deployment readiness is documented with environment gates, backup
 and restore expectations, and a rollback plan.
 The web app also has a production guard around the temporary browser
 `localStorage` JWT path so production auth hardening cannot be skipped
-silently.
+silently, and same-origin Next.js auth routes now support cookie-backed
+login/session status, refresh, and logout.
 For local development, the web API wrapper can rotate stored refresh tokens and
 retry authenticated requests once after an expired access token response.
 The backend settings also fail closed for unsafe debug-off configurations, such
@@ -213,9 +214,10 @@ Real anonymized SMS fixture collection for bKash, EBL, City Bank, and Pathao
 Pay; deeper provider-specific parser coverage for additional bank account
 transfer and real-world provider variants; deeper mobile UI polish beyond the
 first compact finance-summary pass; real-device validation of the native SMS
-capture scaffold; additional production-grade local sync hardening; production
-deployment execution; and deployment-specific encrypted backup storage with
-monitoring are still planned future work.
+capture scaffold; migration of web workspace data calls behind the cookie-backed
+session route layer; additional production-grade local sync hardening;
+production deployment execution; and deployment-specific encrypted backup
+storage with monitoring are still planned future work.
 
 ## What is the biggest technical risk?
 

@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { type CurrentUser, getCurrentUser } from "@/lib/api";
-import { clearTokens, getAccessToken } from "@/lib/auth-storage";
+import { canUseLocalTokenStorage, clearTokens, getAccessToken } from "@/lib/auth-storage";
+import { getCookieSessionUser, logoutCookieSession } from "@/lib/session-api";
 
 type SessionState =
   | { status: "checking" }
@@ -18,6 +19,22 @@ export function SessionPanel() {
   const [session, setSession] = useState<SessionState>({ status: "checking" });
 
   useEffect(() => {
+    if (!canUseLocalTokenStorage()) {
+      getCookieSessionUser()
+        .then((user) => setSession({ status: "signed-in", user }))
+        .catch((error) => {
+          if (error instanceof Error && error.message === "Not signed in.") {
+            setSession({ status: "signed-out" });
+            return;
+          }
+          setSession({
+            message: error instanceof Error ? error.message : "Session expired.",
+            status: "error"
+          });
+        });
+      return;
+    }
+
     const accessToken = getAccessToken();
 
     if (!accessToken) {
@@ -36,10 +53,17 @@ export function SessionPanel() {
       });
   }, []);
 
-  function handleSignOut() {
-    clearTokens();
-    setSession({ status: "signed-out" });
-    router.refresh();
+  async function handleSignOut() {
+    try {
+      if (canUseLocalTokenStorage()) {
+        clearTokens();
+      } else {
+        await logoutCookieSession();
+      }
+    } finally {
+      setSession({ status: "signed-out" });
+      router.refresh();
+    }
   }
 
   if (session.status === "checking") {
@@ -61,7 +85,7 @@ export function SessionPanel() {
           <span className="session-card__label">Signed in</span>
           <strong className="session-card__name">{displayName}</strong>
         </div>
-        <button className="button button--ghost" onClick={handleSignOut} type="button">
+        <button className="button button--ghost" onClick={() => void handleSignOut()} type="button">
           Sign out
         </button>
       </div>
@@ -82,4 +106,3 @@ export function SessionPanel() {
     </div>
   );
 }
-

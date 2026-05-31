@@ -35,6 +35,7 @@ Last updated: 2026-05-31
 ### Web App
 
 - [x] Login flow + session panel
+- [x] Cookie-backed web login/session/logout route handlers
 - [x] Transactions create/list/filter
 - [x] Transactions debit/credit direction filter
 - [x] Transactions source filter
@@ -130,6 +131,12 @@ Last updated: 2026-05-31
 - [x] Add production-ready auth/token storage plan
 - [x] Add strict transaction ledger fields for SMS evidence and duplicate keys
 
+### Phase 5 Remaining
+
+- [ ] Migrate authenticated web workspace API calls behind cookie-backed
+      same-origin proxy routes or server actions
+- [ ] Validate native Android SMS capture on a real device/custom dev client
+
 ### Phase 3 Follow-up
 
 - [x] Add richer source/destination extraction for bKash sender/receiver account numbers
@@ -159,6 +166,7 @@ Last updated: 2026-05-31
 - [x] Add backup manifest, retention helper, and automation runbook
 - [x] Add production deployment readiness checklist and rollback plan
 - [x] Add production guard around temporary web localStorage token flow
+- [x] Add cookie-backed web auth route layer for login/session/logout
 - [x] Add local-development web token refresh and single retry on 401
 - [x] Add backend production settings guard for unsafe debug-off configuration
 - [x] Enable backend JWT refresh-token rotation and blacklist-after-rotation

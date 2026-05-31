@@ -4,7 +4,7 @@ const accessTokenKey = "finance.accessToken";
 const refreshTokenKey = "finance.refreshToken";
 const localTokenStorageOverride = process.env.NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE === "true";
 
-function canUseLocalTokenStorage() {
+export function canUseLocalTokenStorage() {
   return process.env.NODE_ENV !== "production" || localTokenStorageOverride;
 }
 

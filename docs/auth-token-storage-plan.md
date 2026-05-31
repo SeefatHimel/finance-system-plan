@@ -1,6 +1,6 @@
 # Auth Token Storage Plan
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 ## Goal
 
@@ -49,6 +49,8 @@ Implementation notes:
 - The web app now disables the temporary `localStorage` token path in
   production unless `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=true` is set
   deliberately as an escape hatch.
+- Next.js same-origin auth routes now support cookie-backed login, current-user
+  checks, refresh, and logout for the web session panel.
 - In local-development mode, the web API wrapper uses the stored refresh token
   to rotate tokens and retry authenticated API calls once after a 401.
 - Add a visible code comment or env guard before production deployment.
@@ -104,8 +106,10 @@ Deployment/security requirements:
 
 1. Keep current JWT bearer-token flow for local development.
 2. Add backend Simple JWT rotation/blacklist settings. Done.
-3. Add web server-side login/logout/refresh routes.
-4. Replace web `localStorage` usage with cookie-backed session helpers.
+3. Add web server-side login/logout/refresh routes. Done.
+4. Replace web `localStorage` usage with cookie-backed session helpers. Started
+   for login/session status; page data APIs still need same-origin proxy or
+   server action migration.
 5. Add mobile secure token storage.
 6. Add automatic token refresh in web and mobile API clients. Done for the
    local-development web API wrapper; mobile remains pending.
