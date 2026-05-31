@@ -93,6 +93,7 @@ Last updated: 2026-05-31
 - [x] Compose stack updated for `postgres`, `finance-api`, `finance-web`
 - [x] Optional compose profile for `finance-mobile`
 - [x] Docker setup docs updated across infra + local setup + project READMEs
+- [x] Local PostgreSQL backup and guarded restore scripts
 
 ## Pending (Unchecked)
 
@@ -149,6 +150,7 @@ Last updated: 2026-05-31
 
 - [x] Add authenticated filtered transaction CSV export endpoint
 - [x] Add web transaction CSV export action
+- [x] Add local PostgreSQL backup/restore scripts for first backup path
 - [x] Add OpenAPI-generated TypeScript client workflow
 - [x] Reuse generated transaction enum types in the web transaction API wrapper
 - [x] Reuse generated OpenAPI request/enum types across web API inputs
@@ -177,6 +179,13 @@ Last updated: 2026-05-31
 - [ ] Compose config validation:
   - Command: `docker compose config`
   - Result: still blocked on 2026-05-31 in current environment (`docker` command not found)
+- [x] Backup/restore script syntax:
+  - Command: `sh -n projects/finance-infra/scripts/backup-postgres.sh`
+  - Command: `sh -n projects/finance-infra/scripts/restore-postgres.sh`
+  - Result: pass
+- [x] Restore guard check:
+  - Command: `projects/finance-infra/scripts/restore-postgres.sh missing.dump`
+  - Result: refuses without `CONFIRM_RESTORE=finance`
 
 ## Checkpoint Commit Messages
 

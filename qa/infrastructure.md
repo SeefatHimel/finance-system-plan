@@ -3,7 +3,7 @@
 ## What is the infrastructure project responsible for?
 
 The infrastructure project owns local services, Docker Compose, database setup,
-environment templates, deployment notes, and future backup/restore scripts.
+environment templates, deployment notes, and local backup/restore scripts.
 
 ## Why start with Docker Compose?
 
@@ -35,6 +35,8 @@ React Native Metro: 8081
 - Docker Compose services for `postgres`, `finance-api`, and `finance-web`
 - Optional `finance-mobile` service under the `mobile` profile
 - Shared `.env.example` values for stack ports and runtime URLs
+- Local PostgreSQL backup and restore scripts under
+  `projects/finance-infra/scripts/`
 
 ## Why not decide production hosting now?
 
@@ -59,6 +61,13 @@ static/media file strategy.
 Backups should include PostgreSQL dumps, uploaded files if attachments are
 added, and a tested restore procedure. A backup is only useful if restore has
 been verified.
+
+Current implementation status: the infra project includes local Compose-based
+PostgreSQL dump and guarded restore scripts. The restore helper requires
+`CONFIRM_RESTORE=finance` so accidental restores are harder to trigger. The
+backup output directory is ignored by git because dumps can contain financial
+data. Production still needs encrypted off-machine storage, retention policy,
+monitoring, and a scheduled restore drill.
 
 ## How do you protect secrets?
 

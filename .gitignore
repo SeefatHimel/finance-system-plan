@@ -30,6 +30,7 @@ coverage/
 *.sqlite3
 *.sqlite
 *.db
+projects/finance-infra/backups/
 
 # Mobile/native outputs
 android/.gradle/

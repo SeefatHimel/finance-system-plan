@@ -9,7 +9,7 @@ Infrastructure, local development, and deployment support.
 - Environment templates.
 - Backend/web/mobile local setup docs.
 - Deployment documentation later.
-- Backup and restore scripts later.
+- Local PostgreSQL backup and restore scripts.
 
 ## Local Development Services
 
@@ -100,9 +100,29 @@ Do not decide final deployment until phase 1 and phase 2 prove the workflows.
 
 ## Backup Requirements
 
-Future backup scripts should cover:
+Local PostgreSQL backup and restore helpers are available in `scripts/`.
 
-- PostgreSQL dump.
-- Uploaded attachments, if added.
-- OpenAPI contract version.
-- Restore procedure verification.
+Create a local custom-format dump from the Compose `postgres` service:
+
+```bash
+./scripts/backup-postgres.sh
+```
+
+By default, dumps are written to `projects/finance-infra/backups/`, which is
+ignored by git because backups can contain financial data. Override the output
+location when needed:
+
+```bash
+OUTPUT_FILE=/secure/path/finance.dump ./scripts/backup-postgres.sh
+```
+
+Restore is intentionally guarded because it can overwrite local database
+objects:
+
+```bash
+CONFIRM_RESTORE=finance ./scripts/restore-postgres.sh backups/finance-YYYYMMDDTHHMMSSZ.dump
+```
+
+The first backup scope covers PostgreSQL only. Production backup work should
+also cover uploaded attachments if added, encrypted off-machine storage,
+rotation, monitoring, and regular restore verification.

@@ -91,6 +91,26 @@ Remove database data intentionally:
 docker compose down -v
 ```
 
+## Local PostgreSQL Backup And Restore
+
+From `projects/finance-infra`, create a custom-format PostgreSQL dump from the
+Compose database service:
+
+```bash
+./scripts/backup-postgres.sh
+```
+
+Backups are written to `projects/finance-infra/backups/` by default and are
+ignored by git because they can contain financial data. Restore requires an
+explicit confirmation environment variable:
+
+```bash
+CONFIRM_RESTORE=finance ./scripts/restore-postgres.sh backups/finance-YYYYMMDDTHHMMSSZ.dump
+```
+
+Use restore only against a local/dev database unless the target environment has
+a separate production runbook.
+
 ## Current Backend Setup (Native)
 
 Start PostgreSQL:

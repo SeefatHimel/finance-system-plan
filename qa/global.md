@@ -179,6 +179,9 @@ before retry.
 The backend can export filtered transactions as CSV for spreadsheet backup or
 external review, and the web transactions page exposes that export through the
 active filters.
+The infrastructure project also has local PostgreSQL dump and guarded restore
+scripts, giving the project a first database backup path before production
+automation.
 Transaction creates, updates, and deletes are also recorded in a read-only,
 user-scoped audit log with normalized before/after snapshots.
 The contracts project now generates TypeScript schema types and a lightweight
@@ -195,7 +198,7 @@ Pay; deeper provider-specific parser coverage for additional bank account
 transfer and real-world provider variants; mobile UI polish for debt,
 credit-card, recurring-bill, and reconciliation workflows; native Android SMS
 capture implementation; additional production-grade local sync hardening;
-production deployment setup; and broader backup/restore support are still
+production deployment setup; and production-grade backup automation are still
 planned future work.
 
 ## What is the biggest technical risk?
@@ -223,5 +226,5 @@ store policy compliance, monitoring, and deployment automation.
 
 I would collect real anonymized SMS fixtures, deepen additional
 provider-specific bank transfer parsing, polish the mobile finance workflows,
-harden local sync, add a broader backup/restore path, and prepare the
-Docker/deployment path for production.
+harden local sync, automate production backups and restore drills, and prepare
+the Docker/deployment path for production.
