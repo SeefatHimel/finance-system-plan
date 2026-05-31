@@ -91,6 +91,7 @@ clients.
 Current examples are available in `projects/finance-contracts/examples/`:
 
 - `account.create.json`
+- `audit-log.detail.response.json`
 - `audit-log.list.response.json`
 - `auth.login.request.json`
 - `auth.login.response.json`
@@ -106,12 +107,14 @@ Current examples are available in `projects/finance-contracts/examples/`:
 - `message-review.confirm.json`
 - `message-review.list.response.json`
 - `message-review.redact.response.json`
+- `reconciliation.account.response.json`
 - `reconciliation.snapshot.create.json`
 - `reconciliation.snapshot.response.json`
 - `recurring-bill.create.json`
 - `recurring-bill.payment.create.json`
 - `sender-rule.create.json`
 - `transaction.create.json`
+- `transaction.export.csv`
 - `transaction.list.response.json`
 - `transaction.transfer.create.json`
 - `validation-error.response.json`
@@ -119,6 +122,5 @@ Current examples are available in `projects/finance-contracts/examples/`:
 
 Next useful additions:
 
-- Export CSV shape sample
-- Account reconciliation response example
-- Audit log detail response example
+- Pagination envelope examples if list endpoints add pagination
+- Production error examples for rate limits or token expiry

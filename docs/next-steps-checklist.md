@@ -69,6 +69,7 @@ Last updated: 2026-05-31
 - [x] Generated TypeScript API client and schema types added
 - [x] Contract Q&A updated
 - [x] Auth, transfer transaction, validation error, and audit log examples added
+- [x] Reconciliation response, audit detail, and CSV export examples added
 
 ### Phase 2 Kickoff
 

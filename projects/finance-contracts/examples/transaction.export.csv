@@ -1,0 +1,2 @@
+id,date,type,direction,amount,account_id,account_name,transfer_account_id,transfer_account_name,category_id,category_name,payment_method_id,payment_method_name,balance_after,reference,counterparty_text,external_key,source,needs_review,note,raw_message_id,created_at,updated_at
+f5e57b1e-14f5-4f77-93af-d7f90d7cbffc,2026-05-01,expense,debit,1200.00,1a3d92d0-f97f-4faf-a855-d68589bf26f2,Cash,,,83bb8f20-a319-4bd0-b771-0d79778ec8a8,Groceries,,,1150.00,TRX123456,Grocery shop,manual:trx123456,web,False,Groceries,,2026-05-01T04:10:11.043210Z,2026-05-01T04:10:11.043210Z

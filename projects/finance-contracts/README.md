@@ -23,6 +23,7 @@ requirements.txt
 tsconfig.generated.json
 examples/
   account.create.json
+  audit-log.detail.response.json
   audit-log.list.response.json
   auth.login.request.json
   auth.login.response.json
@@ -38,16 +39,18 @@ examples/
   message-review.redact.response.json
   raw-message.import.json
   raw-message.import.response.json
-  sender-rule.create.json
-  transaction.create.json
-  transaction.list.response.json
-  transaction.transfer.create.json
-  validation-error.response.json
-  report.monthly.response.json
+  reconciliation.account.response.json
   reconciliation.snapshot.create.json
   reconciliation.snapshot.response.json
   recurring-bill.create.json
   recurring-bill.payment.create.json
+  sender-rule.create.json
+  transaction.create.json
+  transaction.export.csv
+  transaction.list.response.json
+  transaction.transfer.create.json
+  validation-error.response.json
+  report.monthly.response.json
 CHANGELOG.md
 ```
 
