@@ -31,13 +31,14 @@ requirements, the project should use bare React Native.
 
 Current implementation status: the app uses Expo for fast setup, health/API
 validation, login testing, quick transaction entry, sender-rule selection,
-local raw-message queueing, sync, and SMS review. The project keeps the option
-open to move to Expo prebuild/custom dev client or bare React Native when
-automatic SMS capture requires a native Android module.
+local raw-message queueing, sync, and SMS review. A local Android native module
+now exists for custom dev client or personal APK builds, so Expo Go remains a
+manual-import/testing path while generated Android builds can request SMS
+permission and capture sender-matched messages.
 
-Current SMS decision: keep Expo managed for Phase 2 UI/API work, avoid broad
-SMS permissions for now, and only move to Expo prebuild/custom dev client or
-bare React Native when real automatic SMS capture is ready to be implemented.
+Current SMS decision: keep broad SMS access out of Expo Go, use the local native
+module only in a custom Android build, and process only user-enabled sender-rule
+matches. Public distribution still needs SMS permission policy review.
 
 ## What is currently implemented in the mobile app?
 
@@ -70,8 +71,9 @@ bare React Native when real automatic SMS capture is ready to be implemented.
   real account balances from mobile, with compact expected/actual/difference
   metrics.
 - SMS tracking settings scaffold that loads payment methods and sender rules,
-  shows a permission gate placeholder, and lets the user locally enable trusted
-  sender rules for future import.
+  shows an Android permission gate, lets the user locally enable trusted sender
+  rules, and syncs those enabled rules to native SMS capture in custom Android
+  builds.
 - Local raw message queue backed by AsyncStorage, with sync to
   `POST /api/messages/import/`, local duplicate checks, per-message retry
   metadata, capped retry backoff, and manual removal for invalid queued
@@ -127,10 +129,11 @@ unsure.
 
 Current scaffold status: the app can load backend sender rules and payment
 methods after login, then locally toggle which sender rules should be enabled.
-It can also queue raw SMS messages locally, sync them to the backend import
+It can also queue raw SMS messages locally, import sender-matched messages from
+the native Android capture store, sync queued raw messages to the backend import
 endpoint, and review parsed SMS candidates from the backend review inbox.
-Actual automatic inbox reading still needs the native Android module
-implementation.
+Actual capture requires a custom Android dev client or APK; Expo Go cannot load
+the native module.
 
 The mobile SMS review section shows parser hints, raw SMS evidence,
 parser confidence, review or duplicate reason, internal-transfer flags, account
@@ -138,10 +141,9 @@ selection chips, and lets the user confirm or ignore candidates. Mobile
 confirmation sends the selected source account, destination account for
 transfers, amount, date, type, and parser evidence fields.
 
-Decision status: the native path is deferred until automatic capture work starts.
-The documented direction is a narrow native Android module for personal APK use,
-with manual/non-SMS-permission alternatives if public distribution policy makes
-broad SMS access unsuitable.
+Decision status: the narrow native Android module path is scaffolded for
+personal APK/custom dev client use, with manual/non-SMS-permission alternatives
+still available if public distribution policy makes broad SMS access unsuitable.
 
 ## Why not read every SMS?
 
@@ -190,11 +192,10 @@ sync.
 
 ## What is the SMS permission decision?
 
-Do not add `READ_SMS` or `RECEIVE_SMS` in the current Expo managed scaffold.
-Build the sender-selection, raw import, duplicate detection, and review flows
-first. If automatic capture is still needed, move to Expo prebuild/custom dev
-client or bare React Native and add the smallest native Android module that only
-processes user-enabled sender rules.
+Keep Expo Go as the manual-import/testing path. For personal APK or custom dev
+client builds, the local Android module can request `READ_SMS` and
+`RECEIVE_SMS`, but it only stores messages from user-enabled sender rules.
+Captured messages still enter the raw-message queue before backend sync.
 
 ## What will the main mobile screens be?
 
@@ -231,3 +232,6 @@ available, or sender/body/received time as a fallback. It removes messages
 after the backend accepts them and keeps failed messages queued with retry
 metadata plus capped retry backoff. The backend still handles duplicate
 detection if the same raw message is submitted again.
+
+Native-captured SMS messages use a `native:<id>` device message ID when imported
+into the raw-message queue, so the local queue can skip duplicates before sync.

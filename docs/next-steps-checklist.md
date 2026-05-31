@@ -61,6 +61,7 @@ Last updated: 2026-05-31
 - [x] Local recent transaction cache hydration for offline mobile review
 - [x] SMS sender selection UI + permission gate scaffold
 - [x] Local raw message cache and sync queue
+- [x] Native Android SMS capture scaffold for custom dev client/personal APK builds
 
 ### Contracts
 
@@ -111,6 +112,7 @@ Last updated: 2026-05-31
 - [x] Add parser-backed SMS review inbox
 - [x] Add native Android SMS permission/module decision
 - [x] Add local raw message cache and sync queue
+- [x] Add native Android SMS capture scaffold
 
 ### Phase 3 Candidates
 
@@ -186,6 +188,13 @@ Last updated: 2026-05-31
 - [x] Web build:
   - Command: `npm run build`
   - Result: pass
+- [x] Mobile typecheck:
+  - Command: `npm run typecheck`
+  - Result: pass
+- [ ] Native Android SMS device build:
+  - Command: `npx expo prebuild --platform android && npx expo run:android --device`
+  - Result: not run in this environment; requires Android device/emulator and
+    generated native build
 - [ ] Compose config validation:
   - Command: `docker compose config`
   - Result: still blocked on 2026-05-31 in current environment (`docker` command not found)

@@ -3,6 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  PermissionsAndroid,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -51,6 +53,15 @@ import {
   type SenderRule,
   type Transaction
 } from "./src/api";
+import {
+  clearCapturedSmsMessages,
+  configureNativeSmsSenderRules,
+  getCapturedSmsMessages,
+  getNativeSmsPermissionStatus,
+  isNativeSmsCaptureAvailable,
+  type CapturedSmsMessage,
+  type NativeSmsSenderRule
+} from "./modules/finance-sms-capture/src";
 
 type ViewState = "idle" | "loading" | "success" | "error";
 type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
@@ -287,6 +298,34 @@ function rawMessageDedupeKey(input: Pick<QueuedRawMessage, "body" | "deviceMessa
   return deviceMessageId
     ? `device:${sender}:${deviceMessageId}`
     : `body:${sender}:${receivedAt}:${body}`;
+}
+
+function senderMatchesRule(sender: string, rule: Pick<SenderRule, "match_type" | "sender">) {
+  const normalizedSender = sender.trim().toLowerCase();
+  const normalizedRuleSender = rule.sender.trim().toLowerCase();
+
+  if (!normalizedSender || !normalizedRuleSender) {
+    return false;
+  }
+
+  if (rule.match_type === "contains") {
+    return normalizedSender.includes(normalizedRuleSender);
+  }
+  if (rule.match_type === "prefix" || rule.match_type === "starts_with") {
+    return normalizedSender.startsWith(normalizedRuleSender);
+  }
+  return normalizedSender === normalizedRuleSender;
+}
+
+function buildNativeSenderRules(senderRules: SenderRule[], enabledSenderRuleIds: string[]): NativeSmsSenderRule[] {
+  const enabledIds = new Set(enabledSenderRuleIds);
+  return senderRules
+    .filter((rule) => enabledIds.has(rule.id) && rule.sender.trim())
+    .map((rule) => ({
+      id: rule.id,
+      matchType: rule.match_type,
+      sender: rule.sender
+    }));
 }
 
 function queueRetryDelayMs(attempts: number) {
@@ -553,7 +592,7 @@ export default function App() {
   const [snapshotNote, setSnapshotNote] = useState("");
   const [smsPermissionState, setSmsPermissionState] = useState<SmsPermissionState>("unknown");
   const [smsPermissionMessage, setSmsPermissionMessage] = useState(
-    "Native SMS permission is not wired in this Expo scaffold yet."
+    "Native SMS capture requires a custom Android dev client or APK."
   );
   const [smsSettingsState, setSmsSettingsState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [smsSettingsMessage, setSmsSettingsMessage] = useState("");
@@ -1066,12 +1105,134 @@ export default function App() {
     }
   };
 
-  const handleRequestSmsPermission = () => {
+  const handleRequestSmsPermission = async () => {
     setSmsPermissionState("checking");
-    setSmsPermissionMessage(
-      "Permission gate reached. Add a native Android SMS permission module before reading inbox messages."
-    );
-    setSmsPermissionState("denied");
+    setSmsPermissionMessage("Checking native Android SMS permission.");
+
+    if (Platform.OS !== "android") {
+      setSmsPermissionState("denied");
+      setSmsPermissionMessage("Native SMS capture is Android-only.");
+      return;
+    }
+
+    if (!isNativeSmsCaptureAvailable()) {
+      setSmsPermissionState("denied");
+      setSmsPermissionMessage("Build a custom Android dev client or APK before requesting SMS permission.");
+      return;
+    }
+
+    try {
+      const permissionResult = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.READ_SMS,
+        PermissionsAndroid.PERMISSIONS.RECEIVE_SMS
+      ]);
+      const hasReadSms = permissionResult[PermissionsAndroid.PERMISSIONS.READ_SMS] === PermissionsAndroid.RESULTS.GRANTED;
+      const hasReceiveSms =
+        permissionResult[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS] === PermissionsAndroid.RESULTS.GRANTED;
+      const nativeStatus = await getNativeSmsPermissionStatus();
+
+      if (hasReadSms && hasReceiveSms && nativeStatus.canReadSms && nativeStatus.canReceiveSms) {
+        setSmsPermissionState("granted");
+        setSmsPermissionMessage("SMS permission granted. Sync enabled sender rules to native capture next.");
+        return;
+      }
+
+      setSmsPermissionState("denied");
+      setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
+    } catch (error) {
+      setSmsPermissionState("denied");
+      setSmsPermissionMessage(error instanceof Error ? error.message : "Could not request SMS permission.");
+    }
+  };
+
+  const handleConfigureNativeSmsCapture = async () => {
+    const nativeRules = buildNativeSenderRules(senderRules, enabledSenderRuleIds);
+
+    if (nativeRules.length === 0) {
+      setSmsSettingsState("error");
+      setSmsSettingsMessage("Enable at least one sender rule before syncing native SMS capture.");
+      return;
+    }
+
+    setSmsSettingsState("loading");
+    setSmsSettingsMessage("");
+    try {
+      const result = await configureNativeSmsSenderRules(nativeRules);
+      setSmsSettingsState("ok");
+      setSmsSettingsMessage(`Native SMS capture synced ${result.configuredCount} sender rule(s).`);
+    } catch (error) {
+      setSmsSettingsState("error");
+      setSmsSettingsMessage(error instanceof Error ? error.message : "Could not configure native SMS capture.");
+    }
+  };
+
+  const handleImportCapturedSmsMessages = async () => {
+    const enabledRules = senderRules.filter((rule) => enabledSenderRuleIds.includes(rule.id));
+
+    if (enabledRules.length === 0) {
+      setRawQueueState("error");
+      setRawQueueMessage("Enable sender rules before importing captured SMS messages.");
+      return;
+    }
+
+    setRawQueueState("loading");
+    setRawQueueMessage("");
+
+    try {
+      const capturedMessages = await getCapturedSmsMessages(50);
+      const currentDedupeKeys = new Set(rawQueue.map((queuedMessage) => rawMessageDedupeKey(queuedMessage)));
+      const nextMessages: QueuedRawMessage[] = [];
+      const clearIds: string[] = [];
+      let duplicateCount = 0;
+      let ignoredCount = 0;
+
+      capturedMessages.forEach((message: CapturedSmsMessage) => {
+        if (!enabledRules.some((rule) => senderMatchesRule(message.sender, rule))) {
+          ignoredCount += 1;
+          return;
+        }
+
+        const queuedInput = {
+          body: message.body.trim(),
+          deviceMessageId: `native:${message.id}`,
+          receivedAt: message.receivedAt.trim(),
+          sender: message.sender.trim()
+        };
+        const dedupeKey = rawMessageDedupeKey(queuedInput);
+        clearIds.push(message.id);
+
+        if (currentDedupeKeys.has(dedupeKey)) {
+          duplicateCount += 1;
+          return;
+        }
+
+        currentDedupeKeys.add(dedupeKey);
+        nextMessages.push({
+          attempts: 0,
+          body: queuedInput.body,
+          createdAt: new Date().toISOString(),
+          deviceMessageId: queuedInput.deviceMessageId,
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          lastAttemptAt: "",
+          lastError: "",
+          nextRetryAt: "",
+          receivedAt: queuedInput.receivedAt,
+          sender: queuedInput.sender
+        });
+      });
+
+      if (nextMessages.length > 0) {
+        await saveRawQueue([...rawQueue, ...nextMessages]);
+      }
+      await clearCapturedSmsMessages(clearIds);
+      setRawQueueState("ok");
+      setRawQueueMessage(
+        `Imported ${nextMessages.length} captured SMS message(s). ${duplicateCount} duplicate(s) skipped. ${ignoredCount} untracked message(s) left native-side.`
+      );
+    } catch (error) {
+      setRawQueueState("error");
+      setRawQueueMessage(error instanceof Error ? error.message : "Could not import captured SMS messages.");
+    }
   };
 
   const handleLoadSmsSettings = async () => {
@@ -2312,13 +2473,16 @@ export default function App() {
             <Text style={styles.listTitle}>Permission gate</Text>
             <Text style={styles.meta}>Status: {smsPermissionState}</Text>
             <Text style={styles.meta}>{smsPermissionMessage}</Text>
-            <Pressable onPress={handleRequestSmsPermission} style={styles.buttonSecondary}>
-              <Text style={styles.buttonText}>Check SMS Permission Scaffold</Text>
+            <Pressable onPress={() => void handleRequestSmsPermission()} style={styles.buttonSecondary}>
+              <Text style={styles.buttonText}>Request Android SMS Permission</Text>
             </Pressable>
           </View>
 
           <Pressable onPress={handleLoadSmsSettings} style={styles.button}>
             <Text style={styles.buttonText}>Load Payment Methods & Sender Rules</Text>
+          </Pressable>
+          <Pressable onPress={() => void handleConfigureNativeSmsCapture()} style={styles.buttonSecondary}>
+            <Text style={styles.buttonText}>Sync Native Sender Rules</Text>
           </Pressable>
 
           {smsSettingsState === "loading" ? <ActivityIndicator /> : null}
@@ -2401,6 +2565,9 @@ export default function App() {
           </Pressable>
           <Pressable onPress={handleSyncRawQueue} style={styles.button}>
             <Text style={styles.buttonText}>Sync Queued Messages</Text>
+          </Pressable>
+          <Pressable onPress={() => void handleImportCapturedSmsMessages()} style={styles.buttonSecondary}>
+            <Text style={styles.buttonText}>Import Captured SMS</Text>
           </Pressable>
 
           {rawQueueState === "loading" ? <ActivityIndicator /> : null}

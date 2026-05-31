@@ -39,16 +39,16 @@ SMS import with duplicate detection, a parsed SMS review inbox, monthly
 reports, debt/repayment, credit card bill, recurring bill, and reconciliation
 endpoints, a Next.js dashboard, web management, SMS review, debt, credit-card,
 recurring-bill, and reconciliation screens, and an Expo mobile scaffold with
-local raw-message queuing, retry metadata, duplicate checks, sync, and SMS
-review. The transactions page can also download filtered CSV exports for
-spreadsheet backup, and transaction changes are captured in a read-only audit
-trail. Local PostgreSQL dump, guarded restore, backup manifest, and retention
-scripts provide the first database backup path, and the deployment runbook
-captures production readiness gates and rollback expectations. The SMS
-permission decision is documented: keep Expo managed for now and only move to a
-native Android module when automatic capture is ready. Next I would collect real
-anonymized SMS fixtures, expand additional bank transfer variants, and continue
-mobile finance workflow polish.
+local raw-message queuing, retry metadata, duplicate checks, sync, SMS review,
+and a local Android native SMS capture scaffold for custom dev client or
+personal APK builds. The transactions page can also download filtered CSV
+exports for spreadsheet backup, and transaction changes are captured in a
+read-only audit trail. Local PostgreSQL dump, guarded restore, backup manifest,
+and retention scripts provide the first database backup path, and the deployment
+runbook captures production readiness gates and rollback expectations. Next I
+would validate native SMS capture on a real device, collect real anonymized SMS
+fixtures, expand additional bank transfer variants, and continue mobile finance
+workflow polish.
 
 ## Strong Technical Points To Mention
 
@@ -76,9 +76,10 @@ and report logic in the backend so the system can evolve.
 
 I would collect real anonymized SMS fixtures for bKash, EBL, City Bank, and
 Pathao Pay, then use them to deepen additional bank transfer and
-internal-transfer matching variants. After that I would continue mobile finance
-workflow polish, harden local sync, add deployment-specific encrypted backup
-uploads and alerts, and prepare production deployment.
+internal-transfer matching variants. I would also validate the native SMS
+capture scaffold on a real Android device, continue mobile finance workflow
+polish, harden local sync, add deployment-specific encrypted backup uploads and
+alerts, and prepare production deployment.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 

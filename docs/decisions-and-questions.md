@@ -15,11 +15,11 @@
 - Projects should remain separate.
 - Payment methods need their own management area.
 - Mobile app must let the user track SMS messages from selected sender numbers.
-- Keep the current mobile app in Expo managed mode for Phase 2 UI/API work.
-- Do not add broad Android SMS permissions until a native Android path is
-  explicitly chosen.
-- If automatic SMS capture remains required, use Expo prebuild/custom dev client
-  or bare React Native for the smallest sender-scoped native module.
+- Keep Expo Go as the mobile manual-import/testing path.
+- Use the local native Android SMS module only in Expo prebuild/custom dev
+  client or personal APK builds.
+- Keep automatic SMS capture sender-scoped and feed captured messages into the
+  raw-message queue before backend sync.
 - Phase 3 parser priority providers are bKash, EBL, City Bank, and Pathao Pay.
 - Internal transfers are feature-worthy and should be handled explicitly so
   bank-to-wallet and own-account movement is not misclassified.

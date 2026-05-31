@@ -27,10 +27,12 @@ Phase 1 scaffold now includes:
   - `GET /api/transactions/`
   - caches the latest loaded transactions locally for offline startup review
 - SMS tracking settings scaffold:
-  - permission gate placeholder for native Android SMS access
+  - Android SMS permission gate for custom native builds
   - `GET /api/payment-methods/`
   - `GET /api/messages/sender-rules/`
   - local sender rule enable/disable selection
+  - syncs enabled sender rules into the local native SMS capture module when
+    running a custom Android dev client or APK
 - Local raw message queue:
   - stores queued raw messages with AsyncStorage
   - syncs queued messages to `POST /api/messages/import/`
@@ -74,6 +76,8 @@ Phase 1 scaffold now includes:
   method, raw message link, and duplicate key
 - Native SMS permission/module decision documented in
   `docs/mobile-sms-permission-decision.md`.
+- Native Android SMS capture setup documented in
+  `docs/native-sms-capture.md`.
 
 ## Local Run (Current)
 
@@ -111,6 +115,29 @@ The current login flow is for local testing. Production mobile auth should use
 OS-backed secure storage for refresh tokens. See
 `../../docs/auth-token-storage-plan.md`.
 
+## Native Android SMS Capture
+
+The app includes a local Android native module under
+`modules/finance-sms-capture/`. It is only available in a generated Android
+build, not Expo Go.
+
+Fresh device setup:
+
+```bash
+npm install
+cp .env.example .env
+npx expo prebuild --platform android
+npx expo run:android --device
+```
+
+On a physical phone, set `EXPO_PUBLIC_API_BASE_URL` to the backend machine's LAN
+IP before running. Then sign in, load sender rules, enable trusted senders,
+request Android SMS permission, sync native sender rules, and import captured
+SMS messages into the existing raw-message queue.
+
+See `docs/native-sms-capture.md` for the full workflow and troubleshooting
+steps.
+
 ## Docker (Optional)
 
 From `projects/finance-infra`:
@@ -143,15 +170,15 @@ For day-to-day development, native Expo on host is still the recommended path.
 - Native Android SMS module when needed
 
 Expo can be used only if the SMS requirements remain compatible. If automatic
-SMS reading requires native Android APIs not supported by Expo managed workflow,
-use bare React Native.
+SMS reading requires native Android APIs not supported by Expo Go, use Expo
+prebuild/custom dev client or bare React Native.
 
 ## Android SMS Tracking Flow
 
-Current decision: do not add broad Android SMS permissions in the Expo managed
-scaffold. Build sender selection, import, duplicate detection, and review flows
-first. If automatic capture is still required, move to Expo prebuild/custom dev
-client or bare React Native and add a narrow native Android SMS module.
+Current decision: keep Expo Go as the manual-import/testing path and use the
+local native Android module only in custom dev client or personal APK builds.
+Native capture is sender-rule scoped and captured messages still enter the
+existing raw-message queue before backend sync.
 
 ```mermaid
 flowchart TD
@@ -216,6 +243,8 @@ Settings
    duplicate checks, and manual removal for invalid queued messages.
 6. Review inbox. Done.
 7. Source/destination transfer controls. Done.
+8. Native Android SMS capture scaffold. Done for custom dev client/personal APK
+   builds.
 
 ## Phase 4 Mobile Milestones
 

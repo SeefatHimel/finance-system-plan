@@ -155,14 +155,18 @@ do not depend on storing the original SMS text forever.
 
 ### Mobile SMS Capture Boundary
 
-The current mobile implementation does not request Android SMS permissions.
-Sender rules, raw message import, duplicate detection, and review candidates are
-implemented first so native SMS capture can be added later behind a narrow,
-sender-scoped permission flow.
+The mobile app now has a local Android native module scaffold for custom dev
+client or personal APK builds. Expo Go remains a manual-import/testing path and
+does not load the module.
 
-If automatic capture is still required, use Expo prebuild/custom dev client or
-bare React Native for a native Android module. Keep manual import as a fallback
-for distributions where broad SMS permissions are not allowed.
+The native path requests SMS permission only from the mobile SMS settings flow,
+stores enabled sender rules natively, receives `SMS_RECEIVED` broadcasts, and
+keeps only messages whose sender matches an enabled rule. The app then imports
+captured messages into the existing raw-message queue before syncing through
+`POST /api/messages/import/`.
+
+Keep manual import as a fallback for distributions where broad SMS permissions
+are not allowed.
 
 ### messages_parsedmessage
 
@@ -572,6 +576,8 @@ Authorization: Bearer <access-token>
 - Use HTTPS in deployed environments.
 - Encrypt secrets outside the repo.
 - Do not store SMS data for untracked senders.
+- Do not upload native-captured SMS messages until the user imports them into
+  the raw-message queue.
 - Allow raw SMS deletion later.
 - Use per-user scoping on every query.
 - Keep audit-friendly timestamps on financial records.

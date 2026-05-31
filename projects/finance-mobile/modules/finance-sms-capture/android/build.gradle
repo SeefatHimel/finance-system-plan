@@ -1,0 +1,17 @@
+plugins {
+  id 'com.android.library'
+  id 'org.jetbrains.kotlin.android'
+}
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+
+group = 'com.personalfinance.smscapture'
+version = '0.1.0'
+
+useCoreDependencies()
+useDefaultAndroidSdkVersions()
+
+android {
+  namespace "com.personalfinance.smscapture"
+}

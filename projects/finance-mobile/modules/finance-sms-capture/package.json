@@ -1,0 +1,14 @@
+{
+  "name": "finance-sms-capture",
+  "version": "0.1.0",
+  "description": "Local Android native SMS capture module for finance-mobile.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "private": true,
+  "license": "UNLICENSED",
+  "expo-module": {
+    "android": {
+      "modules": ["com.personalfinance.smscapture.FinanceSmsCaptureModule"]
+    }
+  }
+}

@@ -167,6 +167,9 @@ local raw-message queueing, SMS review including source/destination transfer
 account selection, compact debt/lending workflow, and compact credit-card bill
 and recurring-bill workflows, mobile balance reconciliation checks, and compact
 mobile summary metrics for due-soon balances and reconciliation differences.
+The mobile app also has a local Android native SMS capture scaffold for custom
+dev client or personal APK builds, with sender-rule filtering before captured
+messages enter the raw-message queue.
 The web app also exposes balance reconciliation so expected ledger balances can
 be compared with real account snapshots, and it has a read-only audit log page
 for transaction change history that can be opened from individual transaction
@@ -209,10 +212,10 @@ with retry metadata for later sync.
 Real anonymized SMS fixture collection for bKash, EBL, City Bank, and Pathao
 Pay; deeper provider-specific parser coverage for additional bank account
 transfer and real-world provider variants; deeper mobile UI polish beyond the
-first compact finance-summary pass; native Android SMS capture implementation;
-additional production-grade local sync hardening; production deployment
-execution; and deployment-specific encrypted backup storage with monitoring are
-still planned future work.
+first compact finance-summary pass; real-device validation of the native SMS
+capture scaffold; additional production-grade local sync hardening; production
+deployment execution; and deployment-specific encrypted backup storage with
+monitoring are still planned future work.
 
 ## What is the biggest technical risk?
 
