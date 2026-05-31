@@ -87,6 +87,78 @@ const accountCacheKey = "finance.accountCache";
 const categoryCacheKey = "finance.categoryCache";
 const transactionCacheKey = "finance.transactionCache";
 
+function parseMoney(value: string | null | undefined) {
+  if (!value) {
+    return 0;
+  }
+
+  const amount = Number(value.replaceAll(",", ""));
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function formatMoney(value: number) {
+  const [wholePart, decimalPart] = value.toFixed(2).split(".");
+  return `BDT ${wholePart.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${decimalPart}`;
+}
+
+function sumMoney<T>(items: T[], selector: (item: T) => string | null | undefined) {
+  return items.reduce((total, item) => total + parseMoney(selector(item)), 0);
+}
+
+function isDueSoon(date: string | null | undefined, daysAhead = 7) {
+  if (!date) {
+    return false;
+  }
+
+  const dueDate = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(dueDate.getTime())) {
+    return false;
+  }
+
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + daysAhead);
+  return dueDate <= end;
+}
+
+function SummaryMetric({
+  label,
+  tone = "default",
+  value
+}: {
+  label: string;
+  tone?: "default" | "success" | "warning";
+  value: string;
+}) {
+  return (
+    <View
+      style={[
+        styles.summaryMetric,
+        tone === "success" ? styles.summaryMetricSuccess : null,
+        tone === "warning" ? styles.summaryMetricWarning : null
+      ]}
+    >
+      <Text style={styles.summaryValue}>{value}</Text>
+      <Text style={styles.summaryLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function StatusPill({ label, tone = "default" }: { label: string; tone?: "default" | "success" | "warning" }) {
+  return (
+    <Text
+      style={[
+        styles.statusPill,
+        tone === "success" ? styles.statusPillSuccess : null,
+        tone === "warning" ? styles.statusPillWarning : null
+      ]}
+    >
+      {label}
+    </Text>
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -1451,6 +1523,18 @@ export default function App() {
   const openCardBills = cardBills.filter((bill) => bill.status !== "paid");
   const activeRecurringBills = recurringBills.filter((bill) => bill.status === "active");
   const expenseCategories = categories.filter((category) => category.kind === "expense");
+  const openDebtTotal = sumMoney(openDebts, (debt) => debt.current_balance);
+  const debtDueSoonCount = openDebts.filter((debt) => isDueSoon(debt.due_date)).length;
+  const openCardBillTotal = sumMoney(openCardBills, (bill) => bill.remaining_balance);
+  const cardBillsDueSoonCount = openCardBills.filter((bill) => isDueSoon(bill.due_date)).length;
+  const recurringMonthlyTotal = sumMoney(
+    activeRecurringBills.filter((bill) => bill.frequency === "monthly"),
+    (bill) => bill.amount
+  );
+  const recurringDueSoonCount = activeRecurringBills.filter((bill) => isDueSoon(bill.next_due_date)).length;
+  const reconciliationDifference = parseMoney(reconciliation?.latest_snapshot?.difference);
+  const hasReconciliationDifference =
+    reconciliation?.latest_snapshot?.difference !== undefined && reconciliation?.latest_snapshot?.difference !== null;
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -1685,6 +1769,12 @@ export default function App() {
           {debtState === "ok" ? <Text style={styles.okText}>{debtMessage}</Text> : null}
           {debtState === "error" ? <Text style={styles.errorText}>{debtMessage}</Text> : null}
 
+          <View style={styles.summaryGrid}>
+            <SummaryMetric label="Open debts" value={`${openDebts.length}`} />
+            <SummaryMetric label="Outstanding" tone={openDebtTotal > 0 ? "warning" : "success"} value={formatMoney(openDebtTotal)} />
+            <SummaryMetric label="Due soon" tone={debtDueSoonCount > 0 ? "warning" : "success"} value={`${debtDueSoonCount}`} />
+          </View>
+
           <Text style={styles.sectionTitle}>Add Debt Record</Text>
           <TextInput
             autoCapitalize="words"
@@ -1795,10 +1885,16 @@ export default function App() {
             <View style={styles.listSection}>
               <Text style={styles.listTitle}>People and balances</Text>
               {debts.map((debt) => (
-                <Text key={debt.id} style={styles.listItem}>
-                  {debt.counterparty_name} | {debt.direction.replaceAll("_", " ")} | {debt.current_balance} | {debt.status}
-                  {debt.due_date ? ` | due ${debt.due_date}` : ""}
-                </Text>
+                <View key={debt.id} style={styles.compactRecord}>
+                  <View style={styles.recordHeader}>
+                    <Text style={styles.listTitle}>{debt.counterparty_name}</Text>
+                    <StatusPill label={debt.status} tone={debt.status === "paid" ? "success" : "warning"} />
+                  </View>
+                  <Text style={styles.listItem}>
+                    {debt.direction.replaceAll("_", " ")} | {debt.current_balance}
+                    {debt.due_date ? ` | due ${debt.due_date}` : ""}
+                  </Text>
+                </View>
               ))}
             </View>
           ) : null}
@@ -1816,6 +1912,12 @@ export default function App() {
           {cardBillState === "loading" ? <ActivityIndicator /> : null}
           {cardBillState === "ok" ? <Text style={styles.okText}>{cardBillMessage}</Text> : null}
           {cardBillState === "error" ? <Text style={styles.errorText}>{cardBillMessage}</Text> : null}
+
+          <View style={styles.summaryGrid}>
+            <SummaryMetric label="Open bills" value={`${openCardBills.length}`} />
+            <SummaryMetric label="Remaining" tone={openCardBillTotal > 0 ? "warning" : "success"} value={formatMoney(openCardBillTotal)} />
+            <SummaryMetric label="Due soon" tone={cardBillsDueSoonCount > 0 ? "warning" : "success"} value={`${cardBillsDueSoonCount}`} />
+          </View>
 
           <Text style={styles.sectionTitle}>Add Statement Bill</Text>
           {cardAccounts.length ? (
@@ -1936,9 +2038,15 @@ export default function App() {
             <View style={styles.listSection}>
               <Text style={styles.listTitle}>Card bill balances</Text>
               {cardBills.map((bill) => (
-                <Text key={bill.id} style={styles.listItem}>
-                  {bill.statement_date} | due {bill.due_date} | remaining {bill.remaining_balance} | {bill.status}
-                </Text>
+                <View key={bill.id} style={styles.compactRecord}>
+                  <View style={styles.recordHeader}>
+                    <Text style={styles.listTitle}>Due {bill.due_date}</Text>
+                    <StatusPill label={bill.status} tone={bill.status === "paid" ? "success" : "warning"} />
+                  </View>
+                  <Text style={styles.listItem}>
+                    Statement {bill.statement_date} | remaining {bill.remaining_balance} | minimum {bill.minimum_due}
+                  </Text>
+                </View>
               ))}
             </View>
           ) : null}
@@ -1956,6 +2064,12 @@ export default function App() {
           {recurringState === "loading" ? <ActivityIndicator /> : null}
           {recurringState === "ok" ? <Text style={styles.okText}>{recurringMessage}</Text> : null}
           {recurringState === "error" ? <Text style={styles.errorText}>{recurringMessage}</Text> : null}
+
+          <View style={styles.summaryGrid}>
+            <SummaryMetric label="Active bills" value={`${activeRecurringBills.length}`} />
+            <SummaryMetric label="Monthly total" value={formatMoney(recurringMonthlyTotal)} />
+            <SummaryMetric label="Due soon" tone={recurringDueSoonCount > 0 ? "warning" : "success"} value={`${recurringDueSoonCount}`} />
+          </View>
 
           <Text style={styles.sectionTitle}>Add Recurring Bill</Text>
           <TextInput
@@ -2095,9 +2209,15 @@ export default function App() {
             <View style={styles.listSection}>
               <Text style={styles.listTitle}>Recurring schedule</Text>
               {recurringBills.map((bill) => (
-                <Text key={bill.id} style={styles.listItem}>
-                  {bill.name} | {bill.frequency} | {bill.amount} | next {bill.next_due_date} | {bill.status}
-                </Text>
+                <View key={bill.id} style={styles.compactRecord}>
+                  <View style={styles.recordHeader}>
+                    <Text style={styles.listTitle}>{bill.name}</Text>
+                    <StatusPill label={bill.status} tone={bill.status === "active" ? "success" : "default"} />
+                  </View>
+                  <Text style={styles.listItem}>
+                    {bill.frequency} | {bill.amount} | next {bill.next_due_date} | reminder {bill.reminder_days_before}d
+                  </Text>
+                </View>
               ))}
             </View>
           ) : null}
@@ -2137,13 +2257,29 @@ export default function App() {
           {reconciliation ? (
             <View style={styles.listSection}>
               <Text style={styles.listTitle}>{reconciliation.account_name}</Text>
-              <Text style={styles.listItem}>Expected balance: {reconciliation.expected_balance}</Text>
-              <Text style={styles.listItem}>
-                Latest snapshot: {reconciliation.latest_snapshot?.actual_balance ?? "No snapshot"}
-              </Text>
-              <Text style={styles.listItem}>
-                Status: {reconciliation.latest_snapshot?.status ?? "not checked"}
-              </Text>
+              <View style={styles.summaryGrid}>
+                <SummaryMetric label="Expected" value={formatMoney(parseMoney(reconciliation.expected_balance))} />
+                <SummaryMetric
+                  label="Actual"
+                  value={
+                    reconciliation.latest_snapshot
+                      ? formatMoney(parseMoney(reconciliation.latest_snapshot.actual_balance))
+                      : "No snapshot"
+                  }
+                />
+                <SummaryMetric
+                  label="Difference"
+                  tone={hasReconciliationDifference && reconciliationDifference !== 0 ? "warning" : "success"}
+                  value={hasReconciliationDifference ? formatMoney(reconciliationDifference) : "Not checked"}
+                />
+              </View>
+              <View style={styles.recordHeader}>
+                <Text style={styles.meta}>Latest status</Text>
+                <StatusPill
+                  label={reconciliation.latest_snapshot?.status ?? "not checked"}
+                  tone={reconciliation.latest_snapshot?.status === "matched" ? "success" : "warning"}
+                />
+              </View>
             </View>
           ) : null}
 
@@ -2497,6 +2633,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700"
   },
+  compactRecord: {
+    backgroundColor: "#f8fafc",
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
+    padding: 10
+  },
   content: {
     gap: 14,
     padding: 20
@@ -2586,6 +2730,12 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 4
   },
+  recordHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "space-between"
+  },
   screen: {
     backgroundColor: "#f8fafc",
     flex: 1,
@@ -2602,6 +2752,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8
   },
+  statusPill: {
+    backgroundColor: "#e2e8f0",
+    borderRadius: 999,
+    color: "#334155",
+    fontSize: 11,
+    fontWeight: "700",
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    textTransform: "capitalize"
+  },
+  statusPillSuccess: {
+    backgroundColor: "#dcfce7",
+    color: "#166534"
+  },
+  statusPillWarning: {
+    backgroundColor: "#fef3c7",
+    color: "#92400e"
+  },
   statusText: {
     color: "#0f172a",
     fontSize: 14
@@ -2609,6 +2778,40 @@ const styles = StyleSheet.create({
   subtitle: {
     color: "#334155",
     fontSize: 15
+  },
+  summaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4
+  },
+  summaryLabel: {
+    color: "#475569",
+    fontSize: 11,
+    fontWeight: "600"
+  },
+  summaryMetric: {
+    backgroundColor: "#f8fafc",
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    borderWidth: 1,
+    flexGrow: 1,
+    minWidth: 96,
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
+  summaryMetricSuccess: {
+    backgroundColor: "#ecfdf5",
+    borderColor: "#10b981"
+  },
+  summaryMetricWarning: {
+    backgroundColor: "#fffbeb",
+    borderColor: "#f59e0b"
+  },
+  summaryValue: {
+    color: "#0f172a",
+    fontSize: 14,
+    fontWeight: "800"
   },
   buttonSecondary: {
     backgroundColor: "#0369a1",

@@ -165,10 +165,12 @@ dashboard workflow, web SMS review UI, web debt/lending, credit-card bill, and
 recurring-bill dashboards, and an Expo Android-oriented mobile scaffold with
 local raw-message queueing, SMS review including source/destination transfer
 account selection, compact debt/lending workflow, and compact credit-card bill
-and recurring-bill workflows, and mobile balance reconciliation checks. The web
-app also exposes balance reconciliation so expected ledger balances can be
-compared with real account snapshots, and it has a read-only audit log page for
-transaction change history that can be opened from individual transaction rows.
+and recurring-bill workflows, mobile balance reconciliation checks, and compact
+mobile summary metrics for due-soon balances and reconciliation differences.
+The web app also exposes balance reconciliation so expected ledger balances can
+be compared with real account snapshots, and it has a read-only audit log page
+for transaction change history that can be opened from individual transaction
+rows.
 Confirmed SMS transactions preserve normalized ledger evidence such as
 debit/credit direction, reference or TrxID, balance after, counterparty text,
 payment method, raw message link, and duplicate key. Raw SMS bodies can now be
@@ -206,11 +208,10 @@ with retry metadata for later sync.
 
 Real anonymized SMS fixture collection for bKash, EBL, City Bank, and Pathao
 Pay; deeper provider-specific parser coverage for additional bank account
-transfer and real-world provider variants; mobile UI polish for debt,
-credit-card, recurring-bill, and reconciliation workflows; native Android SMS
-capture implementation; additional production-grade local sync hardening;
-production deployment execution; and production-grade backup automation are
-still planned future work.
+transfer and real-world provider variants; deeper mobile UI polish beyond the
+first compact finance-summary pass; native Android SMS capture implementation;
+additional production-grade local sync hardening; production deployment
+execution; and production-grade backup automation are still planned future work.
 
 ## What is the biggest technical risk?
 
@@ -236,6 +237,7 @@ store policy compliance, monitoring, and deployment automation.
 ## What would you improve with more time?
 
 I would collect real anonymized SMS fixtures, deepen additional
-provider-specific bank transfer parsing, polish the mobile finance workflows,
-harden local sync, automate production backups and restore drills, and prepare
-the Docker/deployment path for production.
+provider-specific bank transfer parsing, keep polishing mobile finance
+workflows beyond the first compact summary pass, harden local sync, automate
+production backups and restore drills, and prepare the Docker/deployment path
+for production.

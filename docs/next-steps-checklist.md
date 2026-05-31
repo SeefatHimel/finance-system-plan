@@ -17,8 +17,8 @@ Last updated: 2026-05-31
 - Transaction creates, updates, and deletes now write user-scoped audit logs
   with normalized before/after snapshots.
 - Next milestone is validating the workflow with real anonymized SMS fixtures,
-  polishing compact mobile management screens, expanding parser coverage from
-  real-world variants, and preparing production deployment.
+  expanding parser coverage from real-world variants, continuing mobile polish,
+  and preparing production deployment.
 
 ## Done (Checked)
 
@@ -146,6 +146,7 @@ Last updated: 2026-05-31
 - [x] Polish reconciliation account check with difference, reason, and synced snapshot account
 - [x] Add credit card bill tracking
 - [x] Add recurring bills
+- [x] Add compact mobile summaries for debt, card bill, recurring bill, and reconciliation workflows
 
 ### Phase 5 Follow-up
 

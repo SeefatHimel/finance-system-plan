@@ -54,18 +54,21 @@ bare React Native when real automatic SMS capture is ready to be implemented.
   for the latest loaded transactions.
 - Debt/lending flow (`GET /api/debts/`, `POST /api/debts/`, and
   `POST /api/debts/{id}/payments/`) for creating lent/borrowed records,
-  seeing balances, and recording repayments.
+  seeing balances, due-soon totals, status chips, and recording repayments.
 - Credit-card bill flow (`GET /api/credit-card-bills/`,
   `POST /api/credit-card-bills/`, and
   `POST /api/credit-card-bills/{id}/payments/`) for creating statement bills,
-  seeing remaining balances, and recording card payments.
+  seeing remaining totals, due-soon counts, status chips, and recording card
+  payments.
 - Recurring-bill flow (`GET /api/recurring-bills/`,
   `POST /api/recurring-bills/`, and
   `POST /api/recurring-bills/{id}/payments/`) for creating schedules, seeing
-  due dates, and advancing the next due date after payment.
+  active/monthly/due-soon summaries, and advancing the next due date after
+  payment.
 - Reconciliation flow (`GET /api/reconciliation/accounts/{account_id}/` and
   `POST /api/reconciliation/snapshots/`) for checking expected balances against
-  real account balances from mobile.
+  real account balances from mobile, with compact expected/actual/difference
+  metrics.
 - SMS tracking settings scaffold that loads payment methods and sender rules,
   shows a permission gate placeholder, and lets the user locally enable trusted
   sender rules for future import.
@@ -82,28 +85,34 @@ should store refresh tokens in OS-backed secure storage, as documented in
 
 The mobile debt section loads debt/lending records from the backend, creates
 new lent-by-me or borrowed-by-me records, shows current balances and due dates,
-and records repayments against open debt records. It is intentionally compact so
-it works as a quick on-phone companion to the fuller web dashboard.
+summarizes open count, outstanding amount, and due-soon count, and records
+repayments against open debt records. It is intentionally compact so it works
+as a quick on-phone companion to the fuller web dashboard.
 
 ## What does the mobile credit-card section do?
 
 The mobile credit-card section loads card bills, lets the user create statement
 bills against credit-card accounts, shows remaining balances and due dates, and
-records payments against open bills. It is a mobile companion to the web
+summarizes open bill count, remaining balance, and due-soon count. It records
+payments against open bills and acts as a mobile companion to the web
 credit-card bill dashboard.
 
 ## What does the mobile recurring-bill section do?
 
 The mobile recurring-bill section loads repeating bill schedules, lets the user
 create weekly, monthly, quarterly, or yearly bills, and records payments against
-active bills. The backend advances the next due date when a payment is recorded.
+active bills. It summarizes active bill count, monthly recurring total, and
+due-soon count. The backend advances the next due date when a payment is
+recorded.
 
 ## What does the mobile reconciliation section do?
 
 The mobile reconciliation section loads the expected balance for a selected
 account, shows the latest balance snapshot if one exists, and lets the user save
 a new actual balance snapshot from the phone. This supports quick cash, wallet,
-bank, or card balance checks without opening the web dashboard.
+bank, or card balance checks without opening the web dashboard. The compact
+summary shows expected balance, latest actual balance, difference, and latest
+status so mismatches are visible before saving another snapshot.
 
 ## How will SMS tracking work?
 

@@ -50,21 +50,25 @@ Phase 1 scaffold now includes:
   - loads records from `GET /api/debts/`
   - creates lent/borrowed records through `POST /api/debts/`
   - records repayments through `POST /api/debts/{id}/payments/`
-  - shows open balances and due dates
+  - shows open balances, due dates, compact totals, due-soon counts, and status
+    chips
 - Credit card bills section:
   - loads bills from `GET /api/credit-card-bills/`
   - creates statement bills through `POST /api/credit-card-bills/`
   - records payments through `POST /api/credit-card-bills/{id}/payments/`
-  - shows remaining balances and due dates
+  - shows remaining balances, due dates, compact totals, due-soon counts, and
+    status chips
 - Recurring bills section:
   - loads schedules from `GET /api/recurring-bills/`
   - creates repeating bills through `POST /api/recurring-bills/`
   - records payments through `POST /api/recurring-bills/{id}/payments/`
-  - advances the next due date after payment
+  - advances the next due date after payment and summarizes active bills,
+    monthly recurring total, and due-soon count
 - Balance reconciliation section:
   - loads expected balances from `GET /api/reconciliation/accounts/{account_id}/`
   - saves real-life balance checks through `POST /api/reconciliation/snapshots/`
-  - shows latest snapshot status and difference context
+  - shows expected, actual, difference, latest snapshot status, and difference
+    context in compact mobile metrics
 - Transaction API types include strict ledger evidence fields such as
   debit/credit direction, balance after, reference, counterparty text, payment
   method, raw message link, and duplicate key
@@ -219,3 +223,5 @@ Settings
 2. Credit-card bill screen. Done for first mobile scaffold.
 3. Recurring-bill screen. Done for first mobile scaffold.
 4. Reconciliation screen. Done for first mobile scaffold.
+5. Compact mobile summary metrics and status chips for debt, card, recurring,
+   and reconciliation workflows. Done for first polish pass.
