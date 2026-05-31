@@ -86,13 +86,22 @@ Do not commit real values. Keep only examples in git.
 ## Backup And Restore
 
 The local Compose scripts in `projects/finance-infra/scripts/` are a first
-backup path, not a full production backup system.
+backup path, not a full production backup system. See
+`docs/backup-automation.md` for the current schedule, manifest, retention, and
+restore-drill guidance.
 
-Production backup work must add:
+The current repository support includes:
+
+- Custom-format PostgreSQL dumps through Docker Compose.
+- Sidecar backup manifests with timestamp, byte count, and checksum.
+- Guarded restore command requiring `CONFIRM_RESTORE=finance`.
+- Dry-run-first retention pruning requiring `CONFIRM_PRUNE=finance` before
+  deletion.
+
+Production backup work must still add:
 
 - Encrypted off-machine backup storage.
-- Retention policy.
-- Backup failure alerts.
+- Backup and upload failure alerts.
 - Restore drills against a separate database.
 - Attachment/media backup if uploads are added.
 - Documentation for who can access backups and how recovery is approved.

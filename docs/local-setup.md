@@ -101,15 +101,30 @@ Compose database service:
 ```
 
 Backups are written to `projects/finance-infra/backups/` by default and are
-ignored by git because they can contain financial data. Restore requires an
-explicit confirmation environment variable:
+ignored by git because they can contain financial data. Each backup also gets a
+sidecar `.manifest` file with timestamp, byte count, and checksum.
+
+Dry-run old-backup pruning before deleting anything:
+
+```bash
+RETENTION_DAYS=30 ./scripts/prune-backups.sh
+```
+
+Delete old dumps only after confirming:
+
+```bash
+RETENTION_DAYS=30 CONFIRM_PRUNE=finance ./scripts/prune-backups.sh
+```
+
+Restore requires an explicit confirmation environment variable:
 
 ```bash
 CONFIRM_RESTORE=finance ./scripts/restore-postgres.sh backups/finance-YYYYMMDDTHHMMSSZ.dump
 ```
 
 Use restore only against a local/dev database unless the target environment has
-a separate production runbook.
+a separate production runbook. See `docs/backup-automation.md` for the
+production-oriented schedule and restore-drill checklist.
 
 ## Current Backend Setup (Native)
 

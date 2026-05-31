@@ -9,7 +9,7 @@ Infrastructure, local development, and deployment support.
 - Environment templates.
 - Backend/web/mobile local setup docs.
 - Production deployment planning.
-- Local PostgreSQL backup and restore scripts.
+- Local PostgreSQL backup, restore, manifest, and retention scripts.
 
 ## Local Development Services
 
@@ -100,6 +100,7 @@ Options:
 Do not decide final deployment until phase 1 and phase 2 prove the workflows.
 See `../../docs/production-deployment-plan.md` for the current production
 readiness checklist, environment gates, backup requirements, and rollback plan.
+See `../../docs/backup-automation.md` for the backup automation path.
 
 ## Backup Requirements
 
@@ -111,12 +112,27 @@ Create a local custom-format dump from the Compose `postgres` service:
 ./scripts/backup-postgres.sh
 ```
 
-By default, dumps are written to `projects/finance-infra/backups/`, which is
-ignored by git because backups can contain financial data. Override the output
-location when needed:
+By default, dumps and sidecar manifest files are written to
+`projects/finance-infra/backups/`, which is ignored by git because backups can
+contain financial data. Override the output location when needed:
 
 ```bash
 OUTPUT_FILE=/secure/path/finance.dump ./scripts/backup-postgres.sh
+```
+
+The backup helper refuses outputs smaller than `MIN_BACKUP_BYTES` and writes a
+manifest next to the dump with timestamp, byte count, and checksum.
+
+Prune old local dumps with a dry run first:
+
+```bash
+RETENTION_DAYS=30 ./scripts/prune-backups.sh
+```
+
+Delete matching old dumps only after confirming:
+
+```bash
+RETENTION_DAYS=30 CONFIRM_PRUNE=finance ./scripts/prune-backups.sh
 ```
 
 Restore is intentionally guarded because it can overwrite local database
@@ -128,4 +144,4 @@ CONFIRM_RESTORE=finance ./scripts/restore-postgres.sh backups/finance-YYYYMMDDTH
 
 The first backup scope covers PostgreSQL only. Production backup work should
 also cover uploaded attachments if added, encrypted off-machine storage,
-rotation, monitoring, and regular restore verification.
+monitoring, and regular restore verification.

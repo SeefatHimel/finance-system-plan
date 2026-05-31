@@ -178,8 +178,8 @@ Backend:
 - Import tools from existing spreadsheet
 - Audit log. Started with transaction create/update/delete history and a
   read-only API.
-- Backup/restore support. Started with local PostgreSQL dump and guarded
-  restore scripts.
+- Backup/restore support. Started with local PostgreSQL dump, guarded restore,
+  backup manifest, retention helper, and automation runbook.
 - AI categorization extension point
 
 Contracts:
@@ -203,7 +203,8 @@ Mobile:
 Exit criteria:
 
 - User can trust the system as the main finance record.
-- Data can be exported and backed up. Started with transaction CSV export and
-  local PostgreSQL dump/restore helpers.
+- Data can be exported and backed up. Started with transaction CSV export,
+  local PostgreSQL dump/restore helpers, backup manifests, and retention
+  pruning.
 - Architecture is ready for online deployment. Started with a production
   deployment readiness checklist and rollback plan.

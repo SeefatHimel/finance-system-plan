@@ -37,6 +37,8 @@ React Native Metro: 8081
 - Shared `.env.example` values for stack ports and runtime URLs
 - Local PostgreSQL backup and restore scripts under
   `projects/finance-infra/scripts/`
+- Backup manifests, retention pruning, and a backup automation runbook in
+  `docs/backup-automation.md`
 
 ## Why not decide production hosting now?
 
@@ -70,9 +72,14 @@ been verified.
 Current implementation status: the infra project includes local Compose-based
 PostgreSQL dump and guarded restore scripts. The restore helper requires
 `CONFIRM_RESTORE=finance` so accidental restores are harder to trigger. The
-backup output directory is ignored by git because dumps can contain financial
-data. Production still needs encrypted off-machine storage, retention policy,
-monitoring, and a scheduled restore drill.
+backup helper writes a sidecar manifest with timestamp, byte count, and
+checksum, and the retention helper dry-runs by default before old dump files
+can be pruned with `CONFIRM_PRUNE=finance`. The backup output directory is
+ignored by git because dumps can contain financial data.
+
+Production still needs encrypted off-machine storage, upload/failure alerts,
+access approval rules, media backup if uploads are added, and scheduled restore
+drills against a separate database.
 
 ## How do you protect secrets?
 

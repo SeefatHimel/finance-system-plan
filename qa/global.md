@@ -182,8 +182,8 @@ The backend can export filtered transactions as CSV for spreadsheet backup or
 external review, and the web transactions page exposes that export through the
 active filters.
 The infrastructure project also has local PostgreSQL dump and guarded restore
-scripts, giving the project a first database backup path before production
-automation.
+scripts, sidecar backup manifests, a dry-run-first retention helper, and a
+backup automation runbook.
 Production deployment readiness is documented with environment gates, backup
 and restore expectations, and a rollback plan.
 The web app also has a production guard around the temporary browser
@@ -211,7 +211,8 @@ Pay; deeper provider-specific parser coverage for additional bank account
 transfer and real-world provider variants; deeper mobile UI polish beyond the
 first compact finance-summary pass; native Android SMS capture implementation;
 additional production-grade local sync hardening; production deployment
-execution; and production-grade backup automation are still planned future work.
+execution; and deployment-specific encrypted backup storage with monitoring are
+still planned future work.
 
 ## What is the biggest technical risk?
 
@@ -239,5 +240,5 @@ store policy compliance, monitoring, and deployment automation.
 I would collect real anonymized SMS fixtures, deepen additional
 provider-specific bank transfer parsing, keep polishing mobile finance
 workflows beyond the first compact summary pass, harden local sync, automate
-production backups and restore drills, and prepare the Docker/deployment path
-for production.
+deployment-specific encrypted backup uploads and alerts, and prepare the
+Docker/deployment path for production.

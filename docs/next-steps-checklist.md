@@ -94,6 +94,7 @@ Last updated: 2026-05-31
 - [x] Optional compose profile for `finance-mobile`
 - [x] Docker setup docs updated across infra + local setup + project READMEs
 - [x] Local PostgreSQL backup and guarded restore scripts
+- [x] Backup manifest, retention helper, and automation runbook
 - [x] Production deployment readiness runbook
 
 ## Pending (Unchecked)
@@ -153,6 +154,7 @@ Last updated: 2026-05-31
 - [x] Add authenticated filtered transaction CSV export endpoint
 - [x] Add web transaction CSV export action
 - [x] Add local PostgreSQL backup/restore scripts for first backup path
+- [x] Add backup manifest, retention helper, and automation runbook
 - [x] Add production deployment readiness checklist and rollback plan
 - [x] Add production guard around temporary web localStorage token flow
 - [x] Add local-development web token refresh and single retry on 401
@@ -190,6 +192,7 @@ Last updated: 2026-05-31
 - [x] Backup/restore script syntax:
   - Command: `sh -n projects/finance-infra/scripts/backup-postgres.sh`
   - Command: `sh -n projects/finance-infra/scripts/restore-postgres.sh`
+  - Command: `sh -n projects/finance-infra/scripts/prune-backups.sh`
   - Result: pass
 - [x] Restore guard check:
   - Command: `projects/finance-infra/scripts/restore-postgres.sh missing.dump`
