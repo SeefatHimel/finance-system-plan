@@ -45,8 +45,8 @@ spreadsheet backup, and transaction changes are captured in a read-only audit
 trail. The SMS permission decision is
 documented: keep Expo managed for now and only move to a native Android module
 when automatic capture is ready. Next I would collect real anonymized SMS
-fixtures, deepen bank transfer parsing, and polish mobile debt, credit-card,
-recurring-bill, and reconciliation workflows.
+fixtures, expand additional bank transfer variants, and polish mobile debt,
+credit-card, recurring-bill, and reconciliation workflows.
 
 ## Strong Technical Points To Mention
 
@@ -73,10 +73,10 @@ and report logic in the backend so the system can evolve.
 ## If Asked "What Would You Build Next?"
 
 I would collect real anonymized SMS fixtures for bKash, EBL, City Bank, and
-Pathao Pay, then use them to deepen bank transfer and internal-transfer
-matching. After that I would polish mobile debt, credit-card, recurring-bill,
-and reconciliation screens, harden local sync, broaden backup/restore support,
-and prepare production deployment.
+Pathao Pay, then use them to deepen additional bank transfer and
+internal-transfer matching variants. After that I would polish mobile debt,
+credit-card, recurring-bill, and reconciliation screens, harden local sync,
+broaden backup/restore support, and prepare production deployment.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 

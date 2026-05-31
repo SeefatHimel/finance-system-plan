@@ -193,14 +193,17 @@ transaction, or ignored.
 
 Phase 3 now has transfer-aware candidate fields, an initial bKash parser,
 starter EBL/City Bank card parsing for purchases, card payments, fees, refunds,
-and reversals, and starter Pathao Pay parsing for top-up, payment, send-money,
-and withdraw confirmations. The parsers detect message kind, amount, reference,
-balance, fee, merchant/counterparty text, and possible internal transfers for
-cash-in/cash-out and card-payment style messages. bKash
+and reversals, starter bank transfer source/destination hinting for EBL
+bank-to-wallet and City Bank own-account transfer messages, and starter Pathao
+Pay parsing for top-up, payment, send-money, and withdraw confirmations. The
+parsers detect message kind, amount, reference, balance, fee,
+merchant/counterparty text, and possible internal transfers for cash-in/cash-out
+and bank/card transfer-style messages. bKash
 transfer-like messages also try to match masked account or wallet identifiers
 against the user's configured payment methods so known source/destination
-accounts can be prefilled. Deeper bank account transfer cases remain
-provider-specific parser targets.
+accounts can be prefilled. Bank account transfer messages now use the same
+known payment-method hints when an anonymized account or wallet identifier is
+present in the message.
 
 For internal transfers, the backend now links possible related candidates when
 two review items belong to the same user, have the same amount, close received
@@ -254,6 +257,6 @@ snapshots on transaction mutations.
 It has the first manual finance loop, SMS import/review, debt records, and
 reconciliation endpoints, but the provider parsers are still early. It still
 needs real anonymized SMS fixture coverage, deeper provider-specific bank
-transfer cases, production deployment configuration, and UI polish around debt
-and reconciliation workflows. Audit logging currently covers transaction
+transfer variants, production deployment configuration, and UI polish around
+debt and reconciliation workflows. Audit logging currently covers transaction
 mutations first; other finance domains can be added as the product hardens.

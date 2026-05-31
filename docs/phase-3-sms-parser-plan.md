@@ -223,7 +223,9 @@ projects/finance-api/apps/messages/fixtures/sms/pathao_pay/
 2. Expand parser coverage for Pathao Pay, bank transfers, card bill payments,
    refunds, fees, and reversals. Done for starter Pathao Pay top-up, payment,
    send-money, and withdraw confirmations, plus starter EBL/City Bank card bill
-   payment, fee, refund, and reversal confirmations.
+   payment, fee, refund, and reversal confirmations. Also done for starter EBL
+   bank-to-wallet and City Bank own-account transfer source/destination
+   prefill when known payment-method identifiers are present.
 3. Extract bKash sender/receiver account text, counter/till, and provider
    timestamps where available. Done for matching known payment method
    identifiers from bKash cash-in, cash-out, send-money, and receive-money

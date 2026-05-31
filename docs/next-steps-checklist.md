@@ -117,6 +117,7 @@ Last updated: 2026-05-31
 - [x] Add provider-specific bKash SMS parser
 - [x] Add provider-specific parser for bank/card purchase messages
 - [x] Add internal transfer matching hints for bank-to-wallet and own-account transfers
+- [x] Add bank transfer source/destination prefill from known payment-method identifiers
 - [x] Add web SMS review inbox UI
 - [x] Add mobile SMS review inbox UI
 - [x] Add balance snapshot and reconciliation endpoints

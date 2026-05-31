@@ -442,6 +442,152 @@ class RawMessageImportApiTests(APITestCase):
                 self.assertEqual(candidate["reference"], case["reference"])
                 self.assertEqual(candidate["possible_internal_transfer"], case["possible_internal_transfer"])
 
+    def test_bank_to_wallet_transfer_prefills_known_destination_method(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        bank_account = Account.objects.create(
+            user=user,
+            name="EBL Account",
+            type=Account.Type.BANK,
+        )
+        wallet_account = Account.objects.create(
+            user=user,
+            name="bKash Wallet",
+            type=Account.Type.MOBILE_WALLET,
+        )
+        bank_method = PaymentMethod.objects.create(
+            user=user,
+            account=bank_account,
+            name="EBL Account",
+            provider=PaymentMethod.Provider.EBL,
+            identifier="****1234",
+        )
+        wallet_method = PaymentMethod.objects.create(
+            user=user,
+            account=wallet_account,
+            name="Personal bKash",
+            provider=PaymentMethod.Provider.BKASH,
+            identifier="01700000000",
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=bank_account,
+            payment_method=bank_method,
+            name="EBL bank sender",
+            provider=SenderRule.Provider.EBL,
+            sender="EBL",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "EBL",
+                "body": (FIXTURE_DIR / "ebl" / "bank_to_bkash.txt").read_text(),
+                "received_at": "2026-05-30T14:00:00+06:00",
+                "device_message_id": "sms-ebl-bank-to-bkash-prefill-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["message_kind"], "bank_transfer_out")
+        self.assertEqual(candidate["transaction_type"], "transfer")
+        self.assertEqual(candidate["amount"], "1000.00")
+        self.assertEqual(candidate["reference"], "EBLBKASH100")
+        self.assertEqual(str(candidate["account"]), str(bank_account.id))
+        self.assertEqual(str(candidate["payment_method"]), str(bank_method.id))
+        self.assertEqual(str(candidate["destination_account"]), str(wallet_account.id))
+        self.assertEqual(str(candidate["destination_payment_method"]), str(wallet_method.id))
+        self.assertTrue(candidate["possible_internal_transfer"])
+
+    def test_city_bank_account_transfers_prefill_known_source_and_destination_methods(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        primary_account = Account.objects.create(
+            user=user,
+            name="City Bank Primary",
+            type=Account.Type.BANK,
+        )
+        savings_account = Account.objects.create(
+            user=user,
+            name="City Bank Savings",
+            type=Account.Type.BANK,
+        )
+        primary_method = PaymentMethod.objects.create(
+            user=user,
+            account=primary_account,
+            name="City Bank Primary",
+            provider=PaymentMethod.Provider.CITY_BANK,
+            identifier="****5678",
+        )
+        savings_method = PaymentMethod.objects.create(
+            user=user,
+            account=savings_account,
+            name="City Bank Savings",
+            provider=PaymentMethod.Provider.CITY_BANK,
+            identifier="****9012",
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=primary_account,
+            payment_method=primary_method,
+            name="City Bank bank sender",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+
+        cases = (
+            {
+                "balance_after": "80000.00",
+                "device_message_id": "sms-city-bank-transfer-out-100",
+                "fixture": "account_transfer_out.txt",
+                "message_kind": "bank_transfer_out",
+                "reference": "CITYTRF2000",
+                "source_account": primary_account,
+                "source_method": primary_method,
+                "destination_account": savings_account,
+                "destination_method": savings_method,
+            },
+            {
+                "balance_after": "82000.00",
+                "device_message_id": "sms-city-bank-transfer-in-100",
+                "fixture": "account_transfer_in.txt",
+                "message_kind": "bank_transfer_in",
+                "reference": "CITYTRFIN2000",
+                "source_account": savings_account,
+                "source_method": savings_method,
+                "destination_account": primary_account,
+                "destination_method": primary_method,
+            },
+        )
+
+        for case in cases:
+            with self.subTest(fixture=case["fixture"]):
+                response = self.client.post(
+                    reverse("raw-message-import"),
+                    {
+                        "sender": "CITYBANK",
+                        "body": (FIXTURE_DIR / "city_bank" / case["fixture"]).read_text(),
+                        "received_at": "2026-05-30T14:30:00+06:00",
+                        "device_message_id": case["device_message_id"],
+                    },
+                    format="json",
+                )
+
+                self.assertEqual(response.status_code, 201)
+                candidate = response.data["candidate"]
+                self.assertEqual(candidate["message_kind"], case["message_kind"])
+                self.assertEqual(candidate["transaction_type"], "transfer")
+                self.assertEqual(candidate["amount"], "2000.00")
+                self.assertEqual(candidate["balance_after"], case["balance_after"])
+                self.assertEqual(candidate["reference"], case["reference"])
+                self.assertEqual(str(candidate["account"]), str(case["source_account"].id))
+                self.assertEqual(str(candidate["payment_method"]), str(case["source_method"].id))
+                self.assertEqual(str(candidate["destination_account"]), str(case["destination_account"].id))
+                self.assertEqual(str(candidate["destination_payment_method"]), str(case["destination_method"].id))
+                self.assertTrue(candidate["possible_internal_transfer"])
+
     def test_pathao_pay_import_creates_provider_specific_candidates(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         account = Account.objects.create(

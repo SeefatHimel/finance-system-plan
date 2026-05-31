@@ -266,8 +266,8 @@ Use provider-specific parser classes:
 ```txt
 BaseMessageParser
 BkashMessageParser (initial transfer-aware implementation)
-EblMessageParser (initial card purchase, card payment, and fee implementation)
-CityBankMessageParser (initial card purchase, refund, and reversal implementation)
+EblMessageParser (initial card purchase, card payment, fee, and bank-to-wallet transfer implementation)
+CityBankMessageParser (initial card purchase, refund, reversal, and own-account transfer implementation)
 PathaoPayMessageParser (initial top-up, payment, send-money, and withdraw implementation)
 CustomRegexMessageParser
 ```
@@ -279,6 +279,9 @@ possible internal-transfer hints so bank-to-wallet movement does not become a
 fake expense or income. When two review candidates have the same user, amount,
 close timestamps, and different providers, the backend links them as possible
 related messages for review instead of auto-merging them.
+Bank transfer parser coverage also matches known payment-method identifiers in
+the message text so source and destination account hints can be prefilled for
+review when both sides belong to the user.
 
 ## Balance Rules
 
