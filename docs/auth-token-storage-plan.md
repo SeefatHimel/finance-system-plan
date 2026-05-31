@@ -45,6 +45,9 @@ Target web flow:
 Implementation notes:
 
 - Keep `localStorage` token storage only for local development.
+- The web app now disables the temporary `localStorage` token path in
+  production unless `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=true` is set
+  deliberately as an escape hatch.
 - Add a visible code comment or env guard before production deployment.
 - Use `SameSite=Lax` for normal same-site app usage unless cross-site embedding
   is explicitly required.

@@ -25,6 +25,9 @@ deployment are stable.
 - HTTPS is enforced at the proxy, load balancer, or hosting platform.
 - Web production auth no longer stores refresh tokens in browser
   `localStorage`.
+- If the temporary web `localStorage` auth path is still present, production
+  builds must leave `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE` unset or `false` so
+  login fails closed instead of silently storing refresh tokens in the browser.
 - Mobile refresh tokens use OS-backed secure storage.
 - PostgreSQL backups run on a schedule and at least one restore drill has
   passed.
@@ -49,6 +52,7 @@ Web:
 ```txt
 NEXT_PUBLIC_API_BASE_URL=https://api.example.com
 NEXT_SERVER_API_BASE_URL=https://api.example.com
+NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=false
 ```
 
 Mobile:

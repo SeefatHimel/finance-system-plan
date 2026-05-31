@@ -48,6 +48,7 @@ services:
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
       NEXT_SERVER_API_BASE_URL: ${NEXT_SERVER_API_BASE_URL:-http://finance-api:8000}
+      NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE: ${NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE:-true}
     ports:
       - "${WEB_PORT:-3000}:3000"
     volumes:

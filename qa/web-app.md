@@ -195,8 +195,11 @@ signed-in user on the dashboard.
 
 For production, secure HTTP-only cookies are usually preferable. The current
 local-development version uses browser `localStorage`, which is simple for this
-stage but should be hardened before deployment. The production direction is
-documented in `docs/auth-token-storage-plan.md`.
+stage but should be hardened before deployment. The web app now fails closed in
+production unless `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=true` is set
+deliberately, so accidental production refresh-token storage in browser
+`localStorage` is harder to miss. The production direction is documented in
+`docs/auth-token-storage-plan.md`.
 
 ## How will the web app fetch data?
 

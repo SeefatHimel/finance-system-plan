@@ -184,6 +184,9 @@ scripts, giving the project a first database backup path before production
 automation.
 Production deployment readiness is documented with environment gates, backup
 and restore expectations, and a rollback plan.
+The web app also has a production guard around the temporary browser
+`localStorage` JWT path so production auth hardening cannot be skipped
+silently.
 Transaction creates, updates, and deletes are also recorded in a read-only,
 user-scoped audit log with normalized before/after snapshots.
 The contracts project now generates TypeScript schema types and a lightweight

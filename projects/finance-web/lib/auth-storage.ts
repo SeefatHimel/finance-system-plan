@@ -2,18 +2,37 @@ import type { AuthTokens } from "./api";
 
 const accessTokenKey = "finance.accessToken";
 const refreshTokenKey = "finance.refreshToken";
+const localTokenStorageOverride = process.env.NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE === "true";
+
+function canUseLocalTokenStorage() {
+  return process.env.NODE_ENV !== "production" || localTokenStorageOverride;
+}
+
+function assertLocalTokenStorageEnabled() {
+  if (!canUseLocalTokenStorage()) {
+    throw new Error(
+      "Browser token storage is disabled for production. Use the cookie-based production auth flow before deploying."
+    );
+  }
+}
 
 export function saveTokens(tokens: AuthTokens) {
+  assertLocalTokenStorageEnabled();
   window.localStorage.setItem(accessTokenKey, tokens.access);
   window.localStorage.setItem(refreshTokenKey, tokens.refresh);
 }
 
 export function getAccessToken() {
+  if (!canUseLocalTokenStorage()) {
+    return null;
+  }
   return window.localStorage.getItem(accessTokenKey);
 }
 
 export function clearTokens() {
+  if (!canUseLocalTokenStorage()) {
+    return;
+  }
   window.localStorage.removeItem(accessTokenKey);
   window.localStorage.removeItem(refreshTokenKey);
 }
-
