@@ -6,7 +6,9 @@ import { useEffect, useState } from "react";
 
 import {
   type Account,
+  type AccountType,
   type Category,
+  type CategoryKind,
   createAccount,
   createCategory,
   deleteAccount,
@@ -23,7 +25,7 @@ type SetupState =
   | { message: string; status: "error" }
   | { accounts: Account[]; categories: Category[]; status: "ready" };
 
-const accountTypes = [
+const accountTypes: AccountType[] = [
   "cash",
   "home_cash",
   "mobile_wallet",
@@ -33,7 +35,7 @@ const accountTypes = [
   "other"
 ];
 
-const categoryKinds = ["expense", "income", "transfer", "debt", "system"];
+const categoryKinds: CategoryKind[] = ["expense", "income", "transfer", "debt", "system"];
 
 export function SetupWorkspace() {
   const [setupState, setSetupState] = useState<SetupState>({ status: "loading" });
@@ -47,10 +49,10 @@ export function SetupWorkspace() {
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
   const [editingAccountId, setEditingAccountId] = useState("");
   const [editingAccountName, setEditingAccountName] = useState("");
-  const [editingAccountType, setEditingAccountType] = useState("cash");
+  const [editingAccountType, setEditingAccountType] = useState<AccountType>("cash");
   const [editingCategoryId, setEditingCategoryId] = useState("");
   const [editingCategoryName, setEditingCategoryName] = useState("");
-  const [editingCategoryKind, setEditingCategoryKind] = useState("expense");
+  const [editingCategoryKind, setEditingCategoryKind] = useState<CategoryKind>("expense");
 
   async function loadData() {
     const accessToken = getAccessToken();
@@ -97,7 +99,7 @@ export function SetupWorkspace() {
       await createAccount(accessToken, {
         name: String(formData.get("name") ?? ""),
         starting_balance: String(formData.get("starting_balance") ?? "0.00"),
-        type: String(formData.get("type") ?? "cash")
+        type: String(formData.get("type") ?? "cash") as AccountType
       });
       event.currentTarget.reset();
       await loadData();
@@ -123,7 +125,7 @@ export function SetupWorkspace() {
 
     try {
       await createCategory(accessToken, {
-        kind: String(formData.get("kind") ?? "expense"),
+        kind: String(formData.get("kind") ?? "expense") as CategoryKind,
         name: String(formData.get("name") ?? "")
       });
       event.currentTarget.reset();
@@ -193,7 +195,7 @@ export function SetupWorkspace() {
       ? setupState.accounts.find((account) => account.id === accountId)
       : null;
     setEditingAccountName(selected?.name ?? "");
-    setEditingAccountType(selected?.type ?? "cash");
+    setEditingAccountType((selected?.type ?? "cash") as AccountType);
   }
 
   function handleSelectCategory(categoryId: string) {
@@ -202,7 +204,7 @@ export function SetupWorkspace() {
       ? setupState.categories.find((category) => category.id === categoryId)
       : null;
     setEditingCategoryName(selected?.name ?? "");
-    setEditingCategoryKind(selected?.kind ?? "expense");
+    setEditingCategoryKind((selected?.kind ?? "expense") as CategoryKind);
   }
 
   async function handleAccountUpdate(event: React.FormEvent<HTMLFormElement>) {
@@ -380,7 +382,7 @@ export function SetupWorkspace() {
               <span className="field__label">New type</span>
               <select
                 className="field__control"
-                onChange={(event) => setEditingAccountType(event.target.value)}
+                onChange={(event) => setEditingAccountType(event.target.value as AccountType)}
                 value={editingAccountType}
               >
                 {accountTypes.map((type) => (
@@ -485,7 +487,7 @@ export function SetupWorkspace() {
               <span className="field__label">New kind</span>
               <select
                 className="field__control"
-                onChange={(event) => setEditingCategoryKind(event.target.value)}
+                onChange={(event) => setEditingCategoryKind(event.target.value as CategoryKind)}
                 value={editingCategoryKind}
               >
                 {categoryKinds.map((kind) => (

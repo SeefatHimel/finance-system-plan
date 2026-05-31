@@ -7,7 +7,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   type Account,
   type PaymentMethod,
+  type PaymentProvider,
   type SenderRule,
+  type SenderRuleMatchType,
+  type SenderRuleProvider,
   createPaymentMethod,
   createSenderRule,
   deletePaymentMethod,
@@ -30,9 +33,31 @@ type SmsSettingsState =
       status: "ready";
     };
 
-const paymentProviders = ["cash", "bkash", "nagad", "rocket", "city_bank", "bank", "card", "manual", "other"];
-const senderProviders = ["bkash", "nagad", "rocket", "city_bank", "bank", "card", "other"];
-const matchTypes = ["exact", "contains", "regex"];
+const paymentProviders: PaymentProvider[] = [
+  "cash",
+  "bkash",
+  "nagad",
+  "rocket",
+  "ebl",
+  "city_bank",
+  "pathao_pay",
+  "bank",
+  "card",
+  "manual",
+  "other"
+];
+const senderProviders: SenderRuleProvider[] = [
+  "bkash",
+  "nagad",
+  "rocket",
+  "ebl",
+  "city_bank",
+  "pathao_pay",
+  "bank",
+  "card",
+  "other"
+];
+const matchTypes: SenderRuleMatchType[] = ["exact", "contains", "regex"];
 
 function formatLabel(value: string) {
   return value.replaceAll("_", " ");
@@ -52,16 +77,16 @@ export function SmsSettingsWorkspace() {
   const [editingPaymentMethodId, setEditingPaymentMethodId] = useState("");
   const [editingPaymentMethodAccount, setEditingPaymentMethodAccount] = useState("");
   const [editingPaymentMethodName, setEditingPaymentMethodName] = useState("");
-  const [editingPaymentMethodProvider, setEditingPaymentMethodProvider] = useState("bkash");
+  const [editingPaymentMethodProvider, setEditingPaymentMethodProvider] = useState<PaymentProvider>("bkash");
   const [editingPaymentMethodIdentifier, setEditingPaymentMethodIdentifier] = useState("");
 
   const [editingSenderRuleId, setEditingSenderRuleId] = useState("");
   const [editingSenderRuleAccount, setEditingSenderRuleAccount] = useState("");
   const [editingSenderRulePaymentMethod, setEditingSenderRulePaymentMethod] = useState("");
   const [editingSenderRuleName, setEditingSenderRuleName] = useState("");
-  const [editingSenderRuleProvider, setEditingSenderRuleProvider] = useState("bkash");
+  const [editingSenderRuleProvider, setEditingSenderRuleProvider] = useState<SenderRuleProvider>("bkash");
   const [editingSenderRuleSender, setEditingSenderRuleSender] = useState("");
-  const [editingSenderRuleMatchType, setEditingSenderRuleMatchType] = useState("exact");
+  const [editingSenderRuleMatchType, setEditingSenderRuleMatchType] = useState<SenderRuleMatchType>("exact");
   const [editingSenderRulePattern, setEditingSenderRulePattern] = useState("");
   const [editingSenderRulePriority, setEditingSenderRulePriority] = useState("100");
 
@@ -126,7 +151,7 @@ export function SmsSettingsWorkspace() {
         account: String(formData.get("account") ?? ""),
         identifier: String(formData.get("identifier") ?? ""),
         name: String(formData.get("name") ?? ""),
-        provider: String(formData.get("provider") ?? "bkash")
+        provider: String(formData.get("provider") ?? "bkash") as PaymentProvider
       });
       event.currentTarget.reset();
       await loadData();
@@ -154,12 +179,12 @@ export function SmsSettingsWorkspace() {
     try {
       await createSenderRule(accessToken, {
         account: String(formData.get("account") ?? ""),
-        match_type: String(formData.get("match_type") ?? "exact"),
+        match_type: String(formData.get("match_type") ?? "exact") as SenderRuleMatchType,
         name: String(formData.get("name") ?? ""),
         payment_method: String(formData.get("payment_method") ?? "") || null,
         pattern: String(formData.get("pattern") ?? ""),
         priority: Number.isFinite(priority) ? priority : 100,
-        provider: String(formData.get("provider") ?? "bkash"),
+        provider: String(formData.get("provider") ?? "bkash") as SenderRuleProvider,
         sender: String(formData.get("sender") ?? "")
       });
       event.currentTarget.reset();
@@ -178,7 +203,7 @@ export function SmsSettingsWorkspace() {
       : null;
     setEditingPaymentMethodAccount(selected?.account ?? "");
     setEditingPaymentMethodName(selected?.name ?? "");
-    setEditingPaymentMethodProvider(selected?.provider ?? "bkash");
+    setEditingPaymentMethodProvider((selected?.provider ?? "bkash") as PaymentProvider);
     setEditingPaymentMethodIdentifier(selected?.identifier ?? "");
   }
 
@@ -190,9 +215,9 @@ export function SmsSettingsWorkspace() {
     setEditingSenderRuleAccount(selected?.account ?? "");
     setEditingSenderRulePaymentMethod(selected?.payment_method ?? "");
     setEditingSenderRuleName(selected?.name ?? "");
-    setEditingSenderRuleProvider(selected?.provider ?? "bkash");
+    setEditingSenderRuleProvider((selected?.provider ?? "bkash") as SenderRuleProvider);
     setEditingSenderRuleSender(selected?.sender ?? "");
-    setEditingSenderRuleMatchType(selected?.match_type ?? "exact");
+    setEditingSenderRuleMatchType((selected?.match_type ?? "exact") as SenderRuleMatchType);
     setEditingSenderRulePattern(selected?.pattern ?? "");
     setEditingSenderRulePriority(String(selected?.priority ?? 100));
   }
@@ -480,7 +505,7 @@ export function SmsSettingsWorkspace() {
               <span className="field__label">Provider</span>
               <select
                 className="field__control"
-                onChange={(event) => setEditingPaymentMethodProvider(event.target.value)}
+                onChange={(event) => setEditingPaymentMethodProvider(event.target.value as PaymentProvider)}
                 value={editingPaymentMethodProvider}
               >
                 {paymentProviders.map((provider) => (
@@ -684,7 +709,7 @@ export function SmsSettingsWorkspace() {
               <span className="field__label">Provider</span>
               <select
                 className="field__control"
-                onChange={(event) => setEditingSenderRuleProvider(event.target.value)}
+                onChange={(event) => setEditingSenderRuleProvider(event.target.value as SenderRuleProvider)}
                 value={editingSenderRuleProvider}
               >
                 {senderProviders.map((provider) => (
@@ -708,7 +733,7 @@ export function SmsSettingsWorkspace() {
               <span className="field__label">Match type</span>
               <select
                 className="field__control"
-                onChange={(event) => setEditingSenderRuleMatchType(event.target.value)}
+                onChange={(event) => setEditingSenderRuleMatchType(event.target.value as SenderRuleMatchType)}
                 value={editingSenderRuleMatchType}
               >
                 {matchTypes.map((matchType) => (

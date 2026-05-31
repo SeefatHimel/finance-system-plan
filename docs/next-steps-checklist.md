@@ -79,6 +79,7 @@ Last updated: 2026-05-31
 - [x] Add backend migrations and CRUD endpoints for sender rules
 - [x] Add raw message import endpoint and duplicate-detection baseline
 - [x] Add web management screens for payment methods and sender rules
+- [x] Align web SMS settings provider options with contract provider enums
 - [x] Add mobile sender selection UI + permission gate scaffold
 
 ### Docker Runtime Support
@@ -143,6 +144,7 @@ Last updated: 2026-05-31
 - [x] Add web transaction CSV export action
 - [x] Add OpenAPI-generated TypeScript client workflow
 - [x] Reuse generated transaction enum types in the web transaction API wrapper
+- [x] Reuse generated OpenAPI request/enum types across web API inputs
 - [x] Add transaction audit log API and contract coverage
 - [x] Add missing auth, transfer, validation, and audit log contract examples
 - [x] Add web transaction audit log viewer

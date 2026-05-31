@@ -1,12 +1,39 @@
 import { z } from "zod";
 
 import type {
+  AccountCreateRequest,
+  AccountPatchRequest,
+  CategoryCreateRequest,
+  CategoryPatchRequest,
+  CreditCardBillCreateRequest,
+  CreditCardBillStatus,
+  CreditCardPaymentCreateRequest,
+  DebtCreateRequest,
+  DebtPaymentCreateRequest,
+  PaymentMethodCreateRequest,
+  PaymentMethodPatchRequest,
+  ParsedMessageConfirmRequest,
+  RecurringBillCreateRequest,
+  RecurringBillPaymentCreateRequest,
+  RecurringBillStatus,
+  SenderRuleCreateRequest,
+  SenderRulePatchRequest,
   TransactionDirection,
   TransactionSource,
   TransactionType
 } from "../../finance-contracts/generated/types";
 
 export type {
+  AccountType,
+  CategoryKind,
+  CreditCardBillStatus,
+  DebtDirection,
+  DebtStatus,
+  PaymentProvider,
+  RecurringBillFrequency,
+  RecurringBillStatus,
+  SenderRuleMatchType,
+  SenderRuleProvider,
   TransactionDirection,
   TransactionSource,
   TransactionType
@@ -331,78 +358,15 @@ export type TransactionFilters = {
   type?: TransactionType | "";
 };
 
-export type CreateAccountInput = {
-  currency?: "BDT";
-  name: string;
-  starting_balance?: string;
-  type: string;
-};
-
-export type CreateCategoryInput = {
-  kind: string;
-  name: string;
-};
-
-export type UpdateAccountInput = {
-  name?: string;
-  type?: string;
-};
-
-export type UpdateCategoryInput = {
-  kind?: string;
-  name?: string;
-};
-
-export type CreatePaymentMethodInput = {
-  account: string;
-  identifier?: string;
-  name: string;
-  provider: string;
-};
-
-export type UpdatePaymentMethodInput = {
-  account?: string;
-  identifier?: string;
-  name?: string;
-  provider?: string;
-};
-
-export type CreateSenderRuleInput = {
-  account: string;
-  match_type?: string;
-  name: string;
-  payment_method?: string | null;
-  pattern?: string;
-  priority?: number;
-  provider: string;
-  sender: string;
-};
-
-export type UpdateSenderRuleInput = {
-  account?: string;
-  match_type?: string;
-  name?: string;
-  payment_method?: string | null;
-  pattern?: string;
-  priority?: number;
-  provider?: string;
-  sender?: string;
-};
-
-export type ConfirmMessageCandidateInput = {
-  account?: string;
-  amount?: string;
-  balance_after?: string | null;
-  category?: string | null;
-  counterparty_text?: string;
-  date?: string;
-  direction?: string;
-  note?: string;
-  payment_method?: string | null;
-  reference?: string;
-  transfer_account?: string | null;
-  type?: string;
-};
+export type CreateAccountInput = AccountCreateRequest;
+export type CreateCategoryInput = CategoryCreateRequest;
+export type UpdateAccountInput = AccountPatchRequest;
+export type UpdateCategoryInput = CategoryPatchRequest;
+export type CreatePaymentMethodInput = PaymentMethodCreateRequest;
+export type UpdatePaymentMethodInput = PaymentMethodPatchRequest;
+export type CreateSenderRuleInput = SenderRuleCreateRequest;
+export type UpdateSenderRuleInput = SenderRulePatchRequest;
+export type ConfirmMessageCandidateInput = ParsedMessageConfirmRequest;
 
 export type UpdateTransactionInput = {
   account?: string;
@@ -421,71 +385,25 @@ export type UpdateTransactionInput = {
   type?: TransactionType;
 };
 
-export type CreateDebtInput = {
-  counterparty_name: string;
-  direction: string;
-  due_date?: string | null;
-  note?: string;
-  opened_at: string;
-  opened_transaction?: string | null;
-  principal_amount: string;
-};
-
-export type CreateDebtPaymentInput = {
-  amount: string;
-  note?: string;
-  paid_at: string;
-  transaction?: string | null;
-};
+export type CreateDebtInput = DebtCreateRequest;
+export type CreateDebtPaymentInput = DebtPaymentCreateRequest;
 
 export type CreditCardBillFilters = {
   account?: string;
-  status?: string;
+  status?: CreditCardBillStatus | "";
 };
 
-export type CreateCreditCardBillInput = {
-  account: string;
-  due_date: string;
-  minimum_due?: string;
-  note?: string;
-  reference?: string;
-  statement_balance: string;
-  statement_date: string;
-  statement_transaction?: string | null;
-};
-
-export type CreateCreditCardPaymentInput = {
-  amount: string;
-  note?: string;
-  paid_at: string;
-  transaction?: string | null;
-};
+export type CreateCreditCardBillInput = CreditCardBillCreateRequest;
+export type CreateCreditCardPaymentInput = CreditCardPaymentCreateRequest;
 
 export type RecurringBillFilters = {
   account?: string;
   due?: string;
-  status?: string;
+  status?: RecurringBillStatus | "";
 };
 
-export type CreateRecurringBillInput = {
-  account: string;
-  amount: string;
-  auto_create_transaction?: boolean;
-  category?: string | null;
-  frequency: string;
-  name: string;
-  next_due_date: string;
-  note?: string;
-  reminder_days_before?: number;
-  status?: string;
-};
-
-export type CreateRecurringBillPaymentInput = {
-  amount: string;
-  note?: string;
-  paid_at: string;
-  transaction?: string | null;
-};
+export type CreateRecurringBillInput = RecurringBillCreateRequest;
+export type CreateRecurringBillPaymentInput = RecurringBillPaymentCreateRequest;
 
 export type BalanceSnapshotFilters = {
   account?: string;

@@ -7,6 +7,8 @@ import {
   type Account,
   type Category,
   type ParsedMessageCandidate,
+  type TransactionDirection,
+  type TransactionType,
   confirmMessageCandidate,
   ignoreMessageCandidate,
   listAccounts,
@@ -152,10 +154,10 @@ export function MessageReviewWorkspace() {
         amount: String(formData.get("amount") ?? "") || undefined,
         category: String(formData.get("category") ?? "") || null,
         date: String(formData.get("date") ?? "") || undefined,
-        direction: String(formData.get("direction") ?? "") || undefined,
+        direction: (String(formData.get("direction") ?? "") || undefined) as TransactionDirection | undefined,
         note: String(formData.get("note") ?? ""),
         transfer_account: String(formData.get("transfer_account") ?? "") || null,
-        type: String(formData.get("type") ?? candidate.transaction_type)
+        type: String(formData.get("type") ?? candidate.transaction_type) as TransactionType
       });
       await loadData();
     } catch (error) {

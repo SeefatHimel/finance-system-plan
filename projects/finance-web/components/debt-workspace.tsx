@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   type Debt,
+  type DebtDirection,
   createDebt,
   createDebtPayment,
   listDebts
@@ -122,7 +123,7 @@ export function DebtWorkspace() {
     try {
       await createDebt(accessToken, {
         counterparty_name: String(formData.get("counterparty_name") ?? ""),
-        direction: String(formData.get("direction") ?? "lent_by_me"),
+        direction: String(formData.get("direction") ?? "lent_by_me") as DebtDirection,
         due_date: String(formData.get("due_date") ?? "") || null,
         note: String(formData.get("note") ?? ""),
         opened_at: String(formData.get("opened_at") ?? ""),

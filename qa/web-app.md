@@ -45,10 +45,11 @@ forms, filters, reports, and generated API clients are added.
 ## How does the web app use generated contract types?
 
 The web API wrapper still validates responses with local Zod schemas, but its
-transaction create/update input and filter types now reuse generated OpenAPI
-enum types for transaction type, debit/credit direction, and source. This is a
-small compatibility step before replacing more hand-written API types with the
-generated client.
+create/update input and filter types now reuse generated OpenAPI request and
+enum types for accounts, categories, SMS settings, SMS review confirmation,
+transactions, debts, credit card bills, and recurring bills. This is a
+compatibility step before replacing more hand-written API response handling with
+the generated client.
 
 ## Why use Zod?
 
@@ -113,7 +114,9 @@ referenced by transactions.
 The SMS settings page uses the saved local JWT access token to load accounts,
 payment methods, and sender rules. It supports creating, listing, updating, and
 deleting payment methods and sender rules so SMS import can map trusted senders
-back to real accounts.
+back to real accounts. Provider dropdowns include the contract-supported
+wallet, bank, card, EBL, City Bank, and Pathao Pay values used by parser and
+sender-rule workflows.
 
 ## What does the current SMS review page do?
 
