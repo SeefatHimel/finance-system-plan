@@ -66,6 +66,7 @@ type QueuedRawMessage = {
   id: string;
   lastAttemptAt: string;
   lastError: string;
+  nextRetryAt: string;
   receivedAt: string;
   sender: string;
 };
@@ -95,6 +96,24 @@ function rawMessageDedupeKey(input: Pick<QueuedRawMessage, "body" | "deviceMessa
     : `body:${sender}:${receivedAt}:${body}`;
 }
 
+function rawMessageRetryDelayMs(attempts: number) {
+  const retryNumber = Math.max(attempts, 1);
+  const delaySeconds = Math.min(60 * 2 ** (retryNumber - 1), 60 * 60);
+  return delaySeconds * 1000;
+}
+
+function nextRawMessageRetryAt(attempts: number) {
+  return new Date(Date.now() + rawMessageRetryDelayMs(attempts)).toISOString();
+}
+
+function isRawMessageRetryDue(queuedMessage: QueuedRawMessage, nowMs = Date.now()) {
+  if (!queuedMessage.nextRetryAt) {
+    return true;
+  }
+  const retryAtMs = new Date(queuedMessage.nextRetryAt).getTime();
+  return Number.isNaN(retryAtMs) || retryAtMs <= nowMs;
+}
+
 function normalizeRawQueue(storedQueue: string | null): QueuedRawMessage[] {
   if (!storedQueue) {
     return [];
@@ -122,6 +141,7 @@ function normalizeRawQueue(storedQueue: string | null): QueuedRawMessage[] {
         id: stringValue(item.id) || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         lastAttemptAt: stringValue(item.lastAttemptAt),
         lastError: stringValue(item.lastError),
+        nextRetryAt: stringValue(item.nextRetryAt),
         receivedAt: stringValue(item.receivedAt),
         sender: stringValue(item.sender)
       };
@@ -849,6 +869,7 @@ export default function App() {
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       lastAttemptAt: "",
       lastError: "",
+      nextRetryAt: "",
       receivedAt: queuedInput.receivedAt,
       sender: queuedInput.sender
     };
@@ -882,9 +903,18 @@ export default function App() {
     setRawQueueMessage("");
 
     const remainingQueue: QueuedRawMessage[] = [];
+    const nowMs = Date.now();
+    let failedCount = 0;
     let syncedCount = 0;
+    let skippedCount = 0;
 
     for (const queuedMessage of rawQueue) {
+      if (!isRawMessageRetryDue(queuedMessage, nowMs)) {
+        remainingQueue.push(queuedMessage);
+        skippedCount += 1;
+        continue;
+      }
+
       const attemptedMessage: QueuedRawMessage = {
         ...queuedMessage,
         attempts: queuedMessage.attempts + 1,
@@ -901,18 +931,20 @@ export default function App() {
         });
         syncedCount += 1;
       } catch (error) {
+        failedCount += 1;
         remainingQueue.push({
           ...attemptedMessage,
-          lastError: error instanceof Error ? error.message : "Unknown sync error."
+          lastError: error instanceof Error ? error.message : "Unknown sync error.",
+          nextRetryAt: nextRawMessageRetryAt(attemptedMessage.attempts)
         });
       }
     }
 
     try {
       await saveRawQueue(remainingQueue);
-      setRawQueueState(remainingQueue.length === 0 ? "ok" : "error");
+      setRawQueueState(failedCount > 0 ? "error" : "ok");
       setRawQueueMessage(
-        `Synced ${syncedCount} message(s). ${remainingQueue.length} message(s) remain queued.`
+        `Synced ${syncedCount} message(s). ${failedCount} failed. ${skippedCount} waiting for retry. ${remainingQueue.length} message(s) remain queued.`
       );
     } catch (error) {
       setRawQueueState("error");
@@ -1844,6 +1876,9 @@ export default function App() {
                 <Text style={styles.meta}>{queuedMessage.body}</Text>
                 {queuedMessage.lastAttemptAt ? (
                   <Text style={styles.meta}>Last sync attempt: {queuedMessage.lastAttemptAt}</Text>
+                ) : null}
+                {queuedMessage.nextRetryAt ? (
+                  <Text style={styles.meta}>Next retry after: {queuedMessage.nextRetryAt}</Text>
                 ) : null}
                 {queuedMessage.lastError ? <Text style={styles.errorText}>{queuedMessage.lastError}</Text> : null}
                 <Pressable onPress={() => void handleRemoveQueuedMessage(queuedMessage.id)} style={styles.buttonDanger}>

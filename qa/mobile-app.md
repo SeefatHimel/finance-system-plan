@@ -68,7 +68,8 @@ bare React Native when real automatic SMS capture is ready to be implemented.
   sender rules for future import.
 - Local raw message queue backed by AsyncStorage, with sync to
   `POST /api/messages/import/`, local duplicate checks, per-message retry
-  metadata, and manual removal for invalid queued messages.
+  metadata, capped retry backoff, and manual removal for invalid queued
+  messages.
 
 The login/token flow is still a local testing scaffold. Production mobile auth
 should store refresh tokens in OS-backed secure storage, as documented in
@@ -150,10 +151,11 @@ protected where possible.
 
 Current implementation status: raw SMS messages can be queued locally with
 sender, body, received time, optional device message ID, attempt count, last
-attempt time, and latest sync error. Successful syncs are removed from the
-queue; failed syncs remain queued for retry. Obvious duplicate queued messages
-are blocked locally before backend sync, and invalid queued items can be
-removed manually.
+attempt time, next retry time, and latest sync error. Successful syncs are
+removed from the queue; failed syncs remain queued with a next retry timestamp
+so repeated taps do not hammer the backend while the device or API is still
+failing. Obvious duplicate queued messages are blocked locally before backend
+sync, and invalid queued items can be removed manually.
 
 ## How will conflicts be handled?
 
@@ -202,5 +204,5 @@ sender, body, and provider reference numbers.
 The current local queue blocks obvious duplicates using device message ID when
 available, or sender/body/received time as a fallback. It removes messages
 after the backend accepts them and keeps failed messages queued with retry
-metadata. The backend still handles duplicate detection if the same raw message
-is submitted again.
+metadata plus capped retry backoff. The backend still handles duplicate
+detection if the same raw message is submitted again.

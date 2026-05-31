@@ -130,6 +130,7 @@ Last updated: 2026-05-31
 - [x] Add raw SMS deletion/redaction workflow
 - [x] Add bank/card parser coverage for card payments, fees, refunds, and reversals
 - [x] Harden mobile raw SMS queue with retry metadata, local duplicate checks, and removal controls
+- [x] Add capped retry backoff and next retry display for mobile raw SMS queue
 
 ### Phase 4 Follow-up
 
