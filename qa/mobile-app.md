@@ -50,7 +50,8 @@ bare React Native when real automatic SMS capture is ready to be implemented.
   with local cache hydration for offline form choices.
 - Quick add transaction flow (`POST /api/transactions/`) plus a local manual
   transaction queue for offline saves and later sync.
-- Transaction list flow (`GET /api/transactions/`).
+- Transaction list flow (`GET /api/transactions/`) with local cache hydration
+  for the latest loaded transactions.
 - Debt/lending flow (`GET /api/debts/`, `POST /api/debts/`, and
   `POST /api/debts/{id}/payments/`) for creating lent/borrowed records,
   seeing balances, and recording repayments.
@@ -148,12 +149,16 @@ network returns, the app syncs queued items to the backend.
 ## What data should be cached locally?
 
 The app caches account/category lists after successful reference-data loads,
-plus pending local submissions, raw SMS sync status, and recent transactions
-later. Sensitive data should be minimized and protected where possible.
+the latest loaded transaction list, pending local submissions, and raw SMS sync
+status. Sensitive data should be minimized and protected where possible.
 
 Current implementation status: account/category choices are hydrated from the
 latest local cache on app startup, so offline queues can still use the last
 known IDs.
+
+The latest loaded transaction list is also hydrated from the local cache on app
+startup so the user can review recent records before a fresh API request
+succeeds.
 
 Manual transactions can be queued locally with
 account, category, date, type, amount, note, retry metadata, capped retry

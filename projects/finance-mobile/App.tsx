@@ -85,6 +85,7 @@ const rawMessageQueueKey = "finance.rawMessageQueue";
 const manualTransactionQueueKey = "finance.manualTransactionQueue";
 const accountCacheKey = "finance.accountCache";
 const categoryCacheKey = "finance.categoryCache";
+const transactionCacheKey = "finance.transactionCache";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -92,6 +93,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown) {
   return typeof value === "string" ? value : "";
+}
+
+function nullableStringValue(value: unknown) {
+  return typeof value === "string" ? value : null;
 }
 
 function numberValue(value: unknown) {
@@ -150,6 +155,51 @@ function normalizeCategoryCache(storedCategories: string | null): Category[] {
       };
 
       return category.id && category.name ? [category] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function normalizeTransactionCache(storedTransactions: string | null): Transaction[] {
+  if (!storedTransactions) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(storedTransactions) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.flatMap((item) => {
+      if (!isRecord(item)) {
+        return [];
+      }
+
+      const transaction: Transaction = {
+        account: stringValue(item.account),
+        amount: stringValue(item.amount),
+        balance_after: nullableStringValue(item.balance_after),
+        category: nullableStringValue(item.category),
+        counterparty_text: stringValue(item.counterparty_text),
+        created_at: stringValue(item.created_at),
+        date: stringValue(item.date),
+        direction: stringValue(item.direction),
+        external_key: stringValue(item.external_key),
+        id: stringValue(item.id),
+        needs_review: item.needs_review === true,
+        note: stringValue(item.note),
+        payment_method: nullableStringValue(item.payment_method),
+        raw_message: nullableStringValue(item.raw_message),
+        reference: stringValue(item.reference),
+        source: stringValue(item.source),
+        transfer_account: nullableStringValue(item.transfer_account),
+        type: stringValue(item.type),
+        updated_at: stringValue(item.updated_at)
+      };
+
+      return transaction.id && transaction.date && transaction.amount && transaction.type ? [transaction] : [];
     });
   } catch {
     return [];
@@ -471,6 +521,12 @@ export default function App() {
       const payload = await listTransactions(accessToken.trim());
       setTransactions(payload);
       setListState("ok");
+      try {
+        await AsyncStorage.setItem(transactionCacheKey, JSON.stringify(payload));
+      } catch {
+        setListMessage(`Loaded ${payload.length} transaction(s), but could not update the local cache.`);
+        return;
+      }
       setListMessage(`Loaded ${payload.length} transaction(s).`);
     } catch (error) {
       setListState("error");
@@ -1371,6 +1427,14 @@ export default function App() {
       .catch(() => {
         setTransactionQueueState("error");
         setTransactionQueueMessage("Could not load local transaction queue.");
+      });
+    AsyncStorage.getItem(transactionCacheKey)
+      .then((storedTransactions) => {
+        setTransactions(normalizeTransactionCache(storedTransactions));
+      })
+      .catch(() => {
+        setListState("error");
+        setListMessage("Could not load local transaction cache.");
       });
     AsyncStorage.getItem(rawMessageQueueKey)
       .then((storedQueue) => {

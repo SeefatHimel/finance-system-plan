@@ -25,6 +25,7 @@ Phase 1 scaffold now includes:
   - lets the user remove invalid queued transactions manually
 - Transaction list flow:
   - `GET /api/transactions/`
+  - caches the latest loaded transactions locally for offline startup review
 - SMS tracking settings scaffold:
   - permission gate placeholder for native Android SMS access
   - `GET /api/payment-methods/`
@@ -179,6 +180,8 @@ Settings
 
 - Manual transactions can be saved offline in a local queue and synced later.
 - Account/category choices are hydrated from the last successful local cache.
+- The latest loaded transaction list is hydrated from the last successful local
+  cache for offline startup review.
 - Raw SMS messages can be queued offline.
 - Sync retries when network is available and keeps per-message failure context.
 - Failed raw SMS sync items wait for their next retry time before another attempt.
@@ -195,7 +198,7 @@ Settings
 5. Quick add transaction. Done.
 6. Local manual transaction queue. Done with retry metadata, capped retry
    backoff, local duplicate checks, and manual removal.
-7. Transaction list. Done.
+7. Transaction list. Done with local recent transaction cache hydration.
 8. SMS sender selection scaffold. Done.
 9. Local raw message cache and sync queue. Done.
 

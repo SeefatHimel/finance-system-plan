@@ -58,6 +58,7 @@ Last updated: 2026-05-31
 - [x] Quick transaction create flow
 - [x] Local manual transaction queue and sync flow
 - [x] Transaction list flow
+- [x] Local recent transaction cache hydration for offline mobile review
 - [x] SMS sender selection UI + permission gate scaffold
 - [x] Local raw message cache and sync queue
 
