@@ -23,10 +23,6 @@ export interface TokenPair {
   refresh: string;
 }
 
-export interface AccessToken {
-  access: string;
-}
-
 export interface User {
   id: number;
   username: string;

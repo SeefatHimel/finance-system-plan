@@ -98,7 +98,7 @@ bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
 GET    /api/health/
 
 POST   /api/auth/login/
-POST   /api/auth/refresh/
+POST   /api/auth/refresh/   # returns rotated access and refresh tokens
 GET    /api/auth/me/
 
 GET    /api/accounts/

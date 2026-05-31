@@ -162,6 +162,7 @@ Last updated: 2026-05-31
 - [x] Reuse generated OpenAPI request/enum types across web API inputs
 - [x] Add transaction audit log API and contract coverage
 - [x] Add missing auth, transfer, validation, and audit log contract examples
+- [x] Align auth refresh contract with rotated refresh-token response
 - [x] Add web transaction audit log viewer
 - [x] Add transaction row history links into audit logs
 - [x] Add web debit/credit transaction filter

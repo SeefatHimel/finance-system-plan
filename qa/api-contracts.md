@@ -38,7 +38,7 @@ The contracts project now includes `projects/finance-contracts/openapi.yaml`
 covering current phase-1 backend endpoints:
 
 - Health
-- Auth (`login`, `refresh`, `me`)
+- Auth (`login`, rotated `refresh`, `me`)
 - Accounts CRUD
 - Categories CRUD
 - Payment methods CRUD
