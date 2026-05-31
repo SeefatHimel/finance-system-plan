@@ -14,6 +14,7 @@ Phase 1 scaffold now includes:
 - Account and category fetch flow for authenticated users:
   - `GET /api/accounts/`
   - `GET /api/categories/`
+  - caches the latest account/category lists locally for offline form choices
 - Quick add transaction form:
   - `POST /api/transactions/`
 - Local manual transaction queue:
@@ -177,6 +178,7 @@ Settings
 ## Offline Requirements
 
 - Manual transactions can be saved offline in a local queue and synced later.
+- Account/category choices are hydrated from the last successful local cache.
 - Raw SMS messages can be queued offline.
 - Sync retries when network is available and keeps per-message failure context.
 - Failed raw SMS sync items wait for their next retry time before another attempt.
@@ -189,6 +191,7 @@ Settings
 2. Login. Done with placeholder/testing flow.
 3. Backend health check. Done.
 4. Account/category fetch. Done.
+   - Local account/category cache. Done.
 5. Quick add transaction. Done.
 6. Local manual transaction queue. Done with retry metadata, capped retry
    backoff, local duplicate checks, and manual removal.

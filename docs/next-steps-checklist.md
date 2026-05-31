@@ -54,6 +54,7 @@ Last updated: 2026-05-31
 - [x] Health check flow
 - [x] Login and token validation flow
 - [x] Account/category fetch flow
+- [x] Local account/category cache hydration for mobile forms
 - [x] Quick transaction create flow
 - [x] Local manual transaction queue and sync flow
 - [x] Transaction list flow

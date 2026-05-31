@@ -83,6 +83,8 @@ type QueuedManualTransaction = {
 
 const rawMessageQueueKey = "finance.rawMessageQueue";
 const manualTransactionQueueKey = "finance.manualTransactionQueue";
+const accountCacheKey = "finance.accountCache";
+const categoryCacheKey = "finance.categoryCache";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -94,6 +96,64 @@ function stringValue(value: unknown) {
 
 function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function normalizeAccountCache(storedAccounts: string | null): Account[] {
+  if (!storedAccounts) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(storedAccounts) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.flatMap((item) => {
+      if (!isRecord(item)) {
+        return [];
+      }
+
+      const account = {
+        id: stringValue(item.id),
+        name: stringValue(item.name),
+        type: stringValue(item.type)
+      };
+
+      return account.id && account.name ? [account] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function normalizeCategoryCache(storedCategories: string | null): Category[] {
+  if (!storedCategories) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(storedCategories) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.flatMap((item) => {
+      if (!isRecord(item)) {
+        return [];
+      }
+
+      const category = {
+        id: stringValue(item.id),
+        kind: stringValue(item.kind),
+        name: stringValue(item.name)
+      };
+
+      return category.id && category.name ? [category] : [];
+    });
+  } catch {
+    return [];
+  }
 }
 
 function rawMessageDedupeKey(input: Pick<QueuedRawMessage, "body" | "deviceMessageId" | "receivedAt" | "sender">) {
@@ -1104,6 +1164,10 @@ export default function App() {
       ]);
       setAccounts(nextAccounts);
       setCategories(nextCategories);
+      await Promise.all([
+        AsyncStorage.setItem(accountCacheKey, JSON.stringify(nextAccounts)),
+        AsyncStorage.setItem(categoryCacheKey, JSON.stringify(nextCategories))
+      ]);
       if (!txAccountId && nextAccounts.length > 0) {
         setTxAccountId(nextAccounts[0].id);
       }
@@ -1280,6 +1344,26 @@ export default function App() {
 
   useEffect(() => {
     void loadHealth();
+    Promise.all([
+      AsyncStorage.getItem(accountCacheKey),
+      AsyncStorage.getItem(categoryCacheKey)
+    ])
+      .then(([storedAccounts, storedCategories]) => {
+        const cachedAccounts = normalizeAccountCache(storedAccounts);
+        const cachedCategories = normalizeCategoryCache(storedCategories);
+        setAccounts(cachedAccounts);
+        setCategories(cachedCategories);
+        if (!txAccountId && cachedAccounts.length > 0) {
+          setTxAccountId(cachedAccounts[0].id);
+        }
+        if (!txCategoryId && cachedCategories.length > 0) {
+          setTxCategoryId(cachedCategories[0].id);
+        }
+      })
+      .catch(() => {
+        setDataState("error");
+        setDataMessage("Could not load local account/category cache.");
+      });
     AsyncStorage.getItem(manualTransactionQueueKey)
       .then((storedQueue) => {
         setTransactionQueue(normalizeManualTransactionQueue(storedQueue));
