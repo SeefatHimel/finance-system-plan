@@ -170,6 +170,9 @@ bills, recurring bills, and balance snapshots.
 The settings module also validates production-critical configuration when
 `DJANGO_DEBUG=false`, refusing local-dev secrets, SQLite, localhost-only hosts,
 and localhost CORS origins.
+JWT refresh tokens rotate on use and old refresh tokens are blacklisted after
+rotation, which makes refresh-token reuse fail instead of silently extending a
+stolen token.
 
 Transaction list and CSV export endpoints support the same user-scoped filters:
 month, account, category, type, debit/credit direction, source, and `search`

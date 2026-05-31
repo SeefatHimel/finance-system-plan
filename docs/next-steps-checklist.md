@@ -155,6 +155,7 @@ Last updated: 2026-05-31
 - [x] Add production deployment readiness checklist and rollback plan
 - [x] Add production guard around temporary web localStorage token flow
 - [x] Add backend production settings guard for unsafe debug-off configuration
+- [x] Enable backend JWT refresh-token rotation and blacklist-after-rotation
 - [x] Add OpenAPI-generated TypeScript client workflow
 - [x] Reuse generated transaction enum types in the web transaction API wrapper
 - [x] Reuse generated OpenAPI request/enum types across web API inputs

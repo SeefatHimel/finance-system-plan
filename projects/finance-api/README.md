@@ -24,6 +24,7 @@ The API project is scaffolded with:
 - Balance snapshot and reconciliation endpoints
 - Read-only audit log endpoint for transaction creates, updates, and deletes
 - JWT login, refresh, and current-user endpoints
+- JWT refresh-token rotation and blacklist-after-rotation settings
 - Production settings guard that refuses unsafe `DJANGO_DEBUG=false`
   configurations
 

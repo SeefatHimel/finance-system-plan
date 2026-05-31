@@ -29,6 +29,7 @@ deployment are stable.
   builds must leave `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE` unset or `false` so
   login fails closed instead of silently storing refresh tokens in the browser.
 - Mobile refresh tokens use OS-backed secure storage.
+- Backend JWT refresh-token rotation and blacklist-after-rotation are enabled.
 - PostgreSQL backups run on a schedule and at least one restore drill has
   passed.
 - Raw SMS export/support flows do not expose real message bodies unnecessarily.

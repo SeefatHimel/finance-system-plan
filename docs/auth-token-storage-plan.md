@@ -7,9 +7,10 @@ Last updated: 2026-05-30
 Move from local-development token handling to a production-safe authentication
 model for web and mobile clients.
 
-The current implementation is intentionally simple:
+The current implementation is still intentionally simple at the client layer:
 
-- Backend issues JWT access and refresh tokens through Simple JWT.
+- Backend issues JWT access and refresh tokens through Simple JWT with
+  refresh-token rotation and blacklist-after-rotation enabled.
 - Web stores both tokens in browser `localStorage`.
 - Mobile keeps tokens in React state during the testing session.
 
@@ -77,11 +78,11 @@ term storage unless the user explicitly exports them.
 
 ## Backend Plan
 
-Recommended Simple JWT settings before production:
+Current Simple JWT settings:
 
 ```txt
-ACCESS_TOKEN_LIFETIME: 5-15 minutes
-REFRESH_TOKEN_LIFETIME: 7-30 days
+ACCESS_TOKEN_LIFETIME: 10 minutes
+REFRESH_TOKEN_LIFETIME: 14 days
 ROTATE_REFRESH_TOKENS: true
 BLACKLIST_AFTER_ROTATION: true
 UPDATE_LAST_LOGIN: true
@@ -100,7 +101,7 @@ Deployment/security requirements:
 ## Migration Steps
 
 1. Keep current JWT bearer-token flow for local development.
-2. Add backend Simple JWT rotation/blacklist settings.
+2. Add backend Simple JWT rotation/blacklist settings. Done.
 3. Add web server-side login/logout/refresh routes.
 4. Replace web `localStorage` usage with cookie-backed session helpers.
 5. Add mobile secure token storage.
