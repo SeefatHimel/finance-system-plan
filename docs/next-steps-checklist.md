@@ -134,6 +134,7 @@ Last updated: 2026-05-31
 ### Phase 3 Follow-up
 
 - [x] Add richer source/destination extraction for bKash sender/receiver account numbers
+- [x] Add bKash counter/till and provider timestamp parser notes
 - [x] Add Pathao Pay parser coverage for make payment, top-up, send money, and withdraw confirmations
 - [x] Add source/destination account controls to mobile SMS review
 - [x] Add parser confidence/duplicate reason display in review inbox

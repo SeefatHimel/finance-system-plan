@@ -1,0 +1,1 @@
+Payment Tk 350.00 to SAMPLE MERCHANT successful. Counter C-01. Till 123456. Date 30/05/2026 11:29 PM. Balance Tk 1,150.00. TrxID DEF456XYZ.

@@ -219,6 +219,10 @@ methods. When a known other side is found, the candidate pre-fills both the
 primary account/payment method and the secondary transfer account/payment method
 for review.
 
+bKash payment parsing also cleans common confirmation suffixes from
+`counterparty_text` and records detected till/counter plus provider timestamp
+text in parser notes for reviewer context.
+
 ### transactions_transaction
 
 ```txt

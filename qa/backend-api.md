@@ -205,7 +205,10 @@ bank-to-wallet and City Bank own-account transfer messages, and starter Pathao
 Pay parsing for top-up, payment, send-money, and withdraw confirmations. The
 parsers detect message kind, amount, reference, balance, fee,
 merchant/counterparty text, and possible internal transfers for cash-in/cash-out
-and bank/card transfer-style messages. bKash
+and bank/card transfer-style messages. Counterparty extraction strips common
+confirmation noise such as trailing `successful`, and bKash payment parser
+notes surface detected till/counter and provider timestamp text when present.
+bKash
 transfer-like messages also try to match masked account or wallet identifiers
 against the user's configured payment methods so known source/destination
 accounts can be prefilled. Bank account transfer messages now use the same

@@ -9,6 +9,11 @@ _AMOUNT_PATTERN = re.compile(r"(?:tk|bdt)\s*([0-9][0-9,]*(?:\.\d{1,2})?)|([0-9][
 _BALANCE_PATTERN = re.compile(r"(?:balance|bal)\s*(?:is|:)?\s*(?:tk|bdt)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
 _FEE_PATTERN = re.compile(r"(?:charge|fee)\s*(?:is|:)?\s*(?:tk|bdt)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
 _REFERENCE_PATTERN = re.compile(r"\b(?:trxid|trx id|txnid|txn id|ref|reference)\b\s*[:#-]?\s*([a-z0-9-]+)", re.IGNORECASE)
+_PROVIDER_TIMESTAMP_PATTERN = re.compile(
+    r"\b(?:date|time|on)\b\s*[:#-]?\s*([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4}(?:\s+[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?\s*(?:am|pm)?)?)",
+    re.IGNORECASE,
+)
+_TILL_COUNTER_PATTERN = re.compile(r"\b(counter|till|terminal|merchant\s+no)\b\s*[:#-]?\s*([a-z0-9-]+)", re.IGNORECASE)
 
 
 def find_sender_rule(*, user, sender: str):
@@ -148,6 +153,12 @@ def _parse_bkash_message(*, raw_message, sender_rule):
         notes.append("Detected bKash payment/purchase wording.")
 
     counterparty_text = _extract_counterparty_text(body)
+    till_or_counter = _extract_till_or_counter(body)
+    provider_timestamp = _extract_provider_timestamp_text(body)
+    if till_or_counter:
+        notes.append(f"Detected bKash till/counter: {till_or_counter}.")
+    if provider_timestamp:
+        notes.append(f"Detected provider timestamp: {provider_timestamp}.")
     matched_payment_method = _find_payment_method_hint(
         user=raw_message.user,
         text=counterparty_text or body,
@@ -424,10 +435,27 @@ def _extract_decimal_with_pattern(pattern, body: str):
 
 
 def _extract_counterparty_text(body: str) -> str:
-    match = re.search(r"\b(?:to|from)\s+(.+?)(?:\.| trxid| txnid| ref| balance| fee| charge|$)", body, flags=re.IGNORECASE)
+    match = re.search(
+        r"\b(?:to|from)\s+(.+?)(?:\s+successful\b|\.| trxid| txnid| ref| balance| fee| charge|$)",
+        body,
+        flags=re.IGNORECASE,
+    )
     if not match:
         return ""
     return match.group(1).strip()[:255]
+
+
+def _extract_provider_timestamp_text(body: str) -> str:
+    match = _PROVIDER_TIMESTAMP_PATTERN.search(body)
+    return match.group(1).strip()[:120] if match else ""
+
+
+def _extract_till_or_counter(body: str) -> str:
+    matches = [
+        f"{match.group(1).strip()}: {match.group(2).strip()}"
+        for match in _TILL_COUNTER_PATTERN.finditer(body)
+    ]
+    return "; ".join(matches)[:120]
 
 
 def _extract_merchant_text(body: str) -> str:

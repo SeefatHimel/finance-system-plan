@@ -265,8 +265,42 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(candidate["message_kind"], "purchase")
         self.assertEqual(candidate["transaction_type"], "expense")
         self.assertEqual(candidate["amount"], "350.00")
-        self.assertEqual(candidate["counterparty_text"], "SAMPLE MERCHANT successful")
+        self.assertEqual(candidate["counterparty_text"], "SAMPLE MERCHANT")
         self.assertFalse(candidate["possible_internal_transfer"])
+
+    def test_bkash_payment_extracts_till_counter_and_provider_timestamp_notes(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(
+            user=user,
+            name="Bkash Wallet",
+            type=Account.Type.MOBILE_WALLET,
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="bKash sender",
+            provider=SenderRule.Provider.BKASH,
+            sender="bKash",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "bKash",
+                "body": (FIXTURE_DIR / "bkash" / "payment_with_till.txt").read_text(),
+                "received_at": "2026-05-30T11:30:00+06:00",
+                "device_message_id": "sms-bkash-payment-till-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["counterparty_text"], "SAMPLE MERCHANT")
+        self.assertEqual(candidate["reference"], "DEF456XYZ")
+        self.assertIn("Detected bKash till/counter: Counter: C-01; Till: 123456", candidate["parser_notes"])
+        self.assertIn("Detected provider timestamp: 30/05/2026 11:29 PM", candidate["parser_notes"])
 
     def test_ebl_card_purchase_import_creates_card_purchase_candidate(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
@@ -627,7 +661,7 @@ class RawMessageImportApiTests(APITestCase):
             {
                 "amount": "220.00",
                 "balance_after": "580.00",
-                "counterparty_text": "SAMPLE MERCHANT successful",
+                "counterparty_text": "SAMPLE MERCHANT",
                 "device_message_id": "sms-pathao-payment-100",
                 "fee_amount": None,
                 "fixture": "payment.txt",
@@ -639,7 +673,7 @@ class RawMessageImportApiTests(APITestCase):
             {
                 "amount": "300.00",
                 "balance_after": "280.00",
-                "counterparty_text": "SAMPLE USER successful",
+                "counterparty_text": "SAMPLE USER",
                 "device_message_id": "sms-pathao-send-money-100",
                 "fee_amount": None,
                 "fixture": "send_money.txt",
@@ -651,7 +685,7 @@ class RawMessageImportApiTests(APITestCase):
             {
                 "amount": "400.00",
                 "balance_after": "174.00",
-                "counterparty_text": "SAMPLE BANK successful",
+                "counterparty_text": "SAMPLE BANK",
                 "device_message_id": "sms-pathao-withdraw-100",
                 "fee_amount": "6.00",
                 "fixture": "withdraw.txt",
@@ -882,7 +916,7 @@ class MessageReviewApiTests(APITestCase):
         self.assertEqual(transaction.direction, Transaction.Direction.DEBIT)
         self.assertEqual(transaction.balance_after, parsed_candidate.balance_after)
         self.assertEqual(transaction.reference, "DEF456XYZ")
-        self.assertEqual(transaction.counterparty_text, "SAMPLE MERCHANT successful")
+        self.assertEqual(transaction.counterparty_text, "SAMPLE MERCHANT")
         self.assertEqual(transaction.payment_method, self.payment_method)
         self.assertEqual(transaction.raw_message_id, parsed_candidate.raw_message_id)
         self.assertEqual(transaction.external_key, "sms:bkash:def456xyz")

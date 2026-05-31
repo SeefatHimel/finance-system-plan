@@ -101,6 +101,8 @@ Backend:
 - Final transaction ledger evidence fields for SMS confirmation. Done.
 - Transfer-aware parsing for bank-to-wallet and own-account movement. Done for
   candidate hints.
+- bKash till/counter and provider timestamp parser notes. Done for first
+  synthetic fixture coverage.
 - Possible related-message matching for two-sided internal transfers. Done.
 - Custom regex parser support
 - Parsed message confidence scoring
