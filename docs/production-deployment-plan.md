@@ -28,10 +28,8 @@ deployment are stable.
 - If the temporary web `localStorage` auth path is still present, production
   builds must leave `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE` unset or `false` so
   login fails closed instead of silently storing refresh tokens in the browser.
-- Web login/session/logout can use same-origin Next.js auth routes with
-  HTTP-only cookies; remaining authenticated workspace API calls still need to
-  move behind same-origin proxy routes or server actions before real production
-  use.
+- Web login/session/logout and authenticated workspace API calls can use
+  same-origin Next.js routes with HTTP-only cookies.
 - Mobile refresh tokens use OS-backed secure storage.
 - Backend JWT refresh-token rotation and blacklist-after-rotation are enabled.
 - PostgreSQL backups run on a schedule and at least one restore drill has

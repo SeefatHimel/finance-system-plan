@@ -25,6 +25,7 @@ import type {
 import {
   clearTokens,
   getRefreshToken,
+  isCookieSessionToken,
   saveTokens
 } from "./auth-storage";
 
@@ -522,6 +523,26 @@ async function refreshStoredLocalSession() {
 }
 
 async function authenticatedFetch(path: string, accessToken: string, init?: RequestInit) {
+  if (isCookieSessionToken(accessToken)) {
+    const proxyResponse = await fetch(`/api/backend${path}`, {
+      ...init,
+      cache: "no-store",
+      headers: {
+        ...(init?.headers ?? {})
+      }
+    });
+
+    if (proxyResponse.status === 401) {
+      throw new Error("Your session expired. Sign in again.");
+    }
+
+    if (!proxyResponse.ok) {
+      throw new Error(`Request failed with HTTP ${proxyResponse.status}.`);
+    }
+
+    return proxyResponse;
+  }
+
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     cache: "no-store",

@@ -22,7 +22,7 @@ const currentUserSchema = z.object({
 
 type TokenPair = z.infer<typeof tokenPairSchema>;
 
-function getServerApiBaseUrl() {
+export function getServerApiBaseUrl() {
   return process.env.NEXT_SERVER_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 }
 
@@ -88,6 +88,31 @@ async function backendRefresh(refreshToken: string) {
   return tokenPairSchema.parse(await response.json());
 }
 
+export async function getCookieBackedAccessToken() {
+  const accessToken = cookies().get(accessCookieName)?.value;
+  if (accessToken) {
+    return {
+      accessToken,
+      rotatedTokens: null
+    };
+  }
+
+  return refreshCookieBackedAccessToken();
+}
+
+export async function refreshCookieBackedAccessToken() {
+  const refreshToken = cookies().get(refreshCookieName)?.value;
+  if (!refreshToken) {
+    throw new Error("Not signed in.");
+  }
+
+  const rotatedTokens = await backendRefresh(refreshToken);
+  return {
+    accessToken: rotatedTokens.access,
+    rotatedTokens
+  };
+}
+
 export async function backendCurrentUser(accessToken: string) {
   const response = await fetch(`${getServerApiBaseUrl()}/api/auth/me/`, {
     cache: "no-store",
@@ -133,12 +158,7 @@ export async function getCookieBackedCurrentUser() {
 }
 
 export async function refreshCookieBackedSession() {
-  const refreshToken = cookies().get(refreshCookieName)?.value;
-  if (!refreshToken) {
-    throw new Error("Not signed in.");
-  }
-
-  const rotatedTokens = await backendRefresh(refreshToken);
+  const { rotatedTokens } = await refreshCookieBackedAccessToken();
   return {
     rotatedTokens,
     user: await backendCurrentUser(rotatedTokens.access)

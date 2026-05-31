@@ -11,7 +11,9 @@ The current implementation is still intentionally simple at the client layer:
 
 - Backend issues JWT access and refresh tokens through Simple JWT with
   refresh-token rotation and blacklist-after-rotation enabled.
-- Web stores both tokens in browser `localStorage`.
+- Web stores both tokens in browser `localStorage` only for local-development
+  mode. When browser token storage is disabled, it uses HTTP-only cookies via
+  same-origin Next.js routes.
 - Mobile keeps tokens in React state during the testing session.
 
 That is acceptable for local development, but not for production financial data.
@@ -51,6 +53,8 @@ Implementation notes:
   deliberately as an escape hatch.
 - Next.js same-origin auth routes now support cookie-backed login, current-user
   checks, refresh, and logout for the web session panel.
+- Authenticated web workspace API calls now use a same-origin proxy when browser
+  token storage is disabled, so refresh tokens stay out of browser JavaScript.
 - In local-development mode, the web API wrapper uses the stored refresh token
   to rotate tokens and retry authenticated API calls once after a 401.
 - Add a visible code comment or env guard before production deployment.
@@ -107,9 +111,9 @@ Deployment/security requirements:
 1. Keep current JWT bearer-token flow for local development.
 2. Add backend Simple JWT rotation/blacklist settings. Done.
 3. Add web server-side login/logout/refresh routes. Done.
-4. Replace web `localStorage` usage with cookie-backed session helpers. Started
-   for login/session status; page data APIs still need same-origin proxy or
-   server action migration.
+4. Replace web `localStorage` usage with cookie-backed session helpers. Done for
+   login/session status and authenticated workspace API calls through the
+   same-origin proxy route layer.
 5. Add mobile secure token storage.
 6. Add automatic token refresh in web and mobile API clients. Done for the
    local-development web API wrapper; mobile remains pending.

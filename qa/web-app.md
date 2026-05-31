@@ -205,15 +205,20 @@ deliberately, so accidental production refresh-token storage in browser
 `docs/auth-token-storage-plan.md`. Backend refresh-token rotation and
 blacklisting are already enabled, and the local-development web API wrapper
 uses the stored refresh token to retry authenticated API calls once after a 401.
-Web now has cookie-backed login/session/logout route handlers, but the
-authenticated workspace API calls still need to move behind same-origin proxy
-routes or server actions before production.
+Web now has cookie-backed login/session/logout route handlers and a same-origin
+backend proxy for authenticated workspace API calls when browser token storage
+is disabled.
 
 ## How will the web app fetch data?
 
 The likely choice is TanStack Query for client-side authenticated data fetching,
 caching, retries, and mutation flows. Server-rendered pages can still be used
 where they make sense.
+
+For production-style cookie sessions, the existing shared web API wrapper sends
+workspace requests to `/api/backend/...`; the Next.js route handler attaches the
+access cookie server-side, refreshes once on 401, rotates cookies, and forwards
+the backend response.
 
 ## How would you handle loading, empty, and error states?
 

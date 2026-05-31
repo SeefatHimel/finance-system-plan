@@ -37,7 +37,8 @@ Never commit:
 - Use HTTPS in production.
 - Scope every backend query by user.
 - Keep audit timestamps on financial records.
-- Move production token storage away from browser `localStorage`.
+- Keep production web refresh tokens in HTTP-only cookies rather than browser
+  `localStorage`.
 - Add export and backup features before relying on the system long term.
 
 See `docs/auth-token-storage-plan.md` for the web, mobile, and backend token
