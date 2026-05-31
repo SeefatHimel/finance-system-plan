@@ -283,6 +283,7 @@ export class FinanceApiClient {
   category?: string;
   type?: TransactionType;
   direction?: TransactionDirection;
+  search?: string;
 }): Promise<Blob> {
     return this.request<Blob>("/api/transactions/export/", { method: "GET", query });
   }
@@ -293,6 +294,7 @@ export class FinanceApiClient {
   category?: string;
   type?: TransactionType;
   direction?: TransactionDirection;
+  search?: string;
 }): Promise<Transaction[]> {
     return this.request<Transaction[]>("/api/transactions/", { method: "GET", query });
   }

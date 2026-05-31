@@ -167,6 +167,10 @@ The DRF routers also provide detail, update, and delete endpoints for accounts,
 categories, payment methods, sender rules, transactions, debts, credit card
 bills, recurring bills, and balance snapshots.
 
+Transaction list and CSV export endpoints support the same user-scoped filters:
+month, account, category, type, debit/credit direction, and `search` across
+reference, counterparty text, note, and external duplicate key.
+
 ## How do you validate cross-user object access?
 
 Serializers check that selected accounts, transfer accounts, categories, and

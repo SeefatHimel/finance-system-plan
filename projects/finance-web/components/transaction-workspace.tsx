@@ -56,6 +56,7 @@ export function TransactionWorkspace() {
     category: "",
     direction: "",
     month: currentMonth(),
+    search: "",
     type: ""
   });
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
@@ -122,6 +123,7 @@ export function TransactionWorkspace() {
         category: "",
         direction: "",
         month: currentMonth(),
+        search: "",
         type: ""
       })
     ])
@@ -147,6 +149,7 @@ export function TransactionWorkspace() {
       category: "",
       direction: "",
       month: "",
+      search: "",
       type: ""
     };
     setFilters(clearedFilters);
@@ -627,12 +630,12 @@ export function TransactionWorkspace() {
             <div>
               <h2 className="section-title">Transactions</h2>
               <p className="section-subtitle">
-                Filter records by month, account, category, type, and debit/credit direction.
+                Filter records by month, account, category, type, debit/credit direction, and text.
               </p>
             </div>
           </div>
 
-          <form className="filter-form" onSubmit={handleFilterSubmit}>
+          <form className="filter-form transaction-filter-form" onSubmit={handleFilterSubmit}>
             <label className="field">
               <span className="field__label">Month</span>
               <input
@@ -673,6 +676,18 @@ export function TransactionWorkspace() {
                 <option value="debit">Debit</option>
                 <option value="credit">Credit</option>
               </select>
+            </label>
+
+            <label className="field">
+              <span className="field__label">Search</span>
+              <input
+                className="field__control"
+                name="search"
+                onChange={(event) => setFilters({ ...filters, search: event.target.value })}
+                placeholder="TrxID, person, note"
+                type="search"
+                value={filters.search}
+              />
             </label>
 
             <label className="field">

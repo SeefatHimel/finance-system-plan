@@ -1,5 +1,6 @@
 import csv
 
+from django.db.models import Q
 from django.http import HttpResponse
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -48,6 +49,15 @@ class TransactionViewSet(ModelViewSet):
         direction = self.request.query_params.get("direction")
         if direction:
             queryset = queryset.filter(direction=direction)
+
+        search = self.request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(
+                Q(reference__icontains=search)
+                | Q(counterparty_text__icontains=search)
+                | Q(note__icontains=search)
+                | Q(external_key__icontains=search)
+            )
 
         return queryset
 

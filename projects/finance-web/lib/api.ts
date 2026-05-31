@@ -314,6 +314,7 @@ export type TransactionFilters = {
   category?: string;
   direction?: string;
   month?: string;
+  search?: string;
   type?: string;
 };
 

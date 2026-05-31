@@ -45,8 +45,8 @@ covering current phase-1 backend endpoints:
 - SMS sender rules CRUD
 - Raw SMS import with duplicate response shape
 - Parsed SMS review candidate list, confirm, ignore, and raw SMS redaction endpoints
-- Transactions CRUD and month/account/category/type/direction list filters
-- Transaction CSV export with the same month/account/category/type/direction filters
+- Transactions CRUD and month/account/category/type/direction/search list filters
+- Transaction CSV export with the same month/account/category/type/direction/search filters
 - Debt CRUD and repayment endpoint
 - Credit card bill CRUD and payment endpoint
 - Recurring bill CRUD and payment endpoint

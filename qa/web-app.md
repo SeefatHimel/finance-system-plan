@@ -70,25 +70,28 @@ Planned screens:
 ## How should the transaction table work?
 
 It should feel close to the spreadsheet workflow: filter by month, account,
-category, type, and source; add/edit rows quickly; and support display modes
-like spreadsheet sign mode, ledger mode, and money-in/money-out mode.
+category, type, debit/credit direction, source, and text; add/edit rows
+quickly; and support display modes like spreadsheet sign mode, ledger mode,
+and money-in/money-out mode.
 
 ## What does the current transactions page do?
 
 The current transactions page uses the saved local JWT access token to load
 accounts, categories, and transactions from the Django API. It provides a manual
 transaction form and a transaction table with filters for month, type, account,
-category, and debit/credit direction. It supports updating and deleting
-transaction rows, and can download a CSV export using the same active filters.
-Each transaction row also links to the audit log page filtered to that
-transaction id.
+category, debit/credit direction, and search text. Search matches transaction
+id/reference, sent-to/received-from text, note, and backend duplicate key. It
+supports updating and deleting transaction rows, and can download a CSV export
+using the same active filters. Each transaction row also links to the audit log
+page filtered to that transaction id.
 
 ## Why add transaction filters early?
 
 Filtering is essential for a finance workflow because transaction lists grow
 quickly. Month, account, category, type, and debit/credit filters make the web
 app useful for checking entries and comparing the transaction table with
-monthly reports.
+monthly reports. Text search helps find SMS-confirmed transactions by TrxID,
+merchant/person text, note, or duplicate key.
 
 ## What does the current accounts page do?
 

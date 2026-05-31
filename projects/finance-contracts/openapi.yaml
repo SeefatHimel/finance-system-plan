@@ -1107,6 +1107,11 @@ paths:
           name: direction
           schema:
             $ref: '#/components/schemas/TransactionDirection'
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search reference, counterparty text, note, and external duplicate key.
       responses:
         '200':
           description: CSV export of matching transactions
@@ -1150,6 +1155,11 @@ paths:
           name: direction
           schema:
             $ref: '#/components/schemas/TransactionDirection'
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search reference, counterparty text, note, and external duplicate key.
       responses:
         '200':
           description: Transaction list
