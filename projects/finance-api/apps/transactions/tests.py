@@ -133,6 +133,16 @@ class TransactionApiTests(APITestCase):
             note="Dinner",
         )
         Transaction.objects.create(
+            user=user,
+            account=account,
+            date="2026-05-03",
+            type=Transaction.Type.EXPENSE,
+            amount="400.00",
+            reference="CASH-001",
+            note="Imported matching reference",
+            source=Transaction.Source.IMPORT,
+        )
+        Transaction.objects.create(
             user=other_user,
             account=other_account,
             date="2026-05-01",
@@ -141,7 +151,10 @@ class TransactionApiTests(APITestCase):
             note="Other user's transaction",
         )
 
-        response = self.client.get(reverse("transaction-export"), {"month": "2026-05", "search": "cash-001"})
+        response = self.client.get(
+            reverse("transaction-export"),
+            {"month": "2026-05", "search": "cash-001", "source": "web"},
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "text/csv")
@@ -193,6 +206,43 @@ class TransactionApiTests(APITestCase):
         )
 
         response = self.client.get(reverse("transaction-list"), {"search": "abc-001"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], str(matched_transaction.id))
+
+    def test_authenticated_user_can_filter_transactions_by_source(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        other_user = get_user_model().objects.create_user(username="other", password="password")
+        self.client.force_authenticate(user)
+        account = Account.objects.create(user=user, name="Cash", type=Account.Type.CASH)
+        other_account = Account.objects.create(user=other_user, name="Other Cash", type=Account.Type.CASH)
+        matched_transaction = Transaction.objects.create(
+            user=user,
+            account=account,
+            date="2026-05-01",
+            type=Transaction.Type.EXPENSE,
+            amount="250.00",
+            source=Transaction.Source.SMS,
+        )
+        Transaction.objects.create(
+            user=user,
+            account=account,
+            date="2026-05-02",
+            type=Transaction.Type.EXPENSE,
+            amount="120.00",
+            source=Transaction.Source.WEB,
+        )
+        Transaction.objects.create(
+            user=other_user,
+            account=other_account,
+            date="2026-05-01",
+            type=Transaction.Type.EXPENSE,
+            amount="999.00",
+            source=Transaction.Source.SMS,
+        )
+
+        response = self.client.get(reverse("transaction-list"), {"source": "sms"})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)

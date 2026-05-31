@@ -308,7 +308,7 @@ textarea {
 }
 
 .transaction-filter-form {
-  grid-template-columns: repeat(6, minmax(0, 1fr)) auto auto auto;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) auto auto auto;
 }
 
 .audit-filter-form {

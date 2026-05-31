@@ -50,6 +50,10 @@ class TransactionViewSet(ModelViewSet):
         if direction:
             queryset = queryset.filter(direction=direction)
 
+        source = self.request.query_params.get("source")
+        if source:
+            queryset = queryset.filter(source=source)
+
         search = self.request.query_params.get("search")
         if search:
             queryset = queryset.filter(

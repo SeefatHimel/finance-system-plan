@@ -315,6 +315,7 @@ export type TransactionFilters = {
   direction?: string;
   month?: string;
   search?: string;
+  source?: string;
   type?: string;
 };
 

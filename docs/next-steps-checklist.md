@@ -37,6 +37,7 @@ Last updated: 2026-05-31
 - [x] Login flow + session panel
 - [x] Transactions create/list/filter
 - [x] Transactions debit/credit direction filter
+- [x] Transactions source filter
 - [x] Transactions search filter
 - [x] Transactions update/delete
 - [x] Transactions CSV export button
@@ -146,6 +147,7 @@ Last updated: 2026-05-31
 - [x] Add transaction row history links into audit logs
 - [x] Add web debit/credit transaction filter
 - [x] Add backend-backed transaction search filter
+- [x] Add backend-backed transaction source filter
 
 ## Verification Matrix
 

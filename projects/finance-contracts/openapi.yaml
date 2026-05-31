@@ -1108,6 +1108,11 @@ paths:
           schema:
             $ref: '#/components/schemas/TransactionDirection'
         - in: query
+          name: source
+          schema:
+            $ref: '#/components/schemas/TransactionSource'
+          description: Filter by transaction origin, such as web, mobile, sms, import, or system.
+        - in: query
           name: search
           schema:
             type: string
@@ -1155,6 +1160,11 @@ paths:
           name: direction
           schema:
             $ref: '#/components/schemas/TransactionDirection'
+        - in: query
+          name: source
+          schema:
+            $ref: '#/components/schemas/TransactionSource'
+          description: Filter by transaction origin, such as web, mobile, sms, import, or system.
         - in: query
           name: search
           schema:

@@ -17,7 +17,7 @@ The web app is scaffolded with:
 - Manual transaction creation form
 - Manual transaction update form
 - Transaction deletion from the list
-- Transaction filters for month, type, debit/credit direction, account, category, and search text
+- Transaction filters for month, type, debit/credit direction, source, account, category, and search text
 - Transaction CSV export using the active filters
 - Per-transaction history links into the audit log viewer
 - Accounts page with account and category creation/listing/updating/deletion
@@ -197,13 +197,13 @@ npm run lint
 - Account filter.
 - Category filter.
 - Search across transaction ID, counterparty, note, and duplicate key. Done.
-- Source filter: manual, sms, import.
+- Source filter for web, mobile, SMS, import, and system-created rows. Done.
 - Display mode switch:
   - spreadsheet mode: expenses negative, income positive
   - ledger mode: positive amount plus transaction type
   - money in/out mode: separate columns
 - Bulk edit later.
-- CSV export. Done for active transaction filters, including search text.
+- CSV export. Done for active transaction filters, including source and search text.
 
 ## Dashboard Requirements
 

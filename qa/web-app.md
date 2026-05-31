@@ -79,19 +79,19 @@ and money-in/money-out mode.
 The current transactions page uses the saved local JWT access token to load
 accounts, categories, and transactions from the Django API. It provides a manual
 transaction form and a transaction table with filters for month, type, account,
-category, debit/credit direction, and search text. Search matches transaction
-id/reference, sent-to/received-from text, note, and backend duplicate key. It
-supports updating and deleting transaction rows, and can download a CSV export
-using the same active filters. Each transaction row also links to the audit log
-page filtered to that transaction id.
+category, debit/credit direction, source, and search text. Search matches
+transaction id/reference, sent-to/received-from text, note, and backend
+duplicate key. It supports updating and deleting transaction rows, and can
+download a CSV export using the same active filters. Each transaction row also
+links to the audit log page filtered to that transaction id.
 
 ## Why add transaction filters early?
 
 Filtering is essential for a finance workflow because transaction lists grow
-quickly. Month, account, category, type, and debit/credit filters make the web
-app useful for checking entries and comparing the transaction table with
-monthly reports. Text search helps find SMS-confirmed transactions by TrxID,
-merchant/person text, note, or duplicate key.
+quickly. Month, account, category, type, debit/credit, and source filters make
+the web app useful for checking entries and comparing the transaction table
+with monthly reports. Text search helps find SMS-confirmed transactions by
+TrxID, merchant/person text, note, or duplicate key.
 
 ## What does the current accounts page do?
 
@@ -159,7 +159,7 @@ payment that advances the next due date.
 ## What does the transaction table show now?
 
 The transaction table shows date, type, debit/credit direction, account,
-category, amount, balance after, provider transaction id/reference,
+source, category, amount, balance after, provider transaction id/reference,
 sent-to/received-from text, note, history links, and delete actions. The page
 can export the filtered rows as CSV for spreadsheet backup or external review.
 This makes SMS-confirmed transactions inspectable without opening the raw

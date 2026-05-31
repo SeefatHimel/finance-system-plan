@@ -41,6 +41,8 @@ const transactionTypes = [
   "repayment_paid"
 ];
 
+const transactionSources = ["web", "mobile", "sms", "import", "system"];
+
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
 }
@@ -57,6 +59,7 @@ export function TransactionWorkspace() {
     direction: "",
     month: currentMonth(),
     search: "",
+    source: "",
     type: ""
   });
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
@@ -124,6 +127,7 @@ export function TransactionWorkspace() {
         direction: "",
         month: currentMonth(),
         search: "",
+        source: "",
         type: ""
       })
     ])
@@ -150,6 +154,7 @@ export function TransactionWorkspace() {
       direction: "",
       month: "",
       search: "",
+      source: "",
       type: ""
     };
     setFilters(clearedFilters);
@@ -630,7 +635,7 @@ export function TransactionWorkspace() {
             <div>
               <h2 className="section-title">Transactions</h2>
               <p className="section-subtitle">
-                Filter records by month, account, category, type, debit/credit direction, and text.
+                Filter records by month, account, category, type, debit/credit direction, source, and text.
               </p>
             </div>
           </div>
@@ -675,6 +680,23 @@ export function TransactionWorkspace() {
                 <option value="">All directions</option>
                 <option value="debit">Debit</option>
                 <option value="credit">Credit</option>
+              </select>
+            </label>
+
+            <label className="field">
+              <span className="field__label">Source</span>
+              <select
+                className="field__control"
+                name="source"
+                onChange={(event) => setFilters({ ...filters, source: event.target.value })}
+                value={filters.source}
+              >
+                <option value="">All sources</option>
+                {transactionSources.map((source) => (
+                  <option key={source} value={source}>
+                    {source}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -758,6 +780,7 @@ export function TransactionWorkspace() {
                     <th>Date</th>
                     <th>Type</th>
                     <th>Debit / credit</th>
+                    <th>Source</th>
                     <th>Account</th>
                     <th>Category</th>
                     <th>Amount</th>
@@ -774,6 +797,7 @@ export function TransactionWorkspace() {
                       <td>{transaction.date}</td>
                       <td>{transaction.type.replaceAll("_", " ")}</td>
                       <td>{transaction.direction}</td>
+                      <td>{transaction.source}</td>
                       <td>{accountNames.get(transaction.account) ?? "Unknown"}</td>
                       <td>
                         {transaction.category

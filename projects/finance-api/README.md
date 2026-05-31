@@ -246,9 +246,10 @@ read-only through the API and can be filtered by `action`, `entity_type`, and
 `entity_id`.
 
 Transaction list and CSV export endpoints share filters for `month`, `account`,
-`category`, `type`, `direction`, and `search`. Search matches normalized text
-evidence: reference or TrxID, counterparty text, note, and external duplicate
-key.
+`category`, `type`, `direction`, `source`, and `search`. Source separates web,
+mobile, SMS, import, and system-created ledger rows. Search matches normalized
+text evidence: reference or TrxID, counterparty text, note, and external
+duplicate key.
 
 All finance endpoints except `/api/health/` require authentication.
 

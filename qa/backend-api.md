@@ -168,8 +168,9 @@ categories, payment methods, sender rules, transactions, debts, credit card
 bills, recurring bills, and balance snapshots.
 
 Transaction list and CSV export endpoints support the same user-scoped filters:
-month, account, category, type, debit/credit direction, and `search` across
-reference, counterparty text, note, and external duplicate key.
+month, account, category, type, debit/credit direction, source, and `search`
+across reference, counterparty text, note, and external duplicate key. Source
+filtering separates web, mobile, SMS, import, and system-generated ledger rows.
 
 ## How do you validate cross-user object access?
 
