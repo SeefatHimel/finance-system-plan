@@ -184,6 +184,9 @@ user-scoped audit log with normalized before/after snapshots.
 The contracts project now generates TypeScript schema types and a lightweight
 fetch client from the OpenAPI file so the web and mobile clients have a shared
 typing migration path.
+The mobile app now hydrates account/category choices and the latest transaction
+list from local cache on startup, and it can queue manual transaction drafts
+with retry metadata for later sync.
 
 ## What is not implemented yet?
 
@@ -191,7 +194,7 @@ Real anonymized SMS fixture collection for bKash, EBL, City Bank, and Pathao
 Pay; deeper provider-specific parser coverage for bank account transfers and
 additional real-world provider variants; mobile UI polish for debt,
 credit-card, recurring-bill, and reconciliation workflows; native Android SMS
-capture implementation; deeper production-grade local sync hardening;
+capture implementation; additional production-grade local sync hardening;
 production deployment setup; and broader backup/restore support are still
 planned future work.
 

@@ -1,7 +1,7 @@
 # Local Setup
 
-This document describes the intended local development setup. The actual
-projects will be scaffolded in later steps.
+This document describes the local development setup for the scaffolded API,
+web, mobile, infra, and contracts projects.
 
 Execution tracker: see `docs/next-steps-checklist.md` for current done/pending status.
 

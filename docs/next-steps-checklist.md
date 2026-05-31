@@ -17,8 +17,8 @@ Last updated: 2026-05-31
 - Transaction creates, updates, and deletes now write user-scoped audit logs
   with normalized before/after snapshots.
 - Next milestone is validating the workflow with real anonymized SMS fixtures,
-  polishing reconciliation UI, hardening mobile sync, and preparing production
-  deployment.
+  polishing compact mobile management screens, expanding parser coverage from
+  real-world variants, and preparing production deployment.
 
 ## Done (Checked)
 
@@ -101,7 +101,7 @@ Last updated: 2026-05-31
 - [ ] Run `docker compose config` validation in an environment where Docker CLI is available
 - [ ] Smoke run full Docker stack locally (`postgres + finance-api + finance-web`)
 - [ ] Confirm optional mobile profile startup in Docker (`--profile mobile`)
-- [ ] Group and commit checkpoints in clean commit sequence
+- [x] Group and commit checkpoints in clean commit sequence
 
 ### Phase 2 Follow-up
 
@@ -211,3 +211,31 @@ Last updated: 2026-05-31
 - `web: surface sms review confidence reasons`
 - `api: add raw sms redaction workflow`
 - `web: add debt and lending dashboard`
+- `api: add credit card bill tracking`
+- `api: add recurring bill tracking`
+- `mobile: add debt repayment workflow`
+- `mobile: add credit card bill workflow`
+- `mobile: add recurring bill workflow`
+- `mobile: add reconciliation workflow`
+- `api: harden bank card sms parser`
+- `mobile: harden raw sms sync queue`
+- `contracts: add card and recurring bill APIs`
+- `api: add transaction csv export`
+- `web: add transaction csv export`
+- `contracts: generate typescript api client`
+- `api: add transaction audit logs`
+- `contracts: add missing api examples`
+- `web: add transaction audit log viewer`
+- `web: link transactions to audit history`
+- `web: add transaction direction filter`
+- `api: add transaction search filter`
+- `api: add transaction source filter`
+- `contracts: add reconciliation and export examples`
+- `web: reuse generated transaction enum types`
+- `web: reuse generated api input types`
+- `docs: refresh docker validation blocker`
+- `web: polish reconciliation account check`
+- `mobile: add raw sms retry backoff`
+- `mobile: add manual transaction offline queue`
+- `mobile: cache reference data for offline forms`
+- `mobile: cache recent transactions for offline view`
