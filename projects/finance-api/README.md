@@ -24,6 +24,8 @@ The API project is scaffolded with:
 - Balance snapshot and reconciliation endpoints
 - Read-only audit log endpoint for transaction creates, updates, and deletes
 - JWT login, refresh, and current-user endpoints
+- Production settings guard that refuses unsafe `DJANGO_DEBUG=false`
+  configurations
 
 ## Responsibilities
 
@@ -72,6 +74,11 @@ Create local environment file:
 ```bash
 cp .env.example .env
 ```
+
+The default `.env.example` is for local development. When `DJANGO_DEBUG=false`,
+settings validation requires a strong non-default `DJANGO_SECRET_KEY`,
+PostgreSQL `DATABASE_URL`, deployed `DJANGO_ALLOWED_HOSTS`, and deployed CORS
+origins.
 
 Start PostgreSQL from `../finance-infra`:
 

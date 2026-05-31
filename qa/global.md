@@ -187,6 +187,8 @@ and restore expectations, and a rollback plan.
 The web app also has a production guard around the temporary browser
 `localStorage` JWT path so production auth hardening cannot be skipped
 silently.
+The backend settings also fail closed for unsafe debug-off configurations, such
+as default secrets, SQLite, localhost-only hosts, or localhost CORS origins.
 Transaction creates, updates, and deletes are also recorded in a read-only,
 user-scoped audit log with normalized before/after snapshots.
 The contracts project now generates TypeScript schema types and a lightweight

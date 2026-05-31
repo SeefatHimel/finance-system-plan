@@ -57,7 +57,9 @@ Production needs HTTPS, secure secret management, database backups, monitoring,
 logging, deployment automation, CORS hardening, allowed hosts, and a proper
 static/media file strategy. The deployment plan now lists concrete gates for
 debug mode, allowed hosts, CORS origins, PostgreSQL, auth storage, backups,
-restore drills, and rollback.
+restore drills, and rollback. The Django settings module now refuses
+`DJANGO_DEBUG=false` when the backend still has local-dev secrets, SQLite,
+localhost-only hosts, or localhost CORS origins.
 
 ## How should backups work?
 

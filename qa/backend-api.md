@@ -167,6 +167,10 @@ The DRF routers also provide detail, update, and delete endpoints for accounts,
 categories, payment methods, sender rules, transactions, debts, credit card
 bills, recurring bills, and balance snapshots.
 
+The settings module also validates production-critical configuration when
+`DJANGO_DEBUG=false`, refusing local-dev secrets, SQLite, localhost-only hosts,
+and localhost CORS origins.
+
 Transaction list and CSV export endpoints support the same user-scoped filters:
 month, account, category, type, debit/credit direction, source, and `search`
 across reference, counterparty text, note, and external duplicate key. Source
@@ -257,6 +261,6 @@ snapshots on transaction mutations.
 It has the first manual finance loop, SMS import/review, debt records, and
 reconciliation endpoints, but the provider parsers are still early. It still
 needs real anonymized SMS fixture coverage, deeper provider-specific bank
-transfer variants, production deployment configuration, and UI polish around
-debt and reconciliation workflows. Audit logging currently covers transaction
+transfer variants, production deployment execution, and UI polish around debt
+and reconciliation workflows. Audit logging currently covers transaction
 mutations first; other finance domains can be added as the product hardens.

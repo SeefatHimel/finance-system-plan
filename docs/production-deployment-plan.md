@@ -35,6 +35,10 @@ deployment are stable.
 - Monitoring/logging exists for API errors, failed background jobs, and backup
   failures.
 
+The Django settings module enforces the backend configuration gates for
+`DJANGO_SECRET_KEY`, PostgreSQL, allowed hosts, and CORS when
+`DJANGO_DEBUG=false`.
+
 ## Environment Checklist
 
 Backend:

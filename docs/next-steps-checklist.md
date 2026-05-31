@@ -154,6 +154,7 @@ Last updated: 2026-05-31
 - [x] Add local PostgreSQL backup/restore scripts for first backup path
 - [x] Add production deployment readiness checklist and rollback plan
 - [x] Add production guard around temporary web localStorage token flow
+- [x] Add backend production settings guard for unsafe debug-off configuration
 - [x] Add OpenAPI-generated TypeScript client workflow
 - [x] Reuse generated transaction enum types in the web transaction API wrapper
 - [x] Reuse generated OpenAPI request/enum types across web API inputs
@@ -189,6 +190,11 @@ Last updated: 2026-05-31
 - [x] Restore guard check:
   - Command: `projects/finance-infra/scripts/restore-postgres.sh missing.dump`
   - Result: refuses without `CONFIRM_RESTORE=finance`
+- [x] Backend production settings guard:
+  - Command: `DJANGO_DEBUG=false python3 -c 'import config.settings'`
+  - Result: refuses unsafe local defaults
+  - Command: `DJANGO_DEBUG=false DJANGO_SECRET_KEY=production-secret-key-with-enough-length DATABASE_URL=postgres://finance:finance@db.example.com:5432/finance DJANGO_ALLOWED_HOSTS=api.example.com DJANGO_CORS_ALLOWED_ORIGINS=https://app.example.com python3 -c 'import config.settings; print("settings ok")'`
+  - Result: pass
 
 ## Checkpoint Commit Messages
 
