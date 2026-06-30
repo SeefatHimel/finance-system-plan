@@ -6,10 +6,11 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ios": "expo run:ios"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "^3.1.1",
+    "@react-native-async-storage/async-storage": "2.1.2",
     "expo": "~53.0.0",
     "expo-status-bar": "~2.2.3",
     "finance-sms-capture": "file:./modules/finance-sms-capture",
