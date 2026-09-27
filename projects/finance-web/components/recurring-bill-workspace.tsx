@@ -79,7 +79,7 @@ export function RecurringBillWorkspace() {
   const [paymentNote, setPaymentNote] = useState("");
   const [isPaying, setIsPaying] = useState(false);
 
-  async function loadRecurringBills() {
+  async function loadRecurringBills(showLoading = true) {
     const accessToken = getAccessToken();
 
     if (!accessToken) {
@@ -87,7 +87,9 @@ export function RecurringBillWorkspace() {
       return;
     }
 
-    setState({ status: "loading" });
+    if (showLoading) {
+      setState({ status: "loading" });
+    }
 
     try {
       const [accounts, categories, bills] = await Promise.all([
@@ -185,7 +187,7 @@ export function RecurringBillWorkspace() {
         reminder_days_before: Number(formData.get("reminder_days_before") ?? 3)
       });
       form.reset();
-      await loadRecurringBills();
+      await loadRecurringBills(false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not create recurring bill.");
     } finally {
@@ -217,7 +219,7 @@ export function RecurringBillWorkspace() {
       });
       setPaymentAmount("");
       setPaymentNote("");
-      await loadRecurringBills();
+      await loadRecurringBills(false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not record recurring bill payment.");
     } finally {

@@ -14,10 +14,13 @@ will combine server-rendered status, authenticated pages, and interactive forms.
 
 ## What is implemented in the web app right now?
 
-The web app has a Next.js scaffold, TypeScript setup, environment-based API URL,
-global styles, a dashboard shell, a server-rendered backend health check, a
-local JWT login flow, and a first transactions page for listing and creating
-manual transactions. It also has an accounts page for managing accounts and
+The web app has a responsive application shell with persistent navigation, a
+data-backed overview dashboard, TypeScript setup, an environment-based API URL,
+a server-rendered backend health check, and a local JWT login flow. The
+dashboard summarizes the current month's income, expenses, and net movement,
+shows active accounts and recent transactions, and provides quick links into
+common workflows. It also has a transactions page for listing and creating
+manual transactions and an accounts page for managing accounts and
 categories, an SMS settings page for managing payment methods and sender rules,
 an SMS review inbox for parsed message candidates, a monthly reports page, and
 a debt/lending dashboard for creating debt records and repayments, a credit
@@ -105,9 +108,20 @@ TrxID, merchant/person text, note, or duplicate key.
 ## What does the current accounts page do?
 
 The current accounts page uses the saved local JWT access token to create and
-list accounts and categories. It now supports full CRUD for accounts and
-categories, with backend constraints still preventing deletion when records are
-referenced by transactions.
+list accounts and categories. It supports full CRUD for accounts and categories
+in a tabbed workspace with summary metrics, structured data tables, and focused
+create/edit drawers. Successful mutations update visible rows immediately, with
+backend constraints still preventing deletion when records are referenced by
+transactions.
+
+## Why does the page no longer flash a loading screen after every save?
+
+Mutation workflows keep the existing workspace visible while synchronizing
+fresh API data in the background. Accounts and categories update their local
+collections directly after successful API responses; the other workspaces
+perform a quiet refetch. Initial page loads and explicit filter changes still
+show loading feedback, while buttons expose the pending state for the specific
+action being performed.
 
 ## What does the current SMS settings page do?
 

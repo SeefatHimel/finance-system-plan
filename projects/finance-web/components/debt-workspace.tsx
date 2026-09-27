@@ -45,7 +45,7 @@ export function DebtWorkspace() {
   const [paymentNote, setPaymentNote] = useState("");
   const [isPaying, setIsPaying] = useState(false);
 
-  async function loadDebts() {
+  async function loadDebts(showLoading = true) {
     const accessToken = getAccessToken();
 
     if (!accessToken) {
@@ -53,7 +53,9 @@ export function DebtWorkspace() {
       return;
     }
 
-    setDebtState({ status: "loading" });
+    if (showLoading) {
+      setDebtState({ status: "loading" });
+    }
 
     try {
       const debts = await listDebts(accessToken);
@@ -131,7 +133,7 @@ export function DebtWorkspace() {
         principal_amount: String(formData.get("principal_amount") ?? "")
       });
       form.reset();
-      await loadDebts();
+      await loadDebts(false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not create debt.");
     } finally {
@@ -163,7 +165,7 @@ export function DebtWorkspace() {
       });
       setPaymentAmount("");
       setPaymentNote("");
-      await loadDebts();
+      await loadDebts(false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not record payment.");
     } finally {

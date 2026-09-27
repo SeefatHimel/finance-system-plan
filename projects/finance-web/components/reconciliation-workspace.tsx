@@ -94,7 +94,7 @@ export function ReconciliationWorkspace() {
     }
   }, []);
 
-  const loadReconciliation = useCallback(async (preferredAccountId?: string) => {
+  const loadReconciliation = useCallback(async (preferredAccountId?: string, showLoading = true) => {
     const accessToken = getAccessToken();
 
     if (!accessToken) {
@@ -102,7 +102,9 @@ export function ReconciliationWorkspace() {
       return;
     }
 
-    setState({ status: "loading" });
+    if (showLoading) {
+      setState({ status: "loading" });
+    }
 
     try {
       const [accounts, snapshots] = await Promise.all([
@@ -222,7 +224,7 @@ export function ReconciliationWorkspace() {
         note: String(formData.get("note") ?? "")
       });
       form.reset();
-      await loadReconciliation(account);
+      await loadReconciliation(account, false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not save balance snapshot.");
     } finally {

@@ -93,7 +93,7 @@ export function TransactionWorkspace() {
   const [editingCounterpartyText, setEditingCounterpartyText] = useState("");
   const [editingNote, setEditingNote] = useState("");
 
-  async function loadData(activeFilters = filters) {
+  async function loadData(activeFilters = filters, showLoading = true) {
     const accessToken = getAccessToken();
 
     if (!accessToken) {
@@ -101,7 +101,9 @@ export function TransactionWorkspace() {
       return;
     }
 
-    setLoadState({ status: "loading" });
+    if (showLoading) {
+      setLoadState({ status: "loading" });
+    }
 
     try {
       const [accounts, categories, transactions] = await Promise.all([
@@ -236,7 +238,7 @@ export function TransactionWorkspace() {
         type
       });
       form.reset();
-      await loadData(filters);
+      await loadData(filters, false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not create transaction.");
     } finally {
@@ -261,7 +263,7 @@ export function TransactionWorkspace() {
     setDeletingTransactionId(transaction.id);
     try {
       await deleteTransaction(accessToken, transaction.id);
-      await loadData(filters);
+      await loadData(filters, false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not delete transaction.");
     } finally {
@@ -319,7 +321,7 @@ export function TransactionWorkspace() {
         transfer_account: editingType === "transfer" ? editingTransferAccountId || null : null,
         type: editingType
       });
-      await loadData(filters);
+      await loadData(filters, false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not update transaction.");
     } finally {

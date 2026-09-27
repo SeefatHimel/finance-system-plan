@@ -37,6 +37,21 @@ const accountTypes: AccountType[] = [
 
 const categoryKinds: CategoryKind[] = ["expense", "income", "transfer", "debt", "system"];
 
+type SetupTab = "accounts" | "categories";
+type SetupDrawer = "account-create" | "account-edit" | "category-create" | "category-edit" | null;
+
+function sortByName<T extends { name: string }>(items: T[]) {
+  return [...items].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function formatAccountBalance(account: Account) {
+  return new Intl.NumberFormat("en-BD", {
+    currency: account.currency,
+    maximumFractionDigits: 2,
+    style: "currency"
+  }).format(Number(account.starting_balance));
+}
+
 export function SetupWorkspace() {
   const [setupState, setSetupState] = useState<SetupState>({ status: "loading" });
   const [accountError, setAccountError] = useState<string | null>(null);
@@ -53,6 +68,14 @@ export function SetupWorkspace() {
   const [editingCategoryId, setEditingCategoryId] = useState("");
   const [editingCategoryName, setEditingCategoryName] = useState("");
   const [editingCategoryKind, setEditingCategoryKind] = useState<CategoryKind>("expense");
+  const [activeTab, setActiveTab] = useState<SetupTab>("accounts");
+  const [drawer, setDrawer] = useState<SetupDrawer>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [accountSearch, setAccountSearch] = useState("");
+  const [accountTypeFilter, setAccountTypeFilter] = useState<AccountType | "all">("all");
+  const [accountStatusFilter, setAccountStatusFilter] = useState<"active" | "all" | "inactive">("all");
+  const [categorySearch, setCategorySearch] = useState("");
+  const [categoryKindFilter, setCategoryKindFilter] = useState<CategoryKind | "all">("all");
 
   async function loadData() {
     const accessToken = getAccessToken();
@@ -97,13 +120,18 @@ export function SetupWorkspace() {
     setIsSavingAccount(true);
 
     try {
-      await createAccount(accessToken, {
+      const account = await createAccount(accessToken, {
+        currency: String(formData.get("currency") ?? "BDT"),
         name: String(formData.get("name") ?? ""),
         starting_balance: String(formData.get("starting_balance") ?? "0.00"),
         type: String(formData.get("type") ?? "cash") as AccountType
       });
       form.reset();
-      await loadData();
+      setSetupState((current) => current.status === "ready"
+        ? { ...current, accounts: sortByName([...current.accounts, account]) }
+        : current);
+      setDrawer(null);
+      setNotice(`Account “${account.name}” added.`);
     } catch (error) {
       setAccountError(error instanceof Error ? error.message : "Could not create account.");
     } finally {
@@ -126,12 +154,16 @@ export function SetupWorkspace() {
     setIsSavingCategory(true);
 
     try {
-      await createCategory(accessToken, {
+      const category = await createCategory(accessToken, {
         kind: String(formData.get("kind") ?? "expense") as CategoryKind,
         name: String(formData.get("name") ?? "")
       });
       form.reset();
-      await loadData();
+      setSetupState((current) => current.status === "ready"
+        ? { ...current, categories: sortByName([...current.categories, category]) }
+        : current);
+      setDrawer(null);
+      setNotice(`Category “${category.name}” added.`);
     } catch (error) {
       setCategoryError(error instanceof Error ? error.message : "Could not create category.");
     } finally {
@@ -157,7 +189,10 @@ export function SetupWorkspace() {
     setDeletingAccountId(account.id);
     try {
       await deleteAccount(accessToken, account.id);
-      await loadData();
+      setSetupState((current) => current.status === "ready"
+        ? { ...current, accounts: current.accounts.filter((item) => item.id !== account.id) }
+        : current);
+      setNotice(`Account “${account.name}” deleted.`);
     } catch (error) {
       setAccountError(error instanceof Error ? error.message : "Could not delete account.");
     } finally {
@@ -183,7 +218,10 @@ export function SetupWorkspace() {
     setDeletingCategoryId(category.id);
     try {
       await deleteCategory(accessToken, category.id);
-      await loadData();
+      setSetupState((current) => current.status === "ready"
+        ? { ...current, categories: current.categories.filter((item) => item.id !== category.id) }
+        : current);
+      setNotice(`Category “${category.name}” deleted.`);
     } catch (error) {
       setCategoryError(error instanceof Error ? error.message : "Could not delete category.");
     } finally {
@@ -198,6 +236,7 @@ export function SetupWorkspace() {
       : null;
     setEditingAccountName(selected?.name ?? "");
     setEditingAccountType((selected?.type ?? "cash") as AccountType);
+    if (selected) setDrawer("account-edit");
   }
 
   function handleSelectCategory(categoryId: string) {
@@ -207,6 +246,7 @@ export function SetupWorkspace() {
       : null;
     setEditingCategoryName(selected?.name ?? "");
     setEditingCategoryKind((selected?.kind ?? "expense") as CategoryKind);
+    if (selected) setDrawer("category-edit");
   }
 
   async function handleAccountUpdate(event: React.FormEvent<HTMLFormElement>) {
@@ -224,11 +264,15 @@ export function SetupWorkspace() {
     setAccountError(null);
     setIsUpdatingAccount(true);
     try {
-      await updateAccount(accessToken, editingAccountId, {
+      const account = await updateAccount(accessToken, editingAccountId, {
         name: editingAccountName,
         type: editingAccountType
       });
-      await loadData();
+      setSetupState((current) => current.status === "ready"
+        ? { ...current, accounts: sortByName(current.accounts.map((item) => item.id === account.id ? account : item)) }
+        : current);
+      setDrawer(null);
+      setNotice(`Account “${account.name}” updated.`);
     } catch (error) {
       setAccountError(error instanceof Error ? error.message : "Could not update account.");
     } finally {
@@ -251,11 +295,15 @@ export function SetupWorkspace() {
     setCategoryError(null);
     setIsUpdatingCategory(true);
     try {
-      await updateCategory(accessToken, editingCategoryId, {
+      const category = await updateCategory(accessToken, editingCategoryId, {
         kind: editingCategoryKind,
         name: editingCategoryName
       });
-      await loadData();
+      setSetupState((current) => current.status === "ready"
+        ? { ...current, categories: sortByName(current.categories.map((item) => item.id === category.id ? category : item)) }
+        : current);
+      setDrawer(null);
+      setNotice(`Category “${category.name}” updated.`);
     } catch (error) {
       setCategoryError(error instanceof Error ? error.message : "Could not update category.");
     } finally {
@@ -287,228 +335,73 @@ export function SetupWorkspace() {
     );
   }
 
+  const bdtStartingBalance = setupState.accounts
+    .filter((account) => account.currency === "BDT")
+    .reduce((sum, account) => sum + Number(account.starting_balance), 0);
+  const activeAccounts = setupState.accounts.filter((account) => account.is_active).length;
+  const visibleAccounts = setupState.accounts.filter((account) => {
+    const matchesSearch = account.name.toLowerCase().includes(accountSearch.trim().toLowerCase());
+    const matchesType = accountTypeFilter === "all" || account.type === accountTypeFilter;
+    const matchesStatus = accountStatusFilter === "all"
+      || (accountStatusFilter === "active" ? account.is_active : !account.is_active);
+    return matchesSearch && matchesType && matchesStatus;
+  });
+  const visibleCategories = setupState.categories.filter((category) => {
+    const matchesSearch = category.name.toLowerCase().includes(categorySearch.trim().toLowerCase());
+    const matchesKind = categoryKindFilter === "all" || category.kind === categoryKindFilter;
+    return matchesSearch && matchesKind;
+  });
+
   return (
     <div className="workspace-grid">
-      <section className="panel">
+      <section className="metric-strip setup-summary" aria-label="Account summary">
+        <div className="metric"><span className="metric__label">Total accounts</span><strong className="metric__value">{setupState.accounts.length}</strong></div>
+        <div className="metric"><span className="metric__label">Active accounts</span><strong className="metric__value">{activeAccounts}</strong></div>
+        <div className="metric"><span className="metric__label">BDT starting balance</span><strong className="metric__value">{new Intl.NumberFormat("en-BD", { currency: "BDT", maximumFractionDigits: 0, style: "currency" }).format(bdtStartingBalance)}</strong></div>
+        <div className="metric"><span className="metric__label">Categories</span><strong className="metric__value">{setupState.categories.length}</strong></div>
+      </section>
+
+      <section className="panel data-surface">
         <div className="panel__body">
-          <h1 className="section-title">Accounts</h1>
-          <p className="section-subtitle">
-            Add the places where money can move from or to.
-          </p>
-
-          <form className="setup-form" onSubmit={handleAccountSubmit}>
-            <label className="field">
-              <span className="field__label">Name</span>
-              <input className="field__control" name="name" required type="text" />
-            </label>
-
-            <label className="field">
-              <span className="field__label">Type</span>
-              <select className="field__control" name="type" required>
-                {accountTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type.replaceAll("_", " ")}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span className="field__label">Starting balance</span>
-              <input
-                className="field__control"
-                min="0"
-                name="starting_balance"
-                step="0.01"
-                type="number"
-              />
-            </label>
-
-            {accountError ? <p className="form-error">{accountError}</p> : null}
-
-            <button className="button button--primary" disabled={isSavingAccount} type="submit">
-              {isSavingAccount ? "Saving..." : "Add account"}
-            </button>
-          </form>
-
-          <div className="list-stack">
-            {setupState.accounts.length === 0 ? (
-              <p className="muted-text">No accounts yet.</p>
-            ) : (
-              setupState.accounts.map((account) => (
-                <div className="list-row" key={account.id}>
-                  <strong>{account.name}</strong>
-                  <div className="list-row__actions">
-                    <span>{account.type.replaceAll("_", " ")}</span>
-                    <button
-                      className="button button--danger"
-                      disabled={deletingAccountId === account.id}
-                      onClick={() => void handleDeleteAccount(account)}
-                      type="button"
-                    >
-                      {deletingAccountId === account.id ? "Deleting..." : "Delete"}
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
+          <div className="section-header section-header--tabs">
+            <div className="tab-list" role="tablist" aria-label="Setup sections">
+              <button className={`tab-button${activeTab === "accounts" ? " tab-button--active" : ""}`} onClick={() => setActiveTab("accounts")} role="tab" type="button">Accounts <span>{setupState.accounts.length}</span></button>
+              <button className={`tab-button${activeTab === "categories" ? " tab-button--active" : ""}`} onClick={() => setActiveTab("categories")} role="tab" type="button">Categories <span>{setupState.categories.length}</span></button>
+            </div>
+            <button className="button button--primary" onClick={() => { setNotice(null); setDrawer(activeTab === "accounts" ? "account-create" : "category-create"); }} type="button">+ Add {activeTab === "accounts" ? "account" : "category"}</button>
           </div>
 
-          <form className="setup-form" onSubmit={handleAccountUpdate}>
-            <label className="field">
-              <span className="field__label">Edit account</span>
-              <select
-                className="field__control"
-                onChange={(event) => handleSelectAccount(event.target.value)}
-                value={editingAccountId}
-              >
-                <option value="">Select account</option>
-                {setupState.accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span className="field__label">New name</span>
-              <input
-                className="field__control"
-                onChange={(event) => setEditingAccountName(event.target.value)}
-                required
-                type="text"
-                value={editingAccountName}
-              />
-            </label>
-            <label className="field">
-              <span className="field__label">New type</span>
-              <select
-                className="field__control"
-                onChange={(event) => setEditingAccountType(event.target.value as AccountType)}
-                value={editingAccountType}
-              >
-                {accountTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type.replaceAll("_", " ")}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              className="button button--ghost"
-              disabled={isUpdatingAccount}
-              type="submit"
-            >
-              {isUpdatingAccount ? "Updating..." : "Update account"}
-            </button>
-          </form>
+          {activeTab === "accounts" ? (
+            setupState.accounts.length === 0 ? (
+              <div className="empty-state empty-state--centered"><div className="empty-state__icon">▣</div><strong>No accounts yet</strong><span>Add your first account to start tracking money movement.</span><button className="button button--primary" onClick={() => setDrawer("account-create")} type="button">Add account</button></div>
+            ) : (
+              <><div className="data-toolbar"><label className="search-control"><span aria-hidden="true">⌕</span><input aria-label="Search accounts" onChange={(event) => setAccountSearch(event.target.value)} placeholder="Search accounts" type="search" value={accountSearch} /></label><div className="data-toolbar__filters"><select aria-label="Filter accounts by type" className="compact-select" onChange={(event) => setAccountTypeFilter(event.target.value as AccountType | "all")} value={accountTypeFilter}><option value="all">All types</option>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select><select aria-label="Filter accounts by status" className="compact-select" onChange={(event) => setAccountStatusFilter(event.target.value as "active" | "all" | "inactive")} value={accountStatusFilter}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div></div>{visibleAccounts.length === 0 ? <div className="empty-state empty-state--centered empty-state--compact"><strong>No matching accounts</strong><span>Try a different search term or filter.</span><button className="button button--ghost" onClick={() => { setAccountSearch(""); setAccountTypeFilter("all"); setAccountStatusFilter("all"); }} type="button">Clear filters</button></div> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Name</th><th>Type</th><th>Currency</th><th>Starting balance</th><th>Status</th><th className="align-right">Actions</th></tr></thead><tbody>{visibleAccounts.map((account) => <tr key={account.id}><td><strong>{account.name}</strong></td><td><span className="type-label">{account.type.replaceAll("_", " ")}</span></td><td>{account.currency}</td><td className="amount-cell">{formatAccountBalance(account)}</td><td><span className={`status-badge status-badge--${account.is_active ? "ok" : "idle"}`}>{account.is_active ? "Active" : "Inactive"}</span></td><td><div className="row-actions"><button className="button button--ghost button--small" onClick={() => handleSelectAccount(account.id)} type="button">Edit</button><button className="button button--danger button--small" disabled={deletingAccountId === account.id} onClick={() => void handleDeleteAccount(account)} type="button">{deletingAccountId === account.id ? "Deleting…" : "Delete"}</button></div></td></tr>)}</tbody></table></div>}</>
+            )
+          ) : (
+            setupState.categories.length === 0 ? (
+              <div className="empty-state empty-state--centered"><div className="empty-state__icon">◇</div><strong>No categories yet</strong><span>Create categories for expenses, income, transfers, and debt.</span><button className="button button--primary" onClick={() => setDrawer("category-create")} type="button">Add category</button></div>
+            ) : (
+              <><div className="data-toolbar"><label className="search-control"><span aria-hidden="true">⌕</span><input aria-label="Search categories" onChange={(event) => setCategorySearch(event.target.value)} placeholder="Search categories" type="search" value={categorySearch} /></label><div className="data-toolbar__filters"><select aria-label="Filter categories by kind" className="compact-select" onChange={(event) => setCategoryKindFilter(event.target.value as CategoryKind | "all")} value={categoryKindFilter}><option value="all">All kinds</option>{categoryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></div></div>{visibleCategories.length === 0 ? <div className="empty-state empty-state--centered empty-state--compact"><strong>No matching categories</strong><span>Try a different search term or filter.</span><button className="button button--ghost" onClick={() => { setCategorySearch(""); setCategoryKindFilter("all"); }} type="button">Clear filters</button></div> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Name</th><th>Kind</th><th className="align-right">Actions</th></tr></thead><tbody>{visibleCategories.map((category) => <tr key={category.id}><td><strong>{category.name}</strong></td><td><span className="type-label">{category.kind}</span></td><td><div className="row-actions"><button className="button button--ghost button--small" onClick={() => handleSelectCategory(category.id)} type="button">Edit</button><button className="button button--danger button--small" disabled={deletingCategoryId === category.id} onClick={() => void handleDeleteCategory(category)} type="button">{deletingCategoryId === category.id ? "Deleting…" : "Delete"}</button></div></td></tr>)}</tbody></table></div>}</>
+            )
+          )}
         </div>
       </section>
 
-      <section className="panel">
-        <div className="panel__body">
-          <h2 className="section-title">Categories</h2>
-          <p className="section-subtitle">
-            Add labels for spending, income, debts, transfers, and system items.
-          </p>
+      {drawer ? (
+        <><button className="drawer-scrim" aria-label="Close form" onClick={() => setDrawer(null)} type="button" /><aside aria-modal="true" className="form-drawer" role="dialog">
+          <div className="form-drawer__header"><div><h2>{drawer === "account-create" ? "Add account" : drawer === "account-edit" ? "Edit account" : drawer === "category-create" ? "Add category" : "Edit category"}</h2><p>{drawer.startsWith("account") ? "Keep account details accurate for reporting and reconciliation." : "Organize transactions with clear, reusable labels."}</p></div><button aria-label="Close form" className="icon-button" onClick={() => setDrawer(null)} type="button">×</button></div>
 
-          <form className="setup-form" onSubmit={handleCategorySubmit}>
-            <label className="field">
-              <span className="field__label">Name</span>
-              <input className="field__control" name="name" required type="text" />
-            </label>
+          {drawer === "account-create" ? <form className="drawer-form" onSubmit={handleAccountSubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" /></label><label className="field"><span className="field__label">Type</span><select className="field__control" name="type" required>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label><label className="field"><span className="field__label">Starting balance</span><input className="field__control" min="0" name="starting_balance" step="0.01" type="number" /></label><label className="field"><span className="field__label">Currency</span><select className="field__control" defaultValue="BDT" name="currency"><option value="BDT">BDT</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label>{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingAccount} type="submit">{isSavingAccount ? "Saving…" : "Add account"}</button></div></form> : null}
 
-            <label className="field">
-              <span className="field__label">Kind</span>
-              <select className="field__control" name="kind" required>
-                {categoryKinds.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {kind}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {drawer === "account-edit" ? <form className="drawer-form" onSubmit={handleAccountUpdate}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" onChange={(event) => setEditingAccountName(event.target.value)} required type="text" value={editingAccountName} /></label><label className="field"><span className="field__label">Type</span><select className="field__control" onChange={(event) => setEditingAccountType(event.target.value as AccountType)} value={editingAccountType}>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isUpdatingAccount} type="submit">{isUpdatingAccount ? "Updating…" : "Save changes"}</button></div></form> : null}
 
-            {categoryError ? <p className="form-error">{categoryError}</p> : null}
+          {drawer === "category-create" ? <form className="drawer-form" onSubmit={handleCategorySubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" /></label><label className="field"><span className="field__label">Kind</span><select className="field__control" name="kind" required>{categoryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></label>{categoryError ? <p className="form-error">{categoryError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingCategory} type="submit">{isSavingCategory ? "Saving…" : "Add category"}</button></div></form> : null}
 
-            <button className="button button--primary" disabled={isSavingCategory} type="submit">
-              {isSavingCategory ? "Saving..." : "Add category"}
-            </button>
-          </form>
+          {drawer === "category-edit" ? <form className="drawer-form" onSubmit={handleCategoryUpdate}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" onChange={(event) => setEditingCategoryName(event.target.value)} required type="text" value={editingCategoryName} /></label><label className="field"><span className="field__label">Kind</span><select className="field__control" onChange={(event) => setEditingCategoryKind(event.target.value as CategoryKind)} value={editingCategoryKind}>{categoryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></label>{categoryError ? <p className="form-error">{categoryError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isUpdatingCategory} type="submit">{isUpdatingCategory ? "Updating…" : "Save changes"}</button></div></form> : null}
+        </aside></>
+      ) : null}
 
-          <div className="list-stack">
-            {setupState.categories.length === 0 ? (
-              <p className="muted-text">No categories yet.</p>
-            ) : (
-              setupState.categories.map((category) => (
-                <div className="list-row" key={category.id}>
-                  <strong>{category.name}</strong>
-                  <div className="list-row__actions">
-                    <span>{category.kind}</span>
-                    <button
-                      className="button button--danger"
-                      disabled={deletingCategoryId === category.id}
-                      onClick={() => void handleDeleteCategory(category)}
-                      type="button"
-                    >
-                      {deletingCategoryId === category.id ? "Deleting..." : "Delete"}
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <form className="setup-form" onSubmit={handleCategoryUpdate}>
-            <label className="field">
-              <span className="field__label">Edit category</span>
-              <select
-                className="field__control"
-                onChange={(event) => handleSelectCategory(event.target.value)}
-                value={editingCategoryId}
-              >
-                <option value="">Select category</option>
-                {setupState.categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span className="field__label">New name</span>
-              <input
-                className="field__control"
-                onChange={(event) => setEditingCategoryName(event.target.value)}
-                required
-                type="text"
-                value={editingCategoryName}
-              />
-            </label>
-            <label className="field">
-              <span className="field__label">New kind</span>
-              <select
-                className="field__control"
-                onChange={(event) => setEditingCategoryKind(event.target.value as CategoryKind)}
-                value={editingCategoryKind}
-              >
-                {categoryKinds.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {kind}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              className="button button--ghost"
-              disabled={isUpdatingCategory}
-              type="submit"
-            >
-              {isUpdatingCategory ? "Updating..." : "Update category"}
-            </button>
-          </form>
-        </div>
-      </section>
+      {notice ? <div className="toast" role="status"><span className="toast__icon">✓</span><span>{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice(null)} type="button">×</button></div> : null}
     </div>
   );
 }

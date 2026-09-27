@@ -63,9 +63,15 @@ const currentUserSchema = z.object({
 });
 
 const accountSchema = z.object({
+  created_at: z.string(),
+  currency: z.string(),
+  display_order: z.number(),
   id: z.string(),
+  is_active: z.boolean(),
   name: z.string(),
-  type: z.string()
+  starting_balance: z.string(),
+  type: z.string(),
+  updated_at: z.string()
 });
 
 const categorySchema = z.object({

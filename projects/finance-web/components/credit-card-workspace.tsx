@@ -77,7 +77,7 @@ export function CreditCardWorkspace() {
   const [paymentNote, setPaymentNote] = useState("");
   const [isPaying, setIsPaying] = useState(false);
 
-  async function loadCreditCards() {
+  async function loadCreditCards(showLoading = true) {
     const accessToken = getAccessToken();
 
     if (!accessToken) {
@@ -85,7 +85,9 @@ export function CreditCardWorkspace() {
       return;
     }
 
-    setState({ status: "loading" });
+    if (showLoading) {
+      setState({ status: "loading" });
+    }
 
     try {
       const [accounts, bills] = await Promise.all([
@@ -174,7 +176,7 @@ export function CreditCardWorkspace() {
         statement_date: String(formData.get("statement_date") ?? "")
       });
       form.reset();
-      await loadCreditCards();
+      await loadCreditCards(false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not create credit card bill.");
     } finally {
@@ -206,7 +208,7 @@ export function CreditCardWorkspace() {
       });
       setPaymentAmount("");
       setPaymentNote("");
-      await loadCreditCards();
+      await loadCreditCards(false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not record bill payment.");
     } finally {

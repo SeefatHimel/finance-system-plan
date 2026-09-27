@@ -90,7 +90,7 @@ export function SmsSettingsWorkspace() {
   const [editingSenderRulePattern, setEditingSenderRulePattern] = useState("");
   const [editingSenderRulePriority, setEditingSenderRulePriority] = useState("100");
 
-  async function loadData() {
+  async function loadData(showLoading = true) {
     const accessToken = getAccessToken();
 
     if (!accessToken) {
@@ -98,7 +98,9 @@ export function SmsSettingsWorkspace() {
       return;
     }
 
-    setSettingsState({ status: "loading" });
+    if (showLoading) {
+      setSettingsState({ status: "loading" });
+    }
 
     try {
       const [accounts, paymentMethods, senderRules] = await Promise.all([
@@ -155,7 +157,7 @@ export function SmsSettingsWorkspace() {
         provider: String(formData.get("provider") ?? "bkash") as PaymentProvider
       });
       form.reset();
-      await loadData();
+      await loadData(false);
     } catch (error) {
       setPaymentMethodError(error instanceof Error ? error.message : "Could not create payment method.");
     } finally {
@@ -190,7 +192,7 @@ export function SmsSettingsWorkspace() {
         sender: String(formData.get("sender") ?? "")
       });
       form.reset();
-      await loadData();
+      await loadData(false);
     } catch (error) {
       setSenderRuleError(error instanceof Error ? error.message : "Could not create sender rule.");
     } finally {
@@ -245,7 +247,7 @@ export function SmsSettingsWorkspace() {
         name: editingPaymentMethodName,
         provider: editingPaymentMethodProvider
       });
-      await loadData();
+      await loadData(false);
     } catch (error) {
       setPaymentMethodError(error instanceof Error ? error.message : "Could not update payment method.");
     } finally {
@@ -279,7 +281,7 @@ export function SmsSettingsWorkspace() {
         provider: editingSenderRuleProvider,
         sender: editingSenderRuleSender
       });
-      await loadData();
+      await loadData(false);
     } catch (error) {
       setSenderRuleError(error instanceof Error ? error.message : "Could not update sender rule.");
     } finally {
@@ -305,7 +307,7 @@ export function SmsSettingsWorkspace() {
     setDeletingPaymentMethodId(paymentMethod.id);
     try {
       await deletePaymentMethod(accessToken, paymentMethod.id);
-      await loadData();
+      await loadData(false);
     } catch (error) {
       setPaymentMethodError(error instanceof Error ? error.message : "Could not delete payment method.");
     } finally {
@@ -329,7 +331,7 @@ export function SmsSettingsWorkspace() {
     setDeletingSenderRuleId(senderRule.id);
     try {
       await deleteSenderRule(accessToken, senderRule.id);
-      await loadData();
+      await loadData(false);
     } catch (error) {
       setSenderRuleError(error instanceof Error ? error.message : "Could not delete sender rule.");
     } finally {

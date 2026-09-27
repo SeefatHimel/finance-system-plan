@@ -92,7 +92,7 @@ export function MessageReviewWorkspace() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [workingCandidateId, setWorkingCandidateId] = useState<string | null>(null);
 
-  async function loadData() {
+  async function loadData(showLoading = true) {
     const accessToken = getAccessToken();
 
     if (!accessToken) {
@@ -100,7 +100,9 @@ export function MessageReviewWorkspace() {
       return;
     }
 
-    setReviewState({ status: "loading" });
+    if (showLoading) {
+      setReviewState({ status: "loading" });
+    }
 
     try {
       const [accounts, categories, candidates] = await Promise.all([
@@ -159,7 +161,7 @@ export function MessageReviewWorkspace() {
         transfer_account: String(formData.get("transfer_account") ?? "") || null,
         type: String(formData.get("type") ?? candidate.transaction_type) as TransactionType
       });
-      await loadData();
+      await loadData(false);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Could not confirm candidate.");
     } finally {
@@ -180,7 +182,7 @@ export function MessageReviewWorkspace() {
 
     try {
       await ignoreMessageCandidate(accessToken, candidateId);
-      await loadData();
+      await loadData(false);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Could not ignore candidate.");
     } finally {
@@ -208,7 +210,7 @@ export function MessageReviewWorkspace() {
 
     try {
       await redactRawMessage(accessToken, candidate.raw_message.id);
-      await loadData();
+      await loadData(false);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Could not redact raw SMS.");
     } finally {
