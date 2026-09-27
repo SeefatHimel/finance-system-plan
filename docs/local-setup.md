@@ -136,6 +136,11 @@ cp .env.example .env
 docker compose up -d postgres
 ```
 
+To run the API against a hosted database (for example Render) from your laptop,
+put the **external** `DATABASE_URL` in `projects/finance-api/.env`. Non-local
+hosts use SSL (`sslmode=require`) automatically. Keep using `DJANGO_DEBUG=true`
+for this laptop path. Do not commit `.env`.
+
 Start the Django API:
 
 ```bash

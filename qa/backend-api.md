@@ -247,6 +247,14 @@ amount and direction from one SMS, it can create misleading reports. Internal
 transfer candidates preserve source/destination hints and possible related SMS
 links so the review flow can confirm the movement without double-counting it.
 
+## Can you run the API locally against hosted PostgreSQL?
+
+Yes. Point `DATABASE_URL` in `projects/finance-api/.env` at the provider's
+external hostname. Local Docker Postgres stays on `localhost`. Hosted hosts
+outside `localhost`/`127.0.0.1`/`postgres` use SSL by default. Create a
+superuser on that database with `python manage.py createsuperuser` after
+migrate.
+
 ## How would you handle migrations safely?
 
 Use small migrations, avoid destructive schema changes, backfill data with data

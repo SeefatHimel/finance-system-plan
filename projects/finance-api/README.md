@@ -81,6 +81,10 @@ settings validation requires a strong non-default `DJANGO_SECRET_KEY`,
 PostgreSQL `DATABASE_URL`, deployed `DJANGO_ALLOWED_HOSTS`, and deployed CORS
 origins.
 
+To use hosted PostgreSQL from your laptop instead, set `DATABASE_URL` in
+`.env` to the provider **external** URL (Render includes
+`singapore-postgres.render.com`). Do not commit that file.
+
 Start PostgreSQL from `../finance-infra`:
 
 ```bash
