@@ -56,7 +56,10 @@ async function fetchBackend(
   body: ArrayBuffer | undefined
 ) {
   const search = request.nextUrl.search;
-  const backendPath = `/${pathSegments.join("/")}${search}`;
+  // Next.js normalizes the proxy route without a trailing slash. Django's
+  // router requires one and cannot redirect POST/PATCH/DELETE requests while
+  // preserving their bodies, so restore it before forwarding the request.
+  const backendPath = `/${pathSegments.join("/")}/${search}`;
   const headers = new Headers();
   const contentType = request.headers.get("content-type");
   const accept = request.headers.get("accept");
