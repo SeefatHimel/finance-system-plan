@@ -22,6 +22,7 @@ deployment are stable.
 - `DATABASE_URL` points to PostgreSQL, not SQLite.
 - `DJANGO_ALLOWED_HOSTS` is limited to deployed API hostnames.
 - `DJANGO_CORS_ALLOWED_ORIGINS` is limited to deployed web origins.
+- `DJANGO_CSRF_TRUSTED_ORIGINS` contains the deployed HTTPS API/admin origins.
 - HTTPS is enforced at the proxy, load balancer, or hosting platform.
 - Web production auth no longer stores refresh tokens in browser
   `localStorage`.
@@ -51,8 +52,15 @@ DJANGO_SECRET_KEY=<secret manager value>
 DJANGO_DEBUG=false
 DJANGO_ALLOWED_HOSTS=api.example.com
 DJANGO_CORS_ALLOWED_ORIGINS=https://app.example.com
+DJANGO_CSRF_TRUSTED_ORIGINS=https://api.example.com
 DATABASE_URL=postgres://...
 ```
+
+On Render, Django also adds the platform-provided `RENDER_EXTERNAL_URL` to the
+trusted CSRF origins automatically. Add custom domains explicitly through
+`DJANGO_CSRF_TRUSTED_ORIGINS`. The settings trust Render's
+`X-Forwarded-Proto` header so Django recognizes proxied HTTPS requests, and
+production session and CSRF cookies are marked secure.
 
 Web:
 

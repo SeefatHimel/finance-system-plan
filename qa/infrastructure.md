@@ -61,7 +61,9 @@ static/media file strategy. The deployment plan now lists concrete gates for
 debug mode, allowed hosts, CORS origins, PostgreSQL, auth storage, backups,
 restore drills, and rollback. The Django settings module now refuses
 `DJANGO_DEBUG=false` when the backend still has local-dev secrets, SQLite,
-localhost-only hosts, or localhost CORS origins.
+localhost-only hosts, localhost CORS origins, or missing/non-HTTPS CSRF trusted
+origins. It also recognizes HTTPS behind Render's proxy and marks production
+session and CSRF cookies secure.
 
 ## How should backups work?
 

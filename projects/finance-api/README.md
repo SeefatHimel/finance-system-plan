@@ -79,7 +79,9 @@ cp .env.example .env
 The default `.env.example` is for local development. When `DJANGO_DEBUG=false`,
 settings validation requires a strong non-default `DJANGO_SECRET_KEY`,
 PostgreSQL `DATABASE_URL`, deployed `DJANGO_ALLOWED_HOSTS`, and deployed CORS
-origins.
+and CSRF origins. Use full origins including the scheme for
+`DJANGO_CSRF_TRUSTED_ORIGINS`, for example `https://api.example.com`. Render's
+`RENDER_EXTERNAL_URL` is trusted automatically.
 
 To use hosted PostgreSQL from your laptop instead, set `DATABASE_URL` in
 `.env` to the provider **external** URL (Render includes

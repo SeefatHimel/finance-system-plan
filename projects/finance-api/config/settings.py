@@ -31,6 +31,16 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "local-dev-secret")
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 
+RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "").rstrip("/")
+CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", [])
+if RENDER_EXTERNAL_URL and RENDER_EXTERNAL_URL not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(RENDER_EXTERNAL_URL)
+
+# Render and similar platforms terminate TLS before proxying to Django.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -153,6 +163,10 @@ def validate_production_settings() -> None:
         for origin in CORS_ALLOWED_ORIGINS
     ):
         errors.append("DJANGO_CORS_ALLOWED_ORIGINS must be restricted to deployed HTTPS origins.")
+    if not CSRF_TRUSTED_ORIGINS or any(
+        not origin.startswith("https://") for origin in CSRF_TRUSTED_ORIGINS
+    ):
+        errors.append("DJANGO_CSRF_TRUSTED_ORIGINS must contain deployed HTTPS origins.")
 
     if errors:
         raise ImproperlyConfigured("Production settings are not safe: " + " ".join(errors))

@@ -169,7 +169,9 @@ bills, recurring bills, and balance snapshots.
 
 The settings module also validates production-critical configuration when
 `DJANGO_DEBUG=false`, refusing local-dev secrets, SQLite, localhost-only hosts,
-and localhost CORS origins.
+localhost CORS origins, and missing or non-HTTPS CSRF trusted origins. It trusts
+the proxy's forwarded HTTPS scheme and uses secure session and CSRF cookies in
+production; Render's external service URL is included automatically.
 JWT refresh tokens rotate on use and old refresh tokens are blacklisted after
 rotation, which makes refresh-token reuse fail instead of silently extending a
 stolen token.
