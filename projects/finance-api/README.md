@@ -57,6 +57,9 @@ The API project is scaffolded with:
 
 ## Local Setup
 
+The repository pins Python 3.13 in `.python-version`. Django 5.1 does not
+support Python 3.14, so hosted Python runtimes must honor this pin.
+
 Create a virtual environment:
 
 ```bash

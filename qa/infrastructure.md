@@ -65,6 +65,13 @@ localhost-only hosts, localhost CORS origins, or missing/non-HTTPS CSRF trusted
 origins. It also recognizes HTTPS behind Render's proxy and marks production
 session and CSRF cookies secure.
 
+## Why is Python pinned to 3.13?
+
+The backend currently uses Django 5.1, which officially supports Python through
+3.13 but not Python 3.14. Render defaults newer services to Python 3.14, which
+breaks Django admin template rendering. The repository-level `.python-version`
+keeps hosted native Python builds on the compatible 3.13 series.
+
 ## How should backups work?
 
 Backups should include PostgreSQL dumps, uploaded files if attachments are

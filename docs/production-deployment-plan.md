@@ -18,6 +18,8 @@ deployment are stable.
 ## Required Gates Before Real Financial Use
 
 - `DJANGO_DEBUG=false`.
+- The backend runtime uses the repository's Python 3.13 pin; Django 5.1 is not
+  compatible with Python 3.14.
 - Strong `DJANGO_SECRET_KEY` stored outside git.
 - `DATABASE_URL` points to PostgreSQL, not SQLite.
 - `DJANGO_ALLOWED_HOSTS` is limited to deployed API hostnames.
