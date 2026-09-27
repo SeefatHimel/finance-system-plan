@@ -23,7 +23,9 @@ const currentUserSchema = z.object({
 type TokenPair = z.infer<typeof tokenPairSchema>;
 
 export function getServerApiBaseUrl() {
-  return process.env.NEXT_SERVER_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  const apiBaseUrl =
+    process.env.NEXT_SERVER_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  return apiBaseUrl.replace(/\/+$/, "");
 }
 
 function isProduction() {

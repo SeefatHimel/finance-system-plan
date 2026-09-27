@@ -14,7 +14,7 @@ async function parseError(response: Response, fallback: string) {
 }
 
 export async function loginWithCookieSession(username: string, password: string): Promise<LoginResult> {
-  const response = await fetch("/api/auth/login/", {
+  const response = await fetch("/api/auth/login", {
     body: JSON.stringify({ password, username }),
     headers: {
       "Content-Type": "application/json"
@@ -30,7 +30,7 @@ export async function loginWithCookieSession(username: string, password: string)
 }
 
 export async function getCookieSessionUser(): Promise<CurrentUser> {
-  const response = await fetch("/api/auth/me/", {
+  const response = await fetch("/api/auth/me", {
     cache: "no-store"
   });
 
@@ -42,7 +42,7 @@ export async function getCookieSessionUser(): Promise<CurrentUser> {
 }
 
 export async function logoutCookieSession() {
-  const response = await fetch("/api/auth/logout/", {
+  const response = await fetch("/api/auth/logout", {
     method: "POST"
   });
 

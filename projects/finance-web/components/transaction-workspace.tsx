@@ -211,7 +211,8 @@ export function TransactionWorkspace() {
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     const type = String(formData.get("type") ?? "expense") as TransactionType;
     const direction = String(formData.get("direction") ?? "debit") as TransactionDirection;
     const transferAccount = String(formData.get("transfer_account") ?? "");
@@ -234,7 +235,7 @@ export function TransactionWorkspace() {
         transfer_account: type === "transfer" ? transferAccount : undefined,
         type
       });
-      event.currentTarget.reset();
+      form.reset();
       await loadData(filters);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not create transaction.");

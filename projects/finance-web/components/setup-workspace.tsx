@@ -91,7 +91,8 @@ export function SetupWorkspace() {
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     setAccountError(null);
     setIsSavingAccount(true);
 
@@ -101,7 +102,7 @@ export function SetupWorkspace() {
         starting_balance: String(formData.get("starting_balance") ?? "0.00"),
         type: String(formData.get("type") ?? "cash") as AccountType
       });
-      event.currentTarget.reset();
+      form.reset();
       await loadData();
     } catch (error) {
       setAccountError(error instanceof Error ? error.message : "Could not create account.");
@@ -119,7 +120,8 @@ export function SetupWorkspace() {
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     setCategoryError(null);
     setIsSavingCategory(true);
 
@@ -128,7 +130,7 @@ export function SetupWorkspace() {
         kind: String(formData.get("kind") ?? "expense") as CategoryKind,
         name: String(formData.get("name") ?? "")
       });
-      event.currentTarget.reset();
+      form.reset();
       await loadData();
     } catch (error) {
       setCategoryError(error instanceof Error ? error.message : "Could not create category.");

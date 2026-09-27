@@ -142,7 +142,8 @@ export function SmsSettingsWorkspace() {
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     setPaymentMethodError(null);
     setIsSavingPaymentMethod(true);
 
@@ -153,7 +154,7 @@ export function SmsSettingsWorkspace() {
         name: String(formData.get("name") ?? ""),
         provider: String(formData.get("provider") ?? "bkash") as PaymentProvider
       });
-      event.currentTarget.reset();
+      form.reset();
       await loadData();
     } catch (error) {
       setPaymentMethodError(error instanceof Error ? error.message : "Could not create payment method.");
@@ -171,7 +172,8 @@ export function SmsSettingsWorkspace() {
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     const priority = Number(formData.get("priority") ?? 100);
     setSenderRuleError(null);
     setIsSavingSenderRule(true);
@@ -187,7 +189,7 @@ export function SmsSettingsWorkspace() {
         provider: String(formData.get("provider") ?? "bkash") as SenderRuleProvider,
         sender: String(formData.get("sender") ?? "")
       });
-      event.currentTarget.reset();
+      form.reset();
       await loadData();
     } catch (error) {
       setSenderRuleError(error instanceof Error ? error.message : "Could not create sender rule.");

@@ -116,7 +116,8 @@ export function DebtWorkspace() {
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     setFormError(null);
     setIsCreating(true);
 
@@ -129,7 +130,7 @@ export function DebtWorkspace() {
         opened_at: String(formData.get("opened_at") ?? ""),
         principal_amount: String(formData.get("principal_amount") ?? "")
       });
-      event.currentTarget.reset();
+      form.reset();
       await loadDebts();
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not create debt.");

@@ -429,10 +429,13 @@ export type CreateBalanceSnapshotInput = {
 };
 
 export function getApiBaseUrl() {
+  let apiBaseUrl: string;
   if (typeof window === "undefined") {
-    return process.env.NEXT_SERVER_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+    apiBaseUrl = process.env.NEXT_SERVER_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  } else {
+    apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
   }
-  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  return apiBaseUrl.replace(/\/+$/, "");
 }
 
 export async function getHealthStatus(): Promise<HealthStatus> {
