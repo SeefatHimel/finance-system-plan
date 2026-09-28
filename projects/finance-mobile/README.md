@@ -138,6 +138,14 @@ SMS messages into the existing raw-message queue.
 See `docs/native-sms-capture.md` for the full workflow and troubleshooting
 steps.
 
+## Signed Android Release
+
+The release build reads its keystore path, alias, and passwords from private
+Gradle properties or environment variables and refuses to fall back to the
+debug key. Follow `docs/signed-android-release.md` to create the permanent key,
+build the signed APK, verify its signature, install it on a phone, or produce an
+Android App Bundle.
+
 ## Docker (Optional)
 
 From `projects/finance-infra`:
@@ -151,8 +159,11 @@ For day-to-day development, native Expo on host is still the recommended path.
 
 ## Responsibilities
 
-- Quick manual transaction entry.
-- Account/category sync.
+- Automatic Android SMS capture from user-enabled sender rules.
+- Reliable local message queueing and backend sync.
+- Review and confirmation of parsed transaction candidates.
+- Account/category and transaction sync.
+- Quick manual transaction entry as a fallback.
 - Android SMS permission flow.
 - User-selected tracked SMS sender numbers.
 - Local raw message storage.

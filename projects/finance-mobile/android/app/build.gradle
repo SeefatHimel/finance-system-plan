@@ -68,6 +68,22 @@ react {
  */
 def enableProguardInReleaseBuilds = (findProperty('android.enableProguardInReleaseBuilds') ?: false).toBoolean()
 
+def releaseSigningValue = { propertyName ->
+    def value = findProperty(propertyName) ?: System.getenv(propertyName)
+    return value?.toString()?.trim()
+}
+
+def releaseStoreFile = releaseSigningValue('FINANCE_UPLOAD_STORE_FILE')
+def releaseStorePassword = releaseSigningValue('FINANCE_UPLOAD_STORE_PASSWORD')
+def releaseKeyAlias = releaseSigningValue('FINANCE_UPLOAD_KEY_ALIAS')
+def releaseKeyPassword = releaseSigningValue('FINANCE_UPLOAD_KEY_PASSWORD')
+def hasReleaseSigning = [
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword
+].every { it }
+
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
  *
@@ -102,15 +118,23 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             shrinkResources (findProperty('android.enableShrinkResourcesInReleaseBuilds')?.toBoolean() ?: false)
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
@@ -124,6 +148,22 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def isReleasePackageRequested = taskGraph.allTasks.any { task ->
+        task.project == project &&
+            task.name.toLowerCase().contains('release') &&
+            (task.name.startsWith('assemble') ||
+                task.name.startsWith('package') ||
+                task.name.startsWith('bundle'))
+    }
+
+    if (isReleasePackageRequested && !hasReleaseSigning) {
+        throw new GradleException(
+            'Release signing is not configured. Follow docs/signed-android-release.md.'
+        )
     }
 }
 

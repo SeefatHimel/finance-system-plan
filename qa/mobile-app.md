@@ -2,9 +2,10 @@
 
 ## What is the mobile app responsible for?
 
-The mobile app is responsible for quick manual entry, Android SMS capture,
-sender rule management, local message storage, sync, and reviewing parsed
-transaction candidates.
+The mobile app's primary responsibility is automatic Android SMS capture,
+sender rule management, reliable local message storage and sync, and reviewing
+parsed transaction candidates. Quick manual entry is a fallback for activity
+that cannot be captured automatically.
 
 ## Why build mobile separately from web?
 
@@ -39,6 +40,15 @@ permission and capture sender-matched messages.
 Current SMS decision: keep broad SMS access out of Expo Go, use the local native
 module only in a custom Android build, and process only user-enabled sender-rule
 matches. Public distribution still needs SMS permission policy review.
+
+## How is a release APK signed?
+
+The Android release build reads the keystore path, alias, store password, and
+key password from private Gradle properties or environment variables. It fails
+the release task when those values are missing rather than silently using the
+debug key. The permanent key, build commands, signature verification, APK/AAB
+paths, and physical-phone SMS smoke test are documented in
+`projects/finance-mobile/docs/signed-android-release.md`.
 
 ## What is currently implemented in the mobile app?
 
