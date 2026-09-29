@@ -14,7 +14,8 @@ The current implementation is still intentionally simple at the client layer:
 - Web stores both tokens in browser `localStorage` only for local-development
   mode. When browser token storage is disabled, it uses HTTP-only cookies via
   same-origin Next.js routes.
-- Mobile keeps tokens in React state during the testing session.
+- Mobile stores its rotated JWT session in Expo SecureStore and loads access
+  credentials into React state for API calls.
 
 That is acceptable for local development, but not for production financial data.
 
@@ -114,9 +115,11 @@ Deployment/security requirements:
 4. Replace web `localStorage` usage with cookie-backed session helpers. Done for
    login/session status and authenticated workspace API calls through the
    same-origin proxy route layer.
-5. Add mobile secure token storage.
+5. Add mobile secure token storage. Done with Expo SecureStore, startup refresh,
+   and secure deletion on logout.
 6. Add automatic token refresh in web and mobile API clients. Done for the
-   local-development web API wrapper; mobile remains pending.
+   local-development web API wrapper and mobile app startup; retrying a failed
+   mobile request once after a mid-session `401` remains pending.
 7. Add tests for refresh, logout, expired access token, and invalid refresh
    token behavior.
 8. Update privacy docs and deployment docs before production use.

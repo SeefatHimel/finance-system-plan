@@ -11,6 +11,10 @@ Phase 1 scaffold now includes:
 - Health check screen that calls `GET /api/health/`.
 - Login test flow that calls `POST /api/auth/login/`.
 - Access-token validation flow that calls `GET /api/auth/me/`.
+- Persistent mobile session backed by Expo SecureStore:
+  - stores the rotated JWT pair in Android Keystore-backed storage
+  - refreshes the session on app launch
+  - removes the saved session on explicit logout
 - Account and category fetch flow for authenticated users:
   - `GET /api/accounts/`
   - `GET /api/categories/`
@@ -35,6 +39,12 @@ Phase 1 scaffold now includes:
     running a custom Android dev client or APK
 - Local raw message queue:
   - stores queued raw messages with AsyncStorage
+- Historical SMS backfill in native Android builds:
+  - scans the existing inbox after the user grants `READ_SMS`
+  - evaluates only user-enabled sender rules
+  - records deterministic message fingerprints so previously scanned messages
+    are not imported again
+  - queues before uploading so an interrupted sync does not lose a message
   - syncs queued messages to `POST /api/messages/import/`
   - keeps failed sync items queued for retry
   - records attempt count, last attempt time, next retry time, and last error per queued message
@@ -111,9 +121,8 @@ If using a physical device, replace it with your machine's LAN IP:
 EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:8000
 ```
 
-The current login flow is for local testing. Production mobile auth should use
-OS-backed secure storage for refresh tokens. See
-`../../docs/auth-token-storage-plan.md`.
+The mobile login flow uses OS-backed SecureStore and rotates the saved JWT pair
+on app launch. See `../../docs/auth-token-storage-plan.md`.
 
 ## Native Android SMS Capture
 

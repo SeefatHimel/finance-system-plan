@@ -34,6 +34,13 @@ class FinanceSmsCaptureModule : Module() {
       FinanceSmsStore.getMessages(requireContext(), limit ?: 50)
     }
 
+    AsyncFunction("scanHistoricalMessagesAsync") { limit: Int? ->
+      if (!hasPermission(Manifest.permission.READ_SMS)) {
+        throw IllegalStateException("Android SMS read permission is required before scanning message history.")
+      }
+      FinanceSmsStore.scanHistoricalMessages(requireContext(), limit ?: 500)
+    }
+
     AsyncFunction("clearCapturedMessagesAsync") { ids: List<String> ->
       FinanceSmsStore.clearMessages(requireContext(), ids)
     }

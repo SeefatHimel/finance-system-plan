@@ -13,6 +13,13 @@ export type AuthTokens = {
   refresh: string;
 };
 
+export class AuthenticationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthenticationError";
+  }
+}
+
 export type CurrentUser = {
   email: string;
   first_name: string;
@@ -356,6 +363,30 @@ export async function login(username: string, password: string): Promise<AuthTok
   return payload;
 }
 
+export async function refreshLogin(refreshToken: string): Promise<AuthTokens> {
+  const response = await fetch(`${getApiBaseUrl()}/api/auth/refresh/`, {
+    body: JSON.stringify({ refresh: refreshToken }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new AuthenticationError("Your saved session has expired.");
+    }
+    throw new Error(`Could not refresh the session (HTTP ${response.status}).`);
+  }
+
+  const payload = (await response.json()) as AuthTokens;
+  if (!payload.access || !payload.refresh) {
+    throw new Error("Refresh response is invalid.");
+  }
+
+  return payload;
+}
+
 export async function getCurrentUser(accessToken: string): Promise<CurrentUser> {
   const response = await fetch(`${getApiBaseUrl()}/api/auth/me/`, {
     headers: {
@@ -364,7 +395,10 @@ export async function getCurrentUser(accessToken: string): Promise<CurrentUser> 
   });
 
   if (!response.ok) {
-    throw new Error(response.status === 401 ? "Token is invalid or expired." : "Could not load user.");
+    if (response.status === 401) {
+      throw new AuthenticationError("Token is invalid or expired.");
+    }
+    throw new Error("Could not load user.");
   }
 
   return (await response.json()) as CurrentUser;

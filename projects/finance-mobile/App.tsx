@@ -29,6 +29,7 @@ import {
   createRecurringBill,
   createRecurringBillPayment,
   createTransaction,
+  AuthenticationError,
   getApiBaseUrl,
   getAccountReconciliation,
   getCurrentUser,
@@ -44,6 +45,7 @@ import {
   listSenderRules,
   listTransactions,
   login,
+  refreshLogin,
   type Account,
   type AccountReconciliation,
   type Category,
@@ -63,14 +65,17 @@ import {
   getCapturedSmsMessages,
   getNativeSmsPermissionStatus,
   isNativeSmsCaptureAvailable,
+  scanHistoricalSmsMessages,
   type CapturedSmsMessage,
   type NativeSmsSenderRule
 } from "./modules/finance-sms-capture/src";
+import { clearSession, loadSession, saveSession } from "./src/session";
 
 type ViewState = "idle" | "loading" | "success" | "error";
 type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
 type MainTab = "home" | "activity" | "review" | "accounts" | "more";
 type HomeFeed = "review" | "captured";
+type MobilePanel = "sms-automation" | null;
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 type ReviewCandidateDraft = {
   accountId: string;
@@ -104,6 +109,7 @@ const manualTransactionQueueKey = "finance.manualTransactionQueue";
 const accountCacheKey = "finance.accountCache";
 const categoryCacheKey = "finance.categoryCache";
 const transactionCacheKey = "finance.transactionCache";
+const enabledSenderRulesKey = "finance.enabledSenderRules";
 
 function parseMoney(value: string | null | undefined) {
   if (!value) {
@@ -191,6 +197,19 @@ function nullableStringValue(value: unknown) {
 
 function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function normalizeStringArray(storedValue: string | null): string[] {
+  if (!storedValue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(storedValue) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 function normalizeAccountCache(storedAccounts: string | null): Account[] {
@@ -547,6 +566,7 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [refreshToken, setRefreshToken] = useState("");
+  const [sessionRestoring, setSessionRestoring] = useState(true);
   const [authState, setAuthState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [authMessage, setAuthMessage] = useState("");
   const [dataState, setDataState] = useState<"idle" | "loading" | "ok" | "error">("idle");
@@ -640,6 +660,7 @@ export default function App() {
   const [homeFeed, setHomeFeed] = useState<HomeFeed>("review");
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [showAdvancedTools, setShowAdvancedTools] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const drawerTranslateX = useRef(new Animated.Value(-320)).current;
   const contentOpacity = useRef(new Animated.Value(1)).current;
 
@@ -1140,6 +1161,28 @@ export default function App() {
     }
   };
 
+  const refreshSmsPermissionState = async () => {
+    if (Platform.OS !== "android" || !isNativeSmsCaptureAvailable()) {
+      setSmsPermissionState("denied");
+      setSmsPermissionMessage("SMS automation is available in the installed Android app.");
+      return;
+    }
+
+    try {
+      const nativeStatus = await getNativeSmsPermissionStatus();
+      const isGranted = nativeStatus.canReadSms && nativeStatus.canReceiveSms;
+      setSmsPermissionState(isGranted ? "granted" : "denied");
+      setSmsPermissionMessage(
+        isGranted
+          ? "SMS access is ready. Choose trusted senders and start the sync."
+          : "Allow read and receive access so Finance Mobile can find matching messages."
+      );
+    } catch (error) {
+      setSmsPermissionState("denied");
+      setSmsPermissionMessage(error instanceof Error ? error.message : "Could not check SMS permission.");
+    }
+  };
+
   const handleRequestSmsPermission = async () => {
     setSmsPermissionState("checking");
     setSmsPermissionMessage("Checking native Android SMS permission.");
@@ -1168,7 +1211,7 @@ export default function App() {
 
       if (hasReadSms && hasReceiveSms && nativeStatus.canReadSms && nativeStatus.canReceiveSms) {
         setSmsPermissionState("granted");
-        setSmsPermissionMessage("SMS permission granted. Sync enabled sender rules to native capture next.");
+        setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         return;
       }
 
@@ -1270,6 +1313,120 @@ export default function App() {
     }
   };
 
+  const handleScanAndSyncSms = async () => {
+    if (!accessToken.trim()) {
+      setRawQueueState("error");
+      setRawQueueMessage("Your session is not ready. Sign in again and retry.");
+      return;
+    }
+
+    const enabledRules = senderRules.filter((rule) => enabledSenderRuleIds.includes(rule.id));
+    const nativeRules = buildNativeSenderRules(senderRules, enabledSenderRuleIds);
+    if (enabledRules.length === 0 || nativeRules.length === 0) {
+      setRawQueueState("error");
+      setRawQueueMessage("Choose at least one trusted SMS sender before scanning.");
+      return;
+    }
+
+    setRawQueueState("loading");
+    setRawQueueMessage("Checking Android SMS access…");
+
+    try {
+      const permission = await getNativeSmsPermissionStatus();
+      if (!permission.canReadSms) {
+        setRawQueueState("error");
+        setRawQueueMessage("Allow SMS access first, then run the scan again.");
+        return;
+      }
+
+      await configureNativeSmsSenderRules(nativeRules);
+      setRawQueueMessage("Scanning messages that have not been imported before…");
+      const scanResult = await scanHistoricalSmsMessages(500);
+      const capturedMessages = await getCapturedSmsMessages(500);
+      const currentDedupeKeys = new Set(rawQueue.map((queuedMessage) => rawMessageDedupeKey(queuedMessage)));
+      const newlyQueued: QueuedRawMessage[] = [];
+      const clearIds: string[] = [];
+      let localDuplicateCount = 0;
+
+      capturedMessages.forEach((message) => {
+        if (!enabledRules.some((rule) => senderMatchesRule(message.sender, rule))) {
+          return;
+        }
+
+        const queuedInput = {
+          body: message.body.trim(),
+          deviceMessageId: `native:${message.id}`,
+          receivedAt: message.receivedAt.trim(),
+          sender: message.sender.trim()
+        };
+        clearIds.push(message.id);
+        const dedupeKey = rawMessageDedupeKey(queuedInput);
+        if (currentDedupeKeys.has(dedupeKey)) {
+          localDuplicateCount += 1;
+          return;
+        }
+
+        currentDedupeKeys.add(dedupeKey);
+        newlyQueued.push({
+          attempts: 0,
+          body: queuedInput.body,
+          createdAt: new Date().toISOString(),
+          deviceMessageId: queuedInput.deviceMessageId,
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          lastAttemptAt: "",
+          lastError: "",
+          nextRetryAt: "",
+          receivedAt: queuedInput.receivedAt,
+          sender: queuedInput.sender
+        });
+      });
+
+      const queueToSync = [...rawQueue, ...newlyQueued];
+      await saveRawQueue(queueToSync);
+      await clearCapturedSmsMessages(clearIds);
+      const remainingQueue: QueuedRawMessage[] = [];
+      let syncedCount = 0;
+      let failedCount = 0;
+
+      setRawQueueMessage(`Found ${newlyQueued.length} new tracked message(s). Syncing securely…`);
+      for (const queuedMessage of queueToSync) {
+        const attemptedMessage: QueuedRawMessage = {
+          ...queuedMessage,
+          attempts: queuedMessage.attempts + 1,
+          lastAttemptAt: new Date().toISOString(),
+          lastError: ""
+        };
+
+        try {
+          await importRawMessage(accessToken.trim(), {
+            body: attemptedMessage.body,
+            device_message_id: attemptedMessage.deviceMessageId,
+            received_at: attemptedMessage.receivedAt,
+            sender: attemptedMessage.sender
+          });
+          syncedCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          remainingQueue.push({
+            ...attemptedMessage,
+            lastError: error instanceof Error ? error.message : "Unknown sync error.",
+            nextRetryAt: nextQueueRetryAt(attemptedMessage.attempts)
+          });
+        }
+      }
+
+      await saveRawQueue(remainingQueue);
+      await Promise.all([handleLoadReviewCandidates(), handleLoadTransactions()]);
+      setRawQueueState(failedCount > 0 ? "error" : "ok");
+      setRawQueueMessage(
+        `Scanned ${scanResult.scannedCount} SMS. Found ${scanResult.capturedCount} new tracked message(s), synced ${syncedCount}, and kept ${failedCount} for retry.${localDuplicateCount || scanResult.duplicateCount ? ` ${localDuplicateCount + scanResult.duplicateCount} already scanned.` : ""}`
+      );
+    } catch (error) {
+      setRawQueueState("error");
+      setRawQueueMessage(error instanceof Error ? error.message : "Could not scan and sync SMS messages.");
+    }
+  };
+
   const handleLoadSmsSettings = async () => {
     if (!accessToken.trim()) {
       setSmsSettingsState("error");
@@ -1280,15 +1437,17 @@ export default function App() {
     setSmsSettingsState("loading");
     setSmsSettingsMessage("");
     try {
-      const [nextPaymentMethods, nextSenderRules] = await Promise.all([
+      const [nextPaymentMethods, nextSenderRules, storedEnabledRuleIds] = await Promise.all([
         listPaymentMethods(accessToken.trim()),
-        listSenderRules(accessToken.trim())
+        listSenderRules(accessToken.trim()),
+        AsyncStorage.getItem(enabledSenderRulesKey)
       ]);
+      const validEnabledRuleIds = normalizeStringArray(storedEnabledRuleIds).filter((ruleId) =>
+        nextSenderRules.some((rule) => rule.id === ruleId)
+      );
       setPaymentMethods(nextPaymentMethods);
       setSenderRules(nextSenderRules);
-      setEnabledSenderRuleIds((currentIds) =>
-        currentIds.filter((ruleId) => nextSenderRules.some((rule) => rule.id === ruleId))
-      );
+      setEnabledSenderRuleIds(validEnabledRuleIds);
       setSmsSettingsState("ok");
       setSmsSettingsMessage(
         `Loaded ${nextPaymentMethods.length} payment method(s) and ${nextSenderRules.length} sender rule(s).`
@@ -1301,10 +1460,11 @@ export default function App() {
 
   const handleToggleSenderRule = (senderRuleId: string) => {
     setEnabledSenderRuleIds((currentIds) => {
-      if (currentIds.includes(senderRuleId)) {
-        return currentIds.filter((id) => id !== senderRuleId);
-      }
-      return [...currentIds, senderRuleId];
+      const nextIds = currentIds.includes(senderRuleId)
+        ? currentIds.filter((id) => id !== senderRuleId)
+        : [...currentIds, senderRuleId];
+      void AsyncStorage.setItem(enabledSenderRulesKey, JSON.stringify(nextIds));
+      return nextIds;
     });
   };
 
@@ -1441,10 +1601,12 @@ export default function App() {
 
     try {
       const tokens = await login(username.trim(), password);
+      await saveSession({ ...tokens, username: username.trim() });
       setAccessToken(tokens.access);
       setRefreshToken(tokens.refresh);
+      setPassword("");
       setAuthState("ok");
-      setAuthMessage("Login successful. Tokens received.");
+      setAuthMessage("Signed in securely.");
     } catch (error) {
       setAuthState("error");
       setAuthMessage(error instanceof Error ? error.message : "Login failed.");
@@ -1700,6 +1862,7 @@ export default function App() {
       useNativeDriver: true
     }).start(() => {
       setActiveTab(nextTab);
+      setMobilePanel(null);
       setShowAdvancedTools(false);
       Animated.timing(contentOpacity, {
         duration: 220,
@@ -1710,19 +1873,55 @@ export default function App() {
     });
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await clearSession();
     setAccessToken("");
     setRefreshToken("");
     setPassword("");
     setAuthState("idle");
     setAuthMessage("");
     setActiveTab("home");
+    setMobilePanel(null);
     setShowAdvancedTools(false);
     closeDrawer();
   };
 
   useEffect(() => {
     void loadHealth();
+    void refreshSmsPermissionState();
+    loadSession()
+      .then(async (storedSession) => {
+        if (!storedSession) {
+          return;
+        }
+
+        setUsername(storedSession.username);
+        try {
+          const tokens = await refreshLogin(storedSession.refresh);
+          await saveSession({ ...tokens, username: storedSession.username });
+          setAccessToken(tokens.access);
+          setRefreshToken(tokens.refresh);
+          setAuthState("ok");
+          setAuthMessage("Session restored.");
+        } catch (error) {
+          if (error instanceof AuthenticationError) {
+            await clearSession();
+            setAuthState("error");
+            setAuthMessage("Your previous session expired. Sign in again.");
+            return;
+          }
+
+          setAccessToken(storedSession.access);
+          setRefreshToken(storedSession.refresh);
+          setAuthState("ok");
+          setAuthMessage("Session restored offline. Sync will resume when the server is available.");
+        }
+      })
+      .catch(() => {
+        setAuthState("error");
+        setAuthMessage("Could not restore the saved session.");
+      })
+      .finally(() => setSessionRestoring(false));
     Promise.all([
       AsyncStorage.getItem(accountCacheKey),
       AsyncStorage.getItem(categoryCacheKey)
@@ -2943,6 +3142,20 @@ export default function App() {
         </Pressable>
       </View>
 
+      <Pressable
+        onPress={() => setMobilePanel("sms-automation")}
+        style={({ pressed }) => [styles.mobileScanBanner, pressed ? styles.mobilePressed : null]}
+      >
+        <MaterialCommunityIcons color="#55e6a5" name="message-flash-outline" size={22} />
+        <View style={styles.mobileRowBody}>
+          <Text style={styles.mobileScanBannerTitle}>Scan phone messages</Text>
+          <Text style={styles.mobileScanBannerMeta}>
+            {rawQueue.length ? `${rawQueue.length} message(s) waiting to sync` : "Find new and historical transactions"}
+          </Text>
+        </View>
+        <MaterialCommunityIcons color="#32d8f2" name="chevron-right" size={23} />
+      </Pressable>
+
       {homeFeed === "review" ? (
         <>
           {reviewState === "loading" && !primaryCandidate ? (
@@ -3185,14 +3398,167 @@ export default function App() {
     </View>
   );
 
+  const renderSmsAutomation = () => {
+    const canReadSms = smsPermissionState === "granted";
+    const enabledRules = senderRules.filter((rule) => enabledSenderRuleIds.includes(rule.id));
+
+    return (
+      <View style={styles.mobileSectionStack}>
+        <Pressable onPress={() => setMobilePanel(null)} style={styles.mobileBackAction}>
+          <MaterialCommunityIcons color="#32d8f2" name="arrow-left" size={22} />
+          <Text style={styles.mobileBackActionText}>More</Text>
+        </Pressable>
+        <View style={styles.mobilePageIntro}>
+          <Text style={styles.mobilePageTitle}>SMS automation</Text>
+          <Text style={styles.mobilePageSubtitle}>
+            Scan old and new bank messages, skip anything already processed, and send new matches to review.
+          </Text>
+        </View>
+
+        <View style={styles.mobileAutomationHero}>
+          <View style={styles.mobileAutomationIcon}>
+            <MaterialCommunityIcons color="#06141f" name="message-flash-outline" size={30} />
+          </View>
+          <View style={styles.mobileRowBody}>
+            <Text style={styles.mobileAutomationTitle}>Your inbox stays private</Text>
+            <Text style={styles.mobileAutomationCopy}>
+              Only messages matching senders you enable are added to the finance queue.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.mobileSection}>
+          <View style={styles.mobileSectionHeader}>
+            <Text style={styles.mobileSectionTitle}>1. SMS permission</Text>
+            <View style={[styles.mobileStatusChip, canReadSms ? styles.mobileStatusChipSuccess : null]}>
+              <Text style={[styles.mobileStatusChipText, canReadSms ? styles.mobileStatusChipTextSuccess : null]}>
+                {canReadSms ? "Allowed" : "Required"}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.mobileStateText}>{smsPermissionMessage}</Text>
+          <Pressable
+            onPress={() => void handleRequestSmsPermission()}
+            style={({ pressed }) => [styles.mobileSecondaryAction, pressed ? styles.mobilePressed : null]}
+          >
+            <MaterialCommunityIcons color="#32d8f2" name="shield-key-outline" size={21} />
+            <Text style={styles.mobileSecondaryActionText}>{canReadSms ? "Check permission again" : "Allow SMS access"}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.mobileSection}>
+          <View style={styles.mobileSectionHeader}>
+            <Text style={styles.mobileSectionTitle}>2. Trusted senders</Text>
+            <Text style={styles.mobileSectionMeta}>{enabledRules.length} enabled</Text>
+          </View>
+          <Text style={styles.mobileStateText}>
+            Tap a sender to switch between Tracking and Excluded. Excluded senders stay on the phone and never enter the upload queue.
+          </Text>
+          {senderRules.length ? (
+            <View style={styles.mobileGroupedList}>
+              {senderRules.map((rule) => {
+                const isEnabled = enabledSenderRuleIds.includes(rule.id);
+                return (
+                  <Pressable
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: isEnabled }}
+                    key={rule.id}
+                    onPress={() => handleToggleSenderRule(rule.id)}
+                    style={({ pressed }) => [styles.mobileMenuRow, pressed ? styles.mobilePressed : null]}
+                  >
+                    <View style={styles.mobileProviderIcon}>
+                      <MaterialCommunityIcons color="#55e6a5" name="bank-outline" size={21} />
+                    </View>
+                    <View style={styles.mobileRowBody}>
+                      <Text style={styles.mobileRowTitle}>{rule.name || rule.sender}</Text>
+                      <Text style={styles.mobileRowMeta}>{rule.sender} · {titleCase(rule.match_type)}</Text>
+                    </View>
+                    <View style={styles.mobileRuleDecision}>
+                      <Text style={[styles.mobileRuleDecisionText, isEnabled ? styles.mobileRuleDecisionTextActive : null]}>
+                        {isEnabled ? "Tracking" : "Excluded"}
+                      </Text>
+                      <View style={[styles.mobileToggle, isEnabled ? styles.mobileToggleActive : null]}>
+                        <View style={[styles.mobileToggleKnob, isEnabled ? styles.mobileToggleKnobActive : null]} />
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={styles.mobileEmptyState}>
+              <Text style={styles.mobileEmptyTitle}>No sender rules loaded</Text>
+              <Text style={styles.mobileEmptyCopy}>Load the trusted sender list from your finance server.</Text>
+              <Pressable onPress={handleLoadSmsSettings} style={styles.mobileTextButton}>
+                <Text style={styles.mobileTextButtonText}>Load sender rules</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.mobileSection}>
+          <View style={styles.mobileSectionHeader}>
+            <Text style={styles.mobileSectionTitle}>3. Scan and sync</Text>
+            <Text style={styles.mobileSectionMeta}>{rawQueue.length} waiting</Text>
+          </View>
+          <Pressable
+            disabled={rawQueueState === "loading" || !canReadSms || enabledRules.length === 0}
+            onPress={() => void handleScanAndSyncSms()}
+            style={({ pressed }) => [
+              styles.mobilePrimaryWideButton,
+              rawQueueState === "loading" || !canReadSms || enabledRules.length === 0
+                ? styles.mobilePrimaryWideButtonDisabled
+                : null,
+              pressed ? styles.mobilePressed : null
+            ]}
+          >
+            {rawQueueState === "loading" ? (
+              <ActivityIndicator color="#06141f" />
+            ) : (
+              <MaterialCommunityIcons color="#06141f" name="sync" size={22} />
+            )}
+            <Text style={styles.mobilePrimaryButtonText}>
+              {rawQueueState === "loading" ? "Syncing messages…" : "Scan phone & sync"}
+            </Text>
+          </Pressable>
+          {rawQueueMessage ? (
+            <View style={[styles.mobileSyncResult, rawQueueState === "error" ? styles.mobileSyncResultError : null]}>
+              <MaterialCommunityIcons
+                color={rawQueueState === "error" ? "#ff9399" : "#55e6a5"}
+                name={rawQueueState === "error" ? "alert-circle-outline" : "check-circle-outline"}
+                size={20}
+              />
+              <Text style={[styles.mobileSyncResultText, rawQueueState === "error" ? styles.mobileErrorText : null]}>
+                {rawQueueMessage}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+    );
+  };
+
   const renderMore = () => (
     <View style={styles.mobileSectionStack}>
       <View style={styles.mobilePageIntro}>
         <Text style={styles.mobilePageTitle}>More</Text>
         <Text style={styles.mobilePageSubtitle}>Planning tools, automation settings, and account controls.</Text>
       </View>
+      <Pressable
+        onPress={() => setMobilePanel("sms-automation")}
+        style={({ pressed }) => [styles.mobileAutomationCallout, pressed ? styles.mobilePressed : null]}
+      >
+        <View style={styles.mobileAutomationIconSmall}>
+          <MaterialCommunityIcons color="#06141f" name="message-flash-outline" size={24} />
+        </View>
+        <View style={styles.mobileRowBody}>
+          <Text style={styles.mobileRowTitle}>SMS automation</Text>
+          <Text style={styles.mobileRowMeta}>Scan history and import new transactions</Text>
+        </View>
+        <MaterialCommunityIcons color="#32d8f2" name="chevron-right" size={24} />
+      </Pressable>
       <View style={styles.mobileGroupedList}>
-        {drawerItems.map((item) => (
+        {drawerItems.filter((item) => item.label !== "SMS capture settings").map((item) => (
           <Pressable
             key={item.label}
             onPress={() => setShowAdvancedTools(true)}
@@ -3222,6 +3588,22 @@ export default function App() {
       </Pressable>
     </View>
   );
+
+  if (sessionRestoring) {
+    return (
+      <SafeAreaView style={styles.mobileRoot}>
+        <StatusBar style="light" />
+        <View style={styles.mobileSessionLoader}>
+          <View style={styles.mobileBrandMark}>
+            <MaterialCommunityIcons color="#06141f" name="message-processing-outline" size={30} />
+          </View>
+          <ActivityIndicator color="#55e6a5" size="large" />
+          <Text style={styles.mobileEmptyTitle}>Restoring your workspace</Text>
+          <Text style={styles.mobileEmptyCopy}>Checking your secure session and cached finance data…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!accessToken.trim()) {
     return (
@@ -3295,22 +3677,28 @@ export default function App() {
     );
   }
 
-  const activeContent = activeTab === "home"
-    ? renderHome()
-    : activeTab === "activity"
-      ? renderActivity()
-      : activeTab === "review"
-        ? renderReview()
-        : activeTab === "accounts"
-          ? renderAccounts()
-          : renderMore();
+  const activeContent = mobilePanel === "sms-automation"
+    ? renderSmsAutomation()
+    : activeTab === "home"
+      ? renderHome()
+      : activeTab === "activity"
+        ? renderActivity()
+        : activeTab === "review"
+          ? renderReview()
+          : activeTab === "accounts"
+            ? renderAccounts()
+            : renderMore();
 
   return (
     <SafeAreaView style={styles.mobileRoot}>
       <StatusBar style="light" />
       <View style={styles.mobileAppHeader}>
-        <Pressable accessibilityLabel="Open menu" onPress={openDrawer} style={styles.mobileHeaderButton}>
-          <MaterialCommunityIcons color="#dce8f6" name="menu" size={27} />
+        <Pressable
+          accessibilityLabel={mobilePanel ? "Go back" : "Open menu"}
+          onPress={mobilePanel ? () => setMobilePanel(null) : openDrawer}
+          style={styles.mobileHeaderButton}
+        >
+          <MaterialCommunityIcons color="#dce8f6" name={mobilePanel ? "arrow-left" : "menu"} size={27} />
         </Pressable>
         <View style={styles.mobileHeaderTitleWrap}>
           <Text style={styles.mobileAppTitle}>Signal <Text style={styles.mobileAppTitleAccent}>Inbox</Text></Text>
@@ -3379,7 +3767,11 @@ export default function App() {
                   key={item.label}
                   onPress={() => {
                     closeDrawer();
-                    setTimeout(() => setShowAdvancedTools(true), 190);
+                    if (item.label === "SMS capture settings") {
+                      setTimeout(() => setMobilePanel("sms-automation"), 190);
+                    } else {
+                      setTimeout(() => setShowAdvancedTools(true), 190);
+                    }
                   }}
                   style={({ pressed }) => [styles.mobileDrawerRow, pressed ? styles.mobilePressed : null]}
                 >
@@ -3878,6 +4270,66 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700"
   },
+  mobileAutomationCallout: {
+    alignItems: "center",
+    backgroundColor: "#102b3b",
+    borderColor: "#2e6571",
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 13,
+    minHeight: 76,
+    padding: 14
+  },
+  mobileAutomationCopy: {
+    color: "#a9bad0",
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 4
+  },
+  mobileAutomationHero: {
+    alignItems: "center",
+    backgroundColor: "#102b3b",
+    borderColor: "#2e6571",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 14,
+    padding: 16
+  },
+  mobileAutomationIcon: {
+    alignItems: "center",
+    backgroundColor: "#55e6a5",
+    borderRadius: 17,
+    height: 56,
+    justifyContent: "center",
+    width: 56
+  },
+  mobileAutomationIconSmall: {
+    alignItems: "center",
+    backgroundColor: "#55e6a5",
+    borderRadius: 14,
+    height: 46,
+    justifyContent: "center",
+    width: 46
+  },
+  mobileAutomationTitle: {
+    color: "#f6f8fc",
+    fontSize: 16,
+    fontWeight: "800"
+  },
+  mobileBackAction: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: 7,
+    minHeight: 40
+  },
+  mobileBackActionText: {
+    color: "#32d8f2",
+    fontSize: 14,
+    fontWeight: "700"
+  },
   mobileMenuLabel: {
     color: "#dce8f6",
     flex: 1,
@@ -3942,6 +4394,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800"
   },
+  mobilePrimaryWideButton: {
+    alignItems: "center",
+    backgroundColor: "#55e6a5",
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 9,
+    justifyContent: "center",
+    minHeight: 54,
+    paddingHorizontal: 18
+  },
+  mobilePrimaryWideButtonDisabled: {
+    opacity: 0.42
+  },
   mobileProviderIcon: {
     alignItems: "center",
     backgroundColor: "#10283b",
@@ -3996,6 +4461,26 @@ const styles = StyleSheet.create({
     backgroundColor: "#081421",
     flex: 1
   },
+  mobileRuleDecision: {
+    alignItems: "flex-end",
+    gap: 5
+  },
+  mobileRuleDecisionText: {
+    color: "#91a7c2",
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase"
+  },
+  mobileRuleDecisionTextActive: {
+    color: "#55e6a5"
+  },
+  mobileSessionLoader: {
+    alignItems: "center",
+    flex: 1,
+    gap: 16,
+    justifyContent: "center",
+    paddingHorizontal: 34
+  },
   mobileRowAmount: {
     color: "#ff7d84",
     fontSize: 13,
@@ -4035,6 +4520,27 @@ const styles = StyleSheet.create({
     paddingBottom: 26,
     paddingHorizontal: 16,
     paddingTop: 16
+  },
+  mobileScanBanner: {
+    alignItems: "center",
+    backgroundColor: "#0d2232",
+    borderColor: "#254459",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 11,
+    minHeight: 62,
+    paddingHorizontal: 14
+  },
+  mobileScanBannerMeta: {
+    color: "#7890ad",
+    fontSize: 11,
+    marginTop: 2
+  },
+  mobileScanBannerTitle: {
+    color: "#dce8f6",
+    fontSize: 13,
+    fontWeight: "800"
   },
   mobileSecondaryAction: {
     alignItems: "center",
@@ -4207,6 +4713,43 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 11
   },
+  mobileStatusChip: {
+    backgroundColor: "#382b1c",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
+  mobileStatusChipSuccess: {
+    backgroundColor: "#12382f"
+  },
+  mobileStatusChipText: {
+    color: "#ffc36a",
+    fontSize: 11,
+    fontWeight: "800"
+  },
+  mobileStatusChipTextSuccess: {
+    color: "#55e6a5"
+  },
+  mobileSyncResult: {
+    alignItems: "flex-start",
+    backgroundColor: "#102c29",
+    borderColor: "#285c50",
+    borderRadius: 13,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    padding: 12
+  },
+  mobileSyncResultError: {
+    backgroundColor: "#321f27",
+    borderColor: "#6a3440"
+  },
+  mobileSyncResultText: {
+    color: "#b9ead5",
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18
+  },
   mobileTabBadge: {
     backgroundColor: "#ff4f72",
     borderColor: "#081421",
@@ -4238,6 +4781,27 @@ const styles = StyleSheet.create({
     height: 3,
     position: "absolute",
     width: 28
+  },
+  mobileToggle: {
+    backgroundColor: "#33485f",
+    borderRadius: 999,
+    height: 28,
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    width: 48
+  },
+  mobileToggleActive: {
+    backgroundColor: "#55e6a5"
+  },
+  mobileToggleKnob: {
+    backgroundColor: "#dce8f6",
+    borderRadius: 999,
+    height: 22,
+    width: 22
+  },
+  mobileToggleKnobActive: {
+    alignSelf: "flex-end",
+    backgroundColor: "#06141f"
   },
   mobileTabItem: {
     alignItems: "center",

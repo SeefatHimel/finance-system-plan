@@ -21,6 +21,11 @@ type FinanceSmsCaptureModule = {
     canReadSms: boolean;
     canReceiveSms: boolean;
   }>;
+  scanHistoricalMessagesAsync(limit?: number): Promise<{
+    capturedCount: number;
+    duplicateCount: number;
+    scannedCount: number;
+  }>;
 };
 
 let nativeModule: FinanceSmsCaptureModule | null | undefined;
@@ -71,6 +76,15 @@ export async function getCapturedSmsMessages(limit = 50) {
   }
 
   return module.getCapturedMessagesAsync(limit);
+}
+
+export async function scanHistoricalSmsMessages(limit = 500) {
+  const module = getNativeModule();
+  if (!module) {
+    throw new Error("Native SMS capture module is unavailable. Build a custom Android dev client or APK first.");
+  }
+
+  return module.scanHistoricalMessagesAsync(limit);
 }
 
 export async function clearCapturedSmsMessages(ids: string[]) {

@@ -13,7 +13,10 @@ The implementation is intentionally narrow:
 
 - Android only.
 - Requires a custom Android dev client or APK.
-- Captures only messages whose sender matches enabled backend sender rules.
+- Captures new messages and can scan existing inbox history after permission is
+  granted, but keeps only messages whose sender matches enabled backend rules.
+- Stores deterministic fingerprints for matched messages so repeated scans
+  skip messages that were already processed.
 - Stores captured messages in native local storage first.
 - The React Native app imports captured messages into the existing
   AsyncStorage-backed raw-message queue.
@@ -65,11 +68,10 @@ debug/release APK built from the generated Android project.
    or Pathao Pay.
 4. Tap `Request Android SMS Permission`.
 5. Tap `Sync Native Sender Rules`.
-6. Wait for a matching SMS to arrive on the device.
-7. Tap `Import Captured SMS`.
-8. Review the imported item in `Queued Messages`.
-9. Tap `Sync Queued Messages` to send it to the backend import endpoint.
-10. Use `SMS Review Inbox` to confirm or ignore parser candidates.
+6. Tap `Scan phone & sync` in the modern SMS automation screen. The first run
+   can backfill matching messages already in the inbox; later runs scan again
+   but skip deterministic fingerprints already processed.
+7. Review imported candidates in the review inbox and confirm or ignore them.
 
 ## Privacy Guardrails
 
@@ -85,6 +87,8 @@ debug/release APK built from the generated Android project.
 - If permission says unavailable, rebuild with `npx expo run:android`; Expo Go
   is not enough.
 - If no messages import, confirm at least one sender rule is enabled and synced.
+- A scan checks up to 5,000 recent inbox rows and captures up to 500 new matches
+  per run. Run it again if a very large historical inbox has more matches.
 - If a bank sender uses mixed case or a short code, add the backend sender rule
   exactly as it appears on the phone or use a conservative `contains` rule.
 - If the API is unreachable on a physical phone, use your computer's LAN IP in

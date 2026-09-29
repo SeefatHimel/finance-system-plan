@@ -57,6 +57,8 @@ paths, and physical-phone SMS smoke test are documented in
 - Initial health-check screen that calls backend `GET /api/health/`.
 - Login testing flow (`POST /api/auth/login/`).
 - Access token validation flow (`GET /api/auth/me/`).
+- Secure session persistence with Expo SecureStore, refresh-token rotation on
+  app launch, and explicit secure-session removal on logout.
 - Account/category fetch flow (`GET /api/accounts/`, `GET /api/categories/`)
   with local cache hydration for offline form choices.
 - Quick add transaction flow (`POST /api/transactions/`) plus a local manual
@@ -84,14 +86,20 @@ paths, and physical-phone SMS smoke test are documented in
   shows an Android permission gate, lets the user locally enable trusted sender
   rules, and syncs those enabled rules to native SMS capture in custom Android
   builds.
+- Incremental native inbox scanning for historical messages. The scanner uses
+  deterministic fingerprints to skip matched messages already processed,
+  keeps explicit Tracking/Excluded sender choices across launches, prevents
+  excluded senders from entering the upload queue, queues new matches locally
+  before upload, and refreshes the review inbox after a sync.
 - Local raw message queue backed by AsyncStorage, with sync to
   `POST /api/messages/import/`, local duplicate checks, per-message retry
   metadata, capped retry backoff, and manual removal for invalid queued
   messages.
 
-The login/token flow is still a local testing scaffold. Production mobile auth
-should store refresh tokens in OS-backed secure storage, as documented in
-`docs/auth-token-storage-plan.md`.
+The login/token flow now persists the rotated JWT pair in OS-backed secure
+storage rather than AsyncStorage and restores the session on relaunch. Access
+tokens are loaded into memory for API calls; explicit logout clears the secure
+session. Automatic mid-session refresh after an API `401` remains a follow-up.
 
 ## What does the mobile debt section do?
 
@@ -137,11 +145,12 @@ review flow now supports internal transfer confirmation by letting the user
 choose transaction type plus source and destination accounts when the parser is
 unsure.
 
-Current scaffold status: the app can load backend sender rules and payment
-methods after login, then locally toggle which sender rules should be enabled.
-It can also queue raw SMS messages locally, import sender-matched messages from
-the native Android capture store, sync queued raw messages to the backend import
-endpoint, and review parsed SMS candidates from the backend review inbox.
+Current status: the app can load backend sender rules and payment methods after
+login, persist which trusted rules are enabled, capture future messages, and
+scan existing Android inbox history. Matching messages receive deterministic
+fingerprints, so later scans skip messages that were already processed. A
+single automation action queues new matches before upload, syncs them to the
+backend import endpoint, and refreshes the review inbox.
 Actual capture requires a custom Android dev client or APK; Expo Go cannot load
 the native module.
 
