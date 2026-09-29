@@ -27,6 +27,12 @@ object FinanceSmsStore {
     val sender: String
   )
 
+  private data class InboxSenderSummary(
+    val sender: String,
+    var messageCount: Int,
+    var latestAtMillis: Long
+  )
+
   fun configureRules(context: Context, rules: List<SenderRule>) {
     val payload = JSONArray()
     rules
@@ -44,7 +50,13 @@ object FinanceSmsStore {
   }
 
   @Synchronized
-  fun appendIfTracked(context: Context, sender: String, body: String, receivedAtMillis: Long): AppendStatus {
+  fun appendIfTracked(
+    context: Context,
+    sender: String,
+    body: String,
+    receivedAtMillis: Long,
+    includeProcessed: Boolean = false
+  ): AppendStatus {
     if (sender.isBlank() || body.isBlank() || !matchesEnabledRule(context, sender)) {
       return AppendStatus.UNTRACKED
     }
@@ -53,7 +65,7 @@ object FinanceSmsStore {
     val stableId = stableMessageId(sender, body, receivedAtMillis)
     val preferences = prefs(context)
     val processedIds = preferences.getStringSet(KEY_PROCESSED_MESSAGE_IDS, emptySet()).orEmpty()
-    if (processedIds.contains(stableId)) {
+    if (!includeProcessed && processedIds.contains(stableId)) {
       return AppendStatus.DUPLICATE
     }
 
@@ -79,7 +91,13 @@ object FinanceSmsStore {
     return AppendStatus.CAPTURED
   }
 
-  fun scanHistoricalMessages(context: Context, limit: Int): Map<String, Int> {
+  fun scanHistoricalMessages(
+    context: Context,
+    limit: Int,
+    fromTimestamp: Long?,
+    toTimestamp: Long?,
+    includeProcessed: Boolean
+  ): Map<String, Int> {
     val boundedLimit = limit.coerceIn(1, 1000)
     val projection = arrayOf(
       Telephony.Sms.ADDRESS,
@@ -91,11 +109,22 @@ object FinanceSmsStore {
     var duplicateCount = 0
     var scannedCount = 0
 
+    val selectionParts = mutableListOf<String>()
+    val selectionArguments = mutableListOf<String>()
+    if (fromTimestamp != null) {
+      selectionParts.add("${Telephony.Sms.DATE} >= ?")
+      selectionArguments.add(fromTimestamp.toString())
+    }
+    if (toTimestamp != null) {
+      selectionParts.add("${Telephony.Sms.DATE} <= ?")
+      selectionArguments.add(toTimestamp.toString())
+    }
+
     context.contentResolver.query(
       Telephony.Sms.Inbox.CONTENT_URI,
       projection,
-      null,
-      null,
+      selectionParts.takeIf { it.isNotEmpty() }?.joinToString(" AND "),
+      selectionArguments.takeIf { it.isNotEmpty() }?.toTypedArray(),
       "${Telephony.Sms.DATE} DESC"
     )?.use { cursor ->
       val senderIndex = cursor.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
@@ -110,7 +139,7 @@ object FinanceSmsStore {
         val sentAtMillis = cursor.getLong(dateSentIndex)
         val receivedAtMillis = if (sentAtMillis > 0L) sentAtMillis else cursor.getLong(dateIndex)
 
-        when (appendIfTracked(context, sender, body, receivedAtMillis)) {
+        when (appendIfTracked(context, sender, body, receivedAtMillis, includeProcessed)) {
           AppendStatus.CAPTURED -> capturedCount += 1
           AppendStatus.DUPLICATE -> duplicateCount += 1
           AppendStatus.UNTRACKED -> Unit
@@ -123,6 +152,52 @@ object FinanceSmsStore {
       "duplicateCount" to duplicateCount,
       "scannedCount" to scannedCount
     )
+  }
+
+  fun listInboxSenders(context: Context, limit: Int): List<Map<String, Any>> {
+    val boundedLimit = limit.coerceIn(1, MAX_HISTORY_ROWS)
+    val projection = arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.DATE)
+    val senders = linkedMapOf<String, InboxSenderSummary>()
+    var scannedCount = 0
+
+    context.contentResolver.query(
+      Telephony.Sms.Inbox.CONTENT_URI,
+      projection,
+      null,
+      null,
+      "${Telephony.Sms.DATE} DESC"
+    )?.use { cursor ->
+      val senderIndex = cursor.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
+      val dateIndex = cursor.getColumnIndexOrThrow(Telephony.Sms.DATE)
+
+      while (cursor.moveToNext() && scannedCount < boundedLimit) {
+        scannedCount += 1
+        val sender = cursor.getString(senderIndex).orEmpty().trim()
+        if (sender.isBlank()) {
+          continue
+        }
+
+        val receivedAtMillis = cursor.getLong(dateIndex)
+        val key = normalize(sender)
+        val summary = senders[key]
+        if (summary == null) {
+          senders[key] = InboxSenderSummary(sender, 1, receivedAtMillis)
+        } else {
+          summary.messageCount += 1
+          summary.latestAtMillis = maxOf(summary.latestAtMillis, receivedAtMillis)
+        }
+      }
+    }
+
+    return senders.values
+      .sortedByDescending { it.latestAtMillis }
+      .map { summary ->
+        mapOf(
+          "sender" to summary.sender,
+          "messageCount" to summary.messageCount,
+          "latestAt" to isoFromMillis(summary.latestAtMillis)
+        )
+      }
   }
 
   fun getMessages(context: Context, limit: Int): List<Map<String, String>> {
@@ -163,6 +238,14 @@ object FinanceSmsStore {
     }
 
     prefs(context).edit().putString(KEY_MESSAGES, remaining.toString()).apply()
+  }
+
+  fun resetTrackingState(context: Context) {
+    prefs(context)
+      .edit()
+      .remove(KEY_MESSAGES)
+      .remove(KEY_PROCESSED_MESSAGE_IDS)
+      .apply()
   }
 
   private fun matchesEnabledRule(context: Context, sender: String): Boolean {

@@ -13,6 +13,19 @@ export type CapturedSmsMessage = {
   sender: string;
 };
 
+export type SmsInboxSender = {
+  latestAt: string;
+  messageCount: number;
+  sender: string;
+};
+
+export type NativeSmsScanOptions = {
+  fromTimestamp?: number;
+  includeProcessed?: boolean;
+  limit?: number;
+  toTimestamp?: number;
+};
+
 type FinanceSmsCaptureModule = {
   clearCapturedMessagesAsync(ids: string[]): Promise<void>;
   configureSenderRulesAsync(rules: NativeSmsSenderRule[]): Promise<{ configuredCount: number }>;
@@ -21,7 +34,9 @@ type FinanceSmsCaptureModule = {
     canReadSms: boolean;
     canReceiveSms: boolean;
   }>;
-  scanHistoricalMessagesAsync(limit?: number): Promise<{
+  listInboxSendersAsync(limit?: number): Promise<SmsInboxSender[]>;
+  resetTrackingStateAsync(): Promise<void>;
+  scanHistoricalMessagesAsync(options?: NativeSmsScanOptions): Promise<{
     capturedCount: number;
     duplicateCount: number;
     scannedCount: number;
@@ -60,6 +75,15 @@ export async function getNativeSmsPermissionStatus() {
   return module.getPermissionStatusAsync();
 }
 
+export async function listNativeSmsInboxSenders(limit = 5000) {
+  const module = getNativeModule();
+  if (!module) {
+    throw new Error("Native SMS capture module is unavailable. Build a custom Android dev client or APK first.");
+  }
+
+  return module.listInboxSendersAsync(limit);
+}
+
 export async function configureNativeSmsSenderRules(rules: NativeSmsSenderRule[]) {
   const module = getNativeModule();
   if (!module) {
@@ -78,13 +102,13 @@ export async function getCapturedSmsMessages(limit = 50) {
   return module.getCapturedMessagesAsync(limit);
 }
 
-export async function scanHistoricalSmsMessages(limit = 500) {
+export async function scanHistoricalSmsMessages(options: NativeSmsScanOptions = {}) {
   const module = getNativeModule();
   if (!module) {
     throw new Error("Native SMS capture module is unavailable. Build a custom Android dev client or APK first.");
   }
 
-  return module.scanHistoricalMessagesAsync(limit);
+  return module.scanHistoricalMessagesAsync({ limit: 500, ...options });
 }
 
 export async function clearCapturedSmsMessages(ids: string[]) {
@@ -94,4 +118,13 @@ export async function clearCapturedSmsMessages(ids: string[]) {
   }
 
   await module.clearCapturedMessagesAsync(ids);
+}
+
+export async function resetNativeSmsTrackingState() {
+  const module = getNativeModule();
+  if (!module) {
+    throw new Error("Native SMS capture module is unavailable. Build a custom Android dev client or APK first.");
+  }
+
+  await module.resetTrackingStateAsync();
 }

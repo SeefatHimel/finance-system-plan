@@ -1709,6 +1709,7 @@ components:
         sender:
           type: string
           maxLength: 120
+          description: Must be unique per authenticated user and match type, compared case-insensitively.
         match_type:
           $ref: '#/components/schemas/SenderRuleMatchType'
         pattern:
@@ -1747,6 +1748,7 @@ components:
         sender:
           type: string
           maxLength: 120
+          description: Must be unique per authenticated user and match type, compared case-insensitively.
         match_type:
           $ref: '#/components/schemas/SenderRuleMatchType'
         pattern:
@@ -1846,9 +1848,13 @@ components:
           type: string
           maxLength: 120
           default: ""
+        reprocess_existing:
+          type: boolean
+          default: false
+          description: Re-run a duplicate pending review candidate through the latest parser.
     RawMessageImportResponse:
       type: object
-      required: [candidate, is_duplicate, message]
+      required: [candidate, is_duplicate, was_reprocessed, message]
       properties:
         candidate:
           allOf:
@@ -1856,6 +1862,9 @@ components:
           nullable: true
         is_duplicate:
           type: boolean
+        was_reprocessed:
+          type: boolean
+          description: True when an existing pending candidate was updated by the latest parser.
         message:
           $ref: '#/components/schemas/RawMessage'
     RawMessageRedactResponse:

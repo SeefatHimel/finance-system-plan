@@ -5,9 +5,9 @@ from apps.payment_methods.models import PaymentMethod
 
 from .models import ParsedMessageCandidate, SenderRule
 
-_AMOUNT_PATTERN = re.compile(r"(?:tk|bdt)\s*([0-9][0-9,]*(?:\.\d{1,2})?)|([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:tk|bdt)", re.IGNORECASE)
-_BALANCE_PATTERN = re.compile(r"(?:balance|bal)\s*(?:is|:)?\s*(?:tk|bdt)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
-_FEE_PATTERN = re.compile(r"(?:charge|fee)\s*(?:is|:)?\s*(?:tk|bdt)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
+_AMOUNT_PATTERN = re.compile(r"(?:tk|bdt)\.?\s*([0-9][0-9,]*(?:\.\d{1,2})?)|([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:tk|bdt)\.?", re.IGNORECASE)
+_BALANCE_PATTERN = re.compile(r"(?:balance|bal)\s*(?:is|:)?\s*(?:(?:tk|bdt)\.?\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
+_FEE_PATTERN = re.compile(r"(?:charge|fee)\s*(?:is|:)?\s*(?:(?:tk|bdt)\.?\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
 _REFERENCE_PATTERN = re.compile(r"\b(?:trxid|trx id|txnid|txn id|ref|reference)\b\s*[:#-]?\s*([a-z0-9-]+)", re.IGNORECASE)
 _PROVIDER_TIMESTAMP_PATTERN = re.compile(
     r"\b(?:date|time|on)\b\s*[:#-]?\s*([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4}(?:\s+[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?\s*(?:am|pm)?)?)",
@@ -250,6 +250,11 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
         transaction_type = ParsedMessageCandidate.TransactionType.FEE
         confidence = Decimal("0.80") if amount is not None else Decimal("0.48")
         notes.append("Detected bank/card fee or charge wording.")
+    elif any(keyword in normalized for keyword in ("atm txn", "atm withdrawal", "cash withdrawal", "withdrawal")):
+        message_kind = ParsedMessageCandidate.MessageKind.CASH_OUT
+        transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
+        confidence = Decimal("0.86") if amount is not None else Decimal("0.54")
+        notes.append("Detected ATM cash-withdrawal wording.")
     elif any(keyword in normalized for keyword in ("used for", "purchase", "spent", "pos", "at ")):
         message_kind = ParsedMessageCandidate.MessageKind.CARD_PURCHASE
         transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE

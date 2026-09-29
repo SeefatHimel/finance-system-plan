@@ -63,20 +63,35 @@ debug/release APK built from the generated Android project.
 ## Phone Workflow
 
 1. Sign in.
-2. Load payment methods and sender rules.
-3. Enable only the sender rules you trust, such as `bKash`, `EBL`, City Bank,
+2. Load payment methods and existing sender rules.
+3. To add a rule from the phone, tap `Find SMS senders on phone`, search the
+   distinct sender names, choose one, select its destination account and
+   provider, then tap `Add & track sender`. The picker reads sender metadata and
+   counts only; it does not display SMS bodies.
+4. Enable only the sender rules you trust, such as `bKash`, `EBL`, City Bank,
    or Pathao Pay.
-4. Tap `Request Android SMS Permission`.
-5. Tap `Sync Native Sender Rules`.
-6. Tap `Scan phone & sync` in the modern SMS automation screen. The first run
-   can backfill matching messages already in the inbox; later runs scan again
-   but skip deterministic fingerprints already processed.
-7. Review imported candidates in the review inbox and confirm or ignore them.
+5. Tap `Request Android SMS Permission`.
+6. Tap `Sync Native Sender Rules` when changing existing toggles. Newly created
+   mobile rules are enabled and synced automatically.
+7. Choose `New only` for an incremental scan, or `Import history` and enter a
+   date range. History scans can optionally refresh previous imports so pending
+   review candidates use the latest parser. Confirmed transactions are not
+   rewritten.
+8. Tap the scan button. Matching messages are queued before upload; processed
+   fingerprints remain skipped unless refresh is enabled.
+9. Review imported candidates in the review inbox and confirm or ignore them.
+
+Debug Android builds also show a two-step `Clear SMS test data` action. It
+clears local captured/processed fingerprints, the local raw queue, and the
+signed-in user's backend SMS candidates and SMS-created transactions. The API
+returns `404` for this operation when `DJANGO_DEBUG=false`.
 
 ## Privacy Guardrails
 
 - Do not enable broad sender patterns unless they are necessary.
 - Do not upload untracked sender messages.
+- Sender discovery reads only sender addresses/names, timestamps, and counts;
+  raw bodies are read only later for explicitly tracked senders during a scan.
 - Keep raw SMS deletion/redaction available in the backend.
 - Test with anonymized or personal test messages first.
 - Public distribution needs policy/legal review before requesting SMS
@@ -87,8 +102,9 @@ debug/release APK built from the generated Android project.
 - If permission says unavailable, rebuild with `npx expo run:android`; Expo Go
   is not enough.
 - If no messages import, confirm at least one sender rule is enabled and synced.
-- A scan checks up to 5,000 recent inbox rows and captures up to 500 new matches
-  per run. Run it again if a very large historical inbox has more matches.
+- A scan checks up to 5,000 inbox rows inside the selected range and captures
+  up to 500 matches per run. Narrow the dates or run it again for a very large
+  historical inbox.
 - If a bank sender uses mixed case or a short code, add the backend sender rule
   exactly as it appears on the phone or use a conservative `contains` rule.
 - If the API is unreachable on a physical phone, use your computer's LAN IP in

@@ -32,6 +32,10 @@ helpers today, but this gives the migration target.
 Avoid renaming fields casually, version breaking changes, add new fields in a
 backward-compatible way, and keep changelogs for contract changes.
 
+Validation behavior is part of the contract too. Sender-rule creation returns a
+field error when the authenticated user already has the same case-insensitive
+sender and match type, so every client can prevent or explain duplicate rules.
+
 ## What is the current contract state?
 
 The contracts project now includes `projects/finance-contracts/openapi.yaml`
@@ -68,6 +72,11 @@ same values when the parser needs user correction.
 Raw message contracts now include `redacted_at` and the `redacted` status so
 clients can show when original SMS text has been removed while parsed evidence
 is retained.
+
+Raw message import also accepts optional `reprocess_existing`. Duplicate
+responses include `was_reprocessed`, allowing clients to distinguish a new
+import, an unchanged duplicate, and a pending candidate refreshed with the
+latest parser. Confirmed candidates are never reparsed through this flag.
 
 Audit log contracts expose action, entity type, entity id, metadata, timestamp,
 and nullable before/after snapshots. They are read-only and user-scoped.

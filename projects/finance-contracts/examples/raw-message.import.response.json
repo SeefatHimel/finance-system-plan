@@ -38,6 +38,7 @@
     "updated_at": "2026-05-29T10:30:05+06:00"
   },
   "is_duplicate": false,
+  "was_reprocessed": false,
   "message": {
     "id": "33333333-3333-4333-8333-333333333333",
     "sender": "bKash",

@@ -29,6 +29,7 @@ import {
   createDebtPayment,
   createRecurringBill,
   createRecurringBillPayment,
+  createSenderRule,
   createTransaction,
   AuthenticationError,
   getApiBaseUrl,
@@ -47,6 +48,7 @@ import {
   listTransactions,
   login,
   refreshLogin,
+  resetSmsDevelopmentData,
   type Account,
   type AccountReconciliation,
   type Category,
@@ -66,14 +68,18 @@ import {
   getCapturedSmsMessages,
   getNativeSmsPermissionStatus,
   isNativeSmsCaptureAvailable,
+  listNativeSmsInboxSenders,
+  resetNativeSmsTrackingState,
   scanHistoricalSmsMessages,
   type CapturedSmsMessage,
-  type NativeSmsSenderRule
+  type NativeSmsSenderRule,
+  type SmsInboxSender
 } from "./modules/finance-sms-capture/src";
 import { clearSession, loadSession, saveSession } from "./src/session";
 
 type ViewState = "idle" | "loading" | "success" | "error";
 type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
+type SmsScanMode = "new" | "history";
 type MainTab = "home" | "activity" | "review" | "accounts" | "more";
 type HomeFeed = "review" | "captured";
 type MobilePanel = "sms-automation" | null;
@@ -93,6 +99,7 @@ type QueuedRawMessage = {
   lastError: string;
   nextRetryAt: string;
   receivedAt: string;
+  reprocessExisting: boolean;
   sender: string;
 };
 type QueuedManualTransaction = {
@@ -111,6 +118,17 @@ const accountCacheKey = "finance.accountCache";
 const categoryCacheKey = "finance.categoryCache";
 const transactionCacheKey = "finance.transactionCache";
 const enabledSenderRulesKey = "finance.enabledSenderRules";
+const smsProviderOptions = [
+  { label: "bKash", value: "bkash" },
+  { label: "Nagad", value: "nagad" },
+  { label: "Rocket", value: "rocket" },
+  { label: "EBL", value: "ebl" },
+  { label: "City Bank", value: "city_bank" },
+  { label: "Pathao Pay", value: "pathao_pay" },
+  { label: "Bank", value: "bank" },
+  { label: "Card", value: "card" },
+  { label: "Other", value: "other" }
+] as const;
 
 function parseMoney(value: string | null | undefined) {
   if (!value) {
@@ -393,6 +411,17 @@ function buildNativeSenderRules(senderRules: SenderRule[], enabledSenderRuleIds:
     }));
 }
 
+function inferSmsProvider(sender: string) {
+  const normalized = sender.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (normalized.includes("bkash")) return "bkash";
+  if (normalized.includes("nagad")) return "nagad";
+  if (normalized.includes("rocket") || normalized.includes("dbbl")) return "rocket";
+  if (normalized.includes("citybank") || normalized === "city") return "city_bank";
+  if (normalized.includes("pathao")) return "pathao_pay";
+  if (normalized.includes("ebl")) return "ebl";
+  return "other";
+}
+
 function queueRetryDelayMs(attempts: number) {
   const retryNumber = Math.max(attempts, 1);
   const delaySeconds = Math.min(60 * 2 ** (retryNumber - 1), 60 * 60);
@@ -514,6 +543,7 @@ function normalizeRawQueue(storedQueue: string | null): QueuedRawMessage[] {
         lastError: stringValue(item.lastError),
         nextRetryAt: stringValue(item.nextRetryAt),
         receivedAt: stringValue(item.receivedAt),
+        reprocessExisting: item.reprocessExisting === true,
         sender: stringValue(item.sender)
       };
 
@@ -537,6 +567,12 @@ function normalizeRawQueue(storedQueue: string | null): QueuedRawMessage[] {
 
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function daysAgo(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date.toISOString().slice(0, 10);
 }
 
 function formatMobileDate(value: string) {
@@ -683,6 +719,16 @@ export default function App() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [senderRules, setSenderRules] = useState<SenderRule[]>([]);
   const [enabledSenderRuleIds, setEnabledSenderRuleIds] = useState<string[]>([]);
+  const [smsInboxSenders, setSmsInboxSenders] = useState<SmsInboxSender[]>([]);
+  const [smsSenderSearch, setSmsSenderSearch] = useState("");
+  const [selectedSmsSender, setSelectedSmsSender] = useState("");
+  const [newSenderRuleName, setNewSenderRuleName] = useState("");
+  const [newSenderAccountId, setNewSenderAccountId] = useState("");
+  const [newSenderProvider, setNewSenderProvider] = useState("other");
+  const [smsSenderDiscoveryState, setSmsSenderDiscoveryState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [smsSenderDiscoveryMessage, setSmsSenderDiscoveryMessage] = useState("");
+  const [smsRuleCreateState, setSmsRuleCreateState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [smsRuleCreateMessage, setSmsRuleCreateMessage] = useState("");
   const [rawSender, setRawSender] = useState("");
   const [rawBody, setRawBody] = useState("");
   const [rawReceivedAt, setRawReceivedAt] = useState(new Date().toISOString());
@@ -690,6 +736,13 @@ export default function App() {
   const [rawQueue, setRawQueue] = useState<QueuedRawMessage[]>([]);
   const [rawQueueState, setRawQueueState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [rawQueueMessage, setRawQueueMessage] = useState("");
+  const [smsScanMode, setSmsScanMode] = useState<SmsScanMode>("new");
+  const [smsScanFrom, setSmsScanFrom] = useState(daysAgo(30));
+  const [smsScanTo, setSmsScanTo] = useState(today());
+  const [smsReprocessExisting, setSmsReprocessExisting] = useState(false);
+  const [smsDevResetArmed, setSmsDevResetArmed] = useState(false);
+  const [smsDevResetState, setSmsDevResetState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [smsDevResetMessage, setSmsDevResetMessage] = useState("");
   const [reviewState, setReviewState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewCandidates, setReviewCandidates] = useState<ParsedMessageCandidate[]>([]);
@@ -1262,6 +1315,85 @@ export default function App() {
     }
   };
 
+  const handleLoadSmsInboxSenders = async () => {
+    setSmsSenderDiscoveryState("loading");
+    setSmsSenderDiscoveryMessage("Reading sender names from the Android inbox…");
+    try {
+      const permission = await getNativeSmsPermissionStatus();
+      if (!permission.canReadSms) {
+        setSmsSenderDiscoveryState("error");
+        setSmsSenderDiscoveryMessage("Allow SMS read access before loading sender names.");
+        return;
+      }
+
+      const senders = await listNativeSmsInboxSenders();
+      setSmsInboxSenders(senders);
+      setSmsSenderDiscoveryState("ok");
+      setSmsSenderDiscoveryMessage(
+        senders.length
+          ? `Found ${senders.length} unique sender name(s). Search and select one to create a rule.`
+          : "No SMS sender names were found in the inbox."
+      );
+    } catch (error) {
+      setSmsSenderDiscoveryState("error");
+      setSmsSenderDiscoveryMessage(error instanceof Error ? error.message : "Could not load SMS sender names.");
+    }
+  };
+
+  const handleSelectSmsInboxSender = (sender: string) => {
+    setSelectedSmsSender(sender);
+    setNewSenderRuleName(`${sender} transactions`);
+    setNewSenderProvider(inferSmsProvider(sender));
+    setNewSenderAccountId((current) => current || accounts[0]?.id || "");
+    setSmsRuleCreateState("idle");
+    setSmsRuleCreateMessage("");
+  };
+
+  const handleCreateSmsSenderRule = async () => {
+    if (!selectedSmsSender.trim() || !newSenderRuleName.trim() || !newSenderAccountId) {
+      setSmsRuleCreateState("error");
+      setSmsRuleCreateMessage("Choose a sender and destination account, then enter a rule name.");
+      return;
+    }
+    if (
+      senderRules.some(
+        (rule) => rule.match_type === "exact" && rule.sender.trim().toLowerCase() === selectedSmsSender.trim().toLowerCase()
+      )
+    ) {
+      setSmsRuleCreateState("error");
+      setSmsRuleCreateMessage("This exact sender already has a rule. Enable the existing rule instead.");
+      return;
+    }
+
+    setSmsRuleCreateState("loading");
+    setSmsRuleCreateMessage("Creating and enabling sender rule…");
+    try {
+      const createdRule = await createSenderRule(accessToken.trim(), {
+        account: newSenderAccountId,
+        match_type: "exact",
+        name: newSenderRuleName.trim(),
+        provider: newSenderProvider,
+        sender: selectedSmsSender.trim()
+      });
+      const nextRules = [...senderRules, createdRule].sort(
+        (left, right) => left.priority - right.priority || left.name.localeCompare(right.name)
+      );
+      const nextEnabledIds = Array.from(new Set([...enabledSenderRuleIds, createdRule.id]));
+      setSenderRules(nextRules);
+      setEnabledSenderRuleIds(nextEnabledIds);
+      await AsyncStorage.setItem(enabledSenderRulesKey, JSON.stringify(nextEnabledIds));
+      await configureNativeSmsSenderRules(buildNativeSenderRules(nextRules, nextEnabledIds));
+      setSmsRuleCreateState("ok");
+      setSmsRuleCreateMessage(`${createdRule.sender} is now tracked and mapped to the selected account.`);
+      setSelectedSmsSender("");
+      setNewSenderRuleName("");
+      setSmsSenderSearch("");
+    } catch (error) {
+      setSmsRuleCreateState("error");
+      setSmsRuleCreateMessage(error instanceof Error ? error.message : "Could not create the sender rule.");
+    }
+  };
+
   const handleConfigureNativeSmsCapture = async () => {
     const nativeRules = buildNativeSenderRules(senderRules, enabledSenderRuleIds);
 
@@ -1334,6 +1466,7 @@ export default function App() {
           lastError: "",
           nextRetryAt: "",
           receivedAt: queuedInput.receivedAt,
+          reprocessExisting: false,
           sender: queuedInput.sender
         });
       });
@@ -1367,6 +1500,18 @@ export default function App() {
       return;
     }
 
+    let fromTimestamp: number | undefined;
+    let toTimestamp: number | undefined;
+    if (smsScanMode === "history") {
+      fromTimestamp = new Date(`${smsScanFrom}T00:00:00`).getTime();
+      toTimestamp = new Date(`${smsScanTo}T23:59:59.999`).getTime();
+      if (!Number.isFinite(fromTimestamp) || !Number.isFinite(toTimestamp) || fromTimestamp > toTimestamp) {
+        setRawQueueState("error");
+        setRawQueueMessage("Enter a valid history range in YYYY-MM-DD format. The start must be before the end.");
+        return;
+      }
+    }
+
     setRawQueueState("loading");
     setRawQueueMessage("Checking Android SMS access…");
 
@@ -1379,10 +1524,24 @@ export default function App() {
       }
 
       await configureNativeSmsSenderRules(nativeRules);
-      setRawQueueMessage("Scanning messages that have not been imported before…");
-      const scanResult = await scanHistoricalSmsMessages(500);
+      setRawQueueMessage(
+        smsScanMode === "history"
+          ? `Scanning tracked messages from ${smsScanFrom} through ${smsScanTo}…`
+          : "Scanning messages that have not been imported before…"
+      );
+      const reprocessExisting = smsScanMode === "history" && smsReprocessExisting;
+      const scanResult = await scanHistoricalSmsMessages({
+        fromTimestamp,
+        includeProcessed: reprocessExisting,
+        limit: 500,
+        toTimestamp
+      });
       const capturedMessages = await getCapturedSmsMessages(500);
-      const currentDedupeKeys = new Set(rawQueue.map((queuedMessage) => rawMessageDedupeKey(queuedMessage)));
+      const queuedMessages = [...rawQueue];
+      const queuedMessageIndexes = new Map(
+        queuedMessages.map((queuedMessage, index) => [rawMessageDedupeKey(queuedMessage), index])
+      );
+      const currentDedupeKeys = new Set(queuedMessageIndexes.keys());
       const newlyQueued: QueuedRawMessage[] = [];
       const clearIds: string[] = [];
       let localDuplicateCount = 0;
@@ -1401,6 +1560,13 @@ export default function App() {
         clearIds.push(message.id);
         const dedupeKey = rawMessageDedupeKey(queuedInput);
         if (currentDedupeKeys.has(dedupeKey)) {
+          const queuedIndex = queuedMessageIndexes.get(dedupeKey);
+          if (reprocessExisting && queuedIndex !== undefined) {
+            queuedMessages[queuedIndex] = {
+              ...queuedMessages[queuedIndex],
+              reprocessExisting: true
+            };
+          }
           localDuplicateCount += 1;
           return;
         }
@@ -1416,18 +1582,22 @@ export default function App() {
           lastError: "",
           nextRetryAt: "",
           receivedAt: queuedInput.receivedAt,
+          reprocessExisting,
           sender: queuedInput.sender
         });
       });
 
-      const queueToSync = [...rawQueue, ...newlyQueued];
+      const queueToSync = [...queuedMessages, ...newlyQueued];
       await saveRawQueue(queueToSync);
       await clearCapturedSmsMessages(clearIds);
       const remainingQueue: QueuedRawMessage[] = [];
       let syncedCount = 0;
       let failedCount = 0;
+      let importedCount = 0;
+      let duplicateCount = 0;
+      let reprocessedCount = 0;
 
-      setRawQueueMessage(`Found ${newlyQueued.length} new tracked message(s). Syncing securely…`);
+      setRawQueueMessage(`Found ${newlyQueued.length} tracked message(s). Syncing securely…`);
       for (const queuedMessage of queueToSync) {
         const attemptedMessage: QueuedRawMessage = {
           ...queuedMessage,
@@ -1437,13 +1607,21 @@ export default function App() {
         };
 
         try {
-          await importRawMessage(accessToken.trim(), {
+          const result = await importRawMessage(accessToken.trim(), {
             body: attemptedMessage.body,
             device_message_id: attemptedMessage.deviceMessageId,
             received_at: attemptedMessage.receivedAt,
+            reprocess_existing: attemptedMessage.reprocessExisting,
             sender: attemptedMessage.sender
           });
           syncedCount += 1;
+          if (result.was_reprocessed) {
+            reprocessedCount += 1;
+          } else if (result.is_duplicate) {
+            duplicateCount += 1;
+          } else {
+            importedCount += 1;
+          }
         } catch (error) {
           failedCount += 1;
           remainingQueue.push({
@@ -1458,11 +1636,40 @@ export default function App() {
       await Promise.all([handleLoadReviewCandidates(), handleLoadTransactions()]);
       setRawQueueState(failedCount > 0 ? "error" : "ok");
       setRawQueueMessage(
-        `Scanned ${scanResult.scannedCount} SMS. Found ${scanResult.capturedCount} new tracked message(s), synced ${syncedCount}, and kept ${failedCount} for retry.${localDuplicateCount || scanResult.duplicateCount ? ` ${localDuplicateCount + scanResult.duplicateCount} already scanned.` : ""}`
+        `Scanned ${scanResult.scannedCount} SMS. Imported ${importedCount}, refreshed ${reprocessedCount}, skipped ${duplicateCount + localDuplicateCount + scanResult.duplicateCount}, and kept ${failedCount} for retry. ${syncedCount} sync request(s) completed.`
       );
     } catch (error) {
       setRawQueueState("error");
       setRawQueueMessage(error instanceof Error ? error.message : "Could not scan and sync SMS messages.");
+    }
+  };
+
+  const handleDevelopmentSmsReset = async () => {
+    if (!smsDevResetArmed) {
+      setSmsDevResetArmed(true);
+      setSmsDevResetState("error");
+      setSmsDevResetMessage(
+        "This deletes this user's imported SMS candidates and SMS-created transactions. Tap again to confirm."
+      );
+      return;
+    }
+
+    setSmsDevResetState("loading");
+    setSmsDevResetMessage("Clearing local and backend SMS development data…");
+    try {
+      await resetNativeSmsTrackingState();
+      const result = await resetSmsDevelopmentData(accessToken.trim());
+      await saveRawQueue([]);
+      setReviewCandidates([]);
+      setSmsDevResetArmed(false);
+      setSmsDevResetState("ok");
+      setSmsDevResetMessage(
+        `Cleared ${result.deleted_messages} message(s), ${result.deleted_candidates} review candidate(s), and ${result.deleted_transactions} SMS transaction(s).`
+      );
+      await Promise.all([handleLoadReviewCandidates(), handleLoadTransactions()]);
+    } catch (error) {
+      setSmsDevResetState("error");
+      setSmsDevResetMessage(error instanceof Error ? error.message : "Could not clear SMS development data.");
     }
   };
 
@@ -1542,6 +1749,7 @@ export default function App() {
       lastError: "",
       nextRetryAt: "",
       receivedAt: queuedInput.receivedAt,
+      reprocessExisting: false,
       sender: queuedInput.sender
     };
 
@@ -1598,6 +1806,7 @@ export default function App() {
           body: attemptedMessage.body,
           device_message_id: attemptedMessage.deviceMessageId,
           received_at: attemptedMessage.receivedAt,
+          reprocess_existing: attemptedMessage.reprocessExisting,
           sender: attemptedMessage.sender
         });
         syncedCount += 1;
@@ -3471,6 +3680,15 @@ export default function App() {
   const renderSmsAutomation = () => {
     const canReadSms = smsPermissionState === "granted";
     const enabledRules = senderRules.filter((rule) => enabledSenderRuleIds.includes(rule.id));
+    const existingExactSenders = new Set(
+      senderRules
+        .filter((rule) => rule.match_type === "exact")
+        .map((rule) => rule.sender.trim().toLowerCase())
+    );
+    const normalizedSenderSearch = smsSenderSearch.trim().toLowerCase();
+    const visibleInboxSenders = smsInboxSenders
+      .filter((item) => !normalizedSenderSearch || item.sender.toLowerCase().includes(normalizedSenderSearch))
+      .slice(0, 30);
 
     return (
       <View style={styles.mobileSectionStack}>
@@ -3574,6 +3792,197 @@ export default function App() {
               </Pressable>
             </View>
           )}
+
+          <View style={styles.mobileSubsection}>
+            <View style={styles.mobileSectionHeader}>
+              <View style={styles.mobileRowBody}>
+                <Text style={styles.mobileRowTitle}>Add a sender from this phone</Text>
+                <Text style={styles.mobileRowMeta}>Only sender names and counts are shown here—message text stays hidden.</Text>
+              </View>
+              <Pressable
+                disabled={!canReadSms || smsSenderDiscoveryState === "loading"}
+                onPress={() => void handleLoadSmsInboxSenders()}
+                style={({ pressed }) => [styles.mobileIconAction, pressed ? styles.mobilePressed : null]}
+              >
+                {smsSenderDiscoveryState === "loading" ? (
+                  <ActivityIndicator color="#32d8f2" size="small" />
+                ) : (
+                  <MaterialCommunityIcons color="#32d8f2" name="database-search-outline" size={21} />
+                )}
+              </Pressable>
+            </View>
+            <InlineFeedback
+              loadingLabel="Loading sender names…"
+              message={smsSenderDiscoveryMessage}
+              state={smsSenderDiscoveryState}
+            />
+
+            {smsInboxSenders.length ? (
+              <>
+                <View style={styles.mobileInputWrap}>
+                  <MaterialCommunityIcons color="#7890ad" name="magnify" size={21} />
+                  <TextInput
+                    autoCapitalize="none"
+                    onChangeText={setSmsSenderSearch}
+                    placeholder="Search sender name or number"
+                    placeholderTextColor="#5f7590"
+                    style={styles.mobileInput}
+                    value={smsSenderSearch}
+                  />
+                </View>
+                <View style={styles.mobileGroupedList}>
+                  {visibleInboxSenders.map((item) => {
+                    const isTracked = existingExactSenders.has(item.sender.trim().toLowerCase());
+                    const isSelected = selectedSmsSender === item.sender;
+                    return (
+                      <Pressable
+                        disabled={isTracked}
+                        key={item.sender.toLowerCase()}
+                        onPress={() => handleSelectSmsInboxSender(item.sender)}
+                        style={({ pressed }) => [
+                          styles.mobileMenuRow,
+                          isSelected ? styles.mobileSenderRowSelected : null,
+                          isTracked ? styles.mobileSenderRowDisabled : null,
+                          pressed ? styles.mobilePressed : null
+                        ]}
+                      >
+                        <View style={styles.mobileProviderIcon}>
+                          <MaterialCommunityIcons color={isTracked ? "#7890ad" : "#32d8f2"} name="message-text-outline" size={21} />
+                        </View>
+                        <View style={styles.mobileRowBody}>
+                          <Text style={styles.mobileRowTitle}>{item.sender}</Text>
+                          <Text style={styles.mobileRowMeta}>
+                            {item.messageCount} message(s) · latest {formatMobileDate(item.latestAt)}
+                          </Text>
+                        </View>
+                        <Text style={isTracked ? styles.mobileSectionMeta : styles.mobileTextButtonText}>
+                          {isTracked ? "Tracked" : isSelected ? "Selected" : "Choose"}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {!visibleInboxSenders.length ? (
+                  <Text style={styles.mobileStateText}>No sender names match “{smsSenderSearch}”.</Text>
+                ) : null}
+              </>
+            ) : (
+              <Pressable
+                disabled={!canReadSms || smsSenderDiscoveryState === "loading"}
+                onPress={() => void handleLoadSmsInboxSenders()}
+                style={({ pressed }) => [styles.mobileSecondaryAction, pressed ? styles.mobilePressed : null]}
+              >
+                <MaterialCommunityIcons color="#32d8f2" name="message-text-outline" size={21} />
+                <Text style={styles.mobileSecondaryActionText}>Find SMS senders on phone</Text>
+              </Pressable>
+            )}
+
+            {selectedSmsSender ? (
+              <View style={styles.mobileRuleComposer}>
+                <View style={styles.mobileSectionHeader}>
+                  <View style={styles.mobileRowBody}>
+                    <Text style={styles.mobileRuleComposerTitle}>{selectedSmsSender}</Text>
+                    <Text style={styles.mobileRowMeta}>Exact sender match</Text>
+                  </View>
+                  <Pressable onPress={() => setSelectedSmsSender("")} style={styles.mobileIconAction}>
+                    <MaterialCommunityIcons color="#9eb0c7" name="close" size={20} />
+                  </Pressable>
+                </View>
+
+                <Text style={styles.mobileFieldLabel}>Rule name</Text>
+                <View style={styles.mobileInputWrap}>
+                  <MaterialCommunityIcons color="#7890ad" name="tag-outline" size={20} />
+                  <TextInput
+                    onChangeText={setNewSenderRuleName}
+                    placeholder="e.g. City Bank transactions"
+                    placeholderTextColor="#5f7590"
+                    style={styles.mobileInput}
+                    value={newSenderRuleName}
+                  />
+                </View>
+
+                <Text style={styles.mobileFieldLabel}>Destination account</Text>
+                {accounts.length ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={styles.mobileChoiceRow}>
+                      {accounts.map((account) => (
+                        <Pressable
+                          key={account.id}
+                          onPress={() => setNewSenderAccountId(account.id)}
+                          style={[
+                            styles.mobileChoice,
+                            newSenderAccountId === account.id ? styles.mobileChoiceActive : null
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.mobileChoiceText,
+                              newSenderAccountId === account.id ? styles.mobileChoiceTextActive : null
+                            ]}
+                          >
+                            {account.name}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.mobileErrorText}>Create or load an account before adding this sender.</Text>
+                )}
+
+                <Text style={styles.mobileFieldLabel}>Provider</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.mobileChoiceRow}>
+                    {smsProviderOptions.map((provider) => (
+                      <Pressable
+                        key={provider.value}
+                        onPress={() => setNewSenderProvider(provider.value)}
+                        style={[
+                          styles.mobileChoice,
+                          newSenderProvider === provider.value ? styles.mobileChoiceActive : null
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.mobileChoiceText,
+                            newSenderProvider === provider.value ? styles.mobileChoiceTextActive : null
+                          ]}
+                        >
+                          {provider.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+
+                <Pressable
+                  disabled={smsRuleCreateState === "loading" || !newSenderAccountId}
+                  onPress={() => void handleCreateSmsSenderRule()}
+                  style={({ pressed }) => [
+                    styles.mobilePrimaryWideButton,
+                    smsRuleCreateState === "loading" || !newSenderAccountId
+                      ? styles.mobilePrimaryWideButtonDisabled
+                      : null,
+                    pressed ? styles.mobilePressed : null
+                  ]}
+                >
+                  {smsRuleCreateState === "loading" ? (
+                    <ActivityIndicator color="#06141f" size="small" />
+                  ) : (
+                    <MaterialCommunityIcons color="#06141f" name="shield-plus-outline" size={21} />
+                  )}
+                  <Text style={styles.mobilePrimaryButtonText}>
+                    {smsRuleCreateState === "loading" ? "Adding sender…" : "Add & track sender"}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+            <InlineFeedback
+              loadingLabel="Adding sender rule…"
+              message={smsRuleCreateMessage}
+              state={smsRuleCreateState}
+            />
+          </View>
         </View>
 
         <View style={styles.mobileSection}>
@@ -3581,6 +3990,91 @@ export default function App() {
             <Text style={styles.mobileSectionTitle}>3. Scan and sync</Text>
             <Text style={styles.mobileSectionMeta}>{rawQueue.length} waiting</Text>
           </View>
+          <Text style={styles.mobileFieldLabel}>Choose what to scan</Text>
+          <View style={styles.mobileSegmentedControl}>
+            <Pressable
+              onPress={() => {
+                setSmsScanMode("new");
+                setSmsReprocessExisting(false);
+              }}
+              style={[styles.mobileSegment, smsScanMode === "new" ? styles.mobileSegmentActive : null]}
+            >
+              <MaterialCommunityIcons
+                color={smsScanMode === "new" ? "#06141f" : "#9eb0c7"}
+                name="message-plus-outline"
+                size={19}
+              />
+              <Text style={[styles.mobileSegmentText, smsScanMode === "new" ? styles.mobileSegmentTextActive : null]}>
+                New only
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setSmsScanMode("history")}
+              style={[styles.mobileSegment, smsScanMode === "history" ? styles.mobileSegmentActive : null]}
+            >
+              <MaterialCommunityIcons
+                color={smsScanMode === "history" ? "#06141f" : "#9eb0c7"}
+                name="history"
+                size={19}
+              />
+              <Text
+                style={[styles.mobileSegmentText, smsScanMode === "history" ? styles.mobileSegmentTextActive : null]}
+              >
+                Import history
+              </Text>
+            </Pressable>
+          </View>
+
+          {smsScanMode === "history" ? (
+            <View style={styles.mobileHistoryOptions}>
+              <View style={styles.mobileRangeRow}>
+                <View style={styles.mobileRangeField}>
+                  <Text style={styles.mobileFieldLabel}>From</Text>
+                  <View style={styles.mobileInputWrap}>
+                    <MaterialCommunityIcons color="#7890ad" name="calendar-start" size={19} />
+                    <TextInput
+                      autoCapitalize="none"
+                      onChangeText={setSmsScanFrom}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#5f7590"
+                      style={styles.mobileInput}
+                      value={smsScanFrom}
+                    />
+                  </View>
+                </View>
+                <View style={styles.mobileRangeField}>
+                  <Text style={styles.mobileFieldLabel}>Through</Text>
+                  <View style={styles.mobileInputWrap}>
+                    <MaterialCommunityIcons color="#7890ad" name="calendar-end" size={19} />
+                    <TextInput
+                      autoCapitalize="none"
+                      onChangeText={setSmsScanTo}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#5f7590"
+                      style={styles.mobileInput}
+                      value={smsScanTo}
+                    />
+                  </View>
+                </View>
+              </View>
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: smsReprocessExisting }}
+                onPress={() => setSmsReprocessExisting((current) => !current)}
+                style={({ pressed }) => [styles.mobileOptionRow, pressed ? styles.mobilePressed : null]}
+              >
+                <View style={styles.mobileRowBody}>
+                  <Text style={styles.mobileRowTitle}>Refresh previous imports</Text>
+                  <Text style={styles.mobileRowMeta}>Re-run pending items through the latest parser without changing confirmed transactions.</Text>
+                </View>
+                <View style={[styles.mobileToggle, smsReprocessExisting ? styles.mobileToggleActive : null]}>
+                  <View style={[styles.mobileToggleKnob, smsReprocessExisting ? styles.mobileToggleKnobActive : null]} />
+                </View>
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={styles.mobileStateText}>Fast scan. Previously processed messages stay skipped.</Text>
+          )}
           <Pressable
             disabled={rawQueueState === "loading" || !canReadSms || enabledRules.length === 0}
             onPress={() => void handleScanAndSyncSms()}
@@ -3598,7 +4092,11 @@ export default function App() {
               <MaterialCommunityIcons color="#06141f" name="sync" size={22} />
             )}
             <Text style={styles.mobilePrimaryButtonText}>
-              {rawQueueState === "loading" ? "Syncing messages…" : "Scan phone & sync"}
+              {rawQueueState === "loading"
+                ? "Syncing messages…"
+                : smsScanMode === "history"
+                  ? "Scan selected history"
+                  : "Scan new messages"}
             </Text>
           </Pressable>
           {rawQueueMessage ? (
@@ -3614,6 +4112,37 @@ export default function App() {
             </View>
           ) : null}
         </View>
+
+        {__DEV__ && Platform.OS === "android" ? (
+          <View style={[styles.mobileSection, styles.mobileDangerZone]}>
+            <View style={styles.mobileSectionHeader}>
+              <Text style={styles.mobileSectionTitle}>Development reset</Text>
+              <Text style={styles.mobileDangerLabel}>DEBUG ONLY</Text>
+            </View>
+            <Text style={styles.mobileStateText}>
+              Clear local scan memory and this user's backend SMS imports so the same inbox range can be tested from scratch.
+            </Text>
+            <Pressable
+              disabled={smsDevResetState === "loading"}
+              onPress={() => void handleDevelopmentSmsReset()}
+              style={({ pressed }) => [styles.mobileDangerButton, pressed ? styles.mobilePressed : null]}
+            >
+              {smsDevResetState === "loading" ? (
+                <ActivityIndicator color="#ff9399" size="small" />
+              ) : (
+                <MaterialCommunityIcons color="#ff9399" name="delete-alert-outline" size={21} />
+              )}
+              <Text style={styles.mobileDangerButtonText}>
+                {smsDevResetArmed ? "Confirm clear SMS test data" : "Clear SMS test data"}
+              </Text>
+            </Pressable>
+            <InlineFeedback
+              loadingLabel="Clearing SMS test data…"
+              message={smsDevResetMessage}
+              state={smsDevResetState}
+            />
+          </View>
+        ) : null}
       </View>
     );
   };
@@ -4132,6 +4661,32 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800"
   },
+  mobileDangerButton: {
+    alignItems: "center",
+    borderColor: "#6a3440",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    justifyContent: "center",
+    minHeight: 52,
+    paddingHorizontal: 14
+  },
+  mobileDangerButtonText: {
+    color: "#ff9399",
+    fontSize: 14,
+    fontWeight: "800"
+  },
+  mobileDangerLabel: {
+    color: "#ff9399",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.8
+  },
+  mobileDangerZone: {
+    backgroundColor: "#211923",
+    borderColor: "#5a3139"
+  },
   mobileEmptyCopy: {
     color: "#91a7c2",
     fontSize: 14,
@@ -4226,6 +4781,9 @@ const styles = StyleSheet.create({
     color: "#f6f8fc",
     fontSize: 18,
     fontWeight: "800"
+  },
+  mobileHistoryOptions: {
+    gap: 12
   },
   mobileIconAction: {
     alignItems: "center",
@@ -4358,6 +4916,17 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: "800",
     letterSpacing: -1
+  },
+  mobileOptionRow: {
+    alignItems: "center",
+    backgroundColor: "#091724",
+    borderColor: "#2b4159",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    minHeight: 72,
+    padding: 13
   },
   mobileLogoutButton: {
     alignItems: "center",
@@ -4547,6 +5116,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14
   },
+  mobileRangeField: {
+    flex: 1,
+    minWidth: 0
+  },
+  mobileRangeRow: {
+    flexDirection: "row",
+    gap: 10
+  },
   mobileReviewAmount: {
     color: "#f6f8fc",
     fontSize: 26,
@@ -4564,6 +5141,18 @@ const styles = StyleSheet.create({
   mobileRoot: {
     backgroundColor: "#081421",
     flex: 1
+  },
+  mobileRuleComposer: {
+    backgroundColor: "#0b1a29",
+    borderColor: "#2e6571",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14
+  },
+  mobileRuleComposerTitle: {
+    color: "#f6f8fc",
+    fontSize: 17,
+    fontWeight: "800"
   },
   mobileRuleDecision: {
     alignItems: "flex-end",
@@ -4584,6 +5173,12 @@ const styles = StyleSheet.create({
     gap: 16,
     justifyContent: "center",
     paddingHorizontal: 34
+  },
+  mobileSenderRowDisabled: {
+    opacity: 0.55
+  },
+  mobileSenderRowSelected: {
+    backgroundColor: "#102f39"
   },
   mobileRowAmount: {
     color: "#ff7d84",
@@ -4833,6 +5428,13 @@ const styles = StyleSheet.create({
   },
   mobileStatusChipTextSuccess: {
     color: "#55e6a5"
+  },
+  mobileSubsection: {
+    borderTopColor: "#263a52",
+    borderTopWidth: 1,
+    gap: 12,
+    marginTop: 6,
+    paddingTop: 18
   },
   mobileSyncResult: {
     alignItems: "flex-start",

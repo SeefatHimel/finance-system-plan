@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
@@ -75,6 +76,38 @@ class SenderRuleApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+    def test_sender_rule_rejects_duplicate_sender_and_match_type(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank primary",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+            match_type=SenderRule.MatchType.EXACT,
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("sender-rule-list"),
+            {
+                "account": str(account.id),
+                "name": "City Bank duplicate",
+                "provider": SenderRule.Provider.CITY_BANK,
+                "sender": "citybank",
+                "match_type": SenderRule.MatchType.EXACT,
+                "priority": 100,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data["sender"][0],
+            "A sender rule with this sender and match type already exists.",
+        )
 
 
 class RawMessageImportApiTests(APITestCase):
@@ -382,6 +415,42 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(candidate["amount"], "1200.00")
         self.assertEqual(candidate["counterparty_text"], "SAMPLE STORE")
         self.assertEqual(candidate["reference"], "CITY123456")
+        self.assertFalse(candidate["possible_internal_transfer"])
+
+    def test_city_bank_atm_withdrawal_accepts_dotted_taka_prefix(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(
+            user=user,
+            name="City Bank Account",
+            type=Account.Type.BANK,
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank sender",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": (FIXTURE_DIR / "city_bank" / "atm_withdrawal.txt").read_text(),
+                "received_at": "2026-08-06T22:46:00+06:00",
+                "device_message_id": "sms-city-atm-withdrawal-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["provider"], "city_bank")
+        self.assertEqual(candidate["message_kind"], "cash_out")
+        self.assertEqual(candidate["transaction_type"], "expense")
+        self.assertEqual(candidate["amount"], "40000.00")
+        self.assertEqual(candidate["account"], account.id)
         self.assertFalse(candidate["possible_internal_transfer"])
 
     def test_bank_card_followup_messages_create_specific_candidates(self):
@@ -823,6 +892,93 @@ class RawMessageImportApiTests(APITestCase):
             duplicate_response.data["message"]["id"],
             first_response.data["message"]["id"],
         )
+
+    def test_duplicate_raw_message_can_reprocess_pending_candidate(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="City Bank", type=Account.Type.BANK)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank sender",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+        payload = {
+            "sender": "CITYBANK",
+            "body": (FIXTURE_DIR / "city_bank" / "atm_withdrawal.txt").read_text(),
+            "received_at": "2026-08-06T22:46:00+06:00",
+            "device_message_id": "sms-city-atm-reprocess-100",
+        }
+
+        first_response = self.client.post(reverse("raw-message-import"), payload, format="json")
+        candidate = ParsedMessageCandidate.objects.get(id=first_response.data["candidate"]["id"])
+        candidate.amount = None
+        candidate.message_kind = ParsedMessageCandidate.MessageKind.UNKNOWN
+        candidate.confidence = "0.42"
+        candidate.save(update_fields=("amount", "message_kind", "confidence", "updated_at"))
+
+        duplicate_response = self.client.post(
+            reverse("raw-message-import"),
+            {**payload, "reprocess_existing": True},
+            format="json",
+        )
+
+        self.assertEqual(duplicate_response.status_code, 200)
+        self.assertTrue(duplicate_response.data["is_duplicate"])
+        self.assertTrue(duplicate_response.data["was_reprocessed"])
+        self.assertEqual(duplicate_response.data["candidate"]["amount"], "40000.00")
+        self.assertEqual(duplicate_response.data["candidate"]["message_kind"], "cash_out")
+
+        candidate.refresh_from_db()
+        candidate.status = ParsedMessageCandidate.Status.CONFIRMED
+        candidate.amount = "1.00"
+        candidate.save(update_fields=("status", "amount", "updated_at"))
+        confirmed_response = self.client.post(
+            reverse("raw-message-import"),
+            {**payload, "reprocess_existing": True},
+            format="json",
+        )
+
+        self.assertFalse(confirmed_response.data["was_reprocessed"])
+        self.assertEqual(confirmed_response.data["candidate"]["amount"], "1.00")
+
+    @override_settings(DEBUG=True)
+    def test_development_reset_clears_only_authenticated_users_sms_data(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        other_user = get_user_model().objects.create_user(username="other", password="password")
+        self.client.force_authenticate(user)
+        payload = {
+            "sender": "bKash",
+            "body": "Cash Out Tk 500.00 successful.",
+            "received_at": "2026-05-29T10:30:00+06:00",
+            "device_message_id": "sms-reset-100",
+        }
+        self.client.post(reverse("raw-message-import"), payload, format="json")
+        RawMessage.objects.create(
+            user=other_user,
+            sender="bKash",
+            body="Cash Out Tk 100.00 successful.",
+            received_at="2026-05-29T10:30:00+06:00",
+            device_message_id="sms-other-100",
+            body_hash="other-user-message-hash",
+        )
+
+        response = self.client.post(reverse("sms-development-reset"), format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["deleted_messages"], 1)
+        self.assertFalse(RawMessage.objects.filter(user=user).exists())
+        self.assertTrue(RawMessage.objects.filter(user=other_user).exists())
+
+    @override_settings(DEBUG=False)
+    def test_development_reset_is_unavailable_outside_debug(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        self.client.force_authenticate(user)
+
+        response = self.client.post(reverse("sms-development-reset"), format="json")
+
+        self.assertEqual(response.status_code, 404)
 
 
 class MessageReviewApiTests(APITestCase):

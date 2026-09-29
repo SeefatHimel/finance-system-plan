@@ -40,8 +40,10 @@ reports, debt/repayment, credit card bill, recurring bill, and reconciliation
 endpoints, a Next.js dashboard, web management, SMS review, debt, credit-card,
 recurring-bill, and reconciliation screens, and an Expo mobile scaffold with
 local raw-message queuing, retry metadata, duplicate checks, sync, SMS review,
-and a local Android native SMS capture scaffold for custom dev client or
-personal APK builds. The transactions page can also download filtered CSV
+historical date-range rescans, pending-candidate reparsing, searchable inbox
+sender discovery, and mobile sender-rule creation backed by a local Android
+native SMS capture module for custom dev client or personal APK builds. The
+transactions page can also download filtered CSV
 exports for spreadsheet backup, and transaction changes are captured in a
 read-only audit trail. Local PostgreSQL dump, guarded restore, backup manifest,
 and retention scripts provide the first database backup path, and the deployment
@@ -55,7 +57,8 @@ workflow polish.
 - Backend is the source of truth.
 - Data is scoped per authenticated user.
 - Amounts are stored as positive values; transaction type controls direction.
-- SMS capture is sender-rule based for privacy.
+- SMS capture is sender-rule based for privacy, and sender discovery exposes
+  identifiers/counts without revealing message bodies.
 - Rule-based parsing comes before AI for explainability.
 - Reconciliation exists because real-life balances can drift.
 - CSV export keeps a spreadsheet/backup path available while the app matures.
@@ -74,12 +77,12 @@ and report logic in the backend so the system can evolve.
 
 ## If Asked "What Would You Build Next?"
 
-I would collect real anonymized SMS fixtures for bKash, EBL, City Bank, and
+I would collect more anonymized SMS fixtures for bKash, EBL, City Bank, and
 Pathao Pay, then use them to deepen additional bank transfer and
-internal-transfer matching variants. I would also validate the native SMS
-capture scaffold on a real Android device, continue mobile finance workflow
-polish, harden local sync, add deployment-specific encrypted backup uploads and
-alerts, and prepare production deployment.
+internal-transfer matching variants. I would also expand physical-device test
+coverage for sender discovery, history rescans, and background capture,
+continue mobile finance workflow polish, harden local sync, and add
+deployment-specific encrypted backup uploads and alerts.
 
 ## If Asked "How Is This Different From A Simple Expense Tracker?"
 

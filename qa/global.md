@@ -101,10 +101,13 @@ backend makes behavior easier to test, audit, and maintain.
 
 ## How does SMS tracking work conceptually?
 
-The Android app lets the user choose trusted sender numbers. When matching SMS
-messages arrive, the app stores the raw message locally and sends it to the
-backend. The backend parses it into a transaction candidate, checks duplicate
-risk, and either marks it for review or creates a confirmed transaction.
+The Android app can discover distinct inbox sender identifiers without showing
+message bodies, then lets the user search, map a sender to an account/provider,
+and create an exact trusted rule. When matching SMS messages arrive, the app
+stores the raw message locally and sends it to the backend. The backend parses
+it into a transaction candidate, checks duplicate risk, and marks it for
+review. Users can also scan a date range and explicitly reparse pending prior
+imports with newer parser rules.
 
 ## Why require sender rules for SMS?
 

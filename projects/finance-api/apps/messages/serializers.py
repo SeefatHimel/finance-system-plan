@@ -52,6 +52,23 @@ class SenderRuleSerializer(serializers.ModelSerializer):
                 {"payment_method": "Payment method must belong to the selected account."}
             )
 
+        sender = attrs.get("sender", getattr(self.instance, "sender", "")).strip()
+        match_type = attrs.get(
+            "match_type",
+            getattr(self.instance, "match_type", SenderRule.MatchType.EXACT),
+        )
+        duplicate_rules = SenderRule.objects.filter(
+            user=self.context["request"].user,
+            sender__iexact=sender,
+            match_type=match_type,
+        )
+        if self.instance:
+            duplicate_rules = duplicate_rules.exclude(id=self.instance.id)
+        if sender and duplicate_rules.exists():
+            raise serializers.ValidationError(
+                {"sender": "A sender rule with this sender and match type already exists."}
+            )
+
         return attrs
 
     def get_fields(self):
@@ -99,6 +116,7 @@ class RawMessageImportSerializer(serializers.Serializer):
         required=False,
         allow_blank=True,
     )
+    reprocess_existing = serializers.BooleanField(required=False, default=False)
 
 
 class ParsedMessageCandidateSerializer(serializers.ModelSerializer):

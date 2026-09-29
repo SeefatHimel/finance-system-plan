@@ -198,11 +198,13 @@ export interface RawMessageImportRequest {
   body: string;
   received_at: string;
   device_message_id?: string;
+  reprocess_existing?: boolean;
 }
 
 export interface RawMessageImportResponse {
   candidate: ParsedMessageCandidate | null;
   is_duplicate: boolean;
+  was_reprocessed: boolean;
   message: RawMessage;
 }
 

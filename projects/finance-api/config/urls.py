@@ -17,6 +17,7 @@ from apps.messages.views import (
     RawMessageImportView,
     RawMessageRedactView,
     SenderRuleViewSet,
+    SmsDevelopmentResetView,
 )
 from apps.payment_methods.views import PaymentMethodViewSet
 from apps.recurring_bills.views import RecurringBillPaymentCreateView, RecurringBillViewSet
@@ -49,6 +50,7 @@ urlpatterns = [
         name="raw-message-redact",
     ),
     path("api/messages/review/", MessageReviewListView.as_view(), name="message-review-list"),
+    path("api/messages/dev/reset/", SmsDevelopmentResetView.as_view(), name="sms-development-reset"),
     path(
         "api/messages/review/<uuid:candidate_id>/confirm/",
         MessageCandidateConfirmView.as_view(),

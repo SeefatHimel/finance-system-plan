@@ -2,5 +2,6 @@
   "sender": "bKash",
   "body": "Cash Out Tk 500.00 from 01700000000 successful.",
   "received_at": "2026-05-29T10:30:00+06:00",
-  "device_message_id": "sms-100"
+  "device_message_id": "sms-100",
+  "reprocess_existing": false
 }

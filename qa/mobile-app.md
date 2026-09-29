@@ -87,11 +87,21 @@ paths, and physical-phone SMS smoke test are documented in
   shows an Android permission gate, lets the user locally enable trusted sender
   rules, and syncs those enabled rules to native SMS capture in custom Android
   builds.
+- Native sender discovery that reads distinct Android inbox sender names,
+  timestamps, and counts without showing message bodies. The user can search,
+  choose a sender, map it to an account and provider, create the backend exact
+  match rule, and immediately enable/sync it without switching to the web app.
 - Incremental native inbox scanning for historical messages. The scanner uses
   deterministic fingerprints to skip matched messages already processed,
   keeps explicit Tracking/Excluded sender choices across launches, prevents
   excluded senders from entering the upload queue, queues new matches locally
   before upload, and refreshes the review inbox after a sync.
+- User-controlled SMS history imports with from/through dates and an explicit
+  option to revisit previous imports. Revisits ask the backend to reparse only
+  pending review candidates; confirmed transactions remain unchanged.
+- A two-step development reset shown only in debug Android builds. It clears
+  local scan state plus the signed-in user's SMS imports and SMS-created test
+  transactions, while the backend refuses the endpoint outside debug mode.
 - Local raw message queue backed by AsyncStorage, with sync to
   `POST /api/messages/import/`, local duplicate checks, per-message retry
   metadata, capped retry backoff, and manual removal for invalid queued
@@ -143,6 +153,13 @@ The user enables tracking for specific sender numbers or names. The app reads
 matching SMS messages, stores the raw message locally, and syncs it to the
 backend. The backend parses and returns whether it needs review.
 
+Rule onboarding can happen entirely on Android: after SMS permission is
+granted, the app lists distinct inbox sender identifiers and message counts,
+supports local search, infers common providers, requires an explicit account
+mapping, creates an exact-match backend rule, and syncs the enabled rule to the
+native capture module. Exact sender duplicates are blocked by both the client
+and API.
+
 The first provider targets are bKash, EBL, City Bank, and Pathao Pay. The mobile
 review flow now supports internal transfer confirmation by letting the user
 choose transaction type plus source and destination accounts when the parser is
@@ -150,10 +167,13 @@ unsure.
 
 Current status: the app can load backend sender rules and payment methods after
 login, persist which trusted rules are enabled, capture future messages, and
-scan existing Android inbox history. Matching messages receive deterministic
-fingerprints, so later scans skip messages that were already processed. A
-single automation action queues new matches before upload, syncs them to the
-backend import endpoint, and refreshes the review inbox.
+scan a selected Android inbox date range. Matching messages receive
+deterministic fingerprints, so incremental scans skip messages already
+processed. A user can explicitly refresh previous imports; the API reparses
+pending candidates with current rules and parser logic while leaving confirmed
+ledger transactions untouched. The automation action queues matches before
+upload, syncs them to the backend import endpoint, and refreshes the review
+inbox.
 Actual capture requires a custom Android dev client or APK; Expo Go cannot load
 the native module.
 

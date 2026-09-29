@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -55,6 +56,7 @@ class RawMessageImportView(APIView):
         )
         if duplicate:
             candidate = getattr(duplicate, "candidate", None)
+            was_reprocessed = self._reprocess_candidate(candidate) if payload["reprocess_existing"] else False
             return Response(
                 {
                     "candidate": (
@@ -63,6 +65,7 @@ class RawMessageImportView(APIView):
                         else None
                     ),
                     "is_duplicate": True,
+                    "was_reprocessed": was_reprocessed,
                     "message": RawMessageSerializer(duplicate).data,
                 },
                 status=status.HTTP_200_OK,
@@ -83,6 +86,7 @@ class RawMessageImportView(APIView):
         except IntegrityError:
             raw_message = RawMessage.objects.get(user=request.user, body_hash=body_hash)
             candidate = getattr(raw_message, "candidate", None)
+            was_reprocessed = self._reprocess_candidate(candidate) if payload["reprocess_existing"] else False
             return Response(
                 {
                     "candidate": (
@@ -91,6 +95,7 @@ class RawMessageImportView(APIView):
                         else None
                     ),
                     "is_duplicate": True,
+                    "was_reprocessed": was_reprocessed,
                     "message": RawMessageSerializer(raw_message).data,
                 },
                 status=status.HTTP_200_OK,
@@ -100,6 +105,7 @@ class RawMessageImportView(APIView):
             {
                 "candidate": ParsedMessageCandidateSerializer(candidate).data,
                 "is_duplicate": False,
+                "was_reprocessed": False,
                 "message": RawMessageSerializer(raw_message).data,
             },
             status=status.HTTP_201_CREATED,
@@ -136,6 +142,50 @@ class RawMessageImportView(APIView):
             parser_name=parsed["parser_name"],
             parser_notes=parsed["parser_notes"],
         )
+
+    def _reprocess_candidate(self, candidate):
+        if candidate is None or candidate.status != ParsedMessageCandidate.Status.NEEDS_REVIEW:
+            return False
+        if candidate.raw_message.status == RawMessage.Status.REDACTED:
+            return False
+
+        parsed = parse_raw_message(candidate.raw_message)
+        parsed_fields = (
+            "sender_rule",
+            "account",
+            "payment_method",
+            "destination_account",
+            "destination_payment_method",
+            "provider",
+            "message_kind",
+            "transaction_type",
+            "amount",
+            "counterparty_text",
+            "reference",
+            "balance_after",
+            "fee_amount",
+            "possible_internal_transfer",
+            "confidence",
+            "parser_name",
+            "parser_notes",
+        )
+        for field in parsed_fields:
+            setattr(candidate, field, parsed[field])
+
+        related_candidate = candidate.possible_related_candidate
+        candidate.possible_related_candidate = None
+        candidate.related_match_reason = ""
+        candidate.save(
+            update_fields=(*parsed_fields, "possible_related_candidate", "related_match_reason", "updated_at")
+        )
+        if related_candidate and related_candidate.possible_related_candidate_id == candidate.id:
+            related_candidate.possible_related_candidate = None
+            related_candidate.related_match_reason = ""
+            related_candidate.save(
+                update_fields=("possible_related_candidate", "related_match_reason", "updated_at")
+            )
+        self._link_possible_related_candidate(candidate)
+        return True
 
     def _link_possible_related_candidate(self, candidate):
         if not candidate.possible_internal_transfer or candidate.amount is None:
@@ -205,6 +255,32 @@ class MessageReviewListView(APIView):
             )
         )
         return Response(ParsedMessageCandidateSerializer(candidates, many=True).data)
+
+
+class SmsDevelopmentResetView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        if not settings.DEBUG:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        sms_transactions = Transaction.objects.filter(user=request.user, source=Transaction.Source.SMS)
+        transaction_count = sms_transactions.count()
+        raw_messages = RawMessage.objects.filter(user=request.user)
+        raw_message_count = raw_messages.count()
+        candidate_count = ParsedMessageCandidate.objects.filter(user=request.user).count()
+
+        with transaction.atomic():
+            sms_transactions.delete()
+            raw_messages.delete()
+
+        return Response(
+            {
+                "deleted_candidates": candidate_count,
+                "deleted_messages": raw_message_count,
+                "deleted_transactions": transaction_count,
+            }
+        )
 
 
 class MessageCandidateConfirmView(APIView):

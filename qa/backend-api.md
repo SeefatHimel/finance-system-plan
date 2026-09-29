@@ -46,6 +46,11 @@ Every finance queryset is scoped by `request.user`. The API uses authenticated
 permissions on finance endpoints, and serializers validate that related objects
 like accounts and categories belong to the current user.
 
+Sender rule creation is also user-scoped. The serializer rejects duplicate
+case-insensitive sender plus match-type combinations, which prevents mobile and
+web clients from accidentally creating overlapping exact rules for the same
+inbox sender.
+
 ## What are the core backend apps?
 
 Implemented:
@@ -140,6 +145,7 @@ POST   /api/payment-methods/
 GET    /api/messages/sender-rules/
 POST   /api/messages/sender-rules/
 POST   /api/messages/import/
+POST   /api/messages/dev/reset/  # DEBUG only
 GET    /api/messages/review/
 POST   /api/messages/review/{id}/confirm/
 POST   /api/messages/review/{id}/ignore/
@@ -200,9 +206,16 @@ candidate with matched sender rule metadata, amount extraction, confidence, and
 parser notes. Candidates can be reviewed, confirmed into an SMS-sourced
 transaction, or ignored.
 
+Duplicate imports can opt into `reprocess_existing`. The backend then updates
+the existing candidate with current sender rules and parser logic only while it
+still needs review. Confirmed and ignored candidates are returned unchanged, so
+a history rescan cannot silently rewrite ledger decisions. A development-only
+reset can clear one authenticated user's SMS imports and SMS-created test
+transactions, but the endpoint returns `404` whenever `DJANGO_DEBUG=false`.
+
 Phase 3 now has transfer-aware candidate fields, an initial bKash parser,
-starter EBL/City Bank card parsing for purchases, card payments, fees, refunds,
-and reversals, starter bank transfer source/destination hinting for EBL
+starter EBL/City Bank parsing for purchases, ATM withdrawals, card payments,
+fees, refunds, and reversals, starter bank transfer source/destination hinting for EBL
 bank-to-wallet and City Bank own-account transfer messages, and starter Pathao
 Pay parsing for top-up, payment, send-money, and withdraw confirmations. The
 parsers detect message kind, amount, reference, balance, fee,
@@ -215,7 +228,8 @@ transfer-like messages also try to match masked account or wallet identifiers
 against the user's configured payment methods so known source/destination
 accounts can be prefilled. Bank account transfer messages now use the same
 known payment-method hints when an anonymized account or wallet identifier is
-present in the message.
+present in the message. Taka amounts accept both `Tk 1,000` and the common
+`Tk. 1,000` spelling used by City Bank messages.
 
 For internal transfers, the backend now links possible related candidates when
 two review items belong to the same user, have the same amount, close received

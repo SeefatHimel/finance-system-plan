@@ -15,7 +15,9 @@ The API project is scaffolded with:
 - Account, category, and transaction models
 - Authenticated CRUD APIs for accounts, categories, and transactions
 - Authenticated CRUD APIs for payment methods and SMS sender rules
-- Raw SMS import endpoint with duplicate-detection baseline
+- Duplicate sender/match combinations rejected per authenticated user
+- Raw SMS import endpoint with duplicate detection and opt-in reparsing of
+  pending duplicates
 - Parsed SMS review inbox with confirm/ignore actions
 - Basic monthly report endpoint
 - Debt and repayment workflow endpoints
@@ -211,6 +213,7 @@ GET    /api/messages/sender-rules/{id}/
 PATCH  /api/messages/sender-rules/{id}/
 DELETE /api/messages/sender-rules/{id}/
 POST   /api/messages/import/
+POST   /api/messages/dev/reset/  # local DEBUG only
 POST   /api/messages/raw/{id}/redact/
 GET    /api/messages/review/
 POST   /api/messages/review/{id}/confirm/

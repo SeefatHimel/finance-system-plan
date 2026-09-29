@@ -81,16 +81,28 @@ export type SenderRule = {
   sender: string;
 };
 
+export type CreateSenderRuleInput = {
+  account: string;
+  match_type?: string;
+  name: string;
+  payment_method?: string | null;
+  priority?: number;
+  provider: string;
+  sender: string;
+};
+
 export type RawMessageImportInput = {
   body: string;
   device_message_id?: string;
   received_at: string;
+  reprocess_existing?: boolean;
   sender: string;
 };
 
 export type RawMessageImportResult = {
   candidate?: ParsedMessageCandidate | null;
   is_duplicate: boolean;
+  was_reprocessed: boolean;
   message: {
     id: string;
     sender: string;
@@ -330,6 +342,26 @@ export function getApiBaseUrl() {
   return (process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://10.0.2.2:8000").replace(/\/+$/, "");
 }
 
+async function responseErrorMessage(response: Response) {
+  try {
+    const payload = (await response.json()) as Record<string, unknown>;
+    if (typeof payload.detail === "string") {
+      return payload.detail;
+    }
+    for (const value of Object.values(payload)) {
+      if (typeof value === "string") {
+        return value;
+      }
+      if (Array.isArray(value) && typeof value[0] === "string") {
+        return value[0];
+      }
+    }
+  } catch {
+    // Fall through to the HTTP status when the response is not JSON.
+  }
+  return `Request failed with HTTP ${response.status}.`;
+}
+
 export async function checkHealth(): Promise<HealthResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -449,7 +481,7 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
   }
 
   if (!response.ok) {
-    throw new Error(`Request failed with HTTP ${response.status}.`);
+    throw new Error(await responseErrorMessage(response));
   }
 
   return response;
@@ -473,6 +505,31 @@ export async function listPaymentMethods(accessToken: string): Promise<PaymentMe
 export async function listSenderRules(accessToken: string): Promise<SenderRule[]> {
   const response = await authenticatedFetch("/api/messages/sender-rules/", accessToken);
   return (await response.json()) as SenderRule[];
+}
+
+export async function createSenderRule(
+  accessToken: string,
+  input: CreateSenderRuleInput
+): Promise<SenderRule> {
+  const response = await authenticatedFetch("/api/messages/sender-rules/", accessToken, {
+    body: JSON.stringify({
+      account: input.account,
+      is_active: true,
+      match_type: input.match_type || "exact",
+      name: input.name,
+      notes: "Created from the Android SMS sender picker.",
+      pattern: "",
+      payment_method: input.payment_method || null,
+      priority: input.priority ?? 100,
+      provider: input.provider,
+      sender: input.sender
+    }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+  return (await response.json()) as SenderRule;
 }
 
 export async function listMessageCandidates(accessToken: string): Promise<ParsedMessageCandidate[]> {
@@ -699,6 +756,7 @@ export async function importRawMessage(
       body: input.body,
       device_message_id: input.device_message_id || "",
       received_at: input.received_at,
+      reprocess_existing: input.reprocess_existing || false,
       sender: input.sender
     }),
     headers: {
@@ -709,6 +767,21 @@ export async function importRawMessage(
   });
 
   return (await response.json()) as RawMessageImportResult;
+}
+
+export async function resetSmsDevelopmentData(accessToken: string): Promise<{
+  deleted_candidates: number;
+  deleted_messages: number;
+  deleted_transactions: number;
+}> {
+  const response = await authenticatedFetch("/api/messages/dev/reset/", accessToken, {
+    method: "POST"
+  });
+  return (await response.json()) as {
+    deleted_candidates: number;
+    deleted_messages: number;
+    deleted_transactions: number;
+  };
 }
 
 export async function listTransactions(accessToken: string): Promise<Transaction[]> {

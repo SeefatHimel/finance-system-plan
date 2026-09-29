@@ -34,15 +34,36 @@ class FinanceSmsCaptureModule : Module() {
       FinanceSmsStore.getMessages(requireContext(), limit ?: 50)
     }
 
-    AsyncFunction("scanHistoricalMessagesAsync") { limit: Int? ->
+    AsyncFunction("listInboxSendersAsync") { limit: Int? ->
+      if (!hasPermission(Manifest.permission.READ_SMS)) {
+        throw IllegalStateException("Android SMS read permission is required before loading sender names.")
+      }
+      FinanceSmsStore.listInboxSenders(requireContext(), limit ?: 5000)
+    }
+
+    AsyncFunction("scanHistoricalMessagesAsync") { options: Map<String, Any?>? ->
       if (!hasPermission(Manifest.permission.READ_SMS)) {
         throw IllegalStateException("Android SMS read permission is required before scanning message history.")
       }
-      FinanceSmsStore.scanHistoricalMessages(requireContext(), limit ?: 500)
+      val limit = (options?.get("limit") as? Number)?.toInt() ?: 500
+      val fromTimestamp = (options?.get("fromTimestamp") as? Number)?.toLong()
+      val toTimestamp = (options?.get("toTimestamp") as? Number)?.toLong()
+      val includeProcessed = options?.get("includeProcessed") as? Boolean ?: false
+      FinanceSmsStore.scanHistoricalMessages(
+        requireContext(),
+        limit,
+        fromTimestamp,
+        toTimestamp,
+        includeProcessed
+      )
     }
 
     AsyncFunction("clearCapturedMessagesAsync") { ids: List<String> ->
       FinanceSmsStore.clearMessages(requireContext(), ids)
+    }
+
+    AsyncFunction("resetTrackingStateAsync") {
+      FinanceSmsStore.resetTrackingState(requireContext())
     }
   }
 

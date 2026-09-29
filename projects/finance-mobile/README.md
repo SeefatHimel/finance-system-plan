@@ -39,15 +39,21 @@ Phase 1 scaffold now includes:
   - local sender rule enable/disable selection
   - syncs enabled sender rules into the local native SMS capture module when
     running a custom Android dev client or APK
+  - discovers distinct sender names and message counts from the Android inbox
+    without exposing message bodies in the rule picker
+  - supports sender search, account mapping, provider selection, backend rule
+    creation, local enablement, and immediate native-rule sync
 - Local raw message queue:
   - stores queued raw messages with AsyncStorage
   - shows inline loading, success, empty, and error feedback when sender rules
     are refreshed, including the signed-in username for account troubleshooting
 - Historical SMS backfill in native Android builds:
-  - scans the existing inbox after the user grants `READ_SMS`
+  - lets the user scan only new messages or choose a historical date range
   - evaluates only user-enabled sender rules
   - records deterministic message fingerprints so previously scanned messages
     are not imported again
+  - can deliberately revisit previous imports and re-run pending review items
+    through the latest backend parser without rewriting confirmed transactions
   - queues before uploading so an interrupted sync does not lose a message
   - syncs queued messages to `POST /api/messages/import/`
   - keeps failed sync items queued for retry
@@ -55,6 +61,9 @@ Phase 1 scaffold now includes:
   - uses a capped exponential retry delay so failed messages are not retried on every tap
   - blocks obvious local duplicate queue entries before backend sync
   - lets the user remove invalid queued messages manually
+  - exposes a two-step, debug-build-only reset that clears local scan memory and
+    the signed-in user's backend SMS test data; the backend rejects it when
+    `DJANGO_DEBUG=false`
 - SMS review inbox:
   - loads parsed candidates from `GET /api/messages/review/`
   - shows parser hints, raw SMS evidence, and internal-transfer flags
