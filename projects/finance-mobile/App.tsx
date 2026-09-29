@@ -1,8 +1,12 @@
 import { StatusBar } from "expo-status-bar";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
+  Modal,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -65,6 +69,9 @@ import {
 
 type ViewState = "idle" | "loading" | "success" | "error";
 type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
+type MainTab = "home" | "activity" | "review" | "accounts" | "more";
+type HomeFeed = "review" | "captured";
+type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 type ReviewCandidateDraft = {
   accountId: string;
   transferAccountId: string;
@@ -474,6 +481,24 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function formatMobileDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+function titleCase(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function confidencePercent(value: string) {
   const score = Number(value);
   if (Number.isNaN(score)) {
@@ -611,10 +636,20 @@ export default function App() {
   const [reviewCandidates, setReviewCandidates] = useState<ParsedMessageCandidate[]>([]);
   const [reviewActionCandidateId, setReviewActionCandidateId] = useState("");
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewCandidateDraft>>({});
+  const [activeTab, setActiveTab] = useState<MainTab>("home");
+  const [homeFeed, setHomeFeed] = useState<HomeFeed>("review");
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [showAdvancedTools, setShowAdvancedTools] = useState(false);
+  const drawerTranslateX = useRef(new Animated.Value(-320)).current;
+  const contentOpacity = useRef(new Animated.Value(1)).current;
 
   const loadHealth = async () => {
     setState("loading");
-    const nextResult = await checkHealth();
+    let nextResult = await checkHealth();
+    if (!nextResult.ok) {
+      await new Promise((resolve) => setTimeout(() => resolve(undefined), 1500));
+      nextResult = await checkHealth();
+    }
     setResult(nextResult);
     setState(nextResult.ok ? "success" : "error");
   };
@@ -1631,6 +1666,61 @@ export default function App() {
     }
   };
 
+  const openDrawer = () => {
+    setDrawerVisible(true);
+    drawerTranslateX.setValue(-320);
+    Animated.timing(drawerTranslateX, {
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      toValue: 0,
+      useNativeDriver: true
+    }).start();
+  };
+
+  const closeDrawer = () => {
+    Animated.timing(drawerTranslateX, {
+      duration: 180,
+      easing: Easing.in(Easing.cubic),
+      toValue: -320,
+      useNativeDriver: true
+    }).start(({ finished }) => {
+      if (finished) {
+        setDrawerVisible(false);
+      }
+    });
+  };
+
+  const switchTab = (nextTab: MainTab) => {
+    if (nextTab === activeTab) {
+      return;
+    }
+    Animated.timing(contentOpacity, {
+      duration: 90,
+      toValue: 0,
+      useNativeDriver: true
+    }).start(() => {
+      setActiveTab(nextTab);
+      setShowAdvancedTools(false);
+      Animated.timing(contentOpacity, {
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        toValue: 1,
+        useNativeDriver: true
+      }).start();
+    });
+  };
+
+  const handleLogout = () => {
+    setAccessToken("");
+    setRefreshToken("");
+    setPassword("");
+    setAuthState("idle");
+    setAuthMessage("");
+    setActiveTab("home");
+    setShowAdvancedTools(false);
+    closeDrawer();
+  };
+
   useEffect(() => {
     void loadHealth();
     Promise.all([
@@ -1679,6 +1769,19 @@ export default function App() {
       });
   }, []);
 
+  useEffect(() => {
+    if (!accessToken.trim()) {
+      return;
+    }
+
+    void Promise.all([
+      handleLoadReferenceData(),
+      handleLoadTransactions(),
+      handleLoadReviewCandidates(),
+      handleLoadSmsSettings()
+    ]);
+  }, [accessToken]);
+
   const openDebts = debts.filter((debt) => debt.status !== "paid");
   const cardAccounts = accounts.filter((account) => account.type === "credit_card");
   const openCardBills = cardBills.filter((bill) => bill.status !== "paid");
@@ -1697,9 +1800,22 @@ export default function App() {
   const hasReconciliationDifference =
     reconciliation?.latest_snapshot?.difference !== undefined && reconciliation?.latest_snapshot?.difference !== null;
 
-  return (
+  const renderAdvancedTools = () => (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" />
+      <View style={styles.advancedHeader}>
+        <Pressable
+          accessibilityLabel="Back to Finance Mobile"
+          onPress={() => setShowAdvancedTools(false)}
+          style={styles.advancedHeaderButton}
+        >
+          <MaterialCommunityIcons color="#f6f8fc" name="arrow-left" size={22} />
+        </Pressable>
+        <View>
+          <Text style={styles.advancedHeaderTitle}>Finance tools</Text>
+          <Text style={styles.advancedHeaderSubtitle}>Detailed records and maintenance</Text>
+        </View>
+      </View>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
           <Text style={styles.title}>Finance Mobile</Text>
@@ -2728,9 +2844,1428 @@ export default function App() {
       </ScrollView>
     </SafeAreaView>
   );
+
+  if (showAdvancedTools) {
+    return renderAdvancedTools();
+  }
+
+  const tabItems: Array<{ icon: IconName; key: MainTab; label: string }> = [
+    { icon: "home-variant-outline", key: "home", label: "Home" },
+    { icon: "format-list-bulleted", key: "activity", label: "Activity" },
+    { icon: "clipboard-text-outline", key: "review", label: "Review" },
+    { icon: "credit-card-outline", key: "accounts", label: "Accounts" },
+    { icon: "dots-horizontal", key: "more", label: "More" }
+  ];
+  const drawerItems: Array<{ icon: IconName; label: string }> = [
+    { icon: "handshake-outline", label: "Debts & lending" },
+    { icon: "credit-card-clock-outline", label: "Credit card bills" },
+    { icon: "calendar-sync-outline", label: "Recurring bills" },
+    { icon: "scale-balance", label: "Reconciliation" },
+    { icon: "message-processing-outline", label: "SMS capture settings" }
+  ];
+  const primaryCandidate = reviewCandidates[0] ?? null;
+  const additionalCandidates = reviewCandidates.slice(1, 3);
+  const recentTransactions = transactions.slice(0, 8);
+
+  const renderTransactionRow = (transaction: Transaction) => {
+    const isIncome = transaction.type === "income" || transaction.direction === "credit";
+    const icon: IconName = transaction.type === "transfer" ? "swap-horizontal" : isIncome ? "bank-transfer-in" : "cart-outline";
+    const title = transaction.counterparty_text || transaction.note || titleCase(transaction.type);
+
+    return (
+      <View key={transaction.id} style={styles.mobileListRow}>
+        <View style={[styles.mobileRowIcon, isIncome ? styles.mobileRowIconSuccess : null]}>
+          <MaterialCommunityIcons color={isIncome ? "#55e6a5" : "#75b8ff"} name={icon} size={21} />
+        </View>
+        <View style={styles.mobileRowBody}>
+          <Text numberOfLines={1} style={styles.mobileRowTitle}>{title}</Text>
+          <Text numberOfLines={1} style={styles.mobileRowMeta}>
+            {formatMobileDate(transaction.date)} · {transaction.source || "Ledger"}
+          </Text>
+        </View>
+        <Text style={[styles.mobileRowAmount, isIncome ? styles.mobileRowAmountSuccess : null]}>
+          {isIncome ? "+" : "−"} {formatMoney(parseMoney(transaction.amount))}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderCompactCandidate = (candidate: ParsedMessageCandidate) => {
+    const confidence = confidencePercent(candidate.confidence);
+    const confidenceScore = Number(candidate.confidence);
+    const isLowConfidence = Number.isFinite(confidenceScore) && confidenceScore < 0.8;
+    return (
+      <Pressable
+        key={candidate.id}
+        onPress={() => switchTab("review")}
+        style={({ pressed }) => [styles.mobileQueueRow, pressed ? styles.mobilePressed : null]}
+      >
+        <View style={styles.mobileProviderIcon}>
+          <MaterialCommunityIcons color="#32d8f2" name="message-text-outline" size={21} />
+        </View>
+        <View style={styles.mobileRowBody}>
+          <Text style={styles.mobileRowTitle}>{candidate.provider || candidate.raw_message.sender}</Text>
+          <Text numberOfLines={1} style={styles.mobileRowMeta}>
+            {candidate.counterparty_text || titleCase(candidate.transaction_type)}
+          </Text>
+          <Text style={styles.mobileQueueAmount}>{formatMoney(parseMoney(candidate.amount))}</Text>
+        </View>
+        <View style={styles.mobileQueueAside}>
+          <Text style={[styles.mobileConfidence, isLowConfidence ? styles.mobileConfidenceWarning : null]}>
+            {confidence}
+          </Text>
+          <MaterialCommunityIcons color="#91a7c2" name="chevron-right" size={24} />
+        </View>
+      </Pressable>
+    );
+  };
+
+  const renderHome = () => (
+    <View style={styles.mobileSectionStack}>
+      <View style={styles.mobileSegmentedControl}>
+        <Pressable
+          onPress={() => setHomeFeed("review")}
+          style={[styles.mobileSegment, homeFeed === "review" ? styles.mobileSegmentActive : null]}
+        >
+          <MaterialCommunityIcons color={homeFeed === "review" ? "#06141f" : "#9eb0c7"} name="clipboard-text-outline" size={20} />
+          <Text style={[styles.mobileSegmentText, homeFeed === "review" ? styles.mobileSegmentTextActive : null]}>
+            To review ({reviewCandidates.length})
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setHomeFeed("captured")}
+          style={[styles.mobileSegment, homeFeed === "captured" ? styles.mobileSegmentActive : null]}
+        >
+          <MaterialCommunityIcons color={homeFeed === "captured" ? "#06141f" : "#9eb0c7"} name="format-list-bulleted" size={20} />
+          <Text style={[styles.mobileSegmentText, homeFeed === "captured" ? styles.mobileSegmentTextActive : null]}>
+            Captured ({transactions.length})
+          </Text>
+        </Pressable>
+      </View>
+
+      {homeFeed === "review" ? (
+        <>
+          {reviewState === "loading" && !primaryCandidate ? (
+            <View style={styles.mobileCenteredState}>
+              <ActivityIndicator color="#32d8f2" />
+              <Text style={styles.mobileStateText}>Checking captured messages…</Text>
+            </View>
+          ) : primaryCandidate ? (
+            <View style={styles.mobileHeroCard}>
+              <View style={styles.mobileHeroHeader}>
+                <View style={styles.mobileProviderIconLarge}>
+                  <MaterialCommunityIcons color="#32d8f2" name="wallet-outline" size={28} />
+                </View>
+                <View style={styles.mobileRowBody}>
+                  <Text style={styles.mobileHeroProvider}>{primaryCandidate.provider || primaryCandidate.raw_message.sender}</Text>
+                  <Text style={styles.mobileHeroDate}>{formatMobileDate(primaryCandidate.raw_message.received_at)}</Text>
+                </View>
+                <View style={styles.mobileConfidenceBlock}>
+                  <Text style={styles.mobileConfidenceLarge}>{confidencePercent(primaryCandidate.confidence)}</Text>
+                  <Text style={styles.mobileConfidenceLabel}>confidence</Text>
+                </View>
+              </View>
+              <Text style={styles.mobileHeroAmount}>{formatMoney(parseMoney(primaryCandidate.amount))}</Text>
+              <Text style={styles.mobileHeroDescription}>
+                {primaryCandidate.counterparty_text || titleCase(primaryCandidate.transaction_type)}
+              </Text>
+              <View style={styles.mobileSuggestionRow}>
+                <MaterialCommunityIcons color="#91a7c2" name="tag-outline" size={18} />
+                <Text style={styles.mobileSuggestionText}>
+                  {titleCase(primaryCandidate.transaction_type)} · {accountName(primaryCandidate.account)}
+                </Text>
+              </View>
+              <View style={styles.mobileSmsQuote}>
+                <MaterialCommunityIcons color="#91a7c2" name="message-processing-outline" size={20} />
+                <Text numberOfLines={3} style={styles.mobileSmsQuoteText}>{primaryCandidate.raw_message.body}</Text>
+              </View>
+              <View style={styles.mobileActionRow}>
+                <Pressable
+                  disabled={reviewActionCandidateId === primaryCandidate.id}
+                  onPress={() => void handleConfirmReviewCandidate(primaryCandidate)}
+                  style={({ pressed }) => [styles.mobilePrimaryButton, pressed ? styles.mobilePressed : null]}
+                >
+                  {reviewActionCandidateId === primaryCandidate.id ? (
+                    <ActivityIndicator color="#06141f" />
+                  ) : (
+                    <MaterialCommunityIcons color="#06141f" name="check" size={22} />
+                  )}
+                  <Text style={styles.mobilePrimaryButtonText}>Confirm</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => switchTab("review")}
+                  style={({ pressed }) => [styles.mobileOutlineButton, pressed ? styles.mobilePressed : null]}
+                >
+                  <MaterialCommunityIcons color="#dce8f6" name="pencil-outline" size={20} />
+                  <Text style={styles.mobileOutlineButtonText}>Edit</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.mobileEmptyState}>
+              <View style={styles.mobileEmptyIcon}>
+                <MaterialCommunityIcons color="#55e6a5" name="check-decagram-outline" size={34} />
+              </View>
+              <Text style={styles.mobileEmptyTitle}>Inbox clear</Text>
+              <Text style={styles.mobileEmptyCopy}>New SMS transactions that need your attention will appear here.</Text>
+              <Pressable onPress={handleLoadReviewCandidates} style={styles.mobileTextButton}>
+                <Text style={styles.mobileTextButtonText}>Check again</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {additionalCandidates.length ? (
+            <View style={styles.mobileSection}>
+              <View style={styles.mobileSectionHeader}>
+                <Text style={styles.mobileSectionTitle}>More to review</Text>
+                <Text style={styles.mobileSectionMeta}>Oldest first</Text>
+              </View>
+              <View style={styles.mobileGroupedList}>{additionalCandidates.map(renderCompactCandidate)}</View>
+            </View>
+          ) : null}
+        </>
+      ) : (
+        <View style={styles.mobileSection}>
+          <View style={styles.mobileSectionHeader}>
+            <Text style={styles.mobileSectionTitle}>Captured activity</Text>
+            <Pressable onPress={handleLoadTransactions} style={styles.mobileIconAction}>
+              <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
+            </Pressable>
+          </View>
+          {recentTransactions.length ? (
+            <View style={styles.mobileGroupedList}>{recentTransactions.slice(0, 5).map(renderTransactionRow)}</View>
+          ) : (
+            <Text style={styles.mobileStateText}>No captured transactions yet.</Text>
+          )}
+        </View>
+      )}
+    </View>
+  );
+
+  const renderActivity = () => (
+    <View style={styles.mobileSectionStack}>
+      <View style={styles.mobilePageIntro}>
+        <Text style={styles.mobilePageTitle}>Activity</Text>
+        <Text style={styles.mobilePageSubtitle}>Your imported and manually recorded ledger entries.</Text>
+      </View>
+      <View style={styles.mobileSummaryStrip}>
+        <View>
+          <Text style={styles.mobileSummaryValue}>{transactions.length}</Text>
+          <Text style={styles.mobileSummaryLabel}>captured</Text>
+        </View>
+        <View style={styles.mobileSummaryDivider} />
+        <View>
+          <Text style={styles.mobileSummaryValue}>{transactionQueue.length}</Text>
+          <Text style={styles.mobileSummaryLabel}>waiting to sync</Text>
+        </View>
+        <Pressable onPress={handleLoadTransactions} style={styles.mobileIconAction}>
+          <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
+        </Pressable>
+      </View>
+      {listState === "loading" ? <ActivityIndicator color="#32d8f2" /> : null}
+      {recentTransactions.length ? (
+        <View style={styles.mobileGroupedList}>{recentTransactions.map(renderTransactionRow)}</View>
+      ) : (
+        <View style={styles.mobileEmptyState}>
+          <Text style={styles.mobileEmptyTitle}>No activity yet</Text>
+          <Text style={styles.mobileEmptyCopy}>Imported SMS transactions will build your timeline automatically.</Text>
+        </View>
+      )}
+      <Pressable onPress={() => setShowAdvancedTools(true)} style={styles.mobileSecondaryAction}>
+        <MaterialCommunityIcons color="#dce8f6" name="plus" size={20} />
+        <Text style={styles.mobileSecondaryActionText}>Add a manual transaction</Text>
+      </Pressable>
+    </View>
+  );
+
+  const renderReview = () => (
+    <View style={styles.mobileSectionStack}>
+      <View style={styles.mobilePageIntro}>
+        <Text style={styles.mobilePageTitle}>Review inbox</Text>
+        <Text style={styles.mobilePageSubtitle}>Verify uncertain fields before they enter your ledger.</Text>
+      </View>
+      <Pressable onPress={handleLoadReviewCandidates} style={styles.mobileSecondaryAction}>
+        <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
+        <Text style={styles.mobileSecondaryActionText}>Refresh inbox</Text>
+      </Pressable>
+      {reviewState === "error" ? <Text style={styles.mobileErrorText}>{reviewMessage}</Text> : null}
+      {reviewCandidates.length ? reviewCandidates.map((candidate) => {
+        const draft = getReviewDraft(candidate);
+        const isWorking = reviewActionCandidateId === candidate.id;
+        return (
+          <View key={candidate.id} style={styles.mobileReviewCard}>
+            <View style={styles.mobileHeroHeader}>
+              <View style={styles.mobileProviderIcon}>
+                <MaterialCommunityIcons color="#32d8f2" name="message-text-outline" size={21} />
+              </View>
+              <View style={styles.mobileRowBody}>
+                <Text style={styles.mobileRowTitle}>{candidate.provider || candidate.raw_message.sender}</Text>
+                <Text style={styles.mobileRowMeta}>{formatMobileDate(candidate.raw_message.received_at)}</Text>
+              </View>
+              <Text style={styles.mobileConfidence}>{confidencePercent(candidate.confidence)}</Text>
+            </View>
+            <Text style={styles.mobileReviewAmount}>{formatMoney(parseMoney(candidate.amount))}</Text>
+            <Text numberOfLines={3} style={styles.mobileSmsQuoteText}>{candidate.raw_message.body}</Text>
+            <Text style={styles.mobileFieldLabel}>Source account</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.mobileChoiceRow}>
+                {accounts.map((account) => (
+                  <Pressable
+                    key={account.id}
+                    onPress={() => updateReviewDraft(candidate, { accountId: account.id })}
+                    style={[styles.mobileChoice, draft.accountId === account.id ? styles.mobileChoiceActive : null]}
+                  >
+                    <Text style={[styles.mobileChoiceText, draft.accountId === account.id ? styles.mobileChoiceTextActive : null]}>
+                      {account.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+            <View style={styles.mobileActionRow}>
+              <Pressable
+                disabled={isWorking}
+                onPress={() => void handleConfirmReviewCandidate(candidate)}
+                style={styles.mobilePrimaryButton}
+              >
+                {isWorking ? <ActivityIndicator color="#06141f" /> : <MaterialCommunityIcons color="#06141f" name="check" size={21} />}
+                <Text style={styles.mobilePrimaryButtonText}>Confirm</Text>
+              </Pressable>
+              <Pressable
+                disabled={isWorking}
+                onPress={() => void handleIgnoreReviewCandidate(candidate.id)}
+                style={styles.mobileOutlineButton}
+              >
+                <Text style={styles.mobileOutlineButtonText}>Ignore</Text>
+              </Pressable>
+            </View>
+          </View>
+        );
+      }) : (
+        <View style={styles.mobileEmptyState}>
+          <Text style={styles.mobileEmptyTitle}>Nothing to review</Text>
+          <Text style={styles.mobileEmptyCopy}>The parser is confident in every captured message.</Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const renderAccounts = () => (
+    <View style={styles.mobileSectionStack}>
+      <View style={styles.mobilePageIntro}>
+        <Text style={styles.mobilePageTitle}>Accounts</Text>
+        <Text style={styles.mobilePageSubtitle}>The bank and wallet accounts connected to your ledger.</Text>
+      </View>
+      <Pressable onPress={handleLoadReferenceData} style={styles.mobileSecondaryAction}>
+        <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
+        <Text style={styles.mobileSecondaryActionText}>Refresh accounts</Text>
+      </Pressable>
+      <View style={styles.mobileGroupedList}>
+        {accounts.map((account) => (
+          <View key={account.id} style={styles.mobileAccountRow}>
+            <View style={styles.mobileProviderIcon}>
+              <MaterialCommunityIcons
+                color="#55e6a5"
+                name={account.type === "credit_card" ? "credit-card-outline" : account.type === "cash" ? "cash" : "bank-outline"}
+                size={22}
+              />
+            </View>
+            <View style={styles.mobileRowBody}>
+              <Text style={styles.mobileRowTitle}>{account.name}</Text>
+              <Text style={styles.mobileRowMeta}>{titleCase(account.type)}</Text>
+            </View>
+            <View style={styles.mobileConnectedBadge}>
+              <View style={styles.mobileConnectedDot} />
+              <Text style={styles.mobileConnectedText}>Active</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+      {!accounts.length ? <Text style={styles.mobileStateText}>No accounts loaded yet.</Text> : null}
+    </View>
+  );
+
+  const renderMore = () => (
+    <View style={styles.mobileSectionStack}>
+      <View style={styles.mobilePageIntro}>
+        <Text style={styles.mobilePageTitle}>More</Text>
+        <Text style={styles.mobilePageSubtitle}>Planning tools, automation settings, and account controls.</Text>
+      </View>
+      <View style={styles.mobileGroupedList}>
+        {drawerItems.map((item) => (
+          <Pressable
+            key={item.label}
+            onPress={() => setShowAdvancedTools(true)}
+            style={({ pressed }) => [styles.mobileMenuRow, pressed ? styles.mobilePressed : null]}
+          >
+            <MaterialCommunityIcons color="#91a7c2" name={item.icon} size={22} />
+            <Text style={styles.mobileMenuLabel}>{item.label}</Text>
+            <MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} />
+          </Pressable>
+        ))}
+      </View>
+      <View style={styles.mobileSystemCard}>
+        <View style={styles.mobileSystemHeader}>
+          <View style={[styles.mobileSyncDot, state === "error" ? styles.mobileSyncDotError : null]} />
+          <View style={styles.mobileRowBody}>
+            <Text style={styles.mobileRowTitle}>{state === "success" ? "All systems operational" : state === "loading" ? "Waking the server…" : "Connection needs attention"}</Text>
+            <Text style={styles.mobileRowMeta}>{getApiBaseUrl()}</Text>
+          </View>
+        </View>
+        <Pressable onPress={loadHealth} style={styles.mobileTextButton}>
+          <Text style={styles.mobileTextButtonText}>Run connection check</Text>
+        </Pressable>
+      </View>
+      <Pressable onPress={handleLogout} style={styles.mobileLogoutButton}>
+        <MaterialCommunityIcons color="#ff7d84" name="logout" size={20} />
+        <Text style={styles.mobileLogoutText}>Sign out</Text>
+      </Pressable>
+    </View>
+  );
+
+  if (!accessToken.trim()) {
+    return (
+      <SafeAreaView style={styles.mobileRoot}>
+        <StatusBar style="light" />
+        <ScrollView contentContainerStyle={styles.mobileLoginContent} keyboardShouldPersistTaps="handled">
+          <View style={styles.mobileLoginBrand}>
+            <View style={styles.mobileBrandMark}>
+              <MaterialCommunityIcons color="#06141f" name="message-processing-outline" size={30} />
+            </View>
+            <Text style={styles.mobileLoginTitle}>Finance Mobile</Text>
+            <Text style={styles.mobileLoginSubtitle}>Your bank and wallet SMS, organized automatically.</Text>
+          </View>
+          <View style={styles.mobileLoginPanel}>
+            <Text style={styles.mobileLoginHeading}>Welcome back</Text>
+            <Text style={styles.mobileLoginHelper}>Sign in to review captured transactions and keep your ledger current.</Text>
+            <Text style={styles.mobileFieldLabel}>Username</Text>
+            <View style={styles.mobileInputWrap}>
+              <MaterialCommunityIcons color="#7890ad" name="account-outline" size={20} />
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                onChangeText={setUsername}
+                placeholder="Enter your username"
+                placeholderTextColor="#647b98"
+                style={styles.mobileInput}
+                value={username}
+              />
+            </View>
+            <Text style={styles.mobileFieldLabel}>Password</Text>
+            <View style={styles.mobileInputWrap}>
+              <MaterialCommunityIcons color="#7890ad" name="lock-outline" size={20} />
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                onChangeText={setPassword}
+                onSubmitEditing={() => void handleLogin()}
+                placeholder="Enter your password"
+                placeholderTextColor="#647b98"
+                secureTextEntry
+                style={styles.mobileInput}
+                value={password}
+              />
+            </View>
+            {authState === "error" ? <Text style={styles.mobileErrorText}>{authMessage}</Text> : null}
+            <Pressable
+              disabled={authState === "loading" || !username.trim() || !password}
+              onPress={() => void handleLogin()}
+              style={({ pressed }) => [
+                styles.mobileLoginButton,
+                (!username.trim() || !password) ? styles.mobileLoginButtonDisabled : null,
+                pressed ? styles.mobilePressed : null
+              ]}
+            >
+              {authState === "loading" ? <ActivityIndicator color="#06141f" /> : <Text style={styles.mobileLoginButtonText}>Sign in</Text>}
+            </Pressable>
+          </View>
+          <View style={styles.mobileLoginStatus}>
+            <View style={[styles.mobileSyncDot, state === "error" ? styles.mobileSyncDotError : null]} />
+            <Text style={styles.mobileLoginStatusText}>
+              {state === "loading" ? "Connecting to your finance server…" : state === "success" ? "Secure server connection ready" : "Server may be waking up—tap to retry"}
+            </Text>
+            {state === "error" ? (
+              <Pressable onPress={loadHealth}>
+                <Text style={styles.mobileTextButtonText}>Retry</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  const activeContent = activeTab === "home"
+    ? renderHome()
+    : activeTab === "activity"
+      ? renderActivity()
+      : activeTab === "review"
+        ? renderReview()
+        : activeTab === "accounts"
+          ? renderAccounts()
+          : renderMore();
+
+  return (
+    <SafeAreaView style={styles.mobileRoot}>
+      <StatusBar style="light" />
+      <View style={styles.mobileAppHeader}>
+        <Pressable accessibilityLabel="Open menu" onPress={openDrawer} style={styles.mobileHeaderButton}>
+          <MaterialCommunityIcons color="#dce8f6" name="menu" size={27} />
+        </Pressable>
+        <View style={styles.mobileHeaderTitleWrap}>
+          <Text style={styles.mobileAppTitle}>Signal <Text style={styles.mobileAppTitleAccent}>Inbox</Text></Text>
+          <Text style={styles.mobileAppSubtitle}>Bank & wallet SMS to insights</Text>
+        </View>
+        <Pressable onPress={loadHealth} style={styles.mobileSyncChip}>
+          {state === "loading" ? (
+            <ActivityIndicator color="#55e6a5" size="small" />
+          ) : (
+            <View style={[styles.mobileSyncDot, state === "error" ? styles.mobileSyncDotError : null]} />
+          )}
+          <View>
+            <Text style={styles.mobileSyncTitle}>{state === "success" ? "Synced" : state === "loading" ? "Waking" : "Offline"}</Text>
+            <Text style={styles.mobileSyncMeta}>{rawQueue.length ? `${rawQueue.length} queued` : "Up to date"}</Text>
+          </View>
+        </Pressable>
+      </View>
+
+      <Animated.ScrollView
+        contentContainerStyle={styles.mobileScrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        style={{ opacity: contentOpacity }}
+      >
+        {activeContent}
+      </Animated.ScrollView>
+
+      <View style={styles.mobileTabBar}>
+        {tabItems.map((item) => {
+          const isActive = activeTab === item.key;
+          return (
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+              key={item.key}
+              onPress={() => switchTab(item.key)}
+              style={styles.mobileTabItem}
+            >
+              <View style={styles.mobileTabIconWrap}>
+                <MaterialCommunityIcons color={isActive ? "#32d8f2" : "#7890ad"} name={item.icon} size={24} />
+                {item.key === "review" && reviewCandidates.length ? <View style={styles.mobileTabBadge} /> : null}
+              </View>
+              <Text style={[styles.mobileTabLabel, isActive ? styles.mobileTabLabelActive : null]}>{item.label}</Text>
+              {isActive ? <View style={styles.mobileTabIndicator} /> : null}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Modal animationType="fade" onRequestClose={closeDrawer} transparent visible={drawerVisible}>
+        <View style={styles.mobileDrawerLayer}>
+          <Pressable accessibilityLabel="Close menu" onPress={closeDrawer} style={styles.mobileDrawerScrim} />
+          <Animated.View style={[styles.mobileDrawer, { transform: [{ translateX: drawerTranslateX }] }]}>
+            <View style={styles.mobileDrawerBrand}>
+              <View style={styles.mobileBrandMarkSmall}>
+                <MaterialCommunityIcons color="#06141f" name="message-processing-outline" size={23} />
+              </View>
+              <View>
+                <Text style={styles.mobileDrawerTitle}>Finance Mobile</Text>
+                <Text style={styles.mobileDrawerSubtitle}>Automation center</Text>
+              </View>
+            </View>
+            <View style={styles.mobileDrawerNav}>
+              {drawerItems.map((item) => (
+                <Pressable
+                  key={item.label}
+                  onPress={() => {
+                    closeDrawer();
+                    setTimeout(() => setShowAdvancedTools(true), 190);
+                  }}
+                  style={({ pressed }) => [styles.mobileDrawerRow, pressed ? styles.mobilePressed : null]}
+                >
+                  <MaterialCommunityIcons color="#91a7c2" name={item.icon} size={22} />
+                  <Text style={styles.mobileDrawerRowText}>{item.label}</Text>
+                  <MaterialCommunityIcons color="#647b98" name="chevron-right" size={22} />
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.mobileDrawerFooter}>
+              <Text style={styles.mobileDrawerFooterLabel}>Signed in</Text>
+              <Text style={styles.mobileDrawerFooterValue}>{username || "Finance user"}</Text>
+              <Pressable onPress={handleLogout} style={styles.mobileDrawerLogout}>
+                <MaterialCommunityIcons color="#ff7d84" name="logout" size={20} />
+                <Text style={styles.mobileLogoutText}>Sign out</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
+  advancedHeader: {
+    alignItems: "center",
+    backgroundColor: "#081421",
+    borderBottomColor: "#263a52",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12
+  },
+  advancedHeaderButton: {
+    alignItems: "center",
+    backgroundColor: "#132437",
+    borderRadius: 12,
+    height: 44,
+    justifyContent: "center",
+    width: 44
+  },
+  advancedHeaderSubtitle: {
+    color: "#91a7c2",
+    fontSize: 12,
+    marginTop: 2
+  },
+  advancedHeaderTitle: {
+    color: "#f6f8fc",
+    fontSize: 18,
+    fontWeight: "800"
+  },
+  mobileAccountRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+    minHeight: 76,
+    paddingHorizontal: 16,
+    paddingVertical: 12
+  },
+  mobileActionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 18
+  },
+  mobileAppHeader: {
+    alignItems: "center",
+    borderBottomColor: "#1c3046",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 11,
+    minHeight: 76,
+    paddingHorizontal: 16,
+    paddingVertical: 10
+  },
+  mobileAppSubtitle: {
+    color: "#91a7c2",
+    fontSize: 11,
+    marginTop: 1
+  },
+  mobileAppTitle: {
+    color: "#f6f8fc",
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: -0.5
+  },
+  mobileAppTitleAccent: {
+    color: "#32d8f2"
+  },
+  mobileBrandMark: {
+    alignItems: "center",
+    backgroundColor: "#55e6a5",
+    borderRadius: 20,
+    height: 64,
+    justifyContent: "center",
+    marginBottom: 20,
+    width: 64
+  },
+  mobileBrandMarkSmall: {
+    alignItems: "center",
+    backgroundColor: "#55e6a5",
+    borderRadius: 14,
+    height: 46,
+    justifyContent: "center",
+    width: 46
+  },
+  mobileCenteredState: {
+    alignItems: "center",
+    gap: 12,
+    justifyContent: "center",
+    minHeight: 260
+  },
+  mobileChoice: {
+    backgroundColor: "#0d1e2d",
+    borderColor: "#2a4059",
+    borderRadius: 999,
+    borderWidth: 1,
+    minHeight: 42,
+    paddingHorizontal: 15,
+    paddingVertical: 11
+  },
+  mobileChoiceActive: {
+    backgroundColor: "#123c43",
+    borderColor: "#32d8f2"
+  },
+  mobileChoiceRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 4
+  },
+  mobileChoiceText: {
+    color: "#a9bad0",
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  mobileChoiceTextActive: {
+    color: "#e7fbff"
+  },
+  mobileConfidence: {
+    backgroundColor: "#113d38",
+    borderColor: "#18745f",
+    borderRadius: 999,
+    borderWidth: 1,
+    color: "#55e6c5",
+    fontSize: 13,
+    fontWeight: "800",
+    overflow: "hidden",
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+  mobileConfidenceBlock: {
+    alignItems: "flex-end"
+  },
+  mobileConfidenceLabel: {
+    color: "#91a7c2",
+    fontSize: 11,
+    marginTop: 2
+  },
+  mobileConfidenceLarge: {
+    backgroundColor: "#113d38",
+    borderColor: "#18745f",
+    borderRadius: 999,
+    borderWidth: 1,
+    color: "#55e6c5",
+    fontSize: 17,
+    fontWeight: "800",
+    overflow: "hidden",
+    paddingHorizontal: 12,
+    paddingVertical: 7
+  },
+  mobileConfidenceWarning: {
+    backgroundColor: "#443615",
+    borderColor: "#9a7013",
+    color: "#ffd469"
+  },
+  mobileConnectedBadge: {
+    alignItems: "center",
+    backgroundColor: "#12382f",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7
+  },
+  mobileConnectedDot: {
+    backgroundColor: "#55e6a5",
+    borderRadius: 999,
+    height: 7,
+    width: 7
+  },
+  mobileConnectedText: {
+    color: "#aaf5ce",
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  mobileDrawer: {
+    backgroundColor: "#0a1725",
+    borderRightColor: "#263a52",
+    borderRightWidth: 1,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingTop: 54,
+    position: "absolute",
+    top: 0,
+    width: 310
+  },
+  mobileDrawerBrand: {
+    alignItems: "center",
+    borderBottomColor: "#1c3046",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    paddingBottom: 22
+  },
+  mobileDrawerFooter: {
+    borderTopColor: "#1c3046",
+    borderTopWidth: 1,
+    marginTop: "auto",
+    paddingBottom: 30,
+    paddingTop: 20
+  },
+  mobileDrawerFooterLabel: {
+    color: "#647b98",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase"
+  },
+  mobileDrawerFooterValue: {
+    color: "#dce8f6",
+    fontSize: 15,
+    fontWeight: "700",
+    marginTop: 4
+  },
+  mobileDrawerLayer: {
+    flex: 1
+  },
+  mobileDrawerLogout: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 18,
+    minHeight: 44
+  },
+  mobileDrawerNav: {
+    gap: 4,
+    paddingTop: 22
+  },
+  mobileDrawerRow: {
+    alignItems: "center",
+    borderRadius: 12,
+    flexDirection: "row",
+    gap: 13,
+    minHeight: 52,
+    paddingHorizontal: 10
+  },
+  mobileDrawerRowText: {
+    color: "#c5d2e2",
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600"
+  },
+  mobileDrawerScrim: {
+    backgroundColor: "rgba(2, 8, 15, 0.72)",
+    bottom: 0,
+    left: 0,
+    position: "absolute",
+    right: 0,
+    top: 0
+  },
+  mobileDrawerSubtitle: {
+    color: "#7890ad",
+    fontSize: 12,
+    marginTop: 2
+  },
+  mobileDrawerTitle: {
+    color: "#f6f8fc",
+    fontSize: 18,
+    fontWeight: "800"
+  },
+  mobileEmptyCopy: {
+    color: "#91a7c2",
+    fontSize: 14,
+    lineHeight: 21,
+    maxWidth: 290,
+    textAlign: "center"
+  },
+  mobileEmptyIcon: {
+    alignItems: "center",
+    backgroundColor: "#12382f",
+    borderRadius: 30,
+    height: 60,
+    justifyContent: "center",
+    width: 60
+  },
+  mobileEmptyState: {
+    alignItems: "center",
+    backgroundColor: "#0e1c2c",
+    borderColor: "#263a52",
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 32
+  },
+  mobileEmptyTitle: {
+    color: "#f6f8fc",
+    fontSize: 20,
+    fontWeight: "800"
+  },
+  mobileErrorText: {
+    color: "#ff8d92",
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 10
+  },
+  mobileFieldLabel: {
+    color: "#a9bad0",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 7,
+    marginTop: 17,
+    textTransform: "uppercase"
+  },
+  mobileGroupedList: {
+    backgroundColor: "#0e1c2c",
+    borderColor: "#263a52",
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: "hidden"
+  },
+  mobileHeaderButton: {
+    alignItems: "center",
+    borderRadius: 12,
+    height: 44,
+    justifyContent: "center",
+    width: 44
+  },
+  mobileHeaderTitleWrap: {
+    flex: 1
+  },
+  mobileHeroAmount: {
+    color: "#f6f8fc",
+    fontSize: 34,
+    fontWeight: "800",
+    letterSpacing: -1.2,
+    marginTop: 20
+  },
+  mobileHeroCard: {
+    backgroundColor: "#0e1c2c",
+    borderColor: "#263a52",
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 18
+  },
+  mobileHeroDate: {
+    color: "#91a7c2",
+    fontSize: 12,
+    marginTop: 3
+  },
+  mobileHeroDescription: {
+    color: "#c5d2e2",
+    fontSize: 16,
+    marginTop: 4
+  },
+  mobileHeroHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12
+  },
+  mobileHeroProvider: {
+    color: "#f6f8fc",
+    fontSize: 18,
+    fontWeight: "800"
+  },
+  mobileIconAction: {
+    alignItems: "center",
+    backgroundColor: "#122538",
+    borderRadius: 11,
+    height: 42,
+    justifyContent: "center",
+    width: 42
+  },
+  mobileInput: {
+    color: "#f6f8fc",
+    flex: 1,
+    fontSize: 15,
+    minHeight: 50,
+    paddingHorizontal: 10,
+    paddingVertical: 12
+  },
+  mobileInputWrap: {
+    alignItems: "center",
+    backgroundColor: "#091724",
+    borderColor: "#2b4159",
+    borderRadius: 13,
+    borderWidth: 1,
+    flexDirection: "row",
+    minHeight: 52,
+    paddingHorizontal: 14
+  },
+  mobileListRow: {
+    alignItems: "center",
+    borderBottomColor: "#1c3046",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    minHeight: 76,
+    paddingHorizontal: 14,
+    paddingVertical: 12
+  },
+  mobileLoginBrand: {
+    alignItems: "center",
+    marginBottom: 30,
+    marginTop: 38
+  },
+  mobileLoginButton: {
+    alignItems: "center",
+    backgroundColor: "#55e6a5",
+    borderRadius: 13,
+    justifyContent: "center",
+    marginTop: 24,
+    minHeight: 54
+  },
+  mobileLoginButtonDisabled: {
+    opacity: 0.45
+  },
+  mobileLoginButtonText: {
+    color: "#06141f",
+    fontSize: 15,
+    fontWeight: "800"
+  },
+  mobileLoginContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: 22
+  },
+  mobileLoginHeading: {
+    color: "#f6f8fc",
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: -0.6
+  },
+  mobileLoginHelper: {
+    color: "#91a7c2",
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 7
+  },
+  mobileLoginPanel: {
+    backgroundColor: "#0e1c2c",
+    borderColor: "#263a52",
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 20
+  },
+  mobileLoginStatus: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 9,
+    justifyContent: "center",
+    marginTop: 22,
+    minHeight: 44
+  },
+  mobileLoginStatusText: {
+    color: "#91a7c2",
+    flexShrink: 1,
+    fontSize: 12
+  },
+  mobileLoginSubtitle: {
+    color: "#91a7c2",
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 8,
+    maxWidth: 290,
+    textAlign: "center"
+  },
+  mobileLoginTitle: {
+    color: "#f6f8fc",
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -1
+  },
+  mobileLogoutButton: {
+    alignItems: "center",
+    borderColor: "#5a3139",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "center",
+    minHeight: 50
+  },
+  mobileLogoutText: {
+    color: "#ff8d92",
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  mobileMenuLabel: {
+    color: "#dce8f6",
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  mobileMenuRow: {
+    alignItems: "center",
+    borderBottomColor: "#1c3046",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 13,
+    minHeight: 58,
+    paddingHorizontal: 16
+  },
+  mobileOutlineButton: {
+    alignItems: "center",
+    borderColor: "#557493",
+    borderRadius: 13,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    minHeight: 50
+  },
+  mobileOutlineButtonText: {
+    color: "#dce8f6",
+    fontSize: 14,
+    fontWeight: "800"
+  },
+  mobilePageIntro: {
+    gap: 5,
+    marginBottom: 2
+  },
+  mobilePageSubtitle: {
+    color: "#91a7c2",
+    fontSize: 14,
+    lineHeight: 20
+  },
+  mobilePageTitle: {
+    color: "#f6f8fc",
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.8
+  },
+  mobilePressed: {
+    opacity: 0.72
+  },
+  mobilePrimaryButton: {
+    alignItems: "center",
+    backgroundColor: "#55e6a5",
+    borderRadius: 13,
+    flex: 1,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    minHeight: 50
+  },
+  mobilePrimaryButtonText: {
+    color: "#06141f",
+    fontSize: 14,
+    fontWeight: "800"
+  },
+  mobileProviderIcon: {
+    alignItems: "center",
+    backgroundColor: "#10283b",
+    borderRadius: 13,
+    height: 44,
+    justifyContent: "center",
+    width: 44
+  },
+  mobileProviderIconLarge: {
+    alignItems: "center",
+    backgroundColor: "#102f42",
+    borderRadius: 16,
+    height: 54,
+    justifyContent: "center",
+    width: 54
+  },
+  mobileQueueAmount: {
+    color: "#f6f8fc",
+    fontSize: 16,
+    fontWeight: "800",
+    marginTop: 7
+  },
+  mobileQueueAside: {
+    alignItems: "flex-end",
+    gap: 8
+  },
+  mobileQueueRow: {
+    alignItems: "center",
+    borderBottomColor: "#1c3046",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    minHeight: 108,
+    paddingHorizontal: 14,
+    paddingVertical: 14
+  },
+  mobileReviewAmount: {
+    color: "#f6f8fc",
+    fontSize: 26,
+    fontWeight: "800",
+    marginBottom: 12,
+    marginTop: 18
+  },
+  mobileReviewCard: {
+    backgroundColor: "#0e1c2c",
+    borderColor: "#263a52",
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16
+  },
+  mobileRoot: {
+    backgroundColor: "#081421",
+    flex: 1
+  },
+  mobileRowAmount: {
+    color: "#ff7d84",
+    fontSize: 13,
+    fontWeight: "800",
+    maxWidth: 125,
+    textAlign: "right"
+  },
+  mobileRowAmountSuccess: {
+    color: "#55e6a5"
+  },
+  mobileRowBody: {
+    flex: 1,
+    minWidth: 0
+  },
+  mobileRowIcon: {
+    alignItems: "center",
+    backgroundColor: "#112d43",
+    borderRadius: 13,
+    height: 44,
+    justifyContent: "center",
+    width: 44
+  },
+  mobileRowIconSuccess: {
+    backgroundColor: "#12382f"
+  },
+  mobileRowMeta: {
+    color: "#91a7c2",
+    fontSize: 12,
+    marginTop: 3
+  },
+  mobileRowTitle: {
+    color: "#edf3fa",
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  mobileScrollContent: {
+    paddingBottom: 26,
+    paddingHorizontal: 16,
+    paddingTop: 16
+  },
+  mobileSecondaryAction: {
+    alignItems: "center",
+    backgroundColor: "#102538",
+    borderColor: "#2a4059",
+    borderRadius: 13,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    justifyContent: "center",
+    minHeight: 50,
+    paddingHorizontal: 16
+  },
+  mobileSecondaryActionText: {
+    color: "#dce8f6",
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  mobileSection: {
+    gap: 12
+  },
+  mobileSectionHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  mobileSectionMeta: {
+    color: "#7890ad",
+    fontSize: 12
+  },
+  mobileSectionStack: {
+    gap: 18
+  },
+  mobileSectionTitle: {
+    color: "#f6f8fc",
+    fontSize: 19,
+    fontWeight: "800"
+  },
+  mobileSegment: {
+    alignItems: "center",
+    borderRadius: 13,
+    flex: 1,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    minHeight: 52,
+    paddingHorizontal: 8
+  },
+  mobileSegmentActive: {
+    backgroundColor: "#32d8f2"
+  },
+  mobileSegmentedControl: {
+    backgroundColor: "#0e1c2c",
+    borderColor: "#263a52",
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 4,
+    padding: 5
+  },
+  mobileSegmentText: {
+    color: "#9eb0c7",
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  mobileSegmentTextActive: {
+    color: "#06141f"
+  },
+  mobileSmsQuote: {
+    alignItems: "flex-start",
+    backgroundColor: "#091724",
+    borderColor: "#263a52",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+    padding: 13
+  },
+  mobileSmsQuoteText: {
+    color: "#a9bad0",
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 20
+  },
+  mobileStateText: {
+    color: "#91a7c2",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center"
+  },
+  mobileSuggestionRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12
+  },
+  mobileSuggestionText: {
+    color: "#a9bad0",
+    fontSize: 13
+  },
+  mobileSummaryDivider: {
+    alignSelf: "stretch",
+    backgroundColor: "#263a52",
+    width: 1
+  },
+  mobileSummaryLabel: {
+    color: "#7890ad",
+    fontSize: 11,
+    marginTop: 2
+  },
+  mobileSummaryStrip: {
+    alignItems: "center",
+    backgroundColor: "#0e1c2c",
+    borderColor: "#263a52",
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 18,
+    padding: 15
+  },
+  mobileSummaryValue: {
+    color: "#f6f8fc",
+    fontSize: 20,
+    fontWeight: "800"
+  },
+  mobileSyncChip: {
+    alignItems: "center",
+    backgroundColor: "#0e2131",
+    borderColor: "#284058",
+    borderRadius: 13,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    minHeight: 44,
+    paddingHorizontal: 10
+  },
+  mobileSyncDot: {
+    backgroundColor: "#35e4ad",
+    borderRadius: 999,
+    height: 10,
+    shadowColor: "#35e4ad",
+    shadowOpacity: 0.55,
+    shadowRadius: 6,
+    width: 10
+  },
+  mobileSyncDotError: {
+    backgroundColor: "#ff7d84",
+    shadowColor: "#ff7d84"
+  },
+  mobileSyncMeta: {
+    color: "#7890ad",
+    fontSize: 9,
+    marginTop: 1
+  },
+  mobileSyncTitle: {
+    color: "#55e6a5",
+    fontSize: 11,
+    fontWeight: "800"
+  },
+  mobileSystemCard: {
+    backgroundColor: "#0e1c2c",
+    borderColor: "#263a52",
+    borderRadius: 17,
+    borderWidth: 1,
+    padding: 16
+  },
+  mobileSystemHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 11
+  },
+  mobileTabBadge: {
+    backgroundColor: "#ff4f72",
+    borderColor: "#081421",
+    borderRadius: 999,
+    borderWidth: 2,
+    height: 10,
+    position: "absolute",
+    right: -2,
+    top: -2,
+    width: 10
+  },
+  mobileTabBar: {
+    alignItems: "stretch",
+    backgroundColor: "#091724",
+    borderTopColor: "#263a52",
+    borderTopWidth: 1,
+    flexDirection: "row",
+    minHeight: 72,
+    paddingHorizontal: 5,
+    paddingTop: 7
+  },
+  mobileTabIconWrap: {
+    position: "relative"
+  },
+  mobileTabIndicator: {
+    backgroundColor: "#32d8f2",
+    borderRadius: 999,
+    bottom: 0,
+    height: 3,
+    position: "absolute",
+    width: 28
+  },
+  mobileTabItem: {
+    alignItems: "center",
+    flex: 1,
+    gap: 3,
+    justifyContent: "center",
+    minHeight: 62,
+    position: "relative"
+  },
+  mobileTabLabel: {
+    color: "#7890ad",
+    fontSize: 10,
+    fontWeight: "600"
+  },
+  mobileTabLabelActive: {
+    color: "#32d8f2"
+  },
+  mobileTextButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+    paddingHorizontal: 10
+  },
+  mobileTextButtonText: {
+    color: "#32d8f2",
+    fontSize: 13,
+    fontWeight: "800"
+  },
   button: {
     backgroundColor: "#0f766e",
     borderRadius: 8,

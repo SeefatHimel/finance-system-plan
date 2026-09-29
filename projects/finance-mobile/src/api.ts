@@ -298,12 +298,17 @@ export type HealthResult = {
 };
 
 export function getApiBaseUrl() {
-  return process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://10.0.2.2:8000";
+  return (process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://10.0.2.2:8000").replace(/\/+$/, "");
 }
 
 export async function checkHealth(): Promise<HealthResult> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/health/`);
+    const response = await fetch(`${getApiBaseUrl()}/api/health/`, {
+      signal: controller.signal
+    });
     if (!response.ok) {
       return {
         error: `HTTP ${response.status}`,
@@ -318,9 +323,15 @@ export async function checkHealth(): Promise<HealthResult> {
     };
   } catch (error) {
     return {
-      error: error instanceof Error ? error.message : "Unknown network error",
+      error: error instanceof Error && error.name === "AbortError"
+        ? "Server did not respond within 15 seconds."
+        : error instanceof Error
+          ? error.message
+          : "Unknown network error",
       ok: false
     };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

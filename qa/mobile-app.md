@@ -209,16 +209,26 @@ Captured messages still enter the raw-message queue before backend sync.
 
 ## What will the main mobile screens be?
 
-Planned screens:
+The production-facing shell is organized around five bottom tabs:
 
 - Home
-- Quick Add Transaction
-- Transactions
+- Activity
+- Review
 - Accounts
-- SMS Tracking Settings
-- SMS Review Inbox
-- Debts
-- Settings
+- More
+
+Home is review-first: it surfaces automatically captured SMS candidates, parser
+confidence, source evidence, and confirm/edit actions. Activity holds the
+transaction timeline, Review exposes the full correction flow, and Accounts
+shows connected ledger sources. The slide-out menu and More screen contain
+secondary workflows such as debts, credit-card bills, recurring bills,
+reconciliation, SMS capture settings, and detailed maintenance tools. Manual
+entry remains available but is intentionally secondary to automatic capture.
+
+Authentication is a separate entry screen. API URLs, raw JWT fields, and health
+diagnostics are no longer part of the primary finance workflow. Connection
+checks retry once so a sleeping hosted backend is presented as a server wake-up
+state before it is treated as unavailable.
 
 ## What is the hardest mobile challenge?
 

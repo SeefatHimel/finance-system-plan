@@ -4,7 +4,7 @@
     "slug": "finance-mobile",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "assetBundlePatterns": ["**/*"],
     "android": {
       "package": "com.personalfinance.mobile"
