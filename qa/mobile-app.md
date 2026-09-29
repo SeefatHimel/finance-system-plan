@@ -58,7 +58,8 @@ paths, and physical-phone SMS smoke test are documented in
 - Login testing flow (`POST /api/auth/login/`).
 - Access token validation flow (`GET /api/auth/me/`).
 - Secure session persistence with Expo SecureStore, refresh-token rotation on
-  app launch, and explicit secure-session removal on logout.
+  app launch, one transparent refresh/retry after an authenticated request gets
+  a `401`, and explicit secure-session removal on logout.
 - Account/category fetch flow (`GET /api/accounts/`, `GET /api/categories/`)
   with local cache hydration for offline form choices.
 - Quick add transaction flow (`POST /api/transactions/`) plus a local manual
@@ -99,7 +100,9 @@ paths, and physical-phone SMS smoke test are documented in
 The login/token flow now persists the rotated JWT pair in OS-backed secure
 storage rather than AsyncStorage and restores the session on relaunch. Access
 tokens are loaded into memory for API calls; explicit logout clears the secure
-session. Automatic mid-session refresh after an API `401` remains a follow-up.
+session. Authenticated requests share a deduplicated recovery path that rotates
+the refresh token and retries the original request once after a mid-session
+`401`.
 
 ## What does the mobile debt section do?
 

@@ -14,6 +14,8 @@ Phase 1 scaffold now includes:
 - Persistent mobile session backed by Expo SecureStore:
   - stores the rotated JWT pair in Android Keystore-backed storage
   - refreshes the session on app launch
+  - transparently refreshes and retries authenticated API calls once after a
+    mid-session `401`
   - removes the saved session on explicit logout
 - Account and category fetch flow for authenticated users:
   - `GET /api/accounts/`
@@ -39,6 +41,8 @@ Phase 1 scaffold now includes:
     running a custom Android dev client or APK
 - Local raw message queue:
   - stores queued raw messages with AsyncStorage
+  - shows inline loading, success, empty, and error feedback when sender rules
+    are refreshed, including the signed-in username for account troubleshooting
 - Historical SMS backfill in native Android builds:
   - scans the existing inbox after the user grants `READ_SMS`
   - evaluates only user-enabled sender rules

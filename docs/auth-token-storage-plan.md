@@ -118,8 +118,9 @@ Deployment/security requirements:
 5. Add mobile secure token storage. Done with Expo SecureStore, startup refresh,
    and secure deletion on logout.
 6. Add automatic token refresh in web and mobile API clients. Done for the
-   local-development web API wrapper and mobile app startup; retrying a failed
-   mobile request once after a mid-session `401` remains pending.
+   local-development web API wrapper and mobile app. Concurrent mobile `401`
+   responses share one refresh operation, then retry their original requests
+   once with the rotated access token.
 7. Add tests for refresh, logout, expired access token, and invalid refresh
    token behavior.
 8. Update privacy docs and deployment docs before production use.

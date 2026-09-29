@@ -20,6 +20,28 @@ export class AuthenticationError extends Error {
   }
 }
 
+type AuthenticationRecovery = () => Promise<string | null>;
+
+let authenticationRecovery: AuthenticationRecovery | null = null;
+let authenticationRecoveryPromise: Promise<string | null> | null = null;
+
+export function configureAuthenticationRecovery(recovery: AuthenticationRecovery | null) {
+  authenticationRecovery = recovery;
+  authenticationRecoveryPromise = null;
+}
+
+async function recoverAccessToken() {
+  if (!authenticationRecovery) {
+    return null;
+  }
+  if (!authenticationRecoveryPromise) {
+    authenticationRecoveryPromise = authenticationRecovery().finally(() => {
+      authenticationRecoveryPromise = null;
+    });
+  }
+  return authenticationRecoveryPromise;
+}
+
 export type CurrentUser = {
   email: string;
   first_name: string;
@@ -405,16 +427,25 @@ export async function getCurrentUser(accessToken: string): Promise<CurrentUser> 
 }
 
 async function authenticatedFetch(path: string, accessToken: string, init?: RequestInit): Promise<Response> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  const request = (token: string) => fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     headers: {
       ...(init?.headers ?? {}),
-      Authorization: `Bearer ${accessToken}`
+      Authorization: `Bearer ${token}`
     }
   });
 
+  let response = await request(accessToken);
+
   if (response.status === 401) {
-    throw new Error("Your session expired. Sign in again.");
+    const recoveredAccessToken = await recoverAccessToken();
+    if (recoveredAccessToken) {
+      response = await request(recoveredAccessToken);
+    }
+  }
+
+  if (response.status === 401) {
+    throw new AuthenticationError("Your session expired. Sign in again.");
   }
 
   if (!response.ok) {
@@ -641,7 +672,7 @@ export async function createTransaction(
   accessToken: string,
   input: CreateTransactionInput
 ): Promise<void> {
-  const response = await fetch(`${getApiBaseUrl()}/api/transactions/`, {
+  await authenticatedFetch("/api/transactions/", accessToken, {
     body: JSON.stringify({
       account: input.account,
       amount: input.amount,
@@ -657,21 +688,13 @@ export async function createTransaction(
     },
     method: "POST"
   });
-
-  if (response.status === 401) {
-    throw new Error("Your session expired. Sign in again.");
-  }
-
-  if (!response.ok) {
-    throw new Error(`Transaction create failed with HTTP ${response.status}.`);
-  }
 }
 
 export async function importRawMessage(
   accessToken: string,
   input: RawMessageImportInput
 ): Promise<RawMessageImportResult> {
-  const response = await fetch(`${getApiBaseUrl()}/api/messages/import/`, {
+  const response = await authenticatedFetch("/api/messages/import/", accessToken, {
     body: JSON.stringify({
       body: input.body,
       device_message_id: input.device_message_id || "",
@@ -684,14 +707,6 @@ export async function importRawMessage(
     },
     method: "POST"
   });
-
-  if (response.status === 401) {
-    throw new Error("Your session expired. Sign in again.");
-  }
-
-  if (!response.ok) {
-    throw new Error(`Raw message import failed with HTTP ${response.status}.`);
-  }
 
   return (await response.json()) as RawMessageImportResult;
 }

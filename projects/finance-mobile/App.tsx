@@ -20,6 +20,7 @@ import {
 
 import {
   checkHealth,
+  configureAuthenticationRecovery,
   confirmMessageCandidate,
   createBalanceSnapshot,
   createCreditCardBill,
@@ -180,6 +181,44 @@ function StatusPill({ label, tone = "default" }: { label: string; tone?: "defaul
     >
       {label}
     </Text>
+  );
+}
+
+function InlineFeedback({
+  loadingLabel,
+  message,
+  state
+}: {
+  loadingLabel: string;
+  message: string;
+  state: "idle" | "loading" | "ok" | "success" | "error";
+}) {
+  if (state === "idle" && !message) {
+    return null;
+  }
+
+  const isLoading = state === "loading";
+  const isError = state === "error";
+  const label = isLoading ? loadingLabel : message;
+  if (!label) {
+    return null;
+  }
+
+  return (
+    <View style={[styles.mobileInlineFeedback, isError ? styles.mobileInlineFeedbackError : null]}>
+      {isLoading ? (
+        <ActivityIndicator color="#32d8f2" size="small" />
+      ) : (
+        <MaterialCommunityIcons
+          color={isError ? "#ff9399" : "#55e6a5"}
+          name={isError ? "alert-circle-outline" : "check-circle-outline"}
+          size={19}
+        />
+      )}
+      <Text style={[styles.mobileInlineFeedbackText, isError ? styles.mobileInlineFeedbackTextError : null]}>
+        {label}
+      </Text>
+    </View>
   );
 }
 
@@ -1969,6 +2008,36 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    configureAuthenticationRecovery(async () => {
+      const storedSession = await loadSession();
+      if (!storedSession) {
+        return null;
+      }
+
+      try {
+        const tokens = await refreshLogin(storedSession.refresh);
+        await saveSession({ ...tokens, username: storedSession.username });
+        setAccessToken(tokens.access);
+        setRefreshToken(tokens.refresh);
+        setAuthState("ok");
+        setAuthMessage("Session refreshed.");
+        return tokens.access;
+      } catch (error) {
+        if (error instanceof AuthenticationError) {
+          await clearSession();
+          setAccessToken("");
+          setRefreshToken("");
+          setAuthState("error");
+          setAuthMessage("Your session expired. Sign in again.");
+        }
+        throw error;
+      }
+    });
+
+    return () => configureAuthenticationRecovery(null);
+  }, []);
+
+  useEffect(() => {
     if (!accessToken.trim()) {
       return;
     }
@@ -3275,7 +3344,7 @@ export default function App() {
           <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
         </Pressable>
       </View>
-      {listState === "loading" ? <ActivityIndicator color="#32d8f2" /> : null}
+      <InlineFeedback loadingLabel="Refreshing activity…" message={listMessage} state={listState} />
       {recentTransactions.length ? (
         <View style={styles.mobileGroupedList}>{recentTransactions.map(renderTransactionRow)}</View>
       ) : (
@@ -3301,7 +3370,7 @@ export default function App() {
         <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
         <Text style={styles.mobileSecondaryActionText}>Refresh inbox</Text>
       </Pressable>
-      {reviewState === "error" ? <Text style={styles.mobileErrorText}>{reviewMessage}</Text> : null}
+      <InlineFeedback loadingLabel="Refreshing review inbox…" message={reviewMessage} state={reviewState} />
       {reviewCandidates.length ? reviewCandidates.map((candidate) => {
         const draft = getReviewDraft(candidate);
         const isWorking = reviewActionCandidateId === candidate.id;
@@ -3373,6 +3442,7 @@ export default function App() {
         <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
         <Text style={styles.mobileSecondaryActionText}>Refresh accounts</Text>
       </Pressable>
+      <InlineFeedback loadingLabel="Refreshing accounts…" message={dataMessage} state={dataState} />
       <View style={styles.mobileGroupedList}>
         {accounts.map((account) => (
           <View key={account.id} style={styles.mobileAccountRow}>
@@ -3454,6 +3524,7 @@ export default function App() {
           <Text style={styles.mobileStateText}>
             Tap a sender to switch between Tracking and Excluded. Excluded senders stay on the phone and never enter the upload queue.
           </Text>
+          <InlineFeedback loadingLabel="Loading sender rules…" message={smsSettingsMessage} state={smsSettingsState} />
           {senderRules.length ? (
             <View style={styles.mobileGroupedList}>
               {senderRules.map((rule) => {
@@ -3488,9 +3559,18 @@ export default function App() {
           ) : (
             <View style={styles.mobileEmptyState}>
               <Text style={styles.mobileEmptyTitle}>No sender rules loaded</Text>
-              <Text style={styles.mobileEmptyCopy}>Load the trusted sender list from your finance server.</Text>
-              <Pressable onPress={handleLoadSmsSettings} style={styles.mobileTextButton}>
-                <Text style={styles.mobileTextButtonText}>Load sender rules</Text>
+              <Text style={styles.mobileEmptyCopy}>
+                Load rules for {username || "this account"}. If the server returns zero, confirm the web and mobile logins use the same user.
+              </Text>
+              <Pressable
+                disabled={smsSettingsState === "loading"}
+                onPress={handleLoadSmsSettings}
+                style={({ pressed }) => [styles.mobileTextButton, pressed ? styles.mobilePressed : null]}
+              >
+                {smsSettingsState === "loading" ? <ActivityIndicator color="#32d8f2" size="small" /> : null}
+                <Text style={styles.mobileTextButtonText}>
+                  {smsSettingsState === "loading" ? "Loading…" : "Load sender rules"}
+                </Text>
               </Pressable>
             </View>
           )}
@@ -4173,6 +4253,30 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingHorizontal: 14
   },
+  mobileInlineFeedback: {
+    alignItems: "center",
+    backgroundColor: "#102c29",
+    borderColor: "#285c50",
+    borderRadius: 13,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 10
+  },
+  mobileInlineFeedbackError: {
+    backgroundColor: "#321f27",
+    borderColor: "#6a3440"
+  },
+  mobileInlineFeedbackText: {
+    color: "#b9ead5",
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18
+  },
+  mobileInlineFeedbackTextError: {
+    color: "#ffb2b6"
+  },
   mobileListRow: {
     alignItems: "center",
     borderBottomColor: "#1c3046",
@@ -4821,6 +4925,8 @@ const styles = StyleSheet.create({
   },
   mobileTextButton: {
     alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
     justifyContent: "center",
     minHeight: 44,
     paddingHorizontal: 10
