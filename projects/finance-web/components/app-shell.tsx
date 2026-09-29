@@ -20,7 +20,7 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ElementType } from "react";
+import type { ElementType, MouseEvent } from "react";
 import { useEffect, useState } from "react";
 
 import { listMessageCandidates } from "@/lib/api";
@@ -64,10 +64,20 @@ function currentDateLabel() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [syncLabel, setSyncLabel] = useState("Mobile sync ready");
 
-  useEffect(() => setIsMobileNavOpen(false), [pathname]);
+  useEffect(() => {
+    setIsMobileNavOpen(false);
+    setIsNavigating(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!isNavigating) return;
+    const timeout = window.setTimeout(() => setIsNavigating(false), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [isNavigating]);
 
   useEffect(() => {
     const accessToken = getAccessToken();
@@ -99,10 +109,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const activeItem = navItems.find((item) => isActive(item, pathname)) ?? navItems[0];
   const isDashboard = pathname === "/";
 
+  function handleNavigation(event: MouseEvent<HTMLAnchorElement>, href: string) {
+    if (
+      href === pathname ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    setIsNavigating(true);
+  }
+
   return (
     <div className="app-frame">
       <aside className={`app-sidebar${isMobileNavOpen ? " app-sidebar--open" : ""}`}>
-        <Link className="app-logo" href="/" aria-label="Finance dashboard">
+        <Link className="app-logo" href="/" aria-label="Finance dashboard" onClick={(event) => handleNavigation(event, "/")}>
           <DiamondsFour aria-hidden="true" className="app-logo__mark" size={31} weight="fill" />
           <span>Finance</span>
         </Link>
@@ -119,6 +143,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 className={`app-nav__item${selected ? " app-nav__item--active" : ""}`}
                 href={item.href}
                 key={item.href}
+                onClick={(event) => handleNavigation(event, item.href)}
               >
                 <NavIcon aria-hidden="true" className="nav-icon" size={20} weight={selected ? "fill" : "regular"} />
                 <span>{item.label}</span>
@@ -139,6 +164,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ) : null}
 
       <div className="app-content">
+        <div aria-hidden="true" className={`navigation-progress${isNavigating ? " navigation-progress--active" : ""}`}>
+          <span />
+        </div>
         <header className={`app-topbar${isDashboard ? " app-topbar--dashboard" : ""}`}>
           <button aria-label="Open navigation" className="mobile-menu-button" onClick={() => setIsMobileNavOpen(true)} type="button">
             <List aria-hidden="true" size={21} />
@@ -172,7 +200,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span aria-hidden="true" />
           </div>
         </header>
-        <div className="app-main">{children}</div>
+        <div aria-busy={isNavigating} className={`app-main${isNavigating ? " app-main--navigating" : ""}`}>{children}</div>
       </div>
     </div>
   );

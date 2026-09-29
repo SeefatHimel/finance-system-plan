@@ -22,6 +22,7 @@ import {
   updateSenderRule
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { ButtonBusy, LoadingState } from "@/components/loading-state";
 
 type SmsSettingsState =
   | { status: "loading" }
@@ -340,13 +341,7 @@ export function SmsSettingsWorkspace() {
   }
 
   if (settingsState.status === "loading") {
-    return (
-      <div className="panel">
-        <div className="panel__body">
-          <span className="status-badge status-badge--idle">Loading SMS settings</span>
-        </div>
-      </div>
-    );
+    return <LoadingState detail="Loading payment methods and sender rules" label="Preparing SMS automation" />;
   }
 
   if (settingsState.status === "error") {
@@ -431,7 +426,7 @@ export function SmsSettingsWorkspace() {
             {paymentMethodError ? <p className="form-error field--wide">{paymentMethodError}</p> : null}
 
             <button className="button button--primary" disabled={!hasAccounts || isSavingPaymentMethod} type="submit">
-              {isSavingPaymentMethod ? "Saving..." : "Add payment method"}
+              {isSavingPaymentMethod ? <ButtonBusy label="Saving" /> : "Add payment method"}
             </button>
           </form>
 
@@ -455,7 +450,7 @@ export function SmsSettingsWorkspace() {
                       onClick={() => void handleDeletePaymentMethod(method)}
                       type="button"
                     >
-                      {deletingPaymentMethodId === method.id ? "Deleting..." : "Delete"}
+                      {deletingPaymentMethodId === method.id ? <ButtonBusy label="Deleting" /> : "Delete"}
                     </button>
                   </div>
                 </div>
@@ -529,7 +524,7 @@ export function SmsSettingsWorkspace() {
               />
             </label>
             <button className="button button--ghost" disabled={isUpdatingPaymentMethod} type="submit">
-              {isUpdatingPaymentMethod ? "Updating..." : "Update payment method"}
+              {isUpdatingPaymentMethod ? <ButtonBusy label="Updating" /> : "Update payment method"}
             </button>
           </form>
         </div>
@@ -619,7 +614,7 @@ export function SmsSettingsWorkspace() {
             {senderRuleError ? <p className="form-error field--wide">{senderRuleError}</p> : null}
 
             <button className="button button--primary" disabled={!hasAccounts || isSavingSenderRule} type="submit">
-              {isSavingSenderRule ? "Saving..." : "Add sender rule"}
+              {isSavingSenderRule ? <ButtonBusy label="Saving" /> : "Add sender rule"}
             </button>
           </form>
 
@@ -644,7 +639,7 @@ export function SmsSettingsWorkspace() {
                       onClick={() => void handleDeleteSenderRule(rule)}
                       type="button"
                     >
-                      {deletingSenderRuleId === rule.id ? "Deleting..." : "Delete"}
+                      {deletingSenderRuleId === rule.id ? <ButtonBusy label="Deleting" /> : "Delete"}
                     </button>
                   </div>
                 </div>
@@ -767,7 +762,7 @@ export function SmsSettingsWorkspace() {
               />
             </label>
             <button className="button button--ghost" disabled={isUpdatingSenderRule} type="submit">
-              {isUpdatingSenderRule ? "Updating..." : "Update sender rule"}
+              {isUpdatingSenderRule ? <ButtonBusy label="Updating" /> : "Update sender rule"}
             </button>
           </form>
         </div>

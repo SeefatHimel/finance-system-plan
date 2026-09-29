@@ -255,9 +255,13 @@ the backend response.
 
 ## How would you handle loading, empty, and error states?
 
-Each main screen should show explicit loading states, empty states, and error
-messages. Finance users need confidence that missing data means "nothing found,"
-not "the app silently failed."
+Each main screen has an explicit, shared loading state that preserves the
+expected page structure while data is fetched. A branded activity indicator,
+subtle shimmer, navigation progress rail, and inline button spinners distinguish
+route changes, initial fetches, and mutations without making the UI feel frozen.
+The motion system respects `prefers-reduced-motion`. Empty states and error
+messages remain visually distinct, so finance users can tell "nothing found"
+from "still loading" or "the request failed."
 
 ## How would you handle responsive design?
 

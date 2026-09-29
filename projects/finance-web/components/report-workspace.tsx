@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { type MonthlyReport, getMonthlyReport } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { LoadingState } from "@/components/loading-state";
 
 type ReportState =
   | { status: "loading" }
@@ -60,13 +61,7 @@ export function ReportWorkspace() {
   }
 
   if (reportState.status === "loading") {
-    return (
-      <div className="panel">
-        <div className="panel__body">
-          <span className="status-badge status-badge--idle">Loading report</span>
-        </div>
-      </div>
-    );
+    return <LoadingState detail="Aggregating income, expenses, and category totals" label="Generating monthly report" />;
   }
 
   if (reportState.status === "error") {

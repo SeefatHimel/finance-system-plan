@@ -43,6 +43,7 @@ import {
   listTransactions
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { LoadingState } from "@/components/loading-state";
 
 type DashboardState =
   | { status: "loading" }
@@ -278,7 +279,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
   }, [state]);
 
   if (state.status === "loading") {
-    return <div className="dashboard-skeleton dashboard-skeleton--dark" aria-label="Loading dashboard"><span /><span /><span /></div>;
+    return <LoadingState detail="Reconciling balances, activity, and mobile imports" label="Building your financial picture" variant="dashboard" />;
   }
 
   if (state.status === "error" || dashboardData === null) {

@@ -13,6 +13,7 @@ import {
   listCreditCardBills
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { ButtonBusy, LoadingState } from "@/components/loading-state";
 
 type CreditCardState =
   | { status: "loading" }
@@ -217,13 +218,7 @@ export function CreditCardWorkspace() {
   }
 
   if (state.status === "loading") {
-    return (
-      <section className="panel">
-        <div className="panel__body">
-          <span className="status-badge status-badge--idle">Loading credit cards</span>
-        </div>
-      </section>
-    );
+    return <LoadingState detail="Checking statements, dues, and recorded payments" label="Loading credit cards" />;
   }
 
   if (state.status === "error") {
@@ -318,7 +313,7 @@ export function CreditCardWorkspace() {
                 <input className="field__control" name="note" />
               </label>
               <button className="button button--primary field--wide" disabled={isCreating} type="submit">
-                {isCreating ? "Saving..." : "Save bill"}
+                {isCreating ? <ButtonBusy label="Saving" /> : "Save bill"}
               </button>
             </form>
           )}
@@ -376,7 +371,7 @@ export function CreditCardWorkspace() {
               />
             </label>
             <button className="button button--primary field--wide" disabled={isPaying || openBills.length === 0} type="submit">
-              {isPaying ? "Recording..." : "Record payment"}
+              {isPaying ? <ButtonBusy label="Recording" /> : "Record payment"}
             </button>
           </form>
         </div>

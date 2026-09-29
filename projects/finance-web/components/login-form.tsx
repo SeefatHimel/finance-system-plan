@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { login } from "@/lib/api";
 import { canUseLocalTokenStorage, saveTokens } from "@/lib/auth-storage";
 import { loginWithCookieSession } from "@/lib/session-api";
+import { ButtonBusy } from "@/components/loading-state";
 
 export function LoginForm() {
   const router = useRouter();
@@ -66,7 +67,7 @@ export function LoginForm() {
       {error ? <p className="form-error">{error}</p> : null}
 
       <button className="button button--primary" disabled={isSubmitting} type="submit">
-        {isSubmitting ? "Signing in..." : "Sign in"}
+        {isSubmitting ? <ButtonBusy label="Signing in" /> : "Sign in"}
       </button>
     </form>
   );

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { type AuditLogEntry, type AuditLogFilters, listAuditLogs } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { LoadingState } from "@/components/loading-state";
 
 type AuditLogState =
   | { status: "idle" }
@@ -257,9 +258,7 @@ export function AuditLogWorkspace() {
           ) : null}
 
           {state.status === "loading" ? (
-            <div className="empty-state">
-              <span className="status-badge status-badge--idle">Loading audit logs</span>
-            </div>
+            <LoadingState compact detail="Retrieving matching history" label="Loading audit logs" />
           ) : null}
 
           {state.status === "error" ? (

@@ -17,6 +17,7 @@ import {
   redactRawMessage
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { ButtonBusy, LoadingState } from "@/components/loading-state";
 
 type ReviewState =
   | { status: "loading" }
@@ -219,13 +220,7 @@ export function MessageReviewWorkspace() {
   }
 
   if (reviewState.status === "loading") {
-    return (
-      <section className="panel">
-        <div className="panel__body">
-          <span className="status-badge status-badge--idle">Loading review inbox</span>
-        </div>
-      </section>
-    );
+    return <LoadingState detail="Checking new messages and parsing confidence" label="Preparing the review inbox" />;
   }
 
   if (reviewState.status === "error") {
@@ -439,7 +434,7 @@ export function MessageReviewWorkspace() {
 
                     <div className="review-actions">
                       <button className="button button--primary" disabled={isWorking} type="submit">
-                        {isWorking ? "Working..." : "Confirm"}
+                        {isWorking ? <ButtonBusy label="Confirming" /> : "Confirm"}
                       </button>
                       <button
                         className="button button--danger"

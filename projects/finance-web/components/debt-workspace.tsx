@@ -12,6 +12,7 @@ import {
   listDebts
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { ButtonBusy, LoadingState } from "@/components/loading-state";
 
 type DebtState =
   | { status: "loading" }
@@ -174,13 +175,7 @@ export function DebtWorkspace() {
   }
 
   if (debtState.status === "loading") {
-    return (
-      <section className="panel">
-        <div className="panel__body">
-          <span className="status-badge status-badge--idle">Loading debts</span>
-        </div>
-      </section>
-    );
+    return <LoadingState detail="Calculating balances and repayment history" label="Loading debts and lending" />;
   }
 
   if (debtState.status === "error") {
@@ -261,7 +256,7 @@ export function DebtWorkspace() {
               <input className="field__control" name="note" />
             </label>
             <button className="button button--primary field--wide" disabled={isCreating} type="submit">
-              {isCreating ? "Saving..." : "Save debt"}
+              {isCreating ? <ButtonBusy label="Saving" /> : "Save debt"}
             </button>
           </form>
         </div>
@@ -318,7 +313,7 @@ export function DebtWorkspace() {
               />
             </label>
             <button className="button button--primary field--wide" disabled={isPaying} type="submit">
-              {isPaying ? "Recording..." : "Record repayment"}
+              {isPaying ? <ButtonBusy label="Recording" /> : "Record repayment"}
             </button>
           </form>
         </div>

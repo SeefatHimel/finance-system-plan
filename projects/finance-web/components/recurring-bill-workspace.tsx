@@ -16,6 +16,7 @@ import {
   listRecurringBills
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { ButtonBusy, LoadingState } from "@/components/loading-state";
 
 type RecurringBillState =
   | { status: "loading" }
@@ -228,13 +229,7 @@ export function RecurringBillWorkspace() {
   }
 
   if (state.status === "loading") {
-    return (
-      <section className="panel">
-        <div className="panel__body">
-          <span className="status-badge status-badge--idle">Loading recurring bills</span>
-        </div>
-      </section>
-    );
+    return <LoadingState detail="Checking schedules, due dates, and payment history" label="Loading recurring bills" />;
   }
 
   if (state.status === "error") {
@@ -363,7 +358,7 @@ export function RecurringBillWorkspace() {
                 <input className="field__control" name="note" />
               </label>
               <button className="button button--primary field--wide" disabled={isCreating} type="submit">
-                {isCreating ? "Saving..." : "Save recurring bill"}
+                {isCreating ? <ButtonBusy label="Saving" /> : "Save recurring bill"}
               </button>
             </form>
           )}
@@ -421,7 +416,7 @@ export function RecurringBillWorkspace() {
               />
             </label>
             <button className="button button--primary field--wide" disabled={isPaying || activeBills.length === 0} type="submit">
-              {isPaying ? "Recording..." : "Record payment"}
+              {isPaying ? <ButtonBusy label="Recording" /> : "Record payment"}
             </button>
           </form>
         </div>

@@ -21,6 +21,7 @@ import {
   updateTransaction
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { ButtonBusy, LoadingState } from "@/components/loading-state";
 
 type LoadState =
   | { status: "loading" }
@@ -344,13 +345,7 @@ export function TransactionWorkspace() {
   }, [loadState]);
 
   if (loadState.status === "loading") {
-    return (
-      <div className="panel">
-        <div className="panel__body">
-          <span className="status-badge status-badge--idle">Loading transactions</span>
-        </div>
-      </div>
-    );
+    return <LoadingState detail="Syncing ledger entries, accounts, and categories" label="Loading transactions" />;
   }
 
   if (loadState.status === "error") {
@@ -472,7 +467,7 @@ export function TransactionWorkspace() {
             {formError ? <p className="form-error field--wide">{formError}</p> : null}
 
             <button className="button button--primary field--wide" disabled={isSubmitting} type="submit">
-              {isSubmitting ? "Saving..." : "Save transaction"}
+              {isSubmitting ? <ButtonBusy label="Saving" /> : "Save transaction"}
             </button>
           </form>
 
@@ -638,7 +633,7 @@ export function TransactionWorkspace() {
             </label>
 
             <button className="button button--ghost field--wide" disabled={isUpdating} type="submit">
-              {isUpdating ? "Updating..." : "Update transaction"}
+              {isUpdating ? <ButtonBusy label="Updating" /> : "Update transaction"}
             </button>
           </form>
         </div>
@@ -782,7 +777,7 @@ export function TransactionWorkspace() {
               onClick={() => void handleExportTransactions()}
               type="button"
             >
-              {isExporting ? "Exporting..." : "Export CSV"}
+              {isExporting ? <ButtonBusy label="Exporting" /> : "Export CSV"}
             </button>
           </form>
 
@@ -851,7 +846,7 @@ export function TransactionWorkspace() {
                             onClick={() => void handleDeleteTransaction(transaction)}
                             type="button"
                           >
-                            {deletingTransactionId === transaction.id ? "Deleting..." : "Delete"}
+                            {deletingTransactionId === transaction.id ? <ButtonBusy label="Deleting" /> : "Delete"}
                           </button>
                         </div>
                       </td>

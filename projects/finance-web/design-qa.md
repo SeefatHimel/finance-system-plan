@@ -57,6 +57,16 @@ These align with the reference landmarks within the expected scaling difference 
 - The Accounts screen and Add Account drawer were inspected under the shared dark shell.
 - Browser console inspection showed no runtime errors on the desktop dashboard or mobile review flow.
 
+## Motion and loading follow-up
+
+- Route changes now expose a thin mint progress rail and a restrained content entrance instead of an abrupt swap.
+- Initial workspace fetches use a shared branded activity mark plus layout-preserving shimmer blocks sized to the incoming content.
+- Mutation buttons retain their width and pair a compact spinner with an explicit action label such as `Saving`, `Updating`, or `Recording`.
+- Drawers, navigation scrims, and success toasts use the same easing and depth language as the dashboard.
+- The actual slow-route state was captured in Browser/IAB by temporarily pausing the local test API, then allowing the request to complete after the API resumed.
+- Both 1440 × 1024 desktop and 430 × 932 mobile layouts were checked after the motion update, with no relevant console warnings or errors.
+- `prefers-reduced-motion` collapses animations and transitions to an effectively immediate state.
+
 ## Iteration history
 
 ### Pass 1 findings

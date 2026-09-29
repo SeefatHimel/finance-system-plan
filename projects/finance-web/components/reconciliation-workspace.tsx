@@ -14,6 +14,7 @@ import {
   listBalanceSnapshots
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { ButtonBusy, LoadingState } from "@/components/loading-state";
 
 type ReconciliationState =
   | { status: "loading" }
@@ -233,13 +234,7 @@ export function ReconciliationWorkspace() {
   }
 
   if (state.status === "loading") {
-    return (
-      <section className="panel">
-        <div className="panel__body">
-          <span className="status-badge status-badge--idle">Loading reconciliation</span>
-        </div>
-      </section>
-    );
+    return <LoadingState detail="Comparing ledger totals with recorded balances" label="Preparing reconciliation" />;
   }
 
   if (state.status === "error") {
@@ -390,7 +385,7 @@ export function ReconciliationWorkspace() {
               <input className="field__control" name="note" />
             </label>
             <button className="button button--primary field--wide" disabled={isSaving} type="submit">
-              {isSaving ? "Saving..." : "Save snapshot"}
+              {isSaving ? <ButtonBusy label="Saving" /> : "Save snapshot"}
             </button>
           </form>
         </div>
