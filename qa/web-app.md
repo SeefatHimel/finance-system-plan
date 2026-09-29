@@ -17,9 +17,12 @@ will combine server-rendered status, authenticated pages, and interactive forms.
 The web app has a responsive application shell with persistent navigation, a
 data-backed overview dashboard, TypeScript setup, an environment-based API URL,
 a server-rendered backend health check, and a local JWT login flow. The
-dashboard summarizes the current month's income, expenses, and net movement,
-shows active accounts and recent transactions, and provides quick links into
-common workflows. It also has a transactions page for listing and creating
+dashboard is an automation-first command center. It combines the calculated net
+position and monthly movement with cash-flow and spending-category charts,
+mobile sync health, imported/auto-posted/review counts, a focused SMS review
+queue, and recent transactions with account, category, source, import state,
+status, and signed amounts. Manual transaction entry remains available but is a
+secondary action. It also has a transactions page for listing and creating
 manual transactions and an accounts page for managing accounts and
 categories, an SMS settings page for managing payment methods and sender rules,
 an SMS review inbox for parsed message candidates, a monthly reports page, and
@@ -34,6 +37,22 @@ history.
 
 It proves the web project can run and communicate with the backend. It is a
 small but useful integration milestone before building login, tables, and forms.
+
+## Why does the dashboard prioritize automation status?
+
+The main product value is turning mobile financial SMS messages into trustworthy
+ledger entries. The dashboard therefore shows capture, auto-post, pending-review,
+and failure states before manual-entry controls. This makes sync freshness and
+exceptions visible without forcing the user to open several operational pages.
+
+## How is dashboard data kept trustworthy?
+
+The web app derives the net position, monthly movement, category breakdown,
+automation counts, review queue, and recent activity from existing API
+responses. It does not display invented confidence scores for confirmed
+transactions because the current transaction response does not expose parser
+confidence after confirmation; those rows use a textual verified/manual import
+state instead.
 
 ## How does the web app know the backend URL?
 
