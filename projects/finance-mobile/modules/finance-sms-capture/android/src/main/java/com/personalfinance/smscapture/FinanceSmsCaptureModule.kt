@@ -23,7 +23,9 @@ class FinanceSmsCaptureModule : Module() {
         FinanceSmsStore.SenderRule(
           id = rule["id"]?.toString().orEmpty(),
           matchType = rule["matchType"]?.toString().orEmpty(),
-          sender = rule["sender"]?.toString().orEmpty()
+          sender = rule["sender"]?.toString().orEmpty(),
+          pattern = rule["pattern"]?.toString().orEmpty(),
+          isActive = rule["isActive"] as? Boolean ?: true
         )
       }
       FinanceSmsStore.configureRules(requireContext(), parsedRules)
@@ -64,6 +66,47 @@ class FinanceSmsCaptureModule : Module() {
 
     AsyncFunction("resetTrackingStateAsync") {
       FinanceSmsStore.resetTrackingState(requireContext())
+    }
+
+    AsyncFunction("getSecureRawQueueAsync") {
+      FinanceSmsStore.getSecureRawQueue(requireContext())
+    }
+
+    AsyncFunction("setSecureRawQueueAsync") { value: String ->
+      FinanceSmsStore.setSecureRawQueue(requireContext(), value)
+    }
+
+    AsyncFunction("configureBackgroundSyncAsync") { apiBaseUrl: String, accessToken: String, refreshToken: String, username: String ->
+      FinanceSmsStore.configureSyncSession(
+        requireContext(),
+        apiBaseUrl,
+        accessToken,
+        refreshToken,
+        username
+      )
+      FinanceSmsSyncWorker.enqueue(requireContext())
+    }
+
+    AsyncFunction("clearBackgroundSyncSessionAsync") {
+      FinanceSmsStore.clearSyncSession(requireContext())
+    }
+
+    AsyncFunction("enqueueBackgroundSyncAsync") {
+      FinanceSmsSyncWorker.enqueue(requireContext())
+    }
+
+    AsyncFunction("getBackgroundSyncStatusAsync") {
+      FinanceSmsStore.getSyncStatus(requireContext())
+    }
+
+    AsyncFunction("getBackgroundSyncSessionAsync") {
+      FinanceSmsStore.getSyncSession(requireContext())?.let { session ->
+        mapOf(
+          "access" to session.accessToken,
+          "refresh" to session.refreshToken,
+          "username" to session.username
+        )
+      }
     }
   }
 

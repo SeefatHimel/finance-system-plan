@@ -63,9 +63,14 @@ import {
   type Transaction
 } from "./src/api";
 import {
+  clearNativeSmsBackgroundSyncSession,
   clearCapturedSmsMessages,
+  configureNativeSmsBackgroundSync,
   configureNativeSmsSenderRules,
+  enqueueNativeSmsBackgroundSync,
   getCapturedSmsMessages,
+  getNativeSmsBackgroundSyncStatus,
+  getNativeSmsBackgroundSyncSession,
   getNativeSmsPermissionStatus,
   isNativeSmsCaptureAvailable,
   listNativeSmsInboxSenders,
@@ -73,9 +78,11 @@ import {
   scanHistoricalSmsMessages,
   type CapturedSmsMessage,
   type NativeSmsSenderRule,
+  type NativeSmsBackgroundSyncStatus,
   type SmsInboxSender
 } from "./modules/finance-sms-capture/src";
 import { clearSession, loadSession, saveSession } from "./src/session";
+import { loadSecureSmsQueue, saveSecureSmsQueue } from "./src/secure-sms-queue";
 
 type ViewState = "idle" | "loading" | "success" | "error";
 type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
@@ -86,6 +93,13 @@ type MobilePanel = "sms-automation" | null;
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 type ReviewCandidateDraft = {
   accountId: string;
+  amount: string;
+  categoryId: string;
+  counterpartyText: string;
+  date: string;
+  note: string;
+  paymentMethodId: string;
+  reference: string;
   transferAccountId: string;
   transactionType: string;
 };
@@ -113,6 +127,7 @@ type QueuedManualTransaction = {
 };
 
 const rawMessageQueueKey = "finance.rawMessageQueue";
+const rawMessageQueueOwnerKey = "finance.rawMessageQueueOwner";
 const manualTransactionQueueKey = "finance.manualTransactionQueue";
 const accountCacheKey = "finance.accountCache";
 const categoryCacheKey = "finance.categoryCache";
@@ -146,6 +161,18 @@ function formatMoney(value: number) {
 
 function sumMoney<T>(items: T[], selector: (item: T) => string | null | undefined) {
   return items.reduce((total, item) => total + parseMoney(selector(item)), 0);
+}
+
+function isValidIsoDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return false;
+  }
+  const [, year, month, day] = match;
+  const parsed = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  return parsed.getUTCFullYear() === Number(year)
+    && parsed.getUTCMonth() === Number(month) - 1
+    && parsed.getUTCDate() === Number(day);
 }
 
 function isDueSoon(date: string | null | undefined, daysAhead = 7) {
@@ -383,19 +410,26 @@ function rawMessageDedupeKey(input: Pick<QueuedRawMessage, "body" | "deviceMessa
     : `body:${sender}:${receivedAt}:${body}`;
 }
 
-function senderMatchesRule(sender: string, rule: Pick<SenderRule, "match_type" | "sender">) {
+function senderMatchesRule(
+  sender: string,
+  rule: Pick<SenderRule, "is_active" | "match_type" | "pattern" | "sender">
+) {
   const normalizedSender = sender.trim().toLowerCase();
   const normalizedRuleSender = rule.sender.trim().toLowerCase();
 
-  if (!normalizedSender || !normalizedRuleSender) {
+  if (!rule.is_active || !normalizedSender || !normalizedRuleSender) {
     return false;
   }
 
   if (rule.match_type === "contains") {
-    return normalizedSender.includes(normalizedRuleSender);
+    return normalizedSender.includes((rule.pattern || rule.sender).trim().toLowerCase());
   }
-  if (rule.match_type === "prefix" || rule.match_type === "starts_with") {
-    return normalizedSender.startsWith(normalizedRuleSender);
+  if (rule.match_type === "regex") {
+    try {
+      return new RegExp(rule.pattern || rule.sender, "i").test(sender.trim());
+    } catch {
+      return false;
+    }
   }
   return normalizedSender === normalizedRuleSender;
 }
@@ -403,10 +437,12 @@ function senderMatchesRule(sender: string, rule: Pick<SenderRule, "match_type" |
 function buildNativeSenderRules(senderRules: SenderRule[], enabledSenderRuleIds: string[]): NativeSmsSenderRule[] {
   const enabledIds = new Set(enabledSenderRuleIds);
   return senderRules
-    .filter((rule) => enabledIds.has(rule.id) && rule.sender.trim())
+    .filter((rule) => rule.is_active && enabledIds.has(rule.id) && rule.sender.trim())
     .map((rule) => ({
       id: rule.id,
+      isActive: rule.is_active,
       matchType: rule.match_type,
+      pattern: rule.pattern,
       sender: rule.sender
     }));
 }
@@ -719,6 +755,7 @@ export default function App() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [senderRules, setSenderRules] = useState<SenderRule[]>([]);
   const [enabledSenderRuleIds, setEnabledSenderRuleIds] = useState<string[]>([]);
+  const [updatingSenderRuleId, setUpdatingSenderRuleId] = useState("");
   const [smsInboxSenders, setSmsInboxSenders] = useState<SmsInboxSender[]>([]);
   const [smsSenderSearch, setSmsSenderSearch] = useState("");
   const [selectedSmsSender, setSelectedSmsSender] = useState("");
@@ -743,6 +780,7 @@ export default function App() {
   const [smsDevResetArmed, setSmsDevResetArmed] = useState(false);
   const [smsDevResetState, setSmsDevResetState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [smsDevResetMessage, setSmsDevResetMessage] = useState("");
+  const [smsBackgroundStatus, setSmsBackgroundStatus] = useState<NativeSmsBackgroundSyncStatus | null>(null);
   const [reviewState, setReviewState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewCandidates, setReviewCandidates] = useState<ParsedMessageCandidate[]>([]);
@@ -1173,9 +1211,20 @@ export default function App() {
     }
 
     const draft = getReviewDraft(candidate);
-    if (!draft.accountId || !candidate.amount) {
+    if (!draft.accountId || !draft.amount.trim()) {
       setReviewState("error");
-      setReviewMessage("Select a source account before confirming this candidate.");
+      setReviewMessage("Select a source account and enter the transaction amount before confirming.");
+      return;
+    }
+    const normalizedAmount = draft.amount.trim().replaceAll(",", "");
+    if (!/^\d+(?:\.\d{1,2})?$/.test(normalizedAmount) || Number(normalizedAmount) <= 0) {
+      setReviewState("error");
+      setReviewMessage("Enter a valid positive amount with no more than two decimal places.");
+      return;
+    }
+    if (!isValidIsoDate(draft.date.trim())) {
+      setReviewState("error");
+      setReviewMessage("Enter a valid transaction date in YYYY-MM-DD format.");
       return;
     }
     if (draft.transactionType === "transfer" && !draft.transferAccountId) {
@@ -1195,9 +1244,13 @@ export default function App() {
     try {
       await confirmMessageCandidate(accessToken.trim(), candidate.id, {
         account: draft.accountId,
-        amount: candidate.amount,
-        date: candidate.raw_message.received_at.slice(0, 10),
-        note: candidate.raw_message.body,
+        amount: normalizedAmount,
+        category: draft.categoryId || null,
+        counterparty_text: draft.counterpartyText.trim(),
+        date: draft.date.trim(),
+        note: draft.note.trim(),
+        payment_method: draft.paymentMethodId || null,
+        reference: draft.reference.trim(),
         transfer_account: draft.transactionType === "transfer" ? draft.transferAccountId : null,
         type: draft.transactionType
       });
@@ -1212,6 +1265,13 @@ export default function App() {
 
   const buildReviewDraft = (candidate: ParsedMessageCandidate): ReviewCandidateDraft => ({
     accountId: candidate.account ?? "",
+    amount: candidate.amount ?? "",
+    categoryId: "",
+    counterpartyText: candidate.counterparty_text,
+    date: candidate.raw_message.received_at.slice(0, 10),
+    note: "",
+    paymentMethodId: candidate.payment_method ?? "",
+    reference: candidate.reference,
     transactionType: candidate.transaction_type,
     transferAccountId: candidate.destination_account ?? ""
   });
@@ -1272,6 +1332,45 @@ export default function App() {
     } catch (error) {
       setSmsPermissionState("denied");
       setSmsPermissionMessage(error instanceof Error ? error.message : "Could not check SMS permission.");
+    }
+  };
+
+  const refreshSmsBackgroundStatus = async () => {
+    const nextStatus = await getNativeSmsBackgroundSyncStatus();
+    setSmsBackgroundStatus(nextStatus);
+  };
+
+  const handleRetrySmsBackgroundSync = async () => {
+    if (!isNativeSmsCaptureAvailable()) {
+      setSmsBackgroundStatus({
+        importedCount: 0,
+        message: "Background SMS sync requires the installed Android app.",
+        rejectedCount: 0,
+        state: "error",
+        updatedAt: new Date().toISOString()
+      });
+      return;
+    }
+    setSmsBackgroundStatus((current) => ({
+      importedCount: current?.importedCount ?? 0,
+      message: "Background SMS sync is queued…",
+      rejectedCount: current?.rejectedCount ?? 0,
+      state: "running",
+      updatedAt: new Date().toISOString()
+    }));
+    try {
+      await enqueueNativeSmsBackgroundSync();
+      await new Promise<void>((resolve) => setTimeout(() => resolve(), 600));
+      await refreshSmsBackgroundStatus();
+      setTimeout(() => void refreshSmsBackgroundStatus(), 3000);
+    } catch (error) {
+      setSmsBackgroundStatus({
+        importedCount: 0,
+        message: error instanceof Error ? error.message : "Could not queue background SMS sync.",
+        rejectedCount: 0,
+        state: "error",
+        updatedAt: new Date().toISOString()
+      });
     }
   };
 
@@ -1416,7 +1515,7 @@ export default function App() {
   };
 
   const handleImportCapturedSmsMessages = async () => {
-    const enabledRules = senderRules.filter((rule) => enabledSenderRuleIds.includes(rule.id));
+    const enabledRules = senderRules.filter((rule) => rule.is_active && enabledSenderRuleIds.includes(rule.id));
 
     if (enabledRules.length === 0) {
       setRawQueueState("error");
@@ -1492,7 +1591,7 @@ export default function App() {
       return;
     }
 
-    const enabledRules = senderRules.filter((rule) => enabledSenderRuleIds.includes(rule.id));
+    const enabledRules = senderRules.filter((rule) => rule.is_active && enabledSenderRuleIds.includes(rule.id));
     const nativeRules = buildNativeSenderRules(senderRules, enabledSenderRuleIds);
     if (enabledRules.length === 0 || nativeRules.length === 0) {
       setRawQueueState("error");
@@ -1694,6 +1793,9 @@ export default function App() {
       setPaymentMethods(nextPaymentMethods);
       setSenderRules(nextSenderRules);
       setEnabledSenderRuleIds(validEnabledRuleIds);
+      if (isNativeSmsCaptureAvailable()) {
+        await configureNativeSmsSenderRules(buildNativeSenderRules(nextSenderRules, validEnabledRuleIds));
+      }
       setSmsSettingsState("ok");
       setSmsSettingsMessage(
         `Loaded ${nextPaymentMethods.length} payment method(s) and ${nextSenderRules.length} sender rule(s).`
@@ -1704,19 +1806,42 @@ export default function App() {
     }
   };
 
-  const handleToggleSenderRule = (senderRuleId: string) => {
-    setEnabledSenderRuleIds((currentIds) => {
-      const nextIds = currentIds.includes(senderRuleId)
-        ? currentIds.filter((id) => id !== senderRuleId)
-        : [...currentIds, senderRuleId];
-      void AsyncStorage.setItem(enabledSenderRulesKey, JSON.stringify(nextIds));
-      return nextIds;
-    });
+  const handleToggleSenderRule = async (senderRuleId: string) => {
+    const nextIds = enabledSenderRuleIds.includes(senderRuleId)
+      ? enabledSenderRuleIds.filter((id) => id !== senderRuleId)
+      : [...enabledSenderRuleIds, senderRuleId];
+    setUpdatingSenderRuleId(senderRuleId);
+    setSmsSettingsState("loading");
+    setSmsSettingsMessage("Updating trusted senders on this device…");
+    try {
+      const configured = isNativeSmsCaptureAvailable()
+        ? await configureNativeSmsSenderRules(buildNativeSenderRules(senderRules, nextIds))
+        : { configuredCount: nextIds.length };
+      await AsyncStorage.setItem(enabledSenderRulesKey, JSON.stringify(nextIds));
+      setEnabledSenderRuleIds(nextIds);
+      setSmsSettingsState("ok");
+      setSmsSettingsMessage(
+        isNativeSmsCaptureAvailable()
+          ? `Native capture now tracks ${configured.configuredCount} active sender rule(s).`
+          : `Selected ${configured.configuredCount} active sender rule(s) for foreground import.`
+      );
+    } catch (error) {
+      setSmsSettingsState("error");
+      setSmsSettingsMessage(error instanceof Error ? error.message : "Could not update native sender tracking.");
+    } finally {
+      setUpdatingSenderRuleId("");
+    }
   };
 
   const saveRawQueue = async (nextQueue: QueuedRawMessage[]) => {
     setRawQueue(nextQueue);
-    await AsyncStorage.setItem(rawMessageQueueKey, JSON.stringify(nextQueue));
+    await saveSecureSmsQueue(JSON.stringify(nextQueue));
+    await Promise.all([
+      AsyncStorage.removeItem(rawMessageQueueKey),
+      nextQueue.length > 0 && username.trim()
+        ? AsyncStorage.setItem(rawMessageQueueOwnerKey, username.trim())
+        : AsyncStorage.removeItem(rawMessageQueueOwnerKey)
+    ]);
   };
 
   const handleQueueRawMessage = async () => {
@@ -1843,13 +1968,50 @@ export default function App() {
     }
   };
 
+  const clearDeviceSmsState = async () => {
+    if (isNativeSmsCaptureAvailable()) {
+      await Promise.all([
+        clearNativeSmsBackgroundSyncSession(),
+        configureNativeSmsSenderRules([])
+      ]);
+      await resetNativeSmsTrackingState();
+    } else {
+      await saveSecureSmsQueue("[]");
+    }
+    await Promise.all([
+      AsyncStorage.removeItem(enabledSenderRulesKey),
+      AsyncStorage.removeItem(rawMessageQueueKey),
+      AsyncStorage.removeItem(rawMessageQueueOwnerKey)
+    ]);
+    setEnabledSenderRuleIds([]);
+    setRawQueue([]);
+    setSmsBackgroundStatus(null);
+  };
+
   const handleLogin = async () => {
     setAuthState("loading");
     setAuthMessage("");
 
     try {
-      const tokens = await login(username.trim(), password);
-      await saveSession({ ...tokens, username: username.trim() });
+      const nextUsername = username.trim();
+      const tokens = await login(nextUsername, password);
+      const [nativeSession, rawQueueOwner, storedRawQueue, capturedSms] = await Promise.all([
+        getNativeSmsBackgroundSyncSession(),
+        AsyncStorage.getItem(rawMessageQueueOwnerKey),
+        loadSecureSmsQueue(),
+        isNativeSmsCaptureAvailable() ? getCapturedSmsMessages(1) : Promise.resolve([])
+      ]);
+      const hasQueuedSms = normalizeRawQueue(storedRawQueue).length > 0 || capturedSms.length > 0;
+      if (
+        (nativeSession?.username && nativeSession.username !== nextUsername)
+        || (rawQueueOwner && rawQueueOwner !== nextUsername)
+        || (!rawQueueOwner && hasQueuedSms && nativeSession?.username !== nextUsername)
+      ) {
+        await clearDeviceSmsState();
+      } else if (hasQueuedSms) {
+        await AsyncStorage.setItem(rawMessageQueueOwnerKey, nextUsername);
+      }
+      await saveSession({ ...tokens, username: nextUsername });
       setAccessToken(tokens.access);
       setRefreshToken(tokens.refresh);
       setPassword("");
@@ -2122,21 +2284,30 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await clearSession();
-    setAccessToken("");
-    setRefreshToken("");
-    setPassword("");
-    setAuthState("idle");
-    setAuthMessage("");
-    setActiveTab("home");
-    setMobilePanel(null);
-    setShowAdvancedTools(false);
-    closeDrawer();
+    try {
+      await Promise.all([
+        clearSession(),
+        clearDeviceSmsState()
+      ]);
+    } catch {
+      // Never keep the React session active because device cleanup failed.
+    } finally {
+      setAccessToken("");
+      setRefreshToken("");
+      setPassword("");
+      setAuthState("idle");
+      setAuthMessage("");
+      setActiveTab("home");
+      setMobilePanel(null);
+      setShowAdvancedTools(false);
+      closeDrawer();
+    }
   };
 
   useEffect(() => {
     void loadHealth();
     void refreshSmsPermissionState();
+    void refreshSmsBackgroundStatus();
     loadSession()
       .then(async (storedSession) => {
         if (!storedSession) {
@@ -2144,8 +2315,12 @@ export default function App() {
         }
 
         setUsername(storedSession.username);
+        const nativeSession = await getNativeSmsBackgroundSyncSession();
+        const sessionToRestore = nativeSession?.username === storedSession.username
+          ? { ...storedSession, access: nativeSession.access, refresh: nativeSession.refresh }
+          : storedSession;
         try {
-          const tokens = await refreshLogin(storedSession.refresh);
+          const tokens = await refreshLogin(sessionToRestore.refresh);
           await saveSession({ ...tokens, username: storedSession.username });
           setAccessToken(tokens.access);
           setRefreshToken(tokens.refresh);
@@ -2159,8 +2334,8 @@ export default function App() {
             return;
           }
 
-          setAccessToken(storedSession.access);
-          setRefreshToken(storedSession.refresh);
+          setAccessToken(sessionToRestore.access);
+          setRefreshToken(sessionToRestore.refresh);
           setAuthState("ok");
           setAuthMessage("Session restored offline. Sync will resume when the server is available.");
         }
@@ -2206,9 +2381,15 @@ export default function App() {
         setListState("error");
         setListMessage("Could not load local transaction cache.");
       });
-    AsyncStorage.getItem(rawMessageQueueKey)
-      .then((storedQueue) => {
-        setRawQueue(normalizeRawQueue(storedQueue));
+    Promise.all([loadSecureSmsQueue(), AsyncStorage.getItem(rawMessageQueueKey)])
+      .then(async ([secureQueue, legacyQueue]) => {
+        const storedQueue = secureQueue || legacyQueue;
+        const normalizedQueue = normalizeRawQueue(storedQueue);
+        setRawQueue(normalizedQueue);
+        if (!secureQueue && legacyQueue) {
+          await saveSecureSmsQueue(JSON.stringify(normalizedQueue));
+          await AsyncStorage.removeItem(rawMessageQueueKey);
+        }
       })
       .catch(() => {
         setRawQueueState("error");
@@ -2224,7 +2405,10 @@ export default function App() {
       }
 
       try {
-        const tokens = await refreshLogin(storedSession.refresh);
+        const nativeSession = await getNativeSmsBackgroundSyncSession();
+        const tokens = await refreshLogin(
+          nativeSession?.username === storedSession.username ? nativeSession.refresh : storedSession.refresh
+        );
         await saveSession({ ...tokens, username: storedSession.username });
         setAccessToken(tokens.access);
         setRefreshToken(tokens.refresh);
@@ -2258,6 +2442,35 @@ export default function App() {
       handleLoadSmsSettings()
     ]);
   }, [accessToken]);
+
+  useEffect(() => {
+    if (accessToken.trim() && username.trim() && rawQueue.length > 0) {
+      void AsyncStorage.setItem(rawMessageQueueOwnerKey, username.trim());
+    }
+  }, [accessToken, rawQueue.length, username]);
+
+  useEffect(() => {
+    if (!accessToken.trim() || !refreshToken.trim() || !username.trim() || !isNativeSmsCaptureAvailable()) {
+      return;
+    }
+
+    void configureNativeSmsBackgroundSync(
+      getApiBaseUrl(),
+      accessToken.trim(),
+      refreshToken.trim(),
+      username.trim()
+    )
+      .then(() => refreshSmsBackgroundStatus())
+      .catch((error) => {
+        setSmsBackgroundStatus({
+          importedCount: 0,
+          message: error instanceof Error ? error.message : "Could not configure background SMS sync.",
+          rejectedCount: 0,
+          state: "error",
+          updatedAt: new Date().toISOString()
+        });
+      });
+  }, [accessToken, refreshToken, username]);
 
   const openDebts = debts.filter((debt) => debt.status !== "paid");
   const cardAccounts = accounts.filter((account) => account.type === "credit_card");
@@ -3101,7 +3314,8 @@ export default function App() {
                 return (
                   <Pressable
                     key={rule.id}
-                    onPress={() => handleToggleSenderRule(rule.id)}
+                    disabled={!rule.is_active || updatingSenderRuleId === rule.id}
+                    onPress={() => void handleToggleSenderRule(rule.id)}
                     style={isEnabled ? styles.senderRuleSelected : styles.senderRule}
                   >
                     <Text style={styles.listTitle}>{rule.sender}</Text>
@@ -3255,7 +3469,10 @@ export default function App() {
                           {accounts.map((account) => (
                             <Pressable
                               key={account.id}
-                              onPress={() => updateReviewDraft(candidate, { accountId: account.id })}
+                              onPress={() => updateReviewDraft(candidate, {
+                                accountId: account.id,
+                                paymentMethodId: draft.accountId === account.id ? draft.paymentMethodId : ""
+                              })}
                               style={draft.accountId === account.id ? styles.choiceSelected : styles.choice}
                             >
                               <Text style={draft.accountId === account.id ? styles.choiceTextSelected : styles.choiceText}>
@@ -3597,13 +3814,70 @@ export default function App() {
             </View>
             <Text style={styles.mobileReviewAmount}>{formatMoney(parseMoney(candidate.amount))}</Text>
             <Text numberOfLines={3} style={styles.mobileSmsQuoteText}>{candidate.raw_message.body}</Text>
+
+            <View style={styles.mobileRangeRow}>
+              <View style={styles.mobileRangeField}>
+                <Text style={styles.mobileFieldLabel}>Amount</Text>
+                <View style={styles.mobileInputWrap}>
+                  <MaterialCommunityIcons color="#7890ad" name="cash" size={19} />
+                  <TextInput
+                    accessibilityLabel="Transaction amount"
+                    keyboardType="decimal-pad"
+                    onChangeText={(amount) => updateReviewDraft(candidate, { amount })}
+                    placeholder="0.00"
+                    placeholderTextColor="#5f7590"
+                    style={styles.mobileInput}
+                    value={draft.amount}
+                  />
+                </View>
+              </View>
+              <View style={styles.mobileRangeField}>
+                <Text style={styles.mobileFieldLabel}>Date</Text>
+                <View style={styles.mobileInputWrap}>
+                  <MaterialCommunityIcons color="#7890ad" name="calendar-outline" size={19} />
+                  <TextInput
+                    accessibilityLabel="Transaction date in year month day format"
+                    autoCapitalize="none"
+                    onChangeText={(date) => updateReviewDraft(candidate, { date })}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor="#5f7590"
+                    style={styles.mobileInput}
+                    value={draft.date}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.mobileFieldLabel}>Transaction type</Text>
+            <View style={styles.mobileChoiceRow}>
+              {["expense", "income", "transfer", "fee", "refund"].map((type) => (
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: draft.transactionType === type }}
+                  key={type}
+                  onPress={() => updateReviewDraft(candidate, {
+                    transactionType: type,
+                    transferAccountId: type === "transfer" ? draft.transferAccountId : ""
+                  })}
+                  style={[styles.mobileChoice, draft.transactionType === type ? styles.mobileChoiceActive : null]}
+                >
+                  <Text style={[styles.mobileChoiceText, draft.transactionType === type ? styles.mobileChoiceTextActive : null]}>
+                    {titleCase(type)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
             <Text style={styles.mobileFieldLabel}>Source account</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.mobileChoiceRow}>
                 {accounts.map((account) => (
                   <Pressable
                     key={account.id}
-                    onPress={() => updateReviewDraft(candidate, { accountId: account.id })}
+                    onPress={() => updateReviewDraft(candidate, {
+                      accountId: account.id,
+                      paymentMethodId: draft.accountId === account.id ? draft.paymentMethodId : ""
+                    })}
                     style={[styles.mobileChoice, draft.accountId === account.id ? styles.mobileChoiceActive : null]}
                   >
                     <Text style={[styles.mobileChoiceText, draft.accountId === account.id ? styles.mobileChoiceTextActive : null]}>
@@ -3613,6 +3887,107 @@ export default function App() {
                 ))}
               </View>
             </ScrollView>
+
+            {draft.transactionType === "transfer" ? (
+              <>
+                <Text style={styles.mobileFieldLabel}>Destination account</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.mobileChoiceRow}>
+                    {accounts.filter((account) => account.id !== draft.accountId).map((account) => (
+                      <Pressable
+                        key={account.id}
+                        onPress={() => updateReviewDraft(candidate, { transferAccountId: account.id })}
+                        style={[styles.mobileChoice, draft.transferAccountId === account.id ? styles.mobileChoiceActive : null]}
+                      >
+                        <Text style={[styles.mobileChoiceText, draft.transferAccountId === account.id ? styles.mobileChoiceTextActive : null]}>
+                          {account.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+              </>
+            ) : null}
+
+            <Text style={styles.mobileFieldLabel}>Payment method</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.mobileChoiceRow}>
+                <Pressable
+                  onPress={() => updateReviewDraft(candidate, { paymentMethodId: "" })}
+                  style={[styles.mobileChoice, !draft.paymentMethodId ? styles.mobileChoiceActive : null]}
+                >
+                  <Text style={[styles.mobileChoiceText, !draft.paymentMethodId ? styles.mobileChoiceTextActive : null]}>None</Text>
+                </Pressable>
+                {paymentMethods.filter((method) => method.account === draft.accountId).map((method) => (
+                  <Pressable
+                    key={method.id}
+                    onPress={() => updateReviewDraft(candidate, { paymentMethodId: method.id })}
+                    style={[styles.mobileChoice, draft.paymentMethodId === method.id ? styles.mobileChoiceActive : null]}
+                  >
+                    <Text style={[styles.mobileChoiceText, draft.paymentMethodId === method.id ? styles.mobileChoiceTextActive : null]}>
+                      {method.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+
+            <Text style={styles.mobileFieldLabel}>Category</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.mobileChoiceRow}>
+                <Pressable
+                  onPress={() => updateReviewDraft(candidate, { categoryId: "" })}
+                  style={[styles.mobileChoice, !draft.categoryId ? styles.mobileChoiceActive : null]}
+                >
+                  <Text style={[styles.mobileChoiceText, !draft.categoryId ? styles.mobileChoiceTextActive : null]}>None</Text>
+                </Pressable>
+                {categories.map((category) => (
+                  <Pressable
+                    key={category.id}
+                    onPress={() => updateReviewDraft(candidate, { categoryId: category.id })}
+                    style={[styles.mobileChoice, draft.categoryId === category.id ? styles.mobileChoiceActive : null]}
+                  >
+                    <Text style={[styles.mobileChoiceText, draft.categoryId === category.id ? styles.mobileChoiceTextActive : null]}>
+                      {category.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+
+            <View style={styles.mobileInputWrap}>
+              <MaterialCommunityIcons color="#7890ad" name="store-outline" size={19} />
+              <TextInput
+                accessibilityLabel="Counterparty or merchant"
+                onChangeText={(counterpartyText) => updateReviewDraft(candidate, { counterpartyText })}
+                placeholder="Counterparty or merchant"
+                placeholderTextColor="#5f7590"
+                style={styles.mobileInput}
+                value={draft.counterpartyText}
+              />
+            </View>
+            <View style={styles.mobileInputWrap}>
+              <MaterialCommunityIcons color="#7890ad" name="identifier" size={19} />
+              <TextInput
+                accessibilityLabel="Transaction reference"
+                onChangeText={(reference) => updateReviewDraft(candidate, { reference })}
+                placeholder="Reference"
+                placeholderTextColor="#5f7590"
+                style={styles.mobileInput}
+                value={draft.reference}
+              />
+            </View>
+            <View style={styles.mobileInputWrap}>
+              <MaterialCommunityIcons color="#7890ad" name="note-text-outline" size={19} />
+              <TextInput
+                accessibilityLabel="Transaction note"
+                onChangeText={(note) => updateReviewDraft(candidate, { note })}
+                placeholder="Note (optional)"
+                placeholderTextColor="#5f7590"
+                style={styles.mobileInput}
+                value={draft.note}
+              />
+            </View>
             <View style={styles.mobileActionRow}>
               <Pressable
                 disabled={isWorking}
@@ -3679,7 +4054,7 @@ export default function App() {
 
   const renderSmsAutomation = () => {
     const canReadSms = smsPermissionState === "granted";
-    const enabledRules = senderRules.filter((rule) => enabledSenderRuleIds.includes(rule.id));
+    const enabledRules = senderRules.filter((rule) => rule.is_active && enabledSenderRuleIds.includes(rule.id));
     const existingExactSenders = new Set(
       senderRules
         .filter((rule) => rule.match_type === "exact")
@@ -3713,6 +4088,29 @@ export default function App() {
               Only messages matching senders you enable are added to the finance queue.
             </Text>
           </View>
+        </View>
+
+        <View style={styles.mobileSection}>
+          <View style={styles.mobileSectionHeader}>
+            <Text style={styles.mobileSectionTitle}>Automatic sync</Text>
+            <Text style={styles.mobileSectionMeta}>{smsBackgroundStatus?.state ?? "idle"}</Text>
+          </View>
+          <Text style={styles.mobileStateText}>
+            {smsBackgroundStatus?.message ?? "New trusted SMS messages will upload when a network is available."}
+          </Text>
+          {smsBackgroundStatus?.updatedAt ? (
+            <Text style={styles.mobileRowMeta}>Last update {formatMobileDate(smsBackgroundStatus.updatedAt)}</Text>
+          ) : null}
+          <Pressable
+            disabled={smsBackgroundStatus?.state === "running"}
+            onPress={() => void handleRetrySmsBackgroundSync()}
+            style={({ pressed }) => [styles.mobileSecondaryAction, pressed ? styles.mobilePressed : null]}
+          >
+            <MaterialCommunityIcons color="#32d8f2" name="cloud-sync-outline" size={21} />
+            <Text style={styles.mobileSecondaryActionText}>
+              {smsBackgroundStatus?.state === "running" ? "Sync queued…" : "Retry background sync"}
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.mobileSection}>
@@ -3752,7 +4150,8 @@ export default function App() {
                     accessibilityRole="switch"
                     accessibilityState={{ checked: isEnabled }}
                     key={rule.id}
-                    onPress={() => handleToggleSenderRule(rule.id)}
+                    disabled={!rule.is_active || updatingSenderRuleId === rule.id}
+                    onPress={() => void handleToggleSenderRule(rule.id)}
                     style={({ pressed }) => [styles.mobileMenuRow, pressed ? styles.mobilePressed : null]}
                   >
                     <View style={styles.mobileProviderIcon}>
@@ -3763,8 +4162,15 @@ export default function App() {
                       <Text style={styles.mobileRowMeta}>{rule.sender} · {titleCase(rule.match_type)}</Text>
                     </View>
                     <View style={styles.mobileRuleDecision}>
+                      {updatingSenderRuleId === rule.id ? <ActivityIndicator color="#32d8f2" size="small" /> : null}
                       <Text style={[styles.mobileRuleDecisionText, isEnabled ? styles.mobileRuleDecisionTextActive : null]}>
-                        {isEnabled ? "Tracking" : "Excluded"}
+                        {!rule.is_active
+                          ? "Inactive"
+                          : updatingSenderRuleId === rule.id
+                            ? "Updating"
+                            : isEnabled
+                              ? "Tracking"
+                              : "Excluded"}
                       </Text>
                       <View style={[styles.mobileToggle, isEnabled ? styles.mobileToggleActive : null]}>
                         <View style={[styles.mobileToggleKnob, isEnabled ? styles.mobileToggleKnobActive : null]} />
@@ -4313,15 +4719,27 @@ export default function App() {
           <Text style={styles.mobileAppTitle}>Signal <Text style={styles.mobileAppTitleAccent}>Inbox</Text></Text>
           <Text style={styles.mobileAppSubtitle}>Bank & wallet SMS to insights</Text>
         </View>
-        <Pressable onPress={loadHealth} style={styles.mobileSyncChip}>
+        <Pressable
+          accessibilityLabel="Refresh server and SMS synchronization status"
+          onPress={() => void Promise.all([loadHealth(), refreshSmsBackgroundStatus()])}
+          style={styles.mobileSyncChip}
+        >
           {state === "loading" ? (
             <ActivityIndicator color="#55e6a5" size="small" />
           ) : (
             <View style={[styles.mobileSyncDot, state === "error" ? styles.mobileSyncDotError : null]} />
           )}
           <View>
-            <Text style={styles.mobileSyncTitle}>{state === "success" ? "Synced" : state === "loading" ? "Waking" : "Offline"}</Text>
-            <Text style={styles.mobileSyncMeta}>{rawQueue.length ? `${rawQueue.length} queued` : "Up to date"}</Text>
+            <Text style={styles.mobileSyncTitle}>{state === "success" ? "Online" : state === "loading" ? "Checking" : "Offline"}</Text>
+            <Text style={styles.mobileSyncMeta}>
+              {rawQueue.length
+                ? `${rawQueue.length} queued`
+                : smsBackgroundStatus?.state === "running"
+                  ? "SMS syncing"
+                  : smsBackgroundStatus?.state === "error"
+                    ? "SMS needs attention"
+                    : "Server status"}
+            </Text>
           </View>
         </Pressable>
       </View>

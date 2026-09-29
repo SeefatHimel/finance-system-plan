@@ -10,8 +10,11 @@ import java.util.Locale
 object FinanceSmsStore {
   private const val PREFS_NAME = "finance_sms_capture"
   private const val KEY_MESSAGES = "captured_messages"
+  private const val KEY_REACT_RAW_QUEUE = "react_raw_message_queue"
   private const val KEY_PROCESSED_MESSAGE_IDS = "processed_message_ids"
   private const val KEY_RULES = "sender_rules"
+  private const val KEY_SYNC_SESSION = "sync_session"
+  private const val KEY_SYNC_STATUS = "sync_status"
   private const val MAX_HISTORY_ROWS = 5000
   private const val MAX_PROCESSED_MESSAGE_IDS = 10000
 
@@ -24,7 +27,16 @@ object FinanceSmsStore {
   data class SenderRule(
     val id: String,
     val matchType: String,
-    val sender: String
+    val sender: String,
+    val pattern: String,
+    val isActive: Boolean
+  )
+
+  data class SyncSession(
+    val apiBaseUrl: String,
+    val accessToken: String,
+    val refreshToken: String,
+    val username: String
   )
 
   private data class InboxSenderSummary(
@@ -36,13 +48,15 @@ object FinanceSmsStore {
   fun configureRules(context: Context, rules: List<SenderRule>) {
     val payload = JSONArray()
     rules
-      .filter { it.sender.isNotBlank() }
+      .filter { it.isActive && it.sender.isNotBlank() }
       .forEach { rule ->
         payload.put(
           JSONObject()
             .put("id", rule.id)
             .put("matchType", rule.matchType)
             .put("sender", rule.sender)
+            .put("pattern", rule.pattern)
+            .put("isActive", rule.isActive)
         )
       }
 
@@ -63,13 +77,12 @@ object FinanceSmsStore {
 
     val receivedAt = isoFromMillis(receivedAtMillis)
     val stableId = stableMessageId(sender, body, receivedAtMillis)
-    val preferences = prefs(context)
-    val processedIds = preferences.getStringSet(KEY_PROCESSED_MESSAGE_IDS, emptySet()).orEmpty()
+    val processedIds = processedMessageIds(context)
     if (!includeProcessed && processedIds.contains(stableId)) {
       return AppendStatus.DUPLICATE
     }
 
-    val messages = JSONArray(preferences.getString(KEY_MESSAGES, "[]"))
+    val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
 
     for (index in 0 until messages.length()) {
       val current = messages.optJSONObject(index) ?: continue
@@ -86,7 +99,7 @@ object FinanceSmsStore {
         .put("body", body)
         .put("receivedAt", receivedAt)
     )
-    preferences.edit().putString(KEY_MESSAGES, messages.toString()).apply()
+    writeEncryptedPreference(context, KEY_MESSAGES, messages.toString())
     rememberProcessedId(context, stableId)
     return AppendStatus.CAPTURED
   }
@@ -200,8 +213,9 @@ object FinanceSmsStore {
       }
   }
 
+  @Synchronized
   fun getMessages(context: Context, limit: Int): List<Map<String, String>> {
-    val messages = JSONArray(prefs(context).getString(KEY_MESSAGES, "[]"))
+    val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
     val boundedLimit = limit.coerceIn(1, 1000)
     val start = (messages.length() - boundedLimit).coerceAtLeast(0)
     val result = mutableListOf<Map<String, String>>()
@@ -221,13 +235,14 @@ object FinanceSmsStore {
     return result
   }
 
+  @Synchronized
   fun clearMessages(context: Context, ids: List<String>) {
     if (ids.isEmpty()) {
       return
     }
 
     val idSet = ids.toSet()
-    val messages = JSONArray(prefs(context).getString(KEY_MESSAGES, "[]"))
+    val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
     val remaining = JSONArray()
 
     for (index in 0 until messages.length()) {
@@ -237,7 +252,78 @@ object FinanceSmsStore {
       }
     }
 
-    prefs(context).edit().putString(KEY_MESSAGES, remaining.toString()).apply()
+    writeEncryptedPreference(context, KEY_MESSAGES, remaining.toString())
+  }
+
+  fun getSecureRawQueue(context: Context): String =
+    readEncryptedPreference(context, KEY_REACT_RAW_QUEUE, "[]")
+
+  fun setSecureRawQueue(context: Context, value: String) {
+    writeEncryptedPreference(context, KEY_REACT_RAW_QUEUE, value)
+  }
+
+  fun configureSyncSession(
+    context: Context,
+    apiBaseUrl: String,
+    accessToken: String,
+    refreshToken: String,
+    username: String
+  ) {
+    val payload = JSONObject()
+      .put("apiBaseUrl", apiBaseUrl.trimEnd('/'))
+      .put("accessToken", accessToken)
+      .put("refreshToken", refreshToken)
+      .put("username", username)
+    writeEncryptedPreference(context, KEY_SYNC_SESSION, payload.toString())
+  }
+
+  fun getSyncSession(context: Context): SyncSession? {
+    val payload = readEncryptedPreference(context, KEY_SYNC_SESSION, "")
+    if (payload.isBlank()) {
+      return null
+    }
+    val parsed = runCatching { JSONObject(payload) }.getOrNull() ?: return null
+    val apiBaseUrl = parsed.optString("apiBaseUrl").trimEnd('/')
+    val accessToken = parsed.optString("accessToken")
+    val refreshToken = parsed.optString("refreshToken")
+    val username = parsed.optString("username")
+    if (apiBaseUrl.isBlank() || accessToken.isBlank() || refreshToken.isBlank() || username.isBlank()) {
+      return null
+    }
+    return SyncSession(apiBaseUrl, accessToken, refreshToken, username)
+  }
+
+  fun clearSyncSession(context: Context) {
+    prefs(context).edit().remove(KEY_SYNC_SESSION).apply()
+  }
+
+  fun setSyncStatus(
+    context: Context,
+    state: String,
+    message: String,
+    importedCount: Int = 0,
+    rejectedCount: Int = 0
+  ) {
+    val payload = JSONObject()
+      .put("state", state)
+      .put("message", message)
+      .put("importedCount", importedCount)
+      .put("rejectedCount", rejectedCount)
+      .put("updatedAt", isoFromMillis(System.currentTimeMillis()))
+    prefs(context).edit().putString(KEY_SYNC_STATUS, payload.toString()).apply()
+  }
+
+  fun getSyncStatus(context: Context): Map<String, Any> {
+    val payload = runCatching {
+      JSONObject(prefs(context).getString(KEY_SYNC_STATUS, "{}"))
+    }.getOrElse { JSONObject() }
+    return mapOf(
+      "state" to payload.optString("state", "idle"),
+      "message" to payload.optString("message", "No background sync has run yet."),
+      "importedCount" to payload.optInt("importedCount", 0),
+      "rejectedCount" to payload.optInt("rejectedCount", 0),
+      "updatedAt" to payload.optString("updatedAt", "")
+    )
   }
 
   fun resetTrackingState(context: Context) {
@@ -245,6 +331,8 @@ object FinanceSmsStore {
       .edit()
       .remove(KEY_MESSAGES)
       .remove(KEY_PROCESSED_MESSAGE_IDS)
+      .remove(KEY_REACT_RAW_QUEUE)
+      .remove(KEY_SYNC_STATUS)
       .apply()
   }
 
@@ -254,15 +342,22 @@ object FinanceSmsStore {
 
     for (index in 0 until rules.length()) {
       val rule = rules.optJSONObject(index) ?: continue
-      val pattern = normalize(rule.optString("sender"))
-      if (pattern.isBlank()) {
+      if (!rule.optBoolean("isActive", true)) {
+        continue
+      }
+      val ruleSender = rule.optString("sender")
+      val configuredPattern = rule.optString("pattern")
+      val normalizedPattern = normalize(if (configuredPattern.isNotBlank()) configuredPattern else ruleSender)
+      if (normalizedPattern.isBlank()) {
         continue
       }
 
       val matches = when (normalize(rule.optString("matchType"))) {
-        "contains" -> normalizedSender.contains(pattern)
-        "prefix", "starts_with" -> normalizedSender.startsWith(pattern)
-        else -> normalizedSender == pattern
+        "contains" -> normalizedSender.contains(normalizedPattern)
+        "regex" -> runCatching {
+          Regex(configuredPattern.ifBlank { ruleSender }, RegexOption.IGNORE_CASE).containsMatchIn(sender.trim())
+        }.getOrDefault(false)
+        else -> normalizedSender == normalize(ruleSender)
       }
 
       if (matches) {
@@ -275,20 +370,52 @@ object FinanceSmsStore {
 
   private fun prefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+  private fun readEncryptedPreference(context: Context, key: String, fallback: String): String {
+    val stored = prefs(context).getString(key, null) ?: return fallback
+    if (!FinanceSmsCrypto.isEncryptedPayload(stored)) {
+      writeEncryptedPreference(context, key, stored)
+      return stored
+    }
+    return runCatching { FinanceSmsCrypto.decrypt(stored) }.getOrElse {
+      prefs(context).edit().remove(key).apply()
+      fallback
+    }
+  }
+
+  private fun writeEncryptedPreference(context: Context, key: String, value: String) {
+    prefs(context).edit().putString(key, FinanceSmsCrypto.encrypt(value)).apply()
+  }
+
   private fun normalize(value: String) = value.trim().lowercase(Locale.US)
 
   private fun rememberProcessedId(context: Context, id: String) {
-    val preferences = prefs(context)
-    val processedIds = preferences
-      .getStringSet(KEY_PROCESSED_MESSAGE_IDS, emptySet())
-      .orEmpty()
-      .toMutableSet()
-
-    if (processedIds.size >= MAX_PROCESSED_MESSAGE_IDS) {
-      processedIds.clear()
-    }
+    val processedIds = processedMessageIds(context).toMutableList()
+    processedIds.remove(id)
     processedIds.add(id)
-    preferences.edit().putStringSet(KEY_PROCESSED_MESSAGE_IDS, processedIds).apply()
+    while (processedIds.size > MAX_PROCESSED_MESSAGE_IDS) {
+      processedIds.removeAt(0)
+    }
+    writeEncryptedPreference(context, KEY_PROCESSED_MESSAGE_IDS, JSONArray(processedIds).toString())
+  }
+
+  private fun processedMessageIds(context: Context): Set<String> {
+    val preferences = prefs(context)
+    val legacyIds = runCatching {
+      preferences.getStringSet(KEY_PROCESSED_MESSAGE_IDS, null)?.toSet()
+    }.getOrNull()
+    if (legacyIds != null) {
+      preferences.edit().remove(KEY_PROCESSED_MESSAGE_IDS).commit()
+      writeEncryptedPreference(context, KEY_PROCESSED_MESSAGE_IDS, JSONArray(legacyIds.toList()).toString())
+      return legacyIds
+    }
+
+    val payload = readEncryptedPreference(context, KEY_PROCESSED_MESSAGE_IDS, "[]")
+    val parsed = JSONArray(payload)
+    return buildSet {
+      for (index in 0 until parsed.length()) {
+        parsed.optString(index).takeIf { it.isNotBlank() }?.let(::add)
+      }
+    }
   }
 
   private fun stableMessageId(sender: String, body: String, receivedAtMillis: Long): String {

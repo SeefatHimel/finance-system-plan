@@ -133,3 +133,10 @@ Next useful additions:
 
 - Pagination envelope examples if list endpoints add pagination
 - Production error examples for rate limits or token expiry
+
+## What trust requirement applies to raw SMS import?
+
+Raw message import requires the sender to match one of the authenticated user's
+active rules. An unmatched sender is a validation-style `400`, not an accepted
+low-confidence candidate. Sender-rule responses include `pattern` and
+`is_active`, which clients must honor for exact, contains, and regex matching.

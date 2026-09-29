@@ -9,6 +9,7 @@
       "**/*"
     ],
     "android": {
+      "allowBackup": false,
       "package": "com.personalfinance.mobile"
     },
     "plugins": [

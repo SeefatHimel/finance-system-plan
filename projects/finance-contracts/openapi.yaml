@@ -467,6 +467,7 @@ paths:
     post:
       tags: [Messages]
       summary: Import a raw SMS message and detect duplicates
+      description: Only messages matching an active sender rule owned by the authenticated user are accepted.
       security:
         - bearerAuth: []
       requestBody:
@@ -1709,6 +1710,7 @@ components:
         sender:
           type: string
           maxLength: 120
+          description: Must match one of the authenticated user's active sender rules.
           description: Must be unique per authenticated user and match type, compared case-insensitively.
         match_type:
           $ref: '#/components/schemas/SenderRuleMatchType'

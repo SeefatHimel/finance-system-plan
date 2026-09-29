@@ -294,3 +294,13 @@ needs real anonymized SMS fixture coverage, deeper provider-specific bank
 transfer variants, production deployment execution, and UI polish around debt
 and reconciliation workflows. Audit logging currently covers transaction
 mutations first; other finance domains can be added as the product hardens.
+
+## How does the API prevent an untrusted sender from being uploaded?
+
+`POST /api/messages/import/` performs its own active sender-rule lookup before
+storing a raw body. A mobile toggle is therefore only a device-side preference,
+not the security boundary. An unmatched or inactive sender receives `400` and
+no `RawMessage` row is created. Exact, contains, and regex behavior is shared
+with mobile; invalid regex rules are rejected during rule validation, and a
+case-insensitive database constraint prevents duplicate sender/match-type rules
+for one user.

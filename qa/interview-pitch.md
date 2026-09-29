@@ -98,3 +98,8 @@ configuration, set up database backups and restore testing, add monitoring,
 improve audit logs, and review Android SMS permission policy carefully before
 public distribution. The repo includes a production auth/token storage plan for
 web cookies, mobile secure storage, and refresh-token rotation.
+
+The release-ready mobile path uses encrypted local SMS storage,
+network-constrained WorkManager sync, consistent exact/contains/regex matching,
+and a backend trust check that rejects arbitrary senders even if a client is
+modified.

@@ -109,8 +109,85 @@ class SenderRuleApiTests(APITestCase):
             "A sender rule with this sender and match type already exists.",
         )
 
+    def test_sender_rule_rejects_invalid_regular_expression(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("sender-rule-list"),
+            {
+                "account": str(account.id),
+                "name": "Broken regex",
+                "provider": SenderRule.Provider.BANK,
+                "sender": "CITYBANK",
+                "match_type": SenderRule.MatchType.REGEX,
+                "pattern": "[unclosed",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Enter a valid regular expression", response.data["pattern"][0])
+
 
 class RawMessageImportApiTests(APITestCase):
+    def test_import_rejects_sender_without_active_trusted_rule(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="Inactive City Bank sender",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+            is_active=False,
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": "Tk. 500.00 withdrawn from account.",
+                "received_at": "2026-05-29T10:30:00+06:00",
+                "device_message_id": "sms-untrusted-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["sender"], "No active trusted sender rule matches this message.")
+        self.assertFalse(RawMessage.objects.filter(user=user).exists())
+
+    def test_import_accepts_sender_matching_active_contains_rule(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank variants",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="Bank alerts",
+            match_type=SenderRule.MatchType.CONTAINS,
+            pattern="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "ACME-CITYBANK-ALERT",
+                "body": "Tk. 500.00 withdrawn from account.",
+                "received_at": "2026-05-29T10:30:00+06:00",
+                "device_message_id": "sms-trusted-contains-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(RawMessage.objects.filter(user=user).exists())
+
     def test_authenticated_user_can_import_raw_message(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         account = Account.objects.create(
@@ -874,6 +951,14 @@ class RawMessageImportApiTests(APITestCase):
 
     def test_duplicate_raw_message_returns_existing_message(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="bKash", type=Account.Type.MOBILE_WALLET)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="bKash sender",
+            provider=SenderRule.Provider.BKASH,
+            sender="bKash",
+        )
         self.client.force_authenticate(user)
         payload = {
             "sender": "bKash",
@@ -947,6 +1032,14 @@ class RawMessageImportApiTests(APITestCase):
     def test_development_reset_clears_only_authenticated_users_sms_data(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         other_user = get_user_model().objects.create_user(username="other", password="password")
+        account = Account.objects.create(user=user, name="bKash", type=Account.Type.MOBILE_WALLET)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="bKash sender",
+            provider=SenderRule.Provider.BKASH,
+            sender="bKash",
+        )
         self.client.force_authenticate(user)
         payload = {
             "sender": "bKash",

@@ -1,6 +1,6 @@
 # Native Android SMS Capture
 
-Last updated: 2026-05-31
+Last updated: 2026-09-29
 
 ## Scope
 
@@ -17,10 +17,13 @@ The implementation is intentionally narrow:
   granted, but keeps only messages whose sender matches enabled backend rules.
 - Stores deterministic fingerprints for matched messages so repeated scans
   skip messages that were already processed.
-- Stores captured messages in native local storage first.
-- The React Native app imports captured messages into the existing
-  AsyncStorage-backed raw-message queue.
-- Backend sync still goes through `POST /api/messages/import/`.
+- Encrypts captured message bodies and the raw-message retry queue with an
+  Android Keystore key; Android application backup is disabled.
+- Schedules new-message uploads with WorkManager when a network is available.
+- Refreshes an expired access token once in the worker and retains API-rejected
+  messages on-device for explicit retry instead of discarding them.
+- Backend sync still goes through `POST /api/messages/import/`, which rejects
+  any sender that no longer matches an active rule for the signed-in user.
 
 ## Files
 
@@ -29,6 +32,7 @@ The implementation is intentionally narrow:
   - declares `READ_SMS` and `RECEIVE_SMS`
   - registers an Android `SMS_RECEIVED` receiver
   - stores only sender-matched SMS messages
+  - persists sensitive payloads encrypted and runs constrained background sync
 - `App.tsx`
   - requests SMS permission on Android
   - syncs enabled sender rules to the native module
@@ -71,8 +75,8 @@ debug/release APK built from the generated Android project.
 4. Enable only the sender rules you trust, such as `bKash`, `EBL`, City Bank,
    or Pathao Pay.
 5. Tap `Request Android SMS Permission`.
-6. Tap `Sync Native Sender Rules` when changing existing toggles. Newly created
-   mobile rules are enabled and synced automatically.
+6. Existing toggles and newly created rules are synced to native capture
+   immediately. Inactive backend rules cannot be enabled locally.
 7. Choose `New only` for an incremental scan, or `Import history` and enter a
    date range. History scans can optionally refresh previous imports so pending
    review candidates use the latest parser. Confirmed transactions are not
@@ -80,6 +84,9 @@ debug/release APK built from the generated Android project.
 8. Tap the scan button. Matching messages are queued before upload; processed
    fingerprints remain skipped unless refresh is enabled.
 9. Review imported candidates in the review inbox and confirm or ignore them.
+   Before confirmation, every required ledger field can be corrected, including
+   amount, date, type, source/destination accounts, payment method, category,
+   counterparty, reference, and note.
 
 Debug Android builds also show a two-step `Clear SMS test data` action. It
 clears local captured/processed fingerprints, the local raw queue, and the
@@ -90,10 +97,14 @@ returns `404` for this operation when `DJANGO_DEBUG=false`.
 
 - Do not enable broad sender patterns unless they are necessary.
 - Do not upload untracked sender messages.
+- The API repeats the active-rule check, so a modified client cannot upload an
+  arbitrary sender's SMS body.
 - Sender discovery reads only sender addresses/names, timestamps, and counts;
   raw bodies are read only later for explicitly tracked senders during a scan.
 - Keep raw SMS deletion/redaction available in the backend.
 - Test with anonymized or personal test messages first.
+- Explicit logout clears the native sync session, local rules, captured SMS
+  payloads, processed-message memory, and encrypted raw queue.
 - Public distribution needs policy/legal review before requesting SMS
   permissions from real users.
 

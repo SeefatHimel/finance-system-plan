@@ -102,10 +102,10 @@ paths, and physical-phone SMS smoke test are documented in
 - A two-step development reset shown only in debug Android builds. It clears
   local scan state plus the signed-in user's SMS imports and SMS-created test
   transactions, while the backend refuses the endpoint outside debug mode.
-- Local raw message queue backed by AsyncStorage, with sync to
-  `POST /api/messages/import/`, local duplicate checks, per-message retry
-  metadata, capped retry backoff, and manual removal for invalid queued
-  messages.
+- Encrypted local raw message queue backed by Android Keystore in native builds
+  or Expo SecureStore as a fallback, with sync to `POST /api/messages/import/`,
+  local duplicate checks, per-message retry metadata, capped retry backoff, and
+  manual removal for invalid queued messages.
 
 The login/token flow now persists the rotated JWT pair in OS-backed secure
 storage rather than AsyncStorage and restores the session on relaunch. Access
@@ -287,3 +287,26 @@ detection if the same raw message is submitted again.
 
 Native-captured SMS messages use a `native:<id>` device message ID when imported
 into the raw-message queue, so the local queue can skip duplicates before sync.
+
+## What closes the gap between capture and automatic sync?
+
+New trusted messages enqueue Android WorkManager immediately. The job waits for
+network access, uploads to the same raw-message endpoint, refreshes an expired
+access token once, and reports a truthful idle/running/success/error state to
+the app. API-rejected messages remain encrypted on the phone so the user can
+refresh rules and retry; transient failures use WorkManager retry behavior.
+
+## How is sensitive SMS data protected on the device?
+
+Captured bodies, the native sync session, processed-message fingerprints, and
+the React Native raw retry queue are encrypted with an Android Keystore key.
+Non-native fallback builds use Expo SecureStore for the raw queue. Android
+backup is disabled, and logout clears the native sync session and SMS state so
+one user's data cannot leak into another user's session.
+
+## What can the user correct before confirming a parsed SMS?
+
+The review form supports amount, date, transaction type, source and destination
+accounts, payment method, category, counterparty, reference, and note. This is
+important because low-confidence parsing must remain a reviewable suggestion,
+not an irreversible ledger write.

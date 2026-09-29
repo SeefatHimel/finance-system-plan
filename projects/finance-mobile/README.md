@@ -37,14 +37,16 @@ Phase 1 scaffold now includes:
   - `GET /api/payment-methods/`
   - `GET /api/messages/sender-rules/`
   - local sender rule enable/disable selection
-  - syncs enabled sender rules into the local native SMS capture module when
-    running a custom Android dev client or APK
+  - applies exact, contains, and regex rules consistently across React Native,
+    native capture, and the backend
+  - immediately syncs sender-rule toggle changes into the local native module
   - discovers distinct sender names and message counts from the Android inbox
     without exposing message bodies in the rule picker
   - supports sender search, account mapping, provider selection, backend rule
     creation, local enablement, and immediate native-rule sync
 - Local raw message queue:
-  - stores queued raw messages with AsyncStorage
+  - stores queued raw messages with Android Keystore-backed encryption in
+    native builds or Expo SecureStore as a fallback
   - shows inline loading, success, empty, and error feedback when sender rules
     are refreshed, including the signed-in username for account troubleshooting
 - Historical SMS backfill in native Android builds:
@@ -61,6 +63,9 @@ Phase 1 scaffold now includes:
   - uses a capped exponential retry delay so failed messages are not retried on every tap
   - blocks obvious local duplicate queue entries before backend sync
   - lets the user remove invalid queued messages manually
+  - uploads newly received, trusted SMS messages with WorkManager when a
+    network is available, including one JWT refresh attempt
+  - keeps API-rejected messages encrypted on the device for explicit retry
   - exposes a two-step, debug-build-only reset that clears local scan memory and
     the signed-in user's backend SMS test data; the backend rejects it when
     `DJANGO_DEBUG=false`
@@ -68,8 +73,8 @@ Phase 1 scaffold now includes:
   - loads parsed candidates from `GET /api/messages/review/`
   - shows parser hints, raw SMS evidence, and internal-transfer flags
   - shows parser confidence, raw message status, and review/duplicate reasons
-  - lets the user select transaction type plus source/destination accounts
-    before confirming transfers
+  - lets the user correct amount, date, type, accounts, payment method,
+    category, counterparty, reference, and note before confirmation
   - confirms or ignores candidates through the review endpoints
 - Debt/lending section:
   - loads records from `GET /api/debts/`
@@ -153,9 +158,9 @@ npx expo run:android --device
 ```
 
 On a physical phone, set `EXPO_PUBLIC_API_BASE_URL` to the backend machine's LAN
-IP before running. Then sign in, load sender rules, enable trusted senders,
-request Android SMS permission, sync native sender rules, and import captured
-SMS messages into the existing raw-message queue.
+IP before running. Then sign in, load sender rules, enable trusted senders, and
+request Android SMS permission. New matching messages are encrypted locally and
+scheduled for background upload; history scans remain an explicit user action.
 
 See `docs/native-sms-capture.md` for the full workflow and troubleshooting
 steps.
@@ -210,8 +215,9 @@ prebuild/custom dev client or bare React Native.
 
 Current decision: keep Expo Go as the manual-import/testing path and use the
 local native Android module only in custom dev client or personal APK builds.
-Native capture is sender-rule scoped and captured messages still enter the
-existing raw-message queue before backend sync.
+Native capture is sender-rule scoped. New messages can sync through Android
+WorkManager, while foreground and historical scans use the same encrypted
+raw-message queue and backend trust check.
 
 ```mermaid
 flowchart TD

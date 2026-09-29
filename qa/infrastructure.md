@@ -94,3 +94,12 @@ drills against a separate database.
 
 Secrets belong in environment variables or secret managers, never in git. The
 repo commits `.env.example` files but ignores real `.env` files.
+
+## How does Android background SMS sync run safely?
+
+The native receiver queues only messages matching locally enabled active rules.
+WorkManager runs a network-constrained upload job, retries transient failures,
+and can rotate an expired access token. Tokens and SMS payloads are encrypted
+with an Android Keystore key, Android application backup is disabled, and an
+explicit logout clears the native session and local SMS state. Public Play
+Store distribution still requires a separate SMS-permission policy review.

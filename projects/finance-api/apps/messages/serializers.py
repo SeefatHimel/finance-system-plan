@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from rest_framework import serializers
@@ -53,6 +54,8 @@ class SenderRuleSerializer(serializers.ModelSerializer):
             )
 
         sender = attrs.get("sender", getattr(self.instance, "sender", "")).strip()
+        if "sender" in attrs:
+            attrs["sender"] = sender
         match_type = attrs.get(
             "match_type",
             getattr(self.instance, "match_type", SenderRule.MatchType.EXACT),
@@ -68,6 +71,17 @@ class SenderRuleSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"sender": "A sender rule with this sender and match type already exists."}
             )
+
+        pattern = attrs.get("pattern", getattr(self.instance, "pattern", "")).strip()
+        if "pattern" in attrs:
+            attrs["pattern"] = pattern
+        if match_type == SenderRule.MatchType.REGEX:
+            try:
+                re.compile(pattern or sender, flags=re.IGNORECASE)
+            except re.error as error:
+                raise serializers.ValidationError(
+                    {"pattern": f"Enter a valid regular expression: {error}."}
+                ) from error
 
         return attrs
 

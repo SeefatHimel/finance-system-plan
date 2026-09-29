@@ -251,3 +251,8 @@ provider-specific bank transfer parsing, keep polishing mobile finance
 workflows beyond the first compact summary pass, harden local sync, automate
 deployment-specific encrypted backup uploads and alerts, and prepare the
 Docker/deployment path for production.
+
+The release path now adds defense in depth: mobile and native matching share
+exact/contains/regex semantics, the server independently enforces active trusted
+senders, local SMS bodies are encrypted, and Android WorkManager bridges live
+capture to authenticated background upload with observable status.

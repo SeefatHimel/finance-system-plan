@@ -2,8 +2,18 @@ import { requireNativeModule } from "expo-modules-core";
 
 export type NativeSmsSenderRule = {
   id: string;
+  isActive: boolean;
   matchType: string;
+  pattern: string;
   sender: string;
+};
+
+export type NativeSmsBackgroundSyncStatus = {
+  importedCount: number;
+  message: string;
+  rejectedCount: number;
+  state: "idle" | "running" | "success" | "error";
+  updatedAt: string;
 };
 
 export type CapturedSmsMessage = {
@@ -27,14 +37,26 @@ export type NativeSmsScanOptions = {
 };
 
 type FinanceSmsCaptureModule = {
+  clearBackgroundSyncSessionAsync(): Promise<void>;
   clearCapturedMessagesAsync(ids: string[]): Promise<void>;
+  configureBackgroundSyncAsync(
+    apiBaseUrl: string,
+    accessToken: string,
+    refreshToken: string,
+    username: string
+  ): Promise<void>;
   configureSenderRulesAsync(rules: NativeSmsSenderRule[]): Promise<{ configuredCount: number }>;
   getCapturedMessagesAsync(limit?: number): Promise<CapturedSmsMessage[]>;
+  getBackgroundSyncStatusAsync(): Promise<NativeSmsBackgroundSyncStatus>;
+  getBackgroundSyncSessionAsync(): Promise<{ access: string; refresh: string; username: string } | null>;
   getPermissionStatusAsync(): Promise<{
     canReadSms: boolean;
     canReceiveSms: boolean;
   }>;
   listInboxSendersAsync(limit?: number): Promise<SmsInboxSender[]>;
+  getSecureRawQueueAsync(): Promise<string>;
+  setSecureRawQueueAsync(value: string): Promise<void>;
+  enqueueBackgroundSyncAsync(): Promise<void>;
   resetTrackingStateAsync(): Promise<void>;
   scanHistoricalMessagesAsync(options?: NativeSmsScanOptions): Promise<{
     capturedCount: number;
@@ -127,4 +149,65 @@ export async function resetNativeSmsTrackingState() {
   }
 
   await module.resetTrackingStateAsync();
+}
+
+export async function getSecureRawMessageQueue() {
+  const module = getNativeModule();
+  if (!module) {
+    return null;
+  }
+  return module.getSecureRawQueueAsync();
+}
+
+export async function setSecureRawMessageQueue(value: string) {
+  const module = getNativeModule();
+  if (!module) {
+    throw new Error("Secure SMS storage requires the installed Android app.");
+  }
+  await module.setSecureRawQueueAsync(value);
+}
+
+export async function configureNativeSmsBackgroundSync(
+  apiBaseUrl: string,
+  accessToken: string,
+  refreshToken: string,
+  username: string
+) {
+  const module = getNativeModule();
+  if (!module) {
+    return;
+  }
+  await module.configureBackgroundSyncAsync(apiBaseUrl, accessToken, refreshToken, username);
+}
+
+export async function clearNativeSmsBackgroundSyncSession() {
+  const module = getNativeModule();
+  if (!module) {
+    return;
+  }
+  await module.clearBackgroundSyncSessionAsync();
+}
+
+export async function enqueueNativeSmsBackgroundSync() {
+  const module = getNativeModule();
+  if (!module) {
+    return;
+  }
+  await module.enqueueBackgroundSyncAsync();
+}
+
+export async function getNativeSmsBackgroundSyncStatus() {
+  const module = getNativeModule();
+  if (!module) {
+    return null;
+  }
+  return module.getBackgroundSyncStatusAsync();
+}
+
+export async function getNativeSmsBackgroundSyncSession() {
+  const module = getNativeModule();
+  if (!module) {
+    return null;
+  }
+  return module.getBackgroundSyncSessionAsync();
 }

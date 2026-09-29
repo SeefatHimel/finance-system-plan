@@ -5,6 +5,7 @@ from hashlib import sha256
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models.functions import Lower, Trim
 from django.utils import timezone
 
 
@@ -64,7 +65,13 @@ class SenderRule(models.Model):
             models.UniqueConstraint(
                 fields=("user", "name"),
                 name="unique_sender_rule_name_per_user",
-            )
+            ),
+            models.UniqueConstraint(
+                models.F("user"),
+                Lower(Trim("sender")),
+                models.F("match_type"),
+                name="unique_sender_match_type_per_user_ci",
+            ),
         ]
 
     def __str__(self) -> str:

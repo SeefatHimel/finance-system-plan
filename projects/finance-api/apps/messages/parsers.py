@@ -84,7 +84,7 @@ def _matches_rule(*, rule: SenderRule, sender: str) -> bool:
     if rule.match_type == SenderRule.MatchType.EXACT:
         return incoming_sender.lower() == rule_sender.lower()
     if rule.match_type == SenderRule.MatchType.CONTAINS:
-        return rule_sender.lower() in incoming_sender.lower()
+        return (rule.pattern or rule_sender).strip().lower() in incoming_sender.lower()
     if rule.match_type == SenderRule.MatchType.REGEX:
         try:
             return re.search(rule.pattern or rule_sender, incoming_sender, flags=re.IGNORECASE) is not None

@@ -73,8 +73,11 @@ export type PaymentMethod = {
 export type SenderRule = {
   account: string;
   id: string;
+  is_active: boolean;
   match_type: string;
   name: string;
+  notes: string;
+  pattern: string;
   payment_method: string | null;
   priority: number;
   provider: string;
@@ -155,6 +158,7 @@ export type ConfirmMessageCandidateInput = {
   account?: string;
   amount?: string;
   balance_after?: string | null;
+  category?: string | null;
   counterparty_text?: string;
   date?: string;
   direction?: string;

@@ -12,7 +12,7 @@ from rest_framework.viewsets import ModelViewSet
 from apps.transactions.models import Transaction
 
 from .models import ParsedMessageCandidate, RawMessage, SenderRule
-from .parsers import parse_raw_message
+from .parsers import find_sender_rule, parse_raw_message
 from .serializers import (
     ParsedMessageCandidateSerializer,
     ParsedMessageConfirmSerializer,
@@ -43,6 +43,11 @@ class RawMessageImportView(APIView):
         serializer = RawMessageImportSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
+        if find_sender_rule(user=request.user, sender=payload["sender"]) is None:
+            return Response(
+                {"sender": "No active trusted sender rule matches this message."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         body_hash = RawMessage.build_body_hash(
             sender=payload["sender"],
             body=payload["body"],

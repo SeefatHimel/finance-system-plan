@@ -23,6 +23,9 @@ class FinanceSmsReceiver : BroadcastReceiver() {
       .filter { it > 0L }
       .minOrNull() ?: System.currentTimeMillis()
 
-    FinanceSmsStore.appendIfTracked(context.applicationContext, sender, body, receivedAt)
+    val result = FinanceSmsStore.appendIfTracked(context.applicationContext, sender, body, receivedAt)
+    if (result == FinanceSmsStore.AppendStatus.CAPTURED) {
+      FinanceSmsSyncWorker.enqueue(context.applicationContext)
+    }
   }
 }
