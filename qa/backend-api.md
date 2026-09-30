@@ -108,6 +108,17 @@ provider reference or TrxID, balance after, counterparty text, payment method,
 raw message id, and an external duplicate key. This lets reports and exports use
 structured fields without reparsing SMS bodies.
 
+## How does the API represent an account's current balance?
+
+It deliberately exposes two different concepts. `ledger_balance` is read-only
+and is derived from the account's starting balance plus all posted transactions,
+including both sides of transfers and debit/credit adjustments.
+`latest_reported_balance` and `latest_reported_balance_date` come from the most
+recent transaction that carried a provider-reported `balance_after` value.
+Keeping the reported value as transaction evidence avoids a mutable account
+balance becoming stale after a backdated create, edit, delete, or offline sync.
+Reconciliation snapshots remain the explicit actual-balance check.
+
 ## How are transaction changes audited?
 
 Transaction creates, updates, and deletes write user-scoped audit entries. Each

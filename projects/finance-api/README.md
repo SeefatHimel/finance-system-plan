@@ -24,6 +24,8 @@ The API project is scaffolded with:
 - Credit card bill and payment workflow endpoints
 - Recurring bill schedule and payment workflow endpoints
 - Balance snapshot and reconciliation endpoints
+- Derived account ledger balances plus latest provider-reported transaction
+  balance evidence on account responses
 - Read-only audit log endpoint for transaction creates, updates, and deletes
 - JWT login, refresh, and current-user endpoints
 - JWT refresh-token rotation and blacklist-after-rotation settings

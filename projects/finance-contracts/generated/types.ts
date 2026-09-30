@@ -84,6 +84,9 @@ export interface Account {
   type: AccountType;
   currency: string;
   starting_balance: string;
+  ledger_balance: string;
+  latest_reported_balance: string | null;
+  latest_reported_balance_date: string | null;
   is_active: boolean;
   display_order: number;
   created_at: string;

@@ -45,12 +45,12 @@ function sortByName<T extends { name: string }>(items: T[]) {
   return [...items].sort((left, right) => left.name.localeCompare(right.name));
 }
 
-function formatAccountBalance(account: Account) {
+function formatAccountBalance(account: Account, balance: string) {
   return new Intl.NumberFormat("en-BD", {
     currency: account.currency,
     maximumFractionDigits: 2,
     style: "currency"
-  }).format(Number(account.starting_balance));
+  }).format(Number(balance));
 }
 
 export function SetupWorkspace() {
@@ -330,9 +330,9 @@ export function SetupWorkspace() {
     );
   }
 
-  const bdtStartingBalance = setupState.accounts
+  const bdtLedgerBalance = setupState.accounts
     .filter((account) => account.currency === "BDT")
-    .reduce((sum, account) => sum + Number(account.starting_balance), 0);
+    .reduce((sum, account) => sum + Number(account.ledger_balance), 0);
   const activeAccounts = setupState.accounts.filter((account) => account.is_active).length;
   const visibleAccounts = setupState.accounts.filter((account) => {
     const matchesSearch = account.name.toLowerCase().includes(accountSearch.trim().toLowerCase());
@@ -352,7 +352,7 @@ export function SetupWorkspace() {
       <section className="metric-strip setup-summary" aria-label="Account summary">
         <div className="metric"><span className="metric__label">Total accounts</span><strong className="metric__value">{setupState.accounts.length}</strong></div>
         <div className="metric"><span className="metric__label">Active accounts</span><strong className="metric__value">{activeAccounts}</strong></div>
-        <div className="metric"><span className="metric__label">BDT starting balance</span><strong className="metric__value">{new Intl.NumberFormat("en-BD", { currency: "BDT", maximumFractionDigits: 0, style: "currency" }).format(bdtStartingBalance)}</strong></div>
+        <div className="metric"><span className="metric__label">BDT ledger balance</span><strong className="metric__value">{new Intl.NumberFormat("en-BD", { currency: "BDT", maximumFractionDigits: 0, style: "currency" }).format(bdtLedgerBalance)}</strong></div>
         <div className="metric"><span className="metric__label">Categories</span><strong className="metric__value">{setupState.categories.length}</strong></div>
       </section>
 
@@ -370,7 +370,7 @@ export function SetupWorkspace() {
             setupState.accounts.length === 0 ? (
               <div className="empty-state empty-state--centered"><div className="empty-state__icon">▣</div><strong>No accounts yet</strong><span>Add your first account to start tracking money movement.</span><button className="button button--primary" onClick={() => setDrawer("account-create")} type="button">Add account</button></div>
             ) : (
-              <><div className="data-toolbar"><label className="search-control"><span aria-hidden="true">⌕</span><input aria-label="Search accounts" onChange={(event) => setAccountSearch(event.target.value)} placeholder="Search accounts" type="search" value={accountSearch} /></label><div className="data-toolbar__filters"><select aria-label="Filter accounts by type" className="compact-select" onChange={(event) => setAccountTypeFilter(event.target.value as AccountType | "all")} value={accountTypeFilter}><option value="all">All types</option>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select><select aria-label="Filter accounts by status" className="compact-select" onChange={(event) => setAccountStatusFilter(event.target.value as "active" | "all" | "inactive")} value={accountStatusFilter}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div></div>{visibleAccounts.length === 0 ? <div className="empty-state empty-state--centered empty-state--compact"><strong>No matching accounts</strong><span>Try a different search term or filter.</span><button className="button button--ghost" onClick={() => { setAccountSearch(""); setAccountTypeFilter("all"); setAccountStatusFilter("all"); }} type="button">Clear filters</button></div> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Name</th><th>Type</th><th>Currency</th><th>Starting balance</th><th>Status</th><th className="align-right">Actions</th></tr></thead><tbody>{visibleAccounts.map((account) => <tr key={account.id}><td><strong>{account.name}</strong></td><td><span className="type-label">{account.type.replaceAll("_", " ")}</span></td><td>{account.currency}</td><td className="amount-cell">{formatAccountBalance(account)}</td><td><span className={`status-badge status-badge--${account.is_active ? "ok" : "idle"}`}>{account.is_active ? "Active" : "Inactive"}</span></td><td><div className="row-actions"><button className="button button--ghost button--small" onClick={() => handleSelectAccount(account.id)} type="button">Edit</button><button className="button button--danger button--small" disabled={deletingAccountId === account.id} onClick={() => void handleDeleteAccount(account)} type="button">{deletingAccountId === account.id ? "Deleting…" : "Delete"}</button></div></td></tr>)}</tbody></table></div>}</>
+              <><div className="data-toolbar"><label className="search-control"><span aria-hidden="true">⌕</span><input aria-label="Search accounts" onChange={(event) => setAccountSearch(event.target.value)} placeholder="Search accounts" type="search" value={accountSearch} /></label><div className="data-toolbar__filters"><select aria-label="Filter accounts by type" className="compact-select" onChange={(event) => setAccountTypeFilter(event.target.value as AccountType | "all")} value={accountTypeFilter}><option value="all">All types</option>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select><select aria-label="Filter accounts by status" className="compact-select" onChange={(event) => setAccountStatusFilter(event.target.value as "active" | "all" | "inactive")} value={accountStatusFilter}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div></div>{visibleAccounts.length === 0 ? <div className="empty-state empty-state--centered empty-state--compact"><strong>No matching accounts</strong><span>Try a different search term or filter.</span><button className="button button--ghost" onClick={() => { setAccountSearch(""); setAccountTypeFilter("all"); setAccountStatusFilter("all"); }} type="button">Clear filters</button></div> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Name</th><th>Type</th><th>Currency</th><th>Ledger balance</th><th>Latest reported</th><th>Status</th><th className="align-right">Actions</th></tr></thead><tbody>{visibleAccounts.map((account) => <tr key={account.id}><td><strong>{account.name}</strong></td><td><span className="type-label">{account.type.replaceAll("_", " ")}</span></td><td>{account.currency}</td><td className="amount-cell">{formatAccountBalance(account, account.ledger_balance)}</td><td className="amount-cell">{account.latest_reported_balance ? <>{formatAccountBalance(account, account.latest_reported_balance)}{account.latest_reported_balance_date ? <small className="meta"> {account.latest_reported_balance_date}</small> : null}</> : "—"}</td><td><span className={`status-badge status-badge--${account.is_active ? "ok" : "idle"}`}>{account.is_active ? "Active" : "Inactive"}</span></td><td><div className="row-actions"><button className="button button--ghost button--small" onClick={() => handleSelectAccount(account.id)} type="button">Edit</button><button className="button button--danger button--small" disabled={deletingAccountId === account.id} onClick={() => void handleDeleteAccount(account)} type="button">{deletingAccountId === account.id ? "Deleting…" : "Delete"}</button></div></td></tr>)}</tbody></table></div>}</>
             )
           ) : (
             setupState.categories.length === 0 ? (

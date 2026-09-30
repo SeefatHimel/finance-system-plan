@@ -21,13 +21,14 @@ The web app is scaffolded with:
 - Transaction CSV export using the active filters
 - Web API input/filter typing reuses generated OpenAPI request and enum types
 - Per-transaction history links into the audit log viewer
-- Accounts page with account and category creation/listing/updating/deletion
+- Accounts page with account and category creation/listing/updating/deletion,
+  derived ledger balances, and latest provider-reported balance evidence
 - SMS settings page with payment method and sender rule creation/listing/updating/deletion
 - SMS settings provider options align with contract-supported bKash, EBL, City Bank, and Pathao Pay sources
 - SMS review inbox with parsed candidate details, parser confidence,
   review/duplicate reasons, internal-transfer hints, raw SMS redaction,
   confirm, and ignore actions
-- Transaction table displays debit/credit direction, balance after, provider
+- Transaction table displays debit/credit direction, reported balance after, provider
   reference, and sent-to/received-from text when available
 - Monthly reports page with income, expense, net, category, and account totals
 - Debts page with debt/lend creation, person-wise balances, due tracking, and

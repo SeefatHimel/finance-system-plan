@@ -313,8 +313,13 @@ function normalizeAccountCache(storedAccounts: string | null): Account[] {
       }
 
       const account = {
+        currency: stringValue(item.currency) || "BDT",
         id: stringValue(item.id),
+        latest_reported_balance: stringValue(item.latest_reported_balance) || null,
+        latest_reported_balance_date: stringValue(item.latest_reported_balance_date) || null,
+        ledger_balance: stringValue(item.ledger_balance) || stringValue(item.starting_balance) || "0.00",
         name: stringValue(item.name),
+        starting_balance: stringValue(item.starting_balance) || "0.00",
         type: stringValue(item.type)
       };
 
@@ -483,6 +488,7 @@ function manualTransactionDedupeKey(input: CreateTransactionInput) {
     input.date.trim(),
     input.type.trim(),
     input.amount.trim(),
+    input.balance_after?.trim() ?? "",
     input.note?.trim() ?? ""
   ].join(":");
 }
@@ -509,6 +515,7 @@ function normalizeManualTransactionQueue(storedQueue: string | null): QueuedManu
       const input: CreateTransactionInput = {
         account: stringValue(item.input.account),
         amount: stringValue(item.input.amount),
+        balance_after: stringValue(item.input.balance_after) || undefined,
         category: stringValue(item.input.category) || undefined,
         date: stringValue(item.input.date),
         note: stringValue(item.input.note),
@@ -689,6 +696,7 @@ export default function App() {
   const [txDate, setTxDate] = useState(new Date().toISOString().slice(0, 10));
   const [txType, setTxType] = useState("expense");
   const [txAmount, setTxAmount] = useState("");
+  const [txBalanceAfter, setTxBalanceAfter] = useState("");
   const [txNote, setTxNote] = useState("");
   const [txState, setTxState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [txMessage, setTxMessage] = useState("");
@@ -2088,6 +2096,7 @@ export default function App() {
     return {
       account: txAccountId.trim(),
       amount: txAmount.trim(),
+      balance_after: txBalanceAfter.trim() || undefined,
       category: txCategoryId.trim() || undefined,
       date: txDate.trim(),
       note: txNote.trim(),
@@ -2130,6 +2139,7 @@ export default function App() {
       setTransactionQueueState("ok");
       setTransactionQueueMessage("Manual transaction queued locally.");
       setTxAmount("");
+      setTxBalanceAfter("");
       setTxNote("");
     } catch (error) {
       setTransactionQueueState("error");
@@ -2160,6 +2170,7 @@ export default function App() {
       setTxState("ok");
       setTxMessage("Transaction created.");
       setTxAmount("");
+      setTxBalanceAfter("");
       setTxNote("");
     } catch (error) {
       setTxState("error");
@@ -2652,6 +2663,15 @@ export default function App() {
             value={txAmount}
           />
           <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="decimal-pad"
+            onChangeText={setTxBalanceAfter}
+            placeholder="Reported balance after (optional)"
+            style={styles.input}
+            value={txBalanceAfter}
+          />
+          <TextInput
             autoCapitalize="sentences"
             onChangeText={setTxNote}
             placeholder="Note (optional)"
@@ -2685,6 +2705,9 @@ export default function App() {
                 <Text style={styles.meta}>Account: {queuedTransaction.input.account}</Text>
                 {queuedTransaction.input.category ? (
                   <Text style={styles.meta}>Category: {queuedTransaction.input.category}</Text>
+                ) : null}
+                {queuedTransaction.input.balance_after ? (
+                  <Text style={styles.meta}>Reported balance after: {queuedTransaction.input.balance_after}</Text>
                 ) : null}
                 {queuedTransaction.input.note ? <Text style={styles.meta}>{queuedTransaction.input.note}</Text> : null}
                 {queuedTransaction.lastAttemptAt ? (

@@ -445,8 +445,8 @@ export function TransactionWorkspace() {
             </label>
 
             <label className="field">
-              <span className="field__label">Balance after</span>
-              <input className="field__control" min="0" name="balance_after" step="0.01" type="number" />
+              <span className="field__label">Reported balance after (optional)</span>
+              <input className="field__control" name="balance_after" step="0.01" type="number" />
             </label>
 
             <label className="field">
@@ -591,10 +591,9 @@ export function TransactionWorkspace() {
             </label>
 
             <label className="field">
-              <span className="field__label">Balance after</span>
+              <span className="field__label">Reported balance after (optional)</span>
               <input
                 className="field__control"
-                min="0"
                 onChange={(event) => setEditingBalanceAfter(event.target.value)}
                 step="0.01"
                 type="number"
@@ -803,7 +802,7 @@ export function TransactionWorkspace() {
                     <th>Account</th>
                     <th>Category</th>
                     <th>Amount</th>
-                    <th>Balance after</th>
+                    <th>Reported balance</th>
                     <th>Transaction ID</th>
                     <th>Sent to / received from</th>
                     <th>Note</th>

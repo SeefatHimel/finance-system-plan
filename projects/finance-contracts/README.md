@@ -85,6 +85,10 @@ bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
 - Breaking changes must be versioned or coordinated.
 - Transaction amount is stored as a positive value with explicit business type
   and ledger direction (`debit` or `credit`).
+- Account responses expose a derived `ledger_balance` plus nullable
+  `latest_reported_balance` and `latest_reported_balance_date`. The derived
+  value is recalculated from posted activity; the reported value is evidence
+  captured from a bank or wallet message and may be older.
 - SMS-confirmed transactions should preserve normalized evidence fields such as
   provider reference, balance after, counterparty text, payment method, raw
   message id, and duplicate key.

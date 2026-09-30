@@ -1542,7 +1542,7 @@ components:
     Account:
       type: object
       required:
-        [id, name, type, currency, starting_balance, is_active, display_order, created_at, updated_at]
+        [id, name, type, currency, starting_balance, ledger_balance, latest_reported_balance, latest_reported_balance_date, is_active, display_order, created_at, updated_at]
       properties:
         id:
           type: string
@@ -1560,6 +1560,23 @@ components:
           type: string
           pattern: '^\d+(\.\d{1,2})?$'
           example: "0.00"
+        ledger_balance:
+          type: string
+          description: Balance derived from the opening balance and all posted ledger transactions.
+          example: "1250.00"
+          readOnly: true
+        latest_reported_balance:
+          type: string
+          nullable: true
+          description: Most recent provider-reported balance captured after a transaction, when available.
+          example: "1245.50"
+          readOnly: true
+        latest_reported_balance_date:
+          type: string
+          format: date
+          nullable: true
+          description: Transaction date associated with the latest provider-reported balance.
+          readOnly: true
         is_active:
           type: boolean
         display_order:
@@ -1940,7 +1957,7 @@ components:
         balance_after:
           type: string
           nullable: true
-          pattern: '^\d+(\.\d{1,2})?$'
+          pattern: '^-?\d+(\.\d{1,2})?$'
           example: "1500.00"
         fee_amount:
           type: string
@@ -1986,7 +2003,7 @@ components:
         balance_after:
           type: string
           nullable: true
-          pattern: '^\d+(\.\d{1,2})?$'
+          pattern: '^-?\d+(\.\d{1,2})?$'
         category:
           type: string
           format: uuid
@@ -2631,7 +2648,7 @@ components:
         balance_after:
           type: string
           nullable: true
-          pattern: '^\d+(\.\d{1,2})?$'
+          pattern: '^-?\d+(\.\d{1,2})?$'
           example: "1150.00"
         reference:
           type: string
@@ -2691,7 +2708,7 @@ components:
         balance_after:
           type: string
           nullable: true
-          pattern: '^\d+(\.\d{1,2})?$'
+          pattern: '^-?\d+(\.\d{1,2})?$'
         reference:
           type: string
         counterparty_text:
@@ -2741,7 +2758,7 @@ components:
         balance_after:
           type: string
           nullable: true
-          pattern: '^\d+(\.\d{1,2})?$'
+          pattern: '^-?\d+(\.\d{1,2})?$'
         reference:
           type: string
         counterparty_text:

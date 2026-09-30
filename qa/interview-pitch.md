@@ -61,6 +61,9 @@ workflow polish.
   identifiers/counts without revealing message bodies.
 - Rule-based parsing comes before AI for explainability.
 - Reconciliation exists because real-life balances can drift.
+- Account responses separate the calculated ledger balance from the latest
+  provider-reported transaction balance, preserving both accounting state and
+  source evidence.
 - CSV export keeps a spreadsheet/backup path available while the app matures.
 - Transaction audit logs make edits and deletions inspectable.
 - The OpenAPI contract can generate shared TypeScript types and a fetch client.

@@ -47,12 +47,16 @@ exceptions visible without forcing the user to open several operational pages.
 
 ## How is dashboard data kept trustworthy?
 
-The web app derives the net position, monthly movement, category breakdown,
-automation counts, review queue, and recent activity from existing API
-responses. It does not display invented confidence scores for confirmed
-transactions because the current transaction response does not expose parser
-confidence after confirmation; those rows use a textual verified/manual import
-state instead.
+The web app uses the API's derived account `ledger_balance` values for the BDT
+net position instead of recomputing from whatever transaction page happened to
+load. The accounts table shows both that calculated ledger balance and the most
+recent provider-reported balance/date, so users can see whether evidence is
+stale or differs from the ledger. Monthly movement, category breakdown,
+automation counts, review queue, and recent activity still come from their
+existing API responses. It does not display invented confidence scores for
+confirmed transactions because the current transaction response does not
+expose parser confidence after confirmation; those rows use a textual
+verified/manual import state instead.
 
 ## How does the web app know the backend URL?
 

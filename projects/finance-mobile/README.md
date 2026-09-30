@@ -102,6 +102,8 @@ Phase 1 scaffold now includes:
 - Transaction API types include strict ledger evidence fields such as
   debit/credit direction, balance after, reference, counterparty text, payment
   method, raw message link, and duplicate key
+- Manual quick entry and its offline queue preserve an optional provider-reported
+  balance after the transaction.
 - Native SMS permission/module decision documented in
   `docs/mobile-sms-permission-decision.md`.
 - Native Android SMS capture setup documented in

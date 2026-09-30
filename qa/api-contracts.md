@@ -69,6 +69,12 @@ Transaction contracts now include strict ledger evidence fields: `direction`,
 `raw_message`, and `external_key`. The SMS confirm request can override the
 same values when the parser needs user correction.
 
+Account responses now distinguish calculated and reported balances.
+`ledger_balance` is the derived opening-balance-plus-transactions value, while
+nullable `latest_reported_balance` and `latest_reported_balance_date` identify
+the newest provider-reported balance evidence. These fields are read-only and
+additive, so existing account create and update requests remain compatible.
+
 Raw message contracts now include `redacted_at` and the `redacted` status so
 clients can show when original SMS text has been removed while parsed evidence
 is retained.

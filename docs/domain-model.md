@@ -55,6 +55,10 @@ Important fields:
 - type: cash, mobile_wallet, bank, credit_card, savings, other
 - currency: BDT
 - starting_balance
+- ledger_balance, read-only and derived from starting balance plus transactions
+- latest_reported_balance, read-only evidence copied from the newest transaction
+  that includes a provider-reported post-transaction balance
+- latest_reported_balance_date, optional
 - is_active
 - display_order
 
@@ -153,6 +157,7 @@ Important fields:
 - type: expense, income, transfer, adjustment, fee, refund, lend, borrow,
   repayment_received, repayment_paid
 - amount
+- balance_after, optional provider-reported balance after this transaction
 - account
 - transfer_account, optional
 - category
@@ -162,6 +167,12 @@ Important fields:
 - original_message, optional
 - confidence_score, optional
 - needs_review
+
+`balance_after` is immutable transaction evidence, not the account's canonical
+current balance. Account `ledger_balance` is calculated so backdated creates,
+updates, deletes, adjustments, and transfers are reflected without maintaining
+a second mutable total. Reconciliation snapshots remain the source for explicit
+real-world balance checks.
 
 ## Category
 

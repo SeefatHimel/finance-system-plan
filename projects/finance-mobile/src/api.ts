@@ -51,8 +51,13 @@ export type CurrentUser = {
 };
 
 export type Account = {
+  currency: string;
   id: string;
+  latest_reported_balance: string | null;
+  latest_reported_balance_date: string | null;
+  ledger_balance: string;
   name: string;
+  starting_balance: string;
   type: string;
 };
 

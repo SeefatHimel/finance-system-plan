@@ -259,11 +259,9 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
     const accountById = new Map(state.accounts.map((account) => [account.id, account.name]));
     const categoryById = new Map(state.categories.map((category) => [category.id, category.name]));
     const automatedTransactions = state.transactions.filter((transaction) => transaction.source === "sms" || transaction.source === "mobile");
-    const transactionMovement = state.transactions.reduce((total, transaction) => {
-      const amount = Number(transaction.amount);
-      return total + (transaction.direction === "credit" ? amount : -amount);
-    }, 0);
-    const startingBalance = state.accounts.reduce((total, account) => total + Number(account.starting_balance), 0);
+    const ledgerBalance = state.accounts
+      .filter((account) => account.currency === "BDT")
+      .reduce((total, account) => total + Number(account.ledger_balance), 0);
 
     return {
       accountById,
@@ -273,7 +271,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
       categoryById,
       expenseCategoryNames: new Set(state.categories.filter((category) => category.kind === "expense").map((category) => category.name)),
       lastSyncLabel: latestMessageLabel(state.candidates),
-      netPosition: startingBalance + transactionMovement,
+      netPosition: ledgerBalance,
       recentTransactions: state.transactions.slice(0, 4)
     };
   }, [state]);

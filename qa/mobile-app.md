@@ -63,7 +63,9 @@ paths, and physical-phone SMS smoke test are documented in
 - Account/category fetch flow (`GET /api/accounts/`, `GET /api/categories/`)
   with local cache hydration for offline form choices.
 - Quick add transaction flow (`POST /api/transactions/`) plus a local manual
-  transaction queue for offline saves and later sync.
+  transaction queue for offline saves and later sync. Manual entries can carry
+  an optional provider-reported balance after the transaction, and that value
+  survives local queue hydration and deduplication.
 - Transaction list flow (`GET /api/transactions/`) with local cache hydration
   for the latest loaded transactions.
 - Debt/lending flow (`GET /api/debts/`, `POST /api/debts/`, and
