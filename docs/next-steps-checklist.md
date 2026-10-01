@@ -174,6 +174,8 @@ Last updated: 2026-05-31
 - [x] Add local-development web token refresh and single retry on 401
 - [x] Add backend production settings guard for unsafe debug-off configuration
 - [x] Enable backend JWT refresh-token rotation and blacklist-after-rotation
+- [x] Add per-session/all-session logout, login throttling, and concurrent
+      refresh deduplication
 - [x] Add OpenAPI-generated TypeScript client workflow
 - [x] Reuse generated transaction enum types in the web transaction API wrapper
 - [x] Reuse generated OpenAPI request/enum types across web API inputs
@@ -208,8 +210,8 @@ Last updated: 2026-05-31
   - Result: not run in this environment; requires Android device/emulator and
     generated native build
 - [ ] Cookie-backed web runtime smoke:
-  - Command: run production web with `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=false`,
-    sign in, and exercise authenticated workspaces
+  - Command: run a production web build, sign in, and exercise authenticated
+    workspaces
   - Result: not run in this environment; requires running API/web servers
 - [ ] Compose config validation:
   - Command: `docker compose config`

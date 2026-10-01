@@ -19,9 +19,10 @@ JWT works well for separate web and mobile clients. The API provides login and
 refresh endpoints, and clients send the access token with protected requests.
 This avoids coupling the clients to browser-only session behavior.
 
-For production, the plan is to keep access tokens short-lived, rotate refresh
-tokens, and avoid storing refresh tokens in browser JavaScript-readable storage.
-See `docs/auth-token-storage-plan.md`.
+Access tokens last 15 minutes. Refresh tokens use a rolling 30-day lifetime,
+rotate on use, and blacklist the previous token. Each login has its own refresh
+token, so users can stay signed in on multiple devices and revoke one session
+without ending the others. See `docs/auth-token-storage-plan.md`.
 
 ## What auth endpoints exist?
 
@@ -30,8 +31,15 @@ Current auth endpoints:
 ```txt
 POST /api/auth/login/
 POST /api/auth/refresh/
+POST /api/auth/logout/
+POST /api/auth/logout-all/
 GET  /api/auth/me/
 ```
+
+Login is throttled by source IP and normalized username. Single-session logout
+blacklists the supplied refresh token; authenticated logout-all blacklists all
+outstanding refresh tokens for that user. Short-lived access tokens may remain
+valid until their normal expiry.
 
 ## Why use Django's default user model right now?
 
@@ -159,6 +167,8 @@ Current backend surface:
 GET    /api/health/
 POST   /api/auth/login/
 POST   /api/auth/refresh/
+POST   /api/auth/logout/
+POST   /api/auth/logout-all/
 GET    /api/auth/me/
 GET    /api/accounts/
 POST   /api/accounts/

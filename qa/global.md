@@ -200,16 +200,18 @@ scripts, sidecar backup manifests, a dry-run-first retention helper, and a
 backup automation runbook.
 Production deployment readiness is documented with environment gates, backup
 and restore expectations, and a rollback plan.
-The web app also has a production guard around the temporary browser
-`localStorage` JWT path so production auth hardening cannot be skipped
-silently, and same-origin Next.js auth routes now support cookie-backed
-login/session status, refresh, logout, and authenticated workspace API calls.
+The web app permanently disables the temporary browser `localStorage` JWT path
+in production. Same-origin Next.js auth routes use strict HTTP-only cookies,
+reject cross-origin mutations, deduplicate concurrent refresh attempts, revoke
+the refresh token on logout, and proxy authenticated workspace API calls.
 For local development, the web API wrapper can rotate stored refresh tokens and
 retry authenticated requests once after an expired access token response.
 The backend settings also fail closed for unsafe debug-off configurations, such
 as default secrets, SQLite, localhost-only hosts, or localhost CORS origins.
-Backend JWT refresh tokens rotate on use and old refresh tokens are blacklisted
-after rotation.
+Backend JWT refresh tokens have a rolling 30-day lifetime, rotate on use, and
+blacklist old tokens. Concurrent logins remain independent; users can revoke
+one refresh session or all sessions. Login attempts are throttled by source IP
+and normalized username.
 Transaction creates, updates, and deletes are also recorded in a read-only,
 user-scoped audit log with normalized before/after snapshots.
 The contracts project now generates TypeScript schema types and a lightweight

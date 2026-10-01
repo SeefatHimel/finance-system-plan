@@ -499,6 +499,8 @@ The backend currently implements the first manual finance loop:
 GET    /api/health/
 POST   /api/auth/login/
 POST   /api/auth/refresh/
+POST   /api/auth/logout/
+POST   /api/auth/logout-all/
 GET    /api/auth/me/
 GET    /api/accounts/
 POST   /api/accounts/

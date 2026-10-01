@@ -30,8 +30,7 @@ Tasks:
   `docker compose config`, full stack startup, API health check, and web login.
 - Run native Android SMS capture on a real device or emulator with a custom dev
   client/personal APK build.
-- Perform cookie-backed web auth runtime smoke with
-  `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=false`.
+- Perform cookie-backed web auth runtime smoke with a production web build.
 - Collect anonymized real SMS fixtures for bKash, EBL, City Bank, and Pathao
   Pay.
 - Add parser regression tests from those anonymized fixtures before expanding

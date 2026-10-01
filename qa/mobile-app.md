@@ -122,10 +122,12 @@ paths, and physical-phone SMS smoke test are documented in
   feedback reports imported, duplicate, rejected, queued, and policy-discarded
   counts.
 
-The login/token flow now persists the rotated JWT pair in OS-backed secure
-storage rather than AsyncStorage and restores the session on relaunch. Access
-tokens are loaded into memory for API calls; explicit logout clears the secure
-session. Authenticated requests share a deduplicated recovery path that rotates
+The login/token flow persists the rotated JWT pair in OS-backed secure storage
+rather than AsyncStorage and restores the session on relaunch. Startup validates
+the saved access token first and rotates the rolling 30-day refresh token only
+when needed. Access tokens are loaded into memory for API calls; explicit logout
+revokes the latest native refresh token before clearing local session and SMS
+state. Authenticated requests share a deduplicated recovery path that rotates
 the refresh token and retries the original request once after a mid-session
 `401`.
 
@@ -316,8 +318,9 @@ refresh rules and retry; transient failures use WorkManager retry behavior.
 Captured bodies, the native sync session, processed-message fingerprints, and
 the React Native raw retry queue are encrypted with an Android Keystore key.
 Non-native fallback builds use Expo SecureStore for the raw queue. Android
-backup is disabled, and logout clears the native sync session and SMS state so
-one user's data cannot leak into another user's session.
+backup is disabled, and logout revokes the server refresh token before clearing
+the native sync session and SMS state so one user's data cannot leak into
+another user's session.
 
 ## What can the user correct before confirming a parsed SMS?
 

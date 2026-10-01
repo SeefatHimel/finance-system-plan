@@ -262,18 +262,13 @@ logout.
 
 ## Where should auth tokens be stored?
 
-For production, secure HTTP-only cookies are usually preferable. The current
-local-development version uses browser `localStorage`, which is simple for this
-stage but should be hardened before deployment. The web app now fails closed in
-production unless `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=true` is set
-deliberately, so accidental production refresh-token storage in browser
-`localStorage` is harder to miss. The production direction is documented in
-`docs/auth-token-storage-plan.md`. Backend refresh-token rotation and
-blacklisting are already enabled, and the local-development web API wrapper
-uses the stored refresh token to retry authenticated API calls once after a 401.
-Web now has cookie-backed login/session/logout route handlers and a same-origin
-backend proxy for authenticated workspace API calls when browser token storage
-is disabled.
+Production uses HTTP-only, Secure, SameSite=Strict cookies and cannot opt into
+browser `localStorage` token storage. Cookie-authenticated mutations reject
+cross-origin requests. Logout asks the API to blacklist the session refresh
+token before clearing cookies. The same-origin backend proxy deduplicates
+concurrent refresh attempts and briefly reuses the rotated result so an expired
+access token does not sign the user out when several dashboard requests arrive
+together. Local development retains the direct bearer-token flow for debugging.
 
 ## How will the web app fetch data?
 

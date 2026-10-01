@@ -7,7 +7,7 @@ Last updated: 2026-05-31
 Move from local-development token handling to a production-safe authentication
 model for web and mobile clients.
 
-The current implementation is still intentionally simple at the client layer:
+The current implementation separates browser and native token storage:
 
 - Backend issues JWT access and refresh tokens through Simple JWT with
   refresh-token rotation and blacklist-after-rotation enabled.
@@ -17,7 +17,7 @@ The current implementation is still intentionally simple at the client layer:
 - Mobile stores its rotated JWT session in Expo SecureStore and loads access
   credentials into React state for API calls.
 
-That is acceptable for local development, but not for production financial data.
+Production web builds cannot opt back into browser `localStorage` token storage.
 
 ## Production Direction
 
@@ -44,24 +44,21 @@ Target web flow:
    or proxies authenticated API calls.
 5. Client components call same-origin web routes instead of directly attaching
    bearer tokens from `localStorage`.
-6. Logout clears cookies server-side.
+6. Logout revokes the refresh token at the API and clears cookies server-side.
 
 Implementation notes:
 
 - Keep `localStorage` token storage only for local development.
-- The web app now disables the temporary `localStorage` token path in
-  production unless `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=true` is set
-  deliberately as an escape hatch.
+- The web app always disables the temporary `localStorage` token path in
+  production; there is no production escape hatch.
 - Next.js same-origin auth routes now support cookie-backed login, current-user
   checks, refresh, and logout for the web session panel.
 - Authenticated web workspace API calls now use a same-origin proxy when browser
   token storage is disabled, so refresh tokens stay out of browser JavaScript.
-- In local-development mode, the web API wrapper uses the stored refresh token
-  to rotate tokens and retry authenticated API calls once after a 401.
-- Add a visible code comment or env guard before production deployment.
-- Use `SameSite=Lax` for normal same-site app usage unless cross-site embedding
-  is explicitly required.
-- Use CSRF protection for cookie-authenticated mutating requests.
+- Concurrent web requests share one refresh operation and reuse its result
+  briefly, preventing normal request bursts from racing a rotated token.
+- Cookie-authenticated mutations require a same-origin request, and production
+  auth cookies use `SameSite=Strict`.
 - Never expose refresh tokens to browser JavaScript.
 
 ## Mobile Plan
@@ -73,9 +70,10 @@ Target mobile flow:
 
 1. Store refresh token in OS-backed secure storage.
 2. Keep access token in memory.
-3. On app start, use secure refresh token to request a fresh access token.
+3. On app start, validate the saved access token and refresh only when needed.
 4. On `401`, attempt refresh once, then require login.
-5. On logout, delete secure refresh token and clear in-memory access token.
+5. On logout, revoke the refresh token, delete it from secure storage, and clear
+   the in-memory access token.
 
 Implementation options:
 
@@ -90,12 +88,17 @@ term storage unless the user explicitly exports them.
 Current Simple JWT settings:
 
 ```txt
-ACCESS_TOKEN_LIFETIME: 10 minutes
-REFRESH_TOKEN_LIFETIME: 14 days
+ACCESS_TOKEN_LIFETIME: 15 minutes
+REFRESH_TOKEN_LIFETIME: 30 days, renewed when rotated
 ROTATE_REFRESH_TOKENS: true
 BLACKLIST_AFTER_ROTATION: true
 UPDATE_LAST_LOGIN: true
 ```
+
+Login attempts are throttled by both source IP and normalized username. Each
+login receives an independent refresh token, so signing out one device does not
+end other device sessions. An authenticated logout-all endpoint revokes all
+outstanding refresh tokens for the user.
 
 Deployment/security requirements:
 
@@ -115,14 +118,14 @@ Deployment/security requirements:
 4. Replace web `localStorage` usage with cookie-backed session helpers. Done for
    login/session status and authenticated workspace API calls through the
    same-origin proxy route layer.
-5. Add mobile secure token storage. Done with Expo SecureStore, startup refresh,
-   and secure deletion on logout.
+5. Add mobile secure token storage. Done with Expo SecureStore, conditional
+   startup refresh, server-side token revocation, and secure deletion on logout.
 6. Add automatic token refresh in web and mobile API clients. Done for the
    local-development web API wrapper and mobile app. Concurrent mobile `401`
    responses share one refresh operation, then retry their original requests
    once with the rotated access token.
-7. Add tests for refresh, logout, expired access token, and invalid refresh
-   token behavior.
+7. Add tests for refresh rotation, per-session logout, concurrent logins,
+   all-session logout, and login throttling. Done for the backend.
 8. Update privacy docs and deployment docs before production use.
 
 ## Acceptance Criteria
