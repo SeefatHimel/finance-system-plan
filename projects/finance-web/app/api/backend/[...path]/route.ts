@@ -4,6 +4,7 @@ import {
   clearAuthCookies,
   getCookieBackedAccessToken,
   getServerApiBaseUrl,
+  isSameOriginRequest,
   refreshCookieBackedAccessToken,
   setAuthCookies
 } from "@/lib/server-auth";
@@ -17,6 +18,10 @@ type RouteContext = {
 const forwardedResponseHeaders = ["content-type", "content-disposition"];
 
 async function proxyBackendRequest(request: NextRequest, context: RouteContext) {
+  if (!["GET", "HEAD"].includes(request.method) && !isSameOriginRequest(request)) {
+    return NextResponse.json({ error: "Cross-origin request rejected." }, { status: 403 });
+  }
+
   const requestBody =
     request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
 

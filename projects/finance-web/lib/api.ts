@@ -550,12 +550,39 @@ export async function refreshAuthTokens(refreshToken: string): Promise<AuthToken
   return tokenResponseSchema.parse(await response.json());
 }
 
+export async function revokeAuthSession(refreshToken: string): Promise<void> {
+  const response = await fetch(`${getApiBaseUrl()}/api/auth/logout/`, {
+    body: JSON.stringify({ refresh: refreshToken }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  if (!response.ok && response.status !== 400) {
+    throw new Error("Could not revoke the saved session.");
+  }
+}
+
 export async function getCurrentUser(accessToken: string): Promise<CurrentUser> {
   const response = await authenticatedFetch("/api/auth/me/", accessToken);
   return currentUserSchema.parse(await response.json());
 }
 
 async function refreshStoredLocalSession() {
+  if (localSessionRefreshPromise) {
+    return localSessionRefreshPromise;
+  }
+
+  localSessionRefreshPromise = performStoredLocalSessionRefresh().finally(() => {
+    localSessionRefreshPromise = null;
+  });
+  return localSessionRefreshPromise;
+}
+
+let localSessionRefreshPromise: Promise<string | null> | null = null;
+
+async function performStoredLocalSessionRefresh() {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
     return null;

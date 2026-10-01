@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
 
-import { clearAuthCookies, refreshCookieBackedSession, setAuthCookies } from "@/lib/server-auth";
+import {
+  clearAuthCookies,
+  isSameOriginRequest,
+  refreshCookieBackedSession,
+  setAuthCookies
+} from "@/lib/server-auth";
 
-export async function POST() {
+export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json({ error: "Cross-origin request rejected." }, { status: 403 });
+  }
+
   try {
     const session = await refreshCookieBackedSession();
     const response = NextResponse.json({

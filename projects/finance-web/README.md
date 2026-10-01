@@ -117,14 +117,14 @@ http://localhost:3000/login
 ```
 
 For the local development version, JWT tokens are stored in browser
-`localStorage`. Production builds disable this temporary browser token storage
-unless `NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=true` is set deliberately.
-When browser token storage is disabled, the login and session panel use
+`localStorage`. Production builds always disable this temporary browser token
+storage. In production, the login and session panel use
 same-origin Next.js auth routes that store access and refresh tokens in
-HTTP-only cookies. Authenticated workspace API calls use a same-origin backend
-proxy route in that mode, so refresh tokens stay out of browser JavaScript. For
-local development, authenticated web API calls use the stored refresh token to
-rotate tokens and retry once after an expired access token response.
+HTTP-only, Secure, SameSite=Strict cookies. Authenticated workspace API calls
+use a same-origin backend proxy, so refresh tokens stay out of browser
+JavaScript. Concurrent refresh attempts share one rotation result. For local
+development, authenticated web API calls use the stored refresh token to rotate
+tokens and retry once after an expired access token response.
 See `../../docs/auth-token-storage-plan.md`.
 
 Transactions page:

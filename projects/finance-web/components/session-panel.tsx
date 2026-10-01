@@ -4,8 +4,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { type CurrentUser, getCurrentUser } from "@/lib/api";
-import { canUseLocalTokenStorage, clearTokens, getAccessToken } from "@/lib/auth-storage";
+import { type CurrentUser, getCurrentUser, revokeAuthSession } from "@/lib/api";
+import {
+  canUseLocalTokenStorage,
+  clearTokens,
+  getAccessToken,
+  getRefreshToken
+} from "@/lib/auth-storage";
 import { getCookieSessionUser, logoutCookieSession } from "@/lib/session-api";
 
 type SessionState =
@@ -56,7 +61,14 @@ export function SessionPanel() {
   async function handleSignOut() {
     try {
       if (canUseLocalTokenStorage()) {
-        clearTokens();
+        const refreshToken = getRefreshToken();
+        try {
+          if (refreshToken) {
+            await revokeAuthSession(refreshToken);
+          }
+        } finally {
+          clearTokens();
+        }
       } else {
         await logoutCookieSession();
       }

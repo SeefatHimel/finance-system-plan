@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { backendCurrentUser, backendLogin, clearAuthCookies, setAuthCookies } from "@/lib/server-auth";
+import {
+  backendCurrentUser,
+  backendLogin,
+  clearAuthCookies,
+  isSameOriginRequest,
+  setAuthCookies
+} from "@/lib/server-auth";
 
 const loginRequestSchema = z.object({
   password: z.string().min(1),
@@ -9,6 +15,10 @@ const loginRequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json({ error: "Cross-origin request rejected." }, { status: 403 });
+  }
+
   try {
     const credentials = loginRequestSchema.parse(await request.json());
     const tokens = await backendLogin(credentials.username, credentials.password);

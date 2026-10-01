@@ -1,11 +1,14 @@
+import { createHash } from "node:crypto";
+
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const accessCookieName = "finance_access";
 const refreshCookieName = "finance_refresh";
-const accessCookieMaxAgeSeconds = 10 * 60;
-const refreshCookieMaxAgeSeconds = 14 * 24 * 60 * 60;
+const accessCookieMaxAgeSeconds = 15 * 60;
+const refreshCookieMaxAgeSeconds = 30 * 24 * 60 * 60;
+const refreshResultReuseMilliseconds = 5_000;
 
 const tokenPairSchema = z.object({
   access: z.string().min(1),
@@ -21,6 +24,12 @@ const currentUserSchema = z.object({
 });
 
 type TokenPair = z.infer<typeof tokenPairSchema>;
+type RefreshOperation = {
+  expiresAt: number;
+  promise: Promise<TokenPair>;
+};
+
+const refreshOperations = new Map<string, RefreshOperation>();
 
 export function getServerApiBaseUrl() {
   const apiBaseUrl =
@@ -32,12 +41,27 @@ function isProduction() {
   return process.env.NODE_ENV === "production";
 }
 
+export function isSameOriginRequest(request: Request) {
+  const origin = request.headers.get("origin");
+  if (!origin) {
+    return !isProduction();
+  }
+
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const requestUrl = new URL(request.url);
+  const expectedOrigin = forwardedHost
+    ? `${forwardedProtocol || requestUrl.protocol.replace(":", "")}://${forwardedHost}`
+    : requestUrl.origin;
+  return origin === expectedOrigin;
+}
+
 function cookieOptions(maxAge: number) {
   return {
     httpOnly: true,
     maxAge,
     path: "/",
-    sameSite: "lax" as const,
+    sameSite: "strict" as const,
     secure: isProduction()
   };
 }
@@ -74,7 +98,7 @@ export async function backendLogin(username: string, password: string) {
   return tokenPairSchema.parse(await response.json());
 }
 
-async function backendRefresh(refreshToken: string) {
+async function requestBackendRefresh(refreshToken: string) {
   const response = await fetch(`${getServerApiBaseUrl()}/api/auth/refresh/`, {
     body: JSON.stringify({ refresh: refreshToken }),
     headers: {
@@ -88,6 +112,46 @@ async function backendRefresh(refreshToken: string) {
   }
 
   return tokenPairSchema.parse(await response.json());
+}
+
+async function backendRefresh(refreshToken: string) {
+  const refreshKey = createHash("sha256").update(refreshToken).digest("hex");
+  const now = Date.now();
+  const existingOperation = refreshOperations.get(refreshKey);
+  if (existingOperation && existingOperation.expiresAt > now) {
+    return existingOperation.promise;
+  }
+
+  for (const [key, operation] of refreshOperations) {
+    if (operation.expiresAt <= now) {
+      refreshOperations.delete(key);
+    }
+  }
+
+  const promise = requestBackendRefresh(refreshToken).catch((error) => {
+    refreshOperations.delete(refreshKey);
+    throw error;
+  });
+  refreshOperations.set(refreshKey, {
+    expiresAt: now + refreshResultReuseMilliseconds,
+    promise,
+  });
+  return promise;
+}
+
+export async function revokeCookieBackedSession() {
+  const refreshToken = cookies().get(refreshCookieName)?.value;
+  if (!refreshToken) {
+    return;
+  }
+
+  await fetch(`${getServerApiBaseUrl()}/api/auth/logout/`, {
+    body: JSON.stringify({ refresh: refreshToken }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
 }
 
 export async function getCookieBackedAccessToken() {

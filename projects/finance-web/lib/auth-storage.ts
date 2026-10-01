@@ -3,10 +3,9 @@ import type { AuthTokens } from "./api";
 const accessTokenKey = "finance.accessToken";
 const refreshTokenKey = "finance.refreshToken";
 const cookieSessionToken = "__finance_cookie_session__";
-const localTokenStorageOverride = process.env.NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE === "true";
 
 export function canUseLocalTokenStorage() {
-  return process.env.NODE_ENV !== "production" || localTokenStorageOverride;
+  return process.env.NODE_ENV !== "production";
 }
 
 function assertLocalTokenStorageEnabled() {
