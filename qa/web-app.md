@@ -112,13 +112,26 @@ and money-in/money-out mode.
 ## What does the current transactions page do?
 
 The current transactions page uses the saved local JWT access token to load
-accounts, categories, and transactions from the Django API. It provides a manual
-transaction form and a transaction table with filters for month, type, account,
-category, debit/credit direction, source, and search text. Search matches
-transaction id/reference, sent-to/received-from text, note, and backend
-duplicate key. It supports updating and deleting transaction rows, and can
-download a CSV export using the same active filters. Each transaction row also
-links to the audit log page filtered to that transaction id.
+accounts, categories, and transactions from the Django API. The synced ledger
+and its filters are the primary surface; manual create/edit forms open in a
+focused drawer only when requested. The compact table combines type, direction,
+reference, and counterparty context into a scannable description while keeping
+reported balance, signed amount, history, edit, and delete actions visible. It
+supports filters for month, type, account, category, debit/credit direction,
+source, and search text. Search matches transaction id/reference,
+sent-to/received-from text, note, and backend duplicate key. It supports
+updating and deleting transaction rows, and can download a CSV export using the
+same active filters. Each transaction row also links to the audit log page
+filtered to that transaction id.
+
+## How does dashboard transaction search work?
+
+Submitting the dashboard search opens the transactions page with a shareable
+`search` query parameter. The transactions workspace reads that parameter,
+removes the default current-month restriction for a global search, applies the
+backend filter immediately, and keeps later filter submissions in the URL. This
+prevents the header from looking functional while silently showing unrelated
+rows.
 
 ## Why add transaction filters early?
 
@@ -167,6 +180,9 @@ redaction.
 The SMS review page uses a queue-and-detail layout rather than rendering every
 candidate as a full form. Reviewers can search, filter by provider or issue,
 navigate between candidates, and keep context while editing one focused item.
+Dashboard attention rows deep-link to the exact candidate, and the review page
+keeps the selected candidate id in the URL so the state can be shared or
+revisited.
 It shows raw SMS evidence, parser
 notes, parser confidence, review or duplicate reason, detected
 provider/message kind, amount, reference, balance, fee, counterparty text, and

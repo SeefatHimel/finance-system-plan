@@ -45,7 +45,10 @@ sender discovery, and mobile sender-rule creation backed by a local Android
 native SMS capture module for custom dev client or personal APK builds. The
 transactions page can also download filtered CSV
 exports for spreadsheet backup, and transaction changes are captured in a
-read-only audit trail. Local PostgreSQL dump, guarded restore, backup manifest,
+read-only audit trail. The automation-first web workflow also provides global
+transaction search, compact ledger rows, focused manual-entry drawers, and
+candidate-specific links from the dashboard into SMS review. Local PostgreSQL
+dump, guarded restore, backup manifest,
 and retention scripts provide the first database backup path, and the deployment
 runbook captures production readiness gates and rollback expectations. Next I
 would validate native SMS capture on a real device, collect real anonymized SMS
