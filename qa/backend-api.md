@@ -51,6 +51,17 @@ case-insensitive sender plus match-type combinations, which prevents mobile and
 web clients from accidentally creating overlapping exact rules for the same
 inbox sender.
 
+## Why do new users receive default categories?
+
+A blank category list makes both manual entry and SMS review unnecessarily hard,
+so every newly created user receives a small, editable starter taxonomy covering
+common expenses, income, transfers, and debt. The categories are ordinary
+user-owned records: users can rename, deactivate, delete, or extend them. The
+creation helper is idempotent, and saving an existing user does not recreate a
+category they intentionally removed. The data migration backfills only existing
+users with zero categories, avoiding changes to users who already customized
+their taxonomy.
+
 ## What are the core backend apps?
 
 Implemented:
@@ -249,7 +260,9 @@ against the user's configured payment methods so known source/destination
 accounts can be prefilled. Bank account transfer messages now use the same
 known payment-method hints when an anonymized account or wallet identifier is
 present in the message. Taka amounts accept both `Tk 1,000` and the common
-`Tk. 1,000` spelling used by City Bank messages.
+`Tk. 1,000` spelling used by City Bank messages. City Bank deposit parsing
+also distinguishes a date year from the following transaction amount and
+supports balances written after the value, such as `Tk. 2,33,319 Balance`.
 
 For internal transfers, the backend now links possible related candidates when
 two review items belong to the same user, have the same amount, close received

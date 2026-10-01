@@ -702,6 +702,44 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(candidate["account"], account.id)
         self.assertFalse(candidate["possible_internal_transfer"])
 
+    def test_city_bank_deposit_does_not_treat_date_year_as_amount(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(
+            user=user,
+            name="City Bank Account",
+            type=Account.Type.BANK,
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank sender",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": (
+                    FIXTURE_DIR / "city_bank" / "deposit_with_trailing_balance.txt"
+                ).read_text(),
+                "received_at": "2026-05-16T10:30:00+06:00",
+                "device_message_id": "sms-city-deposit-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["provider"], "city_bank")
+        self.assertEqual(candidate["message_kind"], "bank_transfer_in")
+        self.assertEqual(candidate["transaction_type"], "income")
+        self.assertEqual(candidate["amount"], "3250.00")
+        self.assertEqual(candidate["balance_after"], "233319.00")
+        self.assertEqual(candidate["account"], account.id)
+
     def test_bank_card_followup_messages_create_specific_candidates(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         ebl_account = Account.objects.create(

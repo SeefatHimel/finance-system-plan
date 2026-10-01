@@ -5,8 +5,18 @@ from apps.payment_methods.models import PaymentMethod
 
 from .models import ParsedMessageCandidate, SenderRule
 
-_AMOUNT_PATTERN = re.compile(r"(?:tk|bdt)\.?\s*([0-9][0-9,]*(?:\.\d{1,2})?)|([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:tk|bdt)\.?", re.IGNORECASE)
-_BALANCE_PATTERN = re.compile(r"(?:balance|bal)\s*(?:is|:)?\s*(?:(?:tk|bdt)\.?\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
+_AMOUNT_PATTERN = re.compile(
+    r"(?:tk|bdt)\.?\s*([0-9][0-9,]*(?:\.\d{1,2})?)|"
+    r"(?<![-/])\b([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:tk|bdt)\.?",
+    re.IGNORECASE,
+)
+_BALANCE_PATTERN = re.compile(
+    r"(?:balance|bal)\s*(?:is|:)?\s*(?:(?:tk|bdt)\.?\s*)?"
+    r"([0-9][0-9,]*(?:\.\d{1,2})?)|"
+    r"(?:(?:tk|bdt)\.?\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*"
+    r"(?:available\s+)?(?:balance|bal)\b",
+    re.IGNORECASE,
+)
 _FEE_PATTERN = re.compile(r"(?:charge|fee)\s*(?:is|:)?\s*(?:(?:tk|bdt)\.?\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
 _REFERENCE_PATTERN = re.compile(r"\b(?:trxid|trx id|txnid|txn id|ref|reference)\b\s*[:#-]?\s*([a-z0-9-]+)", re.IGNORECASE)
 _PROVIDER_TIMESTAMP_PATTERN = re.compile(
@@ -19,7 +29,7 @@ _OTP_SECURITY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _TRANSACTION_ACTIVITY_PATTERN = re.compile(
-    r"\b(?:debited|credited|purchase|withdraw(?:al|n)?|txn|transaction|transfer(?:red)?|payment|paid|cash[ -]?(?:in|out)|sent|received|fee|refund|reversal)\b",
+    r"\b(?:debited|credited|deposit(?:ed)?|purchase|withdraw(?:al|n)?|txn|transaction|transfer(?:red)?|payment|paid|cash[ -]?(?:in|out)|sent|received|fee|refund|reversal)\b",
     re.IGNORECASE,
 )
 
@@ -185,13 +195,13 @@ def _parse_bkash_message(*, raw_message, sender_rule):
     else:
         notes.append("No active sender rule matched this bKash-like message.")
 
-    if any(keyword in normalized for keyword in ("cash in", "cash-in", "add money")):
+    if _contains_any_phrase(normalized, ("cash in", "cash-in", "add money")):
         message_kind = ParsedMessageCandidate.MessageKind.CASH_IN
         transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
         possible_internal_transfer = True
         confidence = Decimal("0.88") if amount is not None else Decimal("0.60")
         notes.append("Detected bKash cash-in/add-money wording.")
-    elif any(keyword in normalized for keyword in ("cash out", "cash-out")):
+    elif _contains_any_phrase(normalized, ("cash out", "cash-out")):
         message_kind = ParsedMessageCandidate.MessageKind.CASH_OUT
         transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
         possible_internal_transfer = True
@@ -202,12 +212,12 @@ def _parse_bkash_message(*, raw_message, sender_rule):
         transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
         confidence = Decimal("0.80") if amount is not None else Decimal("0.50")
         notes.append("Detected bKash send-money wording.")
-    elif any(keyword in normalized for keyword in ("received", "receive money")):
+    elif _contains_any_phrase(normalized, ("received", "receive money")):
         message_kind = ParsedMessageCandidate.MessageKind.RECEIVE_MONEY
         transaction_type = ParsedMessageCandidate.TransactionType.INCOME
         confidence = Decimal("0.80") if amount is not None else Decimal("0.50")
         notes.append("Detected bKash receive-money wording.")
-    elif any(keyword in normalized for keyword in ("payment", "paid to", "merchant")):
+    elif _contains_any_phrase(normalized, ("payment", "paid to", "merchant")):
         message_kind = ParsedMessageCandidate.MessageKind.PURCHASE
         transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
         confidence = Decimal("0.82") if amount is not None else Decimal("0.50")
@@ -296,42 +306,50 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
     else:
         notes.append("No active sender rule matched this bank/card-like message.")
 
-    if any(keyword in normalized for keyword in ("reversed", "reversal", "void")):
+    if _contains_any_phrase(normalized, ("reversed", "reversal", "void")):
         message_kind = ParsedMessageCandidate.MessageKind.REVERSAL
         transaction_type = ParsedMessageCandidate.TransactionType.REFUND
         confidence = Decimal("0.82") if amount is not None else Decimal("0.50")
         notes.append("Detected bank/card reversal wording.")
-    elif any(keyword in normalized for keyword in ("refund", "refunded", "cashback")):
+    elif _contains_any_phrase(normalized, ("refund", "refunded", "cashback")):
         message_kind = ParsedMessageCandidate.MessageKind.REFUND
         transaction_type = ParsedMessageCandidate.TransactionType.REFUND
         confidence = Decimal("0.82") if amount is not None else Decimal("0.50")
         notes.append("Detected bank/card refund wording.")
-    elif any(keyword in normalized for keyword in ("fee", "charge", "vat")):
+    elif _contains_any_phrase(normalized, ("fee", "charge", "vat")):
         message_kind = ParsedMessageCandidate.MessageKind.FEE
         transaction_type = ParsedMessageCandidate.TransactionType.FEE
         confidence = Decimal("0.80") if amount is not None else Decimal("0.48")
         notes.append("Detected bank/card fee or charge wording.")
-    elif any(
-        keyword in normalized
-        for keyword in ("atm txn", "atm withdrawal", "cash withdrawal", "withdrawal", "withdrawn")
+    elif _contains_any_phrase(
+        normalized,
+        ("atm txn", "atm withdrawal", "cash withdrawal", "withdrawal", "withdrawn"),
     ):
         message_kind = ParsedMessageCandidate.MessageKind.CASH_OUT
         transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
         confidence = Decimal("0.86") if amount is not None else Decimal("0.54")
         notes.append("Detected ATM cash-withdrawal wording.")
-    elif any(keyword in normalized for keyword in ("used for", "purchase", "spent", "pos", "at ")):
+    elif _contains_any_phrase(normalized, ("used for", "purchase", "spent", "pos", "at")):
         message_kind = ParsedMessageCandidate.MessageKind.CARD_PURCHASE
         transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
         confidence = Decimal("0.84") if amount is not None else Decimal("0.52")
         notes.append("Detected bank/card purchase wording.")
-    elif any(keyword in normalized for keyword in ("card payment", "payment received", "bill payment")):
+    elif _contains_any_phrase(normalized, ("deposit", "deposited")):
+        message_kind = ParsedMessageCandidate.MessageKind.BANK_TRANSFER_IN
+        transaction_type = ParsedMessageCandidate.TransactionType.INCOME
+        confidence = Decimal("0.86") if amount is not None else Decimal("0.54")
+        notes.append("Detected bank deposit wording.")
+    elif _contains_any_phrase(normalized, ("card payment", "payment received", "bill payment")):
         message_kind = ParsedMessageCandidate.MessageKind.CARD_PAYMENT
         transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
         possible_internal_transfer = True
         confidence = Decimal("0.82") if amount is not None else Decimal("0.50")
         notes.append("Detected card payment wording.")
-    elif any(keyword in normalized for keyword in ("transfer", "fund transfer", "debited", "credited")):
-        if any(keyword in normalized for keyword in ("credited", "received")):
+    elif _contains_any_phrase(
+        normalized,
+        ("transfer", "transferred", "fund transfer", "debited", "credited"),
+    ):
+        if _contains_any_phrase(normalized, ("credited", "received")):
             message_kind = ParsedMessageCandidate.MessageKind.BANK_TRANSFER_IN
             transaction_type = ParsedMessageCandidate.TransactionType.INCOME
         else:
@@ -409,13 +427,13 @@ def _parse_pathao_pay_message(*, raw_message, sender_rule):
     else:
         notes.append("No active sender rule matched this Pathao Pay-like message.")
 
-    if any(keyword in normalized for keyword in ("top up", "top-up", "add money", "cash in")):
+    if _contains_any_phrase(normalized, ("top up", "top-up", "add money", "cash in")):
         message_kind = ParsedMessageCandidate.MessageKind.CASH_IN
         transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
         possible_internal_transfer = True
         confidence = Decimal("0.84") if amount is not None else Decimal("0.52")
         notes.append("Detected Pathao Pay top-up/add-money wording.")
-    elif any(keyword in normalized for keyword in ("withdraw", "cash out", "cash-out")):
+    elif _contains_any_phrase(normalized, ("withdraw", "cash out", "cash-out")):
         message_kind = ParsedMessageCandidate.MessageKind.CASH_OUT
         transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
         possible_internal_transfer = True
@@ -426,12 +444,12 @@ def _parse_pathao_pay_message(*, raw_message, sender_rule):
         transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
         confidence = Decimal("0.80") if amount is not None else Decimal("0.50")
         notes.append("Detected Pathao Pay send-money wording.")
-    elif any(keyword in normalized for keyword in ("received", "receive money")):
+    elif _contains_any_phrase(normalized, ("received", "receive money")):
         message_kind = ParsedMessageCandidate.MessageKind.RECEIVE_MONEY
         transaction_type = ParsedMessageCandidate.TransactionType.INCOME
         confidence = Decimal("0.80") if amount is not None else Decimal("0.50")
         notes.append("Detected Pathao Pay receive-money wording.")
-    elif any(keyword in normalized for keyword in ("payment", "paid", "purchase")):
+    elif _contains_any_phrase(normalized, ("payment", "paid", "purchase")):
         message_kind = ParsedMessageCandidate.MessageKind.PURCHASE
         transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
         confidence = Decimal("0.80") if amount is not None else Decimal("0.50")
@@ -497,8 +515,9 @@ def _extract_decimal_with_pattern(pattern, body: str):
     if not match:
         return None
 
+    decimal_text = next((group for group in match.groups() if group), "")
     try:
-        return Decimal(match.group(1).replace(",", ""))
+        return Decimal(decimal_text.replace(",", ""))
     except (InvalidOperation, ValueError):
         return None
 
@@ -558,3 +577,14 @@ def _normalize_identifier(value: str) -> str:
 
 def _normalize_text(value: str) -> str:
     return " ".join(value.lower().replace("-", " ").split())
+
+
+def _contains_any_phrase(normalized_text: str, phrases: tuple[str, ...]) -> bool:
+    return any(
+        re.search(
+            rf"(?<!\w){re.escape(_normalize_text(phrase))}(?!\w)",
+            normalized_text,
+        )
+        is not None
+        for phrase in phrases
+    )
