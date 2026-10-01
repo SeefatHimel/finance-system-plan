@@ -49,6 +49,7 @@ covering current phase-1 backend endpoints:
 - SMS sender rules CRUD
 - Raw SMS import with duplicate response shape
 - SMS capture-preference read/update endpoints
+- Mobile SMS device-health read/heartbeat endpoint
 - Parsed SMS review candidate list, confirm, reject/legacy-ignore, and raw SMS redaction endpoints
 - Transactions CRUD and month/account/category/type/direction/source/search list filters
 - Transaction CSV export with the same month/account/category/type/direction/source/search filters
@@ -82,7 +83,9 @@ is retained.
 
 Raw messages also expose resolved `provider`, `message_kind`, and
 `exclusion_reason`. Capture preferences contain excluded providers and message
-kinds. Rejected candidates expose reason, note, and timestamp; the reject
+kinds plus nullable raw-text retention days. Sender rules can store default
+category and transaction type, and confirmation can opt into `remember_mapping`.
+Rejected candidates expose reason, note, and timestamp; the reject
 request can additionally redact the body, disable its sender rule, or exclude
 the provider.
 
@@ -90,6 +93,10 @@ Raw message import also accepts optional `reprocess_existing`. Duplicate
 responses include `was_reprocessed`, allowing clients to distinguish a new
 import, an unchanged duplicate, and a pending candidate refreshed with the
 latest parser. Confirmed candidates are never reparsed through this flag.
+
+`GET/POST /api/messages/device-status/` is the shared contract for mobile
+permission, background state, pending/failed counts, errors, scan timestamps,
+and the API-derived health label shown by web clients.
 
 Audit log contracts expose action, entity type, entity id, metadata, timestamp,
 and nullable before/after snapshots. They are read-only and user-scoped.

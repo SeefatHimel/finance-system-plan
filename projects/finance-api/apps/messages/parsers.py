@@ -28,6 +28,7 @@ def find_sender_rule(*, user, sender: str):
     rules = SenderRule.objects.filter(user=user, is_active=True).select_related(
         "account",
         "payment_method",
+        "category",
     )
 
     for rule in rules:
@@ -42,56 +43,61 @@ def parse_raw_message(raw_message):
     excluded_kind = classify_message_kind_for_capture(raw_message.body)
 
     if excluded_kind:
-        return _parse_non_transaction_message(
+        parsed = _parse_non_transaction_message(
             raw_message=raw_message,
             sender_rule=sender_rule,
             provider=provider,
             message_kind=excluded_kind,
         )
-
-    if provider == SenderRule.Provider.BKASH:
-        return _parse_bkash_message(raw_message=raw_message, sender_rule=sender_rule)
-    if provider in (SenderRule.Provider.EBL, SenderRule.Provider.CITY_BANK):
-        return _parse_bank_card_message(
+    elif provider == SenderRule.Provider.BKASH:
+        parsed = _parse_bkash_message(raw_message=raw_message, sender_rule=sender_rule)
+    elif provider in (SenderRule.Provider.EBL, SenderRule.Provider.CITY_BANK):
+        parsed = _parse_bank_card_message(
             raw_message=raw_message,
             sender_rule=sender_rule,
             provider=provider,
         )
-    if provider == SenderRule.Provider.PATHAO_PAY:
-        return _parse_pathao_pay_message(raw_message=raw_message, sender_rule=sender_rule)
-
-    amount = _extract_amount(raw_message.body)
-    parser_notes = []
-
-    if sender_rule is None:
-        parser_notes.append("No active sender rule matched this message.")
+    elif provider == SenderRule.Provider.PATHAO_PAY:
+        parsed = _parse_pathao_pay_message(raw_message=raw_message, sender_rule=sender_rule)
     else:
-        parser_notes.append(f"Matched sender rule: {sender_rule.name}.")
+        amount = _extract_amount(raw_message.body)
+        parser_notes = []
 
-    if amount is None:
-        parser_notes.append("Could not extract an amount with the baseline parser.")
-    else:
-        parser_notes.append("Extracted amount with the baseline Tk/BDT parser.")
+        if sender_rule is None:
+            parser_notes.append("No active sender rule matched this message.")
+        else:
+            parser_notes.append(f"Matched sender rule: {sender_rule.name}.")
 
-    return {
-        "account": sender_rule.account if sender_rule else None,
-        "amount": amount,
-        "balance_after": _extract_balance(raw_message.body),
-        "confidence": Decimal("0.70") if sender_rule and amount is not None else Decimal("0.30"),
-        "counterparty_text": "",
-        "destination_account": None,
-        "destination_payment_method": None,
-        "fee_amount": _extract_fee(raw_message.body),
-        "message_kind": ParsedMessageCandidate.MessageKind.UNKNOWN,
-        "payment_method": sender_rule.payment_method if sender_rule else None,
-        "possible_internal_transfer": False,
-        "provider": provider,
-        "reference": _extract_reference(raw_message.body),
-        "parser_name": "baseline_amount_parser",
-        "parser_notes": " ".join(parser_notes),
-        "sender_rule": sender_rule,
-        "transaction_type": "expense",
-    }
+        if amount is None:
+            parser_notes.append("Could not extract an amount with the baseline parser.")
+        else:
+            parser_notes.append("Extracted amount with the baseline Tk/BDT parser.")
+
+        parsed = {
+            "account": sender_rule.account if sender_rule else None,
+            "amount": amount,
+            "balance_after": _extract_balance(raw_message.body),
+            "confidence": Decimal("0.70") if sender_rule and amount is not None else Decimal("0.30"),
+            "counterparty_text": "",
+            "destination_account": None,
+            "destination_payment_method": None,
+            "fee_amount": _extract_fee(raw_message.body),
+            "message_kind": ParsedMessageCandidate.MessageKind.UNKNOWN,
+            "payment_method": sender_rule.payment_method if sender_rule else None,
+            "possible_internal_transfer": False,
+            "provider": provider,
+            "reference": _extract_reference(raw_message.body),
+            "parser_name": "baseline_amount_parser",
+            "parser_notes": " ".join(parser_notes),
+            "sender_rule": sender_rule,
+            "transaction_type": "expense",
+        }
+
+    parsed["category"] = sender_rule.category if sender_rule else None
+    if sender_rule and sender_rule.default_transaction_type:
+        parsed["transaction_type"] = sender_rule.default_transaction_type
+        parsed["parser_notes"] = f"{parsed['parser_notes']} Applied the saved transaction type for this sender."
+    return parsed
 
 
 def classify_message_kind_for_capture(body: str) -> str:

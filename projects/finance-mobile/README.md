@@ -47,6 +47,10 @@ Phase 1 scaffold now includes:
   - loads and updates the server-side capture policy for provider,
     OTP/security, and balance-notice exclusions
   - removes excluded providers from native sender capture immediately
+  - presents a four-step setup checklist and lets the user choose immediate,
+    7-day, 30-day, or manual raw-SMS redaction after confirmation
+  - publishes permission, queue, failure, scan, and successful-sync heartbeats
+    to `POST /api/messages/device-status/`
 - Local raw message queue:
   - stores queued raw messages with Android Keystore-backed encryption in
     native builds or Expo SecureStore as a fallback
@@ -74,13 +78,16 @@ Phase 1 scaffold now includes:
     `DJANGO_DEBUG=false`
 - SMS review inbox:
   - loads parsed candidates from `GET /api/messages/review/`
+  - focuses on one candidate at a time with previous/next navigation
   - shows parser hints, raw SMS evidence, and internal-transfer flags
   - shows parser confidence, raw message status, and review/duplicate reasons
   - lets the user correct amount, date, type, accounts, payment method,
     category, counterparty, reference, and note before confirmation
   - confirms or rejects candidates through the review endpoints
+  - remembers corrected account, payment method, category, and transaction type
+    for later messages from the same sender rule
   - records a rejection reason and can redact the body, disable the matched
-    sender, or exclude the provider in the same action
+    sender, or exclude the provider from one scoped decision dialog
 - Debt/lending section:
   - loads records from `GET /api/debts/`
   - creates lent/borrowed records through `POST /api/debts/`

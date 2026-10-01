@@ -530,6 +530,43 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/messages/device-status/:
+    get:
+      tags: [Messages]
+      summary: Get the latest mobile SMS sync health
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Latest device heartbeat, or a not-connected status before first use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmsDeviceStatus'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Messages]
+      summary: Record a mobile SMS sync heartbeat
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SmsDeviceStatusUpdateRequest'
+      responses:
+        '200':
+          description: Updated device health
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmsDeviceStatus'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /api/messages/raw/{id}/redact/:
     parameters:
       - $ref: '#/components/parameters/UuidPathId'
@@ -1774,7 +1811,7 @@ components:
     SenderRule:
       type: object
       required:
-        [id, account, payment_method, name, provider, sender, match_type, pattern, priority, is_active, notes, created_at, updated_at]
+        [id, account, payment_method, category, name, provider, sender, match_type, pattern, default_transaction_type, priority, is_active, notes, created_at, updated_at]
       properties:
         id:
           type: string
@@ -1783,6 +1820,10 @@ components:
           type: string
           format: uuid
         payment_method:
+          type: string
+          format: uuid
+          nullable: true
+        category:
           type: string
           format: uuid
           nullable: true
@@ -1802,6 +1843,11 @@ components:
           type: string
           maxLength: 255
           description: Optional matching pattern, especially for contains or regex rules.
+        default_transaction_type:
+          oneOf:
+            - $ref: '#/components/schemas/TransactionType'
+            - type: string
+              enum: ['']
         priority:
           type: integer
           minimum: 0
@@ -1826,6 +1872,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        category:
+          type: string
+          format: uuid
+          nullable: true
         name:
           type: string
           maxLength: 120
@@ -1840,6 +1890,12 @@ components:
         pattern:
           type: string
           maxLength: 255
+          default: ""
+        default_transaction_type:
+          oneOf:
+            - $ref: '#/components/schemas/TransactionType'
+            - type: string
+              enum: ['']
           default: ""
         priority:
           type: integer
@@ -1861,6 +1917,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        category:
+          type: string
+          format: uuid
+          nullable: true
         name:
           type: string
           maxLength: 120
@@ -1874,6 +1934,11 @@ components:
         pattern:
           type: string
           maxLength: 255
+        default_transaction_type:
+          oneOf:
+            - $ref: '#/components/schemas/TransactionType'
+            - type: string
+              enum: ['']
         priority:
           type: integer
           minimum: 0
@@ -1975,7 +2040,7 @@ components:
     ParsedMessageCandidate:
       type: object
       required:
-        [id, raw_message, sender_rule, account, payment_method, destination_account, destination_payment_method, transaction, possible_related_candidate, provider, message_kind, transaction_type, amount, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, related_match_reason, confidence, status, parser_name, parser_notes, rejection_reason, rejection_note, rejected_at, created_at, updated_at]
+        [id, raw_message, sender_rule, account, payment_method, category, destination_account, destination_payment_method, transaction, possible_related_candidate, provider, message_kind, transaction_type, amount, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, related_match_reason, confidence, status, parser_name, parser_notes, rejection_reason, rejection_note, rejected_at, created_at, updated_at]
       properties:
         id:
           type: string
@@ -1991,6 +2056,10 @@ components:
           format: uuid
           nullable: true
         payment_method:
+          type: string
+          format: uuid
+          nullable: true
+        category:
           type: string
           format: uuid
           nullable: true
@@ -2110,6 +2179,9 @@ components:
           type: string
         type:
           $ref: '#/components/schemas/TransactionType'
+        remember_mapping:
+          type: boolean
+          default: false
     ParsedMessageRejectRequest:
       type: object
       required: [reason]
@@ -2131,7 +2203,7 @@ components:
           default: false
     SmsCapturePreference:
       type: object
-      required: [excluded_providers, excluded_message_kinds, created_at, updated_at]
+      required: [excluded_providers, excluded_message_kinds, raw_sms_retention_days, created_at, updated_at]
       properties:
         excluded_providers:
           type: array
@@ -2142,6 +2214,13 @@ components:
           items:
             $ref: '#/components/schemas/ParsedMessageKind'
           default: [otp_or_security]
+        raw_sms_retention_days:
+          type: integer
+          minimum: 0
+          maximum: 3650
+          nullable: true
+          default: 30
+          description: Days to keep original SMS text after confirmation. Zero redacts immediately; null keeps it until manual redaction.
         created_at:
           type: string
           format: date-time
@@ -2159,6 +2238,100 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ParsedMessageKind'
+        raw_sms_retention_days:
+          type: integer
+          minimum: 0
+          maximum: 3650
+          nullable: true
+    SmsDeviceStatus:
+      type: object
+      required:
+        [device_id, platform, app_version, sms_permission_state, background_state, pending_upload_count, failed_upload_count, last_error, last_scan_at, last_successful_sync_at, last_seen_at, health_state, health_label, created_at, updated_at]
+      properties:
+        device_id:
+          type: string
+          maxLength: 120
+        platform:
+          type: string
+          maxLength: 32
+        app_version:
+          type: string
+          maxLength: 32
+        sms_permission_state:
+          type: string
+          enum: [unknown, granted, denied]
+        background_state:
+          type: string
+          enum: [idle, running, success, error, disabled]
+        pending_upload_count:
+          type: integer
+          minimum: 0
+        failed_upload_count:
+          type: integer
+          minimum: 0
+        last_error:
+          type: string
+          maxLength: 255
+        last_scan_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_successful_sync_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_seen_at:
+          type: string
+          format: date-time
+          nullable: true
+        health_state:
+          type: string
+          enum: [not_connected, permission_required, background_disabled, error, syncing, offline, setup_required, healthy]
+        health_label:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+    SmsDeviceStatusUpdateRequest:
+      type: object
+      properties:
+        device_id:
+          type: string
+          maxLength: 120
+        platform:
+          type: string
+          maxLength: 32
+        app_version:
+          type: string
+          maxLength: 32
+        sms_permission_state:
+          type: string
+          enum: [unknown, granted, denied]
+        background_state:
+          type: string
+          enum: [idle, running, success, error, disabled]
+        pending_upload_count:
+          type: integer
+          minimum: 0
+        failed_upload_count:
+          type: integer
+          minimum: 0
+        last_error:
+          type: string
+          maxLength: 255
+        last_scan_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_successful_sync_at:
+          type: string
+          format: date-time
+          nullable: true
     BalanceSnapshot:
       type: object
       required:

@@ -77,6 +77,8 @@ export type PaymentMethod = {
 
 export type SenderRule = {
   account: string;
+  category: string | null;
+  default_transaction_type: string;
   id: string;
   is_active: boolean;
   match_type: string;
@@ -91,6 +93,8 @@ export type SenderRule = {
 
 export type CreateSenderRuleInput = {
   account: string;
+  category?: string | null;
+  default_transaction_type?: string;
   match_type?: string;
   name: string;
   payment_method?: string | null;
@@ -142,6 +146,7 @@ export type ParsedMessageCandidate = {
   amount: string | null;
   balance_after: string | null;
   confidence: string;
+  category: string | null;
   counterparty_text: string;
   created_at: string;
   destination_account: string | null;
@@ -172,8 +177,27 @@ export type SmsCapturePreference = {
   created_at: string;
   excluded_message_kinds: string[];
   excluded_providers: string[];
+  raw_sms_retention_days: number | null;
   updated_at: string;
 };
+
+export type SmsDeviceStatus = {
+  app_version: string;
+  background_state: "idle" | "running" | "success" | "error" | "disabled";
+  device_id: string;
+  failed_upload_count: number;
+  health_label: string;
+  health_state: "not_connected" | "permission_required" | "background_disabled" | "error" | "syncing" | "offline" | "setup_required" | "healthy";
+  last_error: string;
+  last_scan_at: string | null;
+  last_seen_at: string | null;
+  last_successful_sync_at: string | null;
+  pending_upload_count: number;
+  platform: string;
+  sms_permission_state: "unknown" | "granted" | "denied";
+};
+
+export type SmsDeviceStatusUpdate = Partial<Omit<SmsDeviceStatus, "health_label" | "health_state" | "last_seen_at">>;
 
 export type RejectMessageCandidateInput = {
   exclude_provider?: boolean;
@@ -196,6 +220,7 @@ export type ConfirmMessageCandidateInput = {
   reference?: string;
   transfer_account?: string | null;
   type?: string;
+  remember_mapping?: boolean;
 };
 
 export type CreateTransactionInput = {
@@ -547,7 +572,7 @@ export async function getSmsCapturePreference(accessToken: string): Promise<SmsC
 
 export async function updateSmsCapturePreference(
   accessToken: string,
-  input: Partial<Pick<SmsCapturePreference, "excluded_message_kinds" | "excluded_providers">>
+  input: Partial<Pick<SmsCapturePreference, "excluded_message_kinds" | "excluded_providers" | "raw_sms_retention_days">>
 ): Promise<SmsCapturePreference> {
   const response = await authenticatedFetch("/api/messages/capture-preferences/", accessToken, {
     body: JSON.stringify(input),
@@ -557,6 +582,18 @@ export async function updateSmsCapturePreference(
   return (await response.json()) as SmsCapturePreference;
 }
 
+export async function updateSmsDeviceStatus(
+  accessToken: string,
+  input: SmsDeviceStatusUpdate
+): Promise<SmsDeviceStatus> {
+  const response = await authenticatedFetch("/api/messages/device-status/", accessToken, {
+    body: JSON.stringify(input),
+    headers: { "Content-Type": "application/json" },
+    method: "POST"
+  });
+  return (await response.json()) as SmsDeviceStatus;
+}
+
 export async function createSenderRule(
   accessToken: string,
   input: CreateSenderRuleInput
@@ -564,6 +601,8 @@ export async function createSenderRule(
   const response = await authenticatedFetch("/api/messages/sender-rules/", accessToken, {
     body: JSON.stringify({
       account: input.account,
+      category: input.category || null,
+      default_transaction_type: input.default_transaction_type || "",
       is_active: true,
       match_type: input.match_type || "exact",
       name: input.name,

@@ -102,11 +102,13 @@ non-transfer transactions do not.
 
 ## What finance evidence is kept after SMS confirmation?
 
-The raw SMS is kept as source evidence, but confirmed transactions also copy the
-important normalized fields into the ledger row: debit/credit direction,
-provider reference or TrxID, balance after, counterparty text, payment method,
-raw message id, and an external duplicate key. This lets reports and exports use
-structured fields without reparsing SMS bodies.
+Confirmed transactions copy normalized evidence into the ledger row:
+debit/credit direction, provider reference or TrxID, balance after,
+counterparty text, payment method, raw message id, and an external duplicate
+key. The transaction note is a safe summary rather than a copy of the full SMS.
+The original text follows the user's retention choice: redact immediately,
+retain for 7 or 30 days, or keep until manual redaction. Reports and exports use
+the structured fields and never need to reparse the SMS body.
 
 ## How does the API represent an account's current balance?
 
@@ -270,14 +272,34 @@ with `[redacted]`, clears the device message id, marks the raw message as
 `redacted`, and records `redacted_at`. Parsed candidate fields, transaction
 reference, balance, counterparty, amount, raw message link, and duplicate hash
 remain, so reports and duplicate checks still work without keeping the original
-SMS text. If a confirmed transaction note exactly copied the SMS body, redaction
-changes that note to `SMS body redacted.`
+SMS text. New confirmation notes contain only normalized message kind and
+counterparty data, so removing the original body does not change ledger notes.
+
+Each user can choose raw-text retention of zero, 7, or 30 days, or no automatic
+expiry. Zero redacts immediately at confirmation; the scheduled
+`redact_expired_sms` command removes expired bodies for the other finite values.
 
 The capture policy also prevents selected content from being retained at all.
 During review, rejection records a reason and can atomically redact the raw SMS,
 deactivate the matched sender rule, or add the candidate provider to the user's
 excluded-provider list. The legacy ignore route remains compatible but now
 records `not_transaction` as its default rejection reason.
+
+## How does review correction improve future imports?
+
+When the reviewer enables “use choices next time,” confirmation writes the
+corrected account, payment method, category, and transaction type back to the
+matched sender rule. Future messages from that sender start with those defaults,
+while amount, balance, date, reference, and counterparty still come from each
+message. The learning is explicit and user-controlled rather than automatic.
+
+## How is mobile SMS sync health represented?
+
+The mobile app posts a user-scoped heartbeat containing permission, background
+sync state, queue counts, errors, last scan, and last successful sync. The API
+derives a small health state such as `healthy`, `offline`, `error`, or
+`permission_required`. Web clients use that endpoint instead of inferring
+mobile health from candidate timestamps.
 
 ## Why do internal transfers need special handling?
 

@@ -8,7 +8,13 @@ from apps.categories.models import Category
 from apps.payment_methods.models import PaymentMethod
 from apps.transactions.models import Transaction
 
-from .models import ParsedMessageCandidate, RawMessage, SenderRule, SmsCapturePreference
+from .models import (
+    ParsedMessageCandidate,
+    RawMessage,
+    SenderRule,
+    SmsCapturePreference,
+    SmsDeviceStatus,
+)
 
 
 CAPTURE_MESSAGE_KIND_CHOICES = tuple(
@@ -25,11 +31,13 @@ class SenderRuleSerializer(serializers.ModelSerializer):
             "id",
             "account",
             "payment_method",
+            "category",
             "name",
             "provider",
             "sender",
             "match_type",
             "pattern",
+            "default_transaction_type",
             "priority",
             "is_active",
             "notes",
@@ -47,6 +55,11 @@ class SenderRuleSerializer(serializers.ModelSerializer):
         if payment_method and payment_method.user_id != self.context["request"].user.id:
             raise serializers.ValidationError("Payment method does not belong to this user.")
         return payment_method
+
+    def validate_category(self, category):
+        if category and category.user_id != self.context["request"].user.id:
+            raise serializers.ValidationError("Category does not belong to this user.")
+        return category
 
     def validate(self, attrs):
         account = attrs.get("account", getattr(self.instance, "account", None))
@@ -100,6 +113,7 @@ class SenderRuleSerializer(serializers.ModelSerializer):
             user=user,
             is_active=True,
         )
+        fields["category"].queryset = Category.objects.filter(user=user, is_active=True)
         return fields
 
 
@@ -157,6 +171,7 @@ class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
             "sender_rule",
             "account",
             "payment_method",
+            "category",
             "destination_account",
             "destination_payment_method",
             "transaction",
@@ -187,6 +202,7 @@ class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
             "sender_rule",
             "account",
             "payment_method",
+            "category",
             "destination_account",
             "destination_payment_method",
             "transaction",
@@ -219,6 +235,7 @@ class SmsCapturePreferenceSerializer(serializers.ModelSerializer):
         fields = (
             "excluded_providers",
             "excluded_message_kinds",
+            "raw_sms_retention_days",
             "created_at",
             "updated_at",
         )
@@ -240,6 +257,38 @@ class SmsCapturePreferenceSerializer(serializers.ModelSerializer):
                 f"Unsupported message kind values: {', '.join(sorted(invalid))}."
             )
         return list(dict.fromkeys(message_kinds))
+
+
+class SmsDeviceStatusSerializer(serializers.ModelSerializer):
+    health_state = serializers.SerializerMethodField()
+    health_label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SmsDeviceStatus
+        fields = (
+            "device_id",
+            "platform",
+            "app_version",
+            "sms_permission_state",
+            "background_state",
+            "pending_upload_count",
+            "failed_upload_count",
+            "last_error",
+            "last_scan_at",
+            "last_successful_sync_at",
+            "last_seen_at",
+            "health_state",
+            "health_label",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("health_state", "health_label", "last_seen_at", "created_at", "updated_at")
+
+    def get_health_state(self, instance):
+        return instance.health_state
+
+    def get_health_label(self, instance):
+        return instance.health_label
 
 
 class MessageCandidateRejectSerializer(serializers.Serializer):
@@ -285,6 +334,7 @@ class ParsedMessageConfirmSerializer(serializers.Serializer):
     counterparty_text = serializers.CharField(max_length=255, required=False, allow_blank=True)
     note = serializers.CharField(required=False, allow_blank=True)
     type = serializers.ChoiceField(choices=Transaction.Type.choices, required=False)
+    remember_mapping = serializers.BooleanField(required=False, default=False)
 
     def get_fields(self):
         fields = super().get_fields()

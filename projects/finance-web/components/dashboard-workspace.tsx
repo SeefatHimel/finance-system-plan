@@ -35,8 +35,10 @@ import {
   type HealthStatus,
   type MonthlyReport,
   type ParsedMessageCandidate,
+  type SmsDeviceStatus,
   type Transaction,
   getMonthlyReport,
+  getSmsDeviceStatus,
   listAccounts,
   listCategories,
   listMessageCandidates,
@@ -52,6 +54,7 @@ type DashboardState =
       accounts: Account[];
       candidates: ParsedMessageCandidate[];
       categories: Category[];
+      deviceStatus: SmsDeviceStatus;
       report: MonthlyReport;
       status: "ready";
       transactions: Transaction[];
@@ -126,20 +129,6 @@ function candidateIcon(provider: string) {
   return ChatCenteredText;
 }
 
-function latestMessageLabel(candidates: ParsedMessageCandidate[]) {
-  const latestReceivedAt = candidates.reduce(
-    (latest, candidate) => candidate.raw_message.received_at > latest ? candidate.raw_message.received_at : latest,
-    ""
-  );
-  if (!latestReceivedAt) return "No messages synced yet";
-  return `Last message ${new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    month: "short"
-  }).format(new Date(latestReceivedAt))}`;
-}
-
 function buildCashFlowData(transactions: Transaction[]): CashFlowPoint[] {
   const byDate = new Map<string, { inflow: number; outflow: number }>();
 
@@ -167,6 +156,16 @@ function buildCashFlowData(transactions: Transaction[]): CashFlowPoint[] {
 }
 
 function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
+  if (data.length === 0) {
+    return (
+      <div className="cash-flow-empty">
+        <Receipt aria-hidden="true" size={28} />
+        <strong>No confirmed activity yet</strong>
+        <span>Review captured messages or add a transaction to start your cash-flow history.</span>
+        <Link href="/messages/review">Review messages <ArrowRight aria-hidden="true" size={15} /></Link>
+      </div>
+    );
+  }
   return (
     <div className="cash-flow-chart" aria-label="Thirty day cash flow chart">
       <ResponsiveContainer height="100%" width="100%">
@@ -242,11 +241,12 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
       listAccounts(accessToken),
       listCategories(accessToken),
       listMessageCandidates(accessToken),
+      getSmsDeviceStatus(accessToken),
       getMonthlyReport(accessToken, currentMonth()),
       listTransactions(accessToken)
     ])
-      .then(([accounts, categories, candidates, report, transactions]) => {
-        setState({ accounts, candidates, categories, report, status: "ready", transactions });
+      .then(([accounts, categories, candidates, deviceStatus, report, transactions]) => {
+        setState({ accounts, candidates, categories, deviceStatus, report, status: "ready", transactions });
       })
       .catch((error) => {
         setState({ message: error instanceof Error ? error.message : "Could not load dashboard.", status: "error" });
@@ -270,7 +270,9 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
       cashFlow: buildCashFlowData(state.transactions),
       categoryById,
       expenseCategoryNames: new Set(state.categories.filter((category) => category.kind === "expense").map((category) => category.name)),
-      lastSyncLabel: latestMessageLabel(state.candidates),
+      lastSyncLabel: state.deviceStatus.last_successful_sync_at
+        ? `Last successful sync ${new Intl.DateTimeFormat("en-US", { day: "numeric", hour: "numeric", minute: "2-digit", month: "short" }).format(new Date(state.deviceStatus.last_successful_sync_at))}`
+        : state.deviceStatus.health_label,
       netPosition: ledgerBalance,
       recentTransactions: state.transactions.slice(0, 4)
     };
@@ -296,6 +298,8 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
   const pendingCount = state.candidates.length;
   const autoPostedCount = dashboardData.automatedTransactions.length;
   const netMovement = Number(state.report.net_total);
+  const syncHealthy = state.deviceStatus.health_state === "healthy";
+  const syncNeedsAttention = ["background_disabled", "error", "offline", "permission_required"].includes(state.deviceStatus.health_state);
 
   return (
     <div className="automation-dashboard">
@@ -319,15 +323,18 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
 
         <article className="dashboard-panel automation-status-panel">
           <h2>Automation status</h2>
-          <div className="mobile-sync-status"><span><CheckCircle aria-hidden="true" size={18} weight="fill" />Mobile sync healthy</span><small>{dashboardData.lastSyncLabel}</small></div>
+          <div className={`mobile-sync-status${syncNeedsAttention ? " mobile-sync-status--error" : syncHealthy ? " mobile-sync-status--healthy" : " mobile-sync-status--pending"}`}>
+            <span>{syncNeedsAttention ? <Warning aria-hidden="true" size={18} weight="fill" /> : <CheckCircle aria-hidden="true" size={18} weight="fill" />}{state.deviceStatus.health_label}</span>
+            <small>{dashboardData.lastSyncLabel}</small>
+          </div>
           <div className="automation-stats">
             <div><FileText aria-hidden="true" className="automation-stat-icon automation-stat-icon--info" size={27} /><strong>{dashboardData.captureCount}</strong><span>Captured</span></div>
             <div><CheckCircle aria-hidden="true" className="automation-stat-icon automation-stat-icon--success" size={27} /><strong>{autoPostedCount}</strong><span>Auto-posted</span></div>
             <div><Warning aria-hidden="true" className="automation-stat-icon automation-stat-icon--warning" size={27} /><strong>{pendingCount}</strong><span>Need review</span></div>
-            <div><XCircle aria-hidden="true" className="automation-stat-icon automation-stat-icon--danger" size={27} /><strong>0</strong><span>Failed</span></div>
+            <div><XCircle aria-hidden="true" className="automation-stat-icon automation-stat-icon--danger" size={27} /><strong>{state.deviceStatus.failed_upload_count}</strong><span>Failed</span></div>
           </div>
           <div className="automation-actions">
-            <Link className="dashboard-button dashboard-button--review" href="/messages/review">Review {pendingCount} transactions <ArrowRight aria-hidden="true" size={17} /></Link>
+            <Link className="dashboard-button dashboard-button--review" href="/messages/review">Review {pendingCount} messages <ArrowRight aria-hidden="true" size={17} /></Link>
             <Link className="dashboard-text-link" href="/audit-logs">Sync activity <ArrowRight aria-hidden="true" size={16} /></Link>
           </div>
         </article>

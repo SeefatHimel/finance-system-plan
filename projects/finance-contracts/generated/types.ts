@@ -147,11 +147,13 @@ export interface SenderRule {
   id: string;
   account: string;
   payment_method: string | null;
+  category: string | null;
   name: string;
   provider: SenderRuleProvider;
   sender: string;
   match_type: SenderRuleMatchType;
   pattern: string;
+  default_transaction_type: TransactionType | "";
   priority: number;
   is_active: boolean;
   notes: string;
@@ -162,11 +164,13 @@ export interface SenderRule {
 export interface SenderRuleCreateRequest {
   account: string;
   payment_method?: string | null;
+  category?: string | null;
   name: string;
   provider: SenderRuleProvider;
   sender: string;
   match_type?: SenderRuleMatchType;
   pattern?: string;
+  default_transaction_type?: TransactionType | "";
   priority?: number;
   is_active?: boolean;
   notes?: string;
@@ -175,11 +179,13 @@ export interface SenderRuleCreateRequest {
 export interface SenderRulePatchRequest {
   account?: string;
   payment_method?: string | null;
+  category?: string | null;
   name?: string;
   provider?: SenderRuleProvider;
   sender?: string;
   match_type?: SenderRuleMatchType;
   pattern?: string;
+  default_transaction_type?: TransactionType | "";
   priority?: number;
   is_active?: boolean;
   notes?: string;
@@ -227,6 +233,7 @@ export interface ParsedMessageCandidate {
   sender_rule: string | null;
   account: string | null;
   payment_method: string | null;
+  category: string | null;
   destination_account: string | null;
   destination_payment_method: string | null;
   transaction: string | null;
@@ -265,6 +272,7 @@ export interface ParsedMessageConfirmRequest {
   counterparty_text?: string;
   note?: string;
   type?: TransactionType;
+  remember_mapping?: boolean;
 }
 
 export interface ParsedMessageRejectRequest {
@@ -278,6 +286,7 @@ export interface ParsedMessageRejectRequest {
 export interface SmsCapturePreference {
   excluded_providers: SenderRuleProvider[];
   excluded_message_kinds: ParsedMessageKind[];
+  raw_sms_retention_days: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -285,6 +294,38 @@ export interface SmsCapturePreference {
 export interface SmsCapturePreferencePatchRequest {
   excluded_providers?: SenderRuleProvider[];
   excluded_message_kinds?: ParsedMessageKind[];
+  raw_sms_retention_days?: number | null;
+}
+
+export interface SmsDeviceStatus {
+  device_id: string;
+  platform: string;
+  app_version: string;
+  sms_permission_state: "unknown" | "granted" | "denied";
+  background_state: "idle" | "running" | "success" | "error" | "disabled";
+  pending_upload_count: number;
+  failed_upload_count: number;
+  last_error: string;
+  last_scan_at: string | null;
+  last_successful_sync_at: string | null;
+  last_seen_at: string | null;
+  health_state: "not_connected" | "permission_required" | "background_disabled" | "error" | "syncing" | "offline" | "setup_required" | "healthy";
+  health_label: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface SmsDeviceStatusUpdateRequest {
+  device_id?: string;
+  platform?: string;
+  app_version?: string;
+  sms_permission_state?: "unknown" | "granted" | "denied";
+  background_state?: "idle" | "running" | "success" | "error" | "disabled";
+  pending_upload_count?: number;
+  failed_upload_count?: number;
+  last_error?: string;
+  last_scan_at?: string | null;
+  last_successful_sync_at?: string | null;
 }
 
 export interface BalanceSnapshot {

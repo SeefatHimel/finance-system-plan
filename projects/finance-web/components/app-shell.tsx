@@ -23,7 +23,7 @@ import { usePathname } from "next/navigation";
 import type { ElementType, MouseEvent } from "react";
 import { useEffect, useState } from "react";
 
-import { listMessageCandidates } from "@/lib/api";
+import { getCurrentUser, getSmsDeviceStatus, listMessageCandidates } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 
 type NavItem = {
@@ -67,6 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isNavigating, setIsNavigating] = useState(false);
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [syncLabel, setSyncLabel] = useState("Mobile sync ready");
+  const [userInitials, setUserInitials] = useState("—");
 
   useEffect(() => {
     setIsMobileNavOpen(false);
@@ -84,16 +85,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!accessToken) return;
 
     let isActiveRequest = true;
-    void listMessageCandidates(accessToken)
-      .then((candidates) => {
+    void Promise.all([
+      listMessageCandidates(accessToken),
+      getSmsDeviceStatus(accessToken),
+      getCurrentUser(accessToken)
+    ])
+      .then(([candidates, deviceStatus, user]) => {
         if (!isActiveRequest) return;
         setPendingCount(candidates.length);
-        const latestMessage = candidates
-          .map((candidate) => candidate.raw_message.received_at)
-          .sort((a, b) => b.localeCompare(a))[0];
-        if (latestMessage) {
-          setSyncLabel(`Last message ${new Intl.DateTimeFormat("en-US", { day: "numeric", hour: "numeric", minute: "2-digit", month: "short" }).format(new Date(latestMessage))}`);
-        }
+        setSyncLabel(deviceStatus.health_label);
+        const names = [user.first_name, user.last_name].filter(Boolean);
+        const initials = (names.length ? names : [user.username])
+          .map((name) => name.trim().charAt(0).toUpperCase())
+          .join("")
+          .slice(0, 2);
+        setUserInitials(initials || "U");
       })
       .catch(() => {
         if (isActiveRequest) setPendingCount(null);
@@ -196,7 +202,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ) : null}
 
           <div className="user-avatar" aria-label="Signed-in user">
-            FS
+            {userInitials}
             <span aria-hidden="true" />
           </div>
         </header>

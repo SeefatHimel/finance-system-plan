@@ -39,6 +39,11 @@ Never commit:
 - Allow raw message redaction. Redaction should remove the original SMS body
   and device message id while preserving parsed ledger evidence, duplicate
   hashes, and audit links.
+- Default raw-text retention to 30 days after confirmation. Let the user choose
+  immediate removal, a shorter finite period, or explicit long-term retention.
+  Run `python manage.py redact_expired_sms` on a daily production schedule.
+- Never copy the complete raw SMS into a transaction note. Store a normalized
+  summary and structured evidence fields instead.
 - Rejection should record the reason and allow the user to redact the body,
   disable the matched sender rule, or exclude the whole provider without a
   second workflow.

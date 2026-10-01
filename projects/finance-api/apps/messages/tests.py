@@ -6,11 +6,13 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import Account
+from apps.categories.models import Category
 from apps.messages.models import (
     ParsedMessageCandidate,
     RawMessage,
     SenderRule,
     SmsCapturePreference,
+    SmsDeviceStatus,
 )
 from apps.payment_methods.models import PaymentMethod
 from apps.transactions.models import Transaction
@@ -146,6 +148,7 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["excluded_providers"], [])
         self.assertEqual(response.data["excluded_message_kinds"], ["otp_or_security"])
+        self.assertEqual(response.data["raw_sms_retention_days"], 30)
 
     def test_capture_preferences_can_be_updated_and_validate_supported_values(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
@@ -1411,10 +1414,9 @@ class MessageReviewApiTests(APITestCase):
         self.assertEqual(response.data["message"]["body"], "[redacted]")
         self.assertEqual(response.data["candidate"]["raw_message"]["body"], "[redacted]")
 
-    def test_redacting_confirmed_sms_clears_copied_transaction_note(self):
+    def test_confirmed_transaction_uses_safe_normalized_note(self):
         candidate = self.import_payment_message()
         raw_message_id = candidate["raw_message"]["id"]
-        original_body = candidate["raw_message"]["body"]
 
         confirm_response = self.client.post(
             reverse("message-candidate-confirm", kwargs={"candidate_id": candidate["id"]}),
@@ -1423,7 +1425,8 @@ class MessageReviewApiTests(APITestCase):
         )
         self.assertEqual(confirm_response.status_code, 200)
         transaction = Transaction.objects.get(id=confirm_response.data["transaction"])
-        self.assertEqual(transaction.note, original_body)
+        self.assertEqual(transaction.note, "Purchase · SAMPLE MERCHANT")
+        self.assertNotIn("successful", transaction.note.lower())
 
         response = self.client.post(
             reverse("raw-message-redact", kwargs={"message_id": raw_message_id}),
@@ -1433,6 +1436,87 @@ class MessageReviewApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         transaction.refresh_from_db()
-        self.assertEqual(transaction.note, "SMS body redacted.")
+        self.assertEqual(transaction.note, "Purchase · SAMPLE MERCHANT")
         self.assertEqual(transaction.reference, "DEF456XYZ")
         self.assertEqual(transaction.raw_message_id, RawMessage.objects.get(id=raw_message_id).id)
+
+    def test_immediate_retention_redacts_raw_sms_after_confirmation(self):
+        SmsCapturePreference.objects.create(user=self.user, raw_sms_retention_days=0)
+        candidate = self.import_payment_message()
+
+        response = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": candidate["id"]}),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        message = RawMessage.objects.get(id=candidate["raw_message"]["id"])
+        self.assertEqual(message.body, "[redacted]")
+
+    def test_confirm_can_remember_sender_mapping(self):
+        category = Category.objects.create(user=self.user, name="Shopping", kind=Category.Kind.EXPENSE)
+        candidate = self.import_payment_message()
+
+        response = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": candidate["id"]}),
+            {
+                "category": str(category.id),
+                "type": "expense",
+                "remember_mapping": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.sender_rule.refresh_from_db()
+        self.assertEqual(self.sender_rule.category, category)
+        self.assertEqual(self.sender_rule.default_transaction_type, "expense")
+
+
+class SmsDeviceStatusApiTests(APITestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="himel", password="password")
+        self.client.force_authenticate(self.user)
+
+    def test_status_starts_disconnected(self):
+        response = self.client.get(reverse("sms-device-status"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["health_state"], "not_connected")
+        self.assertIsNone(response.data["last_seen_at"])
+
+    def test_mobile_heartbeat_reports_real_sync_health(self):
+        response = self.client.post(
+            reverse("sms-device-status"),
+            {
+                "device_id": "android-primary",
+                "platform": "android",
+                "app_version": "0.1.0",
+                "sms_permission_state": "granted",
+                "background_state": "success",
+                "pending_upload_count": 0,
+                "failed_upload_count": 0,
+                "last_scan_at": "2026-10-01T08:00:00+06:00",
+                "last_successful_sync_at": "2026-10-01T08:00:00+06:00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["health_state"], "healthy")
+        self.assertTrue(SmsDeviceStatus.objects.filter(user=self.user).exists())
+
+    def test_disabled_background_sync_needs_attention(self):
+        response = self.client.post(
+            reverse("sms-device-status"),
+            {
+                "sms_permission_state": "granted",
+                "background_state": "disabled",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["health_state"], "background_disabled")
+        self.assertEqual(response.data["health_label"], "Background sync is disabled")

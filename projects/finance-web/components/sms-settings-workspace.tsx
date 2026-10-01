@@ -6,18 +6,23 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   type Account,
+  type Category,
   type PaymentMethod,
   type PaymentProvider,
   type SenderRule,
   type SenderRuleMatchType,
   type SenderRuleProvider,
   type SmsCapturePreference,
+  type SmsDeviceStatus,
+  type TransactionType,
   createPaymentMethod,
   createSenderRule,
   deletePaymentMethod,
   deleteSenderRule,
   getSmsCapturePreference,
+  getSmsDeviceStatus,
   listAccounts,
+  listCategories,
   listPaymentMethods,
   listSenderRules,
   updateSmsCapturePreference,
@@ -32,7 +37,9 @@ type SmsSettingsState =
   | { message: string; status: "error" }
   | {
       accounts: Account[];
+      categories: Category[];
       capturePreference: SmsCapturePreference;
+      deviceStatus: SmsDeviceStatus;
       paymentMethods: PaymentMethod[];
       senderRules: SenderRule[];
       status: "ready";
@@ -63,6 +70,7 @@ const senderProviders: SenderRuleProvider[] = [
   "other"
 ];
 const matchTypes: SenderRuleMatchType[] = ["exact", "contains", "regex"];
+const transactionTypes: TransactionType[] = ["expense", "income", "transfer", "adjustment", "fee", "refund"];
 const optionalMessageKinds = ["otp_or_security", "balance_notice"] as const;
 
 function formatLabel(value: string) {
@@ -81,6 +89,7 @@ export function SmsSettingsWorkspace() {
   const [isUpdatingSenderRule, setIsUpdatingSenderRule] = useState(false);
   const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState<string | null>(null);
   const [deletingSenderRuleId, setDeletingSenderRuleId] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<"capture" | "senders" | "payments">("capture");
 
   const [editingPaymentMethodId, setEditingPaymentMethodId] = useState("");
   const [editingPaymentMethodAccount, setEditingPaymentMethodAccount] = useState("");
@@ -91,6 +100,8 @@ export function SmsSettingsWorkspace() {
   const [editingSenderRuleId, setEditingSenderRuleId] = useState("");
   const [editingSenderRuleAccount, setEditingSenderRuleAccount] = useState("");
   const [editingSenderRulePaymentMethod, setEditingSenderRulePaymentMethod] = useState("");
+  const [editingSenderRuleCategory, setEditingSenderRuleCategory] = useState("");
+  const [editingSenderRuleTransactionType, setEditingSenderRuleTransactionType] = useState<TransactionType | "">("");
   const [editingSenderRuleName, setEditingSenderRuleName] = useState("");
   const [editingSenderRuleProvider, setEditingSenderRuleProvider] = useState<SenderRuleProvider>("bkash");
   const [editingSenderRuleSender, setEditingSenderRuleSender] = useState("");
@@ -111,13 +122,15 @@ export function SmsSettingsWorkspace() {
     }
 
     try {
-      const [accounts, capturePreference, paymentMethods, senderRules] = await Promise.all([
+      const [accounts, categories, capturePreference, deviceStatus, paymentMethods, senderRules] = await Promise.all([
         listAccounts(accessToken),
+        listCategories(accessToken),
         getSmsCapturePreference(accessToken),
+        getSmsDeviceStatus(accessToken),
         listPaymentMethods(accessToken),
         listSenderRules(accessToken)
       ]);
-      setSettingsState({ accounts, capturePreference, paymentMethods, senderRules, status: "ready" });
+      setSettingsState({ accounts, categories, capturePreference, deviceStatus, paymentMethods, senderRules, status: "ready" });
     } catch (error) {
       setSettingsState({
         message: error instanceof Error ? error.message : "Could not load SMS settings.",
@@ -132,7 +145,7 @@ export function SmsSettingsWorkspace() {
 
   async function updateCapturePreference(
     key: string,
-    patch: Partial<Pick<SmsCapturePreference, "excluded_message_kinds" | "excluded_providers">>
+    patch: Partial<Pick<SmsCapturePreference, "excluded_message_kinds" | "excluded_providers" | "raw_sms_retention_days">>
   ) {
     const accessToken = getAccessToken();
     if (!accessToken || settingsState.status !== "ready") return;
@@ -183,6 +196,13 @@ export function SmsSettingsWorkspace() {
     return new Map(settingsState.paymentMethods.map((method) => [method.id, method.name]));
   }, [settingsState]);
 
+  const categoryNameById = useMemo(() => {
+    if (settingsState.status !== "ready") {
+      return new Map<string, string>();
+    }
+    return new Map(settingsState.categories.map((category) => [category.id, category.name]));
+  }, [settingsState]);
+
   async function handlePaymentMethodSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const accessToken = getAccessToken();
@@ -231,6 +251,8 @@ export function SmsSettingsWorkspace() {
     try {
       await createSenderRule(accessToken, {
         account: String(formData.get("account") ?? ""),
+        category: String(formData.get("category") ?? "") || null,
+        default_transaction_type: String(formData.get("default_transaction_type") ?? "") as TransactionType | "",
         match_type: String(formData.get("match_type") ?? "exact") as SenderRuleMatchType,
         name: String(formData.get("name") ?? ""),
         payment_method: String(formData.get("payment_method") ?? "") || null,
@@ -266,6 +288,8 @@ export function SmsSettingsWorkspace() {
       : null;
     setEditingSenderRuleAccount(selected?.account ?? "");
     setEditingSenderRulePaymentMethod(selected?.payment_method ?? "");
+    setEditingSenderRuleCategory(selected?.category ?? "");
+    setEditingSenderRuleTransactionType((selected?.default_transaction_type ?? "") as TransactionType | "");
     setEditingSenderRuleName(selected?.name ?? "");
     setEditingSenderRuleProvider((selected?.provider ?? "bkash") as SenderRuleProvider);
     setEditingSenderRuleSender(selected?.sender ?? "");
@@ -321,6 +345,8 @@ export function SmsSettingsWorkspace() {
     try {
       await updateSenderRule(accessToken, editingSenderRuleId, {
         account: editingSenderRuleAccount,
+        category: editingSenderRuleCategory || null,
+        default_transaction_type: editingSenderRuleTransactionType,
         match_type: editingSenderRuleMatchType,
         name: editingSenderRuleName,
         payment_method: editingSenderRulePaymentMethod || null,
@@ -412,7 +438,7 @@ export function SmsSettingsWorkspace() {
       {!hasAccounts ? (
         <section className="panel">
           <div className="panel__body empty-state">
-            <h1 className="section-title">Create an account first</h1>
+            <h2 className="section-title">Create an account first</h2>
             <p className="section-subtitle">
               Payment methods and sender rules must map SMS activity back to an account.
             </p>
@@ -423,11 +449,49 @@ export function SmsSettingsWorkspace() {
         </section>
       ) : null}
 
-      <section className="panel">
+      <section className="panel settings-overview">
         <div className="panel__body">
-          <h1 className="section-title">Capture policy</h1>
+          <div className="settings-overview__header">
+            <div>
+              <h1 className="section-title">SMS automation settings</h1>
+              <p className="section-subtitle">Control what the app captures, where transactions land, and how long original message text is retained.</p>
+            </div>
+            <span className={`status-badge ${settingsState.deviceStatus.health_state === "healthy" ? "status-badge--ok" : "status-badge--idle"}`}>
+              {settingsState.deviceStatus.health_label}
+            </span>
+          </div>
+          <div className="setup-checklist" aria-label="SMS automation setup progress">
+            <span className={hasAccounts ? "setup-checklist__done" : ""}>1. Account</span>
+            <span className={settingsState.senderRules.some((rule) => rule.is_active) ? "setup-checklist__done" : ""}>2. Trusted sender</span>
+            <span className={settingsState.deviceStatus.sms_permission_state === "granted" ? "setup-checklist__done" : ""}>3. SMS permission</span>
+            <span className={settingsState.deviceStatus.last_successful_sync_at ? "setup-checklist__done" : ""}>4. First sync</span>
+          </div>
+          <div className="settings-tabs" role="tablist" aria-label="SMS settings sections">
+            {([
+              ["capture", "Capture & privacy"],
+              ["senders", `Sender rules (${settingsState.senderRules.length})`],
+              ["payments", `Payment methods (${settingsState.paymentMethods.length})`]
+            ] as const).map(([key, label]) => (
+              <button
+                aria-selected={activeSection === key}
+                className={activeSection === key ? "settings-tab settings-tab--active" : "settings-tab"}
+                key={key}
+                onClick={() => setActiveSection(key)}
+                role="tab"
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {activeSection === "capture" ? <section className="panel">
+        <div className="panel__body">
+          <h2 className="section-title">Capture policy</h2>
           <p className="section-subtitle">
-            Excluded providers and message types keep a server fingerprint for deduplication, but the API does not retain their SMS body.
+            Excluded messages keep only a private duplicate-check ID. Their message text is never stored by the server.
           </p>
           <div className="setup-form">
             <div className="field field--wide">
@@ -437,10 +501,12 @@ export function SmsSettingsWorkspace() {
                   const excluded = settingsState.capturePreference.excluded_providers.includes(provider);
                   return (
                     <button
+                      aria-checked={!excluded}
                       className={`button button--small ${excluded ? "button--danger" : "button--ghost"}`}
                       disabled={updatingCaptureKey !== null}
                       key={provider}
                       onClick={() => toggleProvider(provider)}
+                      role="switch"
                       type="button"
                     >
                       {updatingCaptureKey === `provider:${provider}` ? "Updating…" : `${formatLabel(provider)}: ${excluded ? "Excluded" : "Tracking"}`}
@@ -456,10 +522,12 @@ export function SmsSettingsWorkspace() {
                   const excluded = settingsState.capturePreference.excluded_message_kinds.includes(messageKind);
                   return (
                     <button
+                      aria-checked={!excluded}
                       className={`button button--small ${excluded ? "button--danger" : "button--ghost"}`}
                       disabled={updatingCaptureKey !== null}
                       key={messageKind}
                       onClick={() => toggleMessageKind(messageKind)}
+                      role="switch"
                       type="button"
                     >
                       {updatingCaptureKey === `kind:${messageKind}` ? "Updating…" : `${formatLabel(messageKind)}: ${excluded ? "Excluded" : "Allowed"}`}
@@ -468,14 +536,31 @@ export function SmsSettingsWorkspace() {
                 })}
               </div>
             </div>
+            <label className="field field--wide">
+              <span className="field__label">Original SMS retention after confirmation</span>
+              <select
+                className="field__control"
+                disabled={updatingCaptureKey !== null}
+                onChange={(event) => void updateCapturePreference("retention", {
+                  raw_sms_retention_days: event.target.value === "keep" ? null : Number(event.target.value)
+                })}
+                value={settingsState.capturePreference.raw_sms_retention_days ?? "keep"}
+              >
+                <option value="0">Redact immediately</option>
+                <option value="7">Keep for 7 days</option>
+                <option value="30">Keep for 30 days</option>
+                <option value="keep">Keep until I redact it</option>
+              </select>
+              <span className="field__hint">Confirmed transactions keep parsed evidence such as amount, balance, merchant, and reference.</span>
+            </label>
           </div>
           {capturePreferenceError ? <p className="form-error">{capturePreferenceError}</p> : null}
         </div>
-      </section>
+      </section> : null}
 
-      <section className="panel">
+      {activeSection === "payments" ? <section className="panel">
         <div className="panel__body">
-          <h1 className="section-title">Payment methods</h1>
+          <h2 className="section-title">Payment methods</h2>
           <p className="section-subtitle">
             Link wallets, cards, and bank channels to the account they affect.
           </p>
@@ -625,9 +710,9 @@ export function SmsSettingsWorkspace() {
             </button>
           </form>
         </div>
-      </section>
+      </section> : null}
 
-      <section className="panel">
+      {activeSection === "senders" ? <section className="panel">
         <div className="panel__body">
           <h2 className="section-title">SMS sender rules</h2>
           <p className="section-subtitle">
@@ -654,6 +739,30 @@ export function SmsSettingsWorkspace() {
                 {settingsState.paymentMethods.map((method) => (
                   <option key={method.id} value={method.id}>
                     {method.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span className="field__label">Default category</span>
+              <select className="field__control" disabled={!hasAccounts} name="category">
+                <option value="">Learn during review</option>
+                {settingsState.categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span className="field__label">Default transaction type</span>
+              <select className="field__control" disabled={!hasAccounts} name="default_transaction_type">
+                <option value="">Detect from each message</option>
+                {transactionTypes.map((transactionType) => (
+                  <option key={transactionType} value={transactionType}>
+                    {formatLabel(transactionType)}
                   </option>
                 ))}
               </select>
@@ -726,6 +835,8 @@ export function SmsSettingsWorkspace() {
                     <span className="list-row__meta">
                       {rule.sender} · {formatLabel(rule.provider)} · {rule.match_type} · {accountNameById.get(rule.account) ?? "Unknown account"}
                       {rule.payment_method ? ` · ${paymentMethodNameById.get(rule.payment_method) ?? "Unknown method"}` : ""}
+                      {rule.category ? ` · ${categoryNameById.get(rule.category) ?? "Unknown category"}` : ""}
+                      {rule.default_transaction_type ? ` · ${formatLabel(rule.default_transaction_type)}` : ""}
                     </span>
                   </div>
                   <div className="list-row__actions">
@@ -787,6 +898,36 @@ export function SmsSettingsWorkspace() {
                 {settingsState.paymentMethods.map((method) => (
                   <option key={method.id} value={method.id}>
                     {method.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="field__label">Default category</span>
+              <select
+                className="field__control"
+                onChange={(event) => setEditingSenderRuleCategory(event.target.value)}
+                value={editingSenderRuleCategory}
+              >
+                <option value="">Learn during review</option>
+                {settingsState.categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="field__label">Default transaction type</span>
+              <select
+                className="field__control"
+                onChange={(event) => setEditingSenderRuleTransactionType(event.target.value as TransactionType | "")}
+                value={editingSenderRuleTransactionType}
+              >
+                <option value="">Detect from each message</option>
+                {transactionTypes.map((transactionType) => (
+                  <option key={transactionType} value={transactionType}>
+                    {formatLabel(transactionType)}
                   </option>
                 ))}
               </select>
@@ -863,7 +1004,7 @@ export function SmsSettingsWorkspace() {
             </button>
           </form>
         </div>
-      </section>
+      </section> : null}
     </div>
   );
 }

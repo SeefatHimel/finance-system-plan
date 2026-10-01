@@ -18,6 +18,7 @@ from apps.messages.views import (
     RawMessageRedactView,
     SenderRuleViewSet,
     SmsCapturePreferenceView,
+    SmsDeviceStatusView,
     SmsDevelopmentResetView,
 )
 from apps.payment_methods.views import PaymentMethodViewSet
@@ -49,6 +50,11 @@ urlpatterns = [
         "api/messages/capture-preferences/",
         SmsCapturePreferenceView.as_view(),
         name="sms-capture-preferences",
+    ),
+    path(
+        "api/messages/device-status/",
+        SmsDeviceStatusView.as_view(),
+        name="sms-device-status",
     ),
     path(
         "api/messages/raw/<uuid:message_id>/redact/",

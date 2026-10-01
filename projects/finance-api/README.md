@@ -19,9 +19,14 @@ The API project is scaffolded with:
 - Raw SMS import endpoint with duplicate detection and opt-in reparsing of
   pending duplicates
 - Per-user SMS capture policy for provider and non-transaction message-type
-  exclusions; excluded bodies are replaced by hash-only tombstones before save
+  exclusions and confirmed raw-text retention; excluded bodies are replaced by
+  hash-only tombstones before save
+- Mobile device heartbeat endpoint with permission, queue, error, scan, sync,
+  and derived health status
 - Parsed SMS review inbox with confirm/reject actions, structured rejection
   reasons, optional raw-body redaction, and sender/provider exclusion shortcuts
+- Opt-in review learning that saves corrected account, payment method, category,
+  and transaction type back to the sender rule
 - Basic monthly report endpoint
 - Debt and repayment workflow endpoints
 - Credit card bill and payment workflow endpoints
@@ -217,12 +222,17 @@ POST   /api/messages/sender-rules/
 GET    /api/messages/sender-rules/{id}/
 PATCH  /api/messages/sender-rules/{id}/
 DELETE /api/messages/sender-rules/{id}/
+GET    /api/messages/capture-preferences/
+PATCH  /api/messages/capture-preferences/
+GET    /api/messages/device-status/
+POST   /api/messages/device-status/
 POST   /api/messages/import/
 POST   /api/messages/dev/reset/  # local DEBUG only
 POST   /api/messages/raw/{id}/redact/
 GET    /api/messages/review/
 POST   /api/messages/review/{id}/confirm/
 POST   /api/messages/review/{id}/ignore/
+POST   /api/messages/review/{id}/reject/
 
 GET    /api/transactions/
 POST   /api/transactions/

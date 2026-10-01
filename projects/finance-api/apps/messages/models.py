@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 from hashlib import sha256
 
@@ -44,11 +45,31 @@ class SenderRule(models.Model):
         null=True,
         related_name="sender_rules",
     )
+    category = models.ForeignKey(
+        "categories.Category",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="sender_rules",
+    )
     name = models.CharField(max_length=120)
     provider = models.CharField(max_length=32, choices=Provider.choices)
     sender = models.CharField(max_length=120)
     match_type = models.CharField(max_length=32, choices=MatchType.choices, default=MatchType.EXACT)
     pattern = models.CharField(max_length=255, blank=True)
+    default_transaction_type = models.CharField(
+        max_length=32,
+        choices=(
+            ("expense", "Expense"),
+            ("income", "Income"),
+            ("transfer", "Transfer"),
+            ("adjustment", "Adjustment"),
+            ("fee", "Fee"),
+            ("refund", "Refund"),
+        ),
+        blank=True,
+        default="",
+    )
     priority = models.PositiveIntegerField(default=100)
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
@@ -93,6 +114,13 @@ class SmsCapturePreference(models.Model):
     excluded_message_kinds = models.JSONField(
         default=default_excluded_message_kinds,
         blank=True,
+    )
+    raw_sms_retention_days = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        default=30,
+        validators=[MaxValueValidator(3650)],
+        help_text="Days to retain raw SMS after confirmation. Zero redacts immediately; null keeps it.",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -242,6 +270,13 @@ class ParsedMessageCandidate(models.Model):
         null=True,
         related_name="parsed_message_candidates",
     )
+    category = models.ForeignKey(
+        "categories.Category",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="parsed_message_candidates",
+    )
     destination_account = models.ForeignKey(
         "accounts.Account",
         on_delete=models.PROTECT,
@@ -318,3 +353,77 @@ class ParsedMessageCandidate(models.Model):
 
     def __str__(self) -> str:
         return f"{self.raw_message.sender} {self.status}"
+
+
+class SmsDeviceStatus(models.Model):
+    class PermissionState(models.TextChoices):
+        UNKNOWN = "unknown", "Unknown"
+        GRANTED = "granted", "Granted"
+        DENIED = "denied", "Denied"
+
+    class BackgroundState(models.TextChoices):
+        IDLE = "idle", "Idle"
+        RUNNING = "running", "Running"
+        SUCCESS = "success", "Success"
+        ERROR = "error", "Error"
+        DISABLED = "disabled", "Disabled"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sms_device_status",
+    )
+    device_id = models.CharField(max_length=120, blank=True, default="")
+    platform = models.CharField(max_length=32, blank=True, default="android")
+    app_version = models.CharField(max_length=32, blank=True, default="")
+    sms_permission_state = models.CharField(
+        max_length=16,
+        choices=PermissionState.choices,
+        default=PermissionState.UNKNOWN,
+    )
+    background_state = models.CharField(
+        max_length=16,
+        choices=BackgroundState.choices,
+        default=BackgroundState.IDLE,
+    )
+    pending_upload_count = models.PositiveIntegerField(default=0)
+    failed_upload_count = models.PositiveIntegerField(default=0)
+    last_error = models.CharField(max_length=255, blank=True, default="")
+    last_scan_at = models.DateTimeField(blank=True, null=True)
+    last_successful_sync_at = models.DateTimeField(blank=True, null=True)
+    last_seen_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"SMS device status for {self.user}"
+
+    @property
+    def health_state(self):
+        if self.sms_permission_state != self.PermissionState.GRANTED:
+            return "permission_required"
+        if self.background_state == self.BackgroundState.DISABLED:
+            return "background_disabled"
+        if self.background_state == self.BackgroundState.ERROR or self.failed_upload_count:
+            return "error"
+        if self.background_state == self.BackgroundState.RUNNING:
+            return "syncing"
+        if self.last_seen_at < timezone.now() - timedelta(hours=24):
+            return "offline"
+        if self.last_successful_sync_at is None:
+            return "setup_required"
+        return "healthy"
+
+    @property
+    def health_label(self):
+        labels = {
+            "permission_required": "SMS permission required",
+            "background_disabled": "Background sync is disabled",
+            "error": "Sync needs attention",
+            "syncing": "Sync in progress",
+            "offline": "Mobile app has not checked in",
+            "setup_required": "Run the first SMS scan",
+            "healthy": "Mobile sync healthy",
+        }
+        return labels[self.health_state]

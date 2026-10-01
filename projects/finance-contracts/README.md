@@ -94,7 +94,11 @@ bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
   message id, and duplicate key.
 - Capture preferences are user-scoped. Excluded providers and message kinds
   preserve only a deduplication tombstone; their original SMS body is not kept
-  by the API.
+  by the API. Confirmed raw-text retention is explicit and defaults to 30 days.
+- Mobile clients report device sync health through a user-scoped heartbeat;
+  dashboards must use this status rather than infer health from review records.
+- Review confirmation can explicitly remember corrected account, payment
+  method, category, and transaction type defaults on the sender rule.
 - Candidate rejection records a reason and may atomically redact the raw body,
   disable the matched sender rule, or add the provider to capture exclusions.
 - Transaction create, update, and delete actions expose read-only audit log
@@ -139,6 +143,9 @@ DELETE /api/messages/sender-rules/{id}/
 
 GET    /api/messages/capture-preferences/
 PATCH  /api/messages/capture-preferences/
+
+GET    /api/messages/device-status/
+POST   /api/messages/device-status/
 
 POST   /api/messages/import/
 POST   /api/messages/raw/{id}/redact/

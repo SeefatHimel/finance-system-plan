@@ -149,27 +149,35 @@ action being performed.
 ## What does the current SMS settings page do?
 
 The SMS settings page uses the saved local JWT access token to load accounts,
-payment methods, sender rules, and SMS capture preferences. It supports
+payment methods, sender rules, SMS capture preferences, and actual mobile
+device health. A setup checklist and focused tabs separate capture/privacy,
+sender rules, and payment methods. It supports
 creating, listing, updating, and deleting payment methods and sender rules so
 SMS import can map trusted senders back to real accounts. Provider dropdowns
 include the contract-supported
 wallet, bank, card, EBL, City Bank, and Pathao Pay values used by parser and
 sender-rule workflows. Capture policy controls can exclude entire providers or
 OTP/security and balance-notice message kinds; the API enforces the choice
-before retaining the raw SMS body.
+before retaining the raw SMS body. The user can also choose whether confirmed
+raw SMS text is removed immediately, after 7 or 30 days, or kept until manual
+redaction.
 
 ## What does the current SMS review page do?
 
-The SMS review page uses the saved local JWT access token to load pending parsed
-message candidates, accounts, and categories. It shows raw SMS evidence, parser
+The SMS review page uses a queue-and-detail layout rather than rendering every
+candidate as a full form. Reviewers can search, filter by provider or issue,
+navigate between candidates, and keep context while editing one focused item.
+It shows raw SMS evidence, parser
 notes, parser confidence, review or duplicate reason, detected
 provider/message kind, amount, reference, balance, fee, counterparty text, and
 possible internal-transfer/related-message hints. The user can confirm a
 candidate into an SMS-sourced transaction or reject it with a reason. Rejection
 can also redact the original SMS, deactivate the matched sender rule, or exclude
-the provider. The confirmation flow
-now supports debit/credit direction and transfer destination selection, and the
-resulting transaction preserves reference, balance, and counterparty evidence.
+the provider. The confirmation flow supports debit/credit direction and
+transfer destination selection, and can explicitly remember corrected account,
+category, payment method, and type as future defaults on the matched sender
+rule. The resulting transaction preserves reference, balance, and counterparty
+evidence without copying the complete SMS into its note.
 The page can also redact the raw SMS body after review while keeping parsed
 ledger evidence available.
 

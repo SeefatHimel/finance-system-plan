@@ -17,6 +17,7 @@ from .models import (
     RawMessage,
     SenderRule,
     SmsCapturePreference,
+    SmsDeviceStatus,
     default_excluded_message_kinds,
 )
 from .parsers import find_sender_rule, parse_raw_message
@@ -28,6 +29,7 @@ from .serializers import (
     RawMessageSerializer,
     SenderRuleSerializer,
     SmsCapturePreferenceSerializer,
+    SmsDeviceStatusSerializer,
 )
 
 
@@ -39,6 +41,7 @@ class SenderRuleViewSet(ModelViewSet):
         return SenderRule.objects.filter(user=self.request.user).select_related(
             "account",
             "payment_method",
+            "category",
         )
 
     def perform_create(self, serializer):
@@ -64,6 +67,41 @@ class SmsCapturePreferenceView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        return Response(serializer.data)
+
+
+class SmsDeviceStatusView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        device_status = SmsDeviceStatus.objects.filter(user=request.user).first()
+        if device_status is None:
+            return Response(
+                {
+                    "device_id": "",
+                    "platform": "android",
+                    "app_version": "",
+                    "sms_permission_state": "unknown",
+                    "background_state": "disabled",
+                    "pending_upload_count": 0,
+                    "failed_upload_count": 0,
+                    "last_error": "",
+                    "last_scan_at": None,
+                    "last_successful_sync_at": None,
+                    "last_seen_at": None,
+                    "health_state": "not_connected",
+                    "health_label": "Connect the mobile app",
+                    "created_at": None,
+                    "updated_at": None,
+                }
+            )
+        return Response(SmsDeviceStatusSerializer(device_status).data)
+
+    def post(self, request):
+        device_status, _created = SmsDeviceStatus.objects.get_or_create(user=request.user)
+        serializer = SmsDeviceStatusSerializer(device_status, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(last_seen_at=timezone.now())
         return Response(serializer.data)
 
 
@@ -144,7 +182,11 @@ class RawMessageImportView(APIView):
                         status=RawMessage.Status.IGNORED,
                     )
             except IntegrityError:
-                raw_message = self._find_duplicate(request.user, payload, body_hash)
+                raw_message = self._find_duplicate(
+                    user=request.user,
+                    body_hash=body_hash,
+                    device_message_id=payload.get("device_message_id", ""),
+                )
                 return Response(
                     {
                         "candidate": None,
@@ -222,6 +264,7 @@ class RawMessageImportView(APIView):
             sender_rule=parsed["sender_rule"],
             account=parsed["account"],
             payment_method=parsed["payment_method"],
+            category=parsed["category"],
             destination_account=parsed["destination_account"],
             destination_payment_method=parsed["destination_payment_method"],
             provider=parsed["provider"],
@@ -249,6 +292,7 @@ class RawMessageImportView(APIView):
             "sender_rule",
             "account",
             "payment_method",
+            "category",
             "destination_account",
             "destination_payment_method",
             "provider",
@@ -343,6 +387,7 @@ class MessageReviewListView(APIView):
                 "sender_rule",
                 "account",
                 "payment_method",
+                "category",
                 "destination_account",
                 "destination_payment_method",
                 "possible_related_candidate",
@@ -396,6 +441,7 @@ class MessageCandidateConfirmView(APIView):
         account = payload.get("account") or candidate.account
         transfer_account = payload.get("transfer_account") or candidate.destination_account
         payment_method = payload.get("payment_method") or candidate.payment_method
+        category = payload.get("category") if "category" in payload else candidate.category
         amount = payload.get("amount") or candidate.amount
         balance_after = (
             payload.get("balance_after")
@@ -460,7 +506,7 @@ class MessageCandidateConfirmView(APIView):
             user=request.user,
             account=account,
             transfer_account=transfer_account,
-            category=payload.get("category"),
+            category=category,
             payment_method=payment_method,
             raw_message=candidate.raw_message,
             date=transaction_date,
@@ -471,7 +517,7 @@ class MessageCandidateConfirmView(APIView):
             reference=reference,
             counterparty_text=counterparty_text,
             external_key=external_key,
-            note=payload.get("note", candidate.raw_message.body),
+            note=payload.get("note") or self._build_transaction_note(candidate),
             source=Transaction.Source.SMS,
             needs_review=False,
         )
@@ -479,7 +525,34 @@ class MessageCandidateConfirmView(APIView):
         candidate.status = ParsedMessageCandidate.Status.CONFIRMED
         candidate.save(update_fields=("transaction", "status", "updated_at"))
 
+        if payload["remember_mapping"] and candidate.sender_rule:
+            sender_rule = candidate.sender_rule
+            sender_rule.account = account
+            sender_rule.payment_method = payment_method
+            sender_rule.category = category
+            sender_rule.default_transaction_type = transaction_type
+            sender_rule.save(
+                update_fields=(
+                    "account",
+                    "payment_method",
+                    "category",
+                    "default_transaction_type",
+                    "updated_at",
+                )
+            )
+
+        capture_preference, _created = SmsCapturePreference.objects.get_or_create(user=request.user)
+        retention_days = capture_preference.raw_sms_retention_days
+        if retention_days == 0:
+            candidate.raw_message.redact()
+
         return Response(ParsedMessageCandidateSerializer(candidate).data)
+
+    def _build_transaction_note(self, candidate):
+        parts = [candidate.get_message_kind_display()]
+        if candidate.counterparty_text:
+            parts.append(candidate.counterparty_text)
+        return " · ".join(parts)
 
     def _get_candidate(self, user, candidate_id):
         return get_object_or_404(
@@ -488,6 +561,7 @@ class MessageCandidateConfirmView(APIView):
                 "sender_rule",
                 "account",
                 "payment_method",
+                "category",
                 "destination_account",
                 "destination_payment_method",
                 "possible_related_candidate",

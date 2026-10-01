@@ -93,6 +93,10 @@ paths, and physical-phone SMS smoke test are documented in
   messages, and balance notices. Excluded providers are removed from native
   capture; the backend replaces any policy-excluded body with a deduplication
   tombstone before storage.
+- A dedicated Capture tab with a four-step setup checklist, explicit permission
+  and background-sync state, provider/message-kind switches, and raw-text
+  retention choices. The app sends device heartbeats so the web dashboard can
+  distinguish ready, syncing, offline, permission, and failure states.
 - Native sender discovery that reads distinct Android inbox sender names,
   timestamps, and counts without showing message bodies. The user can search,
   choose a sender, map it to an account and provider, create the backend exact
@@ -112,9 +116,11 @@ paths, and physical-phone SMS smoke test are documented in
   or Expo SecureStore as a fallback, with sync to `POST /api/messages/import/`,
   local duplicate checks, per-message retry metadata, capped retry backoff, and
   manual removal for invalid queued messages.
-- Review rejection with a structured reason plus optional raw-body redaction,
-  sender deactivation, and provider exclusion. Scan/sync feedback reports how
-  many messages the server discarded because of capture policy.
+- A one-candidate-at-a-time review flow with previous/next navigation. Confirmed
+  corrections are remembered for the matched sender rule; rejection uses one
+  decision dialog for message-only, sender, or provider scope. Scan/sync
+  feedback reports imported, duplicate, rejected, queued, and policy-discarded
+  counts.
 
 The login/token flow now persists the rotated JWT pair in OS-backed secure
 storage rather than AsyncStorage and restores the session on relaunch. Access

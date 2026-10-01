@@ -2334,3 +2334,105 @@ textarea {
   .app-main--navigating,
   .route-transition { transform: none; }
 }
+
+/* SMS automation workflow */
+.cash-flow-empty {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  min-height: 210px;
+  padding: 24px;
+  text-align: center;
+}
+
+.cash-flow-empty strong { color: var(--foreground); font-size: 16px; }
+.cash-flow-empty a { align-items: center; color: var(--accent); display: inline-flex; font-weight: 750; gap: 6px; margin-top: 4px; }
+.mobile-sync-status--error > span { color: var(--danger); }
+.mobile-sync-status--pending > span { color: var(--warning); }
+.mobile-sync-status--healthy > span { color: var(--accent); }
+
+.settings-overview__header { align-items: flex-start; display: flex; gap: 18px; justify-content: space-between; }
+.setup-checklist { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 22px; }
+.setup-checklist span { background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; color: var(--muted); font-size: 13px; font-weight: 700; min-height: 44px; padding: 12px; }
+.setup-checklist .setup-checklist__done { background: var(--accent-soft); border-color: #23654f; color: var(--accent); }
+.settings-tabs { border-bottom: 1px solid var(--panel-border); display: flex; gap: 24px; margin-top: 24px; overflow-x: auto; }
+.settings-tab { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; font-size: 14px; font-weight: 750; min-height: 46px; padding: 0 2px; white-space: nowrap; }
+.settings-tab--active { border-bottom-color: var(--accent); color: var(--foreground); }
+.settings-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field__hint { color: var(--muted); display: block; font-size: 12px; line-height: 1.45; margin-top: 6px; }
+
+.form-success { align-items: center; background: var(--accent-soft); border: 1px solid #23654f; border-radius: 8px; color: var(--accent); display: flex; gap: 8px; margin: 0; padding: 12px 14px; }
+.review-split { align-items: start; display: grid; gap: 18px; grid-template-columns: minmax(280px, 0.34fr) minmax(0, 1fr); }
+.review-queue { max-height: calc(100vh - 170px); overflow: hidden; position: sticky; top: 96px; }
+.review-queue__filters { border-bottom: 1px solid var(--panel-border); display: grid; gap: 10px; padding: 14px; }
+.review-search { align-items: center; background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; display: flex; gap: 8px; min-height: 44px; padding: 0 12px; }
+.review-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgb(85 230 165 / 10%); }
+.review-search input { background: transparent; border: 0; color: var(--foreground); min-width: 0; outline: 0; width: 100%; }
+.review-filter-row { align-items: center; display: grid; gap: 8px; grid-template-columns: auto 1fr 1fr; }
+.review-filter-row select { background: #0a1725; border: 1px solid var(--panel-border); border-radius: 7px; color: var(--foreground); min-height: 40px; padding: 0 9px; min-width: 0; }
+.review-queue__list { max-height: calc(100vh - 302px); overflow-y: auto; padding: 7px; }
+.review-queue-item { background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--foreground); cursor: pointer; display: grid; gap: 5px; min-height: 116px; padding: 12px; text-align: left; width: 100%; }
+.review-queue-item:hover { background: #102238; }
+.review-queue-item--active { background: #12352f; border-color: #28634f; }
+.review-queue-item__top { align-items: center; display: flex; justify-content: space-between; }
+.review-queue-item__top strong { font-size: 17px; }
+.review-queue-item small { color: var(--muted); }
+.review-queue-item__issue, .review-queue-item__ready { color: var(--warning); font-size: 12px; font-weight: 750; }
+.review-queue-item__ready { color: var(--accent); }
+.review-queue__empty { color: var(--muted); padding: 28px 14px; text-align: center; }
+.review-detail { min-width: 0; overflow: clip; }
+.review-detail form { min-width: 0; }
+.review-detail__header { align-items: flex-start; border-bottom: 1px solid var(--panel-border); display: flex; justify-content: space-between; padding: 22px; }
+.review-detail__pager { align-items: center; display: flex; gap: 9px; }
+.review-detail__pager button { align-items: center; background: #0a1725; border: 1px solid var(--panel-border); border-radius: 7px; color: var(--foreground); cursor: pointer; display: inline-flex; height: 40px; justify-content: center; width: 40px; }
+.review-detail__pager button:disabled { cursor: default; opacity: 0.35; }
+.review-detail__pager span { color: var(--muted); font-size: 13px; font-weight: 700; }
+.review-issue-bar { align-items: flex-start; background: #2b2414; border-bottom: 1px solid #4a3b1d; color: var(--warning); display: flex; gap: 10px; padding: 14px 22px; }
+.review-issue-bar div { display: grid; gap: 3px; }
+.review-issue-bar span { color: #d4c7aa; font-size: 12px; }
+.review-issue-chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 16px 22px 0; }
+.review-issue-chips span { background: #2b2414; border: 1px solid #4a3b1d; border-radius: 999px; color: var(--warning); font-size: 12px; font-weight: 750; padding: 6px 9px; }
+.review-issue-chips .review-issue-chip--ready { background: var(--accent-soft); border-color: #23654f; color: var(--accent); }
+.review-form--focused { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding: 18px 22px 22px; }
+.review-remember { align-items: flex-start; background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; display: flex; gap: 10px; min-height: 58px; padding: 12px; }
+.review-remember input { margin-top: 3px; }
+.review-remember span { display: grid; gap: 3px; }
+.review-remember small { color: var(--muted); line-height: 1.4; }
+.review-detail .raw-message { background: #0a1725; border-color: var(--panel-border); margin: 0 22px 96px; }
+.review-sticky-actions { align-items: center; backdrop-filter: blur(12px); background: rgb(14 28 44 / 94%); border-top: 1px solid var(--panel-border); bottom: 0; display: flex; gap: 10px; justify-content: flex-end; padding: 14px 22px; position: sticky; z-index: 5; }
+.review-sticky-actions > div { display: grid; gap: 2px; margin-right: auto; }
+.review-sticky-actions > div span { color: var(--muted); font-size: 12px; }
+.modal-backdrop { align-items: center; background: rgb(2 8 15 / 76%); display: flex; inset: 0; justify-content: center; padding: 18px; position: fixed; z-index: 100; }
+.decision-modal { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px; box-shadow: var(--shadow); max-width: 520px; padding: 24px; position: relative; width: 100%; }
+.decision-modal h2 { margin: 0 36px 6px 0; }
+.decision-modal > p { color: var(--muted); line-height: 1.5; margin: 0 0 20px; }
+.decision-modal form { display: grid; gap: 14px; }
+.decision-modal__close { align-items: center; background: transparent; border: 0; color: var(--muted); cursor: pointer; display: inline-flex; height: 44px; justify-content: center; position: absolute; right: 10px; top: 10px; width: 44px; }
+.decision-modal__actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+
+@media (max-width: 1000px) {
+  .review-split { grid-template-columns: minmax(240px, 0.4fr) minmax(0, 1fr); }
+  .review-form--focused { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .settings-overview__header { display: grid; }
+  .setup-checklist { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .review-split { display: block; }
+  .review-queue { max-height: none; position: static; }
+  .review-queue__list { display: flex; gap: 8px; max-height: none; overflow-x: auto; padding: 8px; scroll-snap-type: x mandatory; }
+  .review-queue-item { flex: 0 0 82%; scroll-snap-align: start; }
+  .review-detail { margin-top: 14px; }
+  .review-detail__header { gap: 16px; padding: 18px; }
+  .review-detail__pager span { display: none; }
+  .review-issue-bar { padding: 13px 18px; }
+  .review-issue-chips { padding: 14px 18px 0; }
+  .review-form--focused { padding: 16px 18px 20px; }
+  .review-detail .raw-message { margin: 0 18px 112px; }
+  .review-sticky-actions { display: grid; grid-template-columns: 0.75fr 1.25fr; padding: 12px 18px; }
+  .review-sticky-actions > div { grid-column: 1 / -1; }
+  .review-sticky-actions .button { min-height: 46px; }
+}

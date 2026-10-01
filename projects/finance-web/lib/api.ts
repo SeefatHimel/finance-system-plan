@@ -94,6 +94,8 @@ const paymentMethodSchema = z.object({
 
 const senderRuleSchema = z.object({
   account: z.string(),
+  category: z.string().nullable(),
+  default_transaction_type: z.string(),
   id: z.string(),
   is_active: z.boolean(),
   match_type: z.string(),
@@ -126,6 +128,7 @@ const parsedMessageCandidateSchema = z.object({
   amount: z.string().nullable(),
   balance_after: z.string().nullable(),
   confidence: z.string(),
+  category: z.string().nullable(),
   counterparty_text: z.string(),
   created_at: z.string(),
   destination_account: z.string().nullable(),
@@ -156,7 +159,26 @@ const smsCapturePreferenceSchema = z.object({
   created_at: z.string(),
   excluded_message_kinds: z.array(z.string()),
   excluded_providers: z.array(z.string()),
+  raw_sms_retention_days: z.number().nullable(),
   updated_at: z.string()
+});
+
+const smsDeviceStatusSchema = z.object({
+  app_version: z.string(),
+  background_state: z.string(),
+  created_at: z.string().nullable(),
+  device_id: z.string(),
+  failed_upload_count: z.number(),
+  health_label: z.string(),
+  health_state: z.enum(["not_connected", "permission_required", "background_disabled", "error", "syncing", "offline", "setup_required", "healthy"]),
+  last_error: z.string(),
+  last_scan_at: z.string().nullable(),
+  last_seen_at: z.string().nullable(),
+  last_successful_sync_at: z.string().nullable(),
+  pending_upload_count: z.number(),
+  platform: z.string(),
+  sms_permission_state: z.string(),
+  updated_at: z.string().nullable()
 });
 
 const transactionSchema = z.object({
@@ -347,6 +369,7 @@ export type SenderRule = z.infer<typeof senderRuleSchema>;
 export type ParsedMessageCandidate = z.infer<typeof parsedMessageCandidateSchema>;
 export type RawMessage = z.infer<typeof rawMessageSchema>;
 export type SmsCapturePreference = z.infer<typeof smsCapturePreferenceSchema>;
+export type SmsDeviceStatus = z.infer<typeof smsDeviceStatusSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
 export type MonthlyReport = z.infer<typeof monthlyReportSchema>;
 export type Debt = z.infer<typeof debtSchema>;
@@ -751,7 +774,7 @@ export async function getSmsCapturePreference(accessToken: string): Promise<SmsC
 
 export async function updateSmsCapturePreference(
   accessToken: string,
-  input: Partial<Pick<SmsCapturePreference, "excluded_message_kinds" | "excluded_providers">>
+  input: Partial<Pick<SmsCapturePreference, "excluded_message_kinds" | "excluded_providers" | "raw_sms_retention_days">>
 ): Promise<SmsCapturePreference> {
   const response = await authenticatedFetch("/api/messages/capture-preferences/", accessToken, {
     body: JSON.stringify(input),
@@ -759,6 +782,11 @@ export async function updateSmsCapturePreference(
     method: "PATCH"
   });
   return smsCapturePreferenceSchema.parse(await response.json());
+}
+
+export async function getSmsDeviceStatus(accessToken: string): Promise<SmsDeviceStatus> {
+  const response = await authenticatedFetch("/api/messages/device-status/", accessToken);
+  return smsDeviceStatusSchema.parse(await response.json());
 }
 
 export async function createSenderRule(

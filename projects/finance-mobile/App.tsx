@@ -52,6 +52,7 @@ import {
   rejectMessageCandidate,
   resetSmsDevelopmentData,
   updateSmsCapturePreference,
+  updateSmsDeviceStatus,
   type Account,
   type AccountReconciliation,
   type Category,
@@ -91,7 +92,7 @@ import { loadSecureSmsQueue, saveSecureSmsQueue } from "./src/secure-sms-queue";
 type ViewState = "idle" | "loading" | "success" | "error";
 type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
 type SmsScanMode = "new" | "history";
-type MainTab = "home" | "activity" | "review" | "accounts" | "more";
+type MainTab = "home" | "activity" | "capture" | "review" | "more";
 type HomeFeed = "review" | "captured";
 type MobilePanel = "sms-automation" | null;
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
@@ -781,6 +782,7 @@ export default function App() {
     created_at: "",
     excluded_message_kinds: ["otp_or_security"],
     excluded_providers: [],
+    raw_sms_retention_days: 30,
     updated_at: ""
   });
   const [updatingCaptureKey, setUpdatingCaptureKey] = useState("");
@@ -791,6 +793,8 @@ export default function App() {
   const [selectedSmsSender, setSelectedSmsSender] = useState("");
   const [newSenderRuleName, setNewSenderRuleName] = useState("");
   const [newSenderAccountId, setNewSenderAccountId] = useState("");
+  const [newSenderCategoryId, setNewSenderCategoryId] = useState("");
+  const [newSenderTransactionType, setNewSenderTransactionType] = useState("");
   const [newSenderProvider, setNewSenderProvider] = useState("other");
   const [smsSenderDiscoveryState, setSmsSenderDiscoveryState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [smsSenderDiscoveryMessage, setSmsSenderDiscoveryMessage] = useState("");
@@ -816,6 +820,7 @@ export default function App() {
   const [reviewCandidates, setReviewCandidates] = useState<ParsedMessageCandidate[]>([]);
   const [reviewActionCandidateId, setReviewActionCandidateId] = useState("");
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewCandidateDraft>>({});
+  const [reviewCandidateIndex, setReviewCandidateIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<MainTab>("home");
   const [homeFeed, setHomeFeed] = useState<HomeFeed>("review");
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -1215,6 +1220,7 @@ export default function App() {
         accounts.length ? Promise.resolve(accounts) : listAccounts(accessToken.trim())
       ]);
       setReviewCandidates(candidates);
+      setReviewCandidateIndex((current) => Math.min(current, Math.max(0, candidates.length - 1)));
       if (!accounts.length) {
         setAccounts(nextAccounts);
       }
@@ -1281,6 +1287,7 @@ export default function App() {
         note: draft.note.trim(),
         payment_method: draft.paymentMethodId || null,
         reference: draft.reference.trim(),
+        remember_mapping: true,
         transfer_account: draft.transactionType === "transfer" ? draft.transferAccountId : null,
         type: draft.transactionType
       });
@@ -1296,7 +1303,7 @@ export default function App() {
   const buildReviewDraft = (candidate: ParsedMessageCandidate): ReviewCandidateDraft => ({
     accountId: candidate.account ?? "",
     amount: candidate.amount ?? "",
-    categoryId: "",
+    categoryId: candidate.category ?? "",
     counterpartyText: candidate.counterparty_text,
     date: candidate.raw_message.received_at.slice(0, 10),
     note: "",
@@ -1354,24 +1361,26 @@ export default function App() {
     }
   };
 
-  const confirmRejectReviewCandidate = (
-    candidate: ParsedMessageCandidate,
-    exclusion: "entry" | "provider" | "sender" = "entry"
-  ) => {
-    const target = exclusion === "provider"
-      ? ` and exclude every future ${titleCase(candidate.provider)} message`
-      : exclusion === "sender"
-        ? ` and disable sender ${candidate.raw_message.sender}`
-        : "";
+  const confirmRejectReviewCandidate = (candidate: ParsedMessageCandidate) => {
     Alert.alert(
-      "Reject this SMS?",
-      `The message will be rejected and its stored body redacted${target}.`,
+      "Reject this message",
+      "Choose whether this decision applies only to this message or to future captures. The stored SMS body will be redacted.",
       [
         { style: "cancel", text: "Cancel" },
         {
-          onPress: () => void handleRejectReviewCandidate(candidate, exclusion),
+          onPress: () => void handleRejectReviewCandidate(candidate, "entry"),
           style: "destructive",
-          text: "Reject"
+          text: "Only this message"
+        },
+        {
+          onPress: () => void handleRejectReviewCandidate(candidate, "sender"),
+          style: "destructive",
+          text: `Disable ${candidate.raw_message.sender}`
+        },
+        {
+          onPress: () => void handleRejectReviewCandidate(candidate, "provider"),
+          style: "destructive",
+          text: `Exclude ${titleCase(candidate.provider)}`
         }
       ]
     );
@@ -1393,6 +1402,16 @@ export default function App() {
           ? "SMS access is ready. Choose trusted senders and start the sync."
           : "Allow read and receive access so Finance Mobile can find matching messages."
       );
+      if (accessToken.trim()) {
+        await updateSmsDeviceStatus(accessToken.trim(), {
+          app_version: "0.1.0",
+          background_state: isGranted ? "idle" : "disabled",
+          device_id: "android-primary",
+          pending_upload_count: rawQueue.length,
+          platform: Platform.OS,
+          sms_permission_state: isGranted ? "granted" : "denied"
+        }).catch(() => undefined);
+      }
     } catch (error) {
       setSmsPermissionState("denied");
       setSmsPermissionMessage(error instanceof Error ? error.message : "Could not check SMS permission.");
@@ -1402,6 +1421,18 @@ export default function App() {
   const refreshSmsBackgroundStatus = async () => {
     const nextStatus = await getNativeSmsBackgroundSyncStatus();
     setSmsBackgroundStatus(nextStatus);
+    if (accessToken.trim() && nextStatus) {
+      await updateSmsDeviceStatus(accessToken.trim(), {
+        app_version: "0.1.0",
+        background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
+        device_id: "android-primary",
+        failed_upload_count: nextStatus.rejectedCount,
+        last_error: nextStatus.state === "error" ? nextStatus.message : "",
+        pending_upload_count: rawQueue.length,
+        platform: Platform.OS,
+        sms_permission_state: smsPermissionState === "granted" ? "granted" : smsPermissionState === "denied" ? "denied" : "unknown"
+      }).catch(() => undefined);
+    }
   };
 
   const handleRetrySmsBackgroundSync = async () => {
@@ -1467,11 +1498,30 @@ export default function App() {
       if (hasReadSms && hasReceiveSms && nativeStatus.canReadSms && nativeStatus.canReceiveSms) {
         setSmsPermissionState("granted");
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
+        if (accessToken.trim()) {
+          await updateSmsDeviceStatus(accessToken.trim(), {
+            app_version: "0.1.0",
+            background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
+            device_id: "android-primary",
+            pending_upload_count: rawQueue.length,
+            platform: Platform.OS,
+            sms_permission_state: "granted"
+          }).catch(() => undefined);
+        }
         return;
       }
 
       setSmsPermissionState("denied");
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
+      if (accessToken.trim()) {
+        await updateSmsDeviceStatus(accessToken.trim(), {
+          app_version: "0.1.0",
+          background_state: "disabled",
+          device_id: "android-primary",
+          platform: Platform.OS,
+          sms_permission_state: "denied"
+        }).catch(() => undefined);
+      }
     } catch (error) {
       setSmsPermissionState("denied");
       setSmsPermissionMessage(error instanceof Error ? error.message : "Could not request SMS permission.");
@@ -1533,6 +1583,8 @@ export default function App() {
     try {
       const createdRule = await createSenderRule(accessToken.trim(), {
         account: newSenderAccountId,
+        category: newSenderCategoryId || null,
+        default_transaction_type: newSenderTransactionType,
         match_type: "exact",
         name: newSenderRuleName.trim(),
         provider: newSenderProvider,
@@ -1552,6 +1604,8 @@ export default function App() {
       setSmsRuleCreateMessage(`${createdRule.sender} is now tracked and mapped to the selected account.`);
       setSelectedSmsSender("");
       setNewSenderRuleName("");
+      setNewSenderCategoryId("");
+      setNewSenderTransactionType("");
       setSmsSenderSearch("");
     } catch (error) {
       setSmsRuleCreateState("error");
@@ -1697,6 +1751,13 @@ export default function App() {
 
     setRawQueueState("loading");
     setRawQueueMessage("Checking Android SMS access…");
+    await updateSmsDeviceStatus(accessToken.trim(), {
+      background_state: "running",
+      device_id: "android-primary",
+      pending_upload_count: rawQueue.length,
+      platform: Platform.OS,
+      sms_permission_state: "granted"
+    }).catch(() => undefined);
 
     try {
       const permission = await getNativeSmsPermissionStatus();
@@ -1824,9 +1885,25 @@ export default function App() {
       setRawQueueMessage(
         `Scanned ${scanResult.scannedCount} SMS. Imported ${importedCount}, excluded ${excludedCount} by capture policy, refreshed ${reprocessedCount}, skipped ${duplicateCount + localDuplicateCount + scanResult.duplicateCount}, and kept ${failedCount} for retry. ${syncedCount} sync request(s) completed.`
       );
+      const completedAt = new Date().toISOString();
+      await updateSmsDeviceStatus(accessToken.trim(), {
+        background_state: failedCount > 0 ? "error" : "success",
+        failed_upload_count: failedCount,
+        last_error: failedCount > 0 ? `${failedCount} message(s) are waiting for retry.` : "",
+        last_scan_at: completedAt,
+        last_successful_sync_at: failedCount > 0 ? undefined : completedAt,
+        pending_upload_count: remainingQueue.length,
+        sms_permission_state: "granted"
+      }).catch(() => undefined);
     } catch (error) {
       setRawQueueState("error");
       setRawQueueMessage(error instanceof Error ? error.message : "Could not scan and sync SMS messages.");
+      await updateSmsDeviceStatus(accessToken.trim(), {
+        background_state: "error",
+        failed_upload_count: Math.max(1, rawQueue.length),
+        last_error: error instanceof Error ? error.message : "Could not scan and sync SMS messages.",
+        pending_upload_count: rawQueue.length
+      }).catch(() => undefined);
     }
   };
 
@@ -1971,6 +2048,37 @@ export default function App() {
     } catch (error) {
       setSmsSettingsState("error");
       setSmsSettingsMessage(error instanceof Error ? error.message : "Could not update capture policy.");
+    } finally {
+      setUpdatingCaptureKey("");
+    }
+  };
+
+  const handleUpdateSmsRetention = async (retentionDays: number | null) => {
+    if (!accessToken.trim()) {
+      setSmsSettingsState("error");
+      setSmsSettingsMessage("Sign in before updating SMS privacy settings.");
+      return;
+    }
+
+    setUpdatingCaptureKey("retention");
+    setSmsSettingsState("loading");
+    setSmsSettingsMessage("Updating SMS retention…");
+    try {
+      const nextPreference = await updateSmsCapturePreference(accessToken.trim(), {
+        raw_sms_retention_days: retentionDays
+      });
+      setSmsCapturePreference(nextPreference);
+      setSmsSettingsState("ok");
+      setSmsSettingsMessage(
+        retentionDays === null
+          ? "Original SMS text will be kept until you redact it."
+          : retentionDays === 0
+            ? "Original SMS text will be removed after confirmation."
+            : `Original SMS text will be kept for ${retentionDays} days after confirmation.`
+      );
+    } catch (error) {
+      setSmsSettingsState("error");
+      setSmsSettingsMessage(error instanceof Error ? error.message : "Could not update SMS retention.");
     } finally {
       setUpdatingCaptureKey("");
     }
@@ -3709,8 +3817,8 @@ export default function App() {
   const tabItems: Array<{ icon: IconName; key: MainTab; label: string }> = [
     { icon: "home-variant-outline", key: "home", label: "Home" },
     { icon: "format-list-bulleted", key: "activity", label: "Activity" },
+    { icon: "message-flash-outline", key: "capture", label: "Capture" },
     { icon: "clipboard-text-outline", key: "review", label: "Review" },
-    { icon: "credit-card-outline", key: "accounts", label: "Accounts" },
     { icon: "dots-horizontal", key: "more", label: "More" }
   ];
   const drawerItems: Array<{ icon: IconName; label: string }> = [
@@ -3801,7 +3909,7 @@ export default function App() {
       </View>
 
       <Pressable
-        onPress={() => setMobilePanel("sms-automation")}
+        onPress={() => switchTab("capture")}
         style={({ pressed }) => [styles.mobileScanBanner, pressed ? styles.mobilePressed : null]}
       >
         <MaterialCommunityIcons color="#55e6a5" name="message-flash-outline" size={22} />
@@ -3960,10 +4068,34 @@ export default function App() {
         <Text style={styles.mobileSecondaryActionText}>Refresh inbox</Text>
       </Pressable>
       <InlineFeedback loadingLabel="Refreshing review inbox…" message={reviewMessage} state={reviewState} />
-      {reviewCandidates.length ? reviewCandidates.map((candidate) => {
+      {reviewCandidates.length ? (() => {
+        const candidate = reviewCandidates[Math.min(reviewCandidateIndex, reviewCandidates.length - 1)] ?? reviewCandidates[0];
         const draft = getReviewDraft(candidate);
         const isWorking = reviewActionCandidateId === candidate.id;
         return (
+          <>
+          <View style={styles.mobileReviewPager}>
+            <Pressable
+              accessibilityLabel="Previous message"
+              disabled={reviewCandidateIndex === 0}
+              onPress={() => setReviewCandidateIndex((current) => Math.max(0, current - 1))}
+              style={styles.mobileIconAction}
+            >
+              <MaterialCommunityIcons color={reviewCandidateIndex === 0 ? "#50647e" : "#32d8f2"} name="chevron-left" size={23} />
+            </Pressable>
+            <View style={styles.mobileRowBody}>
+              <Text style={styles.mobileRowTitle}>Message {reviewCandidateIndex + 1} of {reviewCandidates.length}</Text>
+              <Text style={styles.mobileRowMeta}>Confirm or reject before moving on</Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Next message"
+              disabled={reviewCandidateIndex >= reviewCandidates.length - 1}
+              onPress={() => setReviewCandidateIndex((current) => Math.min(reviewCandidates.length - 1, current + 1))}
+              style={styles.mobileIconAction}
+            >
+              <MaterialCommunityIcons color={reviewCandidateIndex >= reviewCandidates.length - 1 ? "#50647e" : "#32d8f2"} name="chevron-right" size={23} />
+            </Pressable>
+          </View>
           <View key={candidate.id} style={styles.mobileReviewCard}>
             <View style={styles.mobileHeroHeader}>
               <View style={styles.mobileProviderIcon}>
@@ -4168,28 +4300,13 @@ export default function App() {
                 <Text style={styles.mobileOutlineButtonText}>Reject</Text>
               </Pressable>
             </View>
-            <View style={styles.mobileChoiceRow}>
-              <Pressable
-                disabled={isWorking}
-                onPress={() => confirmRejectReviewCandidate(candidate, "sender")}
-                style={styles.mobileChoice}
-              >
-                <Text style={styles.mobileChoiceText}>Reject + exclude sender</Text>
-              </Pressable>
-              <Pressable
-                disabled={isWorking}
-                onPress={() => confirmRejectReviewCandidate(candidate, "provider")}
-                style={styles.mobileChoice}
-              >
-                <Text style={styles.mobileChoiceText}>Reject + exclude provider</Text>
-              </Pressable>
-            </View>
           </View>
+          </>
         );
-      }) : (
+      })() : (
         <View style={styles.mobileEmptyState}>
           <Text style={styles.mobileEmptyTitle}>Nothing to review</Text>
-          <Text style={styles.mobileEmptyCopy}>The parser is confident in every captured message.</Text>
+          <Text style={styles.mobileEmptyCopy}>No captured messages currently require a decision.</Text>
         </View>
       )}
     </View>
@@ -4248,13 +4365,22 @@ export default function App() {
     const visibleInboxSenders = smsInboxSenders
       .filter((item) => !normalizedSenderSearch || item.sender.toLowerCase().includes(normalizedSenderSearch))
       .slice(0, 30);
+    const setupSteps = [
+      { complete: Boolean(accessToken.trim()), label: "Finance account connected" },
+      { complete: canReadSms, label: "SMS permission allowed" },
+      { complete: enabledRules.length > 0, label: "At least one sender enabled" },
+      { complete: Boolean(smsBackgroundStatus?.updatedAt), label: "First scan completed" }
+    ];
+    const completedSetupSteps = setupSteps.filter((step) => step.complete).length;
 
     return (
       <View style={styles.mobileSectionStack}>
-        <Pressable onPress={() => setMobilePanel(null)} style={styles.mobileBackAction}>
-          <MaterialCommunityIcons color="#32d8f2" name="arrow-left" size={22} />
-          <Text style={styles.mobileBackActionText}>More</Text>
-        </Pressable>
+        {mobilePanel ? (
+          <Pressable onPress={() => setMobilePanel(null)} style={styles.mobileBackAction}>
+            <MaterialCommunityIcons color="#32d8f2" name="arrow-left" size={22} />
+            <Text style={styles.mobileBackActionText}>More</Text>
+          </Pressable>
+        ) : null}
         <View style={styles.mobilePageIntro}>
           <Text style={styles.mobilePageTitle}>SMS automation</Text>
           <Text style={styles.mobilePageSubtitle}>
@@ -4271,6 +4397,32 @@ export default function App() {
             <Text style={styles.mobileAutomationCopy}>
               Only messages matching senders you enable are added to the finance queue.
             </Text>
+          </View>
+        </View>
+
+        <View style={styles.mobileSetupProgress}>
+          <View style={styles.mobileSectionHeader}>
+            <View>
+              <Text style={styles.mobileSetupTitle}>Setup progress</Text>
+              <Text style={styles.mobileRowMeta}>{completedSetupSteps} of {setupSteps.length} ready</Text>
+            </View>
+            <View style={styles.mobileSetupCount}>
+              <Text style={styles.mobileSetupCountText}>{completedSetupSteps}/{setupSteps.length}</Text>
+            </View>
+          </View>
+          <View style={styles.mobileSetupList}>
+            {setupSteps.map((step) => (
+              <View key={step.label} style={styles.mobileSetupStep}>
+                <MaterialCommunityIcons
+                  color={step.complete ? "#55e6a5" : "#7890ad"}
+                  name={step.complete ? "check-circle" : "circle-outline"}
+                  size={19}
+                />
+                <Text style={[styles.mobileSetupStepText, step.complete ? styles.mobileSetupStepTextDone : null]}>
+                  {step.label}
+                </Text>
+              </View>
+            ))}
           </View>
         </View>
 
@@ -4322,7 +4474,7 @@ export default function App() {
             <Text style={styles.mobileSectionMeta}>Server enforced</Text>
           </View>
           <Text style={styles.mobileStateText}>
-            Excluded messages keep only a server fingerprint for rescan protection. Their SMS body is not retained by the API.
+            Excluded messages keep only a private duplicate-check ID so they are not uploaded again. Their SMS text is not stored by the server.
           </Text>
           <Text style={styles.mobileFieldLabel}>Providers</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -4332,6 +4484,8 @@ export default function App() {
                 const captureKey = `provider:${provider.value}`;
                 return (
                   <Pressable
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: !excluded }}
                     disabled={Boolean(updatingCaptureKey)}
                     key={provider.value}
                     onPress={() => void handleToggleCaptureExclusion("provider", provider.value)}
@@ -4352,6 +4506,8 @@ export default function App() {
               const captureKey = `message_kind:${messageKind}`;
               return (
                 <Pressable
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: !excluded }}
                   disabled={Boolean(updatingCaptureKey)}
                   key={messageKind}
                   onPress={() => void handleToggleCaptureExclusion("message_kind", messageKind)}
@@ -4364,6 +4520,34 @@ export default function App() {
               );
             })}
           </View>
+          <Text style={styles.mobileFieldLabel}>Original SMS retention after confirmation</Text>
+          <View style={styles.mobileChoiceRow}>
+            {[
+              { label: "Remove now", value: 0 },
+              { label: "7 days", value: 7 },
+              { label: "30 days", value: 30 },
+              { label: "Keep", value: null }
+            ].map((option) => {
+              const selected = smsCapturePreference.raw_sms_retention_days === option.value;
+              return (
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
+                  disabled={Boolean(updatingCaptureKey)}
+                  key={option.label}
+                  onPress={() => void handleUpdateSmsRetention(option.value)}
+                  style={[styles.mobileChoice, selected ? styles.mobileChoiceActive : null]}
+                >
+                  <Text style={[styles.mobileChoiceText, selected ? styles.mobileChoiceTextActive : null]}>
+                    {updatingCaptureKey === "retention" && selected ? "Updating…" : option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.mobileRowMeta}>
+            Parsed amount, date, provider, and duplicate-check data remain after the original text is removed.
+          </Text>
         </View>
 
         <View style={styles.mobileSection}>
@@ -4443,6 +4627,7 @@ export default function App() {
                 <Text style={styles.mobileRowMeta}>Only sender names and counts are shown here—message text stays hidden.</Text>
               </View>
               <Pressable
+                accessibilityLabel="Find SMS senders on this phone"
                 disabled={!canReadSms || smsSenderDiscoveryState === "loading"}
                 onPress={() => void handleLoadSmsInboxSenders()}
                 style={({ pressed }) => [styles.mobileIconAction, pressed ? styles.mobilePressed : null]}
@@ -4527,7 +4712,11 @@ export default function App() {
                     <Text style={styles.mobileRuleComposerTitle}>{selectedSmsSender}</Text>
                     <Text style={styles.mobileRowMeta}>Exact sender match</Text>
                   </View>
-                  <Pressable onPress={() => setSelectedSmsSender("")} style={styles.mobileIconAction}>
+                  <Pressable
+                    accessibilityLabel="Close sender rule editor"
+                    onPress={() => setSelectedSmsSender("")}
+                    style={styles.mobileIconAction}
+                  >
                     <MaterialCommunityIcons color="#9eb0c7" name="close" size={20} />
                   </Pressable>
                 </View>
@@ -4572,6 +4761,54 @@ export default function App() {
                 ) : (
                   <Text style={styles.mobileErrorText}>Create or load an account before adding this sender.</Text>
                 )}
+
+                <Text style={styles.mobileFieldLabel}>Default category (optional)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.mobileChoiceRow}>
+                    <Pressable
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: !newSenderCategoryId }}
+                      onPress={() => setNewSenderCategoryId("")}
+                      style={[styles.mobileChoice, !newSenderCategoryId ? styles.mobileChoiceActive : null]}
+                    >
+                      <Text style={[styles.mobileChoiceText, !newSenderCategoryId ? styles.mobileChoiceTextActive : null]}>
+                        Learn during review
+                      </Text>
+                    </Pressable>
+                    {categories.map((category) => (
+                      <Pressable
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: newSenderCategoryId === category.id }}
+                        key={category.id}
+                        onPress={() => setNewSenderCategoryId(category.id)}
+                        style={[styles.mobileChoice, newSenderCategoryId === category.id ? styles.mobileChoiceActive : null]}
+                      >
+                        <Text style={[styles.mobileChoiceText, newSenderCategoryId === category.id ? styles.mobileChoiceTextActive : null]}>
+                          {category.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+
+                <Text style={styles.mobileFieldLabel}>Default transaction type (optional)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.mobileChoiceRow}>
+                    {["", "expense", "income", "transfer", "fee", "refund"].map((transactionType) => (
+                      <Pressable
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: newSenderTransactionType === transactionType }}
+                        key={transactionType || "detect"}
+                        onPress={() => setNewSenderTransactionType(transactionType)}
+                        style={[styles.mobileChoice, newSenderTransactionType === transactionType ? styles.mobileChoiceActive : null]}
+                      >
+                        <Text style={[styles.mobileChoiceText, newSenderTransactionType === transactionType ? styles.mobileChoiceTextActive : null]}>
+                          {transactionType ? titleCase(transactionType) : "Detect each message"}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
 
                 <Text style={styles.mobileFieldLabel}>Provider</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -4797,7 +5034,7 @@ export default function App() {
         <Text style={styles.mobilePageSubtitle}>Planning tools, automation settings, and account controls.</Text>
       </View>
       <Pressable
-        onPress={() => setMobilePanel("sms-automation")}
+        onPress={() => switchTab("capture")}
         style={({ pressed }) => [styles.mobileAutomationCallout, pressed ? styles.mobilePressed : null]}
       >
         <View style={styles.mobileAutomationIconSmall}>
@@ -4810,6 +5047,14 @@ export default function App() {
         <MaterialCommunityIcons color="#32d8f2" name="chevron-right" size={24} />
       </Pressable>
       <View style={styles.mobileGroupedList}>
+        <Pressable
+          onPress={() => setShowAdvancedTools(true)}
+          style={({ pressed }) => [styles.mobileMenuRow, pressed ? styles.mobilePressed : null]}
+        >
+          <MaterialCommunityIcons color="#91a7c2" name="credit-card-outline" size={22} />
+          <Text style={styles.mobileMenuLabel}>Accounts & manual tools</Text>
+          <MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} />
+        </Pressable>
         {drawerItems.filter((item) => item.label !== "SMS capture settings").map((item) => (
           <Pressable
             key={item.label}
@@ -4935,11 +5180,11 @@ export default function App() {
       ? renderHome()
       : activeTab === "activity"
         ? renderActivity()
+        : activeTab === "capture"
+          ? renderSmsAutomation()
         : activeTab === "review"
           ? renderReview()
-          : activeTab === "accounts"
-            ? renderAccounts()
-            : renderMore();
+          : renderMore();
 
   return (
     <SafeAreaView style={styles.mobileRoot}>
@@ -4967,7 +5212,17 @@ export default function App() {
             <View style={[styles.mobileSyncDot, state === "error" ? styles.mobileSyncDotError : null]} />
           )}
           <View>
-            <Text style={styles.mobileSyncTitle}>{state === "success" ? "Online" : state === "loading" ? "Checking" : "Offline"}</Text>
+            <Text style={styles.mobileSyncTitle}>
+              {smsPermissionState !== "granted"
+                ? "Setup"
+                : smsBackgroundStatus?.state === "error"
+                  ? "Attention"
+                  : smsBackgroundStatus?.state === "running"
+                    ? "Syncing"
+                    : state === "error"
+                      ? "Offline"
+                      : "Ready"}
+            </Text>
             <Text style={styles.mobileSyncMeta}>
               {rawQueue.length
                 ? `${rawQueue.length} queued`
@@ -4975,7 +5230,9 @@ export default function App() {
                   ? "SMS syncing"
                   : smsBackgroundStatus?.state === "error"
                     ? "SMS needs attention"
-                    : "Server status"}
+                    : smsPermissionState === "granted"
+                      ? "SMS sync ready"
+                      : "Permission needed"}
             </Text>
           </View>
         </Pressable>
@@ -5032,7 +5289,7 @@ export default function App() {
                   onPress={() => {
                     closeDrawer();
                     if (item.label === "SMS capture settings") {
-                      setTimeout(() => setMobilePanel("sms-automation"), 190);
+                      setTimeout(() => switchTab("capture"), 190);
                     } else {
                       setTimeout(() => setShowAdvancedTools(true), 190);
                     }
@@ -5646,6 +5903,51 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800"
   },
+  mobileSetupCount: {
+    alignItems: "center",
+    backgroundColor: "#123047",
+    borderColor: "#2f5a72",
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 34,
+    minWidth: 48,
+    paddingHorizontal: 10
+  },
+  mobileSetupCountText: {
+    color: "#55e6a5",
+    fontSize: 12,
+    fontWeight: "800"
+  },
+  mobileSetupList: {
+    gap: 10,
+    marginTop: 14
+  },
+  mobileSetupProgress: {
+    backgroundColor: "#0e1c2c",
+    borderColor: "#263a52",
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16
+  },
+  mobileSetupStep: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10
+  },
+  mobileSetupStepText: {
+    color: "#91a7c2",
+    flex: 1,
+    fontSize: 13
+  },
+  mobileSetupStepTextDone: {
+    color: "#dce8f6"
+  },
+  mobileSetupTitle: {
+    color: "#f6f8fc",
+    fontSize: 15,
+    fontWeight: "800"
+  },
   mobileBackAction: {
     alignItems: "center",
     alignSelf: "flex-start",
@@ -5792,6 +6094,16 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     padding: 16
+  },
+  mobileReviewPager: {
+    alignItems: "center",
+    backgroundColor: "#0e1c2c",
+    borderColor: "#263a52",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    padding: 10
   },
   mobileRoot: {
     backgroundColor: "#081421",
