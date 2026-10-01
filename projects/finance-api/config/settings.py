@@ -27,6 +27,19 @@ def env_list(name: str, default: list[str]) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        parsed_value = int(value)
+    except ValueError as error:
+        raise ImproperlyConfigured(f"{name} must be an integer.") from error
+    if parsed_value <= 0:
+        raise ImproperlyConfigured(f"{name} must be greater than zero.")
+    return parsed_value
+
+
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "local-dev-secret")
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
@@ -183,11 +196,19 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
+    "DEFAULT_THROTTLE_RATES": {
+        "login_ip": os.getenv("DJANGO_LOGIN_IP_RATE", "20/minute"),
+        "login_username": os.getenv("DJANGO_LOGIN_USERNAME_RATE", "10/minute"),
+    },
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=10),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
+    "ACCESS_TOKEN_LIFETIME": timedelta(
+        minutes=env_int("DJANGO_JWT_ACCESS_MINUTES", 15)
+    ),
+    "REFRESH_TOKEN_LIFETIME": timedelta(
+        days=env_int("DJANGO_JWT_REFRESH_DAYS", 30)
+    ),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,

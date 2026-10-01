@@ -53,6 +53,8 @@ paths:
                 $ref: '#/components/schemas/TokenPair'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          description: Too many login attempts
   /api/auth/refresh/:
     post:
       tags: [Auth]
@@ -70,6 +72,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/auth/logout/:
+    post:
+      tags: [Auth]
+      summary: Revoke one refresh-token session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '204':
+          description: Session refresh token revoked
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /api/auth/logout-all/:
+    post:
+      tags: [Auth]
+      summary: Revoke every refresh-token session for the current user
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: All session refresh tokens revoked
         '401':
           $ref: '#/components/responses/UnauthorizedError'
   /api/auth/me/:

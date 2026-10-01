@@ -85,7 +85,6 @@ DATABASE_URL=postgres://finance:finance@localhost:5432/finance
 DJANGO_SECRET_KEY=local-dev-secret
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 NEXT_SERVER_API_BASE_URL=http://finance-api:8000
-NEXT_PUBLIC_ALLOW_LOCAL_TOKEN_STORAGE=true
 EXPO_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 

@@ -112,6 +112,8 @@ GET    /api/health/
 
 POST   /api/auth/login/
 POST   /api/auth/refresh/   # returns rotated access and refresh tokens
+POST   /api/auth/logout/    # revokes one refresh-token session
+POST   /api/auth/logout-all/ # revokes every refresh-token session for the user
 GET    /api/auth/me/
 
 GET    /api/accounts/

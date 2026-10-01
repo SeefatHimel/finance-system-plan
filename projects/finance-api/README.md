@@ -37,8 +37,11 @@ The API project is scaffolded with:
 - Derived account ledger balances plus latest provider-reported transaction
   balance evidence on account responses
 - Read-only audit log endpoint for transaction creates, updates, and deletes
-- JWT login, refresh, and current-user endpoints
+- JWT login, refresh, per-session logout, all-session logout, and current-user
+  endpoints
 - JWT refresh-token rotation and blacklist-after-rotation settings
+- Per-IP and per-username login throttles, 15-minute access tokens, and rolling
+  30-day refresh sessions
 - Production settings guard that refuses unsafe `DJANGO_DEBUG=false`
   configurations
 
@@ -199,6 +202,8 @@ audit_logs/
 GET    /api/health/
 POST   /api/auth/login/
 POST   /api/auth/refresh/
+POST   /api/auth/logout/
+POST   /api/auth/logout-all/
 GET    /api/auth/me/
 
 GET    /api/accounts/

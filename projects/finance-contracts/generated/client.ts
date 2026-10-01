@@ -68,6 +68,14 @@ export class FinanceApiClient {
     return this.request<TokenPair>("/api/auth/refresh/", { method: "POST", body });
   }
 
+  async revokeOneRefreshTokenSession(body: RefreshRequest): Promise<void> {
+    return this.request<void>("/api/auth/logout/", { method: "POST", body });
+  }
+
+  async revokeEveryRefreshTokenSessionForTheCurrentUser(): Promise<void> {
+    return this.request<void>("/api/auth/logout-all/", { method: "POST" });
+  }
+
   async getCurrentAuthenticatedUser(): Promise<User> {
     return this.request<User>("/api/auth/me/", { method: "GET" });
   }
