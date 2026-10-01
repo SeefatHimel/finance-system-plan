@@ -106,13 +106,26 @@ export function MessageReviewWorkspace() {
         listPaymentMethods(accessToken)
       ]);
       setReviewState({ accounts, candidates, categories, paymentMethods, status: "ready" });
-      setActiveCandidateId((current) => candidates.some((candidate) => candidate.id === current) ? current : candidates[0]?.id ?? "");
+      const requestedCandidateId = new URLSearchParams(window.location.search).get("candidate") ?? "";
+      setActiveCandidateId((current) => {
+        if (candidates.some((candidate) => candidate.id === current)) return current;
+        if (candidates.some((candidate) => candidate.id === requestedCandidateId)) return requestedCandidateId;
+        return candidates[0]?.id ?? "";
+      });
     } catch (error) {
       setReviewState({ message: error instanceof Error ? error.message : "Could not load SMS review inbox.", status: "error" });
     }
   }
 
   useEffect(() => { void loadData(); }, []);
+
+  useEffect(() => {
+    if (reviewState.status !== "ready") return;
+    const params = new URLSearchParams(window.location.search);
+    if (activeCandidateId) params.set("candidate", activeCandidateId);
+    else params.delete("candidate");
+    window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params.toString()}` : ""}`);
+  }, [activeCandidateId, reviewState.status]);
 
   const filteredCandidates = useMemo(() => {
     if (reviewState.status !== "ready") return [];
@@ -213,13 +226,13 @@ export function MessageReviewWorkspace() {
   }
 
   if (reviewState.status === "loading") return <LoadingState detail="Checking messages and parser confidence" label="Preparing the review inbox" />;
-  if (reviewState.status === "error") return <section className="panel"><div className="panel__body"><h1 className="section-title">SMS review inbox</h1><p className="section-subtitle">{reviewState.message}</p></div></section>;
+  if (reviewState.status === "error") return <section className="panel"><div className="panel__body"><h2 className="section-title">SMS review inbox</h2><p className="section-subtitle">{reviewState.message}</p></div></section>;
 
   return (
     <div className="workspace-grid review-workspace">
       <section className="panel">
         <div className="panel__body review-hero">
-          <div><h1 className="section-title">SMS review inbox</h1><p className="section-subtitle">Resolve one message at a time. Required corrections are highlighted before confirmation.</p></div>
+          <div><h2 className="section-title">SMS review inbox</h2><p className="section-subtitle">Resolve one message at a time. Required corrections are highlighted before confirmation.</p></div>
           <span className="status-badge status-badge--idle">{reviewState.candidates.length} pending</span>
         </div>
       </section>

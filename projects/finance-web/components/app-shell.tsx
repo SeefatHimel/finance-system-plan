@@ -3,7 +3,6 @@
 import {
   CalendarBlank,
   CalendarDots,
-  CaretDown,
   ChartBar,
   ChatCenteredText,
   CheckCircle,
@@ -85,24 +84,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!accessToken) return;
 
     let isActiveRequest = true;
-    void Promise.all([
+    void Promise.allSettled([
       listMessageCandidates(accessToken),
       getSmsDeviceStatus(accessToken),
       getCurrentUser(accessToken)
     ])
-      .then(([candidates, deviceStatus, user]) => {
+      .then(([candidatesResult, deviceStatusResult, userResult]) => {
         if (!isActiveRequest) return;
-        setPendingCount(candidates.length);
-        setSyncLabel(deviceStatus.health_label);
-        const names = [user.first_name, user.last_name].filter(Boolean);
-        const initials = (names.length ? names : [user.username])
-          .map((name) => name.trim().charAt(0).toUpperCase())
-          .join("")
-          .slice(0, 2);
-        setUserInitials(initials || "U");
-      })
-      .catch(() => {
-        if (isActiveRequest) setPendingCount(null);
+        if (candidatesResult.status === "fulfilled") {
+          setPendingCount(candidatesResult.value.length);
+        } else {
+          setPendingCount(null);
+        }
+        if (deviceStatusResult.status === "fulfilled") {
+          setSyncLabel(deviceStatusResult.value.health_label);
+        }
+        if (userResult.status === "fulfilled") {
+          const user = userResult.value;
+          const names = [user.first_name, user.last_name].filter(Boolean);
+          const initials = (names.length ? names : [user.username])
+            .map((name) => name.trim().charAt(0).toUpperCase())
+            .join("")
+            .slice(0, 2);
+          setUserInitials(initials || "U");
+        }
       });
 
     return () => {
@@ -189,11 +194,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           {isDashboard ? (
             <div className="dashboard-topbar-actions">
-              <button className="topbar-control topbar-date" type="button">
+              <time className="topbar-control topbar-date" dateTime={new Date().toISOString().slice(0, 10)}>
                 <CalendarBlank aria-hidden="true" size={19} />
                 <span suppressHydrationWarning>{currentDateLabel()}</span>
-                <CaretDown aria-hidden="true" size={14} />
-              </button>
+              </time>
               <form action="/transactions" className="topbar-search" method="get">
                 <MagnifyingGlass aria-hidden="true" size={19} />
                 <input aria-label="Search transactions" name="search" placeholder="Search transactions..." type="search" />

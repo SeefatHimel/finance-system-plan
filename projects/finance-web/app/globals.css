@@ -1344,11 +1344,9 @@ textarea {
 }
 
 .topbar-control {
-  cursor: pointer;
   padding: 0 13px;
 }
 
-.topbar-control:hover,
 .topbar-search:focus-within {
   border-color: #47627f;
 }
@@ -2413,6 +2411,18 @@ textarea {
 .decision-modal__close { align-items: center; background: transparent; border: 0; color: var(--muted); cursor: pointer; display: inline-flex; height: 44px; justify-content: center; position: absolute; right: 10px; top: 10px; width: 44px; }
 .decision-modal__actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
 
+.transaction-editor-drawer { max-width: min(680px, 100vw); }
+.transaction-editor-drawer .transaction-form { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
+.transaction-editor-drawer .drawer-form { align-content: start; overflow-y: auto; }
+.report-header > .button { flex: 0 0 auto; gap: 7px; }
+.panel__body > .form-success { margin-top: 16px; }
+.transaction-ledger-primary,
+.transaction-ledger-secondary { display: block; }
+.transaction-ledger-primary { color: var(--foreground); font-weight: 750; }
+.transaction-ledger-secondary { color: var(--muted); font-size: 12px; margin-top: 3px; text-transform: capitalize; }
+.transaction-ledger-amount { color: #ff9494; font-weight: 800; white-space: nowrap; }
+.transaction-ledger-amount--credit { color: var(--accent); }
+
 @media (max-width: 1000px) {
   .review-split { grid-template-columns: minmax(240px, 0.4fr) minmax(0, 1fr); }
   .review-form--focused { grid-template-columns: 1fr; }
@@ -2435,4 +2445,5 @@ textarea {
   .review-sticky-actions { display: grid; grid-template-columns: 0.75fr 1.25fr; padding: 12px 18px; }
   .review-sticky-actions > div { grid-column: 1 / -1; }
   .review-sticky-actions .button { min-height: 46px; }
+  .transaction-editor-drawer .transaction-form { grid-template-columns: 1fr; }
 }

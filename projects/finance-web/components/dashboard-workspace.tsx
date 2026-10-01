@@ -357,7 +357,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
                 const tone = candidateTone(candidate);
                 const confidence = Math.round(Number(candidate.confidence) * 100);
                 return (
-                  <Link className="attention-row" href="/messages/review" key={candidate.id}>
+                  <Link className="attention-row" href={`/messages/review?candidate=${candidate.id}`} key={candidate.id}>
                     <span className={`attention-row__icon attention-row__icon--${tone}`}><CandidateIcon aria-hidden="true" size={22} weight="fill" /></span>
                     <span className="attention-row__subject"><strong>{titleCase(candidate.provider)} {titleCase(candidate.message_kind)}</strong><small>{formatDate(candidate.raw_message.received_at.slice(0, 10))} · SMS</small></span>
                     <span className={`attention-row__confidence attention-row__confidence--${tone}`}><strong>{confidence}%</strong><small>confidence</small></span>

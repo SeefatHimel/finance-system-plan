@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus, X } from "@phosphor-icons/react";
 import type React from "react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -76,6 +77,8 @@ export function TransactionWorkspace() {
   });
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [formError, setFormError] = useState<string | null>(null);
+  const [formMessage, setFormMessage] = useState<string | null>(null);
+  const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -130,20 +133,25 @@ export function TransactionWorkspace() {
       return;
     }
 
+    const searchParams = new URLSearchParams(window.location.search);
+    const requestedSearch = searchParams.get("search")?.trim() ?? "";
+    const requestedFilters: TransactionFilterState = {
+      account: searchParams.get("account") ?? "",
+      category: searchParams.get("category") ?? "",
+      direction: (searchParams.get("direction") ?? "") as TransactionFilterState["direction"],
+      month: searchParams.has("month") ? searchParams.get("month") ?? "" : requestedSearch ? "" : currentMonth(),
+      search: requestedSearch,
+      source: (searchParams.get("source") ?? "") as TransactionFilterState["source"],
+      type: (searchParams.get("type") ?? "") as TransactionFilterState["type"]
+    };
+
+    setFilters(requestedFilters);
     setLoadState({ status: "loading" });
 
     void Promise.all([
       listAccounts(accessToken),
       listCategories(accessToken),
-      listTransactions(accessToken, {
-        account: "",
-        category: "",
-        direction: "",
-        month: currentMonth(),
-        search: "",
-        source: "",
-        type: ""
-      })
+      listTransactions(accessToken, requestedFilters)
     ])
       .then(([accounts, categories, transactions]) => {
         setLoadState({ accounts, categories, status: "ready", transactions });
@@ -156,8 +164,27 @@ export function TransactionWorkspace() {
       });
   }, []);
 
+  useEffect(() => {
+    if (!editorMode) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setEditorMode(null);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [editorMode]);
+
   function handleFilterSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params.toString()}` : ""}`);
     void loadData(filters);
   }
 
@@ -172,6 +199,7 @@ export function TransactionWorkspace() {
       type: ""
     };
     setFilters(clearedFilters);
+    window.history.replaceState(null, "", window.location.pathname);
     void loadData(clearedFilters);
   }
 
@@ -222,6 +250,7 @@ export function TransactionWorkspace() {
     const category = String(formData.get("category") ?? "");
 
     setFormError(null);
+    setFormMessage(null);
     setIsSubmitting(true);
 
     try {
@@ -240,6 +269,8 @@ export function TransactionWorkspace() {
       });
       form.reset();
       await loadData(filters, false);
+      setEditorMode(null);
+      setFormMessage("Transaction saved.");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not create transaction.");
     } finally {
@@ -292,6 +323,9 @@ export function TransactionWorkspace() {
     setEditingReference(transaction.reference);
     setEditingCounterpartyText(transaction.counterparty_text);
     setEditingNote(transaction.note ?? "");
+    setFormError(null);
+    setFormMessage(null);
+    setEditorMode("edit");
   }
 
   async function handleUpdate(event: React.FormEvent<HTMLFormElement>) {
@@ -307,6 +341,7 @@ export function TransactionWorkspace() {
     }
 
     setFormError(null);
+    setFormMessage(null);
     setIsUpdating(true);
     try {
       await updateTransaction(accessToken, editingTransactionId, {
@@ -323,6 +358,8 @@ export function TransactionWorkspace() {
         type: editingType
       });
       await loadData(filters, false);
+      setEditorMode(null);
+      setFormMessage("Transaction updated.");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not update transaction.");
     } finally {
@@ -364,14 +401,43 @@ export function TransactionWorkspace() {
 
   return (
     <div className="workspace-grid">
-      <section className="panel">
-        <div className="panel__body">
-          <h1 className="section-title">Add transaction</h1>
-          <p className="section-subtitle">
-            Create manual records against your configured accounts and categories.
-          </p>
+      {editorMode ? (
+        <>
+          <button
+            aria-label="Close transaction editor"
+            className="drawer-scrim"
+            onClick={() => setEditorMode(null)}
+            type="button"
+          />
+          <aside
+            aria-labelledby="transaction-editor-title"
+            aria-modal="true"
+            className="form-drawer transaction-editor-drawer"
+            role="dialog"
+          >
+            <div className="form-drawer__header">
+              <div>
+                <h2 id="transaction-editor-title">
+                  {editorMode === "create" ? "Add transaction" : "Edit transaction"}
+                </h2>
+                <p>
+                  {editorMode === "create"
+                    ? "Manual entry is available for activity that did not arrive through mobile sync."
+                    : "Correct the selected ledger entry without leaving your transaction list."}
+                </p>
+              </div>
+              <button
+                aria-label="Close transaction editor"
+                autoFocus
+                className="icon-button"
+                onClick={() => setEditorMode(null)}
+                type="button"
+              >
+                <X aria-hidden="true" size={20} />
+              </button>
+            </div>
 
-          <form className="transaction-form" onSubmit={handleSubmit}>
+          {editorMode === "create" ? <form className="transaction-form drawer-form" onSubmit={handleSubmit}>
             <label className="field">
               <span className="field__label">Date</span>
               <input className="field__control" name="date" required type="date" />
@@ -464,30 +530,14 @@ export function TransactionWorkspace() {
               <input className="field__control" name="note" type="text" />
             </label>
 
-            {formError ? <p className="form-error field--wide">{formError}</p> : null}
+            {formError ? <p className="form-error field--wide" role="alert">{formError}</p> : null}
 
             <button className="button button--primary field--wide" disabled={isSubmitting} type="submit">
               {isSubmitting ? <ButtonBusy label="Saving" /> : "Save transaction"}
             </button>
-          </form>
+          </form> : null}
 
-          <form className="transaction-form" onSubmit={handleUpdate}>
-            <label className="field field--wide">
-              <span className="field__label">Edit transaction</span>
-              <select
-                className="field__control"
-                onChange={(event) => selectTransactionForEdit(event.target.value)}
-                value={editingTransactionId}
-              >
-                <option value="">Select transaction</option>
-                {loadState.transactions.map((transaction) => (
-                  <option key={transaction.id} value={transaction.id}>
-                    {transaction.date} | {transaction.type.replaceAll("_", " ")} | {transaction.amount}
-                  </option>
-                ))}
-              </select>
-            </label>
-
+          {editorMode === "edit" ? <form className="transaction-form drawer-form" onSubmit={handleUpdate}>
             <label className="field">
               <span className="field__label">Date</span>
               <input
@@ -634,9 +684,12 @@ export function TransactionWorkspace() {
             <button className="button button--ghost field--wide" disabled={isUpdating} type="submit">
               {isUpdating ? <ButtonBusy label="Updating" /> : "Update transaction"}
             </button>
-          </form>
-        </div>
-      </section>
+            {formError ? <p className="form-error field--wide" role="alert">{formError}</p> : null}
+
+          </form> : null}
+          </aside>
+        </>
+      ) : null}
 
       <section className="panel">
         <div className="panel__body">
@@ -644,10 +697,24 @@ export function TransactionWorkspace() {
             <div>
               <h2 className="section-title">Transactions</h2>
               <p className="section-subtitle">
-                Filter records by month, account, category, type, debit/credit direction, source, and text.
+                Search and review synced activity first. Add a manual record only when automation cannot capture it.
               </p>
             </div>
+            <button
+              className="button button--primary"
+              onClick={() => {
+                setFormError(null);
+                setFormMessage(null);
+                setEditorMode("create");
+              }}
+              type="button"
+            >
+              <Plus aria-hidden="true" size={17} />
+              Add transaction
+            </button>
           </div>
+
+          {formMessage ? <p className="form-success" role="status">{formMessage}</p> : null}
 
           <form className="filter-form transaction-filter-form" onSubmit={handleFilterSubmit}>
             <label className="field">
@@ -796,16 +863,12 @@ export function TransactionWorkspace() {
                 <thead>
                   <tr>
                     <th>Date</th>
-                    <th>Type</th>
-                    <th>Debit / credit</th>
-                    <th>Source</th>
+                    <th>Description</th>
                     <th>Account</th>
                     <th>Category</th>
-                    <th>Amount</th>
+                    <th>Source</th>
                     <th>Reported balance</th>
-                    <th>Transaction ID</th>
-                    <th>Sent to / received from</th>
-                    <th>Note</th>
+                    <th>Amount</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -813,26 +876,39 @@ export function TransactionWorkspace() {
                   {loadState.transactions.map((transaction) => (
                     <tr key={transaction.id}>
                       <td>{transaction.date}</td>
-                      <td>{transaction.type.replaceAll("_", " ")}</td>
-                      <td>{transaction.direction}</td>
-                      <td>{transaction.source}</td>
+                      <td>
+                        <span className="transaction-ledger-primary">
+                          {transaction.counterparty_text || transaction.reference || transaction.note || transaction.type.replaceAll("_", " ")}
+                        </span>
+                        <span className="transaction-ledger-secondary">
+                          {transaction.type.replaceAll("_", " ")} · {transaction.direction}
+                          {transaction.reference ? ` · ${transaction.reference}` : ""}
+                        </span>
+                      </td>
                       <td>{accountNames.get(transaction.account) ?? "Unknown"}</td>
                       <td>
                         {transaction.category
                           ? categoryNames.get(transaction.category) ?? "Unknown"
                           : "None"}
                       </td>
-                      <td>{moneyFormatter.format(Number(transaction.amount))}</td>
+                      <td>{transaction.source}</td>
                       <td>
                         {transaction.balance_after
                           ? moneyFormatter.format(Number(transaction.balance_after))
                           : "-"}
                       </td>
-                      <td>{transaction.reference || "-"}</td>
-                      <td>{transaction.counterparty_text || "-"}</td>
-                      <td>{transaction.note || "-"}</td>
+                      <td className={transaction.direction === "credit" ? "transaction-ledger-amount transaction-ledger-amount--credit" : "transaction-ledger-amount"}>
+                        {transaction.direction === "credit" ? "+" : "-"}{moneyFormatter.format(Number(transaction.amount))}
+                      </td>
                       <td>
                         <div className="list-row__actions">
+                          <button
+                            className="button button--ghost"
+                            onClick={() => selectTransactionForEdit(transaction.id)}
+                            type="button"
+                          >
+                            Edit
+                          </button>
                           <Link
                             className="button button--ghost"
                             href={`/audit-logs?entity_type=transactions.transaction&entity_id=${transaction.id}`}
