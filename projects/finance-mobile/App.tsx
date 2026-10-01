@@ -48,6 +48,7 @@ import {
   listSenderRules,
   listTransactions,
   login,
+  logout as revokeLoginSession,
   refreshLogin,
   rejectMessageCandidate,
   resetSmsDevelopmentData,
@@ -2542,6 +2543,22 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    let sessionRefreshToken = refreshToken.trim();
+    try {
+      const nativeSession = await getNativeSmsBackgroundSyncSession();
+      if (nativeSession?.username === username.trim()) {
+        sessionRefreshToken = nativeSession.refresh;
+      }
+    } catch {
+      // Fall back to the refresh token held by the React session.
+    }
+    if (sessionRefreshToken) {
+      try {
+        await revokeLoginSession(sessionRefreshToken);
+      } catch {
+        // Device cleanup still proceeds if the network is unavailable.
+      }
+    }
     try {
       await Promise.all([
         clearSession(),
@@ -2578,18 +2595,30 @@ export default function App() {
           ? { ...storedSession, access: nativeSession.access, refresh: nativeSession.refresh }
           : storedSession;
         try {
-          const tokens = await refreshLogin(sessionToRestore.refresh);
-          await saveSession({ ...tokens, username: storedSession.username });
-          setAccessToken(tokens.access);
-          setRefreshToken(tokens.refresh);
+          await getCurrentUser(sessionToRestore.access);
+          await saveSession({ ...sessionToRestore, username: storedSession.username });
+          setAccessToken(sessionToRestore.access);
+          setRefreshToken(sessionToRestore.refresh);
           setAuthState("ok");
           setAuthMessage("Session restored.");
         } catch (error) {
           if (error instanceof AuthenticationError) {
-            await clearSession();
-            setAuthState("error");
-            setAuthMessage("Your previous session expired. Sign in again.");
-            return;
+            try {
+              const tokens = await refreshLogin(sessionToRestore.refresh);
+              await saveSession({ ...tokens, username: storedSession.username });
+              setAccessToken(tokens.access);
+              setRefreshToken(tokens.refresh);
+              setAuthState("ok");
+              setAuthMessage("Session refreshed.");
+              return;
+            } catch (refreshError) {
+              if (refreshError instanceof AuthenticationError) {
+                await clearSession();
+                setAuthState("error");
+                setAuthMessage("Your previous session expired. Sign in again.");
+                return;
+              }
+            }
           }
 
           setAccessToken(sessionToRestore.access);

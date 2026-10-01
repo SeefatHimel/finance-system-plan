@@ -13,10 +13,10 @@ Phase 1 scaffold now includes:
 - Access-token validation flow that calls `GET /api/auth/me/`.
 - Persistent mobile session backed by Expo SecureStore:
   - stores the rotated JWT pair in Android Keystore-backed storage
-  - refreshes the session on app launch
+  - validates the saved access token on launch and refreshes only when needed
   - transparently refreshes and retries authenticated API calls once after a
     mid-session `401`
-  - removes the saved session on explicit logout
+  - revokes the refresh token and removes the saved session on explicit logout
 - Account and category fetch flow for authenticated users:
   - `GET /api/accounts/`
   - `GET /api/categories/`

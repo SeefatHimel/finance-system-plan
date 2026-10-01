@@ -499,6 +499,27 @@ export async function refreshLogin(refreshToken: string): Promise<AuthTokens> {
   return payload;
 }
 
+export async function logout(refreshToken: string): Promise<void> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8_000);
+
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/logout/`, {
+      body: JSON.stringify({ refresh: refreshToken }),
+      headers: {
+        "Content-Type": "application/json"
+      },
+      method: "POST",
+      signal: controller.signal
+    });
+    if (!response.ok && response.status !== 400) {
+      throw new Error(`Could not revoke the session (HTTP ${response.status}).`);
+    }
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function getCurrentUser(accessToken: string): Promise<CurrentUser> {
   const response = await fetch(`${getApiBaseUrl()}/api/auth/me/`, {
     headers: {

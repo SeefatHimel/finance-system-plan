@@ -103,8 +103,9 @@ returns `404` for this operation when `DJANGO_DEBUG=false`.
   raw bodies are read only later for explicitly tracked senders during a scan.
 - Keep raw SMS deletion/redaction available in the backend.
 - Test with anonymized or personal test messages first.
-- Explicit logout clears the native sync session, local rules, captured SMS
-  payloads, processed-message memory, and encrypted raw queue.
+- Explicit logout revokes the refresh token, then clears the native sync
+  session, local rules, captured SMS payloads, processed-message memory, and
+  encrypted raw queue.
 - Public distribution needs policy/legal review before requesting SMS
   permissions from real users.
 
