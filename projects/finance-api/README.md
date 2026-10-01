@@ -14,6 +14,8 @@ The API project is scaffolded with:
 - Health endpoint test
 - Account, category, and transaction models
 - Authenticated CRUD APIs for accounts, categories, and transactions
+- Editable starter expense, income, transfer, and debt categories for new users,
+  with a migration that backfills only users whose category list is empty
 - Authenticated CRUD APIs for payment methods and SMS sender rules
 - Duplicate sender/match combinations rejected per authenticated user
 - Raw SMS import endpoint with duplicate detection and opt-in reparsing of
