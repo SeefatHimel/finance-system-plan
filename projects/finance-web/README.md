@@ -24,10 +24,13 @@ The web app is scaffolded with:
 - Accounts page with account and category creation/listing/updating/deletion,
   derived ledger balances, and latest provider-reported balance evidence
 - SMS settings page with payment method and sender rule creation/listing/updating/deletion
+- SMS capture policy controls for provider, OTP/security, and balance-notice
+  exclusions enforced by the API
 - SMS settings provider options align with contract-supported bKash, EBL, City Bank, and Pathao Pay sources
 - SMS review inbox with parsed candidate details, parser confidence,
   review/duplicate reasons, internal-transfer hints, raw SMS redaction,
-  confirm, and ignore actions
+  confirm, and structured rejection actions that can also exclude a sender or
+  provider
 - Transaction table displays debit/credit direction, reported balance after, provider
   reference, and sent-to/received-from text when available
 - Monthly reports page with income, expense, net, category, and account totals

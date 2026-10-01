@@ -59,6 +59,11 @@ workflow polish.
 - Amounts are stored as positive values; transaction type controls direction.
 - SMS capture is sender-rule based for privacy, and sender discovery exposes
   identifiers/counts without revealing message bodies.
+- Per-user capture policy excludes providers or sensitive non-transaction
+  message kinds before backend body storage; OTP/security is excluded by
+  default, while hash-only tombstones preserve deduplication.
+- Review rejection is auditable and can redact the source body or turn a bad
+  sender/provider into a future capture exclusion.
 - Rule-based parsing comes before AI for explainability.
 - Reconciliation exists because real-life balances can drift.
 - Account responses separate the calculated ledger balance from the latest

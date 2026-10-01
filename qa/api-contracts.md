@@ -48,7 +48,8 @@ covering current phase-1 backend endpoints:
 - Payment methods CRUD
 - SMS sender rules CRUD
 - Raw SMS import with duplicate response shape
-- Parsed SMS review candidate list, confirm, ignore, and raw SMS redaction endpoints
+- SMS capture-preference read/update endpoints
+- Parsed SMS review candidate list, confirm, reject/legacy-ignore, and raw SMS redaction endpoints
 - Transactions CRUD and month/account/category/type/direction/source/search list filters
 - Transaction CSV export with the same month/account/category/type/direction/source/search filters
 - Debt CRUD and repayment endpoint
@@ -78,6 +79,12 @@ additive, so existing account create and update requests remain compatible.
 Raw message contracts now include `redacted_at` and the `redacted` status so
 clients can show when original SMS text has been removed while parsed evidence
 is retained.
+
+Raw messages also expose resolved `provider`, `message_kind`, and
+`exclusion_reason`. Capture preferences contain excluded providers and message
+kinds. Rejected candidates expose reason, note, and timestamp; the reject
+request can additionally redact the body, disable its sender rule, or exclude
+the provider.
 
 Raw message import also accepts optional `reprocess_existing`. Duplicate
 responses include `was_reprocessed`, allowing clients to distinguish a new
@@ -146,3 +153,6 @@ Raw message import requires the sender to match one of the authenticated user's
 active rules. An unmatched sender is a validation-style `400`, not an accepted
 low-confidence candidate. Sender-rule responses include `pattern` and
 `is_active`, which clients must honor for exact, contains, and regex matching.
+After trust matching, the API enforces the user's capture preferences before
+body persistence. Policy-excluded input returns `201` with no candidate and an
+ignored hash-only raw-message tombstone.

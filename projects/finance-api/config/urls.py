@@ -12,11 +12,12 @@ from apps.credit_cards.views import CreditCardBillViewSet, CreditCardPaymentCrea
 from apps.debts.views import DebtPaymentCreateView, DebtViewSet
 from apps.messages.views import (
     MessageCandidateConfirmView,
-    MessageCandidateIgnoreView,
+    MessageCandidateRejectView,
     MessageReviewListView,
     RawMessageImportView,
     RawMessageRedactView,
     SenderRuleViewSet,
+    SmsCapturePreferenceView,
     SmsDevelopmentResetView,
 )
 from apps.payment_methods.views import PaymentMethodViewSet
@@ -45,6 +46,11 @@ urlpatterns = [
     path("api/health/", include("apps.health.urls")),
     path("api/messages/import/", RawMessageImportView.as_view(), name="raw-message-import"),
     path(
+        "api/messages/capture-preferences/",
+        SmsCapturePreferenceView.as_view(),
+        name="sms-capture-preferences",
+    ),
+    path(
         "api/messages/raw/<uuid:message_id>/redact/",
         RawMessageRedactView.as_view(),
         name="raw-message-redact",
@@ -58,8 +64,13 @@ urlpatterns = [
     ),
     path(
         "api/messages/review/<uuid:candidate_id>/ignore/",
-        MessageCandidateIgnoreView.as_view(),
+        MessageCandidateRejectView.as_view(),
         name="message-candidate-ignore",
+    ),
+    path(
+        "api/messages/review/<uuid:candidate_id>/reject/",
+        MessageCandidateRejectView.as_view(),
+        name="message-candidate-reject",
     ),
     path("api/reports/", include("apps.reports.urls")),
     path(

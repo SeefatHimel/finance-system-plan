@@ -6,7 +6,12 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import Account
-from apps.messages.models import ParsedMessageCandidate, RawMessage, SenderRule
+from apps.messages.models import (
+    ParsedMessageCandidate,
+    RawMessage,
+    SenderRule,
+    SmsCapturePreference,
+)
 from apps.payment_methods.models import PaymentMethod
 from apps.transactions.models import Transaction
 
@@ -132,6 +137,170 @@ class SenderRuleApiTests(APITestCase):
 
 
 class RawMessageImportApiTests(APITestCase):
+    def test_capture_preferences_default_to_excluding_security_messages(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        self.client.force_authenticate(user)
+
+        response = self.client.get(reverse("sms-capture-preferences"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["excluded_providers"], [])
+        self.assertEqual(response.data["excluded_message_kinds"], ["otp_or_security"])
+
+    def test_capture_preferences_can_be_updated_and_validate_supported_values(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        self.client.force_authenticate(user)
+
+        response = self.client.patch(
+            reverse("sms-capture-preferences"),
+            {
+                "excluded_providers": ["city_bank", "city_bank"],
+                "excluded_message_kinds": ["otp_or_security", "balance_notice"],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["excluded_providers"], ["city_bank"])
+        self.assertEqual(
+            response.data["excluded_message_kinds"],
+            ["otp_or_security", "balance_notice"],
+        )
+
+        invalid_response = self.client.patch(
+            reverse("sms-capture-preferences"),
+            {"excluded_providers": ["unsupported-bank"]},
+            format="json",
+        )
+
+        self.assertEqual(invalid_response.status_code, 400)
+        self.assertIn("excluded_providers", invalid_response.data)
+
+    def test_excluded_provider_stores_tombstone_without_sms_body(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        SmsCapturePreference.objects.create(
+            user=user,
+            excluded_providers=[SenderRule.Provider.CITY_BANK],
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": "Tk. 500.00 withdrawn from account.",
+                "received_at": "2026-05-29T10:30:00+06:00",
+                "device_message_id": "sms-provider-excluded-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(response.data["candidate"])
+        message = RawMessage.objects.get(user=user)
+        self.assertEqual(message.body, "[excluded before storage]")
+        self.assertEqual(message.status, RawMessage.Status.IGNORED)
+        self.assertEqual(message.exclusion_reason, "provider_excluded")
+
+    def test_security_message_is_excluded_before_body_storage_by_default(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": "Your OTP is 123456. Do not share this verification code.",
+                "received_at": "2026-05-29T10:30:00+06:00",
+                "device_message_id": "sms-security-excluded-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(response.data["candidate"])
+        message = RawMessage.objects.get(user=user)
+        self.assertEqual(message.message_kind, "otp_or_security")
+        self.assertEqual(message.body, "[excluded before storage]")
+        self.assertEqual(message.exclusion_reason, "message_kind_excluded")
+
+    def test_balance_notice_can_be_excluded_before_body_storage(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        SmsCapturePreference.objects.create(
+            user=user,
+            excluded_message_kinds=["otp_or_security", "balance_notice"],
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": "Your available balance is Tk. 4,500.00.",
+                "received_at": "2026-05-29T10:30:00+06:00",
+                "device_message_id": "sms-balance-excluded-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(response.data["candidate"])
+        message = RawMessage.objects.get(user=user)
+        self.assertEqual(message.message_kind, "balance_notice")
+        self.assertEqual(message.body, "[excluded before storage]")
+
+    def test_withdrawal_with_balance_text_is_not_treated_as_balance_notice(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": "Tk. 4,000 withdrawn at ATM. Available balance Tk. 5,000.",
+                "received_at": "2026-05-29T10:30:00+06:00",
+                "device_message_id": "sms-withdrawal-balance-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNotNone(response.data["candidate"])
+        self.assertEqual(response.data["candidate"]["message_kind"], "cash_out")
+        self.assertEqual(response.data["candidate"]["amount"], "4000.00")
+
     def test_import_rejects_sender_without_active_trusted_rule(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
@@ -1193,6 +1362,35 @@ class MessageReviewApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "ignored")
+        self.assertEqual(response.data["rejection_reason"], "not_transaction")
+        raw_message = RawMessage.objects.get(id=candidate["raw_message"]["id"])
+        self.assertEqual(raw_message.status, RawMessage.Status.IGNORED)
+
+    def test_user_can_reject_redact_and_exclude_sender_and_provider(self):
+        candidate = self.import_message()
+
+        response = self.client.post(
+            reverse("message-candidate-reject", kwargs={"candidate_id": candidate["id"]}),
+            {
+                "reason": "unsupported_format",
+                "note": "This sender format is not useful.",
+                "redact_raw_sms": True,
+                "exclude_sender": True,
+                "exclude_provider": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "ignored")
+        self.assertEqual(response.data["rejection_reason"], "unsupported_format")
+        self.assertEqual(response.data["rejection_note"], "This sender format is not useful.")
+        self.assertIsNotNone(response.data["rejected_at"])
+        self.assertEqual(response.data["raw_message"]["body"], "[redacted]")
+        self.sender_rule.refresh_from_db()
+        self.assertFalse(self.sender_rule.is_active)
+        preference = SmsCapturePreference.objects.get(user=self.user)
+        self.assertIn(SenderRule.Provider.BKASH, preference.excluded_providers)
 
     def test_user_can_redact_raw_sms_body(self):
         candidate = self.import_payment_message()

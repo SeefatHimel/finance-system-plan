@@ -92,6 +92,11 @@ bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
 - SMS-confirmed transactions should preserve normalized evidence fields such as
   provider reference, balance after, counterparty text, payment method, raw
   message id, and duplicate key.
+- Capture preferences are user-scoped. Excluded providers and message kinds
+  preserve only a deduplication tombstone; their original SMS body is not kept
+  by the API.
+- Candidate rejection records a reason and may atomically redact the raw body,
+  disable the matched sender rule, or add the provider to capture exclusions.
 - Transaction create, update, and delete actions expose read-only audit log
   entries with normalized before/after snapshots.
 - Display sign preference belongs to clients.
@@ -132,10 +137,14 @@ GET    /api/messages/sender-rules/{id}/
 PATCH  /api/messages/sender-rules/{id}/
 DELETE /api/messages/sender-rules/{id}/
 
+GET    /api/messages/capture-preferences/
+PATCH  /api/messages/capture-preferences/
+
 POST   /api/messages/import/
 POST   /api/messages/raw/{id}/redact/
 GET    /api/messages/review/
 POST   /api/messages/review/{id}/confirm/
+POST   /api/messages/review/{id}/reject/
 POST   /api/messages/review/{id}/ignore/
 
 GET    /api/debts/

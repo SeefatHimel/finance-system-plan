@@ -109,6 +109,12 @@ it into a transaction candidate, checks duplicate risk, and marks it for
 review. Users can also scan a date range and explicitly reparse pending prior
 imports with newer parser rules.
 
+The user can exclude a provider or non-transaction message kind from capture.
+OTP/security messages are excluded by default. The backend classifies these
+before persistence and keeps only a hash/metadata tombstone for deduplication.
+Rejected review items record why they were rejected and can redact the body,
+disable the sender, or exclude the provider in the same action.
+
 ## Why require sender rules for SMS?
 
 SMS content is sensitive. The app should only process messages from senders the

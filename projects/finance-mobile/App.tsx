@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   Modal,
@@ -35,7 +36,7 @@ import {
   getApiBaseUrl,
   getAccountReconciliation,
   getCurrentUser,
-  ignoreMessageCandidate,
+  getSmsCapturePreference,
   importRawMessage,
   listAccounts,
   listCategories,
@@ -48,7 +49,9 @@ import {
   listTransactions,
   login,
   refreshLogin,
+  rejectMessageCandidate,
   resetSmsDevelopmentData,
+  updateSmsCapturePreference,
   type Account,
   type AccountReconciliation,
   type Category,
@@ -60,6 +63,7 @@ import {
   type PaymentMethod,
   type RecurringBill,
   type SenderRule,
+  type SmsCapturePreference,
   type Transaction
 } from "./src/api";
 import {
@@ -439,10 +443,21 @@ function senderMatchesRule(
   return normalizedSender === normalizedRuleSender;
 }
 
-function buildNativeSenderRules(senderRules: SenderRule[], enabledSenderRuleIds: string[]): NativeSmsSenderRule[] {
+function buildNativeSenderRules(
+  senderRules: SenderRule[],
+  enabledSenderRuleIds: string[],
+  excludedProviders: string[] = []
+): NativeSmsSenderRule[] {
   const enabledIds = new Set(enabledSenderRuleIds);
+  const excludedProviderSet = new Set(excludedProviders);
   return senderRules
-    .filter((rule) => rule.is_active && enabledIds.has(rule.id) && rule.sender.trim())
+    .filter(
+      (rule) =>
+        rule.is_active
+        && enabledIds.has(rule.id)
+        && !excludedProviderSet.has(rule.provider)
+        && rule.sender.trim()
+    )
     .map((rule) => ({
       id: rule.id,
       isActive: rule.is_active,
@@ -762,6 +777,13 @@ export default function App() {
   const [smsSettingsMessage, setSmsSettingsMessage] = useState("");
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [senderRules, setSenderRules] = useState<SenderRule[]>([]);
+  const [smsCapturePreference, setSmsCapturePreference] = useState<SmsCapturePreference>({
+    created_at: "",
+    excluded_message_kinds: ["otp_or_security"],
+    excluded_providers: [],
+    updated_at: ""
+  });
+  const [updatingCaptureKey, setUpdatingCaptureKey] = useState("");
   const [enabledSenderRuleIds, setEnabledSenderRuleIds] = useState<string[]>([]);
   const [updatingSenderRuleId, setUpdatingSenderRuleId] = useState("");
   const [smsInboxSenders, setSmsInboxSenders] = useState<SmsInboxSender[]>([]);
@@ -1300,25 +1322,59 @@ export default function App() {
   const accountName = (accountId: string | null) =>
     accounts.find((account) => account.id === accountId)?.name ?? (accountId ? "Unknown account" : "Not selected");
 
-  const handleIgnoreReviewCandidate = async (candidateId: string) => {
+  const handleRejectReviewCandidate = async (
+    candidate: ParsedMessageCandidate,
+    exclusion: "entry" | "provider" | "sender" = "entry"
+  ) => {
     if (!accessToken.trim()) {
       setReviewState("error");
       setReviewMessage("Sign in first or paste a valid access token.");
       return;
     }
 
-    setReviewActionCandidateId(candidateId);
+    setReviewActionCandidateId(candidate.id);
     setReviewState("loading");
     setReviewMessage("");
     try {
-      await ignoreMessageCandidate(accessToken.trim(), candidateId);
-      await handleLoadReviewCandidates();
+      await rejectMessageCandidate(accessToken.trim(), candidate.id, {
+        exclude_provider: exclusion === "provider",
+        exclude_sender: exclusion === "sender",
+        reason: candidate.message_kind === "otp_or_security" ? "otp_security" : "not_transaction",
+        redact_raw_sms: true
+      });
+      await Promise.all([
+        handleLoadReviewCandidates(),
+        exclusion === "entry" ? Promise.resolve() : handleLoadSmsSettings()
+      ]);
     } catch (error) {
       setReviewState("error");
-      setReviewMessage(error instanceof Error ? error.message : "Could not ignore SMS candidate.");
+      setReviewMessage(error instanceof Error ? error.message : "Could not reject SMS candidate.");
     } finally {
       setReviewActionCandidateId("");
     }
+  };
+
+  const confirmRejectReviewCandidate = (
+    candidate: ParsedMessageCandidate,
+    exclusion: "entry" | "provider" | "sender" = "entry"
+  ) => {
+    const target = exclusion === "provider"
+      ? ` and exclude every future ${titleCase(candidate.provider)} message`
+      : exclusion === "sender"
+        ? ` and disable sender ${candidate.raw_message.sender}`
+        : "";
+    Alert.alert(
+      "Reject this SMS?",
+      `The message will be rejected and its stored body redacted${target}.`,
+      [
+        { style: "cancel", text: "Cancel" },
+        {
+          onPress: () => void handleRejectReviewCandidate(candidate, exclusion),
+          style: "destructive",
+          text: "Reject"
+        }
+      ]
+    );
   };
 
   const refreshSmsPermissionState = async () => {
@@ -1489,7 +1545,9 @@ export default function App() {
       setSenderRules(nextRules);
       setEnabledSenderRuleIds(nextEnabledIds);
       await AsyncStorage.setItem(enabledSenderRulesKey, JSON.stringify(nextEnabledIds));
-      await configureNativeSmsSenderRules(buildNativeSenderRules(nextRules, nextEnabledIds));
+      await configureNativeSmsSenderRules(
+        buildNativeSenderRules(nextRules, nextEnabledIds, smsCapturePreference.excluded_providers)
+      );
       setSmsRuleCreateState("ok");
       setSmsRuleCreateMessage(`${createdRule.sender} is now tracked and mapped to the selected account.`);
       setSelectedSmsSender("");
@@ -1502,7 +1560,11 @@ export default function App() {
   };
 
   const handleConfigureNativeSmsCapture = async () => {
-    const nativeRules = buildNativeSenderRules(senderRules, enabledSenderRuleIds);
+    const nativeRules = buildNativeSenderRules(
+      senderRules,
+      enabledSenderRuleIds,
+      smsCapturePreference.excluded_providers
+    );
 
     if (nativeRules.length === 0) {
       setSmsSettingsState("error");
@@ -1523,7 +1585,12 @@ export default function App() {
   };
 
   const handleImportCapturedSmsMessages = async () => {
-    const enabledRules = senderRules.filter((rule) => rule.is_active && enabledSenderRuleIds.includes(rule.id));
+    const enabledRules = senderRules.filter(
+      (rule) =>
+        rule.is_active
+        && enabledSenderRuleIds.includes(rule.id)
+        && !smsCapturePreference.excluded_providers.includes(rule.provider)
+    );
 
     if (enabledRules.length === 0) {
       setRawQueueState("error");
@@ -1599,8 +1666,17 @@ export default function App() {
       return;
     }
 
-    const enabledRules = senderRules.filter((rule) => rule.is_active && enabledSenderRuleIds.includes(rule.id));
-    const nativeRules = buildNativeSenderRules(senderRules, enabledSenderRuleIds);
+    const enabledRules = senderRules.filter(
+      (rule) =>
+        rule.is_active
+        && enabledSenderRuleIds.includes(rule.id)
+        && !smsCapturePreference.excluded_providers.includes(rule.provider)
+    );
+    const nativeRules = buildNativeSenderRules(
+      senderRules,
+      enabledSenderRuleIds,
+      smsCapturePreference.excluded_providers
+    );
     if (enabledRules.length === 0 || nativeRules.length === 0) {
       setRawQueueState("error");
       setRawQueueMessage("Choose at least one trusted SMS sender before scanning.");
@@ -1702,6 +1778,7 @@ export default function App() {
       let failedCount = 0;
       let importedCount = 0;
       let duplicateCount = 0;
+      let excludedCount = 0;
       let reprocessedCount = 0;
 
       setRawQueueMessage(`Found ${newlyQueued.length} tracked message(s). Syncing securely…`);
@@ -1726,6 +1803,8 @@ export default function App() {
             reprocessedCount += 1;
           } else if (result.is_duplicate) {
             duplicateCount += 1;
+          } else if (result.message.exclusion_reason) {
+            excludedCount += 1;
           } else {
             importedCount += 1;
           }
@@ -1743,7 +1822,7 @@ export default function App() {
       await Promise.all([handleLoadReviewCandidates(), handleLoadTransactions()]);
       setRawQueueState(failedCount > 0 ? "error" : "ok");
       setRawQueueMessage(
-        `Scanned ${scanResult.scannedCount} SMS. Imported ${importedCount}, refreshed ${reprocessedCount}, skipped ${duplicateCount + localDuplicateCount + scanResult.duplicateCount}, and kept ${failedCount} for retry. ${syncedCount} sync request(s) completed.`
+        `Scanned ${scanResult.scannedCount} SMS. Imported ${importedCount}, excluded ${excludedCount} by capture policy, refreshed ${reprocessedCount}, skipped ${duplicateCount + localDuplicateCount + scanResult.duplicateCount}, and kept ${failedCount} for retry. ${syncedCount} sync request(s) completed.`
       );
     } catch (error) {
       setRawQueueState("error");
@@ -1790,9 +1869,10 @@ export default function App() {
     setSmsSettingsState("loading");
     setSmsSettingsMessage("");
     try {
-      const [nextPaymentMethods, nextSenderRules, storedEnabledRuleIds] = await Promise.all([
+      const [nextPaymentMethods, nextSenderRules, nextCapturePreference, storedEnabledRuleIds] = await Promise.all([
         listPaymentMethods(accessToken.trim()),
         listSenderRules(accessToken.trim()),
+        getSmsCapturePreference(accessToken.trim()),
         AsyncStorage.getItem(enabledSenderRulesKey)
       ]);
       const validEnabledRuleIds = normalizeStringArray(storedEnabledRuleIds).filter((ruleId) =>
@@ -1800,9 +1880,16 @@ export default function App() {
       );
       setPaymentMethods(nextPaymentMethods);
       setSenderRules(nextSenderRules);
+      setSmsCapturePreference(nextCapturePreference);
       setEnabledSenderRuleIds(validEnabledRuleIds);
       if (isNativeSmsCaptureAvailable()) {
-        await configureNativeSmsSenderRules(buildNativeSenderRules(nextSenderRules, validEnabledRuleIds));
+        await configureNativeSmsSenderRules(
+          buildNativeSenderRules(
+            nextSenderRules,
+            validEnabledRuleIds,
+            nextCapturePreference.excluded_providers
+          )
+        );
       }
       setSmsSettingsState("ok");
       setSmsSettingsMessage(
@@ -1823,7 +1910,9 @@ export default function App() {
     setSmsSettingsMessage("Updating trusted senders on this device…");
     try {
       const configured = isNativeSmsCaptureAvailable()
-        ? await configureNativeSmsSenderRules(buildNativeSenderRules(senderRules, nextIds))
+        ? await configureNativeSmsSenderRules(
+            buildNativeSenderRules(senderRules, nextIds, smsCapturePreference.excluded_providers)
+          )
         : { configuredCount: nextIds.length };
       await AsyncStorage.setItem(enabledSenderRulesKey, JSON.stringify(nextIds));
       setEnabledSenderRuleIds(nextIds);
@@ -1838,6 +1927,52 @@ export default function App() {
       setSmsSettingsMessage(error instanceof Error ? error.message : "Could not update native sender tracking.");
     } finally {
       setUpdatingSenderRuleId("");
+    }
+  };
+
+  const handleToggleCaptureExclusion = async (
+    kind: "message_kind" | "provider",
+    value: string
+  ) => {
+    if (!accessToken.trim()) {
+      setSmsSettingsState("error");
+      setSmsSettingsMessage("Sign in before updating SMS capture policy.");
+      return;
+    }
+
+    const currentValues = kind === "provider"
+      ? smsCapturePreference.excluded_providers
+      : smsCapturePreference.excluded_message_kinds;
+    const nextValues = currentValues.includes(value)
+      ? currentValues.filter((item) => item !== value)
+      : [...currentValues, value];
+    const patch = kind === "provider"
+      ? { excluded_providers: nextValues }
+      : { excluded_message_kinds: nextValues };
+    const captureKey = `${kind}:${value}`;
+
+    setUpdatingCaptureKey(captureKey);
+    setSmsSettingsState("loading");
+    setSmsSettingsMessage("Updating capture policy…");
+    try {
+      const nextPreference = await updateSmsCapturePreference(accessToken.trim(), patch);
+      setSmsCapturePreference(nextPreference);
+      if (isNativeSmsCaptureAvailable()) {
+        await configureNativeSmsSenderRules(
+          buildNativeSenderRules(
+            senderRules,
+            enabledSenderRuleIds,
+            nextPreference.excluded_providers
+          )
+        );
+      }
+      setSmsSettingsState("ok");
+      setSmsSettingsMessage("Capture policy updated on the server and this device.");
+    } catch (error) {
+      setSmsSettingsState("error");
+      setSmsSettingsMessage(error instanceof Error ? error.message : "Could not update capture policy.");
+    } finally {
+      setUpdatingCaptureKey("");
     }
   };
 
@@ -1918,6 +2053,7 @@ export default function App() {
     const nowMs = Date.now();
     let failedCount = 0;
     let syncedCount = 0;
+    let excludedCount = 0;
     let skippedCount = 0;
 
     for (const queuedMessage of rawQueue) {
@@ -1935,7 +2071,7 @@ export default function App() {
       };
 
       try {
-        await importRawMessage(accessToken.trim(), {
+        const result = await importRawMessage(accessToken.trim(), {
           body: attemptedMessage.body,
           device_message_id: attemptedMessage.deviceMessageId,
           received_at: attemptedMessage.receivedAt,
@@ -1943,6 +2079,9 @@ export default function App() {
           sender: attemptedMessage.sender
         });
         syncedCount += 1;
+        if (result.message.exclusion_reason) {
+          excludedCount += 1;
+        }
       } catch (error) {
         failedCount += 1;
         remainingQueue.push({
@@ -1957,7 +2096,7 @@ export default function App() {
       await saveRawQueue(remainingQueue);
       setRawQueueState(failedCount > 0 ? "error" : "ok");
       setRawQueueMessage(
-        `Synced ${syncedCount} message(s). ${failedCount} failed. ${skippedCount} waiting for retry. ${remainingQueue.length} message(s) remain queued.`
+        `Synced ${syncedCount} message(s); ${excludedCount} were discarded by capture policy. ${failedCount} failed. ${skippedCount} waiting for retry. ${remainingQueue.length} message(s) remain queued.`
       );
     } catch (error) {
       setRawQueueState("error");
@@ -3333,11 +3472,12 @@ export default function App() {
             <View style={styles.listSection}>
               <Text style={styles.listTitle}>Tracked Senders</Text>
               {senderRules.map((rule) => {
-                const isEnabled = enabledSenderRuleIds.includes(rule.id);
+                const providerExcluded = smsCapturePreference.excluded_providers.includes(rule.provider);
+                const isEnabled = enabledSenderRuleIds.includes(rule.id) && !providerExcluded;
                 return (
                   <Pressable
                     key={rule.id}
-                    disabled={!rule.is_active || updatingSenderRuleId === rule.id}
+                    disabled={!rule.is_active || providerExcluded || updatingSenderRuleId === rule.id}
                     onPress={() => void handleToggleSenderRule(rule.id)}
                     style={isEnabled ? styles.senderRuleSelected : styles.senderRule}
                   >
@@ -3546,10 +3686,10 @@ export default function App() {
                       </Pressable>
                       <Pressable
                         disabled={isWorking}
-                        onPress={() => void handleIgnoreReviewCandidate(candidate.id)}
+                        onPress={() => confirmRejectReviewCandidate(candidate)}
                         style={isWorking ? styles.buttonDisabled : styles.buttonDanger}
                       >
-                        <Text style={styles.buttonText}>Ignore</Text>
+                        <Text style={styles.buttonText}>Reject & redact</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -4022,10 +4162,26 @@ export default function App() {
               </Pressable>
               <Pressable
                 disabled={isWorking}
-                onPress={() => void handleIgnoreReviewCandidate(candidate.id)}
+                onPress={() => confirmRejectReviewCandidate(candidate)}
                 style={styles.mobileOutlineButton}
               >
-                <Text style={styles.mobileOutlineButtonText}>Ignore</Text>
+                <Text style={styles.mobileOutlineButtonText}>Reject</Text>
+              </Pressable>
+            </View>
+            <View style={styles.mobileChoiceRow}>
+              <Pressable
+                disabled={isWorking}
+                onPress={() => confirmRejectReviewCandidate(candidate, "sender")}
+                style={styles.mobileChoice}
+              >
+                <Text style={styles.mobileChoiceText}>Reject + exclude sender</Text>
+              </Pressable>
+              <Pressable
+                disabled={isWorking}
+                onPress={() => confirmRejectReviewCandidate(candidate, "provider")}
+                style={styles.mobileChoice}
+              >
+                <Text style={styles.mobileChoiceText}>Reject + exclude provider</Text>
               </Pressable>
             </View>
           </View>
@@ -4077,7 +4233,12 @@ export default function App() {
 
   const renderSmsAutomation = () => {
     const canReadSms = smsPermissionState === "granted";
-    const enabledRules = senderRules.filter((rule) => rule.is_active && enabledSenderRuleIds.includes(rule.id));
+    const enabledRules = senderRules.filter(
+      (rule) =>
+        rule.is_active
+        && enabledSenderRuleIds.includes(rule.id)
+        && !smsCapturePreference.excluded_providers.includes(rule.provider)
+    );
     const existingExactSenders = new Set(
       senderRules
         .filter((rule) => rule.match_type === "exact")
@@ -4157,7 +4318,57 @@ export default function App() {
 
         <View style={styles.mobileSection}>
           <View style={styles.mobileSectionHeader}>
-            <Text style={styles.mobileSectionTitle}>2. Trusted senders</Text>
+            <Text style={styles.mobileSectionTitle}>2. Capture policy</Text>
+            <Text style={styles.mobileSectionMeta}>Server enforced</Text>
+          </View>
+          <Text style={styles.mobileStateText}>
+            Excluded messages keep only a server fingerprint for rescan protection. Their SMS body is not retained by the API.
+          </Text>
+          <Text style={styles.mobileFieldLabel}>Providers</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.mobileChoiceRow}>
+              {smsProviderOptions.map((provider) => {
+                const excluded = smsCapturePreference.excluded_providers.includes(provider.value);
+                const captureKey = `provider:${provider.value}`;
+                return (
+                  <Pressable
+                    disabled={Boolean(updatingCaptureKey)}
+                    key={provider.value}
+                    onPress={() => void handleToggleCaptureExclusion("provider", provider.value)}
+                    style={[styles.mobileChoice, !excluded ? styles.mobileChoiceActive : null]}
+                  >
+                    <Text style={[styles.mobileChoiceText, !excluded ? styles.mobileChoiceTextActive : null]}>
+                      {updatingCaptureKey === captureKey ? "Updating…" : `${provider.label} · ${excluded ? "Excluded" : "Tracking"}`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+          <Text style={styles.mobileFieldLabel}>Non-transaction messages</Text>
+          <View style={styles.mobileChoiceRow}>
+            {["otp_or_security", "balance_notice"].map((messageKind) => {
+              const excluded = smsCapturePreference.excluded_message_kinds.includes(messageKind);
+              const captureKey = `message_kind:${messageKind}`;
+              return (
+                <Pressable
+                  disabled={Boolean(updatingCaptureKey)}
+                  key={messageKind}
+                  onPress={() => void handleToggleCaptureExclusion("message_kind", messageKind)}
+                  style={[styles.mobileChoice, !excluded ? styles.mobileChoiceActive : null]}
+                >
+                  <Text style={[styles.mobileChoiceText, !excluded ? styles.mobileChoiceTextActive : null]}>
+                    {updatingCaptureKey === captureKey ? "Updating…" : `${titleCase(messageKind)} · ${excluded ? "Excluded" : "Allowed"}`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.mobileSection}>
+          <View style={styles.mobileSectionHeader}>
+            <Text style={styles.mobileSectionTitle}>3. Trusted senders</Text>
             <Text style={styles.mobileSectionMeta}>{enabledRules.length} enabled</Text>
           </View>
           <Text style={styles.mobileStateText}>
@@ -4167,13 +4378,14 @@ export default function App() {
           {senderRules.length ? (
             <View style={styles.mobileGroupedList}>
               {senderRules.map((rule) => {
-                const isEnabled = enabledSenderRuleIds.includes(rule.id);
+                const providerExcluded = smsCapturePreference.excluded_providers.includes(rule.provider);
+                const isEnabled = enabledSenderRuleIds.includes(rule.id) && !providerExcluded;
                 return (
                   <Pressable
                     accessibilityRole="switch"
                     accessibilityState={{ checked: isEnabled }}
                     key={rule.id}
-                    disabled={!rule.is_active || updatingSenderRuleId === rule.id}
+                    disabled={providerExcluded || !rule.is_active || updatingSenderRuleId === rule.id}
                     onPress={() => void handleToggleSenderRule(rule.id)}
                     style={({ pressed }) => [styles.mobileMenuRow, pressed ? styles.mobilePressed : null]}
                   >
@@ -4182,12 +4394,14 @@ export default function App() {
                     </View>
                     <View style={styles.mobileRowBody}>
                       <Text style={styles.mobileRowTitle}>{rule.name || rule.sender}</Text>
-                      <Text style={styles.mobileRowMeta}>{rule.sender} · {titleCase(rule.match_type)}</Text>
+                      <Text style={styles.mobileRowMeta}>{rule.sender} · {titleCase(rule.provider)} · {titleCase(rule.match_type)}</Text>
                     </View>
                     <View style={styles.mobileRuleDecision}>
                       {updatingSenderRuleId === rule.id ? <ActivityIndicator color="#32d8f2" size="small" /> : null}
                       <Text style={[styles.mobileRuleDecisionText, isEnabled ? styles.mobileRuleDecisionTextActive : null]}>
-                        {!rule.is_active
+                        {providerExcluded
+                          ? "Provider excluded"
+                          : !rule.is_active
                           ? "Inactive"
                           : updatingSenderRuleId === rule.id
                             ? "Updating"
@@ -4416,7 +4630,7 @@ export default function App() {
 
         <View style={styles.mobileSection}>
           <View style={styles.mobileSectionHeader}>
-            <Text style={styles.mobileSectionTitle}>3. Scan and sync</Text>
+            <Text style={styles.mobileSectionTitle}>4. Scan and sync</Text>
             <Text style={styles.mobileSectionMeta}>{rawQueue.length} waiting</Text>
           </View>
           <Text style={styles.mobileFieldLabel}>Choose what to scan</Text>

@@ -8,7 +8,14 @@ from apps.categories.models import Category
 from apps.payment_methods.models import PaymentMethod
 from apps.transactions.models import Transaction
 
-from .models import ParsedMessageCandidate, RawMessage, SenderRule
+from .models import ParsedMessageCandidate, RawMessage, SenderRule, SmsCapturePreference
+
+
+CAPTURE_MESSAGE_KIND_CHOICES = tuple(
+    choice
+    for choice, _label in ParsedMessageCandidate.MessageKind.choices
+    if choice != ParsedMessageCandidate.MessageKind.UNKNOWN
+)
 
 
 class SenderRuleSerializer(serializers.ModelSerializer):
@@ -106,6 +113,9 @@ class RawMessageSerializer(serializers.ModelSerializer):
             "received_at",
             "device_message_id",
             "body_hash",
+            "provider",
+            "message_kind",
+            "exclusion_reason",
             "status",
             "duplicate_of",
             "created_at",
@@ -114,6 +124,9 @@ class RawMessageSerializer(serializers.ModelSerializer):
         read_only_fields = (
             "id",
             "body_hash",
+            "provider",
+            "message_kind",
+            "exclusion_reason",
             "status",
             "duplicate_of",
             "created_at",
@@ -162,6 +175,9 @@ class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
             "status",
             "parser_name",
             "parser_notes",
+            "rejection_reason",
+            "rejection_note",
+            "rejected_at",
             "created_at",
             "updated_at",
         )
@@ -189,9 +205,49 @@ class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
             "status",
             "parser_name",
             "parser_notes",
+            "rejection_reason",
+            "rejection_note",
+            "rejected_at",
             "created_at",
             "updated_at",
         )
+
+
+class SmsCapturePreferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SmsCapturePreference
+        fields = (
+            "excluded_providers",
+            "excluded_message_kinds",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("created_at", "updated_at")
+
+    def validate_excluded_providers(self, providers):
+        allowed = {choice for choice, _label in SenderRule.Provider.choices}
+        invalid = set(providers) - allowed
+        if invalid:
+            raise serializers.ValidationError(
+                f"Unsupported provider values: {', '.join(sorted(invalid))}."
+            )
+        return list(dict.fromkeys(providers))
+
+    def validate_excluded_message_kinds(self, message_kinds):
+        invalid = set(message_kinds) - set(CAPTURE_MESSAGE_KIND_CHOICES)
+        if invalid:
+            raise serializers.ValidationError(
+                f"Unsupported message kind values: {', '.join(sorted(invalid))}."
+            )
+        return list(dict.fromkeys(message_kinds))
+
+
+class MessageCandidateRejectSerializer(serializers.Serializer):
+    reason = serializers.ChoiceField(choices=ParsedMessageCandidate.RejectionReason.choices)
+    note = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+    redact_raw_sms = serializers.BooleanField(required=False, default=False)
+    exclude_sender = serializers.BooleanField(required=False, default=False)
+    exclude_provider = serializers.BooleanField(required=False, default=False)
 
 
 class ParsedMessageConfirmSerializer(serializers.Serializer):

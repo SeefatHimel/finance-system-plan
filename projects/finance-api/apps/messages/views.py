@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -11,14 +12,22 @@ from rest_framework.viewsets import ModelViewSet
 
 from apps.transactions.models import Transaction
 
-from .models import ParsedMessageCandidate, RawMessage, SenderRule
+from .models import (
+    ParsedMessageCandidate,
+    RawMessage,
+    SenderRule,
+    SmsCapturePreference,
+    default_excluded_message_kinds,
+)
 from .parsers import find_sender_rule, parse_raw_message
 from .serializers import (
     ParsedMessageCandidateSerializer,
     ParsedMessageConfirmSerializer,
+    MessageCandidateRejectSerializer,
     RawMessageImportSerializer,
     RawMessageSerializer,
     SenderRuleSerializer,
+    SmsCapturePreferenceSerializer,
 )
 
 
@@ -36,6 +45,28 @@ class SenderRuleViewSet(ModelViewSet):
         serializer.save(user=self.request.user)
 
 
+class SmsCapturePreferenceView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get_object(self, user):
+        preference, _created = SmsCapturePreference.objects.get_or_create(user=user)
+        return preference
+
+    def get(self, request):
+        return Response(SmsCapturePreferenceSerializer(self.get_object(request.user)).data)
+
+    def patch(self, request):
+        preference = self.get_object(request.user)
+        serializer = SmsCapturePreferenceSerializer(
+            preference,
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
 class RawMessageImportView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -43,7 +74,8 @@ class RawMessageImportView(APIView):
         serializer = RawMessageImportSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
-        if find_sender_rule(user=request.user, sender=payload["sender"]) is None:
+        sender_rule = find_sender_rule(user=request.user, sender=payload["sender"])
+        if sender_rule is None:
             return Response(
                 {"sender": "No active trusted sender rule matches this message."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -76,6 +108,62 @@ class RawMessageImportView(APIView):
                 status=status.HTTP_200_OK,
             )
 
+        transient_message = RawMessage(
+            user=request.user,
+            sender=payload["sender"],
+            body=payload["body"],
+            received_at=payload["received_at"],
+        )
+        parsed = parse_raw_message(transient_message)
+        preference = SmsCapturePreference.objects.filter(user=request.user).first()
+        excluded_providers = set(preference.excluded_providers if preference else [])
+        excluded_message_kinds = set(
+            preference.excluded_message_kinds
+            if preference
+            else default_excluded_message_kinds()
+        )
+        exclusion_reason = ""
+        if parsed["provider"] in excluded_providers:
+            exclusion_reason = "provider_excluded"
+        elif parsed["message_kind"] in excluded_message_kinds:
+            exclusion_reason = "message_kind_excluded"
+
+        if exclusion_reason:
+            try:
+                with transaction.atomic():
+                    raw_message = RawMessage.objects.create(
+                        user=request.user,
+                        sender=payload["sender"],
+                        body="[excluded before storage]",
+                        received_at=payload["received_at"],
+                        device_message_id=payload.get("device_message_id", ""),
+                        body_hash=body_hash,
+                        provider=parsed["provider"],
+                        message_kind=parsed["message_kind"],
+                        exclusion_reason=exclusion_reason,
+                        status=RawMessage.Status.IGNORED,
+                    )
+            except IntegrityError:
+                raw_message = self._find_duplicate(request.user, payload, body_hash)
+                return Response(
+                    {
+                        "candidate": None,
+                        "is_duplicate": True,
+                        "was_reprocessed": False,
+                        "message": RawMessageSerializer(raw_message).data,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+            return Response(
+                {
+                    "candidate": None,
+                    "is_duplicate": False,
+                    "was_reprocessed": False,
+                    "message": RawMessageSerializer(raw_message).data,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
         try:
             with transaction.atomic():
                 raw_message = RawMessage.objects.create(
@@ -85,8 +173,10 @@ class RawMessageImportView(APIView):
                     received_at=payload["received_at"],
                     device_message_id=payload.get("device_message_id", ""),
                     body_hash=body_hash,
+                    provider=parsed["provider"],
+                    message_kind=parsed["message_kind"],
                 )
-                candidate = self._create_candidate(raw_message)
+                candidate = self._create_candidate(raw_message, parsed=parsed)
                 self._link_possible_related_candidate(candidate)
         except IntegrityError:
             raw_message = RawMessage.objects.get(user=request.user, body_hash=body_hash)
@@ -124,8 +214,8 @@ class RawMessageImportView(APIView):
                 return duplicate
         return queryset.filter(body_hash=body_hash).first()
 
-    def _create_candidate(self, raw_message):
-        parsed = parse_raw_message(raw_message)
+    def _create_candidate(self, raw_message, *, parsed=None):
+        parsed = parsed or parse_raw_message(raw_message)
         return ParsedMessageCandidate.objects.create(
             user=raw_message.user,
             raw_message=raw_message,
@@ -436,17 +526,75 @@ class MessageCandidateConfirmView(APIView):
         )
 
 
-class MessageCandidateIgnoreView(APIView):
+class MessageCandidateRejectView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def post(self, request, candidate_id):
         candidate = get_object_or_404(
-            ParsedMessageCandidate.objects.select_related("raw_message"),
+            ParsedMessageCandidate.objects.select_related("raw_message", "sender_rule"),
             user=request.user,
             id=candidate_id,
         )
-        candidate.status = ParsedMessageCandidate.Status.IGNORED
-        candidate.save(update_fields=("status", "updated_at"))
+        if candidate.status != ParsedMessageCandidate.Status.NEEDS_REVIEW:
+            return Response(
+                {"status": "Only pending candidates can be rejected."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payload = request.data.copy()
+        payload.setdefault("reason", ParsedMessageCandidate.RejectionReason.NOT_TRANSACTION)
+        serializer = MessageCandidateRejectSerializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        rejection = serializer.validated_data
+
+        with transaction.atomic():
+            candidate.status = ParsedMessageCandidate.Status.IGNORED
+            candidate.rejection_reason = rejection["reason"]
+            candidate.rejection_note = rejection["note"]
+            candidate.rejected_at = timezone.now()
+            candidate.save(
+                update_fields=(
+                    "status",
+                    "rejection_reason",
+                    "rejection_note",
+                    "rejected_at",
+                    "updated_at",
+                )
+            )
+
+            raw_message = candidate.raw_message
+            raw_message.provider = candidate.provider
+            raw_message.message_kind = candidate.message_kind
+            raw_message.exclusion_reason = f"user_rejected:{rejection['reason']}"
+            raw_message.status = RawMessage.Status.IGNORED
+            raw_message.save(
+                update_fields=(
+                    "provider",
+                    "message_kind",
+                    "exclusion_reason",
+                    "status",
+                )
+            )
+
+            if rejection["exclude_sender"] and candidate.sender_rule:
+                candidate.sender_rule.is_active = False
+                candidate.sender_rule.save(update_fields=("is_active", "updated_at"))
+
+            if rejection["exclude_provider"] and candidate.provider:
+                preference, _created = SmsCapturePreference.objects.get_or_create(
+                    user=request.user
+                )
+                if candidate.provider not in preference.excluded_providers:
+                    preference.excluded_providers = [
+                        *preference.excluded_providers,
+                        candidate.provider,
+                    ]
+                    preference.save(update_fields=("excluded_providers", "updated_at"))
+
+            if rejection["redact_raw_sms"]:
+                raw_message.redact()
+
+        candidate.refresh_from_db()
         return Response(ParsedMessageCandidateSerializer(candidate).data)
 
 

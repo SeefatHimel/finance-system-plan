@@ -53,6 +53,8 @@ export type RawMessageStatus = "imported" | "duplicate" | "ignored" | "redacted"
 
 export type ParsedMessageCandidateStatus = "needs_review" | "confirmed" | "ignored";
 
+export type ParsedMessageRejectionReason = "not_transaction" | "otp_security" | "duplicate" | "wrong_provider_account" | "personal" | "unsupported_format" | "other";
+
 export type BalanceSnapshotStatus = "matched" | "missing_money" | "extra_money" | "adjusted" | "ignored";
 
 export type DebtDirection = "lent_by_me" | "borrowed_by_me";
@@ -190,6 +192,9 @@ export interface RawMessage {
   received_at: string;
   device_message_id: string;
   body_hash: string;
+  provider: string;
+  message_kind: string;
+  exclusion_reason: string;
   status: RawMessageStatus;
   duplicate_of: string | null;
   created_at: string;
@@ -240,6 +245,9 @@ export interface ParsedMessageCandidate {
   status: ParsedMessageCandidateStatus;
   parser_name: string;
   parser_notes: string;
+  rejection_reason: string;
+  rejection_note: string;
+  rejected_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -257,6 +265,26 @@ export interface ParsedMessageConfirmRequest {
   counterparty_text?: string;
   note?: string;
   type?: TransactionType;
+}
+
+export interface ParsedMessageRejectRequest {
+  reason: ParsedMessageRejectionReason;
+  note?: string;
+  redact_raw_sms?: boolean;
+  exclude_sender?: boolean;
+  exclude_provider?: boolean;
+}
+
+export interface SmsCapturePreference {
+  excluded_providers: SenderRuleProvider[];
+  excluded_message_kinds: ParsedMessageKind[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SmsCapturePreferencePatchRequest {
+  excluded_providers?: SenderRuleProvider[];
+  excluded_message_kinds?: ParsedMessageKind[];
 }
 
 export interface BalanceSnapshot {

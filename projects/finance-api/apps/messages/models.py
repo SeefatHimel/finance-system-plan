@@ -78,6 +78,29 @@ class SenderRule(models.Model):
         return self.name
 
 
+def default_excluded_message_kinds():
+    return ["otp_or_security"]
+
+
+class SmsCapturePreference(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sms_capture_preference",
+    )
+    excluded_providers = models.JSONField(default=list, blank=True)
+    excluded_message_kinds = models.JSONField(
+        default=default_excluded_message_kinds,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"SMS capture preferences for {self.user}"
+
+
 class RawMessage(models.Model):
     class Status(models.TextChoices):
         IMPORTED = "imported", "Imported"
@@ -96,6 +119,9 @@ class RawMessage(models.Model):
     received_at = models.DateTimeField()
     device_message_id = models.CharField(max_length=120, blank=True)
     body_hash = models.CharField(max_length=64)
+    provider = models.CharField(max_length=32, choices=SenderRule.Provider.choices, blank=True, default="")
+    message_kind = models.CharField(max_length=32, blank=True, default="")
+    exclusion_reason = models.CharField(max_length=120, blank=True, default="")
     status = models.CharField(max_length=32, choices=Status.choices, default=Status.IMPORTED)
     duplicate_of = models.ForeignKey(
         "self",
@@ -174,6 +200,15 @@ class ParsedMessageCandidate(models.Model):
         BALANCE_NOTICE = "balance_notice", "Balance notice"
         OTP_OR_SECURITY = "otp_or_security", "OTP or security"
         UNKNOWN = "unknown", "Unknown"
+
+    class RejectionReason(models.TextChoices):
+        NOT_TRANSACTION = "not_transaction", "Not a transaction"
+        OTP_SECURITY = "otp_security", "OTP or security message"
+        DUPLICATE = "duplicate", "Duplicate"
+        WRONG_PROVIDER_ACCOUNT = "wrong_provider_account", "Wrong provider or account"
+        PERSONAL = "personal", "Personal or non-financial"
+        UNSUPPORTED_FORMAT = "unsupported_format", "Unsupported format"
+        OTHER = "other", "Other"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -268,6 +303,9 @@ class ParsedMessageCandidate(models.Model):
     status = models.CharField(max_length=32, choices=Status.choices, default=Status.NEEDS_REVIEW)
     parser_name = models.CharField(max_length=120, blank=True)
     parser_notes = models.TextField(blank=True)
+    rejection_reason = models.CharField(max_length=32, choices=RejectionReason.choices, blank=True, default="")
+    rejection_note = models.CharField(max_length=255, blank=True, default="")
+    rejected_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

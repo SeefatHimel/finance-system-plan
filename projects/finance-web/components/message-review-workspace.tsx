@@ -10,11 +10,11 @@ import {
   type TransactionDirection,
   type TransactionType,
   confirmMessageCandidate,
-  ignoreMessageCandidate,
   listAccounts,
   listCategories,
   listMessageCandidates,
-  redactRawMessage
+  redactRawMessage,
+  rejectMessageCandidate
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
@@ -170,22 +170,45 @@ export function MessageReviewWorkspace() {
     }
   }
 
-  async function handleIgnore(candidateId: string) {
+  async function handleReject(
+    candidate: ParsedMessageCandidate,
+    event: React.MouseEvent<HTMLButtonElement>
+  ) {
     const accessToken = getAccessToken();
 
     if (!accessToken) {
-      setActionError("Sign in before ignoring SMS candidates.");
+      setActionError("Sign in before rejecting SMS candidates.");
       return;
     }
 
+    const form = event.currentTarget.form;
+    if (!form) return;
+    const formData = new FormData(form);
+    const excludeSender = formData.get("exclude_sender") === "on";
+    const excludeProvider = formData.get("exclude_provider") === "on";
+    const confirmed = window.confirm(
+      excludeProvider
+        ? `Reject this message and exclude all future ${formatLabel(candidate.provider)} messages?`
+        : excludeSender
+          ? `Reject this message and disable sender ${candidate.raw_message.sender}?`
+          : "Reject this message without creating a transaction?"
+    );
+    if (!confirmed) return;
+
     setActionError(null);
-    setWorkingCandidateId(candidateId);
+    setWorkingCandidateId(candidate.id);
 
     try {
-      await ignoreMessageCandidate(accessToken, candidateId);
+      await rejectMessageCandidate(accessToken, candidate.id, {
+        exclude_provider: excludeProvider,
+        exclude_sender: excludeSender,
+        note: String(formData.get("rejection_note") ?? ""),
+        reason: String(formData.get("rejection_reason") ?? "not_transaction"),
+        redact_raw_sms: formData.get("redact_raw_sms") === "on"
+      });
       await loadData(false);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Could not ignore candidate.");
+      setActionError(error instanceof Error ? error.message : "Could not reject candidate.");
     } finally {
       setWorkingCandidateId(null);
     }
@@ -439,12 +462,36 @@ export function MessageReviewWorkspace() {
                       <button
                         className="button button--danger"
                         disabled={isWorking}
-                        onClick={() => void handleIgnore(candidate.id)}
+                        onClick={(event) => void handleReject(candidate, event)}
                         type="button"
                       >
-                        Ignore
+                        Reject
                       </button>
                     </div>
+                    <details className="raw-message field--wide">
+                      <summary>Rejection options</summary>
+                      <div className="review-form">
+                        <label className="field">
+                          <span className="field__label">Reason</span>
+                          <select className="field__control" defaultValue="not_transaction" name="rejection_reason">
+                            <option value="not_transaction">Not a transaction</option>
+                            <option value="otp_security">OTP or security message</option>
+                            <option value="duplicate">Duplicate</option>
+                            <option value="wrong_provider_account">Wrong provider or account</option>
+                            <option value="personal">Personal or non-financial</option>
+                            <option value="unsupported_format">Unsupported format</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span className="field__label">Note (optional)</span>
+                          <input className="field__control" name="rejection_note" type="text" />
+                        </label>
+                        <label className="field"><span><input defaultChecked name="redact_raw_sms" type="checkbox" /> Redact SMS body now</span></label>
+                        <label className="field"><span><input name="exclude_sender" type="checkbox" /> Exclude this sender</span></label>
+                        <label className="field"><span><input name="exclude_provider" type="checkbox" /> Exclude this provider</span></label>
+                      </div>
+                    </details>
                   </form>
                 </div>
               </article>

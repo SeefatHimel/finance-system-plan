@@ -89,6 +89,10 @@ paths, and physical-phone SMS smoke test are documented in
   shows an Android permission gate, lets the user locally enable trusted sender
   rules, and syncs those enabled rules to native SMS capture in custom Android
   builds.
+- User-scoped capture policy controls for excluding providers, OTP/security
+  messages, and balance notices. Excluded providers are removed from native
+  capture; the backend replaces any policy-excluded body with a deduplication
+  tombstone before storage.
 - Native sender discovery that reads distinct Android inbox sender names,
   timestamps, and counts without showing message bodies. The user can search,
   choose a sender, map it to an account and provider, create the backend exact
@@ -108,6 +112,9 @@ paths, and physical-phone SMS smoke test are documented in
   or Expo SecureStore as a fallback, with sync to `POST /api/messages/import/`,
   local duplicate checks, per-message retry metadata, capped retry backoff, and
   manual removal for invalid queued messages.
+- Review rejection with a structured reason plus optional raw-body redaction,
+  sender deactivation, and provider exclusion. Scan/sync feedback reports how
+  many messages the server discarded because of capture policy.
 
 The login/token flow now persists the rotated JWT pair in OS-backed secure
 storage rather than AsyncStorage and restores the session on relaunch. Access

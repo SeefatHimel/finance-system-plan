@@ -215,7 +215,14 @@ Raw message import stores the sender, body, received time, optional device
 message ID, and a deterministic body hash. The backend creates a parsed message
 candidate with matched sender rule metadata, amount extraction, confidence, and
 parser notes. Candidates can be reviewed, confirmed into an SMS-sourced
-transaction, or ignored.
+transaction, or rejected with a structured reason.
+
+Before a raw body is saved, the import endpoint resolves its trusted sender
+rule, provider, and supported non-transaction kind. Per-user capture preferences
+can exclude providers, OTP/security messages, or balance notices. An excluded
+message creates only an ignored deduplication tombstone containing its hash and
+metadata; no candidate or original body is stored. OTP/security is excluded by
+default.
 
 Duplicate imports can opt into `reprocess_existing`. The backend then updates
 the existing candidate with current sender rules and parser logic only while it
@@ -265,6 +272,12 @@ reference, balance, counterparty, amount, raw message link, and duplicate hash
 remain, so reports and duplicate checks still work without keeping the original
 SMS text. If a confirmed transaction note exactly copied the SMS body, redaction
 changes that note to `SMS body redacted.`
+
+The capture policy also prevents selected content from being retained at all.
+During review, rejection records a reason and can atomically redact the raw SMS,
+deactivate the matched sender rule, or add the candidate provider to the user's
+excluded-provider list. The legacy ignore route remains compatible but now
+records `not_transaction` as its default rejection reason.
 
 ## Why do internal transfers need special handling?
 

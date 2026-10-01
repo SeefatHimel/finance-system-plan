@@ -44,6 +44,9 @@ Phase 1 scaffold now includes:
     without exposing message bodies in the rule picker
   - supports sender search, account mapping, provider selection, backend rule
     creation, local enablement, and immediate native-rule sync
+  - loads and updates the server-side capture policy for provider,
+    OTP/security, and balance-notice exclusions
+  - removes excluded providers from native sender capture immediately
 - Local raw message queue:
   - stores queued raw messages with Android Keystore-backed encryption in
     native builds or Expo SecureStore as a fallback
@@ -75,7 +78,9 @@ Phase 1 scaffold now includes:
   - shows parser confidence, raw message status, and review/duplicate reasons
   - lets the user correct amount, date, type, accounts, payment method,
     category, counterparty, reference, and note before confirmation
-  - confirms or ignores candidates through the review endpoints
+  - confirms or rejects candidates through the review endpoints
+  - records a rejection reason and can redact the body, disable the matched
+    sender, or exclude the provider in the same action
 - Debt/lending section:
   - loads records from `GET /api/debts/`
   - creates lent/borrowed records through `POST /api/debts/`

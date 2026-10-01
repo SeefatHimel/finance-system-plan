@@ -14,6 +14,14 @@ _PROVIDER_TIMESTAMP_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _TILL_COUNTER_PATTERN = re.compile(r"\b(counter|till|terminal|merchant\s+no)\b\s*[:#-]?\s*([a-z0-9-]+)", re.IGNORECASE)
+_OTP_SECURITY_PATTERN = re.compile(
+    r"\b(?:otp|one[ -]time password|verification code|security code|login code)\b",
+    re.IGNORECASE,
+)
+_TRANSACTION_ACTIVITY_PATTERN = re.compile(
+    r"\b(?:debited|credited|purchase|withdraw(?:al|n)?|txn|transaction|transfer(?:red)?|payment|paid|cash[ -]?(?:in|out)|sent|received|fee|refund|reversal)\b",
+    re.IGNORECASE,
+)
 
 
 def find_sender_rule(*, user, sender: str):
@@ -31,6 +39,15 @@ def find_sender_rule(*, user, sender: str):
 def parse_raw_message(raw_message):
     sender_rule = find_sender_rule(user=raw_message.user, sender=raw_message.sender)
     provider = _detect_provider(sender_rule=sender_rule, sender=raw_message.sender)
+    excluded_kind = classify_message_kind_for_capture(raw_message.body)
+
+    if excluded_kind:
+        return _parse_non_transaction_message(
+            raw_message=raw_message,
+            sender_rule=sender_rule,
+            provider=provider,
+            message_kind=excluded_kind,
+        )
 
     if provider == SenderRule.Provider.BKASH:
         return _parse_bkash_message(raw_message=raw_message, sender_rule=sender_rule)
@@ -74,6 +91,44 @@ def parse_raw_message(raw_message):
         "parser_notes": " ".join(parser_notes),
         "sender_rule": sender_rule,
         "transaction_type": "expense",
+    }
+
+
+def classify_message_kind_for_capture(body: str) -> str:
+    if _OTP_SECURITY_PATTERN.search(body):
+        return ParsedMessageCandidate.MessageKind.OTP_OR_SECURITY
+
+    normalized = _normalize_text(body)
+    has_balance_wording = any(
+        phrase in normalized
+        for phrase in ("available balance", "account balance", "balance is", "balance:")
+    )
+    if has_balance_wording and not _TRANSACTION_ACTIVITY_PATTERN.search(body):
+        return ParsedMessageCandidate.MessageKind.BALANCE_NOTICE
+
+    return ""
+
+
+def _parse_non_transaction_message(*, raw_message, sender_rule, provider: str, message_kind: str):
+    label = "OTP/security" if message_kind == ParsedMessageCandidate.MessageKind.OTP_OR_SECURITY else "balance notice"
+    return {
+        "account": sender_rule.account if sender_rule else None,
+        "amount": None,
+        "balance_after": _extract_balance(raw_message.body),
+        "confidence": Decimal("0.95"),
+        "counterparty_text": "",
+        "destination_account": None,
+        "destination_payment_method": None,
+        "fee_amount": None,
+        "message_kind": message_kind,
+        "payment_method": sender_rule.payment_method if sender_rule else None,
+        "possible_internal_transfer": False,
+        "provider": provider,
+        "reference": _extract_reference(raw_message.body),
+        "parser_name": "non_transaction_classifier",
+        "parser_notes": f"Classified as {label} before transaction parsing.",
+        "sender_rule": sender_rule,
+        "transaction_type": ParsedMessageCandidate.TransactionType.EXPENSE,
     }
 
 
@@ -250,7 +305,10 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
         transaction_type = ParsedMessageCandidate.TransactionType.FEE
         confidence = Decimal("0.80") if amount is not None else Decimal("0.48")
         notes.append("Detected bank/card fee or charge wording.")
-    elif any(keyword in normalized for keyword in ("atm txn", "atm withdrawal", "cash withdrawal", "withdrawal")):
+    elif any(
+        keyword in normalized
+        for keyword in ("atm txn", "atm withdrawal", "cash withdrawal", "withdrawal", "withdrawn")
+    ):
         message_kind = ParsedMessageCandidate.MessageKind.CASH_OUT
         transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
         confidence = Decimal("0.86") if amount is not None else Decimal("0.54")

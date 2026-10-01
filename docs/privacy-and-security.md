@@ -28,12 +28,20 @@ Never commit:
 
 - Store only SMS messages from sender rules the user enabled.
 - Keep ignored sender messages out of backend storage.
+- Let each user exclude an entire provider or supported non-transaction message
+  kind. OTP/security messages are excluded by default.
+- For an excluded message, keep only the sender/time metadata and deterministic
+  body hash needed to prevent repeat imports; replace the body before database
+  storage and do not create a review candidate.
 - Do not scan or upload the whole SMS inbox. Automatic capture, if enabled for
   a personal APK, should only process messages whose sender matches an active
   sender rule and whose body looks transaction-related.
 - Allow raw message redaction. Redaction should remove the original SMS body
   and device message id while preserving parsed ledger evidence, duplicate
   hashes, and audit links.
+- Rejection should record the reason and allow the user to redact the body,
+  disable the matched sender rule, or exclude the whole provider without a
+  second workflow.
 - Use HTTPS in production.
 - Scope every backend query by user.
 - Keep audit timestamps on financial records.

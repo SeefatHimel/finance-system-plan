@@ -111,7 +111,10 @@ const rawMessageSchema = z.object({
   created_at: z.string(),
   device_message_id: z.string(),
   duplicate_of: z.string().nullable(),
+  exclusion_reason: z.string(),
   id: z.string(),
+  message_kind: z.string(),
+  provider: z.string(),
   redacted_at: z.string().nullable(),
   received_at: z.string(),
   sender: z.string(),
@@ -138,11 +141,21 @@ const parsedMessageCandidateSchema = z.object({
   provider: z.string(),
   raw_message: rawMessageSchema,
   reference: z.string(),
+  rejected_at: z.string().nullable(),
+  rejection_note: z.string(),
+  rejection_reason: z.string(),
   related_match_reason: z.string(),
   sender_rule: z.string().nullable(),
   status: z.string(),
   transaction: z.string().nullable(),
   transaction_type: z.string(),
+  updated_at: z.string()
+});
+
+const smsCapturePreferenceSchema = z.object({
+  created_at: z.string(),
+  excluded_message_kinds: z.array(z.string()),
+  excluded_providers: z.array(z.string()),
   updated_at: z.string()
 });
 
@@ -333,6 +346,7 @@ export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 export type SenderRule = z.infer<typeof senderRuleSchema>;
 export type ParsedMessageCandidate = z.infer<typeof parsedMessageCandidateSchema>;
 export type RawMessage = z.infer<typeof rawMessageSchema>;
+export type SmsCapturePreference = z.infer<typeof smsCapturePreferenceSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
 export type MonthlyReport = z.infer<typeof monthlyReportSchema>;
 export type Debt = z.infer<typeof debtSchema>;
@@ -730,6 +744,23 @@ export async function listSenderRules(accessToken: string): Promise<SenderRule[]
   return collectionSchema(senderRuleSchema).parse(await response.json());
 }
 
+export async function getSmsCapturePreference(accessToken: string): Promise<SmsCapturePreference> {
+  const response = await authenticatedFetch("/api/messages/capture-preferences/", accessToken);
+  return smsCapturePreferenceSchema.parse(await response.json());
+}
+
+export async function updateSmsCapturePreference(
+  accessToken: string,
+  input: Partial<Pick<SmsCapturePreference, "excluded_message_kinds" | "excluded_providers">>
+): Promise<SmsCapturePreference> {
+  const response = await authenticatedFetch("/api/messages/capture-preferences/", accessToken, {
+    body: JSON.stringify(input),
+    headers: { "Content-Type": "application/json" },
+    method: "PATCH"
+  });
+  return smsCapturePreferenceSchema.parse(await response.json());
+}
+
 export async function createSenderRule(
   accessToken: string,
   input: CreateSenderRuleInput
@@ -797,6 +828,27 @@ export async function ignoreMessageCandidate(
   id: string
 ): Promise<ParsedMessageCandidate> {
   const response = await authenticatedFetch(`/api/messages/review/${id}/ignore/`, accessToken, {
+    method: "POST"
+  });
+  return parsedMessageCandidateSchema.parse(await response.json());
+}
+
+export type RejectMessageCandidateInput = {
+  exclude_provider?: boolean;
+  exclude_sender?: boolean;
+  note?: string;
+  reason: string;
+  redact_raw_sms?: boolean;
+};
+
+export async function rejectMessageCandidate(
+  accessToken: string,
+  id: string,
+  input: RejectMessageCandidateInput
+): Promise<ParsedMessageCandidate> {
+  const response = await authenticatedFetch(`/api/messages/review/${id}/reject/`, accessToken, {
+    body: JSON.stringify(input),
+    headers: { "Content-Type": "application/json" },
     method: "POST"
   });
   return parsedMessageCandidateSchema.parse(await response.json());

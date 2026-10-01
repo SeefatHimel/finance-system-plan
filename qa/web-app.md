@@ -149,11 +149,14 @@ action being performed.
 ## What does the current SMS settings page do?
 
 The SMS settings page uses the saved local JWT access token to load accounts,
-payment methods, and sender rules. It supports creating, listing, updating, and
-deleting payment methods and sender rules so SMS import can map trusted senders
-back to real accounts. Provider dropdowns include the contract-supported
+payment methods, sender rules, and SMS capture preferences. It supports
+creating, listing, updating, and deleting payment methods and sender rules so
+SMS import can map trusted senders back to real accounts. Provider dropdowns
+include the contract-supported
 wallet, bank, card, EBL, City Bank, and Pathao Pay values used by parser and
-sender-rule workflows.
+sender-rule workflows. Capture policy controls can exclude entire providers or
+OTP/security and balance-notice message kinds; the API enforces the choice
+before retaining the raw SMS body.
 
 ## What does the current SMS review page do?
 
@@ -162,7 +165,9 @@ message candidates, accounts, and categories. It shows raw SMS evidence, parser
 notes, parser confidence, review or duplicate reason, detected
 provider/message kind, amount, reference, balance, fee, counterparty text, and
 possible internal-transfer/related-message hints. The user can confirm a
-candidate into an SMS-sourced transaction or ignore it. The confirmation flow
+candidate into an SMS-sourced transaction or reject it with a reason. Rejection
+can also redact the original SMS, deactivate the matched sender rule, or exclude
+the provider. The confirmation flow
 now supports debit/credit direction and transfer destination selection, and the
 resulting transaction preserves reference, balance, and counterparty evidence.
 The page can also redact the raw SMS body after review while keeping parsed

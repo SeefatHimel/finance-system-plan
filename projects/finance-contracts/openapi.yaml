@@ -493,6 +493,43 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/messages/capture-preferences/:
+    get:
+      tags: [Messages]
+      summary: Get effective SMS provider and message-type exclusions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: SMS capture preference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmsCapturePreference'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    patch:
+      tags: [Messages]
+      summary: Update SMS provider and message-type exclusions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SmsCapturePreferencePatchRequest'
+      responses:
+        '200':
+          description: Updated SMS capture preference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmsCapturePreference'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /api/messages/raw/{id}/redact/:
     parameters:
       - $ref: '#/components/parameters/UuidPathId'
@@ -571,6 +608,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ParsedMessageCandidate'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/messages/review/{id}/reject/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    post:
+      tags: [Messages]
+      summary: Reject a pending SMS candidate and optionally exclude its sender or provider
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParsedMessageRejectRequest'
+      responses:
+        '200':
+          description: Rejected candidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParsedMessageCandidate'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
@@ -1471,6 +1535,9 @@ components:
     ParsedMessageCandidateStatus:
       type: string
       enum: [needs_review, confirmed, ignored]
+    ParsedMessageRejectionReason:
+      type: string
+      enum: [not_transaction, otp_security, duplicate, wrong_provider_account, personal, unsupported_format, other]
     BalanceSnapshotStatus:
       type: string
       enum: [matched, missing_money, extra_money, adjusted, ignored]
@@ -1817,7 +1884,7 @@ components:
     RawMessage:
       type: object
       required:
-        [id, sender, body, received_at, device_message_id, body_hash, status, duplicate_of, created_at, redacted_at]
+        [id, sender, body, received_at, device_message_id, body_hash, provider, message_kind, exclusion_reason, status, duplicate_of, created_at, redacted_at]
       properties:
         id:
           type: string
@@ -1838,6 +1905,15 @@ components:
           type: string
           maxLength: 64
           readOnly: true
+        provider:
+          type: string
+          description: Provider resolved from the matching sender rule.
+        message_kind:
+          type: string
+          description: Message kind resolved before storage when possible.
+        exclusion_reason:
+          type: string
+          description: Why the raw body was excluded or the candidate was rejected.
         status:
           $ref: '#/components/schemas/RawMessageStatus'
         duplicate_of:
@@ -1899,7 +1975,7 @@ components:
     ParsedMessageCandidate:
       type: object
       required:
-        [id, raw_message, sender_rule, account, payment_method, destination_account, destination_payment_method, transaction, possible_related_candidate, provider, message_kind, transaction_type, amount, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, related_match_reason, confidence, status, parser_name, parser_notes, created_at, updated_at]
+        [id, raw_message, sender_rule, account, payment_method, destination_account, destination_payment_method, transaction, possible_related_candidate, provider, message_kind, transaction_type, amount, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, related_match_reason, confidence, status, parser_name, parser_notes, rejection_reason, rejection_note, rejected_at, created_at, updated_at]
       properties:
         id:
           type: string
@@ -1978,6 +2054,15 @@ components:
           type: string
         parser_notes:
           type: string
+        rejection_reason:
+          type: string
+          description: Empty until the candidate is rejected.
+        rejection_note:
+          type: string
+        rejected_at:
+          type: string
+          format: date-time
+          nullable: true
         created_at:
           type: string
           format: date-time
@@ -2025,6 +2110,55 @@ components:
           type: string
         type:
           $ref: '#/components/schemas/TransactionType'
+    ParsedMessageRejectRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          $ref: '#/components/schemas/ParsedMessageRejectionReason'
+        note:
+          type: string
+          maxLength: 255
+          default: ""
+        redact_raw_sms:
+          type: boolean
+          default: false
+        exclude_sender:
+          type: boolean
+          default: false
+        exclude_provider:
+          type: boolean
+          default: false
+    SmsCapturePreference:
+      type: object
+      required: [excluded_providers, excluded_message_kinds, created_at, updated_at]
+      properties:
+        excluded_providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/SenderRuleProvider'
+        excluded_message_kinds:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParsedMessageKind'
+          default: [otp_or_security]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    SmsCapturePreferencePatchRequest:
+      type: object
+      properties:
+        excluded_providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/SenderRuleProvider'
+        excluded_message_kinds:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParsedMessageKind'
     BalanceSnapshot:
       type: object
       required:

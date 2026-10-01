@@ -11,13 +11,16 @@ import {
   type SenderRule,
   type SenderRuleMatchType,
   type SenderRuleProvider,
+  type SmsCapturePreference,
   createPaymentMethod,
   createSenderRule,
   deletePaymentMethod,
   deleteSenderRule,
+  getSmsCapturePreference,
   listAccounts,
   listPaymentMethods,
   listSenderRules,
+  updateSmsCapturePreference,
   updatePaymentMethod,
   updateSenderRule
 } from "@/lib/api";
@@ -29,6 +32,7 @@ type SmsSettingsState =
   | { message: string; status: "error" }
   | {
       accounts: Account[];
+      capturePreference: SmsCapturePreference;
       paymentMethods: PaymentMethod[];
       senderRules: SenderRule[];
       status: "ready";
@@ -59,6 +63,7 @@ const senderProviders: SenderRuleProvider[] = [
   "other"
 ];
 const matchTypes: SenderRuleMatchType[] = ["exact", "contains", "regex"];
+const optionalMessageKinds = ["otp_or_security", "balance_notice"] as const;
 
 function formatLabel(value: string) {
   return value.replaceAll("_", " ");
@@ -68,6 +73,8 @@ export function SmsSettingsWorkspace() {
   const [settingsState, setSettingsState] = useState<SmsSettingsState>({ status: "loading" });
   const [paymentMethodError, setPaymentMethodError] = useState<string | null>(null);
   const [senderRuleError, setSenderRuleError] = useState<string | null>(null);
+  const [capturePreferenceError, setCapturePreferenceError] = useState<string | null>(null);
+  const [updatingCaptureKey, setUpdatingCaptureKey] = useState<string | null>(null);
   const [isSavingPaymentMethod, setIsSavingPaymentMethod] = useState(false);
   const [isSavingSenderRule, setIsSavingSenderRule] = useState(false);
   const [isUpdatingPaymentMethod, setIsUpdatingPaymentMethod] = useState(false);
@@ -104,12 +111,13 @@ export function SmsSettingsWorkspace() {
     }
 
     try {
-      const [accounts, paymentMethods, senderRules] = await Promise.all([
+      const [accounts, capturePreference, paymentMethods, senderRules] = await Promise.all([
         listAccounts(accessToken),
+        getSmsCapturePreference(accessToken),
         listPaymentMethods(accessToken),
         listSenderRules(accessToken)
       ]);
-      setSettingsState({ accounts, paymentMethods, senderRules, status: "ready" });
+      setSettingsState({ accounts, capturePreference, paymentMethods, senderRules, status: "ready" });
     } catch (error) {
       setSettingsState({
         message: error instanceof Error ? error.message : "Could not load SMS settings.",
@@ -121,6 +129,45 @@ export function SmsSettingsWorkspace() {
   useEffect(() => {
     void loadData();
   }, []);
+
+  async function updateCapturePreference(
+    key: string,
+    patch: Partial<Pick<SmsCapturePreference, "excluded_message_kinds" | "excluded_providers">>
+  ) {
+    const accessToken = getAccessToken();
+    if (!accessToken || settingsState.status !== "ready") return;
+
+    setCapturePreferenceError(null);
+    setUpdatingCaptureKey(key);
+    try {
+      const capturePreference = await updateSmsCapturePreference(accessToken, patch);
+      setSettingsState({ ...settingsState, capturePreference });
+    } catch (error) {
+      setCapturePreferenceError(error instanceof Error ? error.message : "Could not update SMS capture policy.");
+    } finally {
+      setUpdatingCaptureKey(null);
+    }
+  }
+
+  function toggleProvider(provider: SenderRuleProvider) {
+    if (settingsState.status !== "ready") return;
+    const excluded = settingsState.capturePreference.excluded_providers;
+    void updateCapturePreference(`provider:${provider}`, {
+      excluded_providers: excluded.includes(provider)
+        ? excluded.filter((value) => value !== provider)
+        : [...excluded, provider]
+    });
+  }
+
+  function toggleMessageKind(messageKind: string) {
+    if (settingsState.status !== "ready") return;
+    const excluded = settingsState.capturePreference.excluded_message_kinds;
+    void updateCapturePreference(`kind:${messageKind}`, {
+      excluded_message_kinds: excluded.includes(messageKind)
+        ? excluded.filter((value) => value !== messageKind)
+        : [...excluded, messageKind]
+    });
+  }
 
   const accountNameById = useMemo(() => {
     if (settingsState.status !== "ready") {
@@ -375,6 +422,56 @@ export function SmsSettingsWorkspace() {
           </div>
         </section>
       ) : null}
+
+      <section className="panel">
+        <div className="panel__body">
+          <h1 className="section-title">Capture policy</h1>
+          <p className="section-subtitle">
+            Excluded providers and message types keep a server fingerprint for deduplication, but the API does not retain their SMS body.
+          </p>
+          <div className="setup-form">
+            <div className="field field--wide">
+              <span className="field__label">Providers</span>
+              <div className="row-actions capture-policy-actions">
+                {senderProviders.map((provider) => {
+                  const excluded = settingsState.capturePreference.excluded_providers.includes(provider);
+                  return (
+                    <button
+                      className={`button button--small ${excluded ? "button--danger" : "button--ghost"}`}
+                      disabled={updatingCaptureKey !== null}
+                      key={provider}
+                      onClick={() => toggleProvider(provider)}
+                      type="button"
+                    >
+                      {updatingCaptureKey === `provider:${provider}` ? "Updating…" : `${formatLabel(provider)}: ${excluded ? "Excluded" : "Tracking"}`}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="field field--wide">
+              <span className="field__label">Non-transaction messages</span>
+              <div className="row-actions capture-policy-actions">
+                {optionalMessageKinds.map((messageKind) => {
+                  const excluded = settingsState.capturePreference.excluded_message_kinds.includes(messageKind);
+                  return (
+                    <button
+                      className={`button button--small ${excluded ? "button--danger" : "button--ghost"}`}
+                      disabled={updatingCaptureKey !== null}
+                      key={messageKind}
+                      onClick={() => toggleMessageKind(messageKind)}
+                      type="button"
+                    >
+                      {updatingCaptureKey === `kind:${messageKind}` ? "Updating…" : `${formatLabel(messageKind)}: ${excluded ? "Excluded" : "Allowed"}`}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          {capturePreferenceError ? <p className="form-error">{capturePreferenceError}</p> : null}
+        </div>
+      </section>
 
       <section className="panel">
         <div className="panel__body">

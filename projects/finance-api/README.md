@@ -18,7 +18,10 @@ The API project is scaffolded with:
 - Duplicate sender/match combinations rejected per authenticated user
 - Raw SMS import endpoint with duplicate detection and opt-in reparsing of
   pending duplicates
-- Parsed SMS review inbox with confirm/ignore actions
+- Per-user SMS capture policy for provider and non-transaction message-type
+  exclusions; excluded bodies are replaced by hash-only tombstones before save
+- Parsed SMS review inbox with confirm/reject actions, structured rejection
+  reasons, optional raw-body redaction, and sender/provider exclusion shortcuts
 - Basic monthly report endpoint
 - Debt and repayment workflow endpoints
 - Credit card bill and payment workflow endpoints

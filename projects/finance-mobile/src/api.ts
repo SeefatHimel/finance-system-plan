@@ -112,7 +112,10 @@ export type RawMessageImportResult = {
   is_duplicate: boolean;
   was_reprocessed: boolean;
   message: {
+    exclusion_reason: string;
     id: string;
+    message_kind: string;
+    provider: string;
     sender: string;
     status: string;
   };
@@ -124,7 +127,10 @@ export type RawMessage = {
   created_at: string;
   device_message_id: string;
   duplicate_of: string | null;
+  exclusion_reason: string;
   id: string;
+  message_kind: string;
+  provider: string;
   redacted_at: string | null;
   received_at: string;
   sender: string;
@@ -151,12 +157,30 @@ export type ParsedMessageCandidate = {
   provider: string;
   raw_message: RawMessage;
   reference: string;
+  rejected_at: string | null;
+  rejection_note: string;
+  rejection_reason: string;
   related_match_reason: string;
   sender_rule: string | null;
   status: string;
   transaction: string | null;
   transaction_type: string;
   updated_at: string;
+};
+
+export type SmsCapturePreference = {
+  created_at: string;
+  excluded_message_kinds: string[];
+  excluded_providers: string[];
+  updated_at: string;
+};
+
+export type RejectMessageCandidateInput = {
+  exclude_provider?: boolean;
+  exclude_sender?: boolean;
+  note?: string;
+  reason: string;
+  redact_raw_sms?: boolean;
 };
 
 export type ConfirmMessageCandidateInput = {
@@ -516,6 +540,23 @@ export async function listSenderRules(accessToken: string): Promise<SenderRule[]
   return (await response.json()) as SenderRule[];
 }
 
+export async function getSmsCapturePreference(accessToken: string): Promise<SmsCapturePreference> {
+  const response = await authenticatedFetch("/api/messages/capture-preferences/", accessToken);
+  return (await response.json()) as SmsCapturePreference;
+}
+
+export async function updateSmsCapturePreference(
+  accessToken: string,
+  input: Partial<Pick<SmsCapturePreference, "excluded_message_kinds" | "excluded_providers">>
+): Promise<SmsCapturePreference> {
+  const response = await authenticatedFetch("/api/messages/capture-preferences/", accessToken, {
+    body: JSON.stringify(input),
+    headers: { "Content-Type": "application/json" },
+    method: "PATCH"
+  });
+  return (await response.json()) as SmsCapturePreference;
+}
+
 export async function createSenderRule(
   accessToken: string,
   input: CreateSenderRuleInput
@@ -734,6 +775,19 @@ export async function ignoreMessageCandidate(
   return (await response.json()) as ParsedMessageCandidate;
 }
 
+export async function rejectMessageCandidate(
+  accessToken: string,
+  id: string,
+  input: RejectMessageCandidateInput
+): Promise<ParsedMessageCandidate> {
+  const response = await authenticatedFetch(`/api/messages/review/${id}/reject/`, accessToken, {
+    body: JSON.stringify(input),
+    headers: { "Content-Type": "application/json" },
+    method: "POST"
+  });
+  return (await response.json()) as ParsedMessageCandidate;
+}
+
 export async function createTransaction(
   accessToken: string,
   input: CreateTransactionInput
@@ -742,6 +796,7 @@ export async function createTransaction(
     body: JSON.stringify({
       account: input.account,
       amount: input.amount,
+      balance_after: input.balance_after || null,
       category: input.category || null,
       date: input.date,
       note: input.note || "",

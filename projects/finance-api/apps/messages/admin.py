@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ParsedMessageCandidate, RawMessage, SenderRule
+from .models import ParsedMessageCandidate, RawMessage, SenderRule, SmsCapturePreference
 
 
 @admin.register(SenderRule)
@@ -16,6 +16,12 @@ class RawMessageAdmin(admin.ModelAdmin):
     list_filter = ("status", "sender")
     search_fields = ("sender", "body", "device_message_id", "user__username")
     readonly_fields = ("body_hash", "created_at")
+
+
+@admin.register(SmsCapturePreference)
+class SmsCapturePreferenceAdmin(admin.ModelAdmin):
+    list_display = ("user", "excluded_providers", "excluded_message_kinds", "updated_at")
+    search_fields = ("user__username", "user__email")
 
 
 @admin.register(ParsedMessageCandidate)
