@@ -267,6 +267,7 @@ export interface ParsedMessageConfirmRequest {
   category?: string | null;
   payment_method?: string | null;
   date?: string;
+  time?: string | null;
   direction?: TransactionDirection;
   reference?: string;
   counterparty_text?: string;
@@ -564,6 +565,7 @@ export interface Transaction {
   payment_method: string | null;
   raw_message: string | null;
   date: string;
+  time: string | null;
   type: TransactionType;
   direction: TransactionDirection;
   amount: string;
@@ -585,6 +587,7 @@ export interface TransactionCreateRequest {
   payment_method?: string | null;
   raw_message?: string | null;
   date: string;
+  time?: string | null;
   type: TransactionType;
   direction?: TransactionDirection;
   amount: string;
@@ -604,6 +607,7 @@ export interface TransactionPatchRequest {
   payment_method?: string | null;
   raw_message?: string | null;
   date?: string;
+  time?: string | null;
   type?: TransactionType;
   direction?: TransactionDirection;
   amount?: string;

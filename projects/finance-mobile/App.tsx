@@ -106,6 +106,7 @@ type ReviewCandidateDraft = {
   note: string;
   paymentMethodId: string;
   reference: string;
+  time: string;
   transferAccountId: string;
   transactionType: string;
 };
@@ -179,6 +180,10 @@ function isValidIsoDate(value: string) {
   return parsed.getUTCFullYear() === Number(year)
     && parsed.getUTCMonth() === Number(month) - 1
     && parsed.getUTCDate() === Number(day);
+}
+
+function isValidTime(value: string) {
+  return /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value);
 }
 
 function isDueSoon(date: string | null | undefined, daysAhead = 7) {
@@ -398,6 +403,7 @@ function normalizeTransactionCache(storedTransactions: string | null): Transacti
         raw_message: nullableStringValue(item.raw_message),
         reference: stringValue(item.reference),
         source: stringValue(item.source),
+        time: nullableStringValue(item.time),
         transfer_account: nullableStringValue(item.transfer_account),
         type: stringValue(item.type),
         updated_at: stringValue(item.updated_at)
@@ -503,9 +509,10 @@ function manualTransactionDedupeKey(input: CreateTransactionInput) {
     input.account.trim(),
     input.category?.trim() ?? "",
     input.date.trim(),
+    input.time?.trim() ?? "",
     input.type.trim(),
-    input.amount.trim(),
-    input.balance_after?.trim() ?? "",
+    input.amount.trim().replaceAll(",", ""),
+    input.balance_after?.trim().replaceAll(",", "") ?? "",
     input.note?.trim() ?? ""
   ].join(":");
 }
@@ -536,6 +543,7 @@ function normalizeManualTransactionQueue(storedQueue: string | null): QueuedManu
         category: stringValue(item.input.category) || undefined,
         date: stringValue(item.input.date),
         note: stringValue(item.input.note),
+        time: stringValue(item.input.time) || undefined,
         type: stringValue(item.input.type)
       };
 
@@ -629,6 +637,17 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function currentInputTime() {
+  const date = new Date();
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function inputTimeFromTimestamp(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
 function daysAgo(days: number) {
   const date = new Date();
   date.setDate(date.getDate() - days);
@@ -711,6 +730,7 @@ export default function App() {
   const [txAccountId, setTxAccountId] = useState("");
   const [txCategoryId, setTxCategoryId] = useState("");
   const [txDate, setTxDate] = useState(new Date().toISOString().slice(0, 10));
+  const [txTime, setTxTime] = useState(currentInputTime());
   const [txType, setTxType] = useState("expense");
   const [txAmount, setTxAmount] = useState("");
   const [txBalanceAfter, setTxBalanceAfter] = useState("");
@@ -1264,6 +1284,11 @@ export default function App() {
       setReviewMessage("Enter a valid transaction date in YYYY-MM-DD format.");
       return;
     }
+    if (draft.time.trim() && !isValidTime(draft.time.trim())) {
+      setReviewState("error");
+      setReviewMessage("Enter a valid transaction time in HH:MM format.");
+      return;
+    }
     if (draft.transactionType === "transfer" && !draft.transferAccountId) {
       setReviewState("error");
       setReviewMessage("Select a destination account before confirming this transfer.");
@@ -1289,6 +1314,7 @@ export default function App() {
         payment_method: draft.paymentMethodId || null,
         reference: draft.reference.trim(),
         remember_mapping: true,
+        time: draft.time.trim() || null,
         transfer_account: draft.transactionType === "transfer" ? draft.transferAccountId : null,
         type: draft.transactionType
       });
@@ -1310,6 +1336,7 @@ export default function App() {
     note: "",
     paymentMethodId: candidate.payment_method ?? "",
     reference: candidate.reference,
+    time: inputTimeFromTimestamp(candidate.raw_message.received_at),
     transactionType: candidate.transaction_type,
     transferAccountId: candidate.destination_account ?? ""
   });
@@ -2348,6 +2375,7 @@ export default function App() {
       category: txCategoryId.trim() || undefined,
       date: txDate.trim(),
       note: txNote.trim(),
+      time: txTime.trim() || undefined,
       type: txType.trim()
     };
   };
@@ -2924,6 +2952,14 @@ export default function App() {
           <TextInput
             autoCapitalize="none"
             autoCorrect={false}
+            onChangeText={setTxTime}
+            placeholder="Time (HH:MM)"
+            style={styles.input}
+            value={txTime}
+          />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
             onChangeText={setTxType}
             placeholder="Type (expense/income/transfer...)"
             style={styles.input}
@@ -3015,7 +3051,7 @@ export default function App() {
             <View style={styles.listSection}>
               {transactions.map((transaction) => (
                 <Text key={transaction.id} style={styles.listItem}>
-                  {transaction.date} | {transaction.type} | {transaction.amount} | {transaction.note || "No note"}
+                  {transaction.date}{transaction.time ? ` ${transaction.time.slice(0, 5)}` : ""} | {transaction.type} | {transaction.amount} | {transaction.note || "No note"}
                 </Text>
               ))}
             </View>
@@ -3874,7 +3910,7 @@ export default function App() {
         <View style={styles.mobileRowBody}>
           <Text numberOfLines={1} style={styles.mobileRowTitle}>{title}</Text>
           <Text numberOfLines={1} style={styles.mobileRowMeta}>
-            {formatMobileDate(transaction.date)} · {transaction.source || "Ledger"}
+            {formatMobileDate(transaction.date)}{transaction.time ? ` at ${transaction.time.slice(0, 5)}` : ""} · {transaction.source || "Ledger"}
           </Text>
         </View>
         <Text style={[styles.mobileRowAmount, isIncome ? styles.mobileRowAmountSuccess : null]}>
@@ -4170,6 +4206,20 @@ export default function App() {
                   />
                 </View>
               </View>
+            </View>
+
+            <Text style={styles.mobileFieldLabel}>Transaction time</Text>
+            <View style={styles.mobileInputWrap}>
+              <MaterialCommunityIcons color="#7890ad" name="clock-outline" size={19} />
+              <TextInput
+                accessibilityLabel="Transaction time in hour minute format"
+                autoCapitalize="none"
+                onChangeText={(time) => updateReviewDraft(candidate, { time })}
+                placeholder="HH:MM"
+                placeholderTextColor="#5f7590"
+                style={styles.mobileInput}
+                value={draft.time}
+              />
             </View>
 
             <Text style={styles.mobileFieldLabel}>Transaction type</Text>

@@ -70,6 +70,7 @@ class Transaction(models.Model):
         related_name="transactions",
     )
     date = models.DateField()
+    time = models.TimeField(blank=True, null=True)
     type = models.CharField(max_length=32, choices=Type.choices)
     direction = models.CharField(max_length=16, choices=Direction.choices, default=Direction.DEBIT)
     amount = models.DecimalField(
@@ -88,7 +89,7 @@ class Transaction(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ("-date", "-created_at")
+        ordering = ("-date", "-time", "-created_at")
         indexes = [
             models.Index(fields=("user", "date")),
             models.Index(fields=("user", "type")),

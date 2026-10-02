@@ -64,7 +64,7 @@ paths, and physical-phone SMS smoke test are documented in
   with local cache hydration for offline form choices.
 - Quick add transaction flow (`POST /api/transactions/`) plus a local manual
   transaction queue for offline saves and later sync. Manual entries can carry
-  an optional provider-reported balance after the transaction, and that value
+  an optional transaction time and provider-reported balance after the transaction, and that value
   survives local queue hydration and deduplication.
 - Transaction list flow (`GET /api/transactions/`) with local cache hydration
   for the latest loaded transactions.
@@ -324,7 +324,7 @@ another user's session.
 
 ## What can the user correct before confirming a parsed SMS?
 
-The review form supports amount, date, transaction type, source and destination
+The review form supports amount, date, time, transaction type, source and destination
 accounts, payment method, category, counterparty, reference, and note. This is
 important because low-confidence parsing must remain a reviewable suggestion,
 not an irreversible ledger write.

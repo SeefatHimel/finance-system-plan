@@ -19,6 +19,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "payment_method",
             "raw_message",
             "date",
+            "time",
             "type",
             "direction",
             "amount",

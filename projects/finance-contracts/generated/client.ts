@@ -188,6 +188,10 @@ export class FinanceApiClient {
     return this.request<ParsedMessageCandidate[]>("/api/messages/review/", { method: "GET" });
   }
 
+  async reRunCurrentParserLogicForAPendingSMSCandidate(pathParams: {id: string }): Promise<ParsedMessageCandidate> {
+    return this.request<ParsedMessageCandidate>("/api/messages/review/{id}/reprocess/".replace('{id}', encodeURIComponent(pathParams.id)), { method: "POST" });
+  }
+
   async confirmAParsedSMSCandidateAsATransaction(pathParams: {id: string }, body: ParsedMessageConfirmRequest): Promise<ParsedMessageCandidate> {
     return this.request<ParsedMessageCandidate>("/api/messages/review/{id}/confirm/".replace('{id}', encodeURIComponent(pathParams.id)), { method: "POST", body });
   }

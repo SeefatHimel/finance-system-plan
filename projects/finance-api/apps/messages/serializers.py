@@ -329,6 +329,7 @@ class ParsedMessageConfirmSerializer(serializers.Serializer):
         allow_null=True,
     )
     date = serializers.DateField(required=False)
+    time = serializers.TimeField(required=False, allow_null=True)
     direction = serializers.ChoiceField(choices=Transaction.Direction.choices, required=False)
     reference = serializers.CharField(max_length=120, required=False, allow_blank=True)
     counterparty_text = serializers.CharField(max_length=255, required=False, allow_blank=True)

@@ -740,6 +740,46 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(candidate["balance_after"], "233319.00")
         self.assertEqual(candidate["account"], account.id)
 
+    def test_city_bank_ecommerce_purchase_extracts_trailing_balance(self):
+        user = get_user_model().objects.create_user(username="testuser", password="password")
+        account = Account.objects.create(
+            user=user,
+            name="City Bank Account",
+            type=Account.Type.BANK,
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank sender",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": (
+                    FIXTURE_DIR
+                    / "city_bank"
+                    / "ecommerce_purchase_with_trailing_balance.txt"
+                ).read_text(),
+                "received_at": "2026-10-01T10:30:00+06:00",
+                "device_message_id": "sms-city-ecommerce-purchase-100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["provider"], "city_bank")
+        self.assertEqual(candidate["message_kind"], "card_purchase")
+        self.assertEqual(candidate["transaction_type"], "expense")
+        self.assertEqual(candidate["amount"], "180.00")
+        self.assertEqual(candidate["balance_after"], "72308.00")
+        self.assertEqual(candidate["account"], account.id)
+
     def test_bank_card_followup_messages_create_specific_candidates(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         ebl_account = Account.objects.create(
@@ -1238,6 +1278,44 @@ class RawMessageImportApiTests(APITestCase):
         self.assertFalse(confirmed_response.data["was_reprocessed"])
         self.assertEqual(confirmed_response.data["candidate"]["amount"], "1.00")
 
+    def test_pending_candidate_can_be_reprocessed_from_review(self):
+        user = get_user_model().objects.create_user(username="testuser", password="password")
+        account = Account.objects.create(user=user, name="City Bank", type=Account.Type.BANK)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank sender",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+        import_response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": (
+                    FIXTURE_DIR
+                    / "city_bank"
+                    / "ecommerce_purchase_with_trailing_balance.txt"
+                ).read_text(),
+                "received_at": "2026-10-01T10:30:00+06:00",
+                "device_message_id": "sms-city-review-reprocess-100",
+            },
+            format="json",
+        )
+        candidate = ParsedMessageCandidate.objects.get(id=import_response.data["candidate"]["id"])
+        candidate.balance_after = None
+        candidate.save(update_fields=("balance_after", "updated_at"))
+
+        response = self.client.post(
+            reverse("message-candidate-reprocess", kwargs={"candidate_id": candidate.id}),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["amount"], "180.00")
+        self.assertEqual(response.data["balance_after"], "72308.00")
+
     @override_settings(DEBUG=True)
     def test_development_reset_clears_only_authenticated_users_sms_data(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
@@ -1358,7 +1436,22 @@ class MessageReviewApiTests(APITestCase):
         self.assertEqual(response.data["status"], "confirmed")
         transaction = Transaction.objects.get(id=response.data["transaction"])
         self.assertEqual(transaction.amount, ParsedMessageCandidate.objects.get(id=candidate["id"]).amount)
+        self.assertEqual(transaction.date.isoformat(), "2026-05-29")
+        self.assertEqual(transaction.time.isoformat(), "10:30:00")
         self.assertEqual(transaction.source, Transaction.Source.SMS)
+
+    def test_user_can_override_candidate_transaction_time(self):
+        candidate = self.import_message()
+
+        response = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": candidate["id"]}),
+            {"time": "09:15:00", "type": "expense"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        transaction = Transaction.objects.get(id=response.data["transaction"])
+        self.assertEqual(transaction.time.isoformat(), "09:15:00")
 
     def test_confirm_candidate_copies_sms_ledger_fields(self):
         candidate = self.import_payment_message()

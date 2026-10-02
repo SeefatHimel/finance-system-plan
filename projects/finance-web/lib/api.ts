@@ -196,6 +196,7 @@ const transactionSchema = z.object({
   raw_message: z.string().nullable(),
   reference: z.string(),
   source: z.string(),
+  time: z.string().nullable(),
   transfer_account: z.string().nullable(),
   type: z.string()
 });
@@ -396,6 +397,7 @@ export type CreateTransactionInput = {
   raw_message?: string | null;
   reference?: string;
   source?: TransactionSource;
+  time?: string | null;
   transfer_account?: string;
   type: TransactionType;
 };
@@ -433,9 +435,30 @@ export type UpdateTransactionInput = {
   payment_method?: string | null;
   raw_message?: string | null;
   reference?: string;
+  time?: string | null;
   transfer_account?: string | null;
   type?: TransactionType;
 };
+
+function financialNumber(value: string | number, label: string): number {
+  const normalized = String(value).trim().replaceAll(",", "");
+  if (!/^-?\d+(?:\.\d{1,2})?$/.test(normalized)) {
+    throw new Error(`Enter a valid ${label} with no more than two decimal places.`);
+  }
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Enter a valid ${label}.`);
+  }
+  return parsed;
+}
+
+function optionalFinancialNumber(
+  value: string | number | null | undefined,
+  label: string
+): number | null {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  return financialNumber(value, label);
+}
 
 export type CreateDebtInput = DebtCreateRequest;
 export type CreateDebtPaymentInput = DebtPaymentCreateRequest;
@@ -671,7 +694,7 @@ export async function createAccount(
     body: JSON.stringify({
       currency: input.currency ?? "BDT",
       name: input.name,
-      starting_balance: input.starting_balance || "0.00",
+      starting_balance: financialNumber(input.starting_balance || "0.00", "starting balance"),
       type: input.type
     }),
     headers: {
@@ -695,7 +718,12 @@ export async function updateAccount(
   input: UpdateAccountInput
 ): Promise<Account> {
   const response = await authenticatedFetch(`/api/accounts/${id}/`, accessToken, {
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...input,
+      ...(input.starting_balance !== undefined
+        ? { starting_balance: financialNumber(input.starting_balance, "starting balance") }
+        : {})
+    }),
     headers: {
       "Content-Type": "application/json"
     },
@@ -863,13 +891,29 @@ export async function listMessageCandidates(accessToken: string): Promise<Parsed
   return collectionSchema(parsedMessageCandidateSchema).parse(await response.json());
 }
 
+export async function reprocessMessageCandidate(
+  accessToken: string,
+  id: string
+): Promise<ParsedMessageCandidate> {
+  const response = await authenticatedFetch(`/api/messages/review/${id}/reprocess/`, accessToken, {
+    method: "POST"
+  });
+  return parsedMessageCandidateSchema.parse(await response.json());
+}
+
 export async function confirmMessageCandidate(
   accessToken: string,
   id: string,
   input: ConfirmMessageCandidateInput
 ): Promise<ParsedMessageCandidate> {
   const response = await authenticatedFetch(`/api/messages/review/${id}/confirm/`, accessToken, {
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...input,
+      ...(input.amount !== undefined ? { amount: financialNumber(input.amount, "amount") } : {}),
+      ...(input.balance_after !== undefined
+        ? { balance_after: optionalFinancialNumber(input.balance_after, "balance after") }
+        : {})
+    }),
     headers: {
       "Content-Type": "application/json"
     },
@@ -965,6 +1009,8 @@ export async function createTransaction(
   const response = await authenticatedFetch("/api/transactions/", accessToken, {
     body: JSON.stringify({
       ...input,
+      amount: financialNumber(input.amount, "amount"),
+      balance_after: optionalFinancialNumber(input.balance_after, "balance after"),
       source: input.source ?? "web"
     }),
     headers: {
@@ -988,7 +1034,13 @@ export async function updateTransaction(
   input: UpdateTransactionInput
 ): Promise<Transaction> {
   const response = await authenticatedFetch(`/api/transactions/${id}/`, accessToken, {
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...input,
+      ...(input.amount !== undefined ? { amount: financialNumber(input.amount, "amount") } : {}),
+      ...(input.balance_after !== undefined
+        ? { balance_after: optionalFinancialNumber(input.balance_after, "balance after") }
+        : {})
+    }),
     headers: {
       "Content-Type": "application/json"
     },
@@ -1197,7 +1249,7 @@ export async function createBalanceSnapshot(
   const response = await authenticatedFetch("/api/reconciliation/snapshots/", accessToken, {
     body: JSON.stringify({
       account: input.account,
-      actual_balance: input.actual_balance,
+      actual_balance: financialNumber(input.actual_balance, "actual balance"),
       checked_at: input.checked_at,
       note: input.note || ""
     }),

@@ -25,6 +25,21 @@ type AuthenticationRecovery = () => Promise<string | null>;
 let authenticationRecovery: AuthenticationRecovery | null = null;
 let authenticationRecoveryPromise: Promise<string | null> | null = null;
 
+function financialNumber(value: string, label: string): number {
+  const normalized = value.trim().replaceAll(",", "");
+  if (!/^-?\d+(?:\.\d{1,2})?$/.test(normalized)) {
+    throw new Error(`Enter a valid ${label} with no more than two decimal places.`);
+  }
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) throw new Error(`Enter a valid ${label}.`);
+  return parsed;
+}
+
+function optionalFinancialNumber(value: string | null | undefined, label: string): number | null {
+  if (!value?.trim()) return null;
+  return financialNumber(value, label);
+}
+
 export function configureAuthenticationRecovery(recovery: AuthenticationRecovery | null) {
   authenticationRecovery = recovery;
   authenticationRecoveryPromise = null;
@@ -218,6 +233,7 @@ export type ConfirmMessageCandidateInput = {
   note?: string;
   payment_method?: string | null;
   reference?: string;
+  time?: string | null;
   transfer_account?: string | null;
   type?: string;
   remember_mapping?: boolean;
@@ -236,6 +252,7 @@ export type CreateTransactionInput = {
   payment_method?: string | null;
   raw_message?: string | null;
   reference?: string;
+  time?: string | null;
   transfer_account?: string | null;
   type: string;
 };
@@ -257,6 +274,7 @@ export type Transaction = {
   raw_message: string | null;
   reference: string;
   source: string;
+  time: string | null;
   transfer_account: string | null;
   type: string;
   updated_at: string;
@@ -790,7 +808,7 @@ export async function createBalanceSnapshot(
   const response = await authenticatedFetch("/api/reconciliation/snapshots/", accessToken, {
     body: JSON.stringify({
       account: input.account,
-      actual_balance: input.actual_balance,
+      actual_balance: financialNumber(input.actual_balance, "actual balance"),
       checked_at: input.checked_at,
       note: input.note || ""
     }),
@@ -816,7 +834,13 @@ export async function confirmMessageCandidate(
   input: ConfirmMessageCandidateInput
 ): Promise<ParsedMessageCandidate> {
   const response = await authenticatedFetch(`/api/messages/review/${id}/confirm/`, accessToken, {
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...input,
+      ...(input.amount !== undefined ? { amount: financialNumber(input.amount, "amount") } : {}),
+      ...(input.balance_after !== undefined
+        ? { balance_after: optionalFinancialNumber(input.balance_after, "balance after") }
+        : {})
+    }),
     headers: {
       "Content-Type": "application/json"
     },
@@ -855,12 +879,13 @@ export async function createTransaction(
   await authenticatedFetch("/api/transactions/", accessToken, {
     body: JSON.stringify({
       account: input.account,
-      amount: input.amount,
-      balance_after: input.balance_after || null,
+      amount: financialNumber(input.amount, "amount"),
+      balance_after: optionalFinancialNumber(input.balance_after, "balance after"),
       category: input.category || null,
       date: input.date,
       note: input.note || "",
       source: "mobile",
+      time: input.time || null,
       type: input.type
     }),
     headers: {

@@ -60,10 +60,11 @@ def calculate_account_balance_summaries(
         "balance_after",
         "created_at",
         "date",
+        "time",
         "direction",
         "transfer_account_id",
         "type",
-    ).order_by("date", "created_at")
+    ).order_by("date", "time", "created_at")
 
     for transaction in transactions:
         if transaction.account_id in balances:

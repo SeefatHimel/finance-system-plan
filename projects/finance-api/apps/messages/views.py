@@ -397,6 +397,29 @@ class MessageReviewListView(APIView):
         return Response(ParsedMessageCandidateSerializer(candidates, many=True).data)
 
 
+class MessageCandidateReprocessView(RawMessageImportView):
+    def post(self, request, candidate_id):
+        candidate = get_object_or_404(
+            ParsedMessageCandidate.objects.select_related("raw_message"),
+            id=candidate_id,
+            user=request.user,
+        )
+        if candidate.status != ParsedMessageCandidate.Status.NEEDS_REVIEW:
+            return Response(
+                {"detail": "Only candidates needing review can be reprocessed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if candidate.raw_message.status == RawMessage.Status.REDACTED:
+            return Response(
+                {"detail": "Redacted messages cannot be reprocessed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        self._reprocess_candidate(candidate)
+        candidate.refresh_from_db()
+        return Response(ParsedMessageCandidateSerializer(candidate).data)
+
+
 class SmsDevelopmentResetView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -448,7 +471,13 @@ class MessageCandidateConfirmView(APIView):
             if "balance_after" in payload
             else candidate.balance_after
         )
-        transaction_date = payload.get("date") or candidate.raw_message.received_at.date()
+        received_at = timezone.localtime(candidate.raw_message.received_at)
+        transaction_date = payload.get("date") or received_at.date()
+        transaction_time = (
+            payload.get("time")
+            if "time" in payload
+            else received_at.time().replace(tzinfo=None, microsecond=0)
+        )
         transaction_type = payload.get("type") or candidate.transaction_type
         direction = payload.get("direction") or Transaction.default_direction_for_type(transaction_type)
         reference = payload.get("reference", candidate.reference)
@@ -510,6 +539,7 @@ class MessageCandidateConfirmView(APIView):
             payment_method=payment_method,
             raw_message=candidate.raw_message,
             date=transaction_date,
+            time=transaction_time,
             type=transaction_type,
             direction=direction,
             amount=amount,

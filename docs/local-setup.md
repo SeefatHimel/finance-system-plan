@@ -297,6 +297,7 @@ GET /api/payment-methods/
 GET /api/messages/sender-rules/
 POST /api/messages/import/
 GET /api/messages/review/
+POST /api/messages/review/{id}/reprocess/
 POST /api/messages/review/{id}/confirm/
 POST /api/messages/review/{id}/ignore/
 ```

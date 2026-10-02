@@ -36,6 +36,7 @@ class TransactionApiTests(APITestCase):
                 "account": str(account.id),
                 "category": str(category.id),
                 "date": "2026-05-01",
+                "time": "13:45:00",
                 "type": "expense",
                 "amount": "250.00",
                 "note": "Lunch",
@@ -45,6 +46,7 @@ class TransactionApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["amount"], "250.00")
+        self.assertEqual(response.data["time"], "13:45:00")
         self.assertEqual(response.data["direction"], "debit")
 
     def test_authenticated_user_can_create_transaction_with_ledger_fields(self):
@@ -105,6 +107,7 @@ class TransactionApiTests(APITestCase):
             category=category,
             payment_method=payment_method,
             date="2026-05-01",
+            time="12:30:00",
             type=Transaction.Type.EXPENSE,
             direction=Transaction.Direction.DEBIT,
             amount="250.00",
@@ -161,6 +164,7 @@ class TransactionApiTests(APITestCase):
         rows = list(csv.DictReader(StringIO(response.content.decode())))
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["id"], str(exported_transaction.id))
+        self.assertEqual(rows[0]["time"], "12:30:00")
         self.assertEqual(rows[0]["account_name"], "Cash")
         self.assertEqual(rows[0]["category_name"], "Food")
         self.assertEqual(rows[0]["payment_method_name"], "Cash Wallet")

@@ -368,7 +368,7 @@ export function ReconciliationWorkspace() {
             </label>
             <label className="field">
               <span className="field__label">Actual balance</span>
-              <input className="field__control" min="0" name="actual_balance" required step="0.01" type="number" />
+              <input className="field__control" inputMode="decimal" name="actual_balance" placeholder="72,308.00" required type="text" />
             </label>
             <label className="field">
               <span className="field__label">Checked time</span>

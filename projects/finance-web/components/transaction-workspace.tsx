@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, X } from "@phosphor-icons/react";
+import { CalendarBlank, CaretLeft, CaretRight, Plus, SlidersHorizontal, X } from "@phosphor-icons/react";
 import type React from "react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -49,6 +49,22 @@ const transactionTypes: TransactionType[] = [
 
 const transactionSources: TransactionSource[] = ["web", "mobile", "sms", "import", "system"];
 
+type TransactionColumn = "date" | "time" | "description" | "account" | "category" | "source" | "balance" | "amount";
+
+const transactionColumns: { id: TransactionColumn; label: string }[] = [
+  { id: "date", label: "Date" },
+  { id: "time", label: "Time" },
+  { id: "description", label: "Description" },
+  { id: "account", label: "Account" },
+  { id: "category", label: "Category" },
+  { id: "source", label: "Source" },
+  { id: "balance", label: "Reported balance" },
+  { id: "amount", label: "Amount" }
+];
+
+const defaultTransactionColumns = transactionColumns.map((column) => column.id);
+const transactionColumnsStorageKey = "finance.transactions.columns.v1";
+
 type TransactionFilterState = Required<Pick<TransactionFilters, "direction" | "source" | "type">> & {
   account: string;
   category: string;
@@ -57,7 +73,37 @@ type TransactionFilterState = Required<Pick<TransactionFilters, "direction" | "s
 };
 
 function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function currentDate() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function currentTime() {
+  const date = new Date();
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function shiftMonth(value: string, amount: number) {
+  const [year, month] = (value || currentMonth()).split("-").map(Number);
+  const shifted = new Date(year, month - 1 + amount, 1);
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatTransactionTime(value: string | null) {
+  if (!value) return "—";
+  return value.slice(0, 5);
+}
+
+function persistVisibleColumns(columns: TransactionColumn[]) {
+  try {
+    window.localStorage.setItem(transactionColumnsStorageKey, JSON.stringify(columns));
+  } catch {
+    // Column preferences are optional when browser storage is unavailable.
+  }
 }
 
 const moneyFormatter = new Intl.NumberFormat("en-BD", {
@@ -86,6 +132,7 @@ export function TransactionWorkspace() {
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState("");
   const [editingDate, setEditingDate] = useState("");
+  const [editingTime, setEditingTime] = useState("");
   const [editingType, setEditingType] = useState<TransactionType>("expense");
   const [editingDirection, setEditingDirection] = useState<TransactionDirection>("debit");
   const [editingAccountId, setEditingAccountId] = useState("");
@@ -96,6 +143,8 @@ export function TransactionWorkspace() {
   const [editingReference, setEditingReference] = useState("");
   const [editingCounterpartyText, setEditingCounterpartyText] = useState("");
   const [editingNote, setEditingNote] = useState("");
+  const [isMonthLoading, setIsMonthLoading] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<TransactionColumn[]>(defaultTransactionColumns);
 
   async function loadData(activeFilters = filters, showLoading = true) {
     const accessToken = getAccessToken();
@@ -165,6 +214,22 @@ export function TransactionWorkspace() {
   }, []);
 
   useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(transactionColumnsStorageKey);
+      if (!stored) return;
+      const parsed = JSON.parse(stored) as unknown;
+      if (!Array.isArray(parsed)) return;
+      const allowed = new Set<TransactionColumn>(defaultTransactionColumns);
+      const restored = parsed.filter((value): value is TransactionColumn =>
+        typeof value === "string" && allowed.has(value as TransactionColumn)
+      );
+      if (restored.length > 0) setVisibleColumns(restored);
+    } catch {
+      // Fall back to the complete default table when storage is unavailable.
+    }
+  }, []);
+
+  useEffect(() => {
     if (!editorMode) return;
     const previousOverflow = document.body.style.overflow;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -180,12 +245,39 @@ export function TransactionWorkspace() {
 
   function handleFilterSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    applyFilterUrl(filters);
+    void loadData(filters);
+  }
+
+  function applyFilterUrl(nextFilters: TransactionFilterState) {
     const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
+    Object.entries(nextFilters).forEach(([key, value]) => {
       if (value) params.set(key, value);
     });
     window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params.toString()}` : ""}`);
-    void loadData(filters);
+  }
+
+  async function selectMonth(month: string) {
+    const nextFilters = { ...filters, month };
+    setFilters(nextFilters);
+    applyFilterUrl(nextFilters);
+    setIsMonthLoading(true);
+    try {
+      await loadData(nextFilters, false);
+    } finally {
+      setIsMonthLoading(false);
+    }
+  }
+
+  function toggleColumn(column: TransactionColumn) {
+    setVisibleColumns((current) => {
+      const next = current.includes(column)
+        ? current.filter((item) => item !== column)
+        : transactionColumns.filter((item) => item.id === column || current.includes(item.id)).map((item) => item.id);
+      if (next.length === 0) return current;
+      persistVisibleColumns(next);
+      return next;
+    });
   }
 
   function clearFilters() {
@@ -264,6 +356,7 @@ export function TransactionWorkspace() {
         direction,
         note: String(formData.get("note") ?? ""),
         reference: String(formData.get("reference") ?? ""),
+        time: String(formData.get("time") ?? "") || null,
         transfer_account: type === "transfer" ? transferAccount : undefined,
         type
       });
@@ -313,6 +406,7 @@ export function TransactionWorkspace() {
       return;
     }
     setEditingDate(transaction.date);
+    setEditingTime(transaction.time?.slice(0, 5) ?? "");
     setEditingType(transaction.type as TransactionType);
     setEditingDirection(transaction.direction as TransactionDirection);
     setEditingAccountId(transaction.account);
@@ -351,6 +445,7 @@ export function TransactionWorkspace() {
         category: editingCategoryId || null,
         counterparty_text: editingCounterpartyText,
         date: editingDate,
+        time: editingTime || null,
         direction: editingDirection,
         note: editingNote,
         reference: editingReference,
@@ -440,7 +535,12 @@ export function TransactionWorkspace() {
           {editorMode === "create" ? <form className="transaction-form drawer-form" onSubmit={handleSubmit}>
             <label className="field">
               <span className="field__label">Date</span>
-              <input className="field__control" name="date" required type="date" />
+              <input className="field__control" defaultValue={currentDate()} name="date" required type="date" />
+            </label>
+
+            <label className="field">
+              <span className="field__label">Time</span>
+              <input className="field__control" defaultValue={currentTime()} name="time" type="time" />
             </label>
 
             <label className="field">
@@ -504,15 +604,15 @@ export function TransactionWorkspace() {
                 className="field__control"
                 min="0.01"
                 name="amount"
+                inputMode="decimal"
                 required
-                step="0.01"
-                type="number"
+                type="text"
               />
             </label>
 
             <label className="field">
               <span className="field__label">Reported balance after (optional)</span>
-              <input className="field__control" name="balance_after" step="0.01" type="number" />
+              <input className="field__control" inputMode="decimal" name="balance_after" placeholder="72,308.00" type="text" />
             </label>
 
             <label className="field">
@@ -546,6 +646,16 @@ export function TransactionWorkspace() {
                 required
                 type="date"
                 value={editingDate}
+              />
+            </label>
+
+            <label className="field">
+              <span className="field__label">Time</span>
+              <input
+                className="field__control"
+                onChange={(event) => setEditingTime(event.target.value)}
+                type="time"
+                value={editingTime}
               />
             </label>
 
@@ -632,10 +742,10 @@ export function TransactionWorkspace() {
               <input
                 className="field__control"
                 min="0.01"
+                inputMode="decimal"
                 onChange={(event) => setEditingAmount(event.target.value)}
                 required
-                step="0.01"
-                type="number"
+                type="text"
                 value={editingAmount}
               />
             </label>
@@ -644,9 +754,9 @@ export function TransactionWorkspace() {
               <span className="field__label">Reported balance after (optional)</span>
               <input
                 className="field__control"
+                inputMode="decimal"
                 onChange={(event) => setEditingBalanceAfter(event.target.value)}
-                step="0.01"
-                type="number"
+                type="text"
                 value={editingBalanceAfter}
               />
             </label>
@@ -717,16 +827,22 @@ export function TransactionWorkspace() {
           {formMessage ? <p className="form-success" role="status">{formMessage}</p> : null}
 
           <form className="filter-form transaction-filter-form" onSubmit={handleFilterSubmit}>
-            <label className="field">
+            <div className="field transaction-month-filter">
               <span className="field__label">Month</span>
-              <input
-                className="field__control"
-                name="month"
-                onChange={(event) => setFilters({ ...filters, month: event.target.value })}
-                type="month"
-                value={filters.month}
-              />
-            </label>
+              <span className="month-navigator" aria-busy={isMonthLoading}>
+                <button aria-label="Previous month" disabled={isMonthLoading} onClick={() => void selectMonth(shiftMonth(filters.month, -1))} type="button"><CaretLeft aria-hidden="true" size={18} /></button>
+                <input
+                  className="field__control"
+                  disabled={isMonthLoading}
+                  name="month"
+                  onChange={(event) => void selectMonth(event.target.value)}
+                  type="month"
+                  value={filters.month}
+                />
+                <button aria-label="Next month" disabled={isMonthLoading} onClick={() => void selectMonth(shiftMonth(filters.month, 1))} type="button"><CaretRight aria-hidden="true" size={18} /></button>
+                <button aria-label="Current month" className="month-navigator__today" disabled={isMonthLoading || filters.month === currentMonth()} onClick={() => void selectMonth(currentMonth())} title="Current month" type="button"><CalendarBlank aria-hidden="true" size={18} /></button>
+              </span>
+            </div>
 
             <label className="field">
               <span className="field__label">Type</span>
@@ -849,9 +965,28 @@ export function TransactionWorkspace() {
 
           {exportMessage ? <p className="section-subtitle">{exportMessage}</p> : null}
 
-          <p className="section-subtitle">
-            Showing records from the authenticated backend API.
-          </p>
+          <div className="transaction-table-toolbar">
+            <div>
+              <p className="section-subtitle">Showing records from the authenticated backend API.</p>
+              {isMonthLoading ? <span className="transaction-refresh-state"><ButtonBusy label="Updating month" /></span> : null}
+            </div>
+            <details className="column-picker">
+              <summary><SlidersHorizontal aria-hidden="true" size={17} />Columns <span>{visibleColumns.length}/{transactionColumns.length}</span></summary>
+              <div className="column-picker__menu">
+                <strong>Visible columns</strong>
+                {transactionColumns.map((column) => (
+                  <label key={column.id}>
+                    <input checked={visibleColumns.includes(column.id)} onChange={() => toggleColumn(column.id)} type="checkbox" />
+                    <span>{column.label}</span>
+                  </label>
+                ))}
+                <button className="button button--ghost button--small" onClick={() => {
+                  setVisibleColumns(defaultTransactionColumns);
+                  persistVisibleColumns(defaultTransactionColumns);
+                }} type="button">Show all</button>
+              </div>
+            </details>
+          </div>
 
           {loadState.transactions.length === 0 ? (
             <div className="empty-state">
@@ -862,21 +997,23 @@ export function TransactionWorkspace() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Description</th>
-                    <th>Account</th>
-                    <th>Category</th>
-                    <th>Source</th>
-                    <th>Reported balance</th>
-                    <th>Amount</th>
+                    {visibleColumns.includes("date") ? <th>Date</th> : null}
+                    {visibleColumns.includes("time") ? <th>Time</th> : null}
+                    {visibleColumns.includes("description") ? <th>Description</th> : null}
+                    {visibleColumns.includes("account") ? <th>Account</th> : null}
+                    {visibleColumns.includes("category") ? <th>Category</th> : null}
+                    {visibleColumns.includes("source") ? <th>Source</th> : null}
+                    {visibleColumns.includes("balance") ? <th>Reported balance</th> : null}
+                    {visibleColumns.includes("amount") ? <th>Amount</th> : null}
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadState.transactions.map((transaction) => (
                     <tr key={transaction.id}>
-                      <td>{transaction.date}</td>
-                      <td>
+                      {visibleColumns.includes("date") ? <td>{transaction.date}</td> : null}
+                      {visibleColumns.includes("time") ? <td>{formatTransactionTime(transaction.time)}</td> : null}
+                      {visibleColumns.includes("description") ? <td>
                         <span className="transaction-ledger-primary">
                           {transaction.counterparty_text || transaction.reference || transaction.note || transaction.type.replaceAll("_", " ")}
                         </span>
@@ -884,22 +1021,22 @@ export function TransactionWorkspace() {
                           {transaction.type.replaceAll("_", " ")} · {transaction.direction}
                           {transaction.reference ? ` · ${transaction.reference}` : ""}
                         </span>
-                      </td>
-                      <td>{accountNames.get(transaction.account) ?? "Unknown"}</td>
-                      <td>
+                      </td> : null}
+                      {visibleColumns.includes("account") ? <td>{accountNames.get(transaction.account) ?? "Unknown"}</td> : null}
+                      {visibleColumns.includes("category") ? <td>
                         {transaction.category
                           ? categoryNames.get(transaction.category) ?? "Unknown"
                           : "None"}
-                      </td>
-                      <td>{transaction.source}</td>
-                      <td>
+                      </td> : null}
+                      {visibleColumns.includes("source") ? <td>{transaction.source}</td> : null}
+                      {visibleColumns.includes("balance") ? <td>
                         {transaction.balance_after
                           ? moneyFormatter.format(Number(transaction.balance_after))
                           : "-"}
-                      </td>
-                      <td className={transaction.direction === "credit" ? "transaction-ledger-amount transaction-ledger-amount--credit" : "transaction-ledger-amount"}>
+                      </td> : null}
+                      {visibleColumns.includes("amount") ? <td className={transaction.direction === "credit" ? "transaction-ledger-amount transaction-ledger-amount--credit" : "transaction-ledger-amount"}>
                         {transaction.direction === "credit" ? "+" : "-"}{moneyFormatter.format(Number(transaction.amount))}
-                      </td>
+                      </td> : null}
                       <td>
                         <div className="list-row__actions">
                           <button

@@ -104,6 +104,7 @@ class TransactionViewSet(ModelViewSet):
             [
                 "id",
                 "date",
+                "time",
                 "type",
                 "direction",
                 "amount",
@@ -128,11 +129,12 @@ class TransactionViewSet(ModelViewSet):
             ]
         )
 
-        for transaction in self.get_queryset().order_by("date", "created_at", "id"):
+        for transaction in self.get_queryset().order_by("date", "time", "created_at", "id"):
             writer.writerow(
                 [
                     transaction.id,
                     transaction.date,
+                    transaction.time.isoformat() if transaction.time else "",
                     transaction.type,
                     transaction.direction,
                     transaction.amount,

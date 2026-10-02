@@ -100,7 +100,7 @@ creation is added later.
 
 ## How are transactions modeled?
 
-A transaction has a positive amount, date, type, account, optional transfer
+A transaction has a positive amount, date, optional local time, type, account, optional transfer
 account, optional category, source, note, and review flag. The type determines
 whether it is income, expense, transfer, lend, borrow, refund, fee, or repayment.
 The transaction row also stores ledger direction, so the primary account can be
@@ -125,6 +125,8 @@ Confirmed transactions copy normalized evidence into the ledger row:
 debit/credit direction, provider reference or TrxID, balance after,
 counterparty text, payment method, raw message id, and an external duplicate
 key. The transaction note is a safe summary rather than a copy of the full SMS.
+SMS confirmation defaults the transaction time to the timezone-localized mobile
+message receipt time, while clients may correct it before confirmation.
 The original text follows the user's retention choice: redact immediately,
 retain for 7 or 30 days, or keep until manual redaction. Reports and exports use
 the structured fields and never need to reparse the SMS body.
@@ -373,3 +375,9 @@ no `RawMessage` row is created. Exact, contains, and regex behavior is shared
 with mobile; invalid regex rules are rejected during rule validation, and a
 case-insensitive database constraint prevents duplicate sender/match-type rules
 for one user.
+
+## How can a stored review candidate use newer parser logic?
+
+A pending, non-redacted candidate can be reprocessed explicitly from its review
+endpoint. Reprocessing never rewrites confirmed ledger decisions or a message
+whose source text has already been redacted.

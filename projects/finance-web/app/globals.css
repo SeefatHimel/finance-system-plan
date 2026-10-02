@@ -529,7 +529,7 @@ textarea {
 }
 
 .transaction-filter-form {
-  grid-template-columns: repeat(7, minmax(0, 1fr)) auto auto auto;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
 }
 
 .audit-filter-form {
@@ -714,7 +714,10 @@ textarea {
   margin: 10px 0 0;
 }
 
-.review-redact-button {
+.raw-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 10px;
 }
 
@@ -1245,6 +1248,8 @@ textarea {
   .audit-metric-row {
     grid-template-columns: 1fr;
   }
+
+  .transaction-month-filter { grid-column: auto; }
 
   .metric-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metric-strip .metric { padding: 14px 18px; }
@@ -2422,6 +2427,25 @@ textarea {
 .transaction-ledger-secondary { color: var(--muted); font-size: 12px; margin-top: 3px; text-transform: capitalize; }
 .transaction-ledger-amount { color: #ff9494; font-weight: 800; white-space: nowrap; }
 .transaction-ledger-amount--credit { color: var(--accent); }
+.transaction-month-filter { grid-column: span 2; }
+.month-navigator { display: grid; gap: 6px; grid-template-columns: 40px minmax(150px, 1fr) 40px 40px; }
+.month-navigator button { align-items: center; background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; color: var(--foreground); cursor: pointer; display: inline-flex; justify-content: center; min-height: 44px; transition: border-color var(--motion-fast) ease, color var(--motion-fast) ease, transform var(--motion-fast) ease; }
+.month-navigator button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+.month-navigator button:disabled { cursor: wait; opacity: 0.45; }
+.month-navigator .field__control { min-width: 0; }
+.transaction-table-toolbar { align-items: center; display: flex; gap: 16px; justify-content: space-between; margin-top: 4px; position: relative; z-index: 8; }
+.transaction-table-toolbar .section-subtitle { margin: 0; }
+.transaction-refresh-state { color: var(--accent); display: inline-flex; font-size: 12px; margin-top: 6px; }
+.column-picker { position: relative; }
+.column-picker summary { align-items: center; background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; color: var(--foreground); cursor: pointer; display: inline-flex; font-size: 13px; font-weight: 750; gap: 7px; list-style: none; min-height: 42px; padding: 0 13px; }
+.column-picker summary::-webkit-details-marker { display: none; }
+.column-picker summary span { background: var(--accent-soft); border-radius: 999px; color: var(--accent); font-size: 11px; padding: 3px 7px; }
+.column-picker[open] summary { border-color: var(--accent); }
+.column-picker__menu { background: #0d1c2b; border: 1px solid var(--panel-border); border-radius: 10px; box-shadow: var(--shadow); display: grid; gap: 6px; min-width: 230px; padding: 12px; position: absolute; right: 0; top: calc(100% + 8px); }
+.column-picker__menu > strong { font-size: 12px; letter-spacing: 0.03em; padding: 3px 5px 6px; text-transform: uppercase; }
+.column-picker__menu label { align-items: center; border-radius: 7px; cursor: pointer; display: flex; gap: 9px; min-height: 36px; padding: 6px 8px; }
+.column-picker__menu label:hover { background: rgb(85 230 165 / 8%); }
+.column-picker__menu input { accent-color: var(--accent); }
 
 @media (max-width: 1000px) {
   .review-split { grid-template-columns: minmax(240px, 0.4fr) minmax(0, 1fr); }
@@ -2446,4 +2470,6 @@ textarea {
   .review-sticky-actions > div { grid-column: 1 / -1; }
   .review-sticky-actions .button { min-height: 46px; }
   .transaction-editor-drawer .transaction-form { grid-template-columns: 1fr; }
+  .month-navigator { grid-template-columns: 40px minmax(0, 1fr) 40px 40px; }
+  .transaction-table-toolbar { align-items: flex-start; }
 }

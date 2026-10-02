@@ -107,7 +107,8 @@ Planned screens:
 It should feel close to the spreadsheet workflow: filter by month, account,
 category, type, debit/credit direction, source, and text; add/edit rows
 quickly; and support display modes like spreadsheet sign mode, ledger mode,
-and money-in/money-out mode.
+and money-in/money-out mode. Month arrows should refresh the ledger in place,
+and users should be able to persist the columns that matter to them.
 
 ## What does the current transactions page do?
 
@@ -122,7 +123,9 @@ source, and search text. Search matches transaction id/reference,
 sent-to/received-from text, note, and backend duplicate key. It supports
 updating and deleting transaction rows, and can download a CSV export using the
 same active filters. Each transaction row also links to the audit log page
-filtered to that transaction id.
+filtered to that transaction id. Transaction date and time are independently
+editable. Previous/current/next month controls refresh without a form submit,
+and the column picker remembers the browser's visible-column preference.
 
 ## How does dashboard transaction search work?
 
@@ -196,6 +199,9 @@ rule. The resulting transaction preserves reference, balance, and counterparty
 evidence without copying the complete SMS into its note.
 The page can also redact the raw SMS body after review while keeping parsed
 ledger evidence available.
+The evidence panel also includes a `Re-run parser` recovery action for pending
+messages. It refreshes parser-derived fields in place and gives visible busy,
+success, and error feedback without requiring another mobile history scan.
 
 ## What does the current reports page do?
 
@@ -238,7 +244,7 @@ payment that advances the next due date.
 
 ## What does the transaction table show now?
 
-The transaction table shows date, type, debit/credit direction, account,
+The transaction table can show date, time, type, debit/credit direction, account,
 source, category, amount, balance after, provider transaction id/reference,
 sent-to/received-from text, note, history links, and delete actions. The page
 can export the filtered rows as CSV for spreadsheet backup or external review.

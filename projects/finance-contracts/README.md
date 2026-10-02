@@ -90,7 +90,7 @@ bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
   value is recalculated from posted activity; the reported value is evidence
   captured from a bank or wallet message and may be older.
 - SMS-confirmed transactions should preserve normalized evidence fields such as
-  provider reference, balance after, counterparty text, payment method, raw
+  provider reference, local transaction time, balance after, counterparty text, payment method, raw
   message id, and duplicate key.
 - Capture preferences are user-scoped. Excluded providers and message kinds
   preserve only a deduplication tombstone; their original SMS body is not kept
@@ -152,6 +152,7 @@ POST   /api/messages/device-status/
 POST   /api/messages/import/
 POST   /api/messages/raw/{id}/redact/
 GET    /api/messages/review/
+POST   /api/messages/review/{id}/reprocess/
 POST   /api/messages/review/{id}/confirm/
 POST   /api/messages/review/{id}/reject/
 POST   /api/messages/review/{id}/ignore/

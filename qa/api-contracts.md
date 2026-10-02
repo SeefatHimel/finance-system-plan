@@ -68,7 +68,7 @@ hints. Parsed candidates can also expose a `possible_related_candidate` and
 internal transfer.
 
 Transaction contracts now include strict ledger evidence fields: `direction`,
-`balance_after`, `reference`, `counterparty_text`, `payment_method`,
+optional `time`, `balance_after`, `reference`, `counterparty_text`, `payment_method`,
 `raw_message`, and `external_key`. The SMS confirm request can override the
 same values when the parser needs user correction.
 
@@ -164,3 +164,7 @@ low-confidence candidate. Sender-rule responses include `pattern` and
 After trust matching, the API enforces the user's capture preferences before
 body persistence. Policy-excluded input returns `201` with no candidate and an
 ignored hash-only raw-message tombstone.
+Pending, non-redacted review candidates can also be refreshed directly with
+`POST /api/messages/review/{candidate_id}/reprocess/`. This is the recovery path
+for candidates stored before a parser improvement; confirmed or redacted
+candidates are intentionally immutable.

@@ -7,5 +7,6 @@
   "balance_after": "1150.00",
   "reference": "DEF456XYZ",
   "counterparty_text": "SAMPLE MERCHANT",
+  "time": "10:30:00",
   "note": "Confirmed from SMS"
 }

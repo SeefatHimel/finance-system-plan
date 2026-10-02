@@ -13,6 +13,7 @@ def transaction_snapshot(transaction) -> dict[str, object]:
         "payment_method": str(transaction.payment_method_id) if transaction.payment_method_id else None,
         "raw_message": str(transaction.raw_message_id) if transaction.raw_message_id else None,
         "date": transaction.date.isoformat(),
+        "time": transaction.time.isoformat() if transaction.time else None,
         "type": transaction.type,
         "direction": transaction.direction,
         "amount": str(transaction.amount),

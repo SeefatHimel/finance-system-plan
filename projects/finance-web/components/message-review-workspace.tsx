@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, CheckCircle, FunnelSimple, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowLeft, ArrowRight, CheckCircle, FunnelSimple, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -18,6 +18,7 @@ import {
   listMessageCandidates,
   listPaymentMethods,
   redactRawMessage,
+  reprocessMessageCandidate,
   rejectMessageCandidate
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
@@ -41,6 +42,16 @@ function formatLabel(value: string) {
 
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-BD", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function dateInputFromTimestamp(value: string) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function timeInputFromTimestamp(value: string) {
+  const date = new Date(value);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function confidencePercent(value: string) {
@@ -86,6 +97,7 @@ export function MessageReviewWorkspace() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [workingCandidateId, setWorkingCandidateId] = useState<string | null>(null);
+  const [reprocessingCandidateId, setReprocessingCandidateId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
   const [issueFilter, setIssueFilter] = useState("all");
@@ -171,6 +183,7 @@ export function MessageReviewWorkspace() {
         payment_method: String(formData.get("payment_method") ?? "") || null,
         reference: String(formData.get("reference") ?? ""),
         remember_mapping: formData.get("remember_mapping") === "on",
+        time: String(formData.get("time") ?? "") || null,
         transfer_account: String(formData.get("transfer_account") ?? "") || null,
         type: String(formData.get("type") ?? candidate.transaction_type) as TransactionType
       });
@@ -222,6 +235,25 @@ export function MessageReviewWorkspace() {
       setActionError(error instanceof Error ? error.message : "Could not redact raw SMS.");
     } finally {
       setWorkingCandidateId(null);
+    }
+  }
+
+  async function handleReprocess(candidate: ParsedMessageCandidate) {
+    const accessToken = getAccessToken();
+    if (!accessToken) return setActionError("Sign in before re-running the parser.");
+    setReprocessingCandidateId(candidate.id);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const updated = await reprocessMessageCandidate(accessToken, candidate.id);
+      setReviewState((current) => current.status === "ready"
+        ? { ...current, candidates: current.candidates.map((item) => item.id === updated.id ? updated : item) }
+        : current);
+      setActionMessage("Parser re-run complete. Review the refreshed fields before confirming.");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Could not re-run the parser.");
+    } finally {
+      setReprocessingCandidateId(null);
     }
   }
 
@@ -278,7 +310,8 @@ export function MessageReviewWorkspace() {
                   <label className="field"><span className="field__label">Category</span><select className="field__control" defaultValue={activeCandidate.category ?? ""} name="category"><option value="">No category</option>{reviewState.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
                   <label className="field"><span className="field__label">Payment method</span><select className="field__control" defaultValue={activeCandidate.payment_method ?? ""} name="payment_method"><option value="">No payment method</option>{reviewState.paymentMethods.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}</select></label>
                   <label className="field"><span className="field__label">Transfer destination</span><select className="field__control" defaultValue={activeCandidate.destination_account ?? ""} name="transfer_account"><option value="">No destination</option>{reviewState.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-                  <label className="field"><span className="field__label">Date</span><input className="field__control" defaultValue={activeCandidate.raw_message.received_at.slice(0, 10)} name="date" type="date" /></label>
+                  <label className="field"><span className="field__label">Date</span><input className="field__control" defaultValue={dateInputFromTimestamp(activeCandidate.raw_message.received_at)} name="date" type="date" /></label>
+                  <label className="field"><span className="field__label">Time</span><input className="field__control" defaultValue={timeInputFromTimestamp(activeCandidate.raw_message.received_at)} name="time" type="time" /></label>
                   <label className="field"><span className="field__label">Balance after</span><input className="field__control" defaultValue={activeCandidate.balance_after ?? ""} inputMode="decimal" name="balance_after" /></label>
                   <label className="field"><span className="field__label">Merchant / counterparty</span><input className="field__control" defaultValue={activeCandidate.counterparty_text} name="counterparty_text" /></label>
                   <label className="field"><span className="field__label">Reference</span><input className="field__control" defaultValue={activeCandidate.reference} name="reference" /></label>
@@ -286,7 +319,7 @@ export function MessageReviewWorkspace() {
                   <label className="field field--wide review-remember"><input defaultChecked name="remember_mapping" type="checkbox" /><span><strong>Use these choices next time</strong><small>Update this sender’s account, payment method, category, and transaction type.</small></span></label>
                 </div>
 
-                <details className="raw-message"><summary>Original SMS and parser evidence</summary><p>{activeCandidate.raw_message.body}</p><p>{activeCandidate.parser_notes}</p>{activeCandidate.raw_message.status !== "redacted" ? <button className="button button--ghost review-redact-button" disabled={workingCandidateId === activeCandidate.id} onClick={() => void handleRedact(activeCandidate)} type="button">Redact original SMS now</button> : <span className="status-badge status-badge--ok">Original SMS redacted</span>}</details>
+                <details className="raw-message"><summary>Original SMS and parser evidence</summary><p>{activeCandidate.raw_message.body}</p><p>{activeCandidate.parser_notes}</p>{activeCandidate.raw_message.status !== "redacted" ? <div className="raw-message-actions"><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleReprocess(activeCandidate)} type="button">{reprocessingCandidateId === activeCandidate.id ? <ButtonBusy label="Re-running parser" /> : <><ArrowClockwise aria-hidden="true" size={18} />Re-run parser</>}</button><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleRedact(activeCandidate)} type="button">Redact original SMS now</button></div> : <span className="status-badge status-badge--ok">Original SMS redacted</span>}</details>
 
                 <div className="review-sticky-actions"><div><strong>{accountNameById.get(activeCandidate.account ?? "") ?? "Account not selected"}</strong><span>{candidateIssues(activeCandidate).length ? `${candidateIssues(activeCandidate).length} item(s) need attention` : "Ready to add to ledger"}</span></div><button className="button button--danger" disabled={workingCandidateId === activeCandidate.id} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })} type="button">Reject</button><button className="button button--primary" disabled={workingCandidateId === activeCandidate.id} type="submit">{workingCandidateId === activeCandidate.id ? <ButtonBusy label="Confirming" /> : "Confirm & add"}</button></div>
               </form>
