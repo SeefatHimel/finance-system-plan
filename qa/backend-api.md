@@ -183,6 +183,7 @@ POST   /api/messages/sender-rules/
 POST   /api/messages/import/
 POST   /api/messages/dev/reset/  # DEBUG only
 GET    /api/messages/review/
+POST   /api/messages/review/reprocess/
 POST   /api/messages/review/{id}/confirm/
 POST   /api/messages/review/{id}/ignore/
 GET    /api/transactions/
@@ -275,10 +276,19 @@ transfer-like messages also try to match masked account or wallet identifiers
 against the user's configured payment methods so known source/destination
 accounts can be prefilled. Bank account transfer messages now use the same
 known payment-method hints when an anonymized account or wallet identifier is
-present in the message. Taka amounts accept both `Tk 1,000` and the common
+present in the message. Candidates and confirmed transactions preserve four
+separate masked evidence fields for sender/receiver account and card
+identifiers. Parser matching compares those values with the safe masked suffix
+stored on payment methods, so a label such as “My EBL card” can override a
+coarse sender-rule account without storing a full PAN. Parser, review,
+payment-method, and transaction API inputs reduce an unmasked identifier to its
+last four digits before persistence. Taka amounts accept both `Tk 1,000` and the common
 `Tk. 1,000` spelling used by City Bank messages. City Bank deposit parsing
 also distinguishes a date year from the following transaction amount and
 supports balances written after the value, such as `Tk. 2,33,319 Balance`.
+Balance extraction gives explicit `Balance BDT ...` or `... Balance` labels
+priority and excludes masked account/card suffixes, preventing `A/C 123**4567`
+from becoming a balance of `159`.
 
 For internal transfers, the backend now links possible related candidates when
 two review items belong to the same user, have the same amount, close received
@@ -316,11 +326,14 @@ records `not_transaction` as its default rejection reason.
 
 ## How does review correction improve future imports?
 
-When the reviewer enables “use choices next time,” confirmation writes the
-corrected account, payment method, category, and transaction type back to the
-matched sender rule. Future messages from that sender start with those defaults,
-while amount, balance, date, reference, and counterparty still come from each
-message. The learning is explicit and user-controlled rather than automatic.
+When the reviewer enables “use choices next time,” confirmation stores the
+corrected account, payment method, category, and transaction type for the
+matched sender rule *and detected message kind*. A bank can therefore remember
+different choices for purchases, transfers, fees, and refunds. The choice is
+also applied immediately to matching pending candidates; future messages of the
+same kind start with those defaults, while amount, balance, date, reference,
+identifiers, and counterparty still come from each message. The learning is
+explicit and user-controlled rather than automatic.
 
 ## How is mobile SMS sync health represented?
 
@@ -385,3 +398,9 @@ for one user.
 A pending, non-redacted candidate can be reprocessed explicitly from its review
 endpoint. Reprocessing never rewrites confirmed ledger decisions or a message
 whose source text has already been redacted.
+
+The bulk review reprocess endpoint applies current parser logic and learned
+mappings to every pending, non-redacted candidate for the authenticated user.
+It returns requested/reprocessed/remaining counts. It deliberately leaves
+confirmed transactions untouched so a rule change cannot silently rewrite the
+ledger; changed candidates return to the normal confirmation workflow.

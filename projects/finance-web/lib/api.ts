@@ -143,12 +143,16 @@ const parsedMessageCandidateSchema = z.object({
   possible_related_candidate: z.string().nullable(),
   provider: z.string(),
   raw_message: rawMessageSchema,
+  receiver_account_identifier: z.string(),
+  receiver_card_identifier: z.string(),
   reference: z.string(),
   rejected_at: z.string().nullable(),
   rejection_note: z.string(),
   rejection_reason: z.string(),
   related_match_reason: z.string(),
   sender_rule: z.string().nullable(),
+  sender_account_identifier: z.string(),
+  sender_card_identifier: z.string(),
   status: z.string(),
   transaction: z.string().nullable(),
   transaction_type: z.string(),
@@ -194,7 +198,11 @@ const transactionSchema = z.object({
   note: z.string(),
   payment_method: z.string().nullable(),
   raw_message: z.string().nullable(),
+  receiver_account_identifier: z.string(),
+  receiver_card_identifier: z.string(),
   reference: z.string(),
+  sender_account_identifier: z.string(),
+  sender_card_identifier: z.string(),
   source: z.string(),
   time: z.string().nullable(),
   transfer_account: z.string().nullable(),
@@ -395,7 +403,11 @@ export type CreateTransactionInput = {
   note?: string;
   payment_method?: string | null;
   raw_message?: string | null;
+  receiver_account_identifier?: string;
+  receiver_card_identifier?: string;
   reference?: string;
+  sender_account_identifier?: string;
+  sender_card_identifier?: string;
   source?: TransactionSource;
   time?: string | null;
   transfer_account?: string;
@@ -434,7 +446,11 @@ export type UpdateTransactionInput = {
   note?: string;
   payment_method?: string | null;
   raw_message?: string | null;
+  receiver_account_identifier?: string;
+  receiver_card_identifier?: string;
   reference?: string;
+  sender_account_identifier?: string;
+  sender_card_identifier?: string;
   time?: string | null;
   transfer_account?: string | null;
   type?: TransactionType;
@@ -899,6 +915,19 @@ export async function reprocessMessageCandidate(
     method: "POST"
   });
   return parsedMessageCandidateSchema.parse(await response.json());
+}
+
+export async function reprocessPendingMessageCandidates(
+  accessToken: string
+): Promise<{ remaining_for_review: number; reprocessed: number; requested: number }> {
+  const response = await authenticatedFetch("/api/messages/review/reprocess/", accessToken, {
+    method: "POST"
+  });
+  return z.object({
+    remaining_for_review: z.number(),
+    reprocessed: z.number(),
+    requested: z.number()
+  }).parse(await response.json());
 }
 
 export async function confirmMessageCandidate(

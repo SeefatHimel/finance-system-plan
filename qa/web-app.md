@@ -132,7 +132,9 @@ updating and deleting transaction rows, and can download a CSV export using the
 same active filters. Each transaction row also links to the audit log page
 filtered to that transaction id. Transaction date and time are independently
 editable. Previous/current/next month controls refresh without a form submit,
-and the column picker remembers the browser's visible-column preference.
+and the column picker remembers the browser's visible-column preference. The
+picker includes sender and receiver identifier evidence, allowing masked
+account/card suffixes to be shown only when useful.
 
 ## How does dashboard transaction search work?
 
@@ -201,14 +203,20 @@ candidate into an SMS-sourced transaction or reject it with a reason. Rejection
 can also redact the original SMS, deactivate the matched sender rule, or exclude
 the provider. The confirmation flow supports debit/credit direction and
 transfer destination selection, and can explicitly remember corrected account,
-category, payment method, and type as future defaults on the matched sender
-rule. The resulting transaction preserves reference, balance, and counterparty
-evidence without copying the complete SMS into its note.
+category, payment method, and type for the matched sender and message kind. The
+choice is applied immediately to similar pending items, so purchase and transfer
+messages from the same bank no longer overwrite each other's defaults. The
+resulting transaction preserves reference, balance, masked sender/receiver
+account and card identifiers, and counterparty evidence without copying the
+complete SMS into its note.
 The page can also redact the raw SMS body after review while keeping parsed
 ledger evidence available.
 The evidence panel also includes a `Re-run parser` recovery action for pending
 messages. It refreshes parser-derived fields in place and gives visible busy,
 success, and error feedback without requiring another mobile history scan.
+The header also offers `Reapply rules to pending`, with a confirmation prompt
+and result counts, to refresh the whole review queue after parser or mapping
+changes. Confirmed ledger entries are never changed by that action.
 If the refreshed message has no numeric content, the API auto-discards it and
 the workspace immediately removes it from review with explicit feedback.
 

@@ -595,14 +595,15 @@ export function SmsSettingsWorkspace() {
             </label>
 
             <label className="field field--wide">
-              <span className="field__label">Identifier</span>
+              <span className="field__label">Safe identifier or masked suffix</span>
               <input
                 className="field__control"
                 disabled={!hasAccounts}
                 name="identifier"
-                placeholder="Phone, card suffix, or nickname"
+                placeholder="For example: 7890 or 017…1234"
                 type="text"
               />
+              <span className="field__hint">Used to match SMS account/card evidence to this alias. Never enter a full card number.</span>
             </label>
 
             {paymentMethodError ? <p className="form-error field--wide">{paymentMethodError}</p> : null}
@@ -697,13 +698,14 @@ export function SmsSettingsWorkspace() {
               </select>
             </label>
             <label className="field">
-              <span className="field__label">Identifier</span>
+              <span className="field__label">Safe identifier or masked suffix</span>
               <input
                 className="field__control"
                 onChange={(event) => setEditingPaymentMethodIdentifier(event.target.value)}
                 type="text"
                 value={editingPaymentMethodIdentifier}
               />
+              <span className="field__hint">Use a masked value or last four digits only.</span>
             </label>
             <button className="button button--ghost" disabled={isUpdatingPaymentMethod} type="submit">
               {isUpdatingPaymentMethod ? <ButtonBusy label="Updating" /> : "Update payment method"}
@@ -757,7 +759,7 @@ export function SmsSettingsWorkspace() {
             </label>
 
             <label className="field">
-              <span className="field__label">Default transaction type</span>
+              <span className="field__label">Fallback transaction type</span>
               <select className="field__control" disabled={!hasAccounts} name="default_transaction_type">
                 <option value="">Detect from each message</option>
                 {transactionTypes.map((transactionType) => (
@@ -766,6 +768,7 @@ export function SmsSettingsWorkspace() {
                   </option>
                 ))}
               </select>
+              <span className="field__hint">Only used when the parser cannot identify the message kind. Confirmed choices are learned per message pattern.</span>
             </label>
 
             <label className="field">

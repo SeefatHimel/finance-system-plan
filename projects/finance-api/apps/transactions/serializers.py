@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.accounts.models import Account
 from apps.categories.models import Category
+from apps.messages.identifiers import sanitize_financial_identifier
 from apps.messages.models import RawMessage
 from apps.payment_methods.models import PaymentMethod
 
@@ -24,6 +25,10 @@ class TransactionSerializer(serializers.ModelSerializer):
             "direction",
             "amount",
             "balance_after",
+            "sender_account_identifier",
+            "sender_card_identifier",
+            "receiver_account_identifier",
+            "receiver_card_identifier",
             "reference",
             "counterparty_text",
             "external_key",
@@ -61,6 +66,15 @@ class TransactionSerializer(serializers.ModelSerializer):
         return raw_message
 
     def validate(self, attrs):
+        for field_name in (
+            "sender_account_identifier",
+            "sender_card_identifier",
+            "receiver_account_identifier",
+            "receiver_card_identifier",
+        ):
+            if field_name in attrs:
+                attrs[field_name] = sanitize_financial_identifier(attrs[field_name])
+
         transaction_type = attrs.get("type", getattr(self.instance, "type", None))
         transfer_account = attrs.get(
             "transfer_account",

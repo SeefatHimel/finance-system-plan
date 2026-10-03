@@ -12,6 +12,7 @@ from apps.credit_cards.views import CreditCardBillViewSet, CreditCardPaymentCrea
 from apps.debts.views import DebtPaymentCreateView, DebtViewSet
 from apps.messages.views import (
     MessageCandidateConfirmView,
+    MessageCandidateBulkReprocessView,
     MessageCandidateReprocessView,
     MessageCandidateRejectView,
     MessageReviewListView,
@@ -63,6 +64,11 @@ urlpatterns = [
         name="raw-message-redact",
     ),
     path("api/messages/review/", MessageReviewListView.as_view(), name="message-review-list"),
+    path(
+        "api/messages/review/reprocess/",
+        MessageCandidateBulkReprocessView.as_view(),
+        name="message-candidate-bulk-reprocess",
+    ),
     path("api/messages/dev/reset/", SmsDevelopmentResetView.as_view(), name="sms-development-reset"),
     path(
         "api/messages/review/<uuid:candidate_id>/reprocess/",

@@ -74,6 +74,10 @@ class TransactionApiTests(APITestCase):
                 "direction": "debit",
                 "amount": "350.00",
                 "balance_after": "1150.00",
+                "sender_account_identifier": "1234567",
+                "sender_card_identifier": "1111222233337890",
+                "receiver_account_identifier": "987**6543",
+                "receiver_card_identifier": "",
                 "reference": "DEF456XYZ",
                 "counterparty_text": "SAMPLE MERCHANT",
                 "external_key": "sms:bkash:def456xyz",
@@ -86,6 +90,9 @@ class TransactionApiTests(APITestCase):
         self.assertEqual(response.data["reference"], "DEF456XYZ")
         self.assertEqual(response.data["counterparty_text"], "SAMPLE MERCHANT")
         self.assertEqual(response.data["balance_after"], "1150.00")
+        self.assertEqual(response.data["sender_account_identifier"], "4567")
+        self.assertEqual(response.data["sender_card_identifier"], "7890")
+        self.assertEqual(response.data["receiver_account_identifier"], "987**6543")
         self.assertEqual(str(response.data["payment_method"]), str(payment_method.id))
 
     def test_authenticated_user_can_export_filtered_transactions_as_csv(self):
@@ -112,6 +119,9 @@ class TransactionApiTests(APITestCase):
             direction=Transaction.Direction.DEBIT,
             amount="250.00",
             balance_after="750.00",
+            sender_account_identifier="123**4567",
+            sender_card_identifier="111122**7890",
+            receiver_account_identifier="987**6543",
             reference="CASH-001",
             counterparty_text="Lunch Shop",
             external_key="manual:cash-001",
@@ -169,6 +179,9 @@ class TransactionApiTests(APITestCase):
         self.assertEqual(rows[0]["category_name"], "Food")
         self.assertEqual(rows[0]["payment_method_name"], "Cash Wallet")
         self.assertEqual(rows[0]["balance_after"], "750.00")
+        self.assertEqual(rows[0]["sender_account_identifier"], "123**4567")
+        self.assertEqual(rows[0]["sender_card_identifier"], "111122**7890")
+        self.assertEqual(rows[0]["receiver_account_identifier"], "987**6543")
         self.assertEqual(rows[0]["reference"], "CASH-001")
         self.assertEqual(rows[0]["counterparty_text"], "Lunch Shop")
 
@@ -187,6 +200,7 @@ class TransactionApiTests(APITestCase):
             reference="BKASH-ABC-001",
             counterparty_text="Lunch Shop",
             external_key="sms:bkash:abc-001",
+            sender_card_identifier="111122**7890",
             note="Team lunch",
         )
         Transaction.objects.create(
@@ -214,6 +228,11 @@ class TransactionApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["id"], str(matched_transaction.id))
+
+        identifier_response = self.client.get(reverse("transaction-list"), {"search": "7890"})
+        self.assertEqual(identifier_response.status_code, 200)
+        self.assertEqual(len(identifier_response.data), 1)
+        self.assertEqual(identifier_response.data[0]["id"], str(matched_transaction.id))
 
     def test_authenticated_user_can_filter_transactions_by_source(self):
         user = get_user_model().objects.create_user(username="himel", password="password")

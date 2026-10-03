@@ -8,6 +8,7 @@ from apps.categories.models import Category
 from apps.payment_methods.models import PaymentMethod
 from apps.transactions.models import Transaction
 
+from .identifiers import sanitize_financial_identifier
 from .models import (
     ParsedMessageCandidate,
     RawMessage,
@@ -180,6 +181,10 @@ class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
             "message_kind",
             "transaction_type",
             "amount",
+            "sender_account_identifier",
+            "sender_card_identifier",
+            "receiver_account_identifier",
+            "receiver_card_identifier",
             "counterparty_text",
             "reference",
             "balance_after",
@@ -211,6 +216,10 @@ class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
             "message_kind",
             "transaction_type",
             "amount",
+            "sender_account_identifier",
+            "sender_card_identifier",
+            "receiver_account_identifier",
+            "receiver_card_identifier",
             "counterparty_text",
             "reference",
             "balance_after",
@@ -333,9 +342,24 @@ class ParsedMessageConfirmSerializer(serializers.Serializer):
     direction = serializers.ChoiceField(choices=Transaction.Direction.choices, required=False)
     reference = serializers.CharField(max_length=120, required=False, allow_blank=True)
     counterparty_text = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    sender_account_identifier = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    sender_card_identifier = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    receiver_account_identifier = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    receiver_card_identifier = serializers.CharField(max_length=120, required=False, allow_blank=True)
     note = serializers.CharField(required=False, allow_blank=True)
     type = serializers.ChoiceField(choices=Transaction.Type.choices, required=False)
     remember_mapping = serializers.BooleanField(required=False, default=False)
+
+    def validate(self, attrs):
+        for field_name in (
+            "sender_account_identifier",
+            "sender_card_identifier",
+            "receiver_account_identifier",
+            "receiver_card_identifier",
+        ):
+            if field_name in attrs:
+                attrs[field_name] = sanitize_financial_identifier(attrs[field_name])
+        return attrs
 
     def get_fields(self):
         fields = super().get_fields()

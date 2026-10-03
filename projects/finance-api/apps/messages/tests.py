@@ -11,6 +11,7 @@ from apps.messages.models import (
     ParsedMessageCandidate,
     RawMessage,
     SenderRule,
+    SenderRuleMapping,
     SmsCapturePreference,
     SmsDeviceStatus,
 )
@@ -149,6 +150,57 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(response.data["excluded_providers"], [])
         self.assertEqual(response.data["excluded_message_kinds"], ["otp_or_security"])
         self.assertEqual(response.data["raw_sms_retention_days"], 30)
+
+    def test_ebl_transfer_does_not_treat_masked_account_as_balance(self):
+        user = get_user_model().objects.create_user(username="ebl-user", password="password")
+        wrong_account = Account.objects.create(
+            user=user,
+            name="City Bank",
+            type=Account.Type.BANK,
+        )
+        ebl_account = Account.objects.create(
+            user=user,
+            name="My EBL card",
+            type=Account.Type.CREDIT_CARD,
+        )
+        payment_method = PaymentMethod.objects.create(
+            user=user,
+            account=ebl_account,
+            name="My EBL card",
+            provider=PaymentMethod.Provider.EBL,
+            identifier="7890",
+        )
+        SenderRule.objects.create(
+            user=user,
+            account=wrong_account,
+            name="EBL transactions",
+            provider=SenderRule.Provider.EBL,
+            sender="EBL",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "EBL",
+                "body": (
+                    "EBL CARDS: NPSB Fund Transfer BDT 12345.67 using Card 111122**7890 "
+                    "on 15-Jan-26 11:22:33 AM.Your A/C 123**4567 Balance BDT 654321.17."
+                ),
+                "received_at": "2026-08-09T16:04:30+06:00",
+                "device_message_id": "sms-ebl-masked-balance-regression",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["amount"], "12345.67")
+        self.assertEqual(candidate["balance_after"], "654321.17")
+        self.assertEqual(candidate["sender_account_identifier"], "123**4567")
+        self.assertEqual(candidate["sender_card_identifier"], "111122**7890")
+        self.assertEqual(candidate["account"], ebl_account.id)
+        self.assertEqual(candidate["payment_method"], payment_method.id)
 
     def test_capture_preferences_can_be_updated_and_validate_supported_values(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
@@ -1686,6 +1738,18 @@ class MessageReviewApiTests(APITestCase):
     def test_confirm_can_remember_sender_mapping(self):
         category = Category.objects.create(user=self.user, name="Shopping", kind=Category.Kind.EXPENSE)
         candidate = self.import_payment_message()
+        second_response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "bKash",
+                "body": "Payment Tk 250.00 to SAMPLE MERCHANT successful. TrxID NEXT123.",
+                "received_at": "2026-05-30T11:30:00+06:00",
+                "device_message_id": "sms-review-payment-101",
+            },
+            format="json",
+        )
+        self.assertEqual(second_response.status_code, 201)
+        second_candidate_id = second_response.data["candidate"]["id"]
 
         response = self.client.post(
             reverse("message-candidate-confirm", kwargs={"candidate_id": candidate["id"]}),
@@ -1698,9 +1762,36 @@ class MessageReviewApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.sender_rule.refresh_from_db()
-        self.assertEqual(self.sender_rule.category, category)
-        self.assertEqual(self.sender_rule.default_transaction_type, "expense")
+        mapping = SenderRuleMapping.objects.get(
+            sender_rule=self.sender_rule,
+            message_kind=ParsedMessageCandidate.MessageKind.PURCHASE,
+        )
+        self.assertEqual(mapping.category, category)
+        self.assertEqual(mapping.transaction_type, "expense")
+        second_candidate = ParsedMessageCandidate.objects.get(id=second_candidate_id)
+        self.assertEqual(second_candidate.category, category)
+
+    def test_bulk_reprocess_applies_latest_learned_rules_without_clearing_messages(self):
+        candidate = self.import_payment_message()
+        category = Category.objects.create(user=self.user, name="Dining", kind=Category.Kind.EXPENSE)
+        SenderRuleMapping.objects.create(
+            user=self.user,
+            sender_rule=self.sender_rule,
+            message_kind=ParsedMessageCandidate.MessageKind.PURCHASE,
+            account=self.account,
+            payment_method=self.payment_method,
+            category=category,
+            transaction_type=Transaction.Type.EXPENSE,
+        )
+
+        response = self.client.post(reverse("message-candidate-bulk-reprocess"), {}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["requested"], 1)
+        self.assertEqual(response.data["reprocessed"], 1)
+        refreshed = ParsedMessageCandidate.objects.get(id=candidate["id"])
+        self.assertEqual(refreshed.category, category)
+        self.assertEqual(RawMessage.objects.filter(user=self.user).count(), 1)
 
 
 class SmsDeviceStatusApiTests(APITestCase):

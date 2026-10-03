@@ -99,6 +99,55 @@ class SenderRule(models.Model):
         return self.name
 
 
+class SenderRuleMapping(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sender_rule_mappings",
+    )
+    sender_rule = models.ForeignKey(
+        SenderRule,
+        on_delete=models.CASCADE,
+        related_name="learned_mappings",
+    )
+    message_kind = models.CharField(max_length=32)
+    account = models.ForeignKey(
+        "accounts.Account",
+        on_delete=models.PROTECT,
+        related_name="sender_rule_mappings",
+    )
+    payment_method = models.ForeignKey(
+        "payment_methods.PaymentMethod",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="sender_rule_mappings",
+    )
+    category = models.ForeignKey(
+        "categories.Category",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="sender_rule_mappings",
+    )
+    transaction_type = models.CharField(max_length=32)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("sender_rule", "message_kind")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("sender_rule", "message_kind"),
+                name="unique_mapping_per_sender_rule_kind",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.sender_rule.name}: {self.message_kind}"
+
+
 def default_excluded_message_kinds():
     return ["otp_or_security"]
 
@@ -323,6 +372,10 @@ class ParsedMessageCandidate(models.Model):
         null=True,
         validators=[MinValueValidator(Decimal("0.01"))],
     )
+    sender_account_identifier = models.CharField(max_length=120, blank=True, default="")
+    sender_card_identifier = models.CharField(max_length=120, blank=True, default="")
+    receiver_account_identifier = models.CharField(max_length=120, blank=True, default="")
+    receiver_card_identifier = models.CharField(max_length=120, blank=True, default="")
     counterparty_text = models.CharField(max_length=255, blank=True, default="")
     reference = models.CharField(max_length=120, blank=True, default="")
     balance_after = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)

@@ -16,6 +16,7 @@ from .models import (
     ParsedMessageCandidate,
     RawMessage,
     SenderRule,
+    SenderRuleMapping,
     SmsCapturePreference,
     SmsDeviceStatus,
     default_excluded_message_kinds,
@@ -273,6 +274,10 @@ class RawMessageImportView(APIView):
             message_kind=parsed["message_kind"],
             transaction_type=parsed["transaction_type"],
             amount=parsed["amount"],
+            sender_account_identifier=parsed["sender_account_identifier"],
+            sender_card_identifier=parsed["sender_card_identifier"],
+            receiver_account_identifier=parsed["receiver_account_identifier"],
+            receiver_card_identifier=parsed["receiver_card_identifier"],
             counterparty_text=parsed["counterparty_text"],
             reference=parsed["reference"],
             balance_after=parsed["balance_after"],
@@ -304,6 +309,10 @@ class RawMessageImportView(APIView):
             "message_kind",
             "transaction_type",
             "amount",
+            "sender_account_identifier",
+            "sender_card_identifier",
+            "receiver_account_identifier",
+            "receiver_card_identifier",
             "counterparty_text",
             "reference",
             "balance_after",
@@ -477,6 +486,34 @@ class MessageCandidateReprocessView(RawMessageImportView):
         return Response(ParsedMessageCandidateSerializer(candidate).data)
 
 
+class MessageCandidateBulkReprocessView(RawMessageImportView):
+    def post(self, request):
+        candidates = (
+            ParsedMessageCandidate.objects.filter(
+                user=request.user,
+                status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
+            )
+            .select_related("raw_message")
+            .order_by("created_at")
+        )
+        requested_count = candidates.count()
+        reprocessed_count = 0
+        for candidate in candidates.iterator():
+            if self._reprocess_candidate(candidate):
+                reprocessed_count += 1
+
+        return Response(
+            {
+                "requested": requested_count,
+                "reprocessed": reprocessed_count,
+                "remaining_for_review": ParsedMessageCandidate.objects.filter(
+                    user=request.user,
+                    status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
+                ).count(),
+            }
+        )
+
+
 class SmsDevelopmentResetView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -539,6 +576,22 @@ class MessageCandidateConfirmView(APIView):
         direction = payload.get("direction") or Transaction.default_direction_for_type(transaction_type)
         reference = payload.get("reference", candidate.reference)
         counterparty_text = payload.get("counterparty_text", candidate.counterparty_text)
+        sender_account_identifier = payload.get(
+            "sender_account_identifier",
+            candidate.sender_account_identifier,
+        )
+        sender_card_identifier = payload.get(
+            "sender_card_identifier",
+            candidate.sender_card_identifier,
+        )
+        receiver_account_identifier = payload.get(
+            "receiver_account_identifier",
+            candidate.receiver_account_identifier,
+        )
+        receiver_card_identifier = payload.get(
+            "receiver_card_identifier",
+            candidate.receiver_card_identifier,
+        )
 
         if account is None:
             return Response(
@@ -601,6 +654,10 @@ class MessageCandidateConfirmView(APIView):
             direction=direction,
             amount=amount,
             balance_after=balance_after,
+            sender_account_identifier=sender_account_identifier,
+            sender_card_identifier=sender_card_identifier,
+            receiver_account_identifier=receiver_account_identifier,
+            receiver_card_identifier=receiver_card_identifier,
             reference=reference,
             counterparty_text=counterparty_text,
             external_key=external_key,
@@ -614,18 +671,27 @@ class MessageCandidateConfirmView(APIView):
 
         if payload["remember_mapping"] and candidate.sender_rule:
             sender_rule = candidate.sender_rule
-            sender_rule.account = account
-            sender_rule.payment_method = payment_method
-            sender_rule.category = category
-            sender_rule.default_transaction_type = transaction_type
-            sender_rule.save(
-                update_fields=(
-                    "account",
-                    "payment_method",
-                    "category",
-                    "default_transaction_type",
-                    "updated_at",
-                )
+            SenderRuleMapping.objects.update_or_create(
+                sender_rule=sender_rule,
+                message_kind=candidate.message_kind,
+                defaults={
+                    "user": request.user,
+                    "account": account,
+                    "payment_method": payment_method,
+                    "category": category,
+                    "transaction_type": transaction_type,
+                },
+            )
+            ParsedMessageCandidate.objects.filter(
+                user=request.user,
+                sender_rule=sender_rule,
+                message_kind=candidate.message_kind,
+                status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
+            ).update(
+                account=account,
+                payment_method=payment_method,
+                category=category,
+                transaction_type=transaction_type,
             )
 
         capture_preference, _created = SmsCapturePreference.objects.get_or_create(user=request.user)

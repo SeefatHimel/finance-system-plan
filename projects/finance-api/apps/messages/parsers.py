@@ -3,17 +3,21 @@ from decimal import Decimal, InvalidOperation
 
 from apps.payment_methods.models import PaymentMethod
 
-from .models import ParsedMessageCandidate, SenderRule
+from .identifiers import sanitize_financial_identifier
+from .models import ParsedMessageCandidate, SenderRule, SenderRuleMapping
 
 _AMOUNT_PATTERN = re.compile(
     r"(?:tk|bdt)\.?\s*([0-9][0-9,]*(?:\.\d{1,2})?)|"
     r"(?<![-/])\b([0-9][0-9,]*(?:\.\d{1,2})?)\s*(?:tk|bdt)\.?",
     re.IGNORECASE,
 )
-_BALANCE_PATTERN = re.compile(
-    r"(?:balance|bal)\s*(?:is|:)?\s*(?:(?:tk|bdt)\.?\s*)?"
-    r"([0-9][0-9,]*(?:\.\d{1,2})?)|"
-    r"(?:(?:tk|bdt)\.?\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*"
+_BALANCE_AFTER_LABEL_PATTERN = re.compile(
+    r"(?:available\s+)?(?:balance|bal)\s*(?:is|:)?\s*(?:(?:tk|bdt)\.?\s*)?"
+    r"([0-9][0-9,]*(?:\.\d{1,2})?)",
+    re.IGNORECASE,
+)
+_BALANCE_BEFORE_LABEL_PATTERN = re.compile(
+    r"(?<![0-9x*])(?:(?:tk|bdt)\.?\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*"
     r"(?:available\s+)?(?:balance|bal)\b",
     re.IGNORECASE,
 )
@@ -33,6 +37,16 @@ _TRANSACTION_ACTIVITY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _NUMERIC_CONTENT_PATTERN = re.compile(r"\d")
+_ACCOUNT_IDENTIFIER_PATTERN = re.compile(
+    r"\b(?:a\s*/?\s*c|acct|account)(?:\s*(?:no|number))?\s*[:#-]?\s*"
+    r"([0-9x*][0-9x* -]{2,}[0-9x*])",
+    re.IGNORECASE,
+)
+_CARD_IDENTIFIER_PATTERN = re.compile(
+    r"\bcard(?:\s*(?:no|number|ending(?:\s+in)?))?\s*[:#-]?\s*"
+    r"([0-9x*][0-9x* -]{2,}[0-9x*])",
+    re.IGNORECASE,
+)
 
 
 def has_numeric_content(body: str) -> bool:
@@ -108,10 +122,40 @@ def parse_raw_message(raw_message):
             "transaction_type": "expense",
         }
 
-    parsed["category"] = sender_rule.category if sender_rule else None
-    if sender_rule and sender_rule.default_transaction_type:
+    parsed["category"] = (
+        sender_rule.category
+        if sender_rule and parsed["message_kind"] == ParsedMessageCandidate.MessageKind.UNKNOWN
+        else None
+    )
+    parsed.update(_extract_identifier_evidence(raw_message.body, parsed["message_kind"]))
+    mapping = (
+        SenderRuleMapping.objects.filter(
+            sender_rule=sender_rule,
+            message_kind=parsed["message_kind"],
+        )
+        .select_related("account", "payment_method", "category")
+        .first()
+        if sender_rule
+        else None
+    )
+    if mapping:
+        if parsed["payment_method"] is None or parsed["payment_method"] == sender_rule.payment_method:
+            parsed["account"] = mapping.account
+            parsed["payment_method"] = mapping.payment_method
+        parsed["category"] = mapping.category
+        parsed["transaction_type"] = mapping.transaction_type
+        parsed["parser_notes"] = (
+            f"{parsed['parser_notes']} Applied choices learned for this sender and message type."
+        )
+    elif (
+        sender_rule
+        and sender_rule.default_transaction_type
+        and parsed["message_kind"] == ParsedMessageCandidate.MessageKind.UNKNOWN
+    ):
         parsed["transaction_type"] = sender_rule.default_transaction_type
-        parsed["parser_notes"] = f"{parsed['parser_notes']} Applied the saved transaction type for this sender."
+        parsed["parser_notes"] = (
+            f"{parsed['parser_notes']} Applied the fallback transaction type for an unknown message format."
+        )
     return parsed
 
 
@@ -365,31 +409,80 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
         notes.append("Detected bank transfer wording.")
 
     counterparty_text = _extract_merchant_text(body) or _extract_counterparty_text(body)
-    matched_payment_method = _find_payment_method_hint(
+    identifiers = _extract_identifier_evidence(body, message_kind)
+    sender_payment_method = _find_payment_method_for_identifiers(
         user=raw_message.user,
-        text=counterparty_text or body,
-        excluded_account_id=sender_rule.account_id if sender_rule else None,
+        identifiers=(
+            identifiers["sender_account_identifier"],
+            identifiers["sender_card_identifier"],
+        ),
+        provider=provider,
     )
-    if matched_payment_method:
-        if message_kind == ParsedMessageCandidate.MessageKind.BANK_TRANSFER_IN:
-            account = matched_payment_method.account
-            payment_method = matched_payment_method
-            destination_account = sender_rule.account if sender_rule else None
-            destination_payment_method = sender_rule.payment_method if sender_rule else None
+    receiver_payment_method = _find_payment_method_for_identifiers(
+        user=raw_message.user,
+        identifiers=(
+            identifiers["receiver_account_identifier"],
+            identifiers["receiver_card_identifier"],
+        ),
+        provider="",
+    )
+    if receiver_payment_method is None and message_kind in (
+        ParsedMessageCandidate.MessageKind.BANK_TRANSFER_OUT,
+        ParsedMessageCandidate.MessageKind.CARD_PAYMENT,
+    ):
+        receiver_payment_method = _find_payment_method_hint(
+            user=raw_message.user,
+            text=counterparty_text,
+            excluded_account_id=(
+                sender_payment_method.account_id
+                if sender_payment_method
+                else sender_rule.account_id if sender_rule else None
+            ),
+        )
+
+    if message_kind == ParsedMessageCandidate.MessageKind.BANK_TRANSFER_IN:
+        if sender_payment_method:
+            account = sender_payment_method.account
+            payment_method = sender_payment_method
+            destination_account = (
+                receiver_payment_method.account
+                if receiver_payment_method
+                else sender_rule.account if sender_rule else None
+            )
+            destination_payment_method = (
+                receiver_payment_method
+                if receiver_payment_method
+                else sender_rule.payment_method if sender_rule else None
+            )
             transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
-            possible_internal_transfer = True
-            confidence = max(confidence, Decimal("0.86"))
-            notes.append("Matched bank transfer source payment method from message text.")
-        elif message_kind in (
-            ParsedMessageCandidate.MessageKind.BANK_TRANSFER_OUT,
-            ParsedMessageCandidate.MessageKind.CARD_PAYMENT,
+            possible_internal_transfer = destination_account is not None
+            confidence = max(confidence, Decimal("0.90"))
+            notes.append("Matched the transfer source from a saved masked identifier.")
+        elif receiver_payment_method:
+            account = receiver_payment_method.account
+            payment_method = receiver_payment_method
+            confidence = max(confidence, Decimal("0.90"))
+            notes.append("Matched the receiving account from a saved masked identifier.")
+    else:
+        if sender_payment_method:
+            account = sender_payment_method.account
+            payment_method = sender_payment_method
+            confidence = max(confidence, Decimal("0.90"))
+            notes.append("Matched the source account from a saved masked identifier.")
+        if receiver_payment_method and (
+            sender_payment_method is None
+            or receiver_payment_method.account_id != sender_payment_method.account_id
         ):
-            destination_account = matched_payment_method.account
-            destination_payment_method = matched_payment_method
-            transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
-            possible_internal_transfer = True
-            confidence = max(confidence, Decimal("0.86"))
-            notes.append("Matched bank transfer destination payment method from message text.")
+            destination_account = receiver_payment_method.account
+            destination_payment_method = receiver_payment_method
+            if message_kind in (
+                ParsedMessageCandidate.MessageKind.BANK_TRANSFER_OUT,
+                ParsedMessageCandidate.MessageKind.CARD_PAYMENT,
+            ):
+                transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
+                possible_internal_transfer = True
+            confidence = max(confidence, Decimal("0.88"))
+            notes.append("Matched the receiving account from a saved masked identifier.")
 
     if amount is None:
         notes.append("Could not extract an amount with the Tk/BDT parser.")
@@ -503,7 +596,10 @@ def _detect_provider(*, sender_rule, sender: str) -> str:
 
 
 def _extract_balance(body: str):
-    return _extract_decimal_with_pattern(_BALANCE_PATTERN, body)
+    balance = _extract_decimal_with_pattern(_BALANCE_AFTER_LABEL_PATTERN, body)
+    if balance is not None:
+        return balance
+    return _extract_decimal_with_pattern(_BALANCE_BEFORE_LABEL_PATTERN, body)
 
 
 def _extract_fee(body: str):
@@ -572,6 +668,81 @@ def _find_payment_method_hint(*, user, text: str, excluded_account_id=None):
             continue
         identifier = _normalize_identifier(payment_method.identifier)
         if len(identifier) >= 4 and identifier in normalized_text:
+            return payment_method
+    return None
+
+
+def _extract_identifier_evidence(body: str, message_kind: str) -> dict[str, str]:
+    identifiers = {
+        "sender_account_identifier": "",
+        "sender_card_identifier": "",
+        "receiver_account_identifier": "",
+        "receiver_card_identifier": "",
+    }
+    incoming_kinds = {
+        ParsedMessageCandidate.MessageKind.BANK_TRANSFER_IN,
+        ParsedMessageCandidate.MessageKind.CASH_IN,
+        ParsedMessageCandidate.MessageKind.RECEIVE_MONEY,
+        ParsedMessageCandidate.MessageKind.CARD_PAYMENT,
+    }
+    default_role = "receiver" if message_kind in incoming_kinds else "sender"
+
+    for identifier_kind, pattern in (
+        ("account", _ACCOUNT_IDENTIFIER_PATTERN),
+        ("card", _CARD_IDENTIFIER_PATTERN),
+    ):
+        for match in pattern.finditer(body):
+            identifier = sanitize_financial_identifier(match.group(1))
+            if not identifier:
+                continue
+            context = body[max(0, match.start() - 36):match.start()].lower()
+            from_positions = [match.start() for match in re.finditer(r"\bfrom\b", context)]
+            receiver_positions = [
+                match.start() for match in re.finditer(r"\b(?:to|for)\b", context)
+            ]
+            from_position = from_positions[-1] if from_positions else -1
+            receiver_position = receiver_positions[-1] if receiver_positions else -1
+            if from_position > receiver_position:
+                role = "sender"
+            elif receiver_position >= 0:
+                role = "receiver"
+            else:
+                role = default_role
+            field = f"{role}_{identifier_kind}_identifier"
+            if not identifiers[field]:
+                identifiers[field] = identifier
+
+    return identifiers
+
+def _find_payment_method_for_identifiers(*, user, identifiers: tuple[str, ...], provider: str):
+    normalized_identifiers = {
+        _normalize_identifier(identifier)
+        for identifier in identifiers
+        if identifier
+    }
+    if not normalized_identifiers:
+        return None
+
+    payment_methods = PaymentMethod.objects.filter(user=user, is_active=True)
+    if provider:
+        payment_methods = payment_methods.filter(
+            provider__in={
+                provider,
+                PaymentMethod.Provider.BANK,
+                PaymentMethod.Provider.CARD,
+                PaymentMethod.Provider.MANUAL,
+                PaymentMethod.Provider.OTHER,
+            }
+        )
+    payment_methods = payment_methods.select_related("account")
+    for payment_method in payment_methods:
+        configured_identifier = _normalize_identifier(payment_method.identifier)
+        if len(configured_identifier) < 4:
+            continue
+        if any(
+            configured_identifier in identifier or identifier in configured_identifier
+            for identifier in normalized_identifiers
+        ):
             return payment_method
     return None
 

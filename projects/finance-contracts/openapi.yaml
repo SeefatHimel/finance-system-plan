@@ -635,6 +635,22 @@ paths:
                   $ref: '#/components/schemas/ParsedMessageCandidate'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/messages/review/reprocess/:
+    post:
+      tags: [Messages]
+      summary: Re-run current parser and learned mappings for every pending SMS candidate
+      description: Confirmed ledger transactions are not changed or duplicated.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Bulk reprocessing summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageCandidateBulkReprocessResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /api/messages/review/{id}/reprocess/:
     parameters:
       - $ref: '#/components/parameters/UuidPathId'
@@ -2093,7 +2109,7 @@ components:
     ParsedMessageCandidate:
       type: object
       required:
-        [id, raw_message, sender_rule, account, payment_method, category, destination_account, destination_payment_method, transaction, possible_related_candidate, provider, message_kind, transaction_type, amount, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, related_match_reason, confidence, status, parser_name, parser_notes, rejection_reason, rejection_note, rejected_at, created_at, updated_at]
+        [id, raw_message, sender_rule, account, payment_method, category, destination_account, destination_payment_method, transaction, possible_related_candidate, provider, message_kind, transaction_type, amount, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, related_match_reason, confidence, status, parser_name, parser_notes, rejection_reason, rejection_note, rejected_at, created_at, updated_at]
       properties:
         id:
           type: string
@@ -2146,6 +2162,22 @@ components:
           nullable: true
           pattern: '^\d+(\.\d{1,2})?$'
           example: "500.00"
+        sender_account_identifier:
+          type: string
+          maxLength: 120
+          description: Masked account evidence for the sending side; never a full account number.
+        sender_card_identifier:
+          type: string
+          maxLength: 120
+          description: Masked card evidence for the sending side; never a full PAN.
+        receiver_account_identifier:
+          type: string
+          maxLength: 120
+          description: Masked account evidence for the receiving side.
+        receiver_card_identifier:
+          type: string
+          maxLength: 120
+          description: Masked card evidence for the receiving side; never a full PAN.
         counterparty_text:
           type: string
           maxLength: 255
@@ -2232,6 +2264,18 @@ components:
           type: string
         counterparty_text:
           type: string
+        sender_account_identifier:
+          type: string
+          maxLength: 120
+        sender_card_identifier:
+          type: string
+          maxLength: 120
+        receiver_account_identifier:
+          type: string
+          maxLength: 120
+        receiver_card_identifier:
+          type: string
+          maxLength: 120
         note:
           type: string
         type:
@@ -2239,6 +2283,20 @@ components:
         remember_mapping:
           type: boolean
           default: false
+          description: Learn choices for this sender and parsed message kind, then apply them to matching pending candidates.
+    MessageCandidateBulkReprocessResponse:
+      type: object
+      required: [requested, reprocessed, remaining_for_review]
+      properties:
+        requested:
+          type: integer
+          minimum: 0
+        reprocessed:
+          type: integer
+          minimum: 0
+        remaining_for_review:
+          type: integer
+          minimum: 0
     ParsedMessageRejectRequest:
       type: object
       required: [reason]
@@ -2974,7 +3032,7 @@ components:
     Transaction:
       type: object
       required:
-        [id, account, transfer_account, category, payment_method, raw_message, date, time, type, direction, amount, balance_after, reference, counterparty_text, external_key, note, source, needs_review, created_at, updated_at]
+        [id, account, transfer_account, category, payment_method, raw_message, date, time, type, direction, amount, balance_after, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, reference, counterparty_text, external_key, note, source, needs_review, created_at, updated_at]
       properties:
         id:
           type: string
@@ -3018,6 +3076,18 @@ components:
           nullable: true
           pattern: '^-?\d+(\.\d{1,2})?$'
           example: "1150.00"
+        sender_account_identifier:
+          type: string
+          maxLength: 120
+        sender_card_identifier:
+          type: string
+          maxLength: 120
+        receiver_account_identifier:
+          type: string
+          maxLength: 120
+        receiver_card_identifier:
+          type: string
+          maxLength: 120
         reference:
           type: string
           description: Provider transaction id, TrxID, reference, or bank/card reference.
@@ -3081,6 +3151,18 @@ components:
           type: string
           nullable: true
           pattern: '^-?\d+(\.\d{1,2})?$'
+        sender_account_identifier:
+          type: string
+          maxLength: 120
+        sender_card_identifier:
+          type: string
+          maxLength: 120
+        receiver_account_identifier:
+          type: string
+          maxLength: 120
+        receiver_card_identifier:
+          type: string
+          maxLength: 120
         reference:
           type: string
         counterparty_text:
@@ -3135,6 +3217,18 @@ components:
           type: string
           nullable: true
           pattern: '^-?\d+(\.\d{1,2})?$'
+        sender_account_identifier:
+          type: string
+          maxLength: 120
+        sender_card_identifier:
+          type: string
+          maxLength: 120
+        receiver_account_identifier:
+          type: string
+          maxLength: 120
+        receiver_card_identifier:
+          type: string
+          maxLength: 120
         reference:
           type: string
         counterparty_text:

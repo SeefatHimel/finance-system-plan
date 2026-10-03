@@ -625,6 +625,14 @@ textarea {
   justify-content: space-between;
 }
 
+.review-hero__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .review-list {
   display: grid;
   gap: 16px;
@@ -2404,6 +2412,9 @@ textarea {
 .review-remember input { margin-top: 3px; }
 .review-remember span { display: grid; gap: 3px; }
 .review-remember small { color: var(--muted); line-height: 1.4; }
+.review-identifier-grid { border: 1px solid var(--panel-border); border-radius: 8px; display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; min-width: 0; padding: 14px; }
+.review-identifier-grid legend { font-size: 13px; font-weight: 750; padding: 0 6px; }
+.review-identifier-grid > p { color: var(--muted); font-size: 12px; grid-column: 1 / -1; line-height: 1.45; margin: 0; }
 .review-detail .raw-message { background: #0a1725; border-color: var(--panel-border); margin: 0 22px 96px; }
 .review-sticky-actions { align-items: center; backdrop-filter: blur(12px); background: rgb(14 28 44 / 94%); border-top: 1px solid var(--panel-border); bottom: 0; display: flex; gap: 10px; justify-content: flex-end; padding: 14px 22px; position: sticky; z-index: 5; }
 .review-sticky-actions > div { display: grid; gap: 2px; margin-right: auto; }
@@ -2472,6 +2483,7 @@ textarea {
   .transaction-editor-drawer .transaction-form { grid-template-columns: 1fr; }
   .month-navigator { grid-template-columns: 40px minmax(0, 1fr) 40px 40px; }
   .transaction-table-toolbar { align-items: flex-start; }
+  .review-identifier-grid { grid-template-columns: 1fr; }
 }
 
 /* Phone-sized application layout */
@@ -2636,6 +2648,12 @@ textarea {
   .list-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .review-hero__actions {
+    align-items: stretch;
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .list-row__actions,

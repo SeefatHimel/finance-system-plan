@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from apps.accounts.models import Account
+from apps.messages.identifiers import sanitize_financial_identifier
 
 from .models import PaymentMethod
 
@@ -25,6 +26,9 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
         if account.user_id != self.context["request"].user.id:
             raise serializers.ValidationError("Account does not belong to this user.")
         return account
+
+    def validate_identifier(self, identifier):
+        return sanitize_financial_identifier(identifier)
 
     def get_fields(self):
         fields = super().get_fields()

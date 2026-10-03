@@ -68,6 +68,10 @@ workflow polish.
 - Review rejection is auditable and can redact the source body or turn a bad
   sender/provider into a future capture exclusion.
 - Rule-based parsing comes before AI for explainability.
+- Masked sender/receiver account and card evidence is stored separately from
+  amounts and balances, and learned corrections are scoped by message kind.
+- Parser/rule upgrades can be reapplied to the pending review queue without
+  deleting imports or silently changing confirmed transactions.
 - Reconciliation exists because real-life balances can drift.
 - Account responses separate the calculated ledger balance from the latest
   provider-reported transaction balance, preserving both accounting state and

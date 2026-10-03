@@ -49,7 +49,7 @@ const transactionTypes: TransactionType[] = [
 
 const transactionSources: TransactionSource[] = ["web", "mobile", "sms", "import", "system"];
 
-type TransactionColumn = "date" | "time" | "description" | "account" | "category" | "source" | "balance" | "amount";
+type TransactionColumn = "date" | "time" | "description" | "account" | "category" | "source" | "balance" | "senderIdentifiers" | "receiverIdentifiers" | "amount";
 
 const transactionColumns: { id: TransactionColumn; label: string }[] = [
   { id: "date", label: "Date" },
@@ -59,6 +59,8 @@ const transactionColumns: { id: TransactionColumn; label: string }[] = [
   { id: "category", label: "Category" },
   { id: "source", label: "Source" },
   { id: "balance", label: "Reported balance" },
+  { id: "senderIdentifiers", label: "Sender identifiers" },
+  { id: "receiverIdentifiers", label: "Receiver identifiers" },
   { id: "amount", label: "Amount" }
 ];
 
@@ -1004,6 +1006,8 @@ export function TransactionWorkspace() {
                     {visibleColumns.includes("category") ? <th>Category</th> : null}
                     {visibleColumns.includes("source") ? <th>Source</th> : null}
                     {visibleColumns.includes("balance") ? <th>Reported balance</th> : null}
+                    {visibleColumns.includes("senderIdentifiers") ? <th>Sender identifiers</th> : null}
+                    {visibleColumns.includes("receiverIdentifiers") ? <th>Receiver identifiers</th> : null}
                     {visibleColumns.includes("amount") ? <th>Amount</th> : null}
                     <th>Actions</th>
                   </tr>
@@ -1034,6 +1038,8 @@ export function TransactionWorkspace() {
                           ? moneyFormatter.format(Number(transaction.balance_after))
                           : "-"}
                       </td> : null}
+                      {visibleColumns.includes("senderIdentifiers") ? <td><span className="transaction-ledger-primary">{transaction.sender_account_identifier || "—"}</span><span className="transaction-ledger-secondary">{transaction.sender_card_identifier ? `Card ${transaction.sender_card_identifier}` : "No card identifier"}</span></td> : null}
+                      {visibleColumns.includes("receiverIdentifiers") ? <td><span className="transaction-ledger-primary">{transaction.receiver_account_identifier || "—"}</span><span className="transaction-ledger-secondary">{transaction.receiver_card_identifier ? `Card ${transaction.receiver_card_identifier}` : "No card identifier"}</span></td> : null}
                       {visibleColumns.includes("amount") ? <td className={transaction.direction === "credit" ? "transaction-ledger-amount transaction-ledger-amount--credit" : "transaction-ledger-amount"}>
                         {transaction.direction === "credit" ? "+" : "-"}{moneyFormatter.format(Number(transaction.amount))}
                       </td> : null}

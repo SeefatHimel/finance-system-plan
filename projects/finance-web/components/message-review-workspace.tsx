@@ -18,6 +18,7 @@ import {
   listMessageCandidates,
   listPaymentMethods,
   redactRawMessage,
+  reprocessPendingMessageCandidates,
   reprocessMessageCandidate,
   rejectMessageCandidate
 } from "@/lib/api";
@@ -98,6 +99,7 @@ export function MessageReviewWorkspace() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [workingCandidateId, setWorkingCandidateId] = useState<string | null>(null);
   const [reprocessingCandidateId, setReprocessingCandidateId] = useState<string | null>(null);
+  const [isBulkReprocessing, setIsBulkReprocessing] = useState(false);
   const [query, setQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
   const [issueFilter, setIssueFilter] = useState("all");
@@ -182,7 +184,11 @@ export function MessageReviewWorkspace() {
         note: String(formData.get("note") ?? ""),
         payment_method: String(formData.get("payment_method") ?? "") || null,
         reference: String(formData.get("reference") ?? ""),
+        receiver_account_identifier: String(formData.get("receiver_account_identifier") ?? ""),
+        receiver_card_identifier: String(formData.get("receiver_card_identifier") ?? ""),
         remember_mapping: formData.get("remember_mapping") === "on",
+        sender_account_identifier: String(formData.get("sender_account_identifier") ?? ""),
+        sender_card_identifier: String(formData.get("sender_card_identifier") ?? ""),
         time: String(formData.get("time") ?? "") || null,
         transfer_account: String(formData.get("transfer_account") ?? "") || null,
         type: String(formData.get("type") ?? candidate.transaction_type) as TransactionType
@@ -262,6 +268,29 @@ export function MessageReviewWorkspace() {
     }
   }
 
+  async function handleBulkReprocess() {
+    const accessToken = getAccessToken();
+    if (!accessToken) return setActionError("Sign in before reapplying parser rules.");
+    if (!window.confirm(
+      "Re-run the latest parser and learned mappings for every pending message? Confirmed transactions will not be changed."
+    )) return;
+
+    setIsBulkReprocessing(true);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const result = await reprocessPendingMessageCandidates(accessToken);
+      await loadData(false);
+      setActionMessage(
+        `Reprocessed ${result.reprocessed} of ${result.requested} pending messages. ${result.remaining_for_review} remain for review.`
+      );
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Could not reapply parser rules.");
+    } finally {
+      setIsBulkReprocessing(false);
+    }
+  }
+
   if (reviewState.status === "loading") return <LoadingState detail="Checking messages and parser confidence" label="Preparing the review inbox" />;
   if (reviewState.status === "error") return <section className="panel"><div className="panel__body"><h2 className="section-title">SMS review inbox</h2><p className="section-subtitle">{reviewState.message}</p></div></section>;
 
@@ -270,7 +299,7 @@ export function MessageReviewWorkspace() {
       <section className="panel">
         <div className="panel__body review-hero">
           <div><h2 className="section-title">SMS review inbox</h2><p className="section-subtitle">Resolve one message at a time. Required corrections are highlighted before confirmation.</p></div>
-          <span className="status-badge status-badge--idle">{reviewState.candidates.length} pending</span>
+          <div className="review-hero__actions"><span className="status-badge status-badge--idle">{reviewState.candidates.length} pending</span><button className="button button--ghost" disabled={isBulkReprocessing || reviewState.candidates.length === 0} onClick={() => void handleBulkReprocess()} type="button">{isBulkReprocessing ? <ButtonBusy label="Reapplying rules" /> : <><ArrowClockwise aria-hidden="true" size={17} />Reapply rules to pending</>}</button></div>
         </div>
       </section>
 
@@ -320,8 +349,9 @@ export function MessageReviewWorkspace() {
                   <label className="field"><span className="field__label">Balance after</span><input className="field__control" defaultValue={activeCandidate.balance_after ?? ""} inputMode="decimal" name="balance_after" /></label>
                   <label className="field"><span className="field__label">Merchant / counterparty</span><input className="field__control" defaultValue={activeCandidate.counterparty_text} name="counterparty_text" /></label>
                   <label className="field"><span className="field__label">Reference</span><input className="field__control" defaultValue={activeCandidate.reference} name="reference" /></label>
+                  <fieldset className="review-identifier-grid field--wide"><legend>Masked sender and receiver identifiers</legend><p>These values help match a saved payment method. Store only masked values or a safe suffix, never a full card number.</p><label className="field"><span className="field__label">Sender account</span><input className="field__control" defaultValue={activeCandidate.sender_account_identifier} name="sender_account_identifier" /></label><label className="field"><span className="field__label">Sender card</span><input className="field__control" defaultValue={activeCandidate.sender_card_identifier} name="sender_card_identifier" /></label><label className="field"><span className="field__label">Receiver account</span><input className="field__control" defaultValue={activeCandidate.receiver_account_identifier} name="receiver_account_identifier" /></label><label className="field"><span className="field__label">Receiver card</span><input className="field__control" defaultValue={activeCandidate.receiver_card_identifier} name="receiver_card_identifier" /></label></fieldset>
                   <label className="field field--wide"><span className="field__label">Ledger note</span><input className="field__control" defaultValue={normalizedNote(activeCandidate)} name="note" /><span className="field__hint">The full SMS is not copied into your transaction note.</span></label>
-                  <label className="field field--wide review-remember"><input defaultChecked name="remember_mapping" type="checkbox" /><span><strong>Use these choices next time</strong><small>Update this sender’s account, payment method, category, and transaction type.</small></span></label>
+                  <label className="field field--wide review-remember"><input defaultChecked name="remember_mapping" type="checkbox" /><span><strong>Use these choices for similar messages</strong><small>Saved after “Confirm & add,” then applied to pending and future messages from this sender with the same transaction pattern.</small></span></label>
                 </div>
 
                 <details className="raw-message"><summary>Original SMS and parser evidence</summary><p>{activeCandidate.raw_message.body}</p><p>{activeCandidate.parser_notes}</p>{activeCandidate.raw_message.status !== "redacted" ? <div className="raw-message-actions"><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleReprocess(activeCandidate)} type="button">{reprocessingCandidateId === activeCandidate.id ? <ButtonBusy label="Re-running parser" /> : <><ArrowClockwise aria-hidden="true" size={18} />Re-run parser</>}</button><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleRedact(activeCandidate)} type="button">Redact original SMS now</button></div> : <span className="status-badge status-badge--ok">Original SMS redacted</span>}</details>

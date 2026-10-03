@@ -59,6 +59,10 @@ class TransactionViewSet(ModelViewSet):
             queryset = queryset.filter(
                 Q(reference__icontains=search)
                 | Q(counterparty_text__icontains=search)
+                | Q(sender_account_identifier__icontains=search)
+                | Q(sender_card_identifier__icontains=search)
+                | Q(receiver_account_identifier__icontains=search)
+                | Q(receiver_card_identifier__icontains=search)
                 | Q(note__icontains=search)
                 | Q(external_key__icontains=search)
             )
@@ -117,6 +121,10 @@ class TransactionViewSet(ModelViewSet):
                 "payment_method_id",
                 "payment_method_name",
                 "balance_after",
+                "sender_account_identifier",
+                "sender_card_identifier",
+                "receiver_account_identifier",
+                "receiver_card_identifier",
                 "reference",
                 "counterparty_text",
                 "external_key",
@@ -147,6 +155,10 @@ class TransactionViewSet(ModelViewSet):
                     transaction.payment_method_id or "",
                     transaction.payment_method.name if transaction.payment_method else "",
                     transaction.balance_after or "",
+                    transaction.sender_account_identifier,
+                    transaction.sender_card_identifier,
+                    transaction.receiver_account_identifier,
+                    transaction.receiver_card_identifier,
                     transaction.reference,
                     transaction.counterparty_text,
                     transaction.external_key,

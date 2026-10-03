@@ -185,7 +185,10 @@ for transaction change history that can be opened from individual transaction
 rows.
 Confirmed SMS transactions preserve normalized ledger evidence such as
 debit/credit direction, reference or TrxID, balance after, counterparty text,
-payment method, raw message link, and duplicate key. bKash parser notes now
+payment method, masked sender/receiver account and card identifiers, raw message
+link, and duplicate key. Learned review choices are scoped by sender and message
+kind, and the pending queue can be safely reparsed after a rule/parser update
+without mutating confirmed ledger entries. bKash parser notes now
 also surface detected till/counter and provider timestamp text for review. Raw
 SMS bodies can now be
 redacted after parsing while keeping duplicate hashes and parsed ledger fields.

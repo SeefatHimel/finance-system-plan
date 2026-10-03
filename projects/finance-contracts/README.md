@@ -34,6 +34,7 @@ examples/
   debt.create.json
   debt.payment.create.json
   payment-method.create.json
+  message-review.bulk-reprocess.response.json
   message-review.confirm.json
   message-review.list.response.json
   message-review.redact.response.json
@@ -90,8 +91,10 @@ bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
   value is recalculated from posted activity; the reported value is evidence
   captured from a bank or wallet message and may be older.
 - SMS-confirmed transactions should preserve normalized evidence fields such as
-  provider reference, local transaction time, balance after, counterparty text, payment method, raw
-  message id, and duplicate key.
+  provider reference, local transaction time, balance after, counterparty text,
+  payment method, masked sender/receiver account and card identifiers, raw
+  message id, and duplicate key. Clients should submit masked identifiers or a
+  safe suffix; the API reduces an unmasked value to its last four digits.
 - Capture preferences are user-scoped. Excluded providers and message kinds
   preserve only a deduplication tombstone; their original SMS body is not kept
   by the API. Trusted-sender messages containing no digits are also discarded
@@ -100,7 +103,9 @@ bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
 - Mobile clients report device sync health through a user-scoped heartbeat;
   dashboards must use this status rather than infer health from review records.
 - Review confirmation can explicitly remember corrected account, payment
-  method, category, and transaction type defaults on the sender rule.
+  method, category, and transaction type for the sender rule and detected
+  message kind. The mapping is applied to similar pending items as well as
+  future imports.
 - Candidate rejection records a reason and may atomically redact the raw body,
   disable the matched sender rule, or add the provider to capture exclusions.
 - Transaction create, update, and delete actions expose read-only audit log
@@ -154,6 +159,7 @@ POST   /api/messages/device-status/
 POST   /api/messages/import/
 POST   /api/messages/raw/{id}/redact/
 GET    /api/messages/review/
+POST   /api/messages/review/reprocess/
 POST   /api/messages/review/{id}/reprocess/
 POST   /api/messages/review/{id}/confirm/
 POST   /api/messages/review/{id}/reject/

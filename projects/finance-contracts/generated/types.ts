@@ -242,6 +242,10 @@ export interface ParsedMessageCandidate {
   message_kind: ParsedMessageKind;
   transaction_type: TransactionType;
   amount: string | null;
+  sender_account_identifier: string;
+  sender_card_identifier: string;
+  receiver_account_identifier: string;
+  receiver_card_identifier: string;
   counterparty_text: string;
   reference: string;
   balance_after: string | null;
@@ -271,9 +275,19 @@ export interface ParsedMessageConfirmRequest {
   direction?: TransactionDirection;
   reference?: string;
   counterparty_text?: string;
+  sender_account_identifier?: string;
+  sender_card_identifier?: string;
+  receiver_account_identifier?: string;
+  receiver_card_identifier?: string;
   note?: string;
   type?: TransactionType;
   remember_mapping?: boolean;
+}
+
+export interface MessageCandidateBulkReprocessResponse {
+  requested: number;
+  reprocessed: number;
+  remaining_for_review: number;
 }
 
 export interface ParsedMessageRejectRequest {
@@ -570,6 +584,10 @@ export interface Transaction {
   direction: TransactionDirection;
   amount: string;
   balance_after: string | null;
+  sender_account_identifier: string;
+  sender_card_identifier: string;
+  receiver_account_identifier: string;
+  receiver_card_identifier: string;
   reference: string;
   counterparty_text: string;
   external_key: string;
@@ -592,6 +610,10 @@ export interface TransactionCreateRequest {
   direction?: TransactionDirection;
   amount: string;
   balance_after?: string | null;
+  sender_account_identifier?: string;
+  sender_card_identifier?: string;
+  receiver_account_identifier?: string;
+  receiver_card_identifier?: string;
   reference?: string;
   counterparty_text?: string;
   external_key?: string;
@@ -612,6 +634,10 @@ export interface TransactionPatchRequest {
   direction?: TransactionDirection;
   amount?: string;
   balance_after?: string | null;
+  sender_account_identifier?: string;
+  sender_card_identifier?: string;
+  receiver_account_identifier?: string;
+  receiver_card_identifier?: string;
   reference?: string;
   counterparty_text?: string;
   external_key?: string;

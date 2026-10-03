@@ -79,6 +79,10 @@ class Transaction(models.Model):
         validators=[MinValueValidator(Decimal("0.01"))],
     )
     balance_after = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)
+    sender_account_identifier = models.CharField(max_length=120, blank=True, default="")
+    sender_card_identifier = models.CharField(max_length=120, blank=True, default="")
+    receiver_account_identifier = models.CharField(max_length=120, blank=True, default="")
+    receiver_card_identifier = models.CharField(max_length=120, blank=True, default="")
     reference = models.CharField(max_length=120, blank=True, default="")
     counterparty_text = models.CharField(max_length=255, blank=True, default="")
     external_key = models.CharField(max_length=180, blank=True, default="")

@@ -52,6 +52,7 @@ covering current phase-1 backend endpoints:
 - SMS capture-preference read/update endpoints
 - Mobile SMS device-health read/heartbeat endpoint
 - Parsed SMS review candidate list, confirm, reject/legacy-ignore, and raw SMS redaction endpoints
+- Pending SMS candidate bulk reprocess endpoint
 - Transactions CRUD and month/account/category/type/direction/source/search list filters
 - Transaction CSV export with the same month/account/category/type/direction/source/search filters
 - Debt CRUD and repayment endpoint
@@ -69,8 +70,9 @@ internal transfer.
 
 Transaction contracts now include strict ledger evidence fields: `direction`,
 optional `time`, `balance_after`, `reference`, `counterparty_text`, `payment_method`,
-`raw_message`, and `external_key`. The SMS confirm request can override the
-same values when the parser needs user correction.
+`raw_message`, `external_key`, and separate masked sender/receiver account/card
+identifiers. Parsed candidates and SMS confirmation expose the same identifier
+fields so corrected evidence survives into the ledger and CSV export.
 
 Account responses now distinguish calculated and reported balances.
 `ledger_balance` is the derived opening-balance-plus-transactions value, while
@@ -84,8 +86,10 @@ is retained.
 
 Raw messages also expose resolved `provider`, `message_kind`, and
 `exclusion_reason`. Capture preferences contain excluded providers and message
-kinds plus nullable raw-text retention days. Sender rules can store default
+kinds plus nullable raw-text retention days. Sender rules can store fallback
 category and transaction type, and confirmation can opt into `remember_mapping`.
+Learned mappings are scoped to both sender rule and detected message kind,
+avoiding one global choice for every SMS from a bank.
 Rejected candidates expose reason, note, and timestamp; the reject
 request can additionally redact the body, disable its sender rule, or exclude
 the provider.
@@ -135,6 +139,7 @@ Current examples are available in `projects/finance-contracts/examples/`:
 - `raw-message.import.json`
 - `raw-message.import.response.json`
 - `message-review.confirm.json`
+- `message-review.bulk-reprocess.response.json`
 - `message-review.list.response.json`
 - `message-review.redact.response.json`
 - `reconciliation.account.response.json`
@@ -170,3 +175,5 @@ Pending, non-redacted review candidates can also be refreshed directly with
 `POST /api/messages/review/{candidate_id}/reprocess/`. This is the recovery path
 for candidates stored before a parser improvement; confirmed or redacted
 candidates are intentionally immutable.
+`POST /api/messages/review/reprocess/` performs the same safe refresh for the
+authenticated user's complete pending queue and returns processing counts.

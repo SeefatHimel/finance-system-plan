@@ -119,7 +119,9 @@ paths, and physical-phone SMS smoke test are documented in
   local duplicate checks, per-message retry metadata, capped retry backoff, and
   manual removal for invalid queued messages.
 - A one-candidate-at-a-time review flow with previous/next navigation. Confirmed
-  corrections are remembered for the matched sender rule; rejection uses one
+  corrections are remembered for the matched sender rule and detected message
+  kind; masked sender/receiver account and card identifiers returned by the
+  parser are preserved when the candidate is confirmed. Rejection uses one
   decision dialog for message-only, sender, or provider scope. Scan/sync
   feedback reports imported, duplicate, rejected, queued, and policy-discarded
   counts.
