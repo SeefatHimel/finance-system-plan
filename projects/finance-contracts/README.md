@@ -94,7 +94,9 @@ bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
   message id, and duplicate key.
 - Capture preferences are user-scoped. Excluded providers and message kinds
   preserve only a deduplication tombstone; their original SMS body is not kept
-  by the API. Confirmed raw-text retention is explicit and defaults to 30 days.
+  by the API. Trusted-sender messages containing no digits are also discarded
+  through this tombstone path because they cannot supply transaction evidence.
+  Confirmed raw-text retention is explicit and defaults to 30 days.
 - Mobile clients report device sync health through a user-scoped heartbeat;
   dashboards must use this status rather than infer health from review records.
 - Review confirmation can explicitly remember corrected account, payment

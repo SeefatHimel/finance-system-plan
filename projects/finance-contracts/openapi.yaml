@@ -495,7 +495,11 @@ paths:
     post:
       tags: [Messages]
       summary: Import a raw SMS message and detect duplicates
-      description: Only messages matching an active sender rule owned by the authenticated user are accepted.
+      description: >-
+        Only messages matching an active sender rule owned by the authenticated
+        user are accepted. Messages containing no digits are automatically
+        discarded as non-transactional: the response has no candidate and the
+        API stores only an ignored deduplication tombstone without the SMS body.
       security:
         - bearerAuth: []
       requestBody:

@@ -246,6 +246,11 @@ export function MessageReviewWorkspace() {
     setActionMessage(null);
     try {
       const updated = await reprocessMessageCandidate(accessToken, candidate.id);
+      if (updated.status !== "needs_review") {
+        setActionMessage("The message was identified as non-transactional and removed from review.");
+        await loadData(false);
+        return;
+      }
       setReviewState((current) => current.status === "ready"
         ? { ...current, candidates: current.candidates.map((item) => item.id === updated.id ? updated : item) }
         : current);

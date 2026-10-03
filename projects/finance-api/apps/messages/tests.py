@@ -276,6 +276,65 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(message.message_kind, "balance_notice")
         self.assertEqual(message.body, "[excluded before storage]")
 
+    def test_message_without_numeric_content_is_discarded_before_body_storage(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": "Thank you for choosing our banking service.",
+                "received_at": "2026-05-29T10:30:00+06:00",
+                "device_message_id": "sms-no-numeric-content",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(response.data["candidate"])
+        message = RawMessage.objects.get(user=user)
+        self.assertEqual(message.status, RawMessage.Status.IGNORED)
+        self.assertEqual(message.body, "[excluded before storage]")
+        self.assertEqual(message.exclusion_reason, "no_numeric_content")
+
+    def test_message_with_any_numeric_content_still_reaches_review(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": "Please contact support at 16234 if you need assistance.",
+                "received_at": "2026-05-29T10:30:00+06:00",
+                "device_message_id": "sms-with-numeric-content",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNotNone(response.data["candidate"])
+        message = RawMessage.objects.get(user=user)
+        self.assertEqual(message.status, RawMessage.Status.IMPORTED)
+        self.assertEqual(message.exclusion_reason, "")
+
     def test_withdrawal_with_balance_text_is_not_treated_as_balance_notice(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
@@ -1315,6 +1374,45 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["amount"], "180.00")
         self.assertEqual(response.data["balance_after"], "72308.00")
+
+    def test_reprocess_discards_previously_stored_message_without_numeric_content(self):
+        user = get_user_model().objects.create_user(username="himel", password="password")
+        account = Account.objects.create(user=user, name="City Bank", type=Account.Type.BANK)
+        SenderRule.objects.create(
+            user=user,
+            account=account,
+            name="City Bank sender",
+            provider=SenderRule.Provider.CITY_BANK,
+            sender="CITYBANK",
+        )
+        self.client.force_authenticate(user)
+        import_response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "CITYBANK",
+                "body": "Tk. 500.00 withdrawn from account.",
+                "received_at": "2026-05-29T10:30:00+06:00",
+                "device_message_id": "sms-old-no-numeric-content",
+            },
+            format="json",
+        )
+        candidate = ParsedMessageCandidate.objects.get(id=import_response.data["candidate"]["id"])
+        candidate.raw_message.body = "Thank you for choosing our banking service."
+        candidate.raw_message.save(update_fields=("body",))
+
+        response = self.client.post(
+            reverse("message-candidate-reprocess", kwargs={"candidate_id": candidate.id}),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], ParsedMessageCandidate.Status.IGNORED)
+        self.assertEqual(response.data["rejection_reason"], "not_transaction")
+        self.assertEqual(response.data["raw_message"]["status"], RawMessage.Status.IGNORED)
+        self.assertEqual(response.data["raw_message"]["body"], "[excluded before storage]")
+        self.assertEqual(response.data["raw_message"]["exclusion_reason"], "no_numeric_content")
+        self.assertEqual(self.client.get(reverse("message-review-list")).data, [])
 
     @override_settings(DEBUG=True)
     def test_development_reset_clears_only_authenticated_users_sms_data(self):

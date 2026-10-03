@@ -32,6 +32,11 @@ _TRANSACTION_ACTIVITY_PATTERN = re.compile(
     r"\b(?:debited|credited|deposit(?:ed)?|purchase|withdraw(?:al|n)?|txn|transaction|transfer(?:red)?|payment|paid|cash[ -]?(?:in|out)|sent|received|fee|refund|reversal)\b",
     re.IGNORECASE,
 )
+_NUMERIC_CONTENT_PATTERN = re.compile(r"\d")
+
+
+def has_numeric_content(body: str) -> bool:
+    return _NUMERIC_CONTENT_PATTERN.search(body) is not None
 
 
 def find_sender_rule(*, user, sender: str):

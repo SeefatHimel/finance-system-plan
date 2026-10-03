@@ -92,7 +92,9 @@ paths, and physical-phone SMS smoke test are documented in
 - User-scoped capture policy controls for excluding providers, OTP/security
   messages, and balance notices. Excluded providers are removed from native
   capture; the backend replaces any policy-excluded body with a deduplication
-  tombstone before storage.
+  tombstone before storage. It also auto-discards trusted-sender messages with
+  no digits, so non-transactional notices sync successfully without appearing
+  in the review queue or retaining their body.
 - A dedicated Capture tab with a four-step setup checklist, explicit permission
   and background-sync state, provider/message-kind switches, and raw-text
   retention choices. The app sends device heartbeats so the web dashboard can

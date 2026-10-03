@@ -20,11 +20,11 @@ from .models import (
     SmsDeviceStatus,
     default_excluded_message_kinds,
 )
-from .parsers import find_sender_rule, parse_raw_message
+from .parsers import find_sender_rule, has_numeric_content, parse_raw_message
 from .serializers import (
+    MessageCandidateRejectSerializer,
     ParsedMessageCandidateSerializer,
     ParsedMessageConfirmSerializer,
-    MessageCandidateRejectSerializer,
     RawMessageImportSerializer,
     RawMessageSerializer,
     SenderRuleSerializer,
@@ -165,6 +165,8 @@ class RawMessageImportView(APIView):
             exclusion_reason = "provider_excluded"
         elif parsed["message_kind"] in excluded_message_kinds:
             exclusion_reason = "message_kind_excluded"
+        elif not has_numeric_content(payload["body"]):
+            exclusion_reason = "no_numeric_content"
 
         if exclusion_reason:
             try:
@@ -286,6 +288,9 @@ class RawMessageImportView(APIView):
             return False
         if candidate.raw_message.status == RawMessage.Status.REDACTED:
             return False
+        if not has_numeric_content(candidate.raw_message.body):
+            self._discard_candidate_without_numeric_content(candidate)
+            return True
 
         parsed = parse_raw_message(candidate.raw_message)
         parsed_fields = (
@@ -325,6 +330,58 @@ class RawMessageImportView(APIView):
             )
         self._link_possible_related_candidate(candidate)
         return True
+
+    def _discard_candidate_without_numeric_content(self, candidate):
+        related_candidate = candidate.possible_related_candidate
+        with transaction.atomic():
+            candidate.status = ParsedMessageCandidate.Status.IGNORED
+            candidate.rejection_reason = ParsedMessageCandidate.RejectionReason.NOT_TRANSACTION
+            candidate.rejection_note = "Automatically discarded because the message contains no numeric content."
+            candidate.rejected_at = timezone.now()
+            candidate.possible_related_candidate = None
+            candidate.related_match_reason = ""
+            candidate.parser_name = "non_transaction_classifier"
+            candidate.parser_notes = "Automatically discarded before parsing because the message contains no numeric content."
+            candidate.save(
+                update_fields=(
+                    "status",
+                    "rejection_reason",
+                    "rejection_note",
+                    "rejected_at",
+                    "possible_related_candidate",
+                    "related_match_reason",
+                    "parser_name",
+                    "parser_notes",
+                    "updated_at",
+                )
+            )
+
+            raw_message = candidate.raw_message
+            raw_message.body = "[excluded before storage]"
+            raw_message.provider = candidate.provider
+            raw_message.message_kind = candidate.message_kind
+            raw_message.exclusion_reason = "no_numeric_content"
+            raw_message.status = RawMessage.Status.IGNORED
+            raw_message.save(
+                update_fields=(
+                    "body",
+                    "provider",
+                    "message_kind",
+                    "exclusion_reason",
+                    "status",
+                )
+            )
+
+            if related_candidate and related_candidate.possible_related_candidate_id == candidate.id:
+                related_candidate.possible_related_candidate = None
+                related_candidate.related_match_reason = ""
+                related_candidate.save(
+                    update_fields=(
+                        "possible_related_candidate",
+                        "related_match_reason",
+                        "updated_at",
+                    )
+                )
 
     def _link_possible_related_candidate(self, candidate):
         if not candidate.possible_internal_transfer or candidate.amount is None:

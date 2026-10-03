@@ -202,6 +202,8 @@ ledger evidence available.
 The evidence panel also includes a `Re-run parser` recovery action for pending
 messages. It refreshes parser-derived fields in place and gives visible busy,
 success, and error feedback without requiring another mobile history scan.
+If the refreshed message has no numeric content, the API auto-discards it and
+the workspace immediately removes it from review with explicit feedback.
 
 ## What does the current reports page do?
 

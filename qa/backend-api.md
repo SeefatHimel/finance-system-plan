@@ -247,7 +247,11 @@ rule, provider, and supported non-transaction kind. Per-user capture preferences
 can exclude providers, OTP/security messages, or balance notices. An excluded
 message creates only an ignored deduplication tombstone containing its hash and
 metadata; no candidate or original body is stored. OTP/security is excluded by
-default.
+default. A trusted-sender message containing no digits is also automatically
+discarded through the same tombstone path with `no_numeric_content` as its
+exclusion reason, so non-transactional notices do not clutter the review inbox.
+Reprocessing applies the same rule to older pending candidates and removes them
+from review while replacing the previously retained body with the tombstone.
 
 Duplicate imports can opt into `reprocess_existing`. The backend then updates
 the existing candidate with current sender rules and parser logic only while it

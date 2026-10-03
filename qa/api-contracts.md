@@ -163,7 +163,9 @@ low-confidence candidate. Sender-rule responses include `pattern` and
 `is_active`, which clients must honor for exact, contains, and regex matching.
 After trust matching, the API enforces the user's capture preferences before
 body persistence. Policy-excluded input returns `201` with no candidate and an
-ignored hash-only raw-message tombstone.
+ignored hash-only raw-message tombstone. The same response shape applies to
+messages containing no digits; their tombstone uses the
+`no_numeric_content` exclusion reason.
 Pending, non-redacted review candidates can also be refreshed directly with
 `POST /api/messages/review/{candidate_id}/reprocess/`. This is the recovery path
 for candidates stored before a parser improvement; confirmed or redacted
