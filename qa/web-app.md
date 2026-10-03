@@ -33,6 +33,13 @@ reconciliation page for expected-vs-actual account balance checks and balance
 snapshot history, plus an audit logs page for transaction create/update/delete
 history.
 
+On phone-sized screens, the shell uses an accessible off-canvas navigation that
+locks background scrolling and closes with Escape or the page scrim. Workspace
+controls stack into touch-friendly layouts, tabs remain horizontally
+scrollable, wide financial tables advertise and support horizontal swiping,
+and forms, drawers, modals, toasts, and sticky review actions respect dynamic
+viewport height and device safe areas.
+
 ## Why start with a health-check dashboard?
 
 It proves the web project can run and communicate with the backend. It is a

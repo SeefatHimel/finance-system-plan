@@ -74,6 +74,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   useEffect(() => {
+    if (!isMobileNavOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsMobileNavOpen(false);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isMobileNavOpen]);
+
+  useEffect(() => {
     if (!isNavigating) return;
     const timeout = window.setTimeout(() => setIsNavigating(false), 6000);
     return () => window.clearTimeout(timeout);
@@ -136,7 +153,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-frame">
-      <aside className={`app-sidebar${isMobileNavOpen ? " app-sidebar--open" : ""}`}>
+      <aside className={`app-sidebar${isMobileNavOpen ? " app-sidebar--open" : ""}`} id="primary-navigation">
         <Link className="app-logo" href="/" aria-label="Finance dashboard" onClick={(event) => handleNavigation(event, "/")}>
           <DiamondsFour aria-hidden="true" className="app-logo__mark" size={31} weight="fill" />
           <span>Finance</span>
@@ -179,7 +196,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span />
         </div>
         <header className={`app-topbar${isDashboard ? " app-topbar--dashboard" : ""}`}>
-          <button aria-label="Open navigation" className="mobile-menu-button" onClick={() => setIsMobileNavOpen(true)} type="button">
+          <button
+            aria-controls="primary-navigation"
+            aria-expanded={isMobileNavOpen}
+            aria-label="Open navigation"
+            className="mobile-menu-button"
+            onClick={() => setIsMobileNavOpen(true)}
+            type="button"
+          >
             <List aria-hidden="true" size={21} />
           </button>
 
