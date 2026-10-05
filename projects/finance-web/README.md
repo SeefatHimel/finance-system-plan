@@ -264,8 +264,11 @@ Account history includes incoming transfers with a credit sign. The ledger
 shows both account names and linked account-specific references/balances.
 “Find match” on a saved transfer supports audited merging of already-posted
 duplicates. A manual credit transfer is entered from the receiving account;
-choose its sender as the other transfer account. SMS review retains canonical
-source/destination order. Matching never automatically changes the ledger.
+choose its sender as the other transfer account. SMS review uses the same
+selected-account perspective: Credit receives from the other account and Debit
+sends to it. Incoming SMS preselects the receiving account and Credit. The API
+normalizes both flows to canonical source/destination order. Matching never
+automatically changes the ledger.
 
 Linked account references remain searchable without returning duplicate rows.
 CSV exports append contextual `account_direction` and structured

@@ -334,9 +334,12 @@ cancel. Linking preserves account-specific evidence without another balance
 movement. The transaction table displays A → B and each linked account's
 reference/balance. Account filters include both sides with the appropriate
 debit/credit sign. “Find match” on a saved transfer supports an explicit audited
-merge of two already-posted matching transfers. Manual credit entry means
-`account` is the receiving account and `transfer_account` is the sender; the
-backend normalizes this to canonical source/destination order.
+merge of two already-posted matching transfers. Both manual entry and SMS
+review use the selected account’s perspective: Credit receives from the other
+account, and Debit sends to it. Incoming review drafts default to Credit and the
+receiving account. SMS submissions set `account_perspective: true`; the backend
+normalizes source/destination order and keeps the reported balance on the
+selected account’s evidence.
 
 Linked account references remain searchable without returning duplicate rows.
 CSV exports append contextual `account_direction` and structured
