@@ -8,7 +8,14 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import Account
 from apps.audit_logs.models import AuditLogEntry
-from apps.messages.models import ParsedMessageCandidate, RawMessage
+from apps.messages.models import (
+    ParsedMessageCandidate,
+    RawMessage,
+    SenderRule,
+    SenderRuleMapping,
+)
+from apps.messages.parsers import parse_raw_message
+from apps.payment_methods.models import PaymentMethod
 
 from .models import Transaction, TransferEvidence
 from .services import calculate_account_balance_summaries
@@ -114,6 +121,177 @@ class TransferMatchingTests(APITestCase):
             ),
             [],
         )
+
+    def receiving_review_draft(self, **changes):
+        return {
+            "account_perspective": True,
+            "account": str(self.b.id),
+            "transfer_account": str(self.a.id),
+            "direction": "credit",
+            "type": "transfer",
+            **changes,
+        }
+
+    def test_receiving_sms_review_matches_existing_transfer_from_selected_account(self):
+        saved = self.post_transfer(balance_after="9000.00")
+        incoming = self.candidate(incoming=True)
+        draft = self.receiving_review_draft()
+        self.assertEqual(
+            self.matches(candidate=str(incoming.id), draft=draft)[0]["id"], saved["id"]
+        )
+        response = self.link(
+            candidate=str(incoming.id), draft=draft, match_transaction=saved["id"]
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(Transaction.objects.count(), 1)
+        evidence = TransferEvidence.objects.get(raw_message=incoming.raw_message)
+        self.assertEqual(
+            (evidence.account_id, evidence.direction), (self.b.id, "credit")
+        )
+        self.assertEqual(evidence.balance_after, Decimal("3000.00"))
+        balances = calculate_account_balance_summaries(accounts=[self.a, self.b])
+        self.assertEqual(balances[self.a.id].ledger_balance, Decimal("9000.00"))
+        self.assertEqual(balances[self.b.id].ledger_balance, Decimal("3000.00"))
+
+    def test_receiving_sms_confirm_normalizes_accounts_and_payment_method(self):
+        incoming = self.candidate(incoming=True, known_source=False)
+        method = PaymentMethod.objects.create(
+            user=self.user, account=self.b, name="Synthetic card"
+        )
+        response = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": incoming.id}),
+            self.receiving_review_draft(payment_method=str(method.id)),
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        record = Transaction.objects.get()
+        self.assertEqual(
+            (record.account_id, record.transfer_account_id, record.direction),
+            (self.a.id, self.b.id, "debit"),
+        )
+        self.assertIsNone(record.payment_method)
+        self.assertEqual(TransferEvidence.objects.get().account_id, self.b.id)
+
+    def test_explicit_receiving_direction_overrides_detected_outgoing_kind(self):
+        saved = self.post_transfer()
+        candidate = self.candidate(incoming=False)
+        response = self.link(
+            candidate=str(candidate.id),
+            draft=self.receiving_review_draft(),
+            match_transaction=saved["id"],
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            TransferEvidence.objects.get(raw_message=candidate.raw_message).account_id,
+            self.b.id,
+        )
+
+    def test_debit_from_card_is_still_a_real_reverse_transfer(self):
+        self.post_transfer()
+        incoming = self.candidate(incoming=True)
+        self.assertEqual(
+            self.matches(
+                candidate=str(incoming.id),
+                draft=self.receiving_review_draft(direction="debit"),
+            ),
+            [],
+        )
+
+    def test_receiving_review_rejects_payment_method_of_other_account(self):
+        incoming = self.candidate(incoming=True)
+        method = PaymentMethod.objects.create(
+            user=self.user, account=self.a, name="Synthetic bank"
+        )
+        response = self.client.post(
+            reverse("transaction-transfer-matches"),
+            {
+                "candidate": str(incoming.id),
+                "draft": self.receiving_review_draft(payment_method=str(method.id)),
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_receiving_review_can_link_when_other_account_is_unknown(self):
+        saved = self.post_transfer()
+        incoming = self.candidate(incoming=True, known_source=False)
+        draft = self.receiving_review_draft(transfer_account=None)
+        self.assertEqual(
+            self.matches(candidate=str(incoming.id), draft=draft)[0]["id"], saved["id"]
+        )
+        response = self.link(
+            candidate=str(incoming.id), draft=draft, match_transaction=saved["id"]
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_standalone_receiving_review_requires_other_account(self):
+        incoming = self.candidate(incoming=True, known_source=False)
+        response = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": incoming.id}),
+            self.receiving_review_draft(transfer_account=None),
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("transfer_account", response.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_learned_source_does_not_replace_identified_receiving_account(self):
+        method = PaymentMethod.objects.create(
+            user=self.user,
+            account=self.b,
+            name="Synthetic card",
+            provider="city_bank",
+            identifier="****2222",
+        )
+        rule = SenderRule.objects.create(
+            user=self.user,
+            account=self.b,
+            payment_method=method,
+            provider="city_bank",
+            sender="SYNTHETIC-CARD",
+            name="Synthetic rule",
+        )
+        SenderRuleMapping.objects.create(
+            user=self.user,
+            sender_rule=rule,
+            account=self.a,
+            message_kind="bank_transfer_in",
+            transaction_type="transfer",
+        )
+        raw = RawMessage(
+            user=self.user,
+            sender="SYNTHETIC-CARD",
+            body="BDT 1,000.00 credited to A/C ****2222. Balance BDT 3,000.",
+            received_at=timezone.now(),
+        )
+        parsed = parse_raw_message(raw)
+        self.assertEqual(parsed["account"], self.b)
+        self.assertEqual(parsed["payment_method"], method)
+        self.assertEqual(parsed["transaction_type"], "transfer")
+
+    def test_remembering_receiving_review_preserves_pending_receivers(self):
+        incoming = self.candidate(incoming=True, known_source=False, reference="FIRST")
+        pending = self.candidate(incoming=True, known_source=False, reference="NEXT")
+        rule = SenderRule.objects.create(
+            user=self.user,
+            account=self.b,
+            provider="city_bank",
+            sender="SYNTHETIC-CARD",
+            name="Synthetic rule",
+        )
+        for candidate in (incoming, pending):
+            candidate.sender_rule = rule
+            candidate.save()
+        response = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": incoming.id}),
+            self.receiving_review_draft(remember_mapping=True),
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        pending.refresh_from_db()
+        self.assertEqual(pending.account_id, self.b.id)
+        self.assertEqual(pending.status, "needs_review")
 
     def test_manual_credit_normalizes_to_source_destination(self):
         saved = self.post_transfer(

@@ -139,7 +139,23 @@ def parse_raw_message(raw_message):
         else None
     )
     if mapping:
-        if parsed["payment_method"] is None or parsed["payment_method"] == sender_rule.payment_method:
+        # A learned canonical source must not replace an explicitly identified receiver.
+        identified_receiver = None
+        if (
+            parsed["message_kind"] in ("cash_in", "receive_money", "bank_transfer_in")
+            and parsed["destination_account"] is None
+        ):
+            identified_receiver = _find_payment_method_for_identifiers(
+                user=raw_message.user,
+                identifiers=(
+                    parsed["receiver_account_identifier"],
+                    parsed["receiver_card_identifier"],
+                ),
+                provider="",
+            )
+        if (
+            parsed["payment_method"] is None or parsed["payment_method"] == sender_rule.payment_method
+        ) and not identified_receiver:
             parsed["account"] = mapping.account
             parsed["payment_method"] = mapping.payment_method
         parsed["category"] = mapping.category

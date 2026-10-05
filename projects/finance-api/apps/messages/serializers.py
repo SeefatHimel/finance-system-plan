@@ -17,7 +17,6 @@ from .models import (
     SmsDeviceStatus,
 )
 
-
 CAPTURE_MESSAGE_KIND_CHOICES = tuple(
     choice
     for choice, _label in ParsedMessageCandidate.MessageKind.choices
@@ -309,6 +308,7 @@ class MessageCandidateRejectSerializer(serializers.Serializer):
 
 
 class ParsedMessageConfirmSerializer(serializers.Serializer):
+    account_perspective = serializers.BooleanField(required=False, default=False)
     account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none(), required=False)
     transfer_account = serializers.PrimaryKeyRelatedField(
         queryset=Account.objects.none(),

@@ -53,6 +53,30 @@ def sms_transfer_data(candidate, overrides=None):
     if incoming and destination is None:
         source, destination = None, source
     observed_account = destination if incoming else source
+    if overrides.get("account_perspective"):
+        observed_account = overrides.get("account") or observed_account
+        direction = overrides.get("direction") or ("credit" if incoming else "debit")
+        other_account = overrides.get(
+            "transfer_account",
+            candidate.account
+            if incoming and candidate.destination_account
+            else candidate.destination_account,
+        )
+        source, destination = (
+            (other_account, observed_account)
+            if direction == "credit"
+            else (observed_account, other_account)
+        )
+        selected_method = overrides.get("payment_method")
+        if selected_method and (
+            observed_account is None
+            or selected_method.account_id != observed_account.id
+        ):
+            raise ValidationError(
+                {
+                    "payment_method": "Payment method must belong to the selected account."
+                }
+            )
     data = {
         "account": source,
         "transfer_account": destination,
@@ -71,7 +95,7 @@ def sms_transfer_data(candidate, overrides=None):
         "note": overrides.get("note") or candidate.get_message_kind_display(),
         "source": Transaction.Source.SMS,
         "raw_message": candidate.raw_message,
-        "payment_method": overrides.get("payment_method") or candidate.payment_method,
+        "payment_method": overrides.get("payment_method", candidate.payment_method),
         "category": overrides.get("category", candidate.category),
     }
     for field in (
@@ -88,9 +112,7 @@ def sms_transfer_data(candidate, overrides=None):
     observation = {
         **data,
         "account": observed_account,
-        "direction": Transaction.Direction.CREDIT
-        if incoming
-        else Transaction.Direction.DEBIT,
+        "direction": "credit" if observed_account == destination else "debit",
     }
     if not data["amount"]:
         raise ValidationError(

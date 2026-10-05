@@ -436,3 +436,18 @@ Linked account references remain searchable without returning duplicate rows.
 CSV exports append contextual `account_direction` and structured
 `transfer_evidence` JSON. Audit snapshots include the normalized evidence
 without raw SMS bodies.
+
+## How does SMS review interpret a credit on the selected account?
+
+Updated clients submit `account_perspective: true`, account, direction, and the
+other transfer account. Credit means the selected account received money, so
+the other account becomes the canonical source; Debit means the selected
+account sent money. The same normalization runs before matching, linking, and
+standalone confirmation. Explicit direction overrides the detected message
+kind for evidence attribution. A payment method must belong to the selected
+account; a receiving method is not assigned to the canonical source. Legacy
+callers without the flag keep source/destination semantics.
+
+Learned canonical source mappings do not overwrite a receiving account identified
+from masked SMS evidence. Remembering a credit review also preserves the receiver
+on one-sided pending candidates instead of copying the canonical source there.

@@ -357,7 +357,11 @@ review when both sides belong to the user.
 
 A manual credit transfer uses `account` as receiver and `transfer_account` as
 sender. Stored transactions always use source/destination order with debit as
-canonical direction. SMS review already uses canonical source/destination.
+canonical direction. Updated SMS clients submit `account_perspective: true`
+with the selected account, its debit/credit direction, and the other account.
+Credit review entries are normalized to the same source/destination order;
+reported balances remain evidence of the selected account. Legacy SMS requests
+without this flag retain canonical source/destination semantics.
 Account filtering includes both sides and exposes contextual `account_direction`.
 `transfer_evidence` retains each account's reference/date/balance and contributes
 no additional ledger movement. Matching uses exact principal and compatible

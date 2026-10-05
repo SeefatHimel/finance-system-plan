@@ -582,6 +582,12 @@ class MessageCandidateConfirmView(APIView):
             else received_at.time().replace(tzinfo=None, microsecond=0)
         )
         transaction_type = payload.get("type") or candidate.transaction_type
+        observation = None
+        if transaction_type == Transaction.Type.TRANSFER:
+            transfer_data, observation = sms_transfer_data(candidate, payload)
+            account = transfer_data["account"]
+            transfer_account = transfer_data["transfer_account"]
+            payment_method = transfer_data["payment_method"]
         direction = (
             Transaction.Direction.DEBIT if transaction_type == Transaction.Type.TRANSFER
             else payload.get("direction") or Transaction.default_direction_for_type(transaction_type)
@@ -606,6 +612,11 @@ class MessageCandidateConfirmView(APIView):
         )
 
         if account is None:
+            if transaction_type == Transaction.Type.TRANSFER and payload.get("account_perspective"):
+                return Response(
+                    {"transfer_account": "Choose the other transfer account before confirming."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             return Response(
                 {"account": "Account is required to confirm this message."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -684,7 +695,6 @@ class MessageCandidateConfirmView(APIView):
             needs_review=False,
         )
         if transaction_type == Transaction.Type.TRANSFER:
-            _, observation = sms_transfer_data(candidate, payload)
             add_transfer_evidence(transaction_record, observation, candidate)
             create_audit_log(
                 user=request.user, action=AuditLogEntry.Action.CREATED,
@@ -708,17 +718,25 @@ class MessageCandidateConfirmView(APIView):
                     "transaction_type": transaction_type,
                 },
             )
-            ParsedMessageCandidate.objects.filter(
+            pending = ParsedMessageCandidate.objects.filter(
                 user=request.user,
                 sender_rule=sender_rule,
                 message_kind=candidate.message_kind,
                 status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
-            ).update(
-                account=account,
-                payment_method=payment_method,
-                category=category,
-                transaction_type=transaction_type,
             )
+            if observation and payload.get("account_perspective") and observation["direction"] == "credit":
+                # One-sided incoming candidates store the receiver in account.
+                pending.filter(destination_account__isnull=False).update(
+                    account=account, payment_method=payment_method,
+                )
+                pending.update(category=category, transaction_type=transaction_type)
+            else:
+                pending.update(
+                    account=account,
+                    payment_method=payment_method,
+                    category=category,
+                    transaction_type=transaction_type,
+                )
 
         capture_preference, _created = SmsCapturePreference.objects.get_or_create(user=request.user)
         retention_days = capture_preference.raw_sms_retention_days
