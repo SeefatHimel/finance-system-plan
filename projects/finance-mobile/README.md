@@ -313,9 +313,11 @@ Settings
 SMS confirmation and manual transfer entry show a native suggestion dialog for
 existing transfers or opposite pending messages, including the same provider.
 Explicit linking retains one movement and each account's SMS reference/balance.
-Manual transfers accept debit (this account sends) or credit (this account
-receives), plus the other account. Offline sync pauses for a transfer match
-decision and retains this and subsequent queue entries. Resolve the suggestion
+Manual transfers and SMS review accept debit (this account sends) or credit
+(this account receives), plus the other account. Incoming review drafts preselect
+the receiving account and Credit; submitted SMS corrections set
+`account_perspective: true` and preserve the selected account’s reported balance.
+Offline sync pauses for a transfer match decision and retains this and subsequent queue entries. Resolve the suggestion
 and sync again to continue. Queue restoration preserves direction, the other
 account, and the transfer retry key. The all-account activity feed displays a
 single A → B movement and its account-specific evidence.

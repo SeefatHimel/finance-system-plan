@@ -230,6 +230,7 @@ export type RejectMessageCandidateInput = {
 };
 
 export type ConfirmMessageCandidateInput = {
+  account_perspective?: boolean;
   account?: string;
   amount?: string;
   balance_after?: string | null;

@@ -339,7 +339,10 @@ The confirmation flow checks for existing transfers and opposite pending SMS,
 including messages from the same provider. A native dialog offers linking,
 confirming both as one transfer, keeping separate, or cancelling. The backend
 records one money movement and separate evidence for each account. Manual
-transfer entry also supports sending/receiving direction and the other account.
+transfer entry and SMS review both use the selected account, its debit/credit
+direction, and the other account. Incoming SMS drafts preselect the receiver and
+Credit. SMS submissions use `account_perspective: true`, so the backend can
+normalize the actual transfer and retain the selected account’s balance.
 Offline transfer sync pauses when a suggestion needs a decision, preserving the
 current and later queue entries. Resolving it removes that entry; the user can
 continue syncing. Transfer retry keys and restored opposite-account/direction

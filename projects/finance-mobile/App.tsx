@@ -103,6 +103,7 @@ type HomeFeed = "review" | "captured";
 type MobilePanel = "sms-automation" | null;
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 type ReviewCandidateDraft = {
+  direction: string;
   accountId: string;
   amount: string;
   categoryId: string;
@@ -115,6 +116,10 @@ type ReviewCandidateDraft = {
   transferAccountId: string;
   transactionType: string;
 };
+function isIncomingReview(candidate: ParsedMessageCandidate) {
+  return ["cash_in", "receive_money", "bank_transfer_in"].includes(candidate.message_kind);
+}
+
 type QueuedRawMessage = {
   attempts: number;
   body: string;
@@ -1296,7 +1301,7 @@ export default function App() {
     const draft = getReviewDraft(candidate);
     if (!draft.accountId || !draft.amount.trim()) {
       setReviewState("error");
-      setReviewMessage("Select a source account and enter the transaction amount before confirming.");
+      setReviewMessage("Select an account and enter the transaction amount before confirming.");
       return;
     }
     const normalizedAmount = draft.amount.trim().replaceAll(",", "");
@@ -1320,6 +1325,8 @@ export default function App() {
     setReviewMessage("");
     try {
       const input: ConfirmMessageCandidateInput = {
+        account_perspective: true,
+        direction: draft.direction,
         account: draft.accountId,
         amount: normalizedAmount,
         balance_after: candidate.balance_after,
@@ -1355,17 +1362,18 @@ export default function App() {
   };
 
   const buildReviewDraft = (candidate: ParsedMessageCandidate): ReviewCandidateDraft => ({
-    accountId: candidate.account ?? "",
+    accountId: isIncomingReview(candidate) ? candidate.destination_account ?? candidate.account ?? "" : candidate.account ?? "",
+    direction: isIncomingReview(candidate) || ["income", "refund"].includes(candidate.transaction_type) ? "credit" : "debit",
     amount: candidate.amount ?? "",
     categoryId: candidate.category ?? "",
     counterpartyText: candidate.counterparty_text,
     date: candidate.raw_message.received_at.slice(0, 10),
     note: "",
-    paymentMethodId: candidate.payment_method ?? "",
+    paymentMethodId: (isIncomingReview(candidate) && candidate.destination_account ? candidate.destination_payment_method : candidate.payment_method) ?? "",
     reference: candidate.reference,
     time: inputTimeFromTimestamp(candidate.raw_message.received_at),
     transactionType: candidate.transaction_type,
-    transferAccountId: candidate.destination_account ?? ""
+    transferAccountId: (isIncomingReview(candidate) ? candidate.destination_account ? candidate.account : null : candidate.destination_account) ?? ""
   });
 
   const getReviewDraft = (candidate: ParsedMessageCandidate): ReviewCandidateDraft =>
@@ -3879,7 +3887,9 @@ export default function App() {
                         ))}
                       </View>
 
-                      <Text style={styles.listTitle}>Source account: {accountName(draft.accountId)}</Text>
+                      <Text style={styles.listTitle}>Direction for selected account</Text>
+                      <View style={styles.choiceRow}>{["debit", "credit"].map((direction) => <Pressable key={direction} onPress={() => updateReviewDraft(candidate, { direction })} style={draft.direction === direction ? styles.choiceSelected : styles.choice}><Text style={draft.direction === direction ? styles.choiceTextSelected : styles.choiceText}>{direction === "credit" ? "Credit / money received" : "Debit / money sent"}</Text></Pressable>)}</View>
+                      <Text style={styles.listTitle}>Account: {accountName(draft.accountId)}</Text>
                       {accounts.length ? (
                         <View style={styles.choiceRow}>
                           {accounts.map((account) => (
@@ -3904,7 +3914,7 @@ export default function App() {
                       {draft.transactionType === "transfer" ? (
                         <>
                           <Text style={styles.listTitle}>
-                            Destination account: {accountName(draft.transferAccountId)}
+                            Other transfer account: {accountName(draft.transferAccountId)}
                           </Text>
                           {accounts.length ? (
                             <View style={styles.choiceRow}>
@@ -4323,7 +4333,10 @@ export default function App() {
               ))}
             </View>
 
-            <Text style={styles.mobileFieldLabel}>Source account</Text>
+            <Text style={styles.mobileFieldLabel}>Direction for selected account</Text>
+            <View style={styles.mobileChoiceRow}>{["debit", "credit"].map((direction) => <Pressable accessibilityRole="radio" accessibilityState={{ selected: draft.direction === direction }} key={direction} onPress={() => updateReviewDraft(candidate, { direction })} style={[styles.mobileChoice, draft.direction === direction ? styles.mobileChoiceActive : null]}><Text style={[styles.mobileChoiceText, draft.direction === direction ? styles.mobileChoiceTextActive : null]}>{direction === "credit" ? "Credit / money received" : "Debit / money sent"}</Text></Pressable>)}</View>
+            <Text style={styles.mobileRowMeta}>For transfers, credit receives from the other account; debit sends to it.</Text>
+            <Text style={styles.mobileFieldLabel}>Account</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.mobileChoiceRow}>
                 {accounts.map((account) => (
@@ -4345,7 +4358,7 @@ export default function App() {
 
             {draft.transactionType === "transfer" ? (
               <>
-                <Text style={styles.mobileFieldLabel}>Destination account</Text>
+                <Text style={styles.mobileFieldLabel}>Other transfer account</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={styles.mobileChoiceRow}>
                     {accounts.filter((account) => account.id !== draft.accountId).map((account) => (
