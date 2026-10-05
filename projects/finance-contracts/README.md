@@ -197,7 +197,9 @@ The shared contract includes transfer-matches, link-transfer, and merge-transfer
 operations. Suggestions never mutate the ledger. Accepted links return one
 canonical transaction with `transfer_evidence[]`; `account_direction` reflects
 the selected account filter. Manual incoming credit drafts use receiving-account
-order and are normalized by the API; SMS drafts retain canonical account order.
+order and are normalized by the API. SMS clients set `account_perspective: true`
+to use the selected account's debit/credit side and the other transfer account.
+Legacy SMS drafts without the flag retain canonical source/destination order.
 Generated TypeScript types/client are regenerated with the existing generator.
 
 Linked account references remain searchable without returning duplicate rows.

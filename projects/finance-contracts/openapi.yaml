@@ -2306,6 +2306,10 @@ components:
     ParsedMessageConfirmRequest:
       type: object
       properties:
+        account_perspective:
+          type: boolean
+          default: false
+          description: When true, account is the observed account, direction is its debit/credit side, and transfer_account is the other account. Credit transfers are normalized to other account as source. Omit or use false for legacy canonical source/destination corrections.
         account:
           type: string
           format: uuid
@@ -2314,7 +2318,7 @@ components:
           type: string
           format: uuid
           nullable: true
-          description: Required when confirming a candidate as a transfer.
+          description: Required when confirming a candidate as a transfer; the other account when account_perspective is true, otherwise the canonical destination.
         amount:
           type: string
           pattern: '^\d+(\.\d{1,2})?$'
@@ -3192,7 +3196,7 @@ components:
           oneOf:
             - $ref: '#/components/schemas/TransactionCreateRequest'
             - $ref: '#/components/schemas/ParsedMessageConfirmRequest'
-          description: Manual transfer entry, or corrected SMS fields when candidate is provided. Manual credit entries use account as the receiving account and transfer_account as the sender; SMS uses canonical source/destination hints.
+          description: Manual transfer entry, or corrected SMS fields when candidate is provided. Manual credit entries use account as the receiver and transfer_account as the sender. SMS drafts with account_perspective true use the same convention; legacy SMS drafts use canonical source/destination hints.
     TransferLinkRequest:
       allOf:
         - $ref: '#/components/schemas/TransferMatchRequest'

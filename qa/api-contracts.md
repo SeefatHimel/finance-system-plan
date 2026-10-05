@@ -188,8 +188,12 @@ or `match_candidate` and explicitly links evidence to one transfer.
 `POST /api/transactions/{id}/merge-transfer/` accepts the duplicate transaction
 id for an audited merge. The response is the retained canonical `Transaction`,
 with `transfer_evidence[]` and `account_direction` for the selected account
-filter. Manual credit drafts use receiving-account order; SMS corrections use
-canonical source/destination hints. References need not match across providers.
+filter. Manual credit drafts use receiving-account order. Updated SMS clients
+set `account_perspective: true`: account is the observed account, direction is
+its debit/credit side, and transfer_account is the other account. Credit SMS
+drafts normalize to other-account → selected-account, with reported balances
+attached to the selected account. Legacy SMS callers omitting the flag retain
+canonical source/destination semantics. References need not match across providers.
 The three-day matching window is a suggestion rule, never a uniqueness key.
 
 Linked account references remain searchable without returning duplicate rows.

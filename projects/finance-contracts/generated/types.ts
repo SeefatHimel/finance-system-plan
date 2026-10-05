@@ -264,6 +264,7 @@ export interface ParsedMessageCandidate {
 }
 
 export interface ParsedMessageConfirmRequest {
+  account_perspective?: boolean;
   account?: string;
   transfer_account?: string | null;
   amount?: string;
