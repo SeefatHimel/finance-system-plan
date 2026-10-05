@@ -297,8 +297,10 @@ SMS body.
 
 For transfers, the stored `account_id` is always the source and
 `transfer_account_id` is the destination, with canonical `direction=debit`.
-A manual credit draft uses the selected account as receiver and is normalized
-on creation. Account-scoped responses add `account_direction`, and the same
+Manual credit drafts and SMS corrections with `account_perspective: true` use
+the selected account as receiver and the other account as sender. The backend
+normalizes this before matching or creating a transfer. SMS callers omitting the
+flag retain canonical source/destination corrections for compatibility. Account-scoped responses add `account_direction`, and the same
 transfer appears in both histories. `transfer_evidence` contains account-specific
 references, dates, reported balances, fee metadata, and raw-message links;
 observations never post an additional ledger amount. Fees require a separate
