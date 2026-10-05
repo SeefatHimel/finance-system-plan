@@ -11,6 +11,11 @@ import {
   type Transaction,
   type TransactionDirection,
   createTransaction,
+  findTransferMatches,
+  linkTransfer,
+  mergeTransfers,
+  type CreateTransactionInput,
+  type TransferMatch,
   deleteTransaction,
   exportTransactionsCsv,
   listAccounts,
@@ -21,6 +26,7 @@ import {
   type TransactionType,
   updateTransaction
 } from "@/lib/api";
+import { TransferMatchDialog } from "@/components/transfer-match-dialog";
 import { getAccessToken } from "@/lib/auth-storage";
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
 
@@ -124,6 +130,8 @@ export function TransactionWorkspace() {
     type: ""
   });
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
+  const [transferDecision, setTransferDecision] = useState<{ input: CreateTransactionInput; matches: TransferMatch[]; mergeId?: string } | null>(null);
+  const [matchError, setMatchError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
@@ -348,7 +356,8 @@ export function TransactionWorkspace() {
     setIsSubmitting(true);
 
     try {
-      await createTransaction(accessToken, {
+      const input: CreateTransactionInput = {
+        external_key: `manual-transfer:${crypto.randomUUID()}`,
         account: String(formData.get("account") ?? ""),
         amount: String(formData.get("amount") ?? ""),
         balance_after: String(formData.get("balance_after") ?? "") || null,
@@ -361,7 +370,16 @@ export function TransactionWorkspace() {
         time: String(formData.get("time") ?? "") || null,
         transfer_account: type === "transfer" ? transferAccount : undefined,
         type
-      });
+      };
+      if (type === "transfer") {
+        const matches = await findTransferMatches(accessToken, { draft: input });
+        if (matches.length) {
+          setMatchError(null);
+          setTransferDecision({ input, matches });
+          return;
+        }
+      }
+      await createTransaction(accessToken, input);
       form.reset();
       await loadData(filters, false);
       setEditorMode(null);
@@ -371,6 +389,48 @@ export function TransactionWorkspace() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleTransferDecision(match?: TransferMatch) {
+    const accessToken = getAccessToken();
+    if (!accessToken || !transferDecision) return;
+    setIsSubmitting(true);
+    setMatchError(null);
+    try {
+      if (transferDecision.mergeId) {
+        if (match) await mergeTransfers(accessToken, match.id, transferDecision.mergeId);
+      } else if (match) {
+        await linkTransfer(accessToken, { draft: transferDecision.input }, match);
+      } else {
+        await createTransaction(accessToken, transferDecision.input);
+      }
+      setTransferDecision(null);
+      setEditorMode(null);
+      await loadData(filters, false);
+      setFormMessage(match ? "Transfer linked. Both accounts show one movement." : "Transfer kept separate.");
+    } catch (error) {
+      setMatchError(error instanceof Error ? error.message : "Could not link transfer.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleFindPostedMatch(record: Transaction) {
+    const accessToken = getAccessToken();
+    if (!accessToken) return;
+    setFormError(null);
+    setIsSubmitting(true);
+    try {
+      const input: CreateTransactionInput = { account: record.account, transfer_account: record.transfer_account || undefined,
+        amount: record.amount, date: record.date, direction: "debit", type: "transfer" };
+      const matches = (await findTransferMatches(accessToken, { draft: input, exclude_transaction: record.id })).filter((match) => match.kind === "transaction");
+      if (matches.length) {
+        setMatchError(null);
+        setTransferDecision({ input, matches, mergeId: record.id });
+      } else setFormMessage("No matching recorded transfer found.");
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Could not find matches.");
+    } finally { setIsSubmitting(false); }
   }
 
   async function handleDeleteTransaction(transaction: Transaction) {
@@ -558,6 +618,7 @@ export function TransactionWorkspace() {
 
             <label className="field">
               <span className="field__label">Debit / credit</span>
+              <span className="field__hint">For transfers: debit means this account sends; credit means this account receives. Select the other account below.</span>
               <select className="field__control" defaultValue="debit" name="direction" required>
                 <option value="debit">Debit</option>
                 <option value="credit">Credit</option>
@@ -577,7 +638,7 @@ export function TransactionWorkspace() {
             </label>
 
             <label className="field">
-              <span className="field__label">Transfer to</span>
+              <span className="field__label">Other transfer account</span>
               <select className="field__control" name="transfer_account">
                 <option value="">Only for transfers</option>
                 {loadState.accounts.map((account) => (
@@ -1022,11 +1083,11 @@ export function TransactionWorkspace() {
                           {transaction.counterparty_text || transaction.reference || transaction.note || transaction.type.replaceAll("_", " ")}
                         </span>
                         <span className="transaction-ledger-secondary">
-                          {transaction.type.replaceAll("_", " ")} · {transaction.direction}
+                          {transaction.type.replaceAll("_", " ")} · {transaction.account_direction}
                           {transaction.reference ? ` · ${transaction.reference}` : ""}
                         </span>
                       </td> : null}
-                      {visibleColumns.includes("account") ? <td>{accountNames.get(transaction.account) ?? "Unknown"}</td> : null}
+                      {visibleColumns.includes("account") ? <td>{accountNames.get(transaction.account) ?? "Unknown"}{transaction.type === "transfer" ? ` → ${accountNames.get(transaction.transfer_account ?? "") ?? "Unknown"}` : ""}</td> : null}
                       {visibleColumns.includes("category") ? <td>
                         {transaction.category
                           ? categoryNames.get(transaction.category) ?? "Unknown"
@@ -1034,17 +1095,18 @@ export function TransactionWorkspace() {
                       </td> : null}
                       {visibleColumns.includes("source") ? <td>{transaction.source}</td> : null}
                       {visibleColumns.includes("balance") ? <td>
-                        {transaction.balance_after
+                        {transaction.transfer_evidence.length ? transaction.transfer_evidence.map((item) => <span className="transaction-ledger-secondary" key={item.id}>{accountNames.get(item.account)}: {item.balance_after === null ? "No reported balance" : moneyFormatter.format(Number(item.balance_after))}{item.reference ? ` · ${item.reference}` : ""}</span>) : transaction.balance_after
                           ? moneyFormatter.format(Number(transaction.balance_after))
                           : "-"}
                       </td> : null}
                       {visibleColumns.includes("senderIdentifiers") ? <td><span className="transaction-ledger-primary">{transaction.sender_account_identifier || "—"}</span><span className="transaction-ledger-secondary">{transaction.sender_card_identifier ? `Card ${transaction.sender_card_identifier}` : "No card identifier"}</span></td> : null}
                       {visibleColumns.includes("receiverIdentifiers") ? <td><span className="transaction-ledger-primary">{transaction.receiver_account_identifier || "—"}</span><span className="transaction-ledger-secondary">{transaction.receiver_card_identifier ? `Card ${transaction.receiver_card_identifier}` : "No card identifier"}</span></td> : null}
-                      {visibleColumns.includes("amount") ? <td className={transaction.direction === "credit" ? "transaction-ledger-amount transaction-ledger-amount--credit" : "transaction-ledger-amount"}>
-                        {transaction.direction === "credit" ? "+" : "-"}{moneyFormatter.format(Number(transaction.amount))}
+                      {visibleColumns.includes("amount") ? <td className={transaction.account_direction === "credit" ? "transaction-ledger-amount transaction-ledger-amount--credit" : "transaction-ledger-amount"}>
+                        {transaction.account_direction === "credit" ? "+" : "-"}{moneyFormatter.format(Number(transaction.amount))}
                       </td> : null}
                       <td>
                         <div className="list-row__actions">
+                          {transaction.type === "transfer" ? <button className="button button--ghost" disabled={isSubmitting} onClick={() => void handleFindPostedMatch(transaction)} type="button">Find match</button> : null}
                           <button
                             className="button button--ghost"
                             onClick={() => selectTransactionForEdit(transaction.id)}
@@ -1076,6 +1138,7 @@ export function TransactionWorkspace() {
           )}
         </div>
       </section>
+      {transferDecision ? <TransferMatchDialog matches={transferDecision.matches} busy={isSubmitting} error={matchError} merging={Boolean(transferDecision.mergeId)} onAccept={(match) => void handleTransferDecision(match)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
     </div>
   );
 }

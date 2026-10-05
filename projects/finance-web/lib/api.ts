@@ -20,7 +20,8 @@ import type {
   SenderRulePatchRequest,
   TransactionDirection,
   TransactionSource,
-  TransactionType
+  TransactionType,
+  TransferMatch
 } from "../../finance-contracts/generated/types";
 import {
   clearTokens,
@@ -185,7 +186,22 @@ const smsDeviceStatusSchema = z.object({
   updated_at: z.string().nullable()
 });
 
+const transferEvidenceSchema = z.object({
+  id: z.string(), account: z.string(), raw_message: z.string().nullable(),
+  direction: z.string(), date: z.string(), time: z.string().nullable(),
+  balance_after: z.string().nullable(), fee_amount: z.string().nullable(),
+  reference: z.string(), provider: z.string(), source: z.string(), note: z.string()
+});
+const transferMatchSchema = z.object({
+  id: z.string(), kind: z.enum(["transaction", "candidate"]),
+  account: z.string(), account_name: z.string(), transfer_account: z.string(), transfer_account_name: z.string(),
+  amount: z.string(), date: z.string(), time: z.string().nullable(), reference: z.string(), reason: z.string()
+});
+export type { TransferMatch } from "../../finance-contracts/generated/types";
+
 const transactionSchema = z.object({
+  account_direction: z.string(),
+  transfer_evidence: z.array(transferEvidenceSchema),
   account: z.string(),
   amount: z.string(),
   balance_after: z.string().nullable(),
@@ -1314,4 +1330,41 @@ export async function listAuditLogs(
   const path = query ? `/api/audit-logs/?${query}` : "/api/audit-logs/";
   const response = await authenticatedFetch(path, accessToken);
   return collectionSchema(auditLogEntrySchema).parse(await response.json());
+}
+
+
+export type TransferMatchInput = {
+  candidate?: string;
+  draft?: CreateTransactionInput | ConfirmMessageCandidateInput;
+  exclude_transaction?: string;
+};
+function transferMatchBody(input: TransferMatchInput) {
+  const draft = input.draft;
+  return {
+    ...input,
+    ...(draft ? { draft: {
+      ...draft,
+      ...(draft.amount !== undefined ? { amount: financialNumber(draft.amount, "amount") } : {}),
+      ...(draft.balance_after !== undefined ? { balance_after: optionalFinancialNumber(draft.balance_after, "balance after") } : {})
+    } } : {})
+  };
+}
+export async function findTransferMatches(accessToken: string, input: TransferMatchInput): Promise<TransferMatch[]> {
+  const response = await authenticatedFetch("/api/transactions/transfer-matches/", accessToken, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(transferMatchBody(input))
+  });
+  return z.array(transferMatchSchema).parse(await response.json());
+}
+export async function linkTransfer(accessToken: string, input: TransferMatchInput, match: TransferMatch): Promise<Transaction> {
+  const response = await authenticatedFetch("/api/transactions/link-transfer/", accessToken, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...transferMatchBody(input), [match.kind === "transaction" ? "match_transaction" : "match_candidate"]: match.id })
+  });
+  return transactionSchema.parse(await response.json());
+}
+export async function mergeTransfers(accessToken: string, retainedId: string, duplicateId: string): Promise<Transaction> {
+  const response = await authenticatedFetch(`/api/transactions/${retainedId}/merge-transfer/`, accessToken, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transaction: duplicateId })
+  });
+  return transactionSchema.parse(await response.json());
 }

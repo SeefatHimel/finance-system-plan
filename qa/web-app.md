@@ -324,3 +324,21 @@ tables may need column hiding, horizontal scroll, or mobile-friendly list views.
 The transaction table. It needs to be dense like a spreadsheet but safer and
 more ergonomic than a spreadsheet, with validation, filters, quick edits, and no
 layout breakage on smaller screens.
+
+## How does the web app avoid posting both sides of a transfer twice?
+
+Before saving a manual transfer or confirming transfer-like SMS, it asks the API
+for matching transfers and opposite pending messages. A dialog shows the
+accounts, amount, date/time, and reference; the user can link, keep separate, or
+cancel. Linking preserves account-specific evidence without another balance
+movement. The transaction table displays A → B and each linked account's
+reference/balance. Account filters include both sides with the appropriate
+debit/credit sign. “Find match” on a saved transfer supports an explicit audited
+merge of two already-posted matching transfers. Manual credit entry means
+`account` is the receiving account and `transfer_account` is the sender; the
+backend normalizes this to canonical source/destination order.
+
+Linked account references remain searchable without returning duplicate rows.
+CSV exports append contextual `account_direction` and structured
+`transfer_evidence` JSON. Audit snapshots include the normalized evidence
+without raw SMS bodies.

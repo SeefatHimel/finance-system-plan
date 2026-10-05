@@ -254,3 +254,20 @@ The user can enter the real-life balance for an account. The UI shows:
 10. Balance reconciliation screen. Done.
 11. Credit card bill tracking. Done.
 12. Recurring bill tracking. Done.
+
+## Suggested Transfer Matches
+
+Manual transfer creation and SMS confirmation check for matching existing
+transfers or opposite pending SMS before saving. The match dialog requires an
+explicit link/confirm-as-one action and offers Keep separate and Cancel.
+Account history includes incoming transfers with a credit sign. The ledger
+shows both account names and linked account-specific references/balances.
+“Find match” on a saved transfer supports audited merging of already-posted
+duplicates. A manual credit transfer is entered from the receiving account;
+choose its sender as the other transfer account. SMS review retains canonical
+source/destination order. Matching never automatically changes the ledger.
+
+Linked account references remain searchable without returning duplicate rows.
+CSV exports append contextual `account_direction` and structured
+`transfer_evidence` JSON. Audit snapshots include the normalized evidence
+without raw SMS bodies.
