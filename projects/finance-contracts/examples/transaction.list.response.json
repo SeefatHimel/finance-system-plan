@@ -23,6 +23,8 @@
     "source": "web",
     "needs_review": false,
     "created_at": "2026-05-01T04:10:11.043210Z",
-    "updated_at": "2026-05-01T04:10:11.043210Z"
+    "updated_at": "2026-05-01T04:10:11.043210Z",
+    "account_direction": "debit",
+    "transfer_evidence": []
   }
 ]

@@ -190,3 +190,17 @@ GET    /api/reconciliation/accounts/{account_id}/
 GET    /api/audit-logs/
 GET    /api/audit-logs/{id}/
 ```
+
+## Transfer Matching Boundary
+
+The shared contract includes transfer-matches, link-transfer, and merge-transfer
+operations. Suggestions never mutate the ledger. Accepted links return one
+canonical transaction with `transfer_evidence[]`; `account_direction` reflects
+the selected account filter. Manual incoming credit drafts use receiving-account
+order and are normalized by the API; SMS drafts retain canonical account order.
+Generated TypeScript types/client are regenerated with the existing generator.
+
+Linked account references remain searchable without returning duplicate rows.
+CSV exports append contextual `account_direction` and structured
+`transfer_evidence` JSON. Audit snapshots include the normalized evidence
+without raw SMS bodies.

@@ -1295,11 +1295,91 @@ paths:
             text/csv:
               schema:
                 type: string
-                example: "id,date,time,type,direction,amount,account_id,account_name,transfer_account_id,transfer_account_name,category_id,category_name,payment_method_id,payment_method_name,balance_after,reference,counterparty_text,external_key,source,needs_review,note,raw_message_id,created_at,updated_at\nf5e57b1e-14f5-4f77-93af-d7f90d7cbffc,2026-05-01,13:45:00,expense,debit,1200.00,1a3d92d0-f97f-4faf-a855-d68589bf26f2,Cash,,,83bb8f20-a319-4bd0-b771-0d79778ec8a8,Groceries,,,1150.00,TRX123456,Grocery shop,manual:trx123456,web,False,Groceries,,2026-05-01T04:10:11.043210Z,2026-05-01T04:10:11.043210Z\n"
+                example: "id,date,time,type,direction,amount,account_id,account_name,transfer_account_id,transfer_account_name,category_id,category_name,payment_method_id,payment_method_name,balance_after,reference,counterparty_text,external_key,source,needs_review,note,raw_message_id,created_at,updated_at,account_direction,transfer_evidence\nf5e57b1e-14f5-4f77-93af-d7f90d7cbffc,2026-05-01,13:45:00,expense,debit,1200.00,1a3d92d0-f97f-4faf-a855-d68589bf26f2,Cash,,,83bb8f20-a319-4bd0-b771-0d79778ec8a8,Groceries,,,1150.00,TRX123456,Grocery shop,manual:trx123456,web,False,Groceries,,2026-05-01T04:10:11.043210Z,2026-05-01T04:10:11.043210Z,debit,[]\n"
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/transactions/transfer-matches/:
+    post:
+      tags: [Transactions]
+      summary: Find transfer matches
+      description: Suggest existing transfers or opposite pending SMS observations; never posts or links automatically.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferMatchRequest'
+      responses:
+        '200':
+          description: Review suggestions (same amount and compatible accounts within three days)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TransferMatch'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/transactions/link-transfer/:
+    post:
+      tags: [Transactions]
+      summary: Link transfer evidence
+      description: Explicitly accept a match. Link a draft or SMS to one transfer, or confirm two opposite pending SMS as one transfer.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferLinkRequest'
+      responses:
+        '200':
+          description: The single canonical transfer with account-specific evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/transactions/{id}/merge-transfer/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    post:
+      tags: [Transactions]
+      summary: Merge posted transfers
+      description: Explicitly merge matching transfers in the same direction, preserving evidence and auditing removal of the extra balance effect.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferMergeRequest'
+      responses:
+        '200':
+          description: The retained transfer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /api/transactions/:
     get:
       tags: [Transactions]
@@ -3029,11 +3109,122 @@ components:
         display_order:
           type: integer
           minimum: 0
+    TransferEvidence:
+      type: object
+      required: [id, account, raw_message, direction, date, time, balance_after, fee_amount, reference, provider, source, note]
+      properties:
+        id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+        raw_message:
+          type: string
+          format: uuid
+          nullable: true
+        direction:
+          $ref: '#/components/schemas/TransactionDirection'
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          nullable: true
+        balance_after:
+          type: string
+          nullable: true
+        fee_amount:
+          type: string
+          nullable: true
+          description: Observed fee evidence; does not itself create a fee expense.
+        reference:
+          type: string
+        provider:
+          type: string
+        source:
+          $ref: '#/components/schemas/TransactionSource'
+        note:
+          type: string
+    TransferMatch:
+      type: object
+      required: [id, kind, account, account_name, transfer_account, transfer_account_name, amount, date, time, reference, reason]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [transaction, candidate]
+        account:
+          type: string
+          format: uuid
+        account_name:
+          type: string
+        transfer_account:
+          type: string
+          format: uuid
+        transfer_account_name:
+          type: string
+        amount:
+          type: string
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          nullable: true
+        reference:
+          type: string
+        reason:
+          type: string
+    TransferMatchRequest:
+      type: object
+      properties:
+        candidate:
+          type: string
+          format: uuid
+          description: Current SMS candidate, when matching SMS review.
+        exclude_transaction:
+          type: string
+          format: uuid
+        draft:
+          oneOf:
+            - $ref: '#/components/schemas/TransactionCreateRequest'
+            - $ref: '#/components/schemas/ParsedMessageConfirmRequest'
+          description: Manual transfer entry, or corrected SMS fields when candidate is provided. Manual credit entries use account as the receiving account and transfer_account as the sender; SMS uses canonical source/destination hints.
+    TransferLinkRequest:
+      allOf:
+        - $ref: '#/components/schemas/TransferMatchRequest'
+        - type: object
+          properties:
+            match_transaction:
+              type: string
+              format: uuid
+            match_candidate:
+              type: string
+              format: uuid
+          description: Exactly one match target is required. User acceptance is required; matching never posts automatically.
+    TransferMergeRequest:
+      type: object
+      required: [transaction]
+      properties:
+        transaction:
+          type: string
+          format: uuid
+          description: The duplicate posted transfer to merge into the transfer in the URL.
     Transaction:
       type: object
       required:
-        [id, account, transfer_account, category, payment_method, raw_message, date, time, type, direction, amount, balance_after, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, reference, counterparty_text, external_key, note, source, needs_review, created_at, updated_at]
+        [id, account, transfer_account, category, payment_method, raw_message, date, time, type, direction, amount, balance_after, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, reference, counterparty_text, external_key, note, source, needs_review, created_at, updated_at, transfer_evidence, account_direction]
       properties:
+        transfer_evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransferEvidence'
+        account_direction:
+          $ref: '#/components/schemas/TransactionDirection'
+          description: Direction in the selected account filter; otherwise the canonical direction.
         id:
           type: string
           format: uuid

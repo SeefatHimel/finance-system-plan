@@ -571,7 +571,53 @@ export interface CategoryPatchRequest {
   display_order?: number;
 }
 
+export interface TransferEvidence {
+  id: string;
+  account: string;
+  raw_message: string | null;
+  direction: TransactionDirection;
+  date: string;
+  time: string | null;
+  balance_after: string | null;
+  fee_amount: string | null;
+  reference: string;
+  provider: string;
+  source: TransactionSource;
+  note: string;
+}
+
+export interface TransferMatch {
+  id: string;
+  kind: "transaction" | "candidate";
+  account: string;
+  account_name: string;
+  transfer_account: string;
+  transfer_account_name: string;
+  amount: string;
+  date: string;
+  time: string | null;
+  reference: string;
+  reason: string;
+}
+
+export interface TransferMatchRequest {
+  candidate?: string;
+  exclude_transaction?: string;
+  draft?: TransactionCreateRequest | ParsedMessageConfirmRequest;
+}
+
+export type TransferLinkRequest = TransferMatchRequest & {
+  match_transaction?: string;
+  match_candidate?: string;
+};
+
+export interface TransferMergeRequest {
+  transaction: string;
+}
+
 export interface Transaction {
+  transfer_evidence: TransferEvidence[];
+  account_direction: TransactionDirection;
   id: string;
   account: string;
   transfer_account: string | null;

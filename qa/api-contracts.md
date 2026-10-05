@@ -177,3 +177,22 @@ for candidates stored before a parser improvement; confirmed or redacted
 candidates are intentionally immutable.
 `POST /api/messages/review/reprocess/` performs the same safe refresh for the
 authenticated user's complete pending queue and returns processing counts.
+
+## What is the contract for suggested transfer matching?
+
+`POST /api/transactions/transfer-matches/` accepts a manual `draft`, or a SMS
+`candidate` plus optional corrected draft fields, and returns `TransferMatch[]`.
+Targets can be posted transactions or opposite pending candidates.
+`POST /api/transactions/link-transfer/` accepts exactly one `match_transaction`
+or `match_candidate` and explicitly links evidence to one transfer.
+`POST /api/transactions/{id}/merge-transfer/` accepts the duplicate transaction
+id for an audited merge. The response is the retained canonical `Transaction`,
+with `transfer_evidence[]` and `account_direction` for the selected account
+filter. Manual credit drafts use receiving-account order; SMS corrections use
+canonical source/destination hints. References need not match across providers.
+The three-day matching window is a suggestion rule, never a uniqueness key.
+
+Linked account references remain searchable without returning duplicate rows.
+CSV exports append contextual `account_direction` and structured
+`transfer_evidence` JSON. Audit snapshots include the normalized evidence
+without raw SMS bodies.
