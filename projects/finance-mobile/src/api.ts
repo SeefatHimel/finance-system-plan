@@ -1,3 +1,6 @@
+import type { TransferEvidence, TransferMatch } from "../../finance-contracts/generated/types";
+export type { TransferMatch } from "../../finance-contracts/generated/types";
+
 declare const process: {
   env: {
     EXPO_PUBLIC_API_BASE_URL?: string;
@@ -270,6 +273,8 @@ export type CreateTransactionInput = {
 };
 
 export type Transaction = {
+  account_direction: string;
+  transfer_evidence: TransferEvidence[];
   account: string;
   amount: string;
   balance_after: string | null;
@@ -952,4 +957,35 @@ export async function resetSmsDevelopmentData(accessToken: string): Promise<{
 export async function listTransactions(accessToken: string): Promise<Transaction[]> {
   const response = await authenticatedFetch("/api/transactions/", accessToken);
   return (await response.json()) as Transaction[];
+}
+
+
+export type TransferMatchInput = {
+  candidate?: string;
+  draft?: CreateTransactionInput | ConfirmMessageCandidateInput;
+  exclude_transaction?: string;
+};
+function transferMatchBody(input: TransferMatchInput) {
+  const draft = input.draft;
+  return {
+    ...input,
+    ...(draft ? { draft: {
+      ...draft,
+      ...(!input.candidate ? { source: "mobile" } : {}),
+      ...(draft.amount !== undefined ? { amount: financialNumber(draft.amount, "amount") } : {}),
+      ...(draft.balance_after !== undefined ? { balance_after: optionalFinancialNumber(draft.balance_after, "balance after") } : {})
+    } } : {})
+  };
+}
+export async function findTransferMatches(accessToken: string, input: TransferMatchInput): Promise<TransferMatch[]> {
+  const response = await authenticatedFetch("/api/transactions/transfer-matches/", accessToken, {
+    method: "POST", body: JSON.stringify(transferMatchBody(input)), headers: { "Content-Type": "application/json" }
+  });
+  return await response.json() as TransferMatch[];
+}
+export async function linkTransfer(accessToken: string, input: TransferMatchInput, match: TransferMatch): Promise<Transaction> {
+  const response = await authenticatedFetch("/api/transactions/link-transfer/", accessToken, {
+    method: "POST", body: JSON.stringify({ ...transferMatchBody(input), [match.kind === "transaction" ? "match_transaction" : "match_candidate"]: match.id }), headers: { "Content-Type": "application/json" }
+  });
+  return await response.json() as Transaction;
 }

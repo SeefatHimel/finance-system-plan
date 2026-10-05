@@ -32,6 +32,11 @@ import {
   createRecurringBillPayment,
   createSenderRule,
   createTransaction,
+  findTransferMatches,
+  linkTransfer,
+  type TransferMatch,
+  type TransferMatchInput,
+  type ConfirmMessageCandidateInput,
   AuthenticationError,
   getApiBaseUrl,
   getAccountReconciliation,
@@ -387,6 +392,13 @@ function normalizeTransactionCache(storedTransactions: string | null): Transacti
       }
 
       const transaction: Transaction = {
+        account_direction: stringValue(item.account_direction) || stringValue(item.direction),
+        transfer_evidence: Array.isArray(item.transfer_evidence) ? item.transfer_evidence.filter(isRecord).map((evidence) => ({
+          id: stringValue(evidence.id), account: stringValue(evidence.account), raw_message: nullableStringValue(evidence.raw_message),
+          direction: stringValue(evidence.direction) as "debit" | "credit", date: stringValue(evidence.date), time: nullableStringValue(evidence.time),
+          balance_after: nullableStringValue(evidence.balance_after), fee_amount: nullableStringValue(evidence.fee_amount),
+          reference: stringValue(evidence.reference), provider: stringValue(evidence.provider), source: stringValue(evidence.source) as "web" | "mobile" | "sms" | "import" | "system", note: stringValue(evidence.note)
+        })) : [],
         account: stringValue(item.account),
         amount: stringValue(item.amount),
         balance_after: nullableStringValue(item.balance_after),
@@ -511,6 +523,8 @@ function isRawMessageRetryDue(queuedMessage: QueuedRawMessage, nowMs = Date.now(
 function manualTransactionDedupeKey(input: CreateTransactionInput) {
   return [
     input.account.trim(),
+    input.transfer_account?.trim() ?? "",
+    input.direction ?? "",
     input.category?.trim() ?? "",
     input.date.trim(),
     input.time?.trim() ?? "",
@@ -542,6 +556,9 @@ function normalizeManualTransactionQueue(storedQueue: string | null): QueuedManu
 
       const input: CreateTransactionInput = {
         account: stringValue(item.input.account),
+        direction: stringValue(item.input.direction) || undefined,
+        transfer_account: nullableStringValue(item.input.transfer_account),
+        external_key: stringValue(item.input.external_key) || undefined,
         amount: stringValue(item.input.amount),
         balance_after: stringValue(item.input.balance_after) || undefined,
         category: stringValue(item.input.category) || undefined,
@@ -735,6 +752,11 @@ export default function App() {
   const [txCategoryId, setTxCategoryId] = useState("");
   const [txDate, setTxDate] = useState(new Date().toISOString().slice(0, 10));
   const [txTime, setTxTime] = useState(currentInputTime());
+  const [txDirection, setTxDirection] = useState("debit");
+  const [txTransferAccountId, setTxTransferAccountId] = useState("");
+  const [transferDecision, setTransferDecision] = useState<{ input: TransferMatchInput; matches: TransferMatch[]; queueId?: string } | null>(null);
+  const [transferBusy, setTransferBusy] = useState(false);
+  const [transferError, setTransferError] = useState("");
   const [txType, setTxType] = useState("expense");
   const [txAmount, setTxAmount] = useState("");
   const [txBalanceAfter, setTxBalanceAfter] = useState("");
@@ -1293,24 +1315,14 @@ export default function App() {
       setReviewMessage("Enter a valid transaction time in HH:MM format.");
       return;
     }
-    if (draft.transactionType === "transfer" && !draft.transferAccountId) {
-      setReviewState("error");
-      setReviewMessage("Select a destination account before confirming this transfer.");
-      return;
-    }
-    if (draft.transactionType === "transfer" && draft.accountId === draft.transferAccountId) {
-      setReviewState("error");
-      setReviewMessage("Source and destination accounts must be different.");
-      return;
-    }
-
     setReviewActionCandidateId(candidate.id);
     setReviewState("loading");
     setReviewMessage("");
     try {
-      await confirmMessageCandidate(accessToken.trim(), candidate.id, {
+      const input: ConfirmMessageCandidateInput = {
         account: draft.accountId,
         amount: normalizedAmount,
+        balance_after: candidate.balance_after,
         category: draft.categoryId || null,
         counterparty_text: draft.counterpartyText.trim(),
         date: draft.date.trim(),
@@ -1321,7 +1333,18 @@ export default function App() {
         time: draft.time.trim() || null,
         transfer_account: draft.transactionType === "transfer" ? draft.transferAccountId : null,
         type: draft.transactionType
-      });
+      };
+      if (draft.transactionType === "transfer" || candidate.possible_internal_transfer || ["receive_money", "bank_transfer_in"].includes(candidate.message_kind)) {
+        const matchInput = { candidate: candidate.id, draft: input };
+        const matches = await findTransferMatches(accessToken.trim(), matchInput);
+        if (matches.length) {
+          setTransferError("");
+          setTransferDecision({ input: matchInput, matches });
+          setReviewState("ok");
+          return;
+        }
+      }
+      await confirmMessageCandidate(accessToken.trim(), candidate.id, input);
       await handleLoadReviewCandidates();
     } catch (error) {
       setReviewState("error");
@@ -2374,6 +2397,8 @@ export default function App() {
 
     return {
       account: txAccountId.trim(),
+      direction: txType.trim() === "transfer" ? txDirection : undefined,
+      transfer_account: txType.trim() === "transfer" ? txTransferAccountId || null : undefined,
       amount: txAmount.trim(),
       balance_after: txBalanceAfter.trim() || undefined,
       category: txCategoryId.trim() || undefined,
@@ -2446,6 +2471,16 @@ export default function App() {
     setTxMessage("");
 
     try {
+      if (input.type === "transfer") {
+        input.external_key = `mobile-transfer:${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const matches = await findTransferMatches(accessToken.trim(), { draft: input });
+        if (matches.length) {
+          setTransferError("");
+          setTransferDecision({ input: { draft: input }, matches });
+          setTxState("ok");
+          return;
+        }
+      }
       await createTransaction(accessToken.trim(), input);
       setTxState("ok");
       setTxMessage("Transaction created.");
@@ -2456,6 +2491,29 @@ export default function App() {
       setTxState("error");
       setTxMessage(error instanceof Error ? error.message : "Could not create transaction.");
     }
+  };
+
+  const handleTransferDecision = async (match?: TransferMatch) => {
+    if (!transferDecision || !accessToken.trim()) return;
+    setTransferBusy(true);
+    setTransferError("");
+    try {
+      if (match) await linkTransfer(accessToken.trim(), transferDecision.input, match);
+      else if (transferDecision.input.candidate) {
+        await confirmMessageCandidate(accessToken.trim(), transferDecision.input.candidate, transferDecision.input.draft as ConfirmMessageCandidateInput);
+      } else await createTransaction(accessToken.trim(), transferDecision.input.draft as CreateTransactionInput);
+      if (transferDecision.queueId) {
+        await saveTransactionQueue(transactionQueue.filter((entry) => entry.id !== transferDecision.queueId));
+        setTransactionQueueMessage("Transfer resolved. Sync again to continue the remaining queue.");
+      } else if (!transferDecision.input.candidate) {
+        setTxAmount(""); setTxBalanceAfter(""); setTxNote("");
+        setTxMessage(match ? "Transfer linked. One movement in both accounts." : "Transfer kept separate.");
+      }
+      setTransferDecision(null);
+      await Promise.all([handleLoadReviewCandidates(), handleLoadTransactions()]);
+    } catch (error) {
+      setTransferError(error instanceof Error ? error.message : "Could not resolve transfer match.");
+    } finally { setTransferBusy(false); }
   };
 
   const handleSyncTransactionQueue = async () => {
@@ -2479,7 +2537,7 @@ export default function App() {
     let skippedCount = 0;
     let syncedCount = 0;
 
-    for (const queuedTransaction of transactionQueue) {
+    for (const [queueIndex, queuedTransaction] of transactionQueue.entries()) {
       if (!isManualTransactionRetryDue(queuedTransaction, nowMs)) {
         remainingQueue.push(queuedTransaction);
         skippedCount += 1;
@@ -2494,6 +2552,18 @@ export default function App() {
       };
 
       try {
+        if (attemptedTransaction.input.type === "transfer") {
+          attemptedTransaction.input = { ...attemptedTransaction.input, external_key: attemptedTransaction.input.external_key || `queued-transfer:${attemptedTransaction.id}` };
+          const matches = await findTransferMatches(accessToken.trim(), { draft: attemptedTransaction.input });
+          if (matches.length) {
+            await saveTransactionQueue([...remainingQueue, attemptedTransaction, ...transactionQueue.slice(queueIndex + 1)]);
+            setTransferError("");
+            setTransferDecision({ input: { draft: attemptedTransaction.input }, matches, queueId: attemptedTransaction.id });
+            setTransactionQueueState("ok");
+            setTransactionQueueMessage("Possible transfer match found. Resolve it before continuing sync.");
+            return;
+          }
+        }
         await createTransaction(accessToken.trim(), attemptedTransaction.input);
         syncedCount += 1;
       } catch (error) {
@@ -2969,6 +3039,12 @@ export default function App() {
             style={styles.input}
             value={txType}
           />
+          {txType.trim() === "transfer" ? <View>
+            <Text style={styles.mobileStateText}>Choose debit when this account sends, or credit when it receives.</Text>
+            <View style={styles.mobileChoiceRow}>{["debit", "credit"].map((direction) => <Pressable key={direction} onPress={() => setTxDirection(direction)} style={styles.mobileChoice}><Text style={styles.mobileChoiceText}>{txDirection === direction ? "✓ " : ""}{direction}</Text></Pressable>)}</View>
+            <Text style={styles.mobileStateText}>Other transfer account</Text>
+            {accounts.filter((account) => account.id !== txAccountId).map((account) => <Pressable key={account.id} onPress={() => setTxTransferAccountId(account.id)} style={styles.mobileChoice}><Text style={styles.mobileChoiceText}>{txTransferAccountId === account.id ? "✓ " : ""}{account.name}</Text></Pressable>)}
+          </View> : null}
           <TextInput
             autoCapitalize="none"
             autoCorrect={false}
@@ -3904,7 +3980,7 @@ export default function App() {
   const renderTransactionRow = (transaction: Transaction) => {
     const isIncome = transaction.type === "income" || transaction.direction === "credit";
     const icon: IconName = transaction.type === "transfer" ? "swap-horizontal" : isIncome ? "bank-transfer-in" : "cart-outline";
-    const title = transaction.counterparty_text || transaction.note || titleCase(transaction.type);
+    const title = transaction.type === "transfer" ? `${accountName(transaction.account)} → ${accountName(transaction.transfer_account)}` : transaction.counterparty_text || transaction.note || titleCase(transaction.type);
 
     return (
       <View key={transaction.id} style={styles.mobileListRow}>
@@ -3916,9 +3992,10 @@ export default function App() {
           <Text numberOfLines={1} style={styles.mobileRowMeta}>
             {formatMobileDate(transaction.date)}{transaction.time ? ` at ${transaction.time.slice(0, 5)}` : ""} · {transaction.source || "Ledger"}
           </Text>
+          {transaction.transfer_evidence?.map((item) => <Text key={item.id} style={styles.mobileRowMeta}>{accountName(item.account)} · {item.direction}{item.reference ? ` · ${item.reference}` : ""}{item.balance_after !== null ? ` · balance ${item.balance_after}` : ""}</Text>)}
         </View>
         <Text style={[styles.mobileRowAmount, isIncome ? styles.mobileRowAmountSuccess : null]}>
-          {isIncome ? "+" : "−"} {formatMoney(parseMoney(transaction.amount))}
+          {transaction.type === "transfer" ? "↔" : isIncome ? "+" : "−"} {formatMoney(parseMoney(transaction.amount))}
         </Text>
       </View>
     );
@@ -5396,11 +5473,33 @@ export default function App() {
           </Animated.View>
         </View>
       </Modal>
+      <Modal animationType="fade" transparent visible={transferDecision !== null} onRequestClose={() => { if (!transferBusy) setTransferDecision(null); }}>
+        <View style={styles.transferMatchOverlay}>
+          <View accessibilityViewIsModal style={styles.transferMatchPanel}>
+            <Text accessibilityRole="header" style={styles.mobileSectionTitle}>Possible matching transfer found</Text>
+            <Text style={styles.mobileStateText}>Verify this is the same movement. Linking shows it in both accounts and counts it once.</Text>
+            {transferError ? <Text accessibilityRole="alert" style={styles.mobileErrorText}>{transferError}</Text> : null}
+            <ScrollView>
+              {transferDecision?.matches.map((match) => <View key={`${match.kind}:${match.id}`} style={styles.transferMatchCard}>
+                <Text style={styles.mobileRowTitle}>{match.account_name} → {match.transfer_account_name}</Text>
+                <Text style={styles.mobileRowMeta}>BDT {match.amount} · {match.date}{match.time ? ` · ${match.time.slice(0, 5)}` : ""}</Text>
+                {match.reference ? <Text style={styles.mobileRowMeta}>Reference: {match.reference}</Text> : null}
+                <Pressable disabled={transferBusy} accessibilityRole="button" onPress={() => void handleTransferDecision(match)} style={styles.mobilePrimaryButton}><Text style={styles.mobilePrimaryButtonText}>{transferBusy ? "Linking…" : match.kind === "candidate" ? "Confirm as one transfer" : "Link to existing transfer"}</Text></Pressable>
+              </View>)}
+            </ScrollView>
+            <Pressable disabled={transferBusy} accessibilityRole="button" onPress={() => void handleTransferDecision()} style={styles.mobileTextButton}><Text style={styles.mobileTextButtonText}>Keep separate</Text></Pressable>
+            <Pressable disabled={transferBusy} accessibilityRole="button" onPress={() => setTransferDecision(null)} style={styles.mobileTextButton}><Text style={styles.mobileTextButtonText}>Cancel</Text></Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  transferMatchOverlay: { flex: 1, justifyContent: "center", padding: 20, backgroundColor: "rgba(0,0,0,0.65)" },
+  transferMatchPanel: { maxHeight: "85%", borderRadius: 18, padding: 20, backgroundColor: "#081421", gap: 12 },
+  transferMatchCard: { padding: 14, marginBottom: 12, borderRadius: 12, borderWidth: 1, borderColor: "#263a52", gap: 8 },
   advancedHeader: {
     alignItems: "center",
     backgroundColor: "#081421",

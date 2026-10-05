@@ -332,3 +332,16 @@ The review form supports amount, date, time, transaction type, source and destin
 accounts, payment method, category, counterparty, reference, and note. This is
 important because low-confidence parsing must remain a reviewable suggestion,
 not an irreversible ledger write.
+
+## What happens when both tracked accounts send transfer SMS?
+
+The confirmation flow checks for existing transfers and opposite pending SMS,
+including messages from the same provider. A native dialog offers linking,
+confirming both as one transfer, keeping separate, or cancelling. The backend
+records one money movement and separate evidence for each account. Manual
+transfer entry also supports sending/receiving direction and the other account.
+Offline transfer sync pauses when a suggestion needs a decision, preserving the
+current and later queue entries. Resolving it removes that entry; the user can
+continue syncing. Transfer retry keys and restored opposite-account/direction
+fields prevent retries from creating another transfer. The all-account activity
+feed displays one A → B transfer with its linked evidence.
