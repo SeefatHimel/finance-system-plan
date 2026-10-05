@@ -1,14 +1,13 @@
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
-from typing import Iterable
 
 from django.db.models import Q
 
 from apps.accounts.models import Account
 
-from .models import Transaction
-
+from .models import Transaction, TransferEvidence
 
 INCREASE_TYPES = {
     Transaction.Type.INCOME,
@@ -66,26 +65,50 @@ def calculate_account_balance_summaries(
         "type",
     ).order_by("date", "time", "created_at")
 
+    evidence = TransferEvidence.objects.filter(
+        user_id__in=user_ids, account_id__in=account_ids
+    )
+    if as_of_date is not None:
+        evidence = evidence.filter(
+            date__lte=as_of_date, transaction__date__lte=as_of_date
+        )
+    evidence_transaction_ids = set(
+        TransferEvidence.objects.filter(transaction__in=transactions).values_list(
+            "transaction_id", flat=True
+        )
+    )
+    reported_order = {}
+
+    def record_reported(account_id, value, record_date, record_time, created_at):
+        order = (record_date, record_time or time.min, created_at)
+        if value is not None and order >= reported_order.get(account_id, order):
+            reported_order[account_id] = order
+            latest_reported[account_id] = (value, record_date)
+
     for transaction in transactions:
         if transaction.account_id in balances:
             if transaction.type in INCREASE_TYPES:
                 balances[transaction.account_id] += transaction.amount
-            elif transaction.type in DECREASE_TYPES:
-                balances[transaction.account_id] -= transaction.amount
-            elif transaction.type == Transaction.Type.TRANSFER:
+            elif (
+                transaction.type in DECREASE_TYPES
+                or transaction.type == Transaction.Type.TRANSFER
+            ):
                 balances[transaction.account_id] -= transaction.amount
             elif transaction.type == Transaction.Type.ADJUSTMENT:
                 multiplier = (
-                    Decimal("1")
+                    Decimal(1)
                     if transaction.direction == Transaction.Direction.CREDIT
-                    else Decimal("-1")
+                    else Decimal(-1)
                 )
                 balances[transaction.account_id] += transaction.amount * multiplier
 
-            if transaction.balance_after is not None:
-                latest_reported[transaction.account_id] = (
+            if transaction.id not in evidence_transaction_ids:
+                record_reported(
+                    transaction.account_id,
                     transaction.balance_after,
                     transaction.date,
+                    transaction.time,
+                    transaction.created_at,
                 )
 
         if (
@@ -93,6 +116,11 @@ def calculate_account_balance_summaries(
             and transaction.transfer_account_id in balances
         ):
             balances[transaction.transfer_account_id] += transaction.amount
+
+    for item in evidence:
+        record_reported(
+            item.account_id, item.balance_after, item.date, item.time, item.created_at
+        )
 
     return {
         account.id: AccountBalanceSummary(

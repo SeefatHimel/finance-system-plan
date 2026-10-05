@@ -10,7 +10,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
-from apps.transactions.models import Transaction
+from apps.audit_logs.models import AuditLogEntry
+from apps.audit_logs.services import create_audit_log, transaction_snapshot
+from apps.transactions.models import Transaction, TransferEvidence
+from apps.transactions.transfers import (
+    add_transfer_evidence,
+    lock_transfer_user,
+    sms_transfer_data,
+)
 
 from .models import (
     ParsedMessageCandidate,
@@ -543,7 +550,9 @@ class SmsDevelopmentResetView(APIView):
 class MessageCandidateConfirmView(APIView):
     permission_classes = (IsAuthenticated,)
 
+    @transaction.atomic
     def post(self, request, candidate_id):
+        lock_transfer_user(request.user)
         candidate = self._get_candidate(request.user, candidate_id)
         if candidate.status != ParsedMessageCandidate.Status.NEEDS_REVIEW:
             return Response(
@@ -573,7 +582,10 @@ class MessageCandidateConfirmView(APIView):
             else received_at.time().replace(tzinfo=None, microsecond=0)
         )
         transaction_type = payload.get("type") or candidate.transaction_type
-        direction = payload.get("direction") or Transaction.default_direction_for_type(transaction_type)
+        direction = (
+            Transaction.Direction.DEBIT if transaction_type == Transaction.Type.TRANSFER
+            else payload.get("direction") or Transaction.default_direction_for_type(transaction_type)
+        )
         reference = payload.get("reference", candidate.reference)
         counterparty_text = payload.get("counterparty_text", candidate.counterparty_text)
         sender_account_identifier = payload.get(
@@ -634,7 +646,13 @@ class MessageCandidateConfirmView(APIView):
         )
         if (
             external_key
-            and Transaction.objects.filter(user=request.user, external_key=external_key).exists()
+            and (
+                Transaction.objects.filter(user=request.user, external_key=external_key).exists()
+                or TransferEvidence.objects.filter(user=request.user, raw_message=candidate.raw_message).exists()
+                or (reference and TransferEvidence.objects.filter(
+                    user=request.user, provider=candidate.provider, reference__iexact=reference,
+                ).exists())
+            )
         ):
             return Response(
                 {"detail": "A transaction with the same SMS/reference key already exists."},
@@ -665,6 +683,14 @@ class MessageCandidateConfirmView(APIView):
             source=Transaction.Source.SMS,
             needs_review=False,
         )
+        if transaction_type == Transaction.Type.TRANSFER:
+            _, observation = sms_transfer_data(candidate, payload)
+            add_transfer_evidence(transaction_record, observation, candidate)
+            create_audit_log(
+                user=request.user, action=AuditLogEntry.Action.CREATED,
+                entity=transaction_record, after=transaction_snapshot(transaction_record),
+                metadata={"candidate": str(candidate.id)},
+            )
         candidate.transaction = transaction_record
         candidate.status = ParsedMessageCandidate.Status.CONFIRMED
         candidate.save(update_fields=("transaction", "status", "updated_at"))

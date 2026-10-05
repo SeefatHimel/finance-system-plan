@@ -320,7 +320,8 @@ candidates preserve provider, message kind, reference, fee, balance, and
 possible internal-transfer hints so bank-to-wallet movement does not become a
 fake expense or income. When two review candidates have the same user, amount,
 close timestamps, and different providers, the backend links them as possible
-related messages for review instead of auto-merging them.
+related messages for review instead of auto-merging them. The transfer matching
+API additionally handles same-provider messages and already-posted transfers.
 Bank transfer parser coverage also matches known payment-method identifiers in
 the message text so source and destination account hints can be prefilled for
 review when both sides belong to the user.
@@ -344,3 +345,34 @@ review when both sides belong to the user.
 6. Monthly report endpoint. Done.
 7. Balance snapshot endpoint.
 8. Reconciliation difference endpoint.
+
+## Suggested Transfer Matching
+
+- `POST /api/transactions/transfer-matches/`: manual draft or candidate plus
+  corrected fields; returns posted transfers/opposite pending SMS suggestions.
+- `POST /api/transactions/link-transfer/`: explicit match acceptance; attaches
+  account-specific evidence or confirms both pending messages as one movement.
+- `POST /api/transactions/{id}/merge-transfer/`: explicit audited merge of two
+  posted matching transfers.
+
+A manual credit transfer uses `account` as receiver and `transfer_account` as
+sender. Stored transactions always use source/destination order with debit as
+canonical direction. SMS review already uses canonical source/destination.
+Account filtering includes both sides and exposes contextual `account_direction`.
+`transfer_evidence` retains each account's reference/date/balance and contributes
+no additional ledger movement. Matching uses exact principal and compatible
+accounts within three days; a real reverse transfer is excluded. Multiple
+suggestions require user selection. Keep separate always remains available.
+
+Apply migrations with `python manage.py migrate`; old transfers are backfilled
+without automatic merging. Confirmation/link/create/update/delete share a
+per-user row lock; SMS/manual observation keys prevent replay. Test this with
+`python manage.py test apps.transactions.test_transfers`. PostgreSQL is required
+for the concurrency test. Fees remain separate expenses; observed fee metadata
+alone does not post a fee. Actual delayed settlement is not modeled by this
+change.
+
+Linked account references remain searchable without returning duplicate rows.
+CSV exports append contextual `account_direction` and structured
+`transfer_evidence` JSON. Audit snapshots include the normalized evidence
+without raw SMS bodies.

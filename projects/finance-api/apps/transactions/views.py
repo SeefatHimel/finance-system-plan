@@ -1,17 +1,35 @@
 import csv
+import json
 
+from django.db import transaction as db_transaction
 from django.db.models import Q
 from django.http import HttpResponse
+from drf_spectacular.utils import extend_schema
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
 
 from .models import Transaction
-from .serializers import TransactionSerializer
+from .serializers import (
+    TransactionSerializer,
+    TransferEvidenceSerializer,
+    TransferLinkRequestSerializer,
+    TransferMatchRequestSerializer,
+    TransferMatchSerializer,
+    TransferMergeRequestSerializer,
+)
+from .transfers import (
+    find_transfer_matches,
+    link_transfer,
+    lock_transfer_user,
+    merge_transfers,
+    prepare_transfer_input,
+)
 
 
 class TransactionViewSet(ModelViewSet):
@@ -21,7 +39,14 @@ class TransactionViewSet(ModelViewSet):
     def get_queryset(self):
         queryset = (
             Transaction.objects.filter(user=self.request.user)
-            .select_related("account", "transfer_account", "category", "payment_method", "raw_message")
+            .select_related(
+                "account",
+                "transfer_account",
+                "category",
+                "payment_method",
+                "raw_message",
+            )
+            .prefetch_related("transfer_evidence")
         )
 
         month = self.request.query_params.get("month")
@@ -36,7 +61,10 @@ class TransactionViewSet(ModelViewSet):
 
         account = self.request.query_params.get("account")
         if account:
-            queryset = queryset.filter(account_id=account)
+            queryset = queryset.filter(
+                Q(account_id=account)
+                | Q(type=Transaction.Type.TRANSFER, transfer_account_id=account)
+            )
 
         category = self.request.query_params.get("category")
         if category:
@@ -48,7 +76,16 @@ class TransactionViewSet(ModelViewSet):
 
         direction = self.request.query_params.get("direction")
         if direction:
-            queryset = queryset.filter(direction=direction)
+            if account:
+                if direction == Transaction.Direction.CREDIT:
+                    queryset = queryset.filter(
+                        Q(type=Transaction.Type.TRANSFER, transfer_account_id=account)
+                        | (Q(direction=direction) & ~Q(type=Transaction.Type.TRANSFER))
+                    )
+                else:
+                    queryset = queryset.filter(account_id=account, direction=direction)
+            else:
+                queryset = queryset.filter(direction=direction)
 
         source = self.request.query_params.get("source")
         if source:
@@ -65,18 +102,87 @@ class TransactionViewSet(ModelViewSet):
                 | Q(receiver_card_identifier__icontains=search)
                 | Q(note__icontains=search)
                 | Q(external_key__icontains=search)
-            )
+                | Q(transfer_evidence__reference__icontains=search)
+                | Q(transfer_evidence__note__icontains=search)
+            ).distinct()
 
         return queryset
 
+    @extend_schema(
+        request=TransferMatchRequestSerializer,
+        responses=TransferMatchSerializer(many=True),
+    )
+    @action(detail=False, methods=("post",), url_path="transfer-matches")
+    def transfer_matches(self, request):
+        serializer = TransferMatchRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data, observation, candidate, _ = prepare_transfer_input(
+            user=request.user,
+            payload=serializer.validated_data,
+            context={"request": request},
+        )
+        return Response(
+            find_transfer_matches(
+                user=request.user,
+                data=data,
+                observation=observation,
+                candidate=candidate,
+                exclude_transaction=serializer.validated_data.get(
+                    "exclude_transaction"
+                ),
+            )
+        )
+
+    @extend_schema(
+        request=TransferLinkRequestSerializer, responses=TransactionSerializer
+    )
+    @action(detail=False, methods=("post",), url_path="link-transfer")
+    def link_transfer(self, request):
+        serializer = TransferLinkRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        record = link_transfer(
+            user=request.user,
+            payload=serializer.validated_data,
+            context={"request": request},
+        )
+        return Response(self.get_serializer(record).data)
+
+    @extend_schema(
+        request=TransferMergeRequestSerializer, responses=TransactionSerializer
+    )
+    @action(detail=True, methods=("post",), url_path="merge-transfer")
+    def merge_transfer(self, request, pk=None):
+        serializer = TransferMergeRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        record = merge_transfers(
+            user=request.user,
+            record_id=pk,
+            other_id=serializer.validated_data["transaction"],
+        )
+        return Response(self.get_serializer(record).data)
+
+    @db_transaction.atomic
     def perform_create(self, serializer):
+        lock_transfer_user(self.request.user)
         transaction = serializer.save(user=self.request.user)
+        if getattr(serializer, "reused_transfer", False):
+            return
         create_audit_log(
             user=self.request.user,
             action=AuditLogEntry.Action.CREATED,
             entity=transaction,
             after=transaction_snapshot(transaction),
         )
+
+    @db_transaction.atomic
+    def update(self, request, *args, **kwargs):
+        lock_transfer_user(request.user)
+        return super().update(request, *args, **kwargs)
+
+    @db_transaction.atomic
+    def destroy(self, request, *args, **kwargs):
+        lock_transfer_user(request.user)
+        return super().destroy(request, *args, **kwargs)
 
     def perform_update(self, serializer):
         before = transaction_snapshot(serializer.instance)
@@ -134,10 +240,14 @@ class TransactionViewSet(ModelViewSet):
                 "raw_message_id",
                 "created_at",
                 "updated_at",
+                "account_direction",
+                "transfer_evidence",
             ]
         )
 
-        for transaction in self.get_queryset().order_by("date", "time", "created_at", "id"):
+        for transaction in self.get_queryset().order_by(
+            "date", "time", "created_at", "id"
+        ):
             writer.writerow(
                 [
                     transaction.id,
@@ -149,11 +259,15 @@ class TransactionViewSet(ModelViewSet):
                     transaction.account_id,
                     transaction.account.name,
                     transaction.transfer_account_id or "",
-                    transaction.transfer_account.name if transaction.transfer_account else "",
+                    transaction.transfer_account.name
+                    if transaction.transfer_account
+                    else "",
                     transaction.category_id or "",
                     transaction.category.name if transaction.category else "",
                     transaction.payment_method_id or "",
-                    transaction.payment_method.name if transaction.payment_method else "",
+                    transaction.payment_method.name
+                    if transaction.payment_method
+                    else "",
                     transaction.balance_after or "",
                     transaction.sender_account_identifier,
                     transaction.sender_card_identifier,
@@ -168,6 +282,13 @@ class TransactionViewSet(ModelViewSet):
                     transaction.raw_message_id or "",
                     transaction.created_at.isoformat(),
                     transaction.updated_at.isoformat(),
+                    self.get_serializer(transaction).data["account_direction"],
+                    json.dumps(
+                        TransferEvidenceSerializer(
+                            transaction.transfer_evidence.all(), many=True
+                        ).data,
+                        default=str,
+                    ),
                 ]
             )
 

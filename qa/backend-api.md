@@ -137,7 +137,8 @@ It deliberately exposes two different concepts. `ledger_balance` is read-only
 and is derived from the account's starting balance plus all posted transactions,
 including both sides of transfers and debit/credit adjustments.
 `latest_reported_balance` and `latest_reported_balance_date` come from the most
-recent transaction that carried a provider-reported `balance_after` value.
+recent transaction or linked transfer observation that carried a
+provider-reported `balance_after` value for that account.
 Keeping the reported value as transaction evidence avoids a mutable account
 balance becoming stale after a backdated create, edit, delete, or offline sync.
 Reconciliation snapshots remain the explicit actual-balance check.
@@ -292,8 +293,11 @@ from becoming a balance of `159`.
 
 For internal transfers, the backend now links possible related candidates when
 two review items belong to the same user, have the same amount, close received
-timestamps, and different providers. The link is only a review hint; it does
-not auto-confirm or merge transactions.
+timestamps, and different providers. That legacy link remains a parser hint.
+The transfer matching endpoint also considers same-provider messages, account
+ownership, known source/destination, opposite account observations, and dates
+within three days. It includes existing posted/manual transfers and requires
+explicit user acceptance before linking or merging.
 
 ## How would you prevent duplicate SMS transactions?
 
@@ -404,3 +408,31 @@ mappings to every pending, non-redacted candidate for the authenticated user.
 It returns requested/reprocessed/remaining counts. It deliberately leaves
 confirmed transactions untouched so a rule change cannot silently rewrite the
 ledger; changed candidates return to the normal confirmation workflow.
+
+## How are transfer evidence and concurrent confirmation handled?
+
+`TransferEvidence` records an account's debit/credit observation, reference,
+reported balance, provider, fee evidence, date/time, and optional raw SMS link.
+It contributes no ledger amount. Multiple candidates can point to one canonical
+transfer. Reported balances use each evidence record's account, fixing incoming
+SMS attribution to the source account. Explicit merging moves evidence and
+candidate links to the retained transfer and audits removal of the duplicate.
+
+Atomic confirmation/link/create/update/delete operations lock the user row so
+concurrent web and mobile requests cannot both create a transfer while accepting
+the same match. Raw SMS evidence links and nonblank observation keys have database
+uniqueness constraints. SMS observation identity includes the account side,
+since same-bank debit/credit messages may share a reference. Manual transfer
+retry keys make retrying one submitted draft safe. Linked transfers with multiple
+observations cannot change their principal/accounts/type through ordinary edit.
+
+Matching uses exact principal amounts; fee differences are not silently merged.
+Fees are preserved as evidence and require a separate fee ledger entry. A
+missing SMS does not imply unsettled funds. The current canonical transfer still
+applies both balance effects on one posting date; actual delayed settlement
+needs a future posting/in-transit model.
+
+Linked account references remain searchable without returning duplicate rows.
+CSV exports append contextual `account_direction` and structured
+`transfer_evidence` JSON. Audit snapshots include the normalized evidence
+without raw SMS bodies.

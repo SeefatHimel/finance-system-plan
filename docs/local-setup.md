@@ -328,3 +328,20 @@ http://10.0.2.2:8000
 ```
 
 For physical Android devices, set this value to your machine LAN IP.
+
+## Transfer Evidence Migration
+
+After pulling transfer matching changes, apply the API migrations before using
+the updated clients:
+
+```bash
+cd projects/finance-api
+source .venv/bin/activate
+python manage.py migrate
+python manage.py test apps.transactions.test_transfers
+```
+
+Migrations add account-specific transfer evidence and backfill existing transfer
+rows without changing their balance effects or automatically merging them.
+The concurrency test runs on PostgreSQL and is skipped on SQLite because SQLite
+does not implement the row locks used by transfer confirmation/linking.

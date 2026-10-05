@@ -72,16 +72,22 @@ class Transaction(models.Model):
     date = models.DateField()
     time = models.TimeField(blank=True, null=True)
     type = models.CharField(max_length=32, choices=Type.choices)
-    direction = models.CharField(max_length=16, choices=Direction.choices, default=Direction.DEBIT)
+    direction = models.CharField(
+        max_length=16, choices=Direction.choices, default=Direction.DEBIT
+    )
     amount = models.DecimalField(
         max_digits=14,
         decimal_places=2,
         validators=[MinValueValidator(Decimal("0.01"))],
     )
-    balance_after = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)
+    balance_after = models.DecimalField(
+        max_digits=14, decimal_places=2, blank=True, null=True
+    )
     sender_account_identifier = models.CharField(max_length=120, blank=True, default="")
     sender_card_identifier = models.CharField(max_length=120, blank=True, default="")
-    receiver_account_identifier = models.CharField(max_length=120, blank=True, default="")
+    receiver_account_identifier = models.CharField(
+        max_length=120, blank=True, default=""
+    )
     receiver_card_identifier = models.CharField(max_length=120, blank=True, default="")
     reference = models.CharField(max_length=120, blank=True, default="")
     counterparty_text = models.CharField(max_length=255, blank=True, default="")
@@ -113,4 +119,51 @@ class Transaction(models.Model):
             cls.Type.BORROW,
             cls.Type.REPAYMENT_RECEIVED,
         }
-        return cls.Direction.CREDIT if transaction_type in credit_types else cls.Direction.DEBIT
+        return (
+            cls.Direction.CREDIT
+            if transaction_type in credit_types
+            else cls.Direction.DEBIT
+        )
+
+
+class TransferEvidence(models.Model):
+    """An account's observation of a transfer; never an additional ledger movement."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    transaction = models.ForeignKey(
+        Transaction, on_delete=models.CASCADE, related_name="transfer_evidence"
+    )
+    account = models.ForeignKey("accounts.Account", on_delete=models.PROTECT)
+    raw_message = models.OneToOneField(
+        "finance_messages.RawMessage",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="transfer_evidence",
+    )
+    direction = models.CharField(max_length=16, choices=Transaction.Direction.choices)
+    date = models.DateField()
+    time = models.TimeField(blank=True, null=True)
+    balance_after = models.DecimalField(
+        max_digits=14, decimal_places=2, blank=True, null=True
+    )
+    fee_amount = models.DecimalField(
+        max_digits=14, decimal_places=2, blank=True, null=True
+    )
+    reference = models.CharField(max_length=120, blank=True, default="")
+    provider = models.CharField(max_length=32, blank=True, default="")
+    external_key = models.CharField(max_length=180, blank=True, default="")
+    source = models.CharField(max_length=32, choices=Transaction.Source.choices)
+    note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("date", "time", "created_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user", "external_key"),
+                condition=~models.Q(external_key=""),
+                name="unique_transfer_evidence_key_per_user",
+            ),
+        ]
