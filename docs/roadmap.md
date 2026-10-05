@@ -104,6 +104,8 @@ Backend:
 - bKash till/counter and provider timestamp parser notes. Done for first
   synthetic fixture coverage.
 - Possible related-message matching for two-sided internal transfers. Done.
+- Explicit matching of posted transfers and opposite pending SMS, including
+  same-provider messages. Done with account-specific evidence and audited merges.
 - Custom regex parser support
 - Parsed message confidence scoring
 - Confirm/ignore parsed candidates. Done.
@@ -112,7 +114,9 @@ Backend:
 Web:
 
 - Review inbox for parsed candidates. Done.
-- Transfer review controls for source and destination accounts
+- Transfer review controls for source and destination accounts. Done.
+- Suggest a matching transfer during manual entry and SMS review, with link or
+  keep-separate choices. Done; each account history shows its own direction.
 - Parser confidence and review/duplicate reason display. Done.
 - Show debit/credit direction, reference, balance after, and counterparty in
   transaction tables. Done for the first transaction screen.
@@ -126,6 +130,8 @@ Mobile:
 - Select source/destination account for possible internal transfers. Done.
 - Parser confidence and review/duplicate reason display. Done.
 - Background or periodic sync
+- Suggest transfer matches during manual entry and SMS review. Done; offline
+  manual transfer sync pauses for a decision when a match is found.
 
 Exit criteria:
 
@@ -133,6 +139,8 @@ Exit criteria:
 - Confirmed candidates create real transactions.
 - Low-confidence messages require user review.
 - Bank-to-wallet and own-account transfers are not misclassified as expenses or income.
+- Accepting two account observations posts one transfer; a genuine reverse
+  transfer remains a separate movement.
 
 ## Phase 4: Debt, Lending, Credit Card, Bills
 

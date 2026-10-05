@@ -150,6 +150,12 @@ Last updated: 2026-05-31
 - [x] Harden mobile raw SMS queue with retry metadata, local duplicate checks, and removal controls
 - [x] Add capped retry backoff and next retry display for mobile raw SMS queue
 - [x] Add offline manual transaction queue with retry backoff and removal controls
+- [x] Suggest existing transfers and opposite pending SMS in web/mobile review and manual entry
+- [x] Preserve both account observations on one transfer without duplicate balance effects
+- [x] Show transfers in both account histories with contextual debit/credit direction
+- [x] Add explicit audited merging of posted transfer duplicates and PostgreSQL concurrency coverage
+- [ ] Add a reversible workflow for undoing incorrect transfer links
+- [ ] Validate suggestion precision before introducing opt-in automatic transfer linking
 
 ### Phase 4 Follow-up
 

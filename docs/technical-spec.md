@@ -213,6 +213,13 @@ Candidates may also link to a possible related candidate when another review
 item has the same user, amount, close received timestamp, and a different
 provider. This is a review hint only, not an automatic merge.
 
+The transfer matching API additionally searches posted transfers and opposite
+pending SMS from the same or different providers. It uses exact principal,
+compatible accounts, and a three-day window. User acceptance links observations
+to one transfer; keep separate remains available. A known account on the other
+message can supply a missing side when confirming the pair. Explicit merge of
+already-posted duplicates retains their observations and records audit entries.
+
 For bKash transfer-like messages, the parser now tries to match masked account
 or wallet identifiers in counterparty text against the user's configured payment
 methods. When a known other side is found, the candidate pre-fills both the
@@ -287,6 +294,15 @@ carry provider evidence when available: `reference` or `TrxID`,
 `external_key` for duplicate detection. The raw SMS remains stored as source
 evidence, but the final transaction row should be usable without reparsing the
 SMS body.
+
+For transfers, the stored `account_id` is always the source and
+`transfer_account_id` is the destination, with canonical `direction=debit`.
+A manual credit draft uses the selected account as receiver and is normalized
+on creation. Account-scoped responses add `account_direction`, and the same
+transfer appears in both histories. `transfer_evidence` contains account-specific
+references, dates, reported balances, fee metadata, and raw-message links;
+observations never post an additional ledger amount. Fees require a separate
+expense, and delayed settlement still uses one canonical posting date.
 
 ### counterparties_counterparty
 

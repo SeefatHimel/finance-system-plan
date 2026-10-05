@@ -125,7 +125,11 @@ Expected account balances are calculated from confirmed money movement:
 
 - Expenses reduce an account.
 - Income increases an account.
-- Transfers reduce one account and increase another.
+- Transfers reduce one account and increase another once. Separate account SMS
+  observations are linked evidence and never add another balance effect.
+- Transfer matching considers posted transfers and opposite pending messages,
+  then requires user acceptance. Incoming account history presents the same
+  canonical transfer as a credit; outgoing history presents it as a debit.
 - Lending money reduces the source account and creates a receivable debt record.
 - Getting repaid increases the receiving account and reduces the receivable debt.
 - Borrowing money increases the receiving account and creates a payable debt.

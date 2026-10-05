@@ -145,7 +145,9 @@ accounts should not become a fake expense or fake income. The parsed candidate
 should preserve source and destination hints so the review flow can confirm a
 transfer when both sides are known. When two SMS messages look like opposite
 sides of the same movement, the backend can link them as possible related
-candidates without auto-merging them.
+candidates without auto-merging them. The review-assisted transfer matcher also
+suggests existing transfers and same-provider opposite observations. Explicit
+acceptance links both candidates to one canonical transaction.
 
 ## Transaction
 
@@ -270,3 +272,14 @@ and mobile apps can provide display options:
 - Spreadsheet mode: expenses show negative, income shows positive.
 - Ledger mode: amount is positive and type/status shows direction.
 - Account mode: show money in and money out columns.
+
+## TransferEvidence
+
+An account-specific observation of one canonical transfer, with user, account,
+debit/credit direction, date/time, provider reference, reported balance, fee
+evidence, source, note, and optional unique raw-message link. It never adds a
+ledger balance effect. Each account's latest reported balance comes from its own
+evidence. Multiple parsed candidates may reference the same transfer. Raw SMS
+redaction leaves structured evidence intact. The existing transaction's
+`raw_message` remains its primary source; `transfer_evidence` contains all linked
+observations. Migration backfills old transfers without changing balances.

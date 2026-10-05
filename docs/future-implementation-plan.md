@@ -1,6 +1,6 @@
 # Future Implementation And Upgrade Plan
 
-Last updated: 2026-05-31
+Last updated: 2026-10-05
 
 This plan lists the next implementation targets after the current local-first
 finance workflow. It is ordered to favor fast validation first, then reliability,
@@ -61,8 +61,9 @@ Tasks:
   sender/body pattern".
 - Add parser health reporting: unsupported format count, duplicate count,
   confidence distribution, and latest parse failures.
-- Add candidate merge support for related SMS messages that describe the same
-  transfer from two sides.
+- Implemented: review-assisted linking of opposite pending SMS and existing
+  transfers, plus explicit audited merging of already-posted transfer duplicates.
+  Next: evaluate provider fixture coverage and support undoing incorrect links.
 
 Acceptance checks:
 
@@ -189,3 +190,23 @@ and do not require changing the whole architecture:
 4. Add first dashboard summary cards for unresolved review items, upcoming bills,
    open debts, and reconciliation differences.
 5. Add CI workflow documentation and a local command checklist.
+
+## Transfer Automation Direction
+
+The current transfer matcher proposes candidates and requires user acceptance.
+Future automation can build on these normalized observations and audited links:
+
+1. Improve provider-specific account/direction parsing and measure suggestion
+   precision against accepted, rejected, and corrected matches.
+2. Suggest mappings/categories using explicit learned rules, while retaining
+   per-message account, amount, reference, date, balance, and fee evidence.
+3. Introduce opt-in automatic evidence linking only for unambiguous verified
+   patterns, with an audit trail and a way to reverse a wrong link. Amount/date
+   proximity alone must never authorize an automatic merge.
+4. Expand reconciliation automation to identify missing observations, fees,
+   reversals, and already-entered manual transfers.
+
+Financial posting remains separate from parsing and matching. Do not automate
+ambiguous transfers, treat a real reverse transfer as a duplicate, or infer
+settlement from a missing SMS. Delayed settlement needs separate posting dates
+or an in-transit ledger model before it can be automated accurately.

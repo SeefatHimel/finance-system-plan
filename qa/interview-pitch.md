@@ -118,3 +118,8 @@ The release-ready mobile path uses encrypted local SMS storage,
 network-constrained WorkManager sync, consistent exact/contains/regex matching,
 and a backend trust check that rejects arbitrary senders even if a client is
 modified.
+
+Own-account transfers are review-assisted: the app suggests matching SMS or
+manual records, then links both accounts' evidence to one movement after user
+acceptance. This keeps balances, reports, and account histories consistent even
+when both banks send notifications.

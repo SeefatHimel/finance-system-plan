@@ -171,6 +171,13 @@ one from bKash. The backend should eventually group likely pairs using:
 Initial implementation is conservative: matching candidates are linked as a
 "possible related message" review hint rather than auto-merged.
 
+The current review flow also offers explicit matching against existing transfers
+and opposite pending SMS, including same-provider pairs. Suggestions require
+exact principal, compatible accounts, and dates within three days. Accepting
+links both observations to one transfer while retaining their references and
+account-specific balances. Already-posted duplicates can be explicitly merged.
+Real reverse transfers and keep-separate decisions remain distinct movements.
+
 ## Fixtures Needed
 
 Before implementing real provider parsers, collect anonymized examples for each
@@ -210,8 +217,8 @@ projects/finance-api/apps/messages/fixtures/sms/pathao_pay/
    frequent SMS messages. Done for starter EBL and City Bank card purchase
    parsing.
 6. Add review UI fields for transfer source/destination before confirmation.
-   Partially done: web review can select a transfer destination; mobile review
-   still needs richer edit controls.
+   Done in web and mobile, including suggested transfer linking and a
+   keep-separate choice.
 7. Copy parser evidence into final transactions on confirmation. Done for
    direction, balance after, reference, counterparty text, payment method, raw
    message, and duplicate key.

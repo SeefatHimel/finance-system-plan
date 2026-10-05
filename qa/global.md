@@ -267,3 +267,13 @@ The release path now adds defense in depth: mobile and native matching share
 exact/contains/regex semantics, the server independently enforces active trusted
 senders, local SMS bodies are encrypted, and Android WorkManager bridges live
 capture to authenticated background upload with observable status.
+
+## What happens when both accounts record the same internal transfer?
+
+One canonical transfer moves money from A to B once. Each account can contribute
+separate SMS/manual evidence with its own reference, date, direction, and
+reported balance. Web and mobile suggest matching posted transfers or opposite
+pending SMS; the user chooses “Link to existing transfer,” “Confirm as one
+transfer,” or “Keep separate.” Incoming account history shows the same transfer
+as a credit, while the source shows a debit. Real B-to-A return transfers remain
+separate. Matching is review-assisted, not automatic financial posting.

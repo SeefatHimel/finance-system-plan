@@ -154,6 +154,15 @@ mindmap
 - Confirmed transactions now keep stricter ledger evidence fields including
   debit/credit direction, provider reference, balance after, counterparty text,
   payment method, raw SMS link, and duplicate-detection key.
+- Web and mobile suggest matching internal transfers during manual entry and
+  SMS review. Accepting a match preserves both account observations on one
+  transfer, shows a debit in the source history and a credit in the destination
+  history, and applies the balance movement once. Posted duplicates can be
+  explicitly merged with an audit trail; genuine reverse transfers stay separate.
+- Apply the transfer evidence migrations before using the updated clients; see
+  [Local Setup](docs/local-setup.md#transfer-evidence-migration). Automatic linking
+  and undoing an incorrect link remain future work in the
+  [automation plan](docs/future-implementation-plan.md#transfer-automation-direction).
 
 ## Next Milestone
 

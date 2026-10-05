@@ -23,6 +23,10 @@
 - Phase 3 parser priority providers are bKash, EBL, City Bank, and Pathao Pay.
 - Internal transfers are feature-worthy and should be handled explicitly so
   bank-to-wallet and own-account movement is not misclassified.
+- Keep one canonical internal transfer with account-specific observations.
+  Suggest matches and require acceptance before linking or merging; show the
+  movement in both account histories and apply it once. Automatic linking needs
+  measured precision, explicit opt-in, and a reversible audited workflow.
 - Account balances can be calculated and manually reconciled.
 - Missing balance differences should be shown.
 - Debt/lend records are tracked separately, but money movement affects account
