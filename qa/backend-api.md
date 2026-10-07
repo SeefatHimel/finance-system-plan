@@ -474,13 +474,17 @@ candidates. No amount-only inference, automatic posting, or automatic merging
 occurs. Conflicting history stays unresolved. Existing broad mappings are not
 backfilled into transfer paths because they did not retain the other account.
 
-## How does recently added transaction ordering work?
+## How do recently added and updated transaction ordering differ?
 
-The authenticated transaction list whitelists `ordering=-date` (default) and
-`ordering=-created_at`. Creation order is independent of the financial date;
-filtered querysets still enforce user ownership and use ID tie-breakers. Month
+The authenticated transaction list whitelists `ordering=-date` (default),
+`ordering=-created_at` and `ordering=-updated_at`. Creation and update order are
+independent of the financial date; filtered querysets still enforce user
+ownership and use ID tie-breakers. Month
 filters financial date, not added time. Edits and linked transfer evidence do
-not update creation time. Invalid ordering returns 400; CSV stays chronological.
+not update creation time. Latest saved changes include new records, edits,
+newly linked transfer evidence and merges; reads and idempotent retries leave
+the update timestamp unchanged. No evidence-history backfill is performed.
+Invalid ordering returns 400; CSV stays chronological.
 
 ## How are bank advertisements kept out of the ledger?
 

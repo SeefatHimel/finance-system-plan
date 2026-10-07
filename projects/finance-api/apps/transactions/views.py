@@ -108,12 +108,12 @@ class TransactionViewSet(ModelViewSet):
 
         if self.action == "list":
             ordering = self.request.query_params.get("ordering", "-date")
-            if ordering == "-created_at":
-                queryset = queryset.order_by("-created_at", "-id")
+            if ordering in {"-created_at", "-updated_at"}:
+                queryset = queryset.order_by(ordering, "-id")
             elif ordering == "-date":
                 queryset = queryset.order_by("-date", "-time", "-created_at", "-id")
             else:
-                raise ValidationError({"ordering": "Use -date or -created_at."})
+                raise ValidationError({"ordering": "Use -date, -created_at or -updated_at."})
 
         return queryset
 

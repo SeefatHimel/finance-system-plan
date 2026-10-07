@@ -360,10 +360,20 @@ class TransferMatchingTests(APITestCase):
 
     def test_sms_link_retry_is_idempotent(self):
         saved = self.post_transfer()
+        record = Transaction.objects.get(pk=saved["id"])
+        added_at = record.created_at
+        old_updated_at = timezone.now() - timedelta(days=2)
+        Transaction.objects.filter(pk=record.pk).update(updated_at=old_updated_at)
         incoming = self.candidate(incoming=True)
         payload = {"candidate": str(incoming.id), "match_transaction": saved["id"]}
         self.assertEqual(self.link(**payload).status_code, 200)
+        record.refresh_from_db()
+        linked_at = record.updated_at
+        self.assertGreater(linked_at, old_updated_at)
+        self.assertEqual(record.created_at, added_at)
         self.assertEqual(self.link(**payload).status_code, 200)
+        record.refresh_from_db()
+        self.assertEqual(record.updated_at, linked_at)
         self.assertEqual(TransferEvidence.objects.count(), 2)
         self.assertEqual(Transaction.objects.count(), 1)
 
@@ -400,6 +410,8 @@ class TransferMatchingTests(APITestCase):
 
     def test_merge_posted_transfers_preserves_evidence_and_audit(self):
         first = self.post_transfer(reference="OUT", balance_after="9000.00")
+        old_updated_at = timezone.now() - timedelta(days=2)
+        Transaction.objects.filter(pk=first["id"]).update(updated_at=old_updated_at)
         second = self.post_transfer(
             account=str(self.b.id),
             transfer_account=str(self.a.id),
@@ -415,6 +427,9 @@ class TransferMatchingTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(Transaction.objects.count(), 1)
         self.assertEqual(len(response.data["transfer_evidence"]), 2)
+        record = Transaction.objects.get(pk=first["id"])
+        self.assertGreater(record.updated_at, old_updated_at)
+        self.assertEqual(response.data["created_at"], first["created_at"])
         deleted_audit = AuditLogEntry.objects.get(metadata__merged_into=first["id"])
         self.assertEqual(len(deleted_audit.before["transfer_evidence"]), 1)
         self.assertEqual(

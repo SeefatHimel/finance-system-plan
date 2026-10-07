@@ -287,7 +287,8 @@ class RecentlyAddedTransactionTests(APITestCase):
             user=self.user, account=self.account, date="2026-01-15", time="10:00:00",
             type="expense", direction="debit", amount="20.00", source="sms", note="Backdated SMS addition",
         )
-        Transaction.objects.filter(pk=self.older_addition.pk).update(created_at=timezone.now() - timedelta(days=2))
+        earlier = timezone.now() - timedelta(days=2)
+        Transaction.objects.filter(pk=self.older_addition.pk).update(created_at=earlier, updated_at=earlier)
         other = get_user_model().objects.create_user(username="other-recent-test")
         account = Account.objects.create(user=other, name="Other demo cash", type="cash")
         Transaction.objects.create(user=other, account=account, date="2026-10-09", type="expense", direction="debit", amount="30.00")
@@ -310,7 +311,31 @@ class RecentlyAddedTransactionTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(self.ids(ordering="-created_at"), [str(self.newer_addition.pk), str(self.older_addition.pk)])
 
+    def test_updated_order_promotes_an_edited_backdated_record_without_changing_added_order(self):
+        self.assertEqual(self.ids(ordering="-updated_at"), [str(self.newer_addition.pk), str(self.older_addition.pk)])
+        self.older_addition.refresh_from_db()
+        added_at = self.older_addition.created_at
+        response = self.client.patch(reverse("transaction-detail", kwargs={"pk": self.older_addition.pk}), {"note": "Latest edited demo note"}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(self.ids(ordering="-updated_at"), [str(self.older_addition.pk), str(self.newer_addition.pk)])
+        self.assertEqual(self.ids(ordering="-created_at"), [str(self.newer_addition.pk), str(self.older_addition.pk)])
+        self.older_addition.refresh_from_db()
+        self.assertEqual(self.older_addition.created_at, added_at)
+        self.assertEqual(response.data["updated_at"], self.client.get(reverse("transaction-detail", kwargs={"pk": self.older_addition.pk})).data["updated_at"])
+
+    def test_updated_order_respects_filters_and_cannot_include_another_users_edits(self):
+        self.assertEqual(self.ids(ordering="-updated_at", month="2026-01"), [str(self.newer_addition.pk)])
+        self.assertEqual(self.ids(ordering="-updated_at", source="web", account=str(self.account.pk), type="expense", search="Recent transaction date"), [str(self.older_addition.pk)])
+
+    def test_updated_order_breaks_timestamp_ties_stably_without_changing_records_on_read(self):
+        stamp = timezone.now() - timedelta(days=1)
+        Transaction.objects.filter(user=self.user).update(updated_at=stamp)
+        expected = sorted([str(self.older_addition.pk), str(self.newer_addition.pk)], reverse=True)
+        self.assertEqual(self.ids(ordering="-updated_at"), expected)
+        self.assertEqual(self.ids(ordering="-updated_at"), expected)
+        self.assertEqual(set(Transaction.objects.filter(user=self.user).values_list("updated_at", flat=True)), {stamp})
+
     def test_invalid_order_is_a_validation_error(self):
-        response = self.client.get(reverse("transaction-list"), {"ordering": "-updated_at"})
+        response = self.client.get(reverse("transaction-list"), {"ordering": "-amount"})
         self.assertEqual(response.status_code, 400)
         self.assertIn("ordering", response.data)

@@ -339,6 +339,8 @@ def add_transfer_evidence(record, observation, candidate=None):
         source=observation.get("source", record.source),
         note=observation.get("note", ""),
     )
+    # New evidence changes the ledger record; retries that reuse evidence do not.
+    record.save(update_fields=("updated_at",))
     return evidence
 
 
@@ -559,6 +561,7 @@ def merge_transfers(*, user, record_id, other_id):
         metadata={"merged_into": str(record.id)},
     )
     other.delete()
+    record.save(update_fields=("updated_at",))
     create_audit_log(
         user=user,
         action=AuditLogEntry.Action.UPDATED,

@@ -419,11 +419,16 @@ account; it does not independently reverse the reporting account's direction.
 
 `GET /api/transactions/?ordering=-created_at` lists newest ledger additions first,
 including backdated records when month is omitted. Default `ordering=-date`
-retains transaction-date/time order. Only these two values are accepted; other
-values return 400. User ownership and existing filters apply before sorting,
+retains transaction-date/time order. `ordering=-updated_at` lists latest saved
+changes first, including new records, edits, new transfer evidence and merges.
+Reads and idempotent transfer retries do not advance `updated_at`. These three
+values are accepted; other values return 400. User ownership and existing
+filters apply before sorting,
 with an ID tie-breaker for stable results. Month remains a transaction-date
 filter. Edits and linked observations do not change `created_at`. CSV exports
-remain chronological. Verify with `python manage.py test apps.transactions.tests`.
+remain chronological. No migration is required for update ordering: it uses the
+existing timestamp, without backfilling past evidence links. Verify with
+`python manage.py test apps.transactions.tests apps.transactions.test_transfers`.
 
 ## Promotional SMS Skips
 
