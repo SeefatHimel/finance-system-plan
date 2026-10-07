@@ -274,3 +274,21 @@ Linked account references remain searchable without returning duplicate rows.
 CSV exports append contextual `account_direction` and structured
 `transfer_evidence` JSON. Audit snapshots include the normalized evidence
 without raw SMS bodies.
+
+## Viewport Dialogs And Action Feedback
+
+Transaction editors, account/category editors, SMS rejection, and transfer
+matching use native modal dialogs portaled to the document body. They center
+within the visible viewport and scroll internally for long forms, including
+when the page was already scrolled. Native focus trapping and Escape dismissal
+are available; Escape closes the top dialog and focus returns to its trigger.
+Dismissal is disabled while a save is running. Page scrolling is locked until
+all nested dialogs close.
+
+A shared toast provider gives success/error feedback for transaction actions,
+SMS review, setup, debt and bill forms, reconciliation, and SMS settings. Toasts
+anchor to the viewport and render inside the active modal when one is open, so
+errors remain visible above the modal backdrop. Successes dismiss after six
+seconds, paused while hovered or focused. Errors remain until dismissed or
+replaced by a later notification. Existing inline feedback is retained for
+context; repeating the same action produces a fresh notification.

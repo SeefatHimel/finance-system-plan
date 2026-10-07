@@ -122,7 +122,7 @@ and users should be able to persist the columns that matter to them.
 The current transactions page uses the saved local JWT access token to load
 accounts, categories, and transactions from the Django API. The synced ledger
 and its filters are the primary surface; manual create/edit forms open in a
-focused drawer only when requested. The compact table combines type, direction,
+focused, viewport-centered dialog only when requested. The compact table combines type, direction,
 reference, and counterparty context into a scannable description while keeping
 reported balance, signed amount, history, edit, and delete actions visible. It
 supports filters for month, type, account, category, debit/credit direction,
@@ -158,7 +158,7 @@ TrxID, merchant/person text, note, or duplicate key.
 The current accounts page uses the saved local JWT access token to create and
 list accounts and categories. It supports full CRUD for accounts and categories
 in a tabbed workspace with summary metrics, structured data tables, and focused
-create/edit drawers. Successful mutations update visible rows immediately, with
+create/edit dialogs. Successful mutations update visible rows immediately, with
 backend constraints still preventing deletion when records are referenced by
 transactions.
 
@@ -345,3 +345,20 @@ Linked account references remain searchable without returning duplicate rows.
 CSV exports append contextual `account_direction` and structured
 `transfer_evidence` JSON. Audit snapshots include the normalized evidence
 without raw SMS bodies.
+
+## Why are dialogs and notifications rendered outside the page content?
+
+The route transition uses a CSS transform, which creates a containing block for
+fixed descendants. An overlay inside it can follow the full page height and
+appear outside the visible viewport after scrolling. Shared native dialogs are
+portaled to document.body, center in the viewport, scroll internally, and trap
+focus. A shared scroll lock handles nested editor/match dialogs and restores
+page scrolling when the last modal closes. Native Escape handling replaces the
+editor's global keyboard listener so closing a match leaves its editor open.
+Focus returns to the opening control, and dismissal is blocked during saves.
+
+Action messages publish to a shared toast provider while keeping inline context.
+Notifications appear near the viewport edge; while a dialog is open they render
+inside its top layer so errors remain visible and dismissible. Success toasts
+expire after six seconds with hover/focus pause; errors persist until dismissed
+or replaced. Every action generates a new notice, including identical messages.
