@@ -105,7 +105,8 @@ bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
 - Review confirmation can explicitly remember corrected account, payment
   method, category, and transaction type for the sender rule and detected
   message kind. The mapping is applied to similar pending items as well as
-  future imports.
+  future imports. Transfers with a counterparty use reporting-account/counterparty
+  paths and preserve the selected debit/credit direction.
 - Candidate rejection records a reason and may atomically redact the raw body,
   disable the matched sender rule, or add the provider to capture exclusions.
 - Transaction create, update, and delete actions expose read-only audit log
@@ -206,3 +207,12 @@ Linked account references remain searchable without returning duplicate rows.
 CSV exports append contextual `account_direction` and structured
 `transfer_evidence` JSON. Audit snapshots include the normalized evidence
 without raw SMS bodies.
+
+## Transfer Suggestion Metadata
+
+Candidate responses include optional `suggested_transfer_direction` and
+`transfer_suggestion_reason`. A nonempty suggested direction describes the
+reporting account while `account`/`destination_account` remain canonical source
+and receiver hints. The reason explains identifiers, remembered choices,
+confirmed history, a name/provider match, or unresolved ambiguity. Clients must
+keep review/confirmation explicit. Missing metadata can default to empty strings.

@@ -216,7 +216,9 @@ the provider. The confirmation flow supports debit/credit direction and
 transfer destination selection, and can explicitly remember corrected account,
 category, payment method, and type for the matched sender and message kind. The
 choice is applied immediately to similar pending items, so purchase and transfer
-messages from the same bank no longer overwrite each other's defaults. The
+messages from the same bank no longer overwrite each other's defaults. Transfer
+paths with a counterparty additionally retain the reporting account, direction,
+and other account rather than using a bank-wide destination default. The
 resulting transaction preserves reference, balance, masked sender/receiver
 account and card identifiers, and counterparty evidence without copying the
 complete SMS into its note.
@@ -401,3 +403,17 @@ Notifications appear near the viewport edge; while a dialog is open they render
 inside its top layer so errors remain visible and dismissible. Success toasts
 expire after six seconds with hover/focus pause; errors persist until dismissed
 or replaced. Every action generates a new notice, including identical messages.
+
+## How does the other transfer account suggestion work?
+
+The review dropdown shows the suggested ledger account and explains whether it
+came from saved identifiers, remembered choices, confirmed history, or a unique
+name/provider alias. Multiple matching accounts and conflicting history display
+an explanation and require selection. Masked identifier inputs explicitly tell
+the reviewer to select ledger accounts in the dropdown instead of entering an
+account name as identifier evidence.
+
+Remembered paths preserve Debit/Credit relative to the reporting account and
+apply only to that account/counterparty pattern. A transfer still requires
+explicit confirmation or acceptance of a match. Existing pending rows need
+Re-run parser or Reapply rules to pending to use the new resolver.

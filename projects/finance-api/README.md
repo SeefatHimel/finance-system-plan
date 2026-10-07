@@ -380,3 +380,32 @@ Linked account references remain searchable without returning duplicate rows.
 CSV exports append contextual `account_direction` and structured
 `transfer_evidence` JSON. Audit snapshots include the normalized evidence
 without raw SMS bodies.
+
+## Transfer Account Suggestions
+
+Transfer review resolves the other account using saved masked endpoints first,
+then an explicitly remembered path, a unique previously confirmed path, and a
+unique account/payment-method name or provider alias. `PathaoPay` and
+`Pathao Pay` can identify a saved Pathao wallet without using a name as a masked
+identifier. Multiple matching accounts or conflicting confirmed paths require
+manual selection. Inactive accounts and other users' records are excluded.
+
+With “Use these choices for similar messages” enabled, adding or linking a
+transfer remembers the reporting account, counterparty key, detected message
+kind, chosen debit/credit direction, other account, and category. Transfer paths
+are stored separately from broad sender/message-kind defaults so unrelated
+bank transfers do not inherit a destination. Matching pending items update
+immediately; stronger explicit endpoint evidence remains intact. Provider
+location suffixes are normalized only for known aliases, not arbitrary names.
+
+Historical suggestions inspect at most 200 recent confirmed candidates for the
+same sender rule/message kind and reporting account. They are suggestions even
+when the original confirmation did not opt into remembering. No remembered
+rule is created without explicit confirmation, and no transaction is posted or
+linked automatically. Incoming suggestions retain the selected reporting
+account as the receiver. Counterparty wording alone does not reverse direction.
+
+Apply migration `finance_messages.0011_transfer_counterparty_suggestions` with
+`python manage.py migrate` before deploying the updated API/web clients. Existing
+records remain unchanged; reprocess pending messages to obtain new suggestions.
+Run `python manage.py test apps.messages.test_transfer_suggestions apps.messages.tests apps.transactions.test_transfers`.

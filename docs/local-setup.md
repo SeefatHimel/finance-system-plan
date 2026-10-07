@@ -346,3 +346,20 @@ Migrations add account-specific transfer evidence and backfill existing transfer
 rows without changing their balance effects or automatically merging them.
 The concurrency test runs on PostgreSQL and is skipped on SQLite because SQLite
 does not implement the row locks used by transfer confirmation/linking.
+
+## Transfer Counterparty Suggestion Migration
+
+After pulling the transfer-suggestion changes, migrate the API before starting
+the updated clients:
+
+```bash
+cd projects/finance-api
+source .venv/bin/activate
+python manage.py migrate
+python manage.py test apps.messages.test_transfer_suggestions apps.messages.tests apps.transactions.test_transfers
+```
+
+`finance_messages.0011_transfer_counterparty_suggestions` adds scoped remembered
+paths and candidate suggestion metadata. It does not modify existing financial
+transactions or infer remembered rules from broad mappings. Use Re-run parser
+or Reapply rules to pending in SMS review for old review entries.

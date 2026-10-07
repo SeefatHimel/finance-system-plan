@@ -337,7 +337,8 @@ different choices for purchases, transfers, fees, and refunds. The choice is
 also applied immediately to matching pending candidates; future messages of the
 same kind start with those defaults, while amount, balance, date, reference,
 identifiers, and counterparty still come from each message. The learning is
-explicit and user-controlled rather than automatic.
+explicit and user-controlled rather than automatic. Transfers with a counterparty
+use the more specific reporting-account/counterparty path described below.
 
 ## How is mobile SMS sync health represented?
 
@@ -451,3 +452,24 @@ callers without the flag keep source/destination semantics.
 Learned canonical source mappings do not overwrite a receiving account identified
 from masked SMS evidence. Remembering a credit review also preserves the receiver
 on one-sided pending candidates instead of copying the canonical source there.
+
+## How does SMS review suggest the other transfer account?
+
+Saved endpoint identifiers take precedence over remembered paths, unique
+confirmed history, and account/payment-method names or known provider aliases.
+Aliases such as PathaoPay/Pathao Pay can resolve a wallet without a numeric
+identifier. Each match stays user-scoped and excludes inactive accounts.
+Ambiguous name/provider matches or conflicting history require manual choice.
+
+An explicitly remembered transfer path is keyed by sender rule, detected
+message kind, reporting account, and normalized counterparty. It retains the
+chosen account-relative direction, other account, and category. Both ordinary
+confirmation and linking to an existing transfer can remember it and update
+matching pending candidates without overriding explicit endpoint evidence.
+Transfer paths with a counterparty do not overwrite broad sender mappings.
+
+Older confirmed candidates can offer suggestions without silently creating
+remembered rules; lookup is bounded to 200 recent matching reporting-account
+candidates. No amount-only inference, automatic posting, or automatic merging
+occurs. Conflicting history stays unresolved. Existing broad mappings are not
+backfilled into transfer paths because they did not retain the other account.

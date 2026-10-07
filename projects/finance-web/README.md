@@ -323,3 +323,18 @@ errors remain visible above the modal backdrop. Successes dismiss after six
 seconds, paused while hovered or focused. Errors remain until dismissed or
 replaced by a later notification. Existing inline feedback is retained for
 context; repeating the same action produces a fresh notification.
+
+## Transfer Suggestions In SMS Review
+
+The Other transfer account dropdown displays a suggested account and its reason:
+saved identifier evidence, remembered choices, matching confirmed history, or
+account/payment-method name and provider alias. Ambiguous matches keep the field
+unresolved with an explanation. Suggestions can be changed and still require
+confirmation or acceptance of a transaction match.
+
+The selected Account remains the reporting account; Debit/Credit describes its
+balance effect. Remembered direction corrections populate that control, so a
+receiving SMS keeps the reporting account as the destination. The masked
+identifier inputs are evidence fields, not account selectors. The review grid
+shrinks to phone widths so suggestion explanations remain visible. For older
+pending items, use Re-run parser or Reapply rules to pending after the API migration.

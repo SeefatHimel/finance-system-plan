@@ -209,3 +209,13 @@ Linked account references remain searchable without returning duplicate rows.
 CSV exports append contextual `account_direction` and structured
 `transfer_evidence` JSON. Audit snapshots include the normalized evidence
 without raw SMS bodies.
+
+## How are transfer account suggestions represented?
+
+Review candidates add optional `suggested_transfer_direction` (blank, debit, or
+credit) and `transfer_suggestion_reason` fields. Account/destination hints stay
+canonical source/receiver fields. The suggested direction tells clients which
+endpoint is the reporting account, including an explicitly remembered direction
+correction. Web decoding defaults absent fields to empty strings for older API
+responses. These fields explain suggestions; clients still submit the ordinary
+review draft and confirmation/link request. No new write endpoint is introduced.
