@@ -243,6 +243,12 @@ textarea {
   width: 10px;
 }
 
+.account-controls { flex-shrink: 0; margin-left: auto; position: relative; }
+.account-controls .user-avatar { cursor: pointer; margin-left: 0; }
+.account-controls .user-avatar:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.account-menu { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px; box-shadow: var(--shadow); display: grid; gap: 10px; max-width: calc(100vw - 32px); min-width: 220px; overflow-wrap: anywhere; padding: 16px; position: absolute; right: 0; top: calc(100% + 12px); z-index: 45; }
+.account-menu .button { margin-top: 4px; }
+
 .mobile-menu-button,
 .nav-scrim {
   display: none;

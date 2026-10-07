@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { isAuthenticationFailure } from "@/lib/auth-errors";
 
 import {
   clearAuthCookies,
@@ -38,7 +39,7 @@ async function proxyBackendRequest(request: NextRequest, context: RouteContext) 
     return buildProxyResponse(response, session.rotatedTokens);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Request failed.";
-    const status = message === "Not signed in." || message.includes("expired") ? 401 : 502;
+    const status = isAuthenticationFailure(error) ? 401 : 502;
     const response = NextResponse.json(
       {
         error: message

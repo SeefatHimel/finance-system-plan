@@ -1,4 +1,5 @@
 import type { CurrentUser } from "./api";
+import { AuthRequestError } from "./auth-errors";
 
 type LoginResult = {
   user: CurrentUser;
@@ -35,7 +36,7 @@ export async function getCookieSessionUser(): Promise<CurrentUser> {
   });
 
   if (!response.ok) {
-    throw new Error(await parseError(response, "Session expired."));
+    throw new AuthRequestError(await parseError(response, "Could not verify session."), response.status);
   }
 
   return (await response.json()) as CurrentUser;

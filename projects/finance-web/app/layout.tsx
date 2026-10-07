@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 import { ToastProvider } from "@/components/toast-provider";
 import { AppShell } from "@/components/app-shell";
+import { AuthProvider } from "@/components/auth-provider";
 
 import "./globals.css";
 
@@ -23,7 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body><ToastProvider><AppShell>{children}</AppShell></ToastProvider></body>
+      <body><ToastProvider><AuthProvider><AppShell>{children}</AppShell></AuthProvider></ToastProvider></body>
     </html>
   );
 }

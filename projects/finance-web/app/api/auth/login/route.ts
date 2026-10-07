@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { AuthRequestError, isAuthenticationFailure } from "@/lib/auth-errors";
 
 import {
   backendCurrentUser,
@@ -33,10 +34,11 @@ export async function POST(request: Request) {
         error: error instanceof Error ? error.message : "Login failed."
       },
       {
-        status: 401
+        status: error instanceof z.ZodError ? 400 : isAuthenticationFailure(error) ? 401
+          : error instanceof AuthRequestError && error.status === 429 ? 429 : 502
       }
     );
-    clearAuthCookies(response);
+    if (isAuthenticationFailure(error)) clearAuthCookies(response);
     return response;
   }
 }

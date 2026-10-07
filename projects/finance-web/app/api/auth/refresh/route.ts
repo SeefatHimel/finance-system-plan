@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isAuthenticationFailure } from "@/lib/auth-errors";
 
 import {
   clearAuthCookies,
@@ -25,10 +26,10 @@ export async function POST(request: Request) {
         error: error instanceof Error ? error.message : "Could not refresh session."
       },
       {
-        status: 401
+        status: isAuthenticationFailure(error) ? 401 : 502
       }
     );
-    clearAuthCookies(response);
+    if (isAuthenticationFailure(error)) clearAuthCookies(response);
     return response;
   }
 }

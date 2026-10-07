@@ -21,10 +21,12 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ElementType, MouseEvent } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { getCurrentUser, getSmsDeviceStatus, listMessageCandidates } from "@/lib/api";
+import { getSmsDeviceStatus, listMessageCandidates } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { useAuth } from "@/components/auth-provider";
+import { ButtonBusy } from "@/components/loading-state";
 
 type NavItem = {
   href: string;
@@ -65,12 +67,15 @@ function currentDateLabel() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { session, signOut, isSigningOut } = useAuth();
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const accountMenu = useRef<HTMLDivElement>(null);
+  const accountButton = useRef<HTMLButtonElement>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [syncLabel, setSyncLabel] = useState("Mobile sync ready");
-  const [userInitials, setUserInitials] = useState("—");
 
   useEffect(() => {
     try {
@@ -89,7 +94,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setIsMobileNavOpen(false);
     setIsNavigating(false);
+    setIsAccountMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!isAccountMenuOpen) return;
+    const clickOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !accountMenu.current?.contains(event.target)) setIsAccountMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsAccountMenuOpen(false);
+        accountButton.current?.focus();
+      }
+    };
+    window.addEventListener("pointerdown", clickOutside);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", clickOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isAccountMenuOpen]);
 
   useEffect(() => {
     if (!isMobileNavOpen) return;
@@ -115,16 +140,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [isNavigating]);
 
   useEffect(() => {
+    if (pathname === "/login") return;
     const accessToken = getAccessToken();
     if (!accessToken) return;
 
     let isActiveRequest = true;
     void Promise.allSettled([
       listMessageCandidates(accessToken),
-      getSmsDeviceStatus(accessToken),
-      getCurrentUser(accessToken)
+      getSmsDeviceStatus(accessToken)
     ])
-      .then(([candidatesResult, deviceStatusResult, userResult]) => {
+      .then(([candidatesResult, deviceStatusResult]) => {
         if (!isActiveRequest) return;
         if (candidatesResult.status === "fulfilled") {
           setPendingCount(candidatesResult.value.length);
@@ -133,15 +158,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }
         if (deviceStatusResult.status === "fulfilled") {
           setSyncLabel(deviceStatusResult.value.health_label);
-        }
-        if (userResult.status === "fulfilled") {
-          const user = userResult.value;
-          const names = [user.first_name, user.last_name].filter(Boolean);
-          const initials = (names.length ? names : [user.username])
-            .map((name) => name.trim().charAt(0).toUpperCase())
-            .join("")
-            .slice(0, 2);
-          setUserInitials(initials || "U");
         }
       });
 
@@ -154,6 +170,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const activeItem = navItems.find((item) => isActive(item, pathname)) ?? navItems[0];
   const isDashboard = pathname === "/";
+  const user = session.status === "signed-in" ? session.user : null;
+  const names = user ? [user.first_name, user.last_name].filter(Boolean) : [];
+  const displayName = names.length ? names.join(" ") : user?.username ?? "User";
+  const userInitials = (names.length ? names : [user?.username ?? "U"])
+    .map((name) => name.trim().charAt(0).toUpperCase()).join("").slice(0, 2);
 
   function toggleSidebar() {
     const collapsed = !isSidebarCollapsed;
@@ -270,9 +291,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           ) : null}
 
-          <div className="user-avatar" aria-label="Signed-in user">
-            {userInitials}
-            <span aria-hidden="true" />
+          <div className="account-controls" ref={accountMenu}>
+            <button className="user-avatar" aria-label="Account menu" aria-controls="account-menu"
+              aria-expanded={isAccountMenuOpen} onClick={() => setIsAccountMenuOpen((open) => !open)}
+              ref={accountButton} title="Account menu" type="button">
+              {userInitials}<span aria-hidden="true" />
+            </button>
+            {isAccountMenuOpen ? <div className="account-menu" id="account-menu">
+              <span className="session-card__label">Signed in as</span><strong>{displayName}</strong>
+              <button className="button button--ghost" disabled={isSigningOut} onClick={() => void signOut()} type="button">
+                {isSigningOut ? <ButtonBusy label="Signing out" /> : "Sign out"}
+              </button>
+            </div> : null}
           </div>
         </header>
         <div aria-busy={isNavigating} className={`app-main${isNavigating ? " app-main--navigating" : ""}`}>{children}</div>

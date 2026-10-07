@@ -25,10 +25,13 @@ import type {
 } from "../../finance-contracts/generated/types";
 import {
   clearTokens,
+  getAccessToken,
   getRefreshToken,
   isCookieSessionToken,
   saveTokens
 } from "./auth-storage";
+import { AuthRequestError, isAuthenticationFailure } from "./auth-errors";
+import { notifySessionExpired } from "./auth-navigation";
 
 export type {
   AccountType,
@@ -583,7 +586,8 @@ export async function login(username: string, password: string): Promise<AuthTok
   });
 
   if (!response.ok) {
-    throw new Error(response.status === 401 ? "Invalid username or password." : "Login failed.");
+    throw new Error(response.status === 401 ? "Invalid username or password."
+      : response.status === 429 ? "Too many sign-in attempts. Please try again later." : "Login unavailable. Please try again.");
   }
 
   return tokenResponseSchema.parse(await response.json());
@@ -599,7 +603,7 @@ export async function refreshAuthTokens(refreshToken: string): Promise<AuthToken
   });
 
   if (!response.ok) {
-    throw new Error(response.status === 401 ? "Stored session expired. Sign in again." : "Could not refresh session.");
+    throw new AuthRequestError(response.status === 401 ? "Stored session expired. Sign in again." : "Could not refresh session.", response.status);
   }
 
   return tokenResponseSchema.parse(await response.json());
@@ -624,6 +628,11 @@ export async function getCurrentUser(accessToken: string): Promise<CurrentUser> 
   return currentUserSchema.parse(await response.json());
 }
 
+export async function getLocalSessionUser(): Promise<CurrentUser | null> {
+  const accessToken = getAccessToken() || await refreshStoredLocalSession();
+  return accessToken ? getCurrentUser(accessToken) : null;
+}
+
 async function refreshStoredLocalSession() {
   if (localSessionRefreshPromise) {
     return localSessionRefreshPromise;
@@ -645,11 +654,15 @@ async function performStoredLocalSessionRefresh() {
 
   try {
     const tokens = await refreshAuthTokens(refreshToken);
+    if (getRefreshToken() !== refreshToken) {
+      throw new Error("Your session changed. Please try again.");
+    }
     saveTokens(tokens);
     return tokens.access;
-  } catch {
-    clearTokens();
-    return null;
+  } catch (error) {
+    if (getRefreshToken() !== refreshToken) throw new Error("Your session changed. Please try again.");
+    if (isAuthenticationFailure(error) && getRefreshToken() === refreshToken) clearTokens();
+    throw error;
   }
 }
 
@@ -664,7 +677,8 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
     });
 
     if (proxyResponse.status === 401) {
-      throw new Error("Your session expired. Sign in again.");
+      notifySessionExpired();
+      throw new AuthRequestError("Your session expired. Sign in again.", 401);
     }
 
     if (!proxyResponse.ok) {
@@ -684,7 +698,18 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
   });
 
   if (response.status === 401) {
-    const refreshedAccessToken = await refreshStoredLocalSession();
+    let refreshedAccessToken: string | null;
+    try {
+      const currentAccessToken = getAccessToken();
+      if (currentAccessToken && currentAccessToken !== accessToken && !["GET", "HEAD"].includes(init?.method ?? "GET")) {
+        throw new Error("Your session changed. Please retry this action.");
+      }
+      refreshedAccessToken = currentAccessToken && currentAccessToken !== accessToken
+        ? currentAccessToken : await refreshStoredLocalSession();
+    } catch (error) {
+      if (isAuthenticationFailure(error)) notifySessionExpired();
+      throw error;
+    }
     if (refreshedAccessToken) {
       const retryResponse = await fetch(`${getApiBaseUrl()}${path}`, {
         ...init,
@@ -703,7 +728,9 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
       }
     }
 
-    throw new Error("Your session expired. Sign in again.");
+    clearTokens();
+    notifySessionExpired();
+    throw new AuthRequestError("Your session expired. Sign in again.", 401);
   }
 
   if (!response.ok) {

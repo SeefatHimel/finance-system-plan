@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { clearAuthCookies, getCookieBackedCurrentUser, setAuthCookies } from "@/lib/server-auth";
+import { isAuthenticationFailure } from "@/lib/auth-errors";
 
 export async function GET() {
   try {
@@ -16,10 +17,10 @@ export async function GET() {
         error: error instanceof Error ? error.message : "Session expired."
       },
       {
-        status: 401
+        status: isAuthenticationFailure(error) ? 401 : 502
       }
     );
-    clearAuthCookies(response);
+    if (isAuthenticationFailure(error)) clearAuthCookies(response);
     return response;
   }
 }

@@ -2,15 +2,11 @@
 
 import type React from "react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-
-import { login } from "@/lib/api";
-import { canUseLocalTokenStorage, saveTokens } from "@/lib/auth-storage";
-import { loginWithCookieSession } from "@/lib/session-api";
+import { useAuth } from "@/components/auth-provider";
 import { ButtonBusy } from "@/components/loading-state";
 
 export function LoginForm() {
-  const router = useRouter();
+  const { signIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -25,14 +21,7 @@ export function LoginForm() {
     setIsSubmitting(true);
 
     try {
-      if (canUseLocalTokenStorage()) {
-        const tokens = await login(username, password);
-        saveTokens(tokens);
-      } else {
-        await loginWithCookieSession(username, password);
-      }
-      router.push("/");
-      router.refresh();
+      await signIn(username, password);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Login failed.");
     } finally {
@@ -46,8 +35,10 @@ export function LoginForm() {
         <span className="field__label">Username</span>
         <input
           autoComplete="username"
+          autoFocus
           className="field__control"
           name="username"
+          disabled={isSubmitting}
           required
           type="text"
         />
@@ -59,12 +50,13 @@ export function LoginForm() {
           autoComplete="current-password"
           className="field__control"
           name="password"
+          disabled={isSubmitting}
           required
           type="password"
         />
       </label>
 
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
 
       <button className="button button--primary" disabled={isSubmitting} type="submit">
         {isSubmitting ? <ButtonBusy label="Signing in" /> : "Sign in"}

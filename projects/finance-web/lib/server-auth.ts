@@ -3,9 +3,8 @@ import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-
-const accessCookieName = "finance_access";
-const refreshCookieName = "finance_refresh";
+import { AuthRequestError, isAuthenticationFailure } from "./auth-errors";
+import { accessCookieName, refreshCookieName } from "./auth-navigation";
 const accessCookieMaxAgeSeconds = 15 * 60;
 const refreshCookieMaxAgeSeconds = 30 * 24 * 60 * 60;
 const refreshResultReuseMilliseconds = 5_000;
@@ -92,7 +91,8 @@ export async function backendLogin(username: string, password: string) {
   });
 
   if (!response.ok) {
-    throw new Error(response.status === 401 ? "Invalid username or password." : "Login failed.");
+    throw new AuthRequestError(response.status === 401 ? "Invalid username or password."
+      : response.status === 429 ? "Too many sign-in attempts. Please try again later." : "Login unavailable. Try again.", response.status);
   }
 
   return tokenPairSchema.parse(await response.json());
@@ -108,7 +108,7 @@ async function requestBackendRefresh(refreshToken: string) {
   });
 
   if (!response.ok) {
-    throw new Error("Stored session expired. Sign in again.");
+    throw new AuthRequestError(response.status === 401 ? "Stored session expired. Sign in again." : "Could not refresh session. Try again.", response.status);
   }
 
   return tokenPairSchema.parse(await response.json());
@@ -169,7 +169,7 @@ export async function getCookieBackedAccessToken() {
 export async function refreshCookieBackedAccessToken() {
   const refreshToken = cookies().get(refreshCookieName)?.value;
   if (!refreshToken) {
-    throw new Error("Not signed in.");
+    throw new AuthRequestError("Not signed in.", 401);
   }
 
   const rotatedTokens = await backendRefresh(refreshToken);
@@ -188,7 +188,7 @@ export async function backendCurrentUser(accessToken: string) {
   });
 
   if (!response.ok) {
-    throw new Error(response.status === 401 ? "Session expired." : "Could not load user.");
+    throw new AuthRequestError(response.status === 401 ? "Session expired." : "Could not load user.", response.status);
   }
 
   return currentUserSchema.parse(await response.json());
@@ -206,14 +206,14 @@ export async function getCookieBackedCurrentUser() {
         user: await backendCurrentUser(accessToken)
       };
     } catch (error) {
-      if (!refreshToken) {
+      if (!refreshToken || !isAuthenticationFailure(error)) {
         throw error;
       }
     }
   }
 
   if (!refreshToken) {
-    throw new Error("Not signed in.");
+    throw new AuthRequestError("Not signed in.", 401);
   }
 
   const rotatedTokens = await backendRefresh(refreshToken);

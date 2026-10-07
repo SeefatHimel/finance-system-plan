@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 type Tone = "success" | "error";
 type Notice = { id: number; message: string; tone: Tone };
 type ToastContextValue = {
+  dismiss: () => void;
   notify: (message: string, tone?: Tone) => void;
   registerModal: (element: HTMLDialogElement) => () => void;
 };
@@ -61,7 +62,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     return () => setModals((current) => current.filter((item) => item !== element));
   }, []);
   const dismiss = useCallback(() => setNotice(null), []);
-  const value = useMemo(() => ({ notify, registerModal }), [notify, registerModal]);
+  const value = useMemo(() => ({ dismiss, notify, registerModal }), [dismiss, notify, registerModal]);
   return (
     <ToastContext.Provider value={value}>
       {children}
