@@ -122,6 +122,12 @@ def parse_raw_message(raw_message):
             "transaction_type": "expense",
         }
 
+    parsed["suggested_transfer_direction"] = ""
+    parsed["transfer_suggestion_reason"] = ""
+    # Retain the reporting account established by SMS evidence before legacy mappings.
+    incoming = parsed["message_kind"] in ("cash_in", "receive_money", "bank_transfer_in")
+    reporting_account = (parsed["destination_account"] or parsed["account"]) if incoming else parsed["account"]
+    evidence_accounts = (parsed["account"], parsed["destination_account"], parsed["payment_method"], parsed["destination_payment_method"])
     parsed["category"] = (
         sender_rule.category
         if sender_rule and parsed["message_kind"] == ParsedMessageCandidate.MessageKind.UNKNOWN
@@ -172,6 +178,9 @@ def parse_raw_message(raw_message):
         parsed["parser_notes"] = (
             f"{parsed['parser_notes']} Applied the fallback transaction type for an unknown message format."
         )
+    from .transfer_suggestions import apply_transfer_suggestion
+
+    apply_transfer_suggestion(parsed, raw_message.user, reporting_account, evidence_accounts)
     return parsed
 
 
@@ -678,14 +687,16 @@ def _find_payment_method_hint(*, user, text: str, excluded_account_id=None):
     if not normalized_text:
         return None
 
-    payment_methods = PaymentMethod.objects.filter(user=user, is_active=True).select_related("account")
+    payment_methods = PaymentMethod.objects.filter(user=user, is_active=True, account__is_active=True).select_related("account")
+    matches = []
     for payment_method in payment_methods:
         if excluded_account_id and payment_method.account_id == excluded_account_id:
             continue
         identifier = _normalize_identifier(payment_method.identifier)
         if len(identifier) >= 4 and identifier in normalized_text:
-            return payment_method
-    return None
+            matches.append(payment_method)
+    accounts = {method.account_id for method in matches}
+    return matches[0] if len(accounts) == 1 else None
 
 
 def _extract_identifier_evidence(body: str, message_kind: str) -> dict[str, str]:
@@ -739,7 +750,7 @@ def _find_payment_method_for_identifiers(*, user, identifiers: tuple[str, ...], 
     if not normalized_identifiers:
         return None
 
-    payment_methods = PaymentMethod.objects.filter(user=user, is_active=True)
+    payment_methods = PaymentMethod.objects.filter(user=user, is_active=True, account__is_active=True)
     if provider:
         payment_methods = payment_methods.filter(
             provider__in={
@@ -751,6 +762,7 @@ def _find_payment_method_for_identifiers(*, user, identifiers: tuple[str, ...], 
             }
         )
     payment_methods = payment_methods.select_related("account")
+    matches = []
     for payment_method in payment_methods:
         configured_identifier = _normalize_identifier(payment_method.identifier)
         if len(configured_identifier) < 4:
@@ -759,8 +771,9 @@ def _find_payment_method_for_identifiers(*, user, identifiers: tuple[str, ...], 
             configured_identifier in identifier or identifier in configured_identifier
             for identifier in normalized_identifiers
         ):
-            return payment_method
-    return None
+            matches.append(payment_method)
+    accounts = {method.account_id for method in matches}
+    return matches[0] if len(accounts) == 1 else None
 
 
 def _normalize_identifier(value: str) -> str:

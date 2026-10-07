@@ -286,6 +286,8 @@ class RawMessageImportView(APIView):
             receiver_account_identifier=parsed["receiver_account_identifier"],
             receiver_card_identifier=parsed["receiver_card_identifier"],
             counterparty_text=parsed["counterparty_text"],
+            suggested_transfer_direction=parsed["suggested_transfer_direction"],
+            transfer_suggestion_reason=parsed["transfer_suggestion_reason"],
             reference=parsed["reference"],
             balance_after=parsed["balance_after"],
             fee_amount=parsed["fee_amount"],
@@ -321,6 +323,8 @@ class RawMessageImportView(APIView):
             "receiver_account_identifier",
             "receiver_card_identifier",
             "counterparty_text",
+            "suggested_transfer_direction",
+            "transfer_suggestion_reason",
             "reference",
             "balance_after",
             "fee_amount",
@@ -705,7 +709,13 @@ class MessageCandidateConfirmView(APIView):
         candidate.status = ParsedMessageCandidate.Status.CONFIRMED
         candidate.save(update_fields=("transaction", "status", "updated_at"))
 
-        if payload["remember_mapping"] and candidate.sender_rule:
+        if payload["remember_mapping"] and observation:
+            from .transfer_suggestions import remember_transfer_path
+            remember_transfer_path(candidate, transaction_record, observation)
+
+        if payload["remember_mapping"] and candidate.sender_rule and not (
+            observation and counterparty_text
+        ):
             sender_rule = candidate.sender_rule
             SenderRuleMapping.objects.update_or_create(
                 sender_rule=sender_rule,

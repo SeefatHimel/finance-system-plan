@@ -148,6 +148,26 @@ class SenderRuleMapping(models.Model):
         return f"{self.sender_rule.name}: {self.message_kind}"
 
 
+class TransferCounterpartyMapping(models.Model):
+    """An explicitly remembered path, scoped to the reporting account and counterparty."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    sender_rule = models.ForeignKey(SenderRule, on_delete=models.CASCADE)
+    message_kind = models.CharField(max_length=32)
+    reporting_account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE, related_name="reported_transfer_mappings")
+    counterparty_key = models.CharField(max_length=255)
+    direction = models.CharField(max_length=6, choices=(("debit", "Debit"), ("credit", "Credit")))
+    other_account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE, related_name="counterparty_transfer_mappings")
+    category = models.ForeignKey("categories.Category", on_delete=models.SET_NULL, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=("user", "sender_rule", "message_kind", "reporting_account", "counterparty_key"),
+            name="unique_transfer_counterparty_path",
+        )]
+
+
 def default_excluded_message_kinds():
     return ["otp_or_security"]
 
@@ -377,6 +397,8 @@ class ParsedMessageCandidate(models.Model):
     receiver_account_identifier = models.CharField(max_length=120, blank=True, default="")
     receiver_card_identifier = models.CharField(max_length=120, blank=True, default="")
     counterparty_text = models.CharField(max_length=255, blank=True, default="")
+    suggested_transfer_direction = models.CharField(max_length=6, blank=True, default="", choices=(("debit", "Debit"), ("credit", "Credit")))
+    transfer_suggestion_reason = models.CharField(max_length=255, blank=True, default="")
     reference = models.CharField(max_length=120, blank=True, default="")
     balance_after = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)
     fee_amount = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)

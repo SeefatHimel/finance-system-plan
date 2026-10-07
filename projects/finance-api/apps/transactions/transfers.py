@@ -48,7 +48,8 @@ def sms_transfer_data(candidate, overrides=None):
     received = timezone.localtime(candidate.raw_message.received_at)
     source = overrides.get("account") or candidate.account
     destination = overrides.get("transfer_account", candidate.destination_account)
-    incoming = candidate.message_kind in INCOMING_KINDS
+    incoming = (candidate.suggested_transfer_direction == "credit" if candidate.suggested_transfer_direction
+                else candidate.message_kind in INCOMING_KINDS)
     # A receiving SMS with no known sender identifies the destination, not the source.
     if incoming and destination is None:
         source, destination = None, source
@@ -392,7 +393,10 @@ def attach_candidate(candidate, record, observation, remember=False):
     candidate.transaction = record
     candidate.status = ParsedMessageCandidate.Status.CONFIRMED
     candidate.save(update_fields=("transaction", "status", "updated_at"))
-    if remember and candidate.sender_rule:
+    if remember:
+        from apps.messages.transfer_suggestions import remember_transfer_path
+        remember_transfer_path(candidate, record, observation)
+    if remember and candidate.sender_rule and not candidate.counterparty_text:
         SenderRuleMapping.objects.update_or_create(
             sender_rule=candidate.sender_rule,
             message_kind=candidate.message_kind,
