@@ -432,3 +432,13 @@ Account, category, type, source, direction and search filters still apply.
 Month, when chosen, filters transaction date. The URL preserves ordering and
 all-month selection on reload. Edits and linked evidence do not make an existing
 transfer a new addition. Switching back restores the current transaction month.
+
+## Can rejection teach the app to skip advertisements?
+
+Yes, for recognized non-transaction types. The Apply to menu can save a skip for
+promotional, OTP/security or balance notices, immediately removing matching
+pending items and excluding future captures. SMS settings reverses the choice.
+Promotional offers are excluded by default; older review items need Reapply rules
+after the API migration. The rule applies to the recognized type across trusted
+senders, not just one bank. Unknown messages are individually reviewed rather
+than treated as a blanket skip category, and financial senders remain active.

@@ -1009,6 +1009,7 @@ export async function ignoreMessageCandidate(
 }
 
 export type RejectMessageCandidateInput = {
+  exclude_message_kind?: boolean;
   exclude_provider?: boolean;
   exclude_sender?: boolean;
   note?: string;

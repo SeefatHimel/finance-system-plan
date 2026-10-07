@@ -73,7 +73,7 @@ const senderProviders: SenderRuleProvider[] = [
 ];
 const matchTypes: SenderRuleMatchType[] = ["exact", "contains", "regex"];
 const transactionTypes: TransactionType[] = ["expense", "income", "transfer", "adjustment", "fee", "refund"];
-const optionalMessageKinds = ["otp_or_security", "balance_notice"] as const;
+const optionalMessageKinds = ["otp_or_security", "balance_notice", "promotional"] as const;
 
 function formatLabel(value: string) {
   return value.replaceAll("_", " ");

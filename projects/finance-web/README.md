@@ -358,3 +358,14 @@ current transaction month. Ordering and an explicitly empty month survive URL
 reloads, including Clear filters. Newly added backdated records appear first.
 Edits and extra evidence linked to an existing transfer do not change its added
 time or produce another ledger record. CSV export retains chronological order.
+
+## Skipping Promotional Messages
+
+Promotional offers are excluded by default, including recognized English/Bangla
+anniversary messages with numbers or links. SMS settings exposes Promotional:
+Excluded/Allowed alongside OTP/security and balance-notice controls. Reject's
+Apply to menu includes “This message and skip its non-transaction type”; this
+saves a recognized type exclusion and removes matching pending notices without
+disabling the bank sender. Unknown formats and financial messages cannot be
+learned as skip types. Undo through SMS settings. Reapply rules to pending after
+the API migration to remove older offers already in review.
