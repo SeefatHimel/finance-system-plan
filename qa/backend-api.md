@@ -425,7 +425,8 @@ the same match. Raw SMS evidence links and nonblank observation keys have databa
 uniqueness constraints. SMS observation identity includes the account side,
 since same-bank debit/credit messages may share a reference. Manual transfer
 retry keys make retrying one submitted draft safe. Linked transfers with multiple
-observations cannot change their principal/accounts/type through ordinary edit.
+observations require explicit correction acknowledgement to change their
+principal/accounts/type; those corrections without it return 400.
 
 Matching uses exact principal amounts; fee differences are not silently merged.
 Fees are preserved as evidence and require a separate fee ledger entry. A
@@ -507,3 +508,19 @@ device IDs and body hashes; redacted or excluded text is null. Missing SMS
 returns an empty list, foreign transactions return 404, and authentication is
 required. Private/no-store responses and on-demand access keep bodies out of
 the ledger list. Reading leaves timestamps, audit history and retention unchanged.
+
+## How can users correct a matched transfer without losing evidence?
+
+PATCH accepts write-only `allow_linked_correction=true` after the user reviews
+the linked messages. Multiple-observation entries need that acknowledgement for
+changes to type/accounts/principal. Ordinary detail edits remain available;
+ownership and validity checks are never bypassed. One audited ledger update
+changes balances once, with before/after evidence snapshots and acknowledgement
+metadata. Canonical transfers store From/To accounts and debit direction.
+
+Remapping an observation clears its previous reported balance and fee. Editing
+primary metadata updates only that observation, including manual observations
+without a raw-message ID. Reclassification retains the original SMS links and
+retry keys as historical provenance, while balance summaries only consume
+transfer evidence for entries whose current type is transfer. This avoids both
+lost history and stale balances attributed to unrelated accounts.

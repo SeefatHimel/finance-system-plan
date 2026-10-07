@@ -44,6 +44,7 @@ class TransferEvidenceSerializer(serializers.ModelSerializer):
 
 
 class TransactionSerializer(serializers.ModelSerializer):
+    allow_linked_correction = serializers.BooleanField(required=False, write_only=True)
     transfer_evidence = TransferEvidenceSerializer(many=True, read_only=True)
     account_direction = serializers.SerializerMethodField()
 
@@ -58,6 +59,7 @@ class TransactionSerializer(serializers.ModelSerializer):
         return instance.direction
 
     def create(self, validated_data):
+        validated_data.pop("allow_linked_correction", None)
         if validated_data["type"] != Transaction.Type.TRANSFER:
             return super().create(validated_data)
         from .transfers import add_transfer_evidence, manual_transfer_data
@@ -86,42 +88,82 @@ class TransactionSerializer(serializers.ModelSerializer):
         return record
 
     def update(self, instance, validated_data):
-        if instance.transfer_evidence.count() > 1:
-            for field in ("type", "account", "transfer_account", "amount"):
-                if field in validated_data and validated_data[field] != getattr(
-                    instance, field
-                ):
-                    raise serializers.ValidationError(
-                        {
-                            field: "A linked transfer's accounts and amount cannot be changed. Review its linked evidence before replacing the transfer."
-                        }
-                    )
+        allow_linked_correction = validated_data.pop("allow_linked_correction", False)
+        evidence_items = list(instance.transfer_evidence.all())
+        core_changed = any(
+            field in validated_data and validated_data[field] != getattr(instance, field)
+            for field in ("type", "account", "transfer_account", "amount")
+        )
+        involves_transfer = (
+            instance.type == Transaction.Type.TRANSFER
+            or validated_data.get("type") == Transaction.Type.TRANSFER
+        )
+        if (
+            involves_transfer
+            and len(evidence_items) > 1
+            and core_changed
+            and not allow_linked_correction
+        ):
+            raise serializers.ValidationError(
+                {
+                    "allow_linked_correction": "Review the linked messages and confirm this ledger correction before changing the transfer's type, accounts or amount."
+                }
+            )
+        account_changed = (
+            "account" in validated_data and validated_data["account"] != instance.account
+        )
+        type_changed = "type" in validated_data and validated_data["type"] != instance.type
+        primary_evidence = next(
+            (item for item in evidence_items if item.raw_message_id == instance.raw_message_id),
+            None,
+        )
+        if instance.raw_message_id is None and instance.external_key:
+            primary_evidence = next(
+                (item for item in evidence_items if item.external_key == instance.external_key),
+                primary_evidence,
+            )
+        primary_account = (
+            validated_data.get("transfer_account", instance.transfer_account)
+            if primary_evidence and primary_evidence.direction == "credit"
+            else validated_data.get("account", instance.account)
+        )
+        primary_remapped = (
+            validated_data.get("type", instance.type) == Transaction.Type.TRANSFER
+            and primary_evidence is not None
+            and primary_evidence.account_id != getattr(primary_account, "pk", None)
+        )
+        if (account_changed or type_changed or primary_remapped) and (
+            "balance_after" not in validated_data
+            or validated_data["balance_after"] == instance.balance_after
+        ):
+            validated_data["balance_after"] = None
         instance = super().update(instance, validated_data)
-        evidence = instance.transfer_evidence.filter(
-            raw_message_id=instance.raw_message_id
-        ).first()
-        if evidence:
-            if instance.type != Transaction.Type.TRANSFER:
-                instance.transfer_evidence.all().delete()
-            else:
-                evidence.account_id = (
+        if instance.type == Transaction.Type.TRANSFER:
+            for evidence in evidence_items:
+                new_account_id = (
                     instance.transfer_account_id
                     if evidence.direction == "credit"
                     else instance.account_id
                 )
-                for field in ("balance_after", "reference", "date", "time", "note"):
-                    if field in validated_data:
-                        setattr(evidence, field, getattr(instance, field))
+                if new_account_id != evidence.account_id:
+                    evidence.account_id = new_account_id
+                    evidence.balance_after = None
+                    evidence.fee_amount = None
+                if primary_evidence and evidence.pk == primary_evidence.pk:
+                    for field in ("balance_after", "reference", "date", "time", "note"):
+                        if field in validated_data:
+                            setattr(evidence, field, getattr(instance, field))
                 evidence.save()
-            getattr(instance, "_prefetched_objects_cache", {}).pop(
-                "transfer_evidence", None
-            )
+        # Keep observations as provenance when a transfer is reclassified.
+        # Reporting only consumes them while this entry remains a transfer.
+        getattr(instance, "_prefetched_objects_cache", {}).pop("transfer_evidence", None)
         return instance
 
     class Meta:
         model = Transaction
         fields = (
             "id",
+            "allow_linked_correction",
             "transfer_evidence",
             "account_direction",
             "account",

@@ -221,6 +221,11 @@ class TransactionViewSet(ModelViewSet):
             entity=transaction,
             before=before,
             after=transaction_snapshot(transaction),
+            metadata=(
+                {"linked_correction_acknowledged": True}
+                if serializer.validated_data.get("allow_linked_correction")
+                else None
+            ),
         )
 
     def perform_destroy(self, instance):

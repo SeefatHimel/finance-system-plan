@@ -66,16 +66,18 @@ def calculate_account_balance_summaries(
     ).order_by("date", "time", "created_at")
 
     evidence = TransferEvidence.objects.filter(
-        user_id__in=user_ids, account_id__in=account_ids
+        user_id__in=user_ids,
+        account_id__in=account_ids,
+        transaction__type=Transaction.Type.TRANSFER,
     )
     if as_of_date is not None:
         evidence = evidence.filter(
             date__lte=as_of_date, transaction__date__lte=as_of_date
         )
     evidence_transaction_ids = set(
-        TransferEvidence.objects.filter(transaction__in=transactions).values_list(
-            "transaction_id", flat=True
-        )
+        TransferEvidence.objects.filter(
+            transaction__in=transactions, transaction__type=Transaction.Type.TRANSFER
+        ).values_list("transaction_id", flat=True)
     )
     reported_order = {}
 

@@ -463,3 +463,33 @@ notices. Unknown/financial types return 400 without changing the candidate or
 disabling a sender. This learns a message-type preference, not arbitrary text
 templates; ambiguous formats remain for review. Verify with
 `python manage.py test apps.messages.test_promotional_skips apps.messages.tests`.
+
+## Audited Transaction Corrections
+
+Ledger edits support date/time, type/direction, accounts, category, amount,
+reported balance, reference, counterparty, note, payment method, source,
+`needs_review`, and four masked sender/receiver identifiers. Numeric identifiers
+are sanitized to a safe suffix; ownership and payment-method/account validation
+still apply. System IDs/timestamps and original SMS remain evidence, not editor
+fields.
+
+Changing a matched transfer's type, accounts or principal requires
+`allow_linked_correction=true` on PATCH when more than one observation is linked.
+Without that explicit acknowledgement the API returns 400. Transfers stay
+canonical: `account` is From, `transfer_account` is To, and stored direction is
+Debit. Reverse direction by swapping those accounts. The update remains one
+ledger entry and is audited with before/after snapshots and acknowledgement
+metadata.
+
+Account corrections remap observations by debit/credit side and clear reported
+balances and fee values belonging to the previous account. An unchanged old
+primary balance is also cleared when its account/type context changes. An
+explicit new balance is accepted; date/time/reference/note/balance edits update
+only the primary observation, not every linked message. Reclassification keeps
+observations as historical provenance and preserves source-message access and
+retry keys. Only current transfers consume those observations in balance
+reporting. No database migration is required.
+
+Regression coverage: `apps.transactions.test_corrections`, together with the
+transaction, transfer, source-message and message suites. SQLite skips the
+existing PostgreSQL concurrency case.
