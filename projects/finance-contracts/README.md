@@ -221,3 +221,9 @@ Transaction listing accepts optional `ordering` (`-date` by default, or
 `-created_at` for recently added ledger records). It is independent of transaction
 month filtering; omit month to find backdated additions. The generated client
 exposes the same enum. CSV export keeps chronological order.
+
+SMS message kinds include `promotional`, excluded with OTP/security by default.
+Reject requests accept optional `exclude_message_kind` to remember a recognized
+non-transaction type and remove matching pending notices. Financial/unknown
+formats return 400; capture preferences reverse exclusions. No new endpoint or
+financial transaction schema is introduced.

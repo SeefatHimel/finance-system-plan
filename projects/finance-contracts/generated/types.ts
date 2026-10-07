@@ -67,7 +67,7 @@ export type RecurringBillFrequency = "weekly" | "monthly" | "quarterly" | "yearl
 
 export type RecurringBillStatus = "active" | "paused" | "ended";
 
-export type ParsedMessageKind = "purchase" | "cash_in" | "cash_out" | "send_money" | "receive_money" | "bank_transfer_in" | "bank_transfer_out" | "card_purchase" | "card_payment" | "fee" | "refund" | "reversal" | "balance_notice" | "otp_or_security" | "unknown";
+export type ParsedMessageKind = "purchase" | "cash_in" | "cash_out" | "send_money" | "receive_money" | "bank_transfer_in" | "bank_transfer_out" | "card_purchase" | "card_payment" | "fee" | "refund" | "reversal" | "balance_notice" | "otp_or_security" | "promotional" | "unknown";
 
 export interface AuditLogEntry {
   id: string;
@@ -299,6 +299,7 @@ export interface ParsedMessageRejectRequest {
   redact_raw_sms?: boolean;
   exclude_sender?: boolean;
   exclude_provider?: boolean;
+  exclude_message_kind?: boolean;
 }
 
 export interface SmsCapturePreference {

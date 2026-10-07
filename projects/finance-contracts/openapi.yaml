@@ -1766,6 +1766,7 @@ components:
         - reversal
         - balance_notice
         - otp_or_security
+        - promotional
         - unknown
     AuditLogEntry:
       type: object
@@ -2414,6 +2415,10 @@ components:
         exclude_provider:
           type: boolean
           default: false
+        exclude_message_kind:
+          type: boolean
+          default: false
+          description: Remember exclusion of this recognized promotional, OTP/security or balance-notice type and apply it to matching pending messages. Unknown formats and financial messages return 400. Undo through capture preferences.
     SmsCapturePreference:
       type: object
       required: [excluded_providers, excluded_message_kinds, raw_sms_retention_days, created_at, updated_at]
@@ -2426,7 +2431,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ParsedMessageKind'
-          default: [otp_or_security]
+          default: [otp_or_security, promotional]
         raw_sms_retention_days:
           type: integer
           minimum: 0
