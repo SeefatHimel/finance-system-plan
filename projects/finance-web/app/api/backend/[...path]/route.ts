@@ -16,7 +16,7 @@ type RouteContext = {
   };
 };
 
-const forwardedResponseHeaders = ["content-type", "content-disposition"];
+const forwardedResponseHeaders = ["content-type", "content-disposition", "cache-control"];
 
 async function proxyBackendRequest(request: NextRequest, context: RouteContext) {
   if (!["GET", "HEAD"].includes(request.method) && !isSameOriginRequest(request)) {

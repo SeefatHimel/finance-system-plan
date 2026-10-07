@@ -32,6 +32,7 @@ import { ModalDialog } from "@/components/modal-dialog";
 import { TransferMatchDialog } from "@/components/transfer-match-dialog";
 import { getAccessToken } from "@/lib/auth-storage";
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
+import { TransactionSourceMessages } from "@/components/transaction-source-messages";
 
 type LoadState =
   | { status: "loading" }
@@ -698,6 +699,7 @@ export function TransactionWorkspace() {
           </form> : null}
 
           {editorMode === "edit" ? <form className="transaction-form drawer-form" onSubmit={handleUpdate}>
+            <TransactionSourceMessages key={editingTransactionId} transactionId={editingTransactionId} />
             <label className="field">
               <span className="field__label">Date</span>
               <input

@@ -446,3 +446,14 @@ Promotional offers are excluded by default; older review items need Reapply rule
 after the API migration. The rule applies to the recognized type across trusted
 senders, not just one bank. Unknown messages are individually reviewed rather
 than treated as a blanket skip category, and financial senders remain active.
+
+## Can users see the original message while correcting a transaction?
+
+Yes. The edit dialog loads an expanded Original SMS section with full plain text,
+sender and received time. It preserves line breaks, wraps long text and shows
+all linked transfer messages once. Users can collapse it while editing.
+Redacted/excluded SMS and entries without SMS have explicit explanations.
+Loading failures have a retry control and do not block the form. Component state
+is discarded on closing or switching entries, stale responses are ignored, and
+bodies are not persisted to browser storage or transaction notes. The cookie
+proxy preserves the API's private/no-store response header.

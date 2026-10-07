@@ -127,6 +127,15 @@ const rawMessageSchema = z.object({
   status: z.string()
 });
 
+const transactionSourceMessageSchema = z.object({
+  id: z.string(),
+  sender: z.string(),
+  body: z.string().nullable(),
+  received_at: z.string(),
+  status: z.string(),
+  redacted_at: z.string().nullable()
+});
+
 const parsedMessageCandidateSchema = z.object({
   account: z.string().nullable(),
   amount: z.string().nullable(),
@@ -400,6 +409,7 @@ export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 export type SenderRule = z.infer<typeof senderRuleSchema>;
 export type ParsedMessageCandidate = z.infer<typeof parsedMessageCandidateSchema>;
 export type RawMessage = z.infer<typeof rawMessageSchema>;
+export type TransactionSourceMessage = z.infer<typeof transactionSourceMessageSchema>;
 export type SmsCapturePreference = z.infer<typeof smsCapturePreferenceSchema>;
 export type SmsDeviceStatus = z.infer<typeof smsDeviceStatusSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
@@ -1042,6 +1052,11 @@ export async function redactRawMessage(
     candidate: parsedMessageCandidateSchema.nullable(),
     message: rawMessageSchema
   }).parse(await response.json());
+}
+
+export async function listTransactionSourceMessages(accessToken: string, id: string): Promise<TransactionSourceMessage[]> {
+  const response = await authenticatedFetch(`/api/transactions/${id}/source-messages/`, accessToken);
+  return z.array(transactionSourceMessageSchema).parse(await response.json());
 }
 
 export async function listTransactions(

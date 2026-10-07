@@ -364,6 +364,20 @@ not promote entries. It uses the same all-month default, remaining filters and
 URL persistence as Recently added. This is a latest-first view, with no fixed
 lookback period. CSV export retains chronological order.
 
+## Original SMS in the Transaction Editor
+
+Edit transaction opens an expanded Original SMS section above the fields.
+It loads source messages on demand and shows the full plain text, sender and
+received date/time in the browser's timezone. Matched transfers show all linked
+SMS once each. Line breaks are preserved and long text wraps at phone widths.
+The section can be collapsed. Redacted/excluded messages display an unavailable
+notice, and entries without SMS display an empty explanation. Loading failures
+offer Retry loading SMS while the form remains usable. Closing or changing the
+editor discards its component state; delayed responses cannot populate another
+entry. SMS bodies are not saved to browser storage or copied into transaction
+notes, and reading them does not update the ledger timestamp. The cookie proxy
+preserves the API's private/no-store cache header for these responses.
+
 ## Skipping Promotional Messages
 
 Promotional offers are excluded by default, including recognized English/Bangla

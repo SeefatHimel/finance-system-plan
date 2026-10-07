@@ -2470,6 +2470,9 @@ textarea {
 .transaction-editor-drawer { max-width: min(680px, 100vw); }
 .transaction-editor-drawer .transaction-form { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
 .transaction-editor-drawer .drawer-form { align-content: start; overflow-y: auto; }
+.transaction-source-messages { min-width: 0; margin: 0; }
+.transaction-source-messages article + article { border-top: 1px solid var(--panel-border); margin-top: 14px; padding-top: 4px; }
+.transaction-source-messages__body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .report-header > .button { flex: 0 0 auto; gap: 7px; }
 .panel__body > .form-success { margin-top: 16px; }
 .transaction-ledger-primary,
