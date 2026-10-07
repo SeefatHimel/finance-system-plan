@@ -237,3 +237,13 @@ export keeps its existing chronological order and does not accept this option.
 remembers a recognized promotional, OTP/security or balance-notice exclusion.
 Unknown/financial formats return 400 before rejection. Existing preference PATCH
 reverses it, and existing review responses reflect ignored pending notices.
+
+## How are original messages exposed for editing without expanding the ledger list?
+
+`GET /api/transactions/{id}/source-messages/` returns a deduplicated array of
+`TransactionSourceMessage`: ID, sender, nullable full body, received time, status
+and redaction time. It includes the primary SMS and linked transfer messages.
+No message gives an empty array; redacted/excluded text gives null. Transaction
+and message ownership are checked, with 401/404 for unauthenticated/foreign
+access. Responses use private/no-store caching; reading does not update ledger
+timestamps. Existing transaction list and edit payloads are unchanged.

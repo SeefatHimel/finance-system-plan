@@ -230,3 +230,11 @@ Reject requests accept optional `exclude_message_kind` to remember a recognized
 non-transaction type and remove matching pending notices. Financial/unknown
 formats return 400; capture preferences reverse exclusions. No new endpoint or
 financial transaction schema is introduced.
+
+`GET /api/transactions/{id}/source-messages/` exposes on-demand original SMS for
+an owned transaction, including linked transfer evidence. The minimal
+`TransactionSourceMessage` response contains ID, sender, nullable body, received
+time, status and redaction time. Messages are deduplicated; no SMS returns an
+empty array. Redacted/excluded bodies are null. Responses use private/no-store
+caching; transaction list and patch schemas remain unchanged. Other users'
+transactions return 404 and unauthenticated access returns 401.

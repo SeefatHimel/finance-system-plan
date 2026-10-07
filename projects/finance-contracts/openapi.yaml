@@ -1518,6 +1518,28 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/transactions/{id}/source-messages/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Transactions]
+      summary: List original SMS linked to a transaction
+      description: Load only on demand for the current user's transaction. Includes its original SMS and linked transfer messages, deduplicated and ordered by received time then ID. Returns an empty array when no SMS is linked. Redacted or excluded bodies are null; reads do not change ledger timestamps. Responses use Cache-Control private, no-store.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Linked source messages without device identifiers or body hashes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TransactionSourceMessage'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /api/audit-logs/:
     get:
       tags: [Audit Logs]
@@ -3323,6 +3345,29 @@ components:
         updated_at:
           type: string
           format: date-time
+    TransactionSourceMessage:
+      type: object
+      required: [id, sender, body, received_at, status, redacted_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        sender:
+          type: string
+        body:
+          type: string
+          nullable: true
+          description: Full original text, or null when redacted or excluded. Plain text only.
+        received_at:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/RawMessageStatus'
+        redacted_at:
+          type: string
+          format: date-time
+          nullable: true
     TransactionCreateRequest:
       type: object
       required: [account, date, type, amount]

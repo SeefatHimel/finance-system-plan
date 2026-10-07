@@ -648,6 +648,15 @@ export interface Transaction {
   updated_at: string;
 }
 
+export interface TransactionSourceMessage {
+  id: string;
+  sender: string;
+  body: string | null;
+  received_at: string;
+  status: RawMessageStatus;
+  redacted_at: string | null;
+}
+
 export interface TransactionCreateRequest {
   account: string;
   transfer_account?: string | null;
