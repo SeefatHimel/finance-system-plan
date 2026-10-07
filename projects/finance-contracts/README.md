@@ -216,3 +216,8 @@ reporting account while `account`/`destination_account` remain canonical source
 and receiver hints. The reason explains identifiers, remembered choices,
 confirmed history, a name/provider match, or unresolved ambiguity. Clients must
 keep review/confirmation explicit. Missing metadata can default to empty strings.
+
+Transaction listing accepts optional `ordering` (`-date` by default, or
+`-created_at` for recently added ledger records). It is independent of transaction
+month filtering; omit month to find backdated additions. The generated client
+exposes the same enum. CSV export keeps chronological order.

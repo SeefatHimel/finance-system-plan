@@ -1388,6 +1388,13 @@ paths:
         - bearerAuth: []
       parameters:
         - in: query
+          name: ordering
+          schema:
+            type: string
+            enum: ['-date', '-created_at']
+            default: '-date'
+          description: Sort newest transaction dates first (default), or newest ledger additions first. Month still filters the transaction date; omit it to include older transactions recently added. Edits and linked evidence do not change created_at.
+        - in: query
           name: month
           schema:
             type: string

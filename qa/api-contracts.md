@@ -219,3 +219,11 @@ endpoint is the reporting account, including an explicitly remembered direction
 correction. Web decoding defaults absent fields to empty strings for older API
 responses. These fields explain suggestions; clients still submit the ordinary
 review draft and confirmation/link request. No new write endpoint is introduced.
+
+## How is recently added ordering exposed?
+
+Transaction listing accepts `ordering` with enum values `-date` and
+`-created_at`, defaulting to `-date`. The generated client mirrors the whitelist.
+`created_at` is already read-only in transaction responses. To include old
+transactions newly added to the ledger, omit the financial-month filter. CSV
+export keeps its existing chronological order and does not accept this option.
