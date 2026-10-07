@@ -457,3 +457,19 @@ Loading failures have a retry control and do not block the form. Component state
 is discarded on closing or switching entries, stale responses are ignored, and
 bodies are not persisted to browser storage or transaction notes. The cookie
 proxy preserves the API's private/no-store response header.
+
+## Can users edit all ledger details?
+
+Yes. The editor includes existing financial fields plus payment method, source,
+Needs review and four masked sender/receiver identifiers. Methods are filtered
+by account; account changes clear the old method and reported balance. Review
+status is visible in the table. Original SMS and system IDs/timestamps are
+read-only; History records ledger corrections.
+
+Transfer direction uses explicit From/To fields and a Reverse action. Changing
+the type, accounts or principal of a matched entry shows a required linked-SMS
+acknowledgement; Save remains disabled until checked, and further core edits
+reset it. The API enforces the same rule. Remapped observations lose obsolete
+balances/fees; reclassified entries retain their messages as history without
+displaying historical transfer balances. The viewport modal scrolls, and the
+identifier fields collapse to one column on phones.

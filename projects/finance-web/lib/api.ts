@@ -230,6 +230,7 @@ const transactionSchema = z.object({
   note: z.string(),
   payment_method: z.string().nullable(),
   raw_message: z.string().nullable(),
+  needs_review: z.boolean(),
   receiver_account_identifier: z.string(),
   receiver_card_identifier: z.string(),
   reference: z.string(),
@@ -469,6 +470,7 @@ export type UpdateSenderRuleInput = SenderRulePatchRequest;
 export type ConfirmMessageCandidateInput = ParsedMessageConfirmRequest;
 
 export type UpdateTransactionInput = {
+  allow_linked_correction?: boolean;
   account?: string;
   amount?: string;
   balance_after?: string | null;
@@ -478,6 +480,8 @@ export type UpdateTransactionInput = {
   direction?: TransactionDirection;
   external_key?: string;
   note?: string;
+  source?: TransactionSource;
+  needs_review?: boolean;
   payment_method?: string | null;
   raw_message?: string | null;
   receiver_account_identifier?: string;

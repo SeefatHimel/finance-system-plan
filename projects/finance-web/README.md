@@ -388,3 +388,27 @@ saves a recognized type exclusion and removes matching pending notices without
 disabling the bank sender. Unknown formats and financial messages cannot be
 learned as skip types. Undo through SMS settings. Reapply rules to pending after
 the API migration to remove older offers already in review.
+
+## Complete Ledger Editing
+
+The transaction editor exposes date/time, type, direction, account, destination,
+category, amount, reported balance, transaction reference, counterparty, note,
+payment method, source, review status and all four masked sender/receiver
+identifiers. Payment-method choices belong to the selected account; changing
+that account clears its payment method and reported balance. Needs review is
+also visible in the transaction list. Full numeric identifiers are reduced to
+safe suffixes by the API. Original SMS and generated IDs/timestamps remain
+read-only evidence; corrections are available in History.
+
+Transfers use From account and To account, with Reverse transfer direction
+swapping them and clearing the payment method/reported balance. They are saved
+as canonical debit transfers. Changing the amount, accounts or type of an entry
+with multiple transfer observations requires the checkbox acknowledging that
+the linked messages were reviewed. Core edits reset that acknowledgement and
+Save stays disabled until it is checked. The request sends
+`allow_linked_correction=true`; the API independently enforces the requirement.
+Account corrections clear old balances/fees on remapped observations. Changing
+type retains linked SMS as history while web/API reporting ignores historical
+transfer balances. Original SMS is never rewritten by these edits. Identifier
+fields use two columns on desktop and one on phones inside the scrollable
+viewport modal.

@@ -22,6 +22,8 @@ import {
   exportTransactionsCsv,
   listAccounts,
   listCategories,
+  listPaymentMethods,
+  type PaymentMethod,
   listTransactions,
   type TransactionFilters,
   type TransactionSource,
@@ -40,6 +42,7 @@ type LoadState =
   | {
       accounts: Account[];
       categories: Category[];
+      paymentMethods: PaymentMethod[];
       status: "ready";
       transactions: Transaction[];
     };
@@ -161,6 +164,14 @@ export function TransactionWorkspace() {
   const [editingReference, setEditingReference] = useState("");
   const [editingCounterpartyText, setEditingCounterpartyText] = useState("");
   const [editingNote, setEditingNote] = useState("");
+  const [editingPaymentMethodId, setEditingPaymentMethodId] = useState("");
+  const [editingSenderAccountIdentifier, setEditingSenderAccountIdentifier] = useState("");
+  const [editingSenderCardIdentifier, setEditingSenderCardIdentifier] = useState("");
+  const [editingReceiverAccountIdentifier, setEditingReceiverAccountIdentifier] = useState("");
+  const [editingReceiverCardIdentifier, setEditingReceiverCardIdentifier] = useState("");
+  const [editingSource, setEditingSource] = useState<TransactionSource>("web");
+  const [editingNeedsReview, setEditingNeedsReview] = useState(false);
+  const [allowLinkedCorrection, setAllowLinkedCorrection] = useState(false);
   const [isMonthLoading, setIsMonthLoading] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<TransactionColumn[]>(defaultTransactionColumns);
 
@@ -177,13 +188,14 @@ export function TransactionWorkspace() {
     }
 
     try {
-      const [accounts, categories, transactions] = await Promise.all([
+      const [accounts, categories, transactions, paymentMethods] = await Promise.all([
         listAccounts(accessToken),
         listCategories(accessToken),
-        listTransactions(accessToken, activeFilters)
+        listTransactions(accessToken, activeFilters),
+        listPaymentMethods(accessToken)
       ]);
 
-      setLoadState({ accounts, categories, status: "ready", transactions });
+      setLoadState({ accounts, categories, paymentMethods, status: "ready", transactions });
     } catch (error) {
       setLoadState({
         message: error instanceof Error ? error.message : "Could not load transactions.",
@@ -221,10 +233,11 @@ export function TransactionWorkspace() {
     void Promise.all([
       listAccounts(accessToken),
       listCategories(accessToken),
-      listTransactions(accessToken, requestedFilters)
+      listTransactions(accessToken, requestedFilters),
+      listPaymentMethods(accessToken)
     ])
-      .then(([accounts, categories, transactions]) => {
-        setLoadState({ accounts, categories, status: "ready", transactions });
+      .then(([accounts, categories, transactions, paymentMethods]) => {
+        setLoadState({ accounts, categories, paymentMethods, status: "ready", transactions });
       })
       .catch((error) => {
         setLoadState({
@@ -488,6 +501,14 @@ export function TransactionWorkspace() {
     setEditingReference(transaction.reference);
     setEditingCounterpartyText(transaction.counterparty_text);
     setEditingNote(transaction.note ?? "");
+    setEditingPaymentMethodId(transaction.payment_method ?? "");
+    setEditingSenderAccountIdentifier(transaction.sender_account_identifier);
+    setEditingSenderCardIdentifier(transaction.sender_card_identifier);
+    setEditingReceiverAccountIdentifier(transaction.receiver_account_identifier);
+    setEditingReceiverCardIdentifier(transaction.receiver_card_identifier);
+    setEditingSource(transaction.source as TransactionSource);
+    setEditingNeedsReview(transaction.needs_review);
+    setAllowLinkedCorrection(false);
     setFormError(null);
     setFormMessage(null);
     setEditorMode("edit");
@@ -510,6 +531,7 @@ export function TransactionWorkspace() {
     setIsUpdating(true);
     try {
       await updateTransaction(accessToken, editingTransactionId, {
+        allow_linked_correction: allowLinkedCorrection,
         account: editingAccountId,
         amount: editingAmount,
         balance_after: editingBalanceAfter || null,
@@ -519,6 +541,13 @@ export function TransactionWorkspace() {
         time: editingTime || null,
         direction: editingDirection,
         note: editingNote,
+        payment_method: editingPaymentMethodId || null,
+        sender_account_identifier: editingSenderAccountIdentifier,
+        sender_card_identifier: editingSenderCardIdentifier,
+        receiver_account_identifier: editingReceiverAccountIdentifier,
+        receiver_card_identifier: editingReceiverCardIdentifier,
+        source: editingSource,
+        needs_review: editingNeedsReview,
         reference: editingReference,
         transfer_account: editingType === "transfer" ? editingTransferAccountId || null : null,
         type: editingType
@@ -564,6 +593,14 @@ export function TransactionWorkspace() {
       </div>
     );
   }
+
+  const editingTransaction = loadState.transactions.find((item) => item.id === editingTransactionId);
+  const requiresLinkedCorrection = Boolean(editingTransaction && editingTransaction.transfer_evidence.length > 1 &&
+    (editingTransaction.type === "transfer" || editingType === "transfer") && (
+      editingTransaction.type !== editingType || editingTransaction.account !== editingAccountId ||
+      editingTransaction.transfer_account !== (editingType === "transfer" ? editingTransferAccountId || null : null) ||
+      Number(editingTransaction.amount) !== Number(editingAmount)
+    ));
 
   return (
     <div className="workspace-grid">
@@ -725,7 +762,14 @@ export function TransactionWorkspace() {
               <span className="field__label">Type</span>
               <select
                 className="field__control"
-                onChange={(event) => setEditingType(event.target.value as TransactionType)}
+                onChange={(event) => {
+                  const type = event.target.value as TransactionType;
+                  setEditingType(type);
+                  setEditingDirection(["income", "refund", "borrow", "repayment_received"].includes(type) ? "credit" : "debit");
+                  if (type !== "transfer") setEditingTransferAccountId("");
+                  setEditingBalanceAfter("");
+                  setAllowLinkedCorrection(false);
+                }}
                 required
                 value={editingType}
               >
@@ -737,7 +781,18 @@ export function TransactionWorkspace() {
               </select>
             </label>
 
-            <label className="field">
+            {editingType === "transfer" ? <div className="field">
+              <span className="field__label">Direction</span>
+              <button className="button button--ghost" onClick={() => {
+                setEditingAccountId(editingTransferAccountId);
+                setEditingTransferAccountId(editingAccountId);
+                setEditingDirection("debit");
+                setEditingPaymentMethodId("");
+                setEditingBalanceAfter("");
+                setAllowLinkedCorrection(false);
+              }} type="button">Reverse transfer direction</button>
+              <small>Money moves from the From account to the To account.</small>
+            </div> : <label className="field">
               <span className="field__label">Debit / credit</span>
               <select
                 className="field__control"
@@ -748,13 +803,18 @@ export function TransactionWorkspace() {
                 <option value="debit">Debit</option>
                 <option value="credit">Credit</option>
               </select>
-            </label>
+            </label>}
 
             <label className="field">
-              <span className="field__label">Account</span>
+              <span className="field__label">{editingType === "transfer" ? "From account" : "Account"}</span>
               <select
                 className="field__control"
-                onChange={(event) => setEditingAccountId(event.target.value)}
+                onChange={(event) => {
+                  setEditingAccountId(event.target.value);
+                  setEditingPaymentMethodId("");
+                  setEditingBalanceAfter("");
+                  setAllowLinkedCorrection(false);
+                }}
                 required
                 value={editingAccountId}
               >
@@ -768,10 +828,15 @@ export function TransactionWorkspace() {
             </label>
 
             <label className="field">
-              <span className="field__label">Transfer to</span>
+              <span className="field__label">{editingType === "transfer" ? "To account" : "Transfer to"}</span>
               <select
                 className="field__control"
-                onChange={(event) => setEditingTransferAccountId(event.target.value)}
+                disabled={editingType !== "transfer"}
+                onChange={(event) => {
+                  setEditingTransferAccountId(event.target.value);
+                  setEditingBalanceAfter("");
+                  setAllowLinkedCorrection(false);
+                }}
                 value={editingTransferAccountId}
               >
                 <option value="">Only for transfers</option>
@@ -805,7 +870,7 @@ export function TransactionWorkspace() {
                 className="field__control"
                 min="0.01"
                 inputMode="decimal"
-                onChange={(event) => setEditingAmount(event.target.value)}
+                onChange={(event) => { setEditingAmount(event.target.value); setAllowLinkedCorrection(false); }}
                 required
                 type="text"
                 value={editingAmount}
@@ -853,7 +918,32 @@ export function TransactionWorkspace() {
               />
             </label>
 
-            <button className="button button--ghost field--wide" disabled={isUpdating} type="submit">
+            <label className="field">
+              <span className="field__label">Payment method</span>
+              <select className="field__control" onChange={(event) => setEditingPaymentMethodId(event.target.value)} value={editingPaymentMethodId}>
+                <option value="">No payment method</option>
+                {loadState.paymentMethods.filter((method) => method.account === editingAccountId).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span className="field__label">Source</span>
+              <select className="field__control" onChange={(event) => setEditingSource(event.target.value as TransactionSource)} value={editingSource}>
+                {transactionSources.map((source) => <option key={source} value={source}>{source}</option>)}
+              </select>
+            </label>
+            <fieldset className="transaction-identifier-fields field--wide">
+              <legend>Masked sender and receiver identifiers</legend>
+              <p>Use masked values or a safe suffix. Full account and card numbers are reduced to their last four digits before saving.</p>
+              <div className="transaction-identifier-grid">
+                <label className="field"><span className="field__label">Sender account</span><input className="field__control" maxLength={120} onChange={(event) => setEditingSenderAccountIdentifier(event.target.value)} value={editingSenderAccountIdentifier} /></label>
+                <label className="field"><span className="field__label">Sender card</span><input className="field__control" maxLength={120} onChange={(event) => setEditingSenderCardIdentifier(event.target.value)} value={editingSenderCardIdentifier} /></label>
+                <label className="field"><span className="field__label">Receiver account</span><input className="field__control" maxLength={120} onChange={(event) => setEditingReceiverAccountIdentifier(event.target.value)} value={editingReceiverAccountIdentifier} /></label>
+                <label className="field"><span className="field__label">Receiver card</span><input className="field__control" maxLength={120} onChange={(event) => setEditingReceiverCardIdentifier(event.target.value)} value={editingReceiverCardIdentifier} /></label>
+              </div>
+            </fieldset>
+            <label className="review-remember field--wide"><input checked={editingNeedsReview} onChange={(event) => setEditingNeedsReview(event.target.checked)} type="checkbox" /><span><strong>Needs review</strong><small>Keep this ledger entry marked for further checking.</small></span></label>
+            {requiresLinkedCorrection ? <label className="review-remember field--wide"><input checked={allowLinkedCorrection} onChange={(event) => setAllowLinkedCorrection(event.target.checked)} required type="checkbox" /><span><strong>I reviewed the linked messages and confirm this ledger correction</strong><small>Account changes remap observations by debit/credit side and clear old reported balances. Changing type keeps the linked messages as history. Original SMS stays unchanged.</small></span></label> : null}
+            <button className="button button--ghost field--wide" disabled={isUpdating || (requiresLinkedCorrection && !allowLinkedCorrection)} type="submit">
               {isUpdating ? <ButtonBusy label="Updating" /> : "Update transaction"}
             </button>
             {formError ? <p className="form-error field--wide">{formError}</p> : null}
@@ -1093,6 +1183,7 @@ export function TransactionWorkspace() {
                           {transaction.type.replaceAll("_", " ")} · {transaction.account_direction}
                           {transaction.reference ? ` · ${transaction.reference}` : ""}
                         </span>
+                        {transaction.needs_review ? <span className="status-badge status-badge--idle">Needs review</span> : null}
                       </td> : null}
                       {visibleColumns.includes("account") ? <td>{accountNames.get(transaction.account) ?? "Unknown"}{transaction.type === "transfer" ? ` → ${accountNames.get(transaction.transfer_account ?? "") ?? "Unknown"}` : ""}</td> : null}
                       {visibleColumns.includes("category") ? <td>
@@ -1102,7 +1193,7 @@ export function TransactionWorkspace() {
                       </td> : null}
                       {visibleColumns.includes("source") ? <td>{transaction.source}</td> : null}
                       {visibleColumns.includes("balance") ? <td>
-                        {transaction.transfer_evidence.length ? transaction.transfer_evidence.map((item) => <span className="transaction-ledger-secondary" key={item.id}>{accountNames.get(item.account)}: {item.balance_after === null ? "No reported balance" : moneyFormatter.format(Number(item.balance_after))}{item.reference ? ` · ${item.reference}` : ""}</span>) : transaction.balance_after
+                        {transaction.type === "transfer" && transaction.transfer_evidence.length ? transaction.transfer_evidence.map((item) => <span className="transaction-ledger-secondary" key={item.id}>{accountNames.get(item.account)}: {item.balance_after === null ? "No reported balance" : moneyFormatter.format(Number(item.balance_after))}{item.reference ? ` · ${item.reference}` : ""}</span>) : transaction.balance_after
                           ? moneyFormatter.format(Number(transaction.balance_after))
                           : "-"}
                       </td> : null}

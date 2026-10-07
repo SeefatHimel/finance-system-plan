@@ -2470,9 +2470,14 @@ textarea {
 .transaction-editor-drawer { max-width: min(680px, 100vw); }
 .transaction-editor-drawer .transaction-form { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
 .transaction-editor-drawer .drawer-form { align-content: start; overflow-y: auto; }
+.transaction-editor-drawer .review-remember { align-self: start; display: grid; grid-template-columns: auto minmax(0, 1fr); height: max-content; min-height: min-content; }
 .transaction-source-messages { min-width: 0; margin: 0; }
 .transaction-source-messages article + article { border-top: 1px solid var(--panel-border); margin-top: 14px; padding-top: 4px; }
 .transaction-source-messages__body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.transaction-identifier-fields { min-width: 0; margin: 0; border: 1px solid var(--panel-border); border-radius: 8px; padding: 14px; }
+.transaction-identifier-fields p { color: var(--muted); margin: 0 0 14px; font-size: 13px; line-height: 1.5; }
+.transaction-identifier-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 640px) { .transaction-identifier-grid { grid-template-columns: minmax(0, 1fr); } }
 .report-header > .button { flex: 0 0 auto; gap: 7px; }
 .panel__body > .form-success { margin-top: 16px; }
 .transaction-ledger-primary,
