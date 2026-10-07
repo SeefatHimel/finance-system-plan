@@ -2286,6 +2286,13 @@ components:
           $ref: '#/components/schemas/ParsedMessageCandidateStatus'
         parser_name:
           type: string
+        suggested_transfer_direction:
+          type: string
+          enum: ['', debit, credit]
+          description: Optional suggested direction for the reporting account; blank when no transfer path is suggested.
+        transfer_suggestion_reason:
+          type: string
+          description: Explanation for a suggested transfer path or ambiguity. Suggestions require review and never post ledger activity.
         parser_notes:
           type: string
         rejection_reason:
