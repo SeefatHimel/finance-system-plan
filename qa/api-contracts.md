@@ -246,4 +246,20 @@ and redaction time. It includes the primary SMS and linked transfer messages.
 No message gives an empty array; redacted/excluded text gives null. Transaction
 and message ownership are checked, with 401/404 for unauthenticated/foreign
 access. Responses use private/no-store caching; reading does not update ledger
-timestamps. Existing transaction list and edit payloads are unchanged.
+timestamps. Source-message access does not expand the ledger list or require
+SMS text in edit payloads.
+
+## How are corrections to matched transfers represented?
+
+`TransactionPatchRequest` adds optional write-only `allow_linked_correction`.
+False/omitted rejects type/account/principal changes for entries with multiple
+linked observations. True acknowledges review, while ownership and other
+validation still apply. Transfers stay canonical From=`account`,
+To=`transfer_account`, direction=debit; reversing swaps the two accounts.
+
+Account corrections remap debit/credit observations and clear obsolete reported
+balances/fees. Reclassification preserves `transfer_evidence` as history and
+source-message access. Clients must gate active evidence balance display on
+`type=transfer`. The API audits the correction and does not change original SMS.
+Generated types expose the request flag; existing response timestamps stay
+read-only.

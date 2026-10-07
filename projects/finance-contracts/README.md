@@ -236,5 +236,24 @@ an owned transaction, including linked transfer evidence. The minimal
 `TransactionSourceMessage` response contains ID, sender, nullable body, received
 time, status and redaction time. Messages are deduplicated; no SMS returns an
 empty array. Redacted/excluded bodies are null. Responses use private/no-store
-caching; transaction list and patch schemas remain unchanged. Other users'
+caching; source-message access does not expand the ledger list or require SMS
+text in edit payloads. Other users'
 transactions return 404 and unauthenticated access returns 401.
+
+## Linked Transaction Correction Acknowledgement
+
+`TransactionPatchRequest.allow_linked_correction` is an optional write-only
+boolean, false when omitted. It acknowledges a correction to the type, accounts
+or amount of an entry with multiple linked transfer observations; without it,
+those changes return 400. Ownership, distinct-account and payment-method checks
+remain enforced. Transfers retain From=`account`, To=`transfer_account` and
+canonical debit direction; reversal swaps accounts.
+
+Corrections retain one ledger entry, audit snapshots and unchanged original SMS.
+Account remapping clears obsolete reported balances/fees. If reclassified,
+`transfer_evidence` remains in the response as historical provenance and the
+source-message endpoint still returns its messages. Consumers must only use
+that evidence for transfer balance display/reporting when `type=transfer`.
+IDs and created/updated timestamps remain read-only. Existing editable source,
+review status, payment method and masked-identifier fields are exposed by the
+web editor; no additional response fields or migration are needed.

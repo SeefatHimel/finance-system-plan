@@ -682,6 +682,7 @@ export interface TransactionCreateRequest {
 }
 
 export interface TransactionPatchRequest {
+  allow_linked_correction?: boolean;
   account?: string;
   transfer_account?: string | null;
   category?: string | null;

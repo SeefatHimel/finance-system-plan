@@ -3439,6 +3439,10 @@ components:
     TransactionPatchRequest:
       type: object
       properties:
+        allow_linked_correction:
+          type: boolean
+          default: false
+          description: Explicitly acknowledge changes to a transfer's type, accounts or amount when it has multiple linked observations. Account changes remap observations by debit/credit side and clear old reported balances and fees. Reclassification preserves observations as history; reporting consumes them only for transfers. Original SMS remains unchanged and the edit is audited. Transfers always use canonical source/destination with debit direction; swap accounts to reverse the movement.
         account:
           type: string
           format: uuid
