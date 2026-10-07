@@ -2383,6 +2383,7 @@ components:
           $ref: '#/components/schemas/TransactionDirection'
         reference:
           type: string
+          description: Optional provider or user reference; may repeat and is not the internal transaction UUID.
         counterparty_text:
           type: string
         sender_account_identifier:
@@ -3185,6 +3186,7 @@ components:
           description: Observed fee evidence; does not itself create a fee expense.
         reference:
           type: string
+          description: Optional provider or user reference; may repeat and is not the internal transaction UUID.
         provider:
           type: string
         source:
@@ -3221,6 +3223,7 @@ components:
           nullable: true
         reference:
           type: string
+          description: Optional provider or user reference; may repeat and is not the internal transaction UUID.
         reason:
           type: string
     TransferMatchRequest:
@@ -3326,13 +3329,13 @@ components:
           maxLength: 120
         reference:
           type: string
-          description: Provider transaction id, TrxID, reference, or bank/card reference.
+          description: Optional provider transaction code, TrxID, or bank/card reference. May repeat across distinct transactions and both sides of a transfer; separate from the internal UUID id.
         counterparty_text:
           type: string
           description: Merchant, sender, receiver, or account text extracted from the source.
         external_key:
           type: string
-          description: Stable duplicate-detection key derived from source/reference when available.
+          description: Opaque retry/deduplication key. New SMS confirmation keys identify the captured raw message, independent of editable references. Existing keys remain valid; manual transfer clients supply a stable key per submitted draft.
         note:
           type: string
         source:
@@ -3424,6 +3427,7 @@ components:
           maxLength: 120
         reference:
           type: string
+          description: Optional provider or user reference; may repeat and is not the internal transaction UUID.
         counterparty_text:
           type: string
         external_key:
@@ -3494,6 +3498,7 @@ components:
           maxLength: 120
         reference:
           type: string
+          description: Optional provider or user reference; may repeat and is not the internal transaction UUID.
         counterparty_text:
           type: string
         external_key:

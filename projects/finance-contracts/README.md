@@ -257,3 +257,17 @@ that evidence for transfer balance display/reporting when `type=transfer`.
 IDs and created/updated timestamps remain read-only. Existing editable source,
 review status, payment method and masked-identifier fields are exposed by the
 web editor; no additional response fields or migration are needed.
+
+## Reference Semantics
+
+`reference` is an optional provider/user reference, not the UUID `id` and not a
+unique key. Both observations of a transfer and unrelated records may share it.
+Clients must not enforce uniqueness or manufacture a different reference to
+confirm a separate capture. `external_key` is opaque: new SMS keys bind to raw
+capture identity, legacy keys remain valid, and manual transfer retries retain
+a stable key per submitted draft. Response/request shapes are unchanged.
+
+Duplicate confirmation/link errors identify an already recorded SMS or retry
+key. Transfer matches require accounts, equal currency/principal and dates
+within three days; time is included for inspection, and reference agreement is
+supporting evidence in `reason`. Shared references never auto-link records.

@@ -263,3 +263,15 @@ source-message access. Clients must gate active evidence balance display on
 `type=transfer`. The API audits the correction and does not change original SMS.
 Generated types expose the request flag; existing response timestamps stay
 read-only.
+
+## Is a reference the unique transaction ID?
+
+No. `id` is the generated UUID. `reference` is optional and may repeat, including
+across both sides of a transfer. Clients must not validate it as unique.
+`external_key` remains an opaque retry key: SMS keys now identify a raw capture,
+while legacy keys and manual draft keys remain supported. Original response
+shapes are unchanged. Reference edits do not bypass same-SMS duplicate guards.
+
+Match suggestions require accounts, equal currency/principal and nearby dates;
+time is returned for inspection and reference agreement appears only as
+supporting evidence in `reason`. Acceptance remains explicit.
