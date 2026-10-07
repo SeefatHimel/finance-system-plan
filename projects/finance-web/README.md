@@ -227,7 +227,7 @@ npm run lint
 - Fast date/month filters.
 - Account filter.
 - Category filter.
-- Search across transaction ID, counterparty, note, and duplicate key. Done.
+- Search across reference, counterparty, note, and duplicate key. Done.
 - Source filter for web, mobile, SMS, import, and system-created rows. Done.
 - Display mode switch:
   - spreadsheet mode: expenses negative, income positive
@@ -412,3 +412,17 @@ type retains linked SMS as history while web/API reporting ignores historical
 transfer balances. Original SMS is never rewritten by these edits. Identifier
 fields use two columns on desktop and one on phones inside the scrollable
 viewport modal.
+
+## Optional References
+
+Add/Edit transaction labels the field Reference and explains that it is optional
+and may repeat. It holds the bank/wallet Ref or TrxID, rather than the generated
+transaction UUID; search uses the same terminology. Synthetic examples include
+`DEMO-TRF-1042`, `DEMO-PAY-7Q2M` and `DEMO-ATM-0091`. Leave it blank if the provider
+supplies no code; no invented unique value is required.
+
+Distinct SMS may reuse references. Transfer matching still requires compatible
+accounts, equal currencies/principal and nearby dates; its explanation identifies
+reference agreement as supporting evidence. Users accept a match to retain both
+observations on one ledger movement. The same SMS cannot be added again merely
+by editing its reference.

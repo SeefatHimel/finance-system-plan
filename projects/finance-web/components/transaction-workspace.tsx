@@ -714,8 +714,9 @@ export function TransactionWorkspace() {
             </label>
 
             <label className="field">
-              <span className="field__label">Transaction ID</span>
-              <input className="field__control" name="reference" type="text" />
+              <span className="field__label">Reference</span>
+              <input aria-label="Reference" aria-describedby="transaction-create-reference-help" className="field__control" name="reference" placeholder="e.g. DEMO-TRF-1042" type="text" />
+              <small className="field__hint" id="transaction-create-reference-help">Optional bank or wallet reference. References may repeat.</small>
             </label>
 
             <label className="field">
@@ -889,13 +890,17 @@ export function TransactionWorkspace() {
             </label>
 
             <label className="field">
-              <span className="field__label">Transaction ID</span>
+              <span className="field__label">Reference</span>
               <input
+                aria-label="Reference"
+                aria-describedby="transaction-edit-reference-help"
                 className="field__control"
                 onChange={(event) => setEditingReference(event.target.value)}
+                placeholder="e.g. DEMO-TRF-1042"
                 type="text"
                 value={editingReference}
               />
+              <small className="field__hint" id="transaction-edit-reference-help">Optional bank or wallet reference. References may repeat.</small>
             </label>
 
             <label className="field">
@@ -1064,7 +1069,7 @@ export function TransactionWorkspace() {
                 className="field__control"
                 name="search"
                 onChange={(event) => setFilters({ ...filters, search: event.target.value })}
-                placeholder="TrxID, person, note"
+                placeholder="Reference, person, note"
                 type="search"
                 value={filters.search}
               />

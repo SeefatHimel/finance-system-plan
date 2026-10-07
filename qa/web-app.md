@@ -473,3 +473,15 @@ reset it. The API enforces the same rule. Remapped observations lose obsolete
 balances/fees; reclassified entries retain their messages as history without
 displaying historical transfer balances. The viewport modal scrolls, and the
 identifier fields collapse to one column on phones.
+
+## What belongs in the transaction Reference field?
+
+Use the bank or wallet's Ref/TrxID code, such as the synthetic `DEMO-TRF-1042`.
+It is optional and may repeat; the generated transaction UUID is separate. The
+Add/Edit labels, helper text and search placeholder use Reference consistently.
+There is no need to invent a unique code when the SMS provides none.
+
+The API allows distinct SMS to reuse references and protects retries using the
+raw capture identity. A transfer match displays matching-reference evidence
+alongside account/amount/currency/date compatibility and still needs acceptance.
+That keeps two sides visible while counting the accepted movement once.
