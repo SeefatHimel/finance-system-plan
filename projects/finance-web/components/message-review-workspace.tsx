@@ -45,6 +45,8 @@ type RejectDraft = {
   scope: "message" | "provider" | "sender";
 };
 
+const transactionTypes: TransactionType[] = ["expense", "income", "transfer", "fee", "refund", "adjustment"];
+
 function accountReviewDefaults(candidate: ParsedMessageCandidate) {
   const incoming = candidate.suggested_transfer_direction ? candidate.suggested_transfer_direction === "credit"
     : ["cash_in", "receive_money", "bank_transfer_in"].includes(candidate.message_kind);
@@ -124,6 +126,8 @@ export function MessageReviewWorkspace() {
   const [query, setQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
   const [issueFilter, setIssueFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [rejectDraft, setRejectDraft] = useState<RejectDraft | null>(null);
 
   async function loadData(showLoading = true) {
@@ -167,6 +171,9 @@ export function MessageReviewWorkspace() {
     const normalizedQuery = query.trim().toLowerCase();
     return reviewState.candidates.filter((candidate) => {
       if (providerFilter !== "all" && candidate.provider !== providerFilter) return false;
+      if (typeFilter !== "all" && candidate.transaction_type !== typeFilter) return false;
+      if (categoryFilter === "uncategorized" && candidate.category) return false;
+      if (categoryFilter !== "all" && categoryFilter !== "uncategorized" && candidate.category !== categoryFilter) return false;
       const issues = candidateIssues(candidate);
       if (issueFilter === "ready" && issues.length) return false;
       if (issueFilter === "missing" && !issues.length) return false;
@@ -174,7 +181,7 @@ export function MessageReviewWorkspace() {
       return [candidate.provider, candidate.message_kind, candidate.raw_message.sender, candidate.counterparty_text, candidate.reference]
         .some((value) => value.toLowerCase().includes(normalizedQuery));
     });
-  }, [issueFilter, providerFilter, query, reviewState]);
+  }, [categoryFilter, issueFilter, providerFilter, query, reviewState, typeFilter]);
 
   const activeCandidate = filteredCandidates.find((candidate) => candidate.id === activeCandidateId) ?? filteredCandidates[0] ?? null;
   const accountDraft = activeCandidate ? accountDrafts[activeCandidate.id] ?? accountReviewDefaults(activeCandidate) : null;
@@ -366,12 +373,16 @@ export function MessageReviewWorkspace() {
             <div className="review-queue__filters">
               <label className="review-search"><MagnifyingGlass aria-hidden="true" size={18} /><input aria-label="Search review queue" onChange={(event) => setQuery(event.target.value)} placeholder="Search sender or merchant" type="search" value={query} /></label>
               <div className="review-filter-row"><FunnelSimple aria-hidden="true" size={17} /><select aria-label="Filter by provider" onChange={(event) => setProviderFilter(event.target.value)} value={providerFilter}><option value="all">All providers</option>{providers.map((provider) => <option key={provider} value={provider}>{formatLabel(provider)}</option>)}</select><select aria-label="Filter by issue" onChange={(event) => setIssueFilter(event.target.value)} value={issueFilter}><option value="all">All states</option><option value="missing">Needs input</option><option value="ready">Ready to confirm</option></select></div>
+              <div className="review-filter-row review-filter-row--fields">
+                <select aria-label="Filter by category" onChange={(event) => setCategoryFilter(event.target.value)} value={categoryFilter}><option value="all">All categories</option><option value="uncategorized">Uncategorized</option>{reviewState.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
+                <select aria-label="Filter by transaction type" onChange={(event) => setTypeFilter(event.target.value)} value={typeFilter}><option value="all">All types</option>{transactionTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select>
+              </div>
             </div>
             <div className="review-queue__list">
               {filteredCandidates.map((candidate) => {
                 const issues = candidateIssues(candidate);
                 const selected = candidate.id === activeCandidate?.id;
-                return <button aria-current={selected ? "true" : undefined} className={`review-queue-item${selected ? " review-queue-item--active" : ""}`} key={candidate.id} onClick={() => setActiveCandidateId(candidate.id)} type="button"><span className="review-queue-item__top"><strong>{candidate.amount ? `BDT ${candidate.amount}` : "Amount needed"}</strong><small>{confidencePercent(candidate.confidence)}</small></span><span>{formatLabel(candidate.provider)} · {formatLabel(candidate.message_kind)}</span><small>{candidate.counterparty_text || candidate.raw_message.sender}</small><span className={issues.length ? "review-queue-item__issue" : "review-queue-item__ready"}>{issues[0] ?? "Ready to confirm"}</span></button>;
+                return <button aria-current={selected ? "true" : undefined} className={`review-queue-item${selected ? " review-queue-item--active" : ""}`} key={candidate.id} onClick={() => setActiveCandidateId(candidate.id)} type="button"><span className="review-queue-item__top"><strong>{candidate.amount ? `BDT ${candidate.amount}` : "Amount needed"}</strong><small>{confidencePercent(candidate.confidence)}</small></span><span>{formatLabel(candidate.provider)} · {formatLabel(candidate.message_kind)}</span><small>{candidate.counterparty_text || candidate.raw_message.sender}</small><small>Received <time dateTime={candidate.raw_message.received_at}>{formatDateTime(candidate.raw_message.received_at)}</time></small><span className={issues.length ? "review-queue-item__issue" : "review-queue-item__ready"}>{issues[0] ?? "Ready to confirm"}</span></button>;
               })}
               {!filteredCandidates.length ? <div className="review-queue__empty">No messages match these filters.</div> : null}
             </div>
@@ -391,7 +402,7 @@ export function MessageReviewWorkspace() {
                 <div className="review-form review-form--focused">
                   <label className="field"><span className="field__label">Account</span><select className="field__control" value={accountDraft?.account ?? ""} onChange={(event) => { updateAccountDraft({ account: event.target.value, other: event.target.value === accountDraft?.other ? "" : accountDraft?.other ?? "" }); const method = event.target.form?.elements.namedItem("payment_method") as HTMLSelectElement | null; if (method) method.value = ""; }} name="account" required><option value="">Select account</option>{reviewState.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
                   <label className="field"><span className="field__label">Amount</span><input className="field__control" defaultValue={activeCandidate.amount ?? ""} inputMode="decimal" name="amount" required /></label>
-                  <label className="field"><span className="field__label">Type</span><select className="field__control" defaultValue={activeCandidate.transaction_type} name="type">{["expense", "income", "transfer", "fee", "refund", "adjustment"].map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select></label>
+                  <label className="field"><span className="field__label">Type</span><select className="field__control" defaultValue={activeCandidate.transaction_type} name="type">{transactionTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select></label>
                   <label className="field"><span className="field__label">Debit / credit</span><select className="field__control" value={accountDraft?.direction ?? "debit"} onChange={(event) => updateAccountDraft({ direction: event.target.value as "debit" | "credit" })} name="direction"><option value="debit">Debit / money sent</option><option value="credit">Credit / money received</option></select><span className="field__hint">Direction is for the selected account.</span></label>
                   <label className="field"><span className="field__label">Category</span><select className="field__control" defaultValue={activeCandidate.category ?? ""} name="category"><option value="">No category</option>{reviewState.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
                   <label className="field"><span className="field__label">Payment method</span><select className="field__control" defaultValue={reviewState.paymentMethods.find((method) => method.account === accountDraft?.account && [activeCandidate.payment_method, activeCandidate.destination_payment_method].includes(method.id))?.id ?? ""} name="payment_method"><option value="">No payment method</option>{reviewState.paymentMethods.filter((method) => method.account === accountDraft?.account).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}</select></label>

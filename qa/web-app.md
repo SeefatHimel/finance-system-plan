@@ -201,11 +201,16 @@ redaction.
 ## What does the current SMS review page do?
 
 The SMS review page uses a queue-and-detail layout rather than rendering every
-candidate as a full form. Reviewers can search, filter by provider or issue,
+candidate as a full form. Reviewers can search, filter by provider, issue,
+category (including Uncategorized), or transaction type,
 navigate between candidates, and keep context while editing one focused item.
 Dashboard attention rows deep-link to the exact candidate, and the review page
 keeps the selected candidate id in the URL so the state can be shared or
 revisited.
+Each queue item shows the SMS received date and time in the browser's local
+timezone, consistent with the detail form. It is labeled Received because SMS
+receipt time is not necessarily the bank's transaction time. Filters combine
+and use the latest loaded candidate category/type, not unsaved form edits.
 It shows raw SMS evidence, parser
 notes, parser confidence, review or duplicate reason, detected
 provider/message kind, amount, reference, balance, fee, counterparty text, and

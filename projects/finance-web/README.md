@@ -324,6 +324,14 @@ seconds, paused while hovered or focused. Errors remain until dismissed or
 replaced by a later notification. Existing inline feedback is retained for
 context; repeating the same action produces a fresh notification.
 
+## SMS Review Queue
+
+Queue items show the SMS received date and time in the browser's local timezone.
+Provider, review-state, category, and transaction-type filters combine with
+search. Category filtering includes Uncategorized and uses parsed/remembered
+candidate values, not unsaved detail-form choices. All filters remain available
+on phone layouts. Received time is not a separately parsed bank transaction time.
+
 ## Transfer Suggestions In SMS Review
 
 The Other transfer account dropdown displays a suggested account and its reason:
