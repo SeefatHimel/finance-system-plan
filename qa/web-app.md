@@ -40,6 +40,17 @@ scrollable, wide financial tables advertise and support horizontal swiping,
 and forms, drawers, modals, toasts, and sticky review actions respect dynamic
 viewport height and device safe areas.
 
+## How does collapsing the sidebar create more workspace?
+
+Above 820px, the header toggle changes the sidebar from a 208px labeled menu to
+a 72px icon rail. The content margin and navigation progress indicator use the
+same width variable, so the workspace gains 136px without covering content.
+Links keep accessible names, hover titles, active-route styling, and pending SMS
+badges. The browser stores the desktop preference in a versioned localStorage
+key; storage failures leave the current-session toggle usable. Smaller screens
+use the full off-canvas menu independently of this preference. Resizing back to
+desktop closes an open mobile menu and releases its page scroll lock.
+
 ## Why start with a health-check dashboard?
 
 It proves the web project can run and communicate with the backend. It is a

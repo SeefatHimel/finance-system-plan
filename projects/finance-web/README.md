@@ -275,6 +275,19 @@ CSV exports append contextual `account_direction` and structured
 `transfer_evidence` JSON. Audit snapshots include the normalized evidence
 without raw SMS bodies.
 
+## Collapsible Navigation
+
+On screens wider than 820px, the header's Collapse sidebar button switches the
+208px menu to a 72px icon rail, giving the workspace another 136px of width.
+Expand sidebar restores the labels. Active routes and pending SMS badges remain
+visible in either state; links retain accessible names and hover titles.
+
+The preference is stored locally in `finance.sidebarCollapsed.v1` and survives
+navigation and reloads. If browser storage is unavailable, the toggle still works
+for the current session. At 820px and below, navigation uses the full off-canvas
+menu. Returning to desktop closes an open mobile menu and restores the saved
+desktop preference.
+
 ## Viewport Dialogs And Action Feedback
 
 Transaction editors, account/category editors, SMS rejection, and transfer
