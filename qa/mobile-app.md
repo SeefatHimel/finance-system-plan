@@ -356,3 +356,12 @@ The API authoritatively classifies English/Bangla offers and acknowledges ignore
 captures without retaining their original body. A trusted-sender Android scan
 may therefore upload an advertisement for classification; skipping advertisements
 does not disable the bank sender or its genuine financial notices.
+
+## How does mobile Activity handle a transfer reclassified through the web?
+
+The API retains observations as provenance so the original messages remain
+available. Activity shows per-account evidence balances/references only while
+`type=transfer`, preventing historical transfer balances from appearing on a
+corrected expense or other type. The ordinary ledger amount and account use the
+corrected transaction. Full ledger corrections currently happen in the web
+editor; this change does not add a native editor.

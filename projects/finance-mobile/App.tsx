@@ -4002,7 +4002,7 @@ export default function App() {
           <Text numberOfLines={1} style={styles.mobileRowMeta}>
             {formatMobileDate(transaction.date)}{transaction.time ? ` at ${transaction.time.slice(0, 5)}` : ""} · {transaction.source || "Ledger"}
           </Text>
-          {transaction.transfer_evidence?.map((item) => <Text key={item.id} style={styles.mobileRowMeta}>{accountName(item.account)} · {item.direction}{item.reference ? ` · ${item.reference}` : ""}{item.balance_after !== null ? ` · balance ${item.balance_after}` : ""}</Text>)}
+          {transaction.type === "transfer" ? transaction.transfer_evidence?.map((item) => <Text key={item.id} style={styles.mobileRowMeta}>{accountName(item.account)} · {item.direction}{item.reference ? ` · ${item.reference}` : ""}{item.balance_after !== null ? ` · balance ${item.balance_after}` : ""}</Text>) : null}
         </View>
         <Text style={[styles.mobileRowAmount, isIncome ? styles.mobileRowAmountSuccess : null]}>
           {transaction.type === "transfer" ? "↔" : isIncome ? "+" : "−"} {formatMoney(parseMoney(transaction.amount))}

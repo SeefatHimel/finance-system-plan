@@ -327,3 +327,12 @@ OTP/security and balance notices. The API classifies English/Bangla offers and
 acknowledges excluded captures without storing the original body; the Android
 trusted-sender scan may still upload a message for server classification. Keep
 the bank sender active so its financial notices continue to sync.
+
+## Activity After Ledger Corrections
+
+Web/API corrections can reclassify a matched transfer while retaining its
+observations and source messages as history. Activity displays account-specific
+transfer balances/references only when the entry's current `type` is `transfer`;
+historical observations on an expense or other type do not appear as active
+transfer balances. Its normal account and ledger amount continue to come from
+the corrected transaction. The full ledger editor is currently a web workflow.
