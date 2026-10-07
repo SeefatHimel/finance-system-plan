@@ -12,10 +12,12 @@ from rest_framework.viewsets import ModelViewSet
 
 from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
-from apps.transactions.models import Transaction, TransferEvidence
+from apps.transactions.models import Transaction
 from apps.transactions.transfers import (
     add_transfer_evidence,
     lock_transfer_user,
+    sms_external_key,
+    sms_recorded_elsewhere,
     sms_transfer_data,
 )
 
@@ -676,26 +678,10 @@ class MessageCandidateConfirmView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        external_key = self._build_external_key(
-            candidate=candidate,
-            account=account,
-            amount=amount,
-            reference=reference,
-            transaction_date=transaction_date,
-            transaction_type=transaction_type,
-        )
-        if (
-            external_key
-            and (
-                Transaction.objects.filter(user=request.user, external_key=external_key).exists()
-                or TransferEvidence.objects.filter(user=request.user, raw_message=candidate.raw_message).exists()
-                or (reference and TransferEvidence.objects.filter(
-                    user=request.user, provider=candidate.provider, reference__iexact=reference,
-                ).exists())
-            )
-        ):
+        external_key = sms_external_key(candidate)
+        if sms_recorded_elsewhere(candidate):
             return Response(
-                {"detail": "A transaction with the same SMS/reference key already exists."},
+                {"detail": "This SMS is already recorded in a transaction."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -801,34 +787,6 @@ class MessageCandidateConfirmView(APIView):
             ),
             user=user,
             id=candidate_id,
-        )
-
-    def _build_external_key(
-        self,
-        *,
-        candidate,
-        account,
-        amount,
-        reference: str,
-        transaction_date,
-        transaction_type: str,
-    ) -> str:
-        normalized_reference = reference.strip().lower()
-        if normalized_reference:
-            provider = candidate.provider or "unknown"
-            return f"sms:{provider}:{normalized_reference}"
-
-        if candidate.raw_message_id:
-            return f"raw-message:{candidate.raw_message_id}"
-
-        return "|".join(
-            [
-                "sms-fallback",
-                str(account.id),
-                str(transaction_date),
-                transaction_type,
-                str(amount),
-            ]
         )
 
 

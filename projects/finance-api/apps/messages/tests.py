@@ -1621,7 +1621,7 @@ class MessageReviewApiTests(APITestCase):
         self.assertEqual(transaction.counterparty_text, "SAMPLE MERCHANT")
         self.assertEqual(transaction.payment_method, self.payment_method)
         self.assertEqual(transaction.raw_message_id, parsed_candidate.raw_message_id)
-        self.assertEqual(transaction.external_key, "sms:bkash:def456xyz")
+        self.assertEqual(transaction.external_key, f"raw-message:{parsed_candidate.raw_message_id}")
 
     def test_transfer_candidate_requires_destination_account_on_confirm(self):
         candidate = self.import_message()

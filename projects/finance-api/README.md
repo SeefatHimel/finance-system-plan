@@ -493,3 +493,30 @@ reporting. No database migration is required.
 Regression coverage: `apps.transactions.test_corrections`, together with the
 transaction, transfer, source-message and message suites. SQLite skips the
 existing PostgreSQL concurrency case.
+
+## References and SMS Duplicate Protection
+
+`reference` is optional, editable evidence such as a provider Ref/TrxID. It is
+not unique and is separate from the internal transaction UUID. Distinct SMS
+captures may reuse a reference, including the same provider/account/date/amount;
+confirming each as separate creates separate movements. Accept a transfer match
+when two captures describe the same movement, so both observations count once.
+
+New SMS confirmation/observation keys use the captured raw-message ID. Same SMS
+imports still reuse their sender/body/received-time hash; confirmation and link
+checks also inspect existing transaction/raw-message and evidence links. Changing
+a reference cannot bypass duplicate protection. Existing provider/reference keys
+are retained, with raw links protecting legacy records; no migration is needed.
+Manual transfer retry keys remain independent of the display reference.
+
+Transfer suggestions and explicit linking require compatible accounts, equal
+principal amount, equal account currencies and a date within three days.
+Transaction times remain visible for review. An agreeing primary or linked
+reference is explained as supporting evidence; a reference alone never merges
+or rejects an entry. No automatic acceptance or FX matching is introduced.
+Synthetic reference examples: `DEMO-TRF-1042`, `DEMO-PAY-7Q2M`, `DEMO-ATM-0091`.
+Use the provider's actual code if available, or leave this field blank.
+
+Verify with `python manage.py test apps.transactions.test_references
+apps.transactions.test_transfers apps.messages.tests` against the configured
+test database.

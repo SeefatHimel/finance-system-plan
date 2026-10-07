@@ -1,10 +1,10 @@
 """Review-assisted transfer matching. Observations never move money themselves."""
 
 from datetime import timedelta
-from hashlib import sha256
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
@@ -163,6 +163,7 @@ def compatible(data, target):
         target.type == Transaction.Type.TRANSFER
         and target.transfer_account_id is not None
         and target.account_id != target.transfer_account_id
+        and target.account.currency == target.transfer_account.currency
         and data["amount"] == target.amount
         and (data["account"] is None or data["account"].id == target.account_id)
         and (
@@ -173,7 +174,16 @@ def compatible(data, target):
     )
 
 
-def match_summary(record, kind):
+def match_summary(record, kind, reference=""):
+    reason = "Same currency, compatible accounts and amount within three days. Verify this is the same movement."
+    normalized_reference = reference.strip().casefold()
+    references = [record.reference]
+    if kind == "transaction":
+        references.extend(item.reference for item in record.transfer_evidence.all())
+    if normalized_reference and any(
+        value.strip().casefold() == normalized_reference for value in references
+    ):
+        reason += " Reference also matches; references can be reused."
     return {
         "id": str(record.id),
         "kind": kind,
@@ -185,7 +195,7 @@ def match_summary(record, kind):
         "date": record.date.isoformat(),
         "time": record.time.isoformat() if record.time else None,
         "reference": record.reference,
-        "reason": "Compatible accounts and amount within three days. Verify this is the same movement.",
+        "reason": reason,
     }
 
 
@@ -200,14 +210,18 @@ def find_transfer_matches(
             data["date"] - timedelta(days=MATCH_DAYS),
             data["date"] + timedelta(days=MATCH_DAYS),
         ),
-    ).select_related("account", "transfer_account")
+    ).select_related("account", "transfer_account").prefetch_related("transfer_evidence")
     if data["account"]:
         queryset = queryset.filter(account=data["account"])
     if data["transfer_account"]:
         queryset = queryset.filter(transfer_account=data["transfer_account"])
     if exclude_transaction:
         queryset = queryset.exclude(pk=exclude_transaction)
-    matches = [match_summary(item, "transaction") for item in queryset[:20]]
+    matches = [
+        match_summary(item, "transaction", data.get("reference", ""))
+        for item in queryset[:20]
+        if compatible(data, item)
+    ]
     # Pending SMS may supply the other side before either message has been posted.
     pending = ParsedMessageCandidate.objects.filter(
         user=user,
@@ -245,6 +259,7 @@ def find_transfer_matches(
             continue
         synthetic = Transaction(
             id=item.id,
+            type=Transaction.Type.TRANSFER,
             account=source,
             transfer_account=destination,
             amount=item.amount,
@@ -252,16 +267,31 @@ def find_transfer_matches(
             time=other["time"],
             reference=item.reference,
         )
-        matches.append(match_summary(synthetic, "candidate"))
+        if compatible(data, synthetic):
+            matches.append(
+                match_summary(synthetic, "candidate", data.get("reference", ""))
+            )
     return matches
 
 
-def sms_external_key(candidate, reference):
-    return (
-        f"sms:{candidate.provider or 'unknown'}:{reference.strip().lower()}"
-        if reference.strip()
-        else f"raw-message:{candidate.raw_message_id}"
+def sms_external_key(candidate):
+    # References are editable, optional evidence. The captured SMS is the identity.
+    return f"raw-message:{candidate.raw_message_id}"
+
+
+def sms_recorded_elsewhere(candidate, exclude_transaction=None):
+    """Protect old reference-keyed records as well as new capture-keyed records."""
+    records = Transaction.objects.filter(user_id=candidate.user_id).filter(
+        Q(raw_message_id=candidate.raw_message_id)
+        | Q(external_key=sms_external_key(candidate))
     )
+    evidence = TransferEvidence.objects.filter(
+        user_id=candidate.user_id, raw_message_id=candidate.raw_message_id
+    )
+    if exclude_transaction:
+        records = records.exclude(pk=exclude_transaction.pk)
+        evidence = evidence.exclude(transaction=exclude_transaction)
+    return records.exists() or evidence.exists()
 
 
 def add_transfer_evidence(record, observation, candidate=None):
@@ -274,35 +304,23 @@ def add_transfer_evidence(record, observation, candidate=None):
             {"account": "The evidence account must be one side of this transfer."}
         )
     direction = "credit" if account.id == record.transfer_account_id else "debit"
-    reference_key = (
-        sms_external_key(candidate, observation.get("reference", ""))
+    key = (
+        sms_external_key(candidate)
         if candidate
         else observation.get("external_key", "")
     )
-    # Same-bank debit and credit messages may share a reference. Identity is per account side.
-    key = (
-        "sms-evidence:"
-        + sha256(f"{reference_key}|{account.id}|{direction}".encode()).hexdigest()
-        if candidate
-        else reference_key
-    )
     if candidate:
-        conflicts = TransferEvidence.objects.filter(user=record.user).exclude(
-            transaction=record
-        )
-        if conflicts.filter(raw_message=candidate.raw_message).exists() or (
-            observation.get("reference")
-            and conflicts.filter(
-                provider=candidate.provider,
-                reference__iexact=observation["reference"],
-                account=account,
-            ).exists()
-        ):
+        if sms_recorded_elsewhere(candidate, exclude_transaction=record):
             raise ValidationError(
                 {
-                    "candidate": "This account's SMS/reference is already linked to another transfer."
+                    "candidate": "This SMS is already recorded in another transaction."
                 }
             )
+        existing = record.transfer_evidence.filter(
+            raw_message=candidate.raw_message
+        ).first()
+        if existing:
+            return existing
     if key:
         existing = TransferEvidence.objects.filter(
             user=record.user, external_key=key
@@ -311,15 +329,15 @@ def add_transfer_evidence(record, observation, candidate=None):
             if existing.transaction_id == record.id:
                 return existing
             raise ValidationError(
-                {"detail": "This SMS/reference is already linked to another transfer."}
+                {"detail": "This observation is already linked to another transfer."}
             )
         if (
-            Transaction.objects.filter(user=record.user, external_key=reference_key)
+            Transaction.objects.filter(user=record.user, external_key=key)
             .exclude(pk=record.id)
             .exists()
         ):
             raise ValidationError(
-                {"detail": "A transaction with this SMS/reference already exists."}
+                {"detail": "A transaction with this observation key already exists."}
             )
     evidence = TransferEvidence.objects.create(
         user=record.user,
@@ -430,7 +448,7 @@ def link_transfer(*, user, payload, context):
         if not compatible(data, record):
             raise ValidationError(
                 {
-                    "match_transaction": "Accounts, amount, or date no longer match this transfer."
+                    "match_transaction": "Accounts, currency, amount, or date no longer match this transfer."
                 }
             )
         before = transaction_snapshot(record)
@@ -484,13 +502,11 @@ def link_transfer(*, user, payload, context):
             before = transaction_snapshot(record)
         elif target.status == ParsedMessageCandidate.Status.NEEDS_REVIEW:
             before = None
-            other["external_key"] = sms_external_key(target, other["reference"])
-            if Transaction.objects.filter(
-                user=user, external_key=other["external_key"]
-            ).exists():
+            other["external_key"] = sms_external_key(target)
+            if sms_recorded_elsewhere(target):
                 raise ValidationError(
                     {
-                        "match_candidate": "This reference is already recorded. Refresh matches."
+                        "match_candidate": "This SMS is already recorded. Refresh matches."
                     }
                 )
             record = Transaction.objects.create(user=user, **other)

@@ -422,8 +422,8 @@ candidate links to the retained transfer and audits removal of the duplicate.
 Atomic confirmation/link/create/update/delete operations lock the user row so
 concurrent web and mobile requests cannot both create a transfer while accepting
 the same match. Raw SMS evidence links and nonblank observation keys have database
-uniqueness constraints. SMS observation identity includes the account side,
-since same-bank debit/credit messages may share a reference. Manual transfer
+uniqueness constraints. SMS observation identity follows the raw capture,
+so distinct same-bank debit/credit messages can share a reference. Manual transfer
 retry keys make retrying one submitted draft safe. Linked transfers with multiple
 observations require explicit correction acknowledgement to change their
 principal/accounts/type; those corrections without it return 400.
@@ -524,3 +524,18 @@ without a raw-message ID. Reclassification retains the original SMS links and
 retry keys as historical provenance, while balance summaries only consume
 transfer evidence for entries whose current type is transfer. This avoids both
 lost history and stale balances attributed to unrelated accounts.
+
+## Why can references repeat without allowing repeated SMS confirmation?
+
+Reference is editable evidence, not event identity. New confirmation and transfer
+observation keys use the raw-message ID. The importer deduplicates sender/body/
+received-time hashes; ledger checks inspect both raw links and retry keys,
+including legacy transactions still carrying provider/reference keys. Reference
+edits cannot let one capture produce another transaction. Distinct captures may
+legitimately share a reference, including on the same account and day.
+
+Transfer suggestions/linking compare accounts, equal currency and amount, and a
+three-day date window; times are exposed for review. Matching primary or linked
+references strengthen the explanation but neither create nor merge a movement
+automatically. Manual draft retry keys retain their existing semantics. No
+migration or rewriting of old transaction keys is needed.
