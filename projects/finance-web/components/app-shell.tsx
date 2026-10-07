@@ -15,7 +15,8 @@ import {
   List,
   ListBullets,
   MagnifyingGlass,
-  PlusCircle
+  PlusCircle,
+  SidebarSimple
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -47,6 +48,8 @@ const navItems: NavItem[] = [
   { href: "/audit-logs", icon: FileText, label: "Audit logs", subtitle: "Inspect the history behind ledger changes", title: "Audit logs" }
 ];
 
+const sidebarPreferenceKey = "finance.sidebarCollapsed.v1";
+
 function isActive(item: NavItem, pathname: string) {
   return item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
 }
@@ -63,10 +66,25 @@ function currentDateLabel() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [syncLabel, setSyncLabel] = useState("Mobile sync ready");
   const [userInitials, setUserInitials] = useState("—");
+
+  useEffect(() => {
+    try {
+      setIsSidebarCollapsed(window.localStorage.getItem(sidebarPreferenceKey) === "true");
+    } catch {
+      // Navigation remains usable when browser storage is unavailable.
+    }
+    const mobileViewport = window.matchMedia("(max-width: 820px)");
+    const closeMobileNavigation = () => {
+      if (!mobileViewport.matches) setIsMobileNavOpen(false);
+    };
+    mobileViewport.addEventListener("change", closeMobileNavigation);
+    return () => mobileViewport.removeEventListener("change", closeMobileNavigation);
+  }, []);
 
   useEffect(() => {
     setIsMobileNavOpen(false);
@@ -137,6 +155,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const activeItem = navItems.find((item) => isActive(item, pathname)) ?? navItems[0];
   const isDashboard = pathname === "/";
 
+  function toggleSidebar() {
+    const collapsed = !isSidebarCollapsed;
+    setIsSidebarCollapsed(collapsed);
+    try {
+      window.localStorage.setItem(sidebarPreferenceKey, String(collapsed));
+    } catch {
+      // The current session still supports collapsing and expanding.
+    }
+  }
+
   function handleNavigation(event: MouseEvent<HTMLAnchorElement>, href: string) {
     if (
       href === pathname ||
@@ -152,7 +180,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="app-frame">
+    <div className={`app-frame${isSidebarCollapsed ? " app-frame--sidebar-collapsed" : ""}`}>
       <aside className={`app-sidebar${isMobileNavOpen ? " app-sidebar--open" : ""}`} id="primary-navigation">
         <Link className="app-logo" href="/" aria-label="Finance dashboard" onClick={(event) => handleNavigation(event, "/")}>
           <DiamondsFour aria-hidden="true" className="app-logo__mark" size={31} weight="fill" />
@@ -168,14 +196,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             return (
               <Link
                 aria-current={selected ? "page" : undefined}
+                aria-label={`${item.label}${showCount ? `, ${pendingCount} pending` : ""}`}
                 className={`app-nav__item${selected ? " app-nav__item--active" : ""}`}
                 href={item.href}
                 key={item.href}
                 onClick={(event) => handleNavigation(event, item.href)}
+                title={`${item.label}${showCount ? ` (${pendingCount} pending)` : ""}`}
               >
                 <NavIcon aria-hidden="true" className="nav-icon" size={20} weight={selected ? "fill" : "regular"} />
-                <span>{item.label}</span>
-                {showCount ? <span className="app-nav__count" aria-label={`${pendingCount} pending`}>{pendingCount}</span> : null}
+                <span className="app-nav__label">{item.label}</span>
+                {showCount ? <span className="app-nav__count" aria-hidden="true">{pendingCount !== null && pendingCount > 99 ? "99+" : pendingCount}</span> : null}
               </Link>
             );
           })}
@@ -196,6 +226,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span />
         </div>
         <header className={`app-topbar${isDashboard ? " app-topbar--dashboard" : ""}`}>
+          <button
+            aria-controls="primary-navigation"
+            aria-expanded={!isSidebarCollapsed}
+            aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="sidebar-toggle"
+            onClick={toggleSidebar}
+            title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            type="button"
+          >
+            <SidebarSimple aria-hidden="true" size={21} weight={isSidebarCollapsed ? "regular" : "fill"} />
+          </button>
           <button
             aria-controls="primary-navigation"
             aria-expanded={isMobileNavOpen}
