@@ -220,12 +220,14 @@ correction. Web decoding defaults absent fields to empty strings for older API
 responses. These fields explain suggestions; clients still submit the ordinary
 review draft and confirmation/link request. No new write endpoint is introduced.
 
-## How is recently added ordering exposed?
+## How are recently added and updated ordering exposed?
 
 Transaction listing accepts `ordering` with enum values `-date` and
-`-created_at`, defaulting to `-date`. The generated client mirrors the whitelist.
-`created_at` is already read-only in transaction responses. To include old
-transactions newly added to the ledger, omit the financial-month filter. CSV
+`-created_at` and `-updated_at`, defaulting to `-date`. The generated client mirrors
+the whitelist. `created_at` and `updated_at` are read-only in transaction responses.
+Update time includes new entries, edits, new transfer evidence and merges;
+reads and idempotent retries leave it unchanged. To include old transactions
+newly added or edited, omit the financial-month filter. CSV
 export keeps its existing chronological order and does not accept this option.
 
 ## What does learning a skipped message type change in the API?

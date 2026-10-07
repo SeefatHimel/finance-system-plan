@@ -338,7 +338,7 @@ export class FinanceApiClient {
   }
 
   async listTransactionsForCurrentUser(query?: {
-  ordering?: "-date" | "-created_at";
+  ordering?: "-date" | "-created_at" | "-updated_at";
   month?: string;
   account?: string;
   category?: string;

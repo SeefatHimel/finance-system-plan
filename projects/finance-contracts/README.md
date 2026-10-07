@@ -218,8 +218,11 @@ confirmed history, a name/provider match, or unresolved ambiguity. Clients must
 keep review/confirmation explicit. Missing metadata can default to empty strings.
 
 Transaction listing accepts optional `ordering` (`-date` by default, or
-`-created_at` for recently added ledger records). It is independent of transaction
-month filtering; omit month to find backdated additions. The generated client
+`-created_at` for recently added ledger records, or `-updated_at` for latest saved
+changes). Creation, edits, new transfer evidence and merges advance `updated_at`;
+reads and idempotent retries do not. Both timestamps remain read-only. Ordering
+is independent of transaction month filtering; omit month to find backdated
+additions or edits. The generated client
 exposes the same enum. CSV export keeps chronological order.
 
 SMS message kinds include `promotional`, excluded with OTP/security by default.

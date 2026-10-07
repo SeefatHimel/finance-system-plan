@@ -1391,9 +1391,9 @@ paths:
           name: ordering
           schema:
             type: string
-            enum: ['-date', '-created_at']
+            enum: ['-date', '-created_at', '-updated_at']
             default: '-date'
-          description: Sort newest transaction dates first (default), or newest ledger additions first. Month still filters the transaction date; omit it to include older transactions recently added. Edits and linked evidence do not change created_at.
+          description: Sort newest transaction dates first (default), newest ledger additions first, or latest saved changes first. Month still filters the transaction date; omit it to include older transactions recently added or updated. Creation and edits update updated_at, as do newly linked transfer evidence and merges; reads and idempotent transfer retries do not. Edits and linked evidence do not change created_at.
         - in: query
           name: month
           schema:
