@@ -1,5 +1,7 @@
 "use client";
 
+import { useFeedbackMessage } from "@/components/toast-provider";
+
 import type React from "react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -19,6 +21,7 @@ import {
   updateCategory
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { ModalDialog } from "@/components/modal-dialog";
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
 
 type SetupState =
@@ -55,8 +58,8 @@ function formatAccountBalance(account: Account, balance: string) {
 
 export function SetupWorkspace() {
   const [setupState, setSetupState] = useState<SetupState>({ status: "loading" });
-  const [accountError, setAccountError] = useState<string | null>(null);
-  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [accountError, setAccountError] = useFeedbackMessage("error");
+  const [categoryError, setCategoryError] = useFeedbackMessage("error");
   const [isSavingAccount, setIsSavingAccount] = useState(false);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [isUpdatingAccount, setIsUpdatingAccount] = useState(false);
@@ -71,7 +74,7 @@ export function SetupWorkspace() {
   const [editingCategoryKind, setEditingCategoryKind] = useState<CategoryKind>("expense");
   const [activeTab, setActiveTab] = useState<SetupTab>("accounts");
   const [drawer, setDrawer] = useState<SetupDrawer>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [, setNotice] = useFeedbackMessage("success");
   const [accountSearch, setAccountSearch] = useState("");
   const [accountTypeFilter, setAccountTypeFilter] = useState<AccountType | "all">("all");
   const [accountStatusFilter, setAccountStatusFilter] = useState<"active" | "all" | "inactive">("all");
@@ -383,20 +386,18 @@ export function SetupWorkspace() {
       </section>
 
       {drawer ? (
-        <><button className="drawer-scrim" aria-label="Close form" onClick={() => setDrawer(null)} type="button" /><aside aria-modal="true" className="form-drawer" role="dialog">
-          <div className="form-drawer__header"><div><h2>{drawer === "account-create" ? "Add account" : drawer === "account-edit" ? "Edit account" : drawer === "category-create" ? "Add category" : "Edit category"}</h2><p>{drawer.startsWith("account") ? "Keep account details accurate for reporting and reconciliation." : "Organize transactions with clear, reusable labels."}</p></div><button aria-label="Close form" className="icon-button" onClick={() => setDrawer(null)} type="button">×</button></div>
+        <ModalDialog labelledBy="setup-editor-title" className="form-drawer" busy={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onCancel={() => setDrawer(null)}>
+          <div className="form-drawer__header"><div><h2 id="setup-editor-title">{drawer === "account-create" ? "Add account" : drawer === "account-edit" ? "Edit account" : drawer === "category-create" ? "Add category" : "Edit category"}</h2><p>{drawer.startsWith("account") ? "Keep account details accurate for reporting and reconciliation." : "Organize transactions with clear, reusable labels."}</p></div><button aria-label="Close form" className="icon-button" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">×</button></div>
 
-          {drawer === "account-create" ? <form className="drawer-form" onSubmit={handleAccountSubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" /></label><label className="field"><span className="field__label">Type</span><select className="field__control" name="type" required>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label><label className="field"><span className="field__label">Starting balance</span><input className="field__control" min="0" name="starting_balance" step="0.01" type="number" /></label><label className="field"><span className="field__label">Currency</span><select className="field__control" defaultValue="BDT" name="currency"><option value="BDT">BDT</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label>{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingAccount} type="submit">{isSavingAccount ? <ButtonBusy label="Saving" /> : "Add account"}</button></div></form> : null}
+          {drawer === "account-create" ? <form className="drawer-form" onSubmit={handleAccountSubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" /></label><label className="field"><span className="field__label">Type</span><select className="field__control" name="type" required>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label><label className="field"><span className="field__label">Starting balance</span><input className="field__control" min="0" name="starting_balance" step="0.01" type="number" /></label><label className="field"><span className="field__label">Currency</span><select className="field__control" defaultValue="BDT" name="currency"><option value="BDT">BDT</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label>{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingAccount} type="submit">{isSavingAccount ? <ButtonBusy label="Saving" /> : "Add account"}</button></div></form> : null}
 
-          {drawer === "account-edit" ? <form className="drawer-form" onSubmit={handleAccountUpdate}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" onChange={(event) => setEditingAccountName(event.target.value)} required type="text" value={editingAccountName} /></label><label className="field"><span className="field__label">Type</span><select className="field__control" onChange={(event) => setEditingAccountType(event.target.value as AccountType)} value={editingAccountType}>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isUpdatingAccount} type="submit">{isUpdatingAccount ? <ButtonBusy label="Updating" /> : "Save changes"}</button></div></form> : null}
+          {drawer === "account-edit" ? <form className="drawer-form" onSubmit={handleAccountUpdate}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" onChange={(event) => setEditingAccountName(event.target.value)} required type="text" value={editingAccountName} /></label><label className="field"><span className="field__label">Type</span><select className="field__control" onChange={(event) => setEditingAccountType(event.target.value as AccountType)} value={editingAccountType}>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isUpdatingAccount} type="submit">{isUpdatingAccount ? <ButtonBusy label="Updating" /> : "Save changes"}</button></div></form> : null}
 
-          {drawer === "category-create" ? <form className="drawer-form" onSubmit={handleCategorySubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" /></label><label className="field"><span className="field__label">Kind</span><select className="field__control" name="kind" required>{categoryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></label>{categoryError ? <p className="form-error">{categoryError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingCategory} type="submit">{isSavingCategory ? <ButtonBusy label="Saving" /> : "Add category"}</button></div></form> : null}
+          {drawer === "category-create" ? <form className="drawer-form" onSubmit={handleCategorySubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" /></label><label className="field"><span className="field__label">Kind</span><select className="field__control" name="kind" required>{categoryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></label>{categoryError ? <p className="form-error">{categoryError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingCategory} type="submit">{isSavingCategory ? <ButtonBusy label="Saving" /> : "Add category"}</button></div></form> : null}
 
-          {drawer === "category-edit" ? <form className="drawer-form" onSubmit={handleCategoryUpdate}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" onChange={(event) => setEditingCategoryName(event.target.value)} required type="text" value={editingCategoryName} /></label><label className="field"><span className="field__label">Kind</span><select className="field__control" onChange={(event) => setEditingCategoryKind(event.target.value as CategoryKind)} value={editingCategoryKind}>{categoryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></label>{categoryError ? <p className="form-error">{categoryError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isUpdatingCategory} type="submit">{isUpdatingCategory ? <ButtonBusy label="Updating" /> : "Save changes"}</button></div></form> : null}
-        </aside></>
+          {drawer === "category-edit" ? <form className="drawer-form" onSubmit={handleCategoryUpdate}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" onChange={(event) => setEditingCategoryName(event.target.value)} required type="text" value={editingCategoryName} /></label><label className="field"><span className="field__label">Kind</span><select className="field__control" onChange={(event) => setEditingCategoryKind(event.target.value as CategoryKind)} value={editingCategoryKind}>{categoryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></label>{categoryError ? <p className="form-error">{categoryError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isUpdatingCategory} type="submit">{isUpdatingCategory ? <ButtonBusy label="Updating" /> : "Save changes"}</button></div></form> : null}
+        </ModalDialog>
       ) : null}
-
-      {notice ? <div className="toast" role="status"><span className="toast__icon">✓</span><span>{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice(null)} type="button">×</button></div> : null}
     </div>
   );
 }

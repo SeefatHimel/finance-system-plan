@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { ModalDialog } from "@/components/modal-dialog";
 import type { TransferMatch } from "@/lib/api";
 
 export function TransferMatchDialog({ matches, busy, error, merging = false, onAccept, onSeparate, onCancel }: {
@@ -12,17 +12,11 @@ export function TransferMatchDialog({ matches, busy, error, merging = false, onA
   onSeparate: () => void;
   onCancel: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const element = dialog.current;
-    element?.showModal();
-    return () => element?.close();
-  }, []);
   return (
-    <dialog aria-labelledby="transfer-match-title" className="decision-modal transfer-match-dialog" onCancel={(event) => { event.preventDefault(); if (!busy) onCancel(); }} ref={dialog}>
+    <ModalDialog labelledBy="transfer-match-title" className="decision-modal transfer-match-dialog" busy={busy} onCancel={onCancel}>
       <h2 id="transfer-match-title">Possible matching transfer found</h2>
       <p>Verify this is the same money movement. Linking shows it in both accounts and counts it once.</p>
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? <p className="form-error">{error}</p> : null}
       <div className="transfer-match-list">
         {matches.map((match) => (
           <article className="transfer-match-card" key={`${match.kind}:${match.id}`}>
@@ -40,6 +34,6 @@ export function TransferMatchDialog({ matches, busy, error, merging = false, onA
         <button className="button button--ghost" disabled={busy} onClick={onCancel} type="button">Cancel</button>
         <button className="button button--ghost" disabled={busy} onClick={onSeparate} type="button">Keep separate</button>
       </div>
-    </dialog>
+    </ModalDialog>
   );
 }

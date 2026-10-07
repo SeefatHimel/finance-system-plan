@@ -1,5 +1,7 @@
 "use client";
 
+import { useFeedbackMessage, useToast } from "@/components/toast-provider";
+
 import type React from "react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -37,8 +39,9 @@ function formatLabel(value: string) {
 }
 
 export function DebtWorkspace() {
+  const { notify } = useToast();
   const [debtState, setDebtState] = useState<DebtState>({ status: "loading" });
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useFeedbackMessage("error");
   const [isCreating, setIsCreating] = useState(false);
   const [paymentDebtId, setPaymentDebtId] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -135,6 +138,7 @@ export function DebtWorkspace() {
       });
       form.reset();
       await loadDebts(false);
+      notify("Debt record added.");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not create debt.");
     } finally {
@@ -167,6 +171,7 @@ export function DebtWorkspace() {
       setPaymentAmount("");
       setPaymentNote("");
       await loadDebts(false);
+      notify("Debt payment recorded.");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not record payment.");
     } finally {

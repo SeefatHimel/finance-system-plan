@@ -1,5 +1,7 @@
 "use client";
 
+import { useFeedbackMessage, useToast } from "@/components/toast-provider";
+
 import type React from "react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -69,8 +71,9 @@ function dueLabel(bill: CreditCardBill) {
 }
 
 export function CreditCardWorkspace() {
+  const { notify } = useToast();
   const [state, setState] = useState<CreditCardState>({ status: "loading" });
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useFeedbackMessage("error");
   const [isCreating, setIsCreating] = useState(false);
   const [paymentBillId, setPaymentBillId] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -178,6 +181,7 @@ export function CreditCardWorkspace() {
       });
       form.reset();
       await loadCreditCards(false);
+      notify("Credit card bill added.");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not create credit card bill.");
     } finally {
@@ -210,6 +214,7 @@ export function CreditCardWorkspace() {
       setPaymentAmount("");
       setPaymentNote("");
       await loadCreditCards(false);
+      notify("Credit card payment recorded.");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not record bill payment.");
     } finally {

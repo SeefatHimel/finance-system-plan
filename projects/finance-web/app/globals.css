@@ -2793,3 +2793,43 @@ textarea {
 .transfer-match-list { display: grid; gap: 12px; margin: 20px 0; }
 .transfer-match-card { border: 1px solid var(--border, #e1e5e9); border-radius: 12px; padding: 16px; }
 .transfer-match-card p { margin: 8px 0; }
+
+/* Native dialogs and notification portals escape transformed route containers. */
+.viewport-modal {
+  animation: none;
+  background: var(--panel);
+  color: var(--foreground);
+  height: fit-content;
+  inset: 0;
+  margin: auto;
+  max-height: calc(100dvh - 32px);
+  max-width: 680px;
+  overflow-y: auto;
+  position: fixed;
+  transform: none;
+  width: calc(100vw - 32px);
+}
+.viewport-modal:not([open]) { display: none; }
+.viewport-modal::backdrop { background: rgb(2 8 15 / 76%); }
+.viewport-modal.form-drawer { border: 1px solid var(--panel-border); border-radius: 14px; padding: 0; }
+.viewport-modal .form-drawer__header { flex-shrink: 0; }
+.viewport-modal .drawer-form { min-height: 0; }
+.viewport-modal.transfer-match-dialog { max-width: 560px; }
+
+.action-toast {
+  bottom: auto;
+  color: var(--foreground);
+  left: auto;
+  max-width: min(440px, calc(100vw - 32px));
+  overflow-wrap: anywhere;
+  right: max(24px, env(safe-area-inset-right));
+  top: max(24px, env(safe-area-inset-top));
+  z-index: 200;
+}
+.action-toast .toast__icon { flex-shrink: 0; }
+.action-toast > button { flex-shrink: 0; min-height: 32px; min-width: 32px; }
+.action-toast--error { border-left-color: #ff7c82; }
+.action-toast--error .toast__icon { background: rgb(255 124 130 / 12%); color: #ff7c82; }
+@media (max-width: 600px) {
+  .action-toast { left: 16px; right: 16px; top: max(16px, env(safe-area-inset-top)); }
+}

@@ -1,5 +1,7 @@
 "use client";
 
+import { useFeedbackMessage, useToast } from "@/components/toast-provider";
+
 import type React from "react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -74,10 +76,11 @@ function differenceReason(status: string, difference: string) {
 }
 
 export function ReconciliationWorkspace() {
+  const { notify } = useToast();
   const [state, setState] = useState<ReconciliationState>({ status: "loading" });
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [accountCheck, setAccountCheck] = useState<AccountReconciliation | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useFeedbackMessage("error");
   const [isSaving, setIsSaving] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
 
@@ -226,6 +229,7 @@ export function ReconciliationWorkspace() {
       });
       form.reset();
       await loadReconciliation(account, false);
+      notify("Balance snapshot saved.");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not save balance snapshot.");
     } finally {

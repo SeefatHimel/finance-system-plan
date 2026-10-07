@@ -1,5 +1,7 @@
 "use client";
 
+import { useFeedbackMessage, useToast } from "@/components/toast-provider";
+
 import type React from "react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -78,10 +80,11 @@ function formatLabel(value: string) {
 }
 
 export function SmsSettingsWorkspace() {
+  const { notify } = useToast();
   const [settingsState, setSettingsState] = useState<SmsSettingsState>({ status: "loading" });
-  const [paymentMethodError, setPaymentMethodError] = useState<string | null>(null);
-  const [senderRuleError, setSenderRuleError] = useState<string | null>(null);
-  const [capturePreferenceError, setCapturePreferenceError] = useState<string | null>(null);
+  const [paymentMethodError, setPaymentMethodError] = useFeedbackMessage("error");
+  const [senderRuleError, setSenderRuleError] = useFeedbackMessage("error");
+  const [capturePreferenceError, setCapturePreferenceError] = useFeedbackMessage("error");
   const [updatingCaptureKey, setUpdatingCaptureKey] = useState<string | null>(null);
   const [isSavingPaymentMethod, setIsSavingPaymentMethod] = useState(false);
   const [isSavingSenderRule, setIsSavingSenderRule] = useState(false);
@@ -155,6 +158,7 @@ export function SmsSettingsWorkspace() {
     try {
       const capturePreference = await updateSmsCapturePreference(accessToken, patch);
       setSettingsState({ ...settingsState, capturePreference });
+      notify("SMS capture preferences updated.");
     } catch (error) {
       setCapturePreferenceError(error instanceof Error ? error.message : "Could not update SMS capture policy.");
     } finally {
@@ -226,6 +230,7 @@ export function SmsSettingsWorkspace() {
       });
       form.reset();
       await loadData(false);
+      notify("Payment method added.");
     } catch (error) {
       setPaymentMethodError(error instanceof Error ? error.message : "Could not create payment method.");
     } finally {
@@ -263,6 +268,7 @@ export function SmsSettingsWorkspace() {
       });
       form.reset();
       await loadData(false);
+      notify("Sender rule added.");
     } catch (error) {
       setSenderRuleError(error instanceof Error ? error.message : "Could not create sender rule.");
     } finally {
@@ -320,6 +326,7 @@ export function SmsSettingsWorkspace() {
         provider: editingPaymentMethodProvider
       });
       await loadData(false);
+      notify("Payment method updated.");
     } catch (error) {
       setPaymentMethodError(error instanceof Error ? error.message : "Could not update payment method.");
     } finally {
@@ -356,6 +363,7 @@ export function SmsSettingsWorkspace() {
         sender: editingSenderRuleSender
       });
       await loadData(false);
+      notify("Sender rule updated.");
     } catch (error) {
       setSenderRuleError(error instanceof Error ? error.message : "Could not update sender rule.");
     } finally {
@@ -382,6 +390,7 @@ export function SmsSettingsWorkspace() {
     try {
       await deletePaymentMethod(accessToken, paymentMethod.id);
       await loadData(false);
+      notify("Payment method deleted.");
     } catch (error) {
       setPaymentMethodError(error instanceof Error ? error.message : "Could not delete payment method.");
     } finally {
@@ -406,6 +415,7 @@ export function SmsSettingsWorkspace() {
     try {
       await deleteSenderRule(accessToken, senderRule.id);
       await loadData(false);
+      notify("Sender rule deleted.");
     } catch (error) {
       setSenderRuleError(error instanceof Error ? error.message : "Could not delete sender rule.");
     } finally {

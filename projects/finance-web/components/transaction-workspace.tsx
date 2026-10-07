@@ -1,5 +1,7 @@
 "use client";
 
+import { useFeedbackMessage } from "@/components/toast-provider";
+
 import { CalendarBlank, CaretLeft, CaretRight, Plus, SlidersHorizontal, X } from "@phosphor-icons/react";
 import type React from "react";
 import Link from "next/link";
@@ -26,6 +28,7 @@ import {
   type TransactionType,
   updateTransaction
 } from "@/lib/api";
+import { ModalDialog } from "@/components/modal-dialog";
 import { TransferMatchDialog } from "@/components/transfer-match-dialog";
 import { getAccessToken } from "@/lib/auth-storage";
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
@@ -131,14 +134,14 @@ export function TransactionWorkspace() {
   });
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [transferDecision, setTransferDecision] = useState<{ input: CreateTransactionInput; matches: TransferMatch[]; mergeId?: string } | null>(null);
-  const [matchError, setMatchError] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [formMessage, setFormMessage] = useState<string | null>(null);
+  const [matchError, setMatchError] = useFeedbackMessage("error");
+  const [formError, setFormError] = useFeedbackMessage("error");
+  const [formMessage, setFormMessage] = useFeedbackMessage("success");
   const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [exportMessage, setExportMessage] = useFeedbackMessage("success");
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState("");
   const [editingDate, setEditingDate] = useState("");
@@ -238,20 +241,6 @@ export function TransactionWorkspace() {
       // Fall back to the complete default table when storage is unavailable.
     }
   }, []);
-
-  useEffect(() => {
-    if (!editorMode) return;
-    const previousOverflow = document.body.style.overflow;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setEditorMode(null);
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [editorMode]);
 
   function handleFilterSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -451,6 +440,7 @@ export function TransactionWorkspace() {
     try {
       await deleteTransaction(accessToken, transaction.id);
       await loadData(filters, false);
+      setFormMessage("Transaction deleted.");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not delete transaction.");
     } finally {
@@ -559,19 +549,7 @@ export function TransactionWorkspace() {
   return (
     <div className="workspace-grid">
       {editorMode ? (
-        <>
-          <button
-            aria-label="Close transaction editor"
-            className="drawer-scrim"
-            onClick={() => setEditorMode(null)}
-            type="button"
-          />
-          <aside
-            aria-labelledby="transaction-editor-title"
-            aria-modal="true"
-            className="form-drawer transaction-editor-drawer"
-            role="dialog"
-          >
+        <ModalDialog labelledBy="transaction-editor-title" className="form-drawer transaction-editor-drawer" busy={isSubmitting || isUpdating} onCancel={() => setEditorMode(null)}>
             <div className="form-drawer__header">
               <div>
                 <h2 id="transaction-editor-title">
@@ -587,6 +565,7 @@ export function TransactionWorkspace() {
                 aria-label="Close transaction editor"
                 autoFocus
                 className="icon-button"
+                disabled={isSubmitting || isUpdating}
                 onClick={() => setEditorMode(null)}
                 type="button"
               >
@@ -693,7 +672,7 @@ export function TransactionWorkspace() {
               <input className="field__control" name="note" type="text" />
             </label>
 
-            {formError ? <p className="form-error field--wide" role="alert">{formError}</p> : null}
+            {formError ? <p className="form-error field--wide">{formError}</p> : null}
 
             <button className="button button--primary field--wide" disabled={isSubmitting} type="submit">
               {isSubmitting ? <ButtonBusy label="Saving" /> : "Save transaction"}
@@ -857,11 +836,10 @@ export function TransactionWorkspace() {
             <button className="button button--ghost field--wide" disabled={isUpdating} type="submit">
               {isUpdating ? <ButtonBusy label="Updating" /> : "Update transaction"}
             </button>
-            {formError ? <p className="form-error field--wide" role="alert">{formError}</p> : null}
+            {formError ? <p className="form-error field--wide">{formError}</p> : null}
 
           </form> : null}
-          </aside>
-        </>
+        </ModalDialog>
       ) : null}
 
       <section className="panel">
@@ -887,7 +865,7 @@ export function TransactionWorkspace() {
             </button>
           </div>
 
-          {formMessage ? <p className="form-success" role="status">{formMessage}</p> : null}
+          {formMessage ? <p className="form-success">{formMessage}</p> : null}
 
           <form className="filter-form transaction-filter-form" onSubmit={handleFilterSubmit}>
             <div className="field transaction-month-filter">

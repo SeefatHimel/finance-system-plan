@@ -1,5 +1,7 @@
 "use client";
 
+import { useFeedbackMessage } from "@/components/toast-provider";
+
 import { ArrowClockwise, ArrowLeft, ArrowRight, CheckCircle, FunnelSimple, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -26,6 +28,7 @@ import {
   reprocessMessageCandidate,
   rejectMessageCandidate
 } from "@/lib/api";
+import { ModalDialog } from "@/components/modal-dialog";
 import { TransferMatchDialog } from "@/components/transfer-match-dialog";
 import { getAccessToken } from "@/lib/auth-storage";
 
@@ -109,11 +112,11 @@ function normalizedNote(candidate: ParsedMessageCandidate) {
 export function MessageReviewWorkspace() {
   const [transferDecision, setTransferDecision] = useState<{ candidate: ParsedMessageCandidate; input: ConfirmMessageCandidateInput; matches: TransferMatch[] } | null>(null);
   const [accountDrafts, setAccountDrafts] = useState<Record<string, ReturnType<typeof accountReviewDefaults>>>({});
-  const [matchError, setMatchError] = useState<string | null>(null);
+  const [matchError, setMatchError] = useFeedbackMessage("error");
   const [reviewState, setReviewState] = useState<ReviewState>({ status: "loading" });
   const [activeCandidateId, setActiveCandidateId] = useState("");
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useFeedbackMessage("error");
+  const [actionMessage, setActionMessage] = useFeedbackMessage("success");
   const [workingCandidateId, setWorkingCandidateId] = useState<string | null>(null);
   const [reprocessingCandidateId, setReprocessingCandidateId] = useState<string | null>(null);
   const [isBulkReprocessing, setIsBulkReprocessing] = useState(false);
@@ -351,8 +354,8 @@ export function MessageReviewWorkspace() {
         </div>
       </section>
 
-      {actionError ? <p className="form-error" role="alert">{actionError}</p> : null}
-      {actionMessage ? <p className="form-success" role="status"><CheckCircle aria-hidden="true" size={18} weight="fill" />{actionMessage}</p> : null}
+      {actionError ? <p className="form-error">{actionError}</p> : null}
+      {actionMessage ? <p className="form-success"><CheckCircle aria-hidden="true" size={18} weight="fill" />{actionMessage}</p> : null}
 
       {reviewState.candidates.length === 0 ? (
         <section className="panel"><div className="panel__body empty-state"><CheckCircle aria-hidden="true" size={34} weight="fill" /><h2 className="section-title">Review queue is clear</h2><p className="section-subtitle">No captured messages currently require a decision.</p></div></section>
@@ -411,7 +414,7 @@ export function MessageReviewWorkspace() {
         </section>
       )}
 
-      {rejectDraft ? <div className="modal-backdrop" role="presentation"><section aria-labelledby="reject-title" aria-modal="true" className="decision-modal" role="dialog"><button aria-label="Close rejection options" className="decision-modal__close" onClick={() => setRejectDraft(null)} type="button"><X size={20} /></button><h2 id="reject-title">Reject this message</h2><p>Choose whether this decision applies only to this message or to future captures as well.</p><form onSubmit={(event) => void handleReject(event)}><label className="field"><span className="field__label">Reason</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, reason: event.target.value })} value={rejectDraft.reason}>{[["not_transaction", "Not a transaction"], ["otp_security", "OTP or security"], ["duplicate", "Duplicate"], ["wrong_provider_account", "Wrong provider or account"], ["personal", "Personal or non-financial"], ["unsupported_format", "Unsupported format"], ["other", "Other"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field"><span className="field__label">Apply to</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, scope: event.target.value as RejectDraft["scope"] })} value={rejectDraft.scope}><option value="message">Only this message</option><option value="sender">This message and disable {rejectDraft.candidate.raw_message.sender}</option><option value="provider">This message and exclude all {formatLabel(rejectDraft.candidate.provider)} messages</option></select></label><label className="field"><span className="field__label">Note (optional)</span><input className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, note: event.target.value })} value={rejectDraft.note} /></label><label className="review-remember"><input checked={rejectDraft.redact} onChange={(event) => setRejectDraft({ ...rejectDraft, redact: event.target.checked })} type="checkbox" /><span><strong>Redact original SMS now</strong><small>Parsed metadata remains for audit and duplicate protection.</small></span></label><div className="decision-modal__actions"><button className="button button--ghost" onClick={() => setRejectDraft(null)} type="button">Cancel</button><button className="button button--danger" disabled={workingCandidateId === rejectDraft.candidate.id} type="submit">{workingCandidateId === rejectDraft.candidate.id ? <ButtonBusy label="Rejecting" /> : "Reject message"}</button></div></form></section></div> : null}
+      {rejectDraft ? <ModalDialog labelledBy="reject-title" busy={workingCandidateId === rejectDraft.candidate.id} onCancel={() => setRejectDraft(null)}><button aria-label="Close rejection options" className="decision-modal__close" disabled={workingCandidateId === rejectDraft.candidate.id} onClick={() => setRejectDraft(null)} type="button"><X size={20} /></button><h2 id="reject-title">Reject this message</h2><p>Choose whether this decision applies only to this message or to future captures as well.</p><form onSubmit={(event) => void handleReject(event)}><label className="field"><span className="field__label">Reason</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, reason: event.target.value })} value={rejectDraft.reason}>{[["not_transaction", "Not a transaction"], ["otp_security", "OTP or security"], ["duplicate", "Duplicate"], ["wrong_provider_account", "Wrong provider or account"], ["personal", "Personal or non-financial"], ["unsupported_format", "Unsupported format"], ["other", "Other"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field"><span className="field__label">Apply to</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, scope: event.target.value as RejectDraft["scope"] })} value={rejectDraft.scope}><option value="message">Only this message</option><option value="sender">This message and disable {rejectDraft.candidate.raw_message.sender}</option><option value="provider">This message and exclude all {formatLabel(rejectDraft.candidate.provider)} messages</option></select></label><label className="field"><span className="field__label">Note (optional)</span><input className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, note: event.target.value })} value={rejectDraft.note} /></label><label className="review-remember"><input checked={rejectDraft.redact} onChange={(event) => setRejectDraft({ ...rejectDraft, redact: event.target.checked })} type="checkbox" /><span><strong>Redact original SMS now</strong><small>Parsed metadata remains for audit and duplicate protection.</small></span></label><div className="decision-modal__actions"><button className="button button--ghost" disabled={workingCandidateId === rejectDraft.candidate.id} onClick={() => setRejectDraft(null)} type="button">Cancel</button><button className="button button--danger" disabled={workingCandidateId === rejectDraft.candidate.id} type="submit">{workingCandidateId === rejectDraft.candidate.id ? <ButtonBusy label="Rejecting" /> : "Reject message"}</button></div></form></ModalDialog> : null}
       {transferDecision ? <TransferMatchDialog matches={transferDecision.matches} busy={workingCandidateId !== null} error={matchError} onAccept={(match) => void handleTransferDecision(match)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
     </div>
   );

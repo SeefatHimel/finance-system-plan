@@ -1,5 +1,7 @@
 "use client";
 
+import { useFeedbackMessage, useToast } from "@/components/toast-provider";
+
 import type React from "react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -71,8 +73,9 @@ function statusBadgeClass(bill: RecurringBill) {
 }
 
 export function RecurringBillWorkspace() {
+  const { notify } = useToast();
   const [state, setState] = useState<RecurringBillState>({ status: "loading" });
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useFeedbackMessage("error");
   const [isCreating, setIsCreating] = useState(false);
   const [paymentBillId, setPaymentBillId] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -189,6 +192,7 @@ export function RecurringBillWorkspace() {
       });
       form.reset();
       await loadRecurringBills(false);
+      notify("Recurring bill added.");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not create recurring bill.");
     } finally {
@@ -221,6 +225,7 @@ export function RecurringBillWorkspace() {
       setPaymentAmount("");
       setPaymentNote("");
       await loadRecurringBills(false);
+      notify("Recurring bill payment recorded.");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not record recurring bill payment.");
     } finally {
