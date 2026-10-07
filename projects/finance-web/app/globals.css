@@ -2414,7 +2414,7 @@ textarea {
 .field__hint { color: var(--muted); display: block; font-size: 12px; line-height: 1.45; margin-top: 6px; }
 
 .form-success { align-items: center; background: var(--accent-soft); border: 1px solid #23654f; border-radius: 8px; color: var(--accent); display: flex; gap: 8px; margin: 0; padding: 12px 14px; }
-.review-split { align-items: start; display: grid; gap: 18px; grid-template-columns: minmax(280px, 0.34fr) minmax(0, 1fr); }
+.review-split { align-items: start; display: grid; gap: 18px; grid-template-columns: minmax(280px, 0.34fr) minmax(0, 1fr); min-width: 0; }
 .review-queue { max-height: calc(100vh - 170px); overflow: hidden; position: sticky; top: 96px; }
 .review-queue__filters { border-bottom: 1px solid var(--panel-border); display: grid; gap: 10px; padding: 14px; }
 .review-search { align-items: center; background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; display: flex; gap: 8px; min-height: 44px; padding: 0 12px; }
@@ -2446,6 +2446,7 @@ textarea {
 .review-issue-chips span { background: #2b2414; border: 1px solid #4a3b1d; border-radius: 999px; color: var(--warning); font-size: 12px; font-weight: 750; padding: 6px 9px; }
 .review-issue-chips .review-issue-chip--ready { background: var(--accent-soft); border-color: #23654f; color: var(--accent); }
 .review-form--focused { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding: 18px 22px 22px; }
+.review-form--focused > .field { min-width: 0; }
 .review-remember { align-items: flex-start; background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; display: flex; gap: 10px; min-height: 58px; padding: 12px; }
 .review-remember input { margin-top: 3px; }
 .review-remember span { display: grid; gap: 3px; }
@@ -2498,7 +2499,7 @@ textarea {
 
 @media (max-width: 1000px) {
   .review-split { grid-template-columns: minmax(240px, 0.4fr) minmax(0, 1fr); }
-  .review-form--focused { grid-template-columns: 1fr; }
+  .review-form--focused { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 760px) {
