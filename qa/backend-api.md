@@ -473,3 +473,11 @@ remembered rules; lookup is bounded to 200 recent matching reporting-account
 candidates. No amount-only inference, automatic posting, or automatic merging
 occurs. Conflicting history stays unresolved. Existing broad mappings are not
 backfilled into transfer paths because they did not retain the other account.
+
+## How does recently added transaction ordering work?
+
+The authenticated transaction list whitelists `ordering=-date` (default) and
+`ordering=-created_at`. Creation order is independent of the financial date;
+filtered querysets still enforce user ownership and use ID tie-breakers. Month
+filters financial date, not added time. Edits and linked transfer evidence do
+not update creation time. Invalid ordering returns 400; CSV stays chronological.

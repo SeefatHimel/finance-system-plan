@@ -414,3 +414,13 @@ Regression coverage includes bank messages with “from PathaoPay” and masked
 card/account evidence, plus previously confirmed paths across `PathaoPay DHAKA BD`
 and `Pathao Pay` variations. Counterparty wording identifies a possible other
 account; it does not independently reverse the reporting account's direction.
+
+## Transaction List Ordering
+
+`GET /api/transactions/?ordering=-created_at` lists newest ledger additions first,
+including backdated records when month is omitted. Default `ordering=-date`
+retains transaction-date/time order. Only these two values are accepted; other
+values return 400. User ownership and existing filters apply before sorting,
+with an ID tie-breaker for stable results. Month remains a transaction-date
+filter. Edits and linked observations do not change `created_at`. CSV exports
+remain chronological. Verify with `python manage.py test apps.transactions.tests`.

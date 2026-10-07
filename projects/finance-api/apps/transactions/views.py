@@ -106,6 +106,15 @@ class TransactionViewSet(ModelViewSet):
                 | Q(transfer_evidence__note__icontains=search)
             ).distinct()
 
+        if self.action == "list":
+            ordering = self.request.query_params.get("ordering", "-date")
+            if ordering == "-created_at":
+                queryset = queryset.order_by("-created_at", "-id")
+            elif ordering == "-date":
+                queryset = queryset.order_by("-date", "-time", "-created_at", "-id")
+            else:
+                raise ValidationError({"ordering": "Use -date or -created_at."})
+
         return queryset
 
     @extend_schema(

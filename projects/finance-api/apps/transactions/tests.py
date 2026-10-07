@@ -1,8 +1,10 @@
 import csv
+from datetime import timedelta
 from io import StringIO
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import Account
@@ -270,3 +272,45 @@ class TransactionApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["id"], str(matched_transaction.id))
+
+
+class RecentlyAddedTransactionTests(APITestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="recent-test")
+        self.client.force_authenticate(self.user)
+        self.account = Account.objects.create(user=self.user, name="Demo cash", type="cash")
+        self.older_addition = Transaction.objects.create(
+            user=self.user, account=self.account, date="2026-10-08", time="12:00:00",
+            type="expense", direction="debit", amount="10.00", source="web", note="Recent transaction date",
+        )
+        self.newer_addition = Transaction.objects.create(
+            user=self.user, account=self.account, date="2026-01-15", time="10:00:00",
+            type="expense", direction="debit", amount="20.00", source="sms", note="Backdated SMS addition",
+        )
+        Transaction.objects.filter(pk=self.older_addition.pk).update(created_at=timezone.now() - timedelta(days=2))
+        other = get_user_model().objects.create_user(username="other-recent-test")
+        account = Account.objects.create(user=other, name="Other demo cash", type="cash")
+        Transaction.objects.create(user=other, account=account, date="2026-10-09", type="expense", direction="debit", amount="30.00")
+
+    def ids(self, **params):
+        response = self.client.get(reverse("transaction-list"), params)
+        self.assertEqual(response.status_code, 200, response.data)
+        return [row["id"] for row in response.data]
+
+    def test_recent_order_is_creation_time_not_transaction_date_and_is_user_scoped(self):
+        self.assertEqual(self.ids(), [str(self.older_addition.pk), str(self.newer_addition.pk)])
+        self.assertEqual(self.ids(ordering="-created_at"), [str(self.newer_addition.pk), str(self.older_addition.pk)])
+
+    def test_recent_order_combines_with_transaction_month_account_and_source_filters(self):
+        self.assertEqual(self.ids(ordering="-created_at", month="2026-10"), [str(self.older_addition.pk)])
+        self.assertEqual(self.ids(ordering="-created_at", source="sms", account=str(self.account.pk)), [str(self.newer_addition.pk)])
+
+    def test_edit_does_not_promote_an_older_addition(self):
+        response = self.client.patch(reverse("transaction-detail", kwargs={"pk": self.older_addition.pk}), {"note": "Edited demo note"}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(self.ids(ordering="-created_at"), [str(self.newer_addition.pk), str(self.older_addition.pk)])
+
+    def test_invalid_order_is_a_validation_error(self):
+        response = self.client.get(reverse("transaction-list"), {"ordering": "-updated_at"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("ordering", response.data)
