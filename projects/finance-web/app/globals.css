@@ -2485,6 +2485,8 @@ textarea {
 .month-navigator button:disabled { cursor: wait; opacity: 0.45; }
 .month-navigator .field__control { min-width: 0; }
 .transaction-table-toolbar { align-items: center; display: flex; gap: 16px; justify-content: space-between; margin-top: 4px; position: relative; z-index: 8; }
+.transaction-view-switch { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.transaction-view-switch .button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .transaction-table-toolbar .section-subtitle { margin: 0; }
 .transaction-refresh-state { color: var(--accent); display: inline-flex; font-size: 12px; margin-top: 6px; }
 .column-picker { position: relative; }

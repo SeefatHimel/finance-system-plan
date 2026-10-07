@@ -205,6 +205,7 @@ const transferMatchSchema = z.object({
 export type { TransferMatch } from "../../finance-contracts/generated/types";
 
 const transactionSchema = z.object({
+  created_at: z.string(),
   account_direction: z.string(),
   transfer_evidence: z.array(transferEvidenceSchema),
   account: z.string(),
@@ -440,6 +441,7 @@ export type TransactionFilters = {
   category?: string;
   direction?: TransactionDirection | "";
   month?: string;
+  ordering?: "-date" | "-created_at";
   search?: string;
   source?: TransactionSource | "";
   type?: TransactionType | "";
@@ -1065,7 +1067,7 @@ export async function exportTransactionsCsv(
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(filters)) {
-    if (value) {
+    if (value && key !== "ordering") {
       params.set(key, value);
     }
   }

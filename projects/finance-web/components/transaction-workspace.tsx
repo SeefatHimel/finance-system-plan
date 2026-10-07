@@ -80,6 +80,7 @@ type TransactionFilterState = Required<Pick<TransactionFilters, "direction" | "s
   account: string;
   category: string;
   month: string;
+  ordering: "-date" | "-created_at";
   search: string;
 };
 
@@ -122,12 +123,15 @@ const moneyFormatter = new Intl.NumberFormat("en-BD", {
   style: "currency"
 });
 
+const addedTimeFormatter = new Intl.DateTimeFormat("en-BD", { dateStyle: "medium", timeStyle: "short" });
+
 export function TransactionWorkspace() {
   const [filters, setFilters] = useState<TransactionFilterState>({
     account: "",
     category: "",
     direction: "",
     month: currentMonth(),
+    ordering: "-date",
     search: "",
     source: "",
     type: ""
@@ -201,7 +205,8 @@ export function TransactionWorkspace() {
       account: searchParams.get("account") ?? "",
       category: searchParams.get("category") ?? "",
       direction: (searchParams.get("direction") ?? "") as TransactionFilterState["direction"],
-      month: searchParams.has("month") ? searchParams.get("month") ?? "" : requestedSearch ? "" : currentMonth(),
+      month: searchParams.has("month") ? searchParams.get("month") ?? "" : requestedSearch || searchParams.get("ordering") === "-created_at" ? "" : currentMonth(),
+      ordering: searchParams.get("ordering") === "-created_at" ? "-created_at" : "-date",
       search: requestedSearch,
       source: (searchParams.get("source") ?? "") as TransactionFilterState["source"],
       type: (searchParams.get("type") ?? "") as TransactionFilterState["type"]
@@ -250,6 +255,7 @@ export function TransactionWorkspace() {
 
   function applyFilterUrl(nextFilters: TransactionFilterState) {
     const params = new URLSearchParams();
+    params.set("month", nextFilters.month);
     Object.entries(nextFilters).forEach(([key, value]) => {
       if (value) params.set(key, value);
     });
@@ -266,6 +272,15 @@ export function TransactionWorkspace() {
     } finally {
       setIsMonthLoading(false);
     }
+  }
+
+  async function selectOrdering(ordering: TransactionFilterState["ordering"]) {
+    const nextFilters = { ...filters, ordering, month: ordering === "-created_at" ? "" : currentMonth() };
+    setFilters(nextFilters);
+    applyFilterUrl(nextFilters);
+    setIsMonthLoading(true);
+    try { await loadData(nextFilters, false); }
+    finally { setIsMonthLoading(false); }
   }
 
   function toggleColumn(column: TransactionColumn) {
@@ -285,12 +300,13 @@ export function TransactionWorkspace() {
       category: "",
       direction: "",
       month: "",
+      ordering: filters.ordering,
       search: "",
       source: "",
       type: ""
     };
     setFilters(clearedFilters);
-    window.history.replaceState(null, "", window.location.pathname);
+    applyFilterUrl(clearedFilters);
     void loadData(clearedFilters);
   }
 
@@ -867,6 +883,11 @@ export function TransactionWorkspace() {
 
           {formMessage ? <p className="form-success">{formMessage}</p> : null}
 
+          <div className="transaction-view-switch" aria-label="Transaction ordering">
+            <button className="button button--ghost" aria-pressed={filters.ordering === "-date"} disabled={isMonthLoading} onClick={() => void selectOrdering("-date")} type="button">By transaction date</button>
+            <button className="button button--ghost" aria-pressed={filters.ordering === "-created_at"} disabled={isMonthLoading} onClick={() => void selectOrdering("-created_at")} type="button">Recently added</button>
+          </div>
+
           <form className="filter-form transaction-filter-form" onSubmit={handleFilterSubmit}>
             <div className="field transaction-month-filter">
               <span className="field__label">Month</span>
@@ -1008,8 +1029,8 @@ export function TransactionWorkspace() {
 
           <div className="transaction-table-toolbar">
             <div>
-              <p className="section-subtitle">Showing records from the authenticated backend API.</p>
-              {isMonthLoading ? <span className="transaction-refresh-state"><ButtonBusy label="Updating month" /></span> : null}
+              <p className="section-subtitle">{filters.ordering === "-created_at" ? "Newest ledger additions first. Transaction dates may be older; edits do not change added time." : "Showing records by transaction date from the authenticated backend API."}</p>
+              {isMonthLoading ? <span className="transaction-refresh-state"><ButtonBusy label="Updating transactions" /></span> : null}
             </div>
             <details className="column-picker">
               <summary><SlidersHorizontal aria-hidden="true" size={17} />Columns <span>{visibleColumns.length}/{transactionColumns.length}</span></summary>
@@ -1038,6 +1059,7 @@ export function TransactionWorkspace() {
               <table className="data-table">
                 <thead>
                   <tr>
+                    {filters.ordering === "-created_at" ? <th>Added</th> : null}
                     {visibleColumns.includes("date") ? <th>Date</th> : null}
                     {visibleColumns.includes("time") ? <th>Time</th> : null}
                     {visibleColumns.includes("description") ? <th>Description</th> : null}
@@ -1054,6 +1076,7 @@ export function TransactionWorkspace() {
                 <tbody>
                   {loadState.transactions.map((transaction) => (
                     <tr key={transaction.id}>
+                      {filters.ordering === "-created_at" ? <td><time dateTime={transaction.created_at}>{addedTimeFormatter.format(new Date(transaction.created_at))}</time></td> : null}
                       {visibleColumns.includes("date") ? <td>{transaction.date}</td> : null}
                       {visibleColumns.includes("time") ? <td>{formatTransactionTime(transaction.time)}</td> : null}
                       {visibleColumns.includes("description") ? <td>

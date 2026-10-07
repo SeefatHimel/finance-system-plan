@@ -346,3 +346,15 @@ receiving SMS keeps the reporting account as the destination. The masked
 identifier inputs are evidence fields, not account selectors. The review grid
 shrinks to phone widths so suggestion explanations remain visible. For older
 pending items, use Re-run parser or Reapply rules to pending after the API migration.
+
+## Recently Added Transactions
+
+Transactions offers By transaction date and Recently added views. Recently added
+sorts by ledger `created_at`, clears the transaction-month restriction when
+selected, and displays an Added timestamp in the browser's local timezone next
+to the original transaction date/time. Other filters remain available; selecting
+a month still filters the original transaction date. Switching back opens the
+current transaction month. Ordering and an explicitly empty month survive URL
+reloads, including Clear filters. Newly added backdated records appear first.
+Edits and extra evidence linked to an existing transfer do not change its added
+time or produce another ledger record. CSV export retains chronological order.

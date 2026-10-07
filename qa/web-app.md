@@ -422,3 +422,13 @@ Remembered paths preserve Debit/Credit relative to the reporting account and
 apply only to that account/counterparty pattern. A transfer still requires
 explicit confirmation or acceptance of a match. Existing pending rows need
 Re-run parser or Reapply rules to pending to use the new resolver.
+
+## How can users find transactions they just added?
+
+The Recently added view orders the ledger by creation time and shows Added
+timestamps alongside transaction date/time. Selecting it removes the default
+current-month restriction so approving an old SMS is immediately discoverable.
+Account, category, type, source, direction and search filters still apply.
+Month, when chosen, filters transaction date. The URL preserves ordering and
+all-month selection on reload. Edits and linked evidence do not make an existing
+transfer a new addition. Switching back restores the current transaction month.
