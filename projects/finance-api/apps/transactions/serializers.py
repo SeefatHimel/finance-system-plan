@@ -9,6 +9,20 @@ from apps.payment_methods.models import PaymentMethod
 from .models import Transaction, TransferEvidence
 
 
+class TransactionSourceMessageSerializer(serializers.ModelSerializer):
+    body = serializers.SerializerMethodField()
+
+    def get_body(self, instance):
+        if instance.status == RawMessage.Status.REDACTED or instance.redacted_at or instance.exclusion_reason:
+            return None
+        return instance.body
+
+    class Meta:
+        model = RawMessage
+        fields = ("id", "sender", "body", "received_at", "status", "redacted_at")
+        read_only_fields = fields
+
+
 class TransferEvidenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = TransferEvidence

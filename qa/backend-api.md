@@ -497,3 +497,13 @@ Reprocessing applies the current type policy only to pending candidates.
 Remembered rejection can exclude promotional, OTP/security or balance-notice
 types and clean matching pending items without disabling the bank sender.
 Unknown and financial types cannot be broadly learned as skips.
+
+## How can the editor safely read a transaction's original SMS?
+
+A read-only transaction detail action returns only source messages linked to an
+owned ledger entry, including transfer evidence. Messages are individually
+checked for user ownership and deduplicated. The minimal response excludes
+device IDs and body hashes; redacted or excluded text is null. Missing SMS
+returns an empty list, foreign transactions return 404, and authentication is
+required. Private/no-store responses and on-demand access keep bodies out of
+the ledger list. Reading leaves timestamps, audit history and retention unchanged.

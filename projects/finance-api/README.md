@@ -430,6 +430,19 @@ remain chronological. No migration is required for update ordering: it uses the
 existing timestamp, without backfilling past evidence links. Verify with
 `python manage.py test apps.transactions.tests apps.transactions.test_transfers`.
 
+## Original SMS While Editing
+
+`GET /api/transactions/{id}/source-messages/` returns the transaction's original
+SMS and messages attached through transfer evidence, deduplicated and ordered
+by received time then ID. Both transaction and message ownership are checked.
+Only ID, sender, body, received time, status and redaction time are returned;
+device identifiers and body hashes are omitted. Manual entries without linked
+SMS return an empty array. Redacted or excluded text returns `body: null` with
+remaining metadata. Responses are private and not cacheable. This read does
+not change ledger timestamps, audit history or retention; the transaction list
+continues to omit original bodies. No migration is required. Verify with
+`python manage.py test apps.transactions.test_source_messages`.
+
 ## Promotional SMS Skips
 
 English and Bangla offer/anniversary messages are classified as `promotional`

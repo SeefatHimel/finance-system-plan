@@ -13,10 +13,12 @@ from rest_framework.viewsets import ModelViewSet
 
 from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
+from apps.messages.models import RawMessage
 
 from .models import Transaction
 from .serializers import (
     TransactionSerializer,
+    TransactionSourceMessageSerializer,
     TransferEvidenceSerializer,
     TransferLinkRequestSerializer,
     TransferMatchRequestSerializer,
@@ -116,6 +118,23 @@ class TransactionViewSet(ModelViewSet):
                 raise ValidationError({"ordering": "Use -date, -created_at or -updated_at."})
 
         return queryset
+
+    @extend_schema(responses=TransactionSourceMessageSerializer(many=True))
+    @action(detail=True, methods=("get",), url_path="source-messages")
+    def source_messages(self, request, pk=None):
+        record = self.get_object()
+        message_ids = list(record.transfer_evidence.filter(
+            user=request.user, raw_message__isnull=False,
+        ).values_list("raw_message_id", flat=True))
+        if record.raw_message_id:
+            message_ids.append(record.raw_message_id)
+        messages = RawMessage.objects.filter(
+            user=request.user, pk__in=message_ids,
+        ).order_by("received_at", "id")
+        return Response(
+            TransactionSourceMessageSerializer(messages, many=True).data,
+            headers={"Cache-Control": "private, no-store"},
+        )
 
     @extend_schema(
         request=TransferMatchRequestSerializer,
