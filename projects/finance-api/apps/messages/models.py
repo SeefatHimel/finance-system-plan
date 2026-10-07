@@ -169,7 +169,7 @@ class TransferCounterpartyMapping(models.Model):
 
 
 def default_excluded_message_kinds():
-    return ["otp_or_security"]
+    return ["otp_or_security", "promotional"]
 
 
 class SmsCapturePreference(models.Model):
@@ -296,6 +296,7 @@ class ParsedMessageCandidate(models.Model):
         REVERSAL = "reversal", "Reversal"
         BALANCE_NOTICE = "balance_notice", "Balance notice"
         OTP_OR_SECURITY = "otp_or_security", "OTP or security"
+        PROMOTIONAL = "promotional", "Promotional offers"
         UNKNOWN = "unknown", "Unknown"
 
     class RejectionReason(models.TextChoices):

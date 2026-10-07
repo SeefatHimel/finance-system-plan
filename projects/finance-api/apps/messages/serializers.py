@@ -309,6 +309,7 @@ class MessageCandidateRejectSerializer(serializers.Serializer):
     redact_raw_sms = serializers.BooleanField(required=False, default=False)
     exclude_sender = serializers.BooleanField(required=False, default=False)
     exclude_provider = serializers.BooleanField(required=False, default=False)
+    exclude_message_kind = serializers.BooleanField(required=False, default=False)
 
 
 class ParsedMessageConfirmSerializer(serializers.Serializer):

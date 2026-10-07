@@ -148,7 +148,7 @@ class RawMessageImportApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["excluded_providers"], [])
-        self.assertEqual(response.data["excluded_message_kinds"], ["otp_or_security"])
+        self.assertEqual(response.data["excluded_message_kinds"], ["otp_or_security", "promotional"])
         self.assertEqual(response.data["raw_sms_retention_days"], 30)
 
     def test_ebl_transfer_does_not_treat_masked_account_as_balance(self):

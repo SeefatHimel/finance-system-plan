@@ -481,3 +481,15 @@ The authenticated transaction list whitelists `ordering=-date` (default) and
 filtered querysets still enforce user ownership and use ID tie-breakers. Month
 filters financial date, not added time. Edits and linked transfer evidence do
 not update creation time. Invalid ordering returns 400; CSV stays chronological.
+
+## How are bank advertisements kept out of the ledger?
+
+A conservative English/Bangla classifier identifies promotional offers before
+transaction parsing. Anniversary digits are not transaction evidence. Financial
+activity and card/amount evidence prevent promotional skipping; OTP and balance
+notices keep their own types. Promotional capture is off by default, including
+existing users after migration, and excluded bodies are replaced before storage.
+Reprocessing applies the current type policy only to pending candidates.
+Remembered rejection can exclude promotional, OTP/security or balance-notice
+types and clean matching pending items without disabling the bank sender.
+Unknown and financial types cannot be broadly learned as skips.

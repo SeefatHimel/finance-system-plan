@@ -28,7 +28,7 @@ from .models import (
     SmsDeviceStatus,
     default_excluded_message_kinds,
 )
-from .parsers import find_sender_rule, has_numeric_content, parse_raw_message
+from .parsers import classify_message_kind_for_capture, find_sender_rule, has_numeric_content, parse_raw_message
 from .serializers import (
     MessageCandidateRejectSerializer,
     ParsedMessageCandidateSerializer,
@@ -297,16 +297,31 @@ class RawMessageImportView(APIView):
             parser_notes=parsed["parser_notes"],
         )
 
+    @transaction.atomic
     def _reprocess_candidate(self, candidate):
-        if candidate is None or candidate.status != ParsedMessageCandidate.Status.NEEDS_REVIEW:
+        if candidate is None:
             return False
+        # Confirmation uses the same user lock: skip decisions must never
+        # overwrite a candidate confirmed while the review queue was loading.
+        lock_transfer_user(candidate.user)
+        candidate.refresh_from_db()
+        if candidate.status != ParsedMessageCandidate.Status.NEEDS_REVIEW:
+            return False
+        preference = SmsCapturePreference.objects.filter(user=candidate.user).first()
+        excluded_kinds = preference.excluded_message_kinds if preference else default_excluded_message_kinds()
         if candidate.raw_message.status == RawMessage.Status.REDACTED:
+            if candidate.message_kind in excluded_kinds:
+                self._discard_candidate(candidate, exclusion_reason="message_kind_excluded")
+                return True
             return False
         if not has_numeric_content(candidate.raw_message.body):
-            self._discard_candidate_without_numeric_content(candidate)
+            self._discard_candidate(candidate)
             return True
 
         parsed = parse_raw_message(candidate.raw_message)
+        if parsed["message_kind"] in excluded_kinds:
+            self._discard_candidate(candidate, exclusion_reason="message_kind_excluded", message_kind=parsed["message_kind"])
+            return True
         parsed_fields = (
             "sender_rule",
             "account",
@@ -351,20 +366,30 @@ class RawMessageImportView(APIView):
         self._link_possible_related_candidate(candidate)
         return True
 
-    def _discard_candidate_without_numeric_content(self, candidate):
+    def _discard_candidate(self, candidate, *, exclusion_reason="no_numeric_content", message_kind=None):
         related_candidate = candidate.possible_related_candidate
         with transaction.atomic():
             candidate.status = ParsedMessageCandidate.Status.IGNORED
             candidate.rejection_reason = ParsedMessageCandidate.RejectionReason.NOT_TRANSACTION
-            candidate.rejection_note = "Automatically discarded because the message contains no numeric content."
+            candidate.rejection_note = (
+                "Automatically discarded because the message contains no numeric content."
+                if exclusion_reason == "no_numeric_content"
+                else "Automatically skipped because this message type is excluded by your capture rules."
+            )
+            if message_kind:
+                candidate.message_kind = message_kind
             candidate.rejected_at = timezone.now()
             candidate.possible_related_candidate = None
             candidate.related_match_reason = ""
             candidate.parser_name = "non_transaction_classifier"
-            candidate.parser_notes = "Automatically discarded before parsing because the message contains no numeric content."
+            candidate.parser_notes = (
+                "Automatically discarded before parsing because the message contains no numeric content."
+                if exclusion_reason == "no_numeric_content" else candidate.rejection_note
+            )
             candidate.save(
                 update_fields=(
                     "status",
+                    "message_kind",
                     "rejection_reason",
                     "rejection_note",
                     "rejected_at",
@@ -380,7 +405,7 @@ class RawMessageImportView(APIView):
             raw_message.body = "[excluded before storage]"
             raw_message.provider = candidate.provider
             raw_message.message_kind = candidate.message_kind
-            raw_message.exclusion_reason = "no_numeric_content"
+            raw_message.exclusion_reason = exclusion_reason
             raw_message.status = RawMessage.Status.IGNORED
             raw_message.save(
                 update_fields=(
@@ -810,7 +835,9 @@ class MessageCandidateConfirmView(APIView):
 class MessageCandidateRejectView(APIView):
     permission_classes = (IsAuthenticated,)
 
+    @transaction.atomic
     def post(self, request, candidate_id):
+        lock_transfer_user(request.user)
         candidate = get_object_or_404(
             ParsedMessageCandidate.objects.select_related("raw_message", "sender_rule"),
             user=request.user,
@@ -827,6 +854,14 @@ class MessageCandidateRejectView(APIView):
         serializer = MessageCandidateRejectSerializer(data=payload)
         serializer.is_valid(raise_exception=True)
         rejection = serializer.validated_data
+        excluded_kind = classify_message_kind_for_capture(candidate.raw_message.body)
+        if candidate.raw_message.status == RawMessage.Status.REDACTED:
+            excluded_kind = candidate.message_kind if candidate.message_kind in {"promotional", "otp_or_security", "balance_notice"} else ""
+        if rejection["exclude_message_kind"] and not excluded_kind:
+            return Response(
+                {"exclude_message_kind": "Only recognized promotional, OTP/security or balance notices can be skipped by type. Unknown formats and financial messages require individual review."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         with transaction.atomic():
             candidate.status = ParsedMessageCandidate.Status.IGNORED
@@ -871,6 +906,18 @@ class MessageCandidateRejectView(APIView):
                         candidate.provider,
                     ]
                     preference.save(update_fields=("excluded_providers", "updated_at"))
+
+            if rejection["exclude_message_kind"]:
+                preference, _created = SmsCapturePreference.objects.get_or_create(user=request.user)
+                if excluded_kind not in preference.excluded_message_kinds:
+                    preference.excluded_message_kinds = [*preference.excluded_message_kinds, excluded_kind]
+                    preference.save(update_fields=("excluded_message_kinds", "updated_at"))
+                # Reuse capture classification, including older unknown offers.
+                for pending in ParsedMessageCandidate.objects.filter(
+                    user=request.user, status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
+                ).select_related("raw_message"):
+                    if pending.message_kind == excluded_kind or classify_message_kind_for_capture(pending.raw_message.body) == excluded_kind:
+                        RawMessageImportView()._reprocess_candidate(pending)
 
             if rejection["redact_raw_sms"]:
                 raw_message.redact()

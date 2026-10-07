@@ -363,3 +363,13 @@ python manage.py test apps.messages.test_transfer_suggestions apps.messages.test
 paths and candidate suggestion metadata. It does not modify existing financial
 transactions or infer remembered rules from broad mappings. Use Re-run parser
 or Reapply rules to pending in SMS review for old review entries.
+
+## Promotional Message Policy Migration
+
+After pulling, run `python manage.py migrate` from `projects/finance-api` before
+starting updated clients. Migration `0012_alter_parsedmessagecandidate_message_kind`
+enables promotional exclusion on existing capture preferences while preserving
+other choices. Use Reapply rules to pending in SMS review to remove older offers.
+Promotional can be allowed again in SMS settings. Run
+`python manage.py test apps.messages.test_promotional_skips apps.messages.tests`
+for classification, learned policy, transaction protection and reprocessing checks.

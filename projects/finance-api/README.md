@@ -424,3 +424,24 @@ values return 400. User ownership and existing filters apply before sorting,
 with an ID tie-breaker for stable results. Month remains a transaction-date
 filter. Edits and linked observations do not change `created_at`. CSV exports
 remain chronological. Verify with `python manage.py test apps.transactions.tests`.
+
+## Promotional SMS Skips
+
+English and Bangla offer/anniversary messages are classified as `promotional`
+when no transaction or card activity is present. Bengali anniversary digits do
+not turn an offer into a financial transaction. OTP classification takes
+priority, and balance notices retain their own category. Payments, purchases,
+transfers, refunds, cashback credits and messages with masked card/amount evidence
+remain eligible for transaction review even when they contain promotional words.
+
+Promotional messages are excluded by default before storing the original body.
+Migration `0012_alter_parsedmessagecandidate_message_kind` adds the kind and
+enables this exclusion on existing capture preferences without dropping other
+choices. Users can allow it again through capture preferences. Reprocess old
+pending messages to remove newly classified offers; confirmed transactions stay
+unchanged. Rejecting with `exclude_message_kind=true` remembers a recognized
+promotional, OTP/security or balance-notice exclusion and removes matching pending
+notices. Unknown/financial types return 400 without changing the candidate or
+disabling a sender. This learns a message-type preference, not arbitrary text
+templates; ambiguous formats remain for review. Verify with
+`python manage.py test apps.messages.test_promotional_skips apps.messages.tests`.

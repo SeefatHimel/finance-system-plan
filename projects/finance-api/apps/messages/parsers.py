@@ -37,6 +37,10 @@ _TRANSACTION_ACTIVITY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _NUMERIC_CONTENT_PATTERN = re.compile(r"\d")
+_PROMOTIONAL_PATTERN = re.compile(r"\b(?:offers?|anniversary|discounts?|promotions?)\b", re.IGNORECASE)
+_BANGLA_PROMOTIONAL_WORDS = ("অফার", "বার্ষিকী", "বিশেষ ছাড়", "ক্যাশব্যাক অফার")
+_BANGLA_TRANSACTION_WORDS = ("ডেবিট", "ক্রেডিট", "লেনদেন", "পেমেন্ট", "পরিশোধ", "উত্তোলন", "জমা হয়েছে", "পাঠিয়েছেন", "ফেরত পেয়েছেন")
+_CARD_ACTIVITY_PATTERN = re.compile(r"\b(?:used\s+(?:for|at)|spent|purchased|pos|atm)\b", re.IGNORECASE)
 _ACCOUNT_IDENTIFIER_PATTERN = re.compile(
     r"\b(?:a\s*/?\s*c|acct|account)(?:\s*(?:no|number))?\s*[:#-]?\s*"
     r"([0-9x*][0-9x* -]{2,}[0-9x*])",
@@ -196,11 +200,23 @@ def classify_message_kind_for_capture(body: str) -> str:
     if has_balance_wording and not _TRANSACTION_ACTIVITY_PATTERN.search(body):
         return ParsedMessageCandidate.MessageKind.BALANCE_NOTICE
 
+    if (
+        (_PROMOTIONAL_PATTERN.search(body) or any(word in normalized for word in _BANGLA_PROMOTIONAL_WORDS))
+        and not _TRANSACTION_ACTIVITY_PATTERN.search(body)
+        and not _CARD_ACTIVITY_PATTERN.search(body)
+        and not (_CARD_IDENTIFIER_PATTERN.search(body) and _extract_amount(body) is not None)
+        and not any(word in normalized for word in _BANGLA_TRANSACTION_WORDS)
+    ):
+        return ParsedMessageCandidate.MessageKind.PROMOTIONAL
+
     return ""
 
 
 def _parse_non_transaction_message(*, raw_message, sender_rule, provider: str, message_kind: str):
-    label = "OTP/security" if message_kind == ParsedMessageCandidate.MessageKind.OTP_OR_SECURITY else "balance notice"
+    label = {
+        ParsedMessageCandidate.MessageKind.OTP_OR_SECURITY: "OTP/security",
+        ParsedMessageCandidate.MessageKind.PROMOTIONAL: "promotional offer",
+    }.get(message_kind, "balance notice")
     return {
         "account": sender_rule.account if sender_rule else None,
         "amount": None,
