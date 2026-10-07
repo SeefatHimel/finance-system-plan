@@ -19,6 +19,15 @@ reconciliation endpoints, and audit log endpoints. The current API also
 includes credit-card bill and recurring-bill endpoints, so those shapes belong
 in the shared contract too.
 
+## How does the web proxy classify session errors?
+
+The web-only Next.js auth/proxy layer distinguishes authentication failure from
+availability: current-user/refresh return 401 and clear cookies for confirmed
+invalid sessions; upstream failures return 502 and preserve cookies. Login
+retains a 429 retry-later response for throttling. The shared Django request and
+response schemas are unchanged. Financial API 403 responses remain permission
+errors, not automatic logout signals.
+
 ## Why generate clients later?
 
 Generated clients reduce repeated request/response typing in web and mobile.

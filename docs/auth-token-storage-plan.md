@@ -1,6 +1,6 @@
 # Auth Token Storage Plan
 
-Last updated: 2026-05-31
+Last updated: 2026-10-07
 
 ## Goal
 
@@ -60,6 +60,52 @@ Implementation notes:
 - Cookie-authenticated mutations require a same-origin request, and production
   auth cookies use `SameSite=Strict`.
 - Never expose refresh tokens to browser JavaScript.
+
+## Web Session Flow And Decisions
+
+- A shared `AuthProvider` owns verified user state. Protected workspaces mount
+  only after the session check succeeds. Checking and connection-error screens
+  prevent private content from flashing during startup or reauthentication.
+- Use a dedicated login page. A second login modal over a financial form would
+  leave stale account data and competing form state visible. An interrupted
+  financial action is not automatically resumed after signing in; the user
+  reviews and submits it again. Unsaved form values may need to be re-entered.
+- Unauthenticated navigation redirects to `/login?next=...`. The return path
+  preserves workspace filters and anchors, accepts only known internal
+  workspaces, and rejects external URLs and login/API redirect loops.
+- An already authenticated user visiting login returns to the requested
+  workspace. Successful sign-in and explicit logout use fresh page navigation
+  to discard client and router state between users.
+- Protected page responses disable browser caching. Pages restored from the
+  browser Back/Forward cache hide the workspace and revalidate the session
+  before exposing it again.
+- The header account menu exposes logout on every workspace. Logout hides the
+  workspace immediately, revokes the refresh token where possible, removes
+  local credentials or server cookies, and displays the signed-out login page.
+  If the browser cannot reach the cookie logout route, it offers retry rather
+  than claiming that HTTP-only cookies were removed.
+- Expired access credentials attempt refresh once. Definitive authentication
+  rejection redirects to login with an expiry explanation. Refresh/profile
+  network failures and upstream outages preserve credentials and offer retry;
+  they are not proof of logout. Forbidden financial requests remain permission
+  errors. Login throttling remains a retry-later response.
+- In production, middleware performs an early cookie-presence redirect.
+  Presence alone is not authentication: the current-user endpoint, backend
+  proxy, and Django permissions remain authoritative. Development tokens are
+  inaccessible to middleware, so the shared client gate verifies them instead.
+- Logout/expiry notifications are shared across tabs using BroadcastChannel,
+  with development storage events and focus/online revalidation as fallbacks.
+  Cross-tab messages contain only the session reason, never credentials.
+- Session checks ignore superseded results. A refresh response cannot restore
+  credentials after they changed or were cleared. A financial mutation whose
+  credential changed before retry requires an explicit retry; it is not
+  silently submitted under a different session.
+
+Verification: `npm run test:auth` checks safe return URLs, workspace coverage,
+and authentication-versus-availability classification. Browser checks cover
+login, refresh, expiry, outages/retry, logout, cross-tab logout, browser Back,
+and responsive login/account-menu behavior. Production builds additionally
+exercise middleware and cookie-backed sessions.
 
 ## Mobile Plan
 

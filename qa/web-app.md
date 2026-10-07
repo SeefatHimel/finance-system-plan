@@ -288,11 +288,39 @@ layout detail would preserve old limitations.
 ## How does login work?
 
 The current web app submits username/password to `/api/auth/login/`, stores the
-returned JWT tokens for local development, and calls `/api/auth/me/` to show the
-signed-in user on the dashboard. When browser token storage is disabled, the
-login form uses same-origin Next.js auth routes that call the backend and store
+returned JWT tokens for local development, and calls `/api/auth/me/` to verify
+the signed-in user before any financial workspace mounts. When browser token
+storage is disabled, the login form uses same-origin Next.js auth routes that call the backend and store
 access/refresh tokens in HTTP-only cookies for session status, refresh, and
 logout.
+
+## Why use a shared session guard and a login page?
+
+`AuthProvider` makes authentication a workspace-wide decision, rather than
+letting each page render an independent "Sign in" error. Startup waits for a
+verified current user, missing/expired sessions redirect to login, and a safe
+internal `next` path preserves filters for the return journey. Already signed-in
+users bypass login. A dedicated page removes stale financial forms from view;
+interrupted actions require explicit review/submission after reauthentication.
+
+Every page exposes Sign out in the header account menu. Logout hides private
+content, revokes/clears credentials, and uses fresh navigation to discard client
+state. Other tabs receive a session-only logout/expiry message, or recheck when
+focused. Protected pages disable caching and revalidate when restored from the
+browser Back/Forward cache. Superseded checks cannot replace newer session state.
+Cookie sessions also get an early middleware redirect when both cookies are absent; API checks
+still enforce authorization, and middleware does not verify development tokens.
+
+## Does a network error mean the user has been signed out?
+
+No. Only a confirmed authentication rejection ends the session. Expired access
+credentials first attempt refresh; missing or rejected refresh credentials
+require login. Profile/refresh outages preserve credentials and offer retry,
+and 403 responses remain permission errors. Cookie auth routes return 502 for
+upstream failures and retain cookies, while definitive auth failures return 401
+and clear them. If cookie logout cannot reach the same-origin server, the UI
+offers retry instead of falsely reporting success. Return-URL and error-status
+regressions are covered by `npm run test:auth`.
 
 ## Where should auth tokens be stored?
 

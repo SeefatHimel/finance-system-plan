@@ -12,7 +12,7 @@ The web app is scaffolded with:
 - Server-rendered backend health check
 - Initial dashboard shell
 - Login page connected to JWT auth
-- Dashboard session panel with sign out
+- Shared session guard and header account menu with sign out
 - Transactions page that loads accounts, categories, and transactions
 - Manual transaction creation form
 - Manual transaction update form
@@ -118,7 +118,7 @@ http://localhost:3000/login
 
 For the local development version, JWT tokens are stored in browser
 `localStorage`. Production builds always disable this temporary browser token
-storage. In production, the login and session panel use
+storage. In production, the shared session guard and login use
 same-origin Next.js auth routes that store access and refresh tokens in
 HTTP-only, Secure, SameSite=Strict cookies. Authenticated workspace API calls
 use a same-origin backend proxy, so refresh tokens stay out of browser
@@ -126,6 +126,24 @@ JavaScript. Concurrent refresh attempts share one rotation result. For local
 development, authenticated web API calls use the stored refresh token to rotate
 tokens and retry once after an expired access token response.
 See `../../docs/auth-token-storage-plan.md`.
+
+All financial workspaces require a verified session. Missing credentials and
+confirmed expiry open the dedicated login page, preserving a validated internal
+return path and filters. The account menu in every workspace exposes Sign out.
+Logout clears the visible workspace and credentials and returns to login;
+already signed-in users visiting login return to their workspace. Successful
+sign-in/logout discard page caches with fresh navigation. Unsubmitted financial
+forms are not replayed after reauthentication.
+
+Temporary session-check/refresh outages keep credentials and offer Try again.
+Production middleware checks cookie presence early; the current-user endpoint
+and Django authorization verify identity and permissions. Cookie auth routes
+return 401 only for confirmed authentication failure and 502 for upstream
+outages, preserving cookies on the latter. Cross-tab logout uses session-only
+BroadcastChannel messages, with storage/focus checks as fallbacks.
+
+Run `npm run test:auth` for return-path and auth-error regression checks, alongside
+`npm run typecheck`, `npm run lint`, and `npm run build`.
 
 Transactions page:
 
