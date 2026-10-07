@@ -206,6 +206,7 @@ export type { TransferMatch } from "../../finance-contracts/generated/types";
 
 const transactionSchema = z.object({
   created_at: z.string(),
+  updated_at: z.string(),
   account_direction: z.string(),
   transfer_evidence: z.array(transferEvidenceSchema),
   account: z.string(),
@@ -441,7 +442,7 @@ export type TransactionFilters = {
   category?: string;
   direction?: TransactionDirection | "";
   month?: string;
-  ordering?: "-date" | "-created_at";
+  ordering?: "-date" | "-created_at" | "-updated_at";
   search?: string;
   source?: TransactionSource | "";
   type?: TransactionType | "";

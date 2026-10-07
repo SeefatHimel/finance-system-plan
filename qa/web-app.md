@@ -423,7 +423,7 @@ apply only to that account/counterparty pattern. A transfer still requires
 explicit confirmation or acceptance of a match. Existing pending rows need
 Re-run parser or Reapply rules to pending to use the new resolver.
 
-## How can users find transactions they just added?
+## How can users find transactions they just added or edited?
 
 The Recently added view orders the ledger by creation time and shows Added
 timestamps alongside transaction date/time. Selecting it removes the default
@@ -432,6 +432,10 @@ Account, category, type, source, direction and search filters still apply.
 Month, when chosen, filters transaction date. The URL preserves ordering and
 all-month selection on reload. Edits and linked evidence do not make an existing
 transfer a new addition. Switching back restores the current transaction month.
+Recently updated instead orders by latest saved change and shows Updated time,
+including new entries, edits, newly linked transfer evidence and merges. It also
+opens all months and preserves filters on reload, with no fixed lookback period.
+Reading an entry or retrying an accepted transfer link does not promote it.
 
 ## Can rejection teach the app to skip advertisements?
 

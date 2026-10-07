@@ -347,17 +347,22 @@ identifier inputs are evidence fields, not account selectors. The review grid
 shrinks to phone widths so suggestion explanations remain visible. For older
 pending items, use Re-run parser or Reapply rules to pending after the API migration.
 
-## Recently Added Transactions
+## Recently Added and Updated Transactions
 
-Transactions offers By transaction date and Recently added views. Recently added
-sorts by ledger `created_at`, clears the transaction-month restriction when
+Transactions offers By transaction date, Recently added and Recently updated
+views. Recently added sorts by ledger `created_at`, clears the transaction-month restriction when
 selected, and displays an Added timestamp in the browser's local timezone next
 to the original transaction date/time. Other filters remain available; selecting
 a month still filters the original transaction date. Switching back opens the
 current transaction month. Ordering and an explicitly empty month survive URL
 reloads, including Clear filters. Newly added backdated records appear first.
 Edits and extra evidence linked to an existing transfer do not change its added
-time or produce another ledger record. CSV export retains chronological order.
+time or produce another ledger record. Recently updated sorts by `updated_at`
+and shows an Updated timestamp for the latest save, including new entries,
+edits, newly linked transfer evidence and merges. Reads and transfer retries do
+not promote entries. It uses the same all-month default, remaining filters and
+URL persistence as Recently added. This is a latest-first view, with no fixed
+lookback period. CSV export retains chronological order.
 
 ## Skipping Promotional Messages
 

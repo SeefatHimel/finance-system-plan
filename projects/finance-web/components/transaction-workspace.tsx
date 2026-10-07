@@ -80,7 +80,7 @@ type TransactionFilterState = Required<Pick<TransactionFilters, "direction" | "s
   account: string;
   category: string;
   month: string;
-  ordering: "-date" | "-created_at";
+  ordering: "-date" | "-created_at" | "-updated_at";
   search: string;
 };
 
@@ -123,7 +123,7 @@ const moneyFormatter = new Intl.NumberFormat("en-BD", {
   style: "currency"
 });
 
-const addedTimeFormatter = new Intl.DateTimeFormat("en-BD", { dateStyle: "medium", timeStyle: "short" });
+const activityTimeFormatter = new Intl.DateTimeFormat("en-BD", { dateStyle: "medium", timeStyle: "short" });
 
 export function TransactionWorkspace() {
   const [filters, setFilters] = useState<TransactionFilterState>({
@@ -201,12 +201,14 @@ export function TransactionWorkspace() {
 
     const searchParams = new URLSearchParams(window.location.search);
     const requestedSearch = searchParams.get("search")?.trim() ?? "";
+    const requestedOrdering = searchParams.get("ordering");
+    const ordering = requestedOrdering === "-created_at" || requestedOrdering === "-updated_at" ? requestedOrdering : "-date";
     const requestedFilters: TransactionFilterState = {
       account: searchParams.get("account") ?? "",
       category: searchParams.get("category") ?? "",
       direction: (searchParams.get("direction") ?? "") as TransactionFilterState["direction"],
-      month: searchParams.has("month") ? searchParams.get("month") ?? "" : requestedSearch || searchParams.get("ordering") === "-created_at" ? "" : currentMonth(),
-      ordering: searchParams.get("ordering") === "-created_at" ? "-created_at" : "-date",
+      month: searchParams.has("month") ? searchParams.get("month") ?? "" : requestedSearch || ordering !== "-date" ? "" : currentMonth(),
+      ordering,
       search: requestedSearch,
       source: (searchParams.get("source") ?? "") as TransactionFilterState["source"],
       type: (searchParams.get("type") ?? "") as TransactionFilterState["type"]
@@ -275,7 +277,7 @@ export function TransactionWorkspace() {
   }
 
   async function selectOrdering(ordering: TransactionFilterState["ordering"]) {
-    const nextFilters = { ...filters, ordering, month: ordering === "-created_at" ? "" : currentMonth() };
+    const nextFilters = { ...filters, ordering, month: ordering !== "-date" ? "" : currentMonth() };
     setFilters(nextFilters);
     applyFilterUrl(nextFilters);
     setIsMonthLoading(true);
@@ -886,6 +888,7 @@ export function TransactionWorkspace() {
           <div className="transaction-view-switch" aria-label="Transaction ordering">
             <button className="button button--ghost" aria-pressed={filters.ordering === "-date"} disabled={isMonthLoading} onClick={() => void selectOrdering("-date")} type="button">By transaction date</button>
             <button className="button button--ghost" aria-pressed={filters.ordering === "-created_at"} disabled={isMonthLoading} onClick={() => void selectOrdering("-created_at")} type="button">Recently added</button>
+            <button className="button button--ghost" aria-pressed={filters.ordering === "-updated_at"} disabled={isMonthLoading} onClick={() => void selectOrdering("-updated_at")} type="button">Recently updated</button>
           </div>
 
           <form className="filter-form transaction-filter-form" onSubmit={handleFilterSubmit}>
@@ -1029,7 +1032,7 @@ export function TransactionWorkspace() {
 
           <div className="transaction-table-toolbar">
             <div>
-              <p className="section-subtitle">{filters.ordering === "-created_at" ? "Newest ledger additions first. Transaction dates may be older; edits do not change added time." : "Showing records by transaction date from the authenticated backend API."}</p>
+              <p className="section-subtitle">{filters.ordering === "-updated_at" ? "Latest saved changes first, including new entries, edits and linked transfer evidence. Transaction dates may be older." : filters.ordering === "-created_at" ? "Newest ledger additions first. Transaction dates may be older; edits do not change added time." : "Showing records by transaction date from the authenticated backend API."}</p>
               {isMonthLoading ? <span className="transaction-refresh-state"><ButtonBusy label="Updating transactions" /></span> : null}
             </div>
             <details className="column-picker">
@@ -1060,6 +1063,7 @@ export function TransactionWorkspace() {
                 <thead>
                   <tr>
                     {filters.ordering === "-created_at" ? <th>Added</th> : null}
+                    {filters.ordering === "-updated_at" ? <th>Updated</th> : null}
                     {visibleColumns.includes("date") ? <th>Date</th> : null}
                     {visibleColumns.includes("time") ? <th>Time</th> : null}
                     {visibleColumns.includes("description") ? <th>Description</th> : null}
@@ -1076,7 +1080,7 @@ export function TransactionWorkspace() {
                 <tbody>
                   {loadState.transactions.map((transaction) => (
                     <tr key={transaction.id}>
-                      {filters.ordering === "-created_at" ? <td><time dateTime={transaction.created_at}>{addedTimeFormatter.format(new Date(transaction.created_at))}</time></td> : null}
+                      {filters.ordering !== "-date" ? <td><time dateTime={filters.ordering === "-updated_at" ? transaction.updated_at : transaction.created_at}>{activityTimeFormatter.format(new Date(filters.ordering === "-updated_at" ? transaction.updated_at : transaction.created_at))}</time></td> : null}
                       {visibleColumns.includes("date") ? <td>{transaction.date}</td> : null}
                       {visibleColumns.includes("time") ? <td>{formatTransactionTime(transaction.time)}</td> : null}
                       {visibleColumns.includes("description") ? <td>
