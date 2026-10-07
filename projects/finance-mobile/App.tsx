@@ -832,7 +832,7 @@ export default function App() {
   const [senderRules, setSenderRules] = useState<SenderRule[]>([]);
   const [smsCapturePreference, setSmsCapturePreference] = useState<SmsCapturePreference>({
     created_at: "",
-    excluded_message_kinds: ["otp_or_security"],
+    excluded_message_kinds: ["otp_or_security", "promotional"],
     excluded_providers: [],
     raw_sms_retention_days: 30,
     updated_at: ""
@@ -4674,7 +4674,7 @@ export default function App() {
           </ScrollView>
           <Text style={styles.mobileFieldLabel}>Non-transaction messages</Text>
           <View style={styles.mobileChoiceRow}>
-            {["otp_or_security", "balance_notice"].map((messageKind) => {
+            {["otp_or_security", "balance_notice", "promotional"].map((messageKind) => {
               const excluded = smsCapturePreference.excluded_message_kinds.includes(messageKind);
               const captureKey = `message_kind:${messageKind}`;
               return (

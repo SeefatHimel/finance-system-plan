@@ -348,3 +348,11 @@ current and later queue entries. Resolving it removes that entry; the user can
 continue syncing. Transfer retry keys and restored opposite-account/direction
 fields prevent retries from creating another transfer. The all-account activity
 feed displays one A → B transfer with its linked evidence.
+
+## Are promotional messages discarded on the phone or API?
+
+The phone follows shared capture preferences, including the promotional toggle.
+The API authoritatively classifies English/Bangla offers and acknowledges ignored
+captures without retaining their original body. A trusted-sender Android scan
+may therefore upload an advertisement for classification; skipping advertisements
+does not disable the bank sender or its genuine financial notices.

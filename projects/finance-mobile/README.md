@@ -321,3 +321,9 @@ Offline sync pauses for a transfer match decision and retains this and subsequen
 and sync again to continue. Queue restoration preserves direction, the other
 account, and the transfer retry key. The all-account activity feed displays a
 single A → B movement and its account-specific evidence.
+
+Promotional capture policy is enabled by default and can be toggled alongside
+OTP/security and balance notices. The API classifies English/Bangla offers and
+acknowledges excluded captures without storing the original body; the Android
+trusted-sender scan may still upload a message for server classification. Keep
+the bank sender active so its financial notices continue to sync.
