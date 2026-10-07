@@ -59,6 +59,31 @@ class TransferSuggestionTests(APITestCase):
         parsed = parse_raw_message(self.raw())
         self.assertEqual(parsed["destination_account"], self.wallet)
 
+    def test_bank_sms_from_wallet_wording_suggests_other_account_without_reversing_direction(self):
+        PaymentMethod.objects.create(
+            user=self.user, account=self.bank, name="Demo bank card",
+            provider="ebl", identifier="****1111",
+        )
+        body = (
+            "Fund Transfer of BDT 120 from PathaoPay DHAKA BD.Card ****1111 "
+            "on 15-Jan-26 10:30:00 PM.Your A/C ****2222 Balance BDT 8000."
+        )
+        parsed = parse_raw_message(self.raw(body))
+        self.assertEqual(parsed["account"], self.bank)
+        self.assertEqual(parsed["destination_account"], self.wallet)
+        self.assertEqual(parsed["suggested_transfer_direction"], "debit")
+        self.assertIn("name or provider alias", parsed["transfer_suggestion_reason"])
+
+    def test_confirmed_provider_path_survives_location_and_alias_variations(self):
+        self.wallet.name = "Demo wallet"
+        self.wallet.save()
+        candidate = self.imported(self.body("PathaoPay DHAKA BD"))
+        self.confirm(candidate, remember=False)
+        parsed = parse_raw_message(self.raw(self.body("Pathao Pay")))
+        self.assertEqual(parsed["destination_account"], self.wallet)
+        self.assertIn("previously confirmed", parsed["transfer_suggestion_reason"])
+        self.assertEqual(TransferCounterpartyMapping.objects.count(), 0)
+
     def test_provider_alias_suggests_unique_wallet_and_multiple_accounts_require_choice(self):
         self.wallet.name = "Demo wallet"
         self.wallet.save()

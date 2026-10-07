@@ -409,3 +409,8 @@ Apply migration `finance_messages.0011_transfer_counterparty_suggestions` with
 `python manage.py migrate` before deploying the updated API/web clients. Existing
 records remain unchanged; reprocess pending messages to obtain new suggestions.
 Run `python manage.py test apps.messages.test_transfer_suggestions apps.messages.tests apps.transactions.test_transfers`.
+
+Regression coverage includes bank messages with “from PathaoPay” and masked
+card/account evidence, plus previously confirmed paths across `PathaoPay DHAKA BD`
+and `Pathao Pay` variations. Counterparty wording identifies a possible other
+account; it does not independently reverse the reporting account's direction.
