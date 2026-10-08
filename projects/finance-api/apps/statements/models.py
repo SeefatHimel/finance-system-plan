@@ -106,3 +106,33 @@ class StatementRow(models.Model):
             ),
         ]
         indexes: ClassVar = [models.Index(fields=("batch", "state"))]
+
+
+class StatementMapping(models.Model):
+    """Explicitly remembered classification, scoped to one reporting account."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
+    profile = models.CharField(max_length=32)
+    pattern_key = models.CharField(max_length=64)
+    pattern_label = models.CharField(max_length=180)
+    type = models.CharField(max_length=32, choices=Transaction.Type.choices)
+    direction = models.CharField(max_length=16, choices=Transaction.Direction.choices)
+    category = models.ForeignKey(
+        "categories.Category", on_delete=models.SET_NULL, null=True
+    )
+    other_account = models.ForeignKey(
+        "accounts.Account",
+        on_delete=models.CASCADE,
+        null=True,
+        related_name="statement_mappings",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints: ClassVar = [
+            models.UniqueConstraint(
+                fields=("user", "account", "profile", "pattern_key"),
+                name="statement_mapping_scope",
+            )
+        ]

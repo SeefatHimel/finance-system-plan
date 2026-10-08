@@ -18,6 +18,7 @@ from apps.transactions.models import Transaction
 from apps.transactions.serializers import TransactionSerializer
 from apps.transactions.transfers import add_transfer_evidence, lock_transfer_user
 
+from .insights import analyze, match_signals, remember
 from .models import StatementImport, StatementRow
 
 MAX_MATCH_HISTORY = 10000
@@ -233,10 +234,21 @@ def find_matches(rows):
         Transaction.objects.filter(
             user_id=batch.user_id,
             amount__in=amounts,
-            date__range=(
-                min(days) - timedelta(days=MATCH_DAYS),
-                max(days) + timedelta(days=MATCH_DAYS),
-            ),
+        )
+        .filter(
+            Q(
+                date__range=(
+                    min(days) - timedelta(days=MATCH_DAYS),
+                    max(days) + timedelta(days=MATCH_DAYS),
+                )
+            )
+            | Q(
+                transfer_evidence__account_id=batch.account_id,
+                transfer_evidence__date__range=(
+                    min(days) - timedelta(days=MATCH_DAYS),
+                    max(days) + timedelta(days=MATCH_DAYS),
+                ),
+            )
         )
         .filter(
             Q(account_id=batch.account_id)
@@ -244,7 +256,8 @@ def find_matches(rows):
         )
         .select_related("account", "transfer_account", "category")
         .prefetch_related("transfer_evidence")
-        .order_by("date", "id")[: MAX_MATCH_HISTORY + 1]
+        .order_by("date", "id")
+        .distinct()[: MAX_MATCH_HISTORY + 1]
     )
     if len(history) > MAX_MATCH_HISTORY:
         return results, True
@@ -397,8 +410,24 @@ def find_matches(rows):
                 reasons.append(
                     "Another row in this statement is already attached to this movement."
                 )
+            signals, extra_reasons, extra_score = match_signals(
+                row,
+                record,
+                observations,
+                distance,
+                reference_matches,
+                row.balance_after is not None and row.balance_after in known_balances,
+                conflict or not compatible_fields,
+                previously_seen,
+            )
+            reasons.extend(extra_reasons)
+            if row.value_date:
+                reasons.append(
+                    f"Posting date {row.date}; printed value date {row.value_date}. Both were considered."
+                )
             score = (
-                (300 if previously_seen else 0)
+                extra_score
+                + (300 if previously_seen else 0)
                 + (100 if reference_matches else 0)
                 + (
                     30
@@ -413,6 +442,7 @@ def find_matches(rows):
                     score,
                     str(record.id),
                     {
+                        **signals,
                         "id": str(record.id),
                         "date": record.date.isoformat(),
                         "time": record.time.isoformat() if record.time else None,
@@ -441,10 +471,29 @@ def find_matches(rows):
             item[2]
             for item in sorted(candidates, key=lambda item: (-item[0], item[1]))[:8]
         ]
+    for row in pending:
+        strong = [
+            m for m in results[row.id] if m["strength"] == "strong" and m["can_link"]
+        ]
+        if len(strong) > 1:
+            for match in strong:
+                match["strength"] = "possible"
+                match["reasons"].append(
+                    "Multiple corroborated movements exist; inspect them individually."
+                )
     return results, False
 
 
 def review_context(row, matches, truncated=False):
+    if resolved(row) and not hasattr(row, "_draft_issues"):
+        row._draft_issues = []
+    if not hasattr(row, "_draft_issues"):
+        records = list(row.batch.rows.select_related("batch"))
+        analyze(row.batch, records)
+        row._draft_issues = next(
+            (r._draft_issues for r in records if r.id == row.id), []
+        )
+    draft_issues = row._draft_issues
     issues = posting_issues(row) if not resolved(row) else []
     orphaned = row.state in {"posted", "linked"} and row.transaction_id is None
     if truncated and not resolved(row):
@@ -458,15 +507,18 @@ def review_context(row, matches, truncated=False):
             "possible_match"
             if matches
             else "needs_correction"
-            if issues or row.extracted.get("issues") or orphaned
+            if issues or draft_issues or row.extracted.get("issues") or orphaned
             else "new"
         )
     return {
         "issues": issues,
+        "draft_issues": draft_issues,
+        "suggestion": getattr(row, "_suggestion", None),
         "review_state": state,
         "matches": matches,
         "matching_truncated": truncated,
-        "requires_acknowledgement": orphaned
+        "requires_acknowledgement": bool(draft_issues)
+        or orphaned
         or bool(row.extracted.get("issues"))
         or any(c.get("passed") is False for c in row.batch.checks),
     }
@@ -560,8 +612,12 @@ def decide_locked(*, row, user, payload, request):
                     "row": "The matching window is too busy to review safely. Narrow the row date."
                 }
             )
+        records = list(row.batch.rows.select_related("batch"))
+        analyze(row.batch, records)
+        draft_issues = next((r._draft_issues for r in records if r.id == row.id), [])
         requires_ack = (
-            bool(row.extracted.get("issues"))
+            bool(draft_issues)
+            or bool(row.extracted.get("issues"))
             or any(c.get("passed") is False for c in row.batch.checks)
             or (row.state in {"posted", "linked"} and row.transaction_id is None)
         )
@@ -677,6 +733,8 @@ def decide_locked(*, row, user, payload, request):
                 },
             )
         row.classification_confirmed = True
+        if payload.get("remember_choices"):
+            remember(row, user)
     touch(
         row,
         user,
@@ -686,6 +744,7 @@ def decide_locked(*, row, user, payload, request):
             "acknowledge_issues": payload.get("acknowledge_issues", False),
             "acknowledge_conflict": payload.get("acknowledge_conflict", False),
             "allow_separate": payload.get("allow_separate", False),
+            "remember_choices": payload.get("remember_choices", False),
         },
     )
     return row, action

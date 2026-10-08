@@ -18,6 +18,7 @@ from rest_framework.response import Response
 from apps.categories.models import Category
 from apps.transactions.transfers import lock_transfer_user
 
+from .insights import analyze, prepare
 from .models import StatementImport, StatementRow
 from .serializers import (
     SavedStatementRowSerializer,
@@ -28,6 +29,8 @@ from .serializers import (
     StatementPreviewRequestSerializer,
     StatementRowEditSerializer,
     StatementRowPageSerializer,
+    StatementSelectedSerializer,
+    StatementSummarySerializer,
 )
 from .services import (
     ReviewConflict,
@@ -184,6 +187,7 @@ class StatementImportViewSet(
                 "batch__account", "other_account", "category", "transaction"
             )
         )
+        prepare(records)
         matches, truncated = find_matches(records)
         state = request.query_params.get("state", "")
         if state and state not in {
@@ -284,6 +288,21 @@ class StatementImportViewSet(
             }
         )
 
+    @extend_schema(responses=StatementSummarySerializer, tags=["Statements"])
+    @action(detail=True, methods=("get",))
+    def summary(self, request, pk=None):
+        batch = self.get_object()
+        return Response(analyze(batch, list(batch.rows.select_related("batch"))))
+
+    @extend_schema(
+        request=StatementSelectedSerializer,
+        responses=StatementBulkResultSerializer,
+        tags=["Statements"],
+    )
+    @action(detail=True, methods=("post",), parser_classes=(JSONParser,))
+    def review_selected(self, request, pk=None):
+        return self.approve_new(request, pk)
+
     @extend_schema(
         request=StatementBulkSerializer,
         responses=StatementBulkResultSerializer,
@@ -294,10 +313,15 @@ class StatementImportViewSet(
     def approve_new(self, request, pk=None):
         # Override the upload-only parsers for this JSON action.
         batch = self.get_object()
-        serializer = StatementBulkSerializer(data=request.data)
+        serializer = (
+            StatementSelectedSerializer
+            if self.action == "review_selected"
+            else StatementBulkSerializer
+        )(data=request.data)
         serializer.is_valid(raise_exception=True)
         lock_transfer_user(request.user)
         wanted = serializer.validated_data["rows"]
+        decision_action = serializer.validated_data.get("action", "create")
         rows = {
             row.id: row
             for row in batch.rows.select_for_update(of=("self",))
@@ -306,11 +330,36 @@ class StatementImportViewSet(
         }
         if len(rows) != len(wanted):
             raise ValidationError({"rows": "Choose rows from this statement only."})
-        added, unchanged, unresolved = 0, 0, []
+        added, skipped, unchanged, unresolved = 0, 0, 0, []
         for entry in wanted:
             row = rows[entry["id"]]
             if resolved(row):
+                if decision_action == "skip" and row.state != "skipped":
+                    unresolved.append(
+                        {
+                            "id": str(row.id),
+                            "reason": "Already linked or posted; its ledger entry is retained.",
+                        }
+                    )
+                    continue
                 unchanged += 1
+                continue
+            if decision_action == "skip":
+                if entry["version"] != row.version:
+                    unresolved.append(
+                        {
+                            "id": str(row.id),
+                            "reason": "Changed row; reload before skipping.",
+                        }
+                    )
+                    continue
+                decide_locked(
+                    row=row,
+                    user=request.user,
+                    payload={"action": "skip", "version": row.version},
+                    request=request,
+                )
+                skipped += 1
                 continue
             matches, truncated = find_matches([row])
             review = review_context(row, matches[row.id], truncated)
@@ -338,7 +387,12 @@ class StatementImportViewSet(
             added += decision == "create"
             unchanged += decision == "unchanged"
         return Response(
-            {"added": added, "unchanged": unchanged, "unresolved": unresolved}
+            {
+                "added": added,
+                "skipped": skipped,
+                "unchanged": unchanged,
+                "unresolved": unresolved,
+            }
         )
 
 
@@ -354,6 +408,15 @@ class StatementRowViewSet(NoStoreMixin, viewsets.GenericViewSet):
         ).select_related("batch__account", "other_account", "category", "transaction")
 
     def representation(self, row):
+        from .insights import suggestions
+
+        if resolved(row):
+            records = list(row.batch.rows.select_related("batch"))
+            analyze(row.batch, records)
+            row._draft_issues = next(
+                (item._draft_issues for item in records if item.id == row.id), []
+            )
+        row._suggestion = suggestions([row]).get(row.id)
         matches, truncated = find_matches([row])
         return SavedStatementRowSerializer(
             row, context={"matches": matches, "matching_truncated": truncated}

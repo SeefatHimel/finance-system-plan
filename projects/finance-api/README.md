@@ -598,3 +598,37 @@ Install requirements, run `python manage.py migrate` (adds
 `python manage.py test apps.statements apps.transactions`; concurrency checks
 require PostgreSQL. Fixtures contain synthetic data only.
 See [the import plan](../../docs/statement-pdf-import-plan.md).
+
+### Review assistance and reconciliation
+
+Matches now include `strength` (`strong` or `possible`), merchant similarity,
+reported time difference, and supporting reasons. Amount, currency, reporting
+account and direction remain required. Posting/value dates and transfer-side
+observation dates are considered; equally corroborated candidates remain possible
+matches. Strength is a heuristic, not a probability or permission to auto-link.
+
+Set `remember_choices=true` on an explicit create/link decision to remember the
+saved draft's type, category and other owned account. Suggestions are scoped to
+user, reporting account, provider profile, source direction, component and
+normalized merchant wording. Generic transfer descriptions are excluded.
+Suggestions do not modify amounts, balances, dates or existing transactions;
+inactive categories/accounts suppress suggestions. Unchecking the option prevents
+new learning; it does not remove a previously remembered choice.
+
+`GET /api/statements/imports/{id}/summary/` recalculates all saved draft rows in
+source order, including skipped rows. It returns principal/fee debit-credit totals,
+posted/linked/skipped/unresolved observation totals and balance/net checks.
+Linked totals use draft observation amounts, not subsequently corrected ledger
+amounts. Derived opening balances are labelled; unavailable data never passes a
+check. Immutable extraction checks remain separate. Draft discrepancies require
+individual acknowledgement before creating or linking and are excluded from bulk
+approval.
+
+`POST /api/statements/imports/{id}/review_selected/` accepts `action=create|skip`
+and up to 50 explicit row IDs/versions, returning added/skipped/unchanged counts
+and unresolved reasons. Create only approves freshly validated new rows; skip
+never deletes a ledger transaction. Stale rows remain unresolved. Both actions
+use the existing user/row lock order and atomic transaction protections.
+
+Apply migration `statements.0002_statementmapping` before using remembered
+choices (`python manage.py migrate`). No original PDF or password is retained.

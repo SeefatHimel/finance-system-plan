@@ -201,3 +201,21 @@ data-processing decision and must not receive private statements implicitly.
   PDF positioning and scanned-document limitations.
 - [Docling](https://docling-project.github.io/docling/): candidate local OCR and
   document/table reconstruction fallback.
+
+## Review assistance delivered
+
+Merchant/time corroboration now ranks strong versus possible matches and explains
+the evidence. Multiple strong candidates remain ambiguous. Matching considers
+posting/value dates and the reporting account's transfer observation dates.
+Explicitly remembered category/type/owned-account choices appear as suggestions
+for later matching source patterns; generic transfer wording is excluded. These
+suggestions never auto-post or change reported amounts, dates or balances.
+
+Full-import saved-draft reconciliation is independent of original extraction checks.
+The summary separates principal/inline fee totals and review decisions, labels derived
+openings and unavailable checks, and retains skipped rows in statement arithmetic.
+Corrected financial drafts with discrepancies need explicit individual review.
+Selected-row create/skip actions use frozen IDs/versions (max 50), fresh backend
+validation and atomic decisions. Save & next and editor shortcuts speed review
+without accepting matches or posting implicitly. OCR, card billing layouts and
+precision-based automatic posting remain future work.

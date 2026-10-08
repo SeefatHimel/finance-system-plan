@@ -395,3 +395,8 @@ digital PDF. Run concurrency tests against PostgreSQL, not SQLite.
 The preview endpoint uses a separate Python process from the same virtual
 environment; the deployment must permit starting that process. It creates no
 ledger entries on upload; masked rows and drafts are saved for review.
+
+Statement review assistance requires the latest API migrations, including
+`statements.0002_statementmapping`. Run `python manage.py migrate` from
+`projects/finance-api` before restarting API/web. The remembered-choice table stores
+scoped classifications; PDF/password retention remains unchanged (neither is saved).

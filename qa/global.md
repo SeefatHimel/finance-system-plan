@@ -288,3 +288,11 @@ pending SMS; the user chooses “Link to existing transfer,” “Confirm as one
 transfer,” or “Keep separate.” Incoming account history shows the same transfer
 as a credit, while the source shows a debit. Real B-to-A return transfers remain
 separate. Matching is review-assisted, not automatic financial posting.
+
+### How far does statement automation go today?
+
+Supported digital statements produce review drafts, explain strong/possible matches,
+remember explicitly confirmed classifications and check corrected draft arithmetic.
+Selected actions and Save & next reduce repetitive work. Posting/linking remains
+explicit, so ambiguous matches and reconciliation differences receive human review.
+Scanned PDFs and credit-card billing layouts still need separate extraction work.

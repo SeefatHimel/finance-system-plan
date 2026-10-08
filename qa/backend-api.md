@@ -594,3 +594,14 @@ The preview endpoint remains stateless. Saved imports require migration
 `statements.0001_initial`. PDFs/passwords are discarded; masked extraction and
 audit history remain. Synthetic fixtures and PostgreSQL concurrency tests cover
 same-file retries, overlaps, corrected values, repeats, fees and transfer merges.
+
+### How does statement review learn and validate corrections?
+
+An explicitly accepted create/link can remember type/category/other-owned-account
+choices scoped by user, reporting account, provider, source direction, component
+and normalized merchant pattern. Later rows receive a suggestion, never an automatic
+financial edit. Generic transfers and inactive mappings are excluded. Independent
+draft checks recompute balances and net movement without rewriting source extraction
+checks; discrepancies block bulk creation and need individual acknowledgement.
+Match strength uses merchant/time/reference/balance corroboration; ties remain possible.
+Selected create/skip actions preserve locks, version checks, ownership and atomicity.

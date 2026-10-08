@@ -144,7 +144,29 @@ class StatementImportSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class StatementSummarySerializer(serializers.Serializer):
+    totals = serializers.DictField()
+    dispositions = serializers.DictField()
+    source_net = serializers.CharField(allow_null=True)
+    draft_net = serializers.CharField(allow_null=True)
+    opening_is_derived = serializers.BooleanField()
+    checks = StatementCheckSerializer(many=True)
+    discrepancy_count = serializers.IntegerField()
+    incomplete_count = serializers.IntegerField()
+    remaining_count = serializers.IntegerField()
+
+
+class StatementSuggestionSerializer(serializers.Serializer):
+    type = serializers.CharField()
+    category = serializers.UUIDField(allow_null=True)
+    other_account = serializers.UUIDField(allow_null=True)
+    reason = serializers.CharField()
+
+
 class StatementMatchSerializer(serializers.Serializer):
+    strength = serializers.ChoiceField(choices=["strong", "possible"])
+    merchant_similarity = serializers.FloatField()
+    time_difference_minutes = serializers.FloatField(allow_null=True)
     id = serializers.UUIDField()
     date = serializers.DateField()
     time = serializers.TimeField(allow_null=True)
@@ -163,6 +185,8 @@ class StatementMatchSerializer(serializers.Serializer):
 
 
 class StatementReviewSerializer(serializers.Serializer):
+    draft_issues = serializers.ListField(child=serializers.CharField())
+    suggestion = StatementSuggestionSerializer(allow_null=True)
     issues = serializers.ListField(child=serializers.CharField())
     review_state = serializers.CharField()
     matches = StatementMatchSerializer(many=True)
@@ -283,6 +307,7 @@ class StatementDecisionSerializer(serializers.Serializer):
     transaction = serializers.PrimaryKeyRelatedField(
         queryset=Transaction.objects.none(), required=False
     )
+    remember_choices = serializers.BooleanField(default=False)
     allow_separate = serializers.BooleanField(default=False)
     acknowledge_issues = serializers.BooleanField(default=False)
     acknowledge_conflict = serializers.BooleanField(default=False)
@@ -324,7 +349,12 @@ class StatementRowPageSerializer(serializers.Serializer):
     results = SavedStatementRowSerializer(many=True)
 
 
+class StatementSelectedSerializer(StatementBulkSerializer):
+    action = serializers.ChoiceField(choices=["create", "skip"])
+
+
 class StatementBulkResultSerializer(serializers.Serializer):
     added = serializers.IntegerField()
+    skipped = serializers.IntegerField()
     unchanged = serializers.IntegerField()
     unresolved = serializers.ListField(child=serializers.DictField())

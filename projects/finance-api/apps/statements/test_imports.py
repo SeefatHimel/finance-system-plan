@@ -159,7 +159,10 @@ class SavedStatementTests(APITestCase):
         overlap = second.rows.first()
         target = response.data["transaction"]
         self.assertEqual(
-            self.decide(overlap, "link", transaction=target).status_code, 200
+            self.decide(
+                overlap, "link", transaction=target, acknowledge_issues=True
+            ).status_code,
+            200,
         )
         self.assertEqual(Transaction.objects.count(), 1)
         self.assertEqual(StatementRow.objects.filter(transaction=target).count(), 2)
@@ -190,7 +193,10 @@ class SavedStatementTests(APITestCase):
         self.assertEqual(updated.status_code, 200, updated.data)
         overlap.refresh_from_db()
         self.assertEqual(
-            self.decide(overlap, "link", transaction=target).status_code, 200
+            self.decide(
+                overlap, "link", transaction=target, acknowledge_issues=True
+            ).status_code,
+            200,
         )
         self.assertEqual(Transaction.objects.count(), 1)
 
@@ -496,3 +502,170 @@ class StatementConcurrencyTests(TransactionTestCase):
             self.assertEqual([r[0] for r in results], [200, 200])
             self.assertEqual(results[0][1], results[1][1])
         self.assertEqual(Transaction.objects.count(), 1)
+
+
+class StatementInsightTests(APITestCase):
+    """Behavioral regressions for review assistance; all fixtures are synthetic."""
+
+    setUp = SavedStatementTests.setUp
+    upload = SavedStatementTests.upload
+    edit = SavedStatementTests.edit
+    decide = SavedStatementTests.decide
+    ledger_purchase = SavedStatementTests.ledger_purchase
+
+    def test_draft_summary_preserves_source_checks_and_zero(self):
+        batch = self.upload()
+        checks = batch.checks
+        row = batch.rows.first()
+        response = self.edit(row, balance_after="0.00")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["review"]["draft_issues"])
+        summary = self.client.get(reverse("statement-import-summary", args=[batch.id]))
+        self.assertEqual(summary.status_code, 200, summary.data)
+        self.assertGreater(summary.data["discrepancy_count"], 0)
+        self.assertEqual(summary.data["remaining_count"], 3)
+        batch.refresh_from_db()
+        self.assertEqual(batch.checks, checks)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_remembered_choices_are_explicit_scoped_and_preserve_money(self):
+        from .models import StatementMapping
+
+        batch = self.upload()
+        row = batch.rows.first()
+        self.assertEqual(
+            self.edit(row, category=str(self.category.id)).status_code, 200
+        )
+        row.refresh_from_db()
+        result = self.decide(row, remember_choices=True)
+        self.assertEqual(result.status_code, 200, result.data)
+        self.assertEqual(StatementMapping.objects.count(), 1)
+        repeat = batch.rows.get(position=3)
+        detail = self.client.get(reverse("statement-row-detail", args=[repeat.id]))
+        suggestion = detail.data["review"]["suggestion"]
+        self.assertEqual(suggestion["category"], str(self.category.id))
+        self.assertIsNone(repeat.category_id)
+        self.assertEqual(repeat.amount, Decimal(50))
+        self.category.is_active = False
+        self.category.save()
+        detail = self.client.get(reverse("statement-row-detail", args=[repeat.id]))
+        self.assertIsNone(detail.data["review"]["suggestion"])
+        other = Account.objects.create(
+            user=self.user, name="Other synthetic bank", type="bank", currency="BDT"
+        )
+        second = self.upload(account=other)
+        detail = self.client.get(
+            reverse("statement-row-detail", args=[second.rows.first().id])
+        )
+        self.assertIsNone(detail.data["review"]["suggestion"])
+
+    def test_selected_skip_keeps_ledger_and_reports_stale_rows(self):
+        batch = self.upload()
+        first, second, third = list(batch.rows.all())
+        self.assertEqual(self.decide(first).status_code, 200)
+        response = self.client.post(
+            reverse("statement-import-review-selected", args=[batch.id]),
+            {
+                "action": "skip",
+                "rows": [
+                    {"id": str(row.id), "version": row.version}
+                    for row in [first, second, third]
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["skipped"], 2)
+        self.assertEqual(Transaction.objects.count(), 1)
+        summary = self.client.get(
+            reverse("statement-import-summary", args=[batch.id])
+        ).data
+        self.assertEqual(summary["remaining_count"], 0)
+        self.assertEqual(summary["dispositions"]["skipped"]["count"], 2)
+        self.assertEqual(Decimal(summary["draft_net"]), Decimal(-50))
+
+    def test_merchant_and_time_evidence_rank_matches_and_ties_stay_possible(self):
+        from datetime import time
+
+        batch = self.upload()
+        row = batch.rows.first()
+        row.time = time(12, 0)
+        row.save()
+        target = self.ledger_purchase(counterparty_text="SYNTH SHOP", time=time(12, 1))
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data
+        self.assertEqual(detail["review"]["matches"][0]["strength"], "strong")
+        self.assertEqual(detail["review"]["matches"][0]["id"], str(target.id))
+        self.ledger_purchase(counterparty_text="SYNTH SHOP", time=time(12, 2))
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data
+        self.assertTrue(
+            all(m["strength"] == "possible" for m in detail["review"]["matches"])
+        )
+        self.assertEqual(Transaction.objects.count(), 2)
+
+    def test_missing_source_amount_does_not_fabricate_net_check(self):
+        from .insights import analyze
+
+        batch = self.upload()
+        rows = list(batch.rows.all())
+        rows[0].extracted = {**rows[0].extracted, "amount": None}
+        summary = analyze(batch, rows)
+        self.assertIsNone(summary["source_net"])
+        check = next(
+            c
+            for c in summary["checks"]
+            if c["label"] == "Draft net movement versus source"
+        )
+        self.assertIsNone(check["passed"])
+
+    def test_selected_stale_skip_is_not_applied(self):
+        batch = self.upload()
+        row = batch.rows.first()
+        stale_version = row.version
+        self.assertEqual(
+            self.edit(row, note="Synthetic corrected note").status_code, 200
+        )
+        response = self.client.post(
+            reverse("statement-import-review-selected", args=[batch.id]),
+            {"action": "skip", "rows": [{"id": str(row.id), "version": stale_version}]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["skipped"], 0)
+        self.assertEqual(len(response.data["unresolved"]), 1)
+        row.refresh_from_db()
+        self.assertEqual(row.state, "pending")
+
+    def test_transfer_match_uses_reporting_account_observation_date(self):
+        batch = self.upload()
+        row = batch.rows.first()
+        self.assertEqual(
+            self.edit(
+                row,
+                type="transfer",
+                other_account=str(self.wallet.id),
+                classification_confirmed=True,
+            ).status_code,
+            200,
+        )
+        target = Transaction.objects.create(
+            user=self.user,
+            account=self.bank,
+            transfer_account=self.wallet,
+            type="transfer",
+            direction="debit",
+            amount="50",
+            date=date(2026, 4, 2),
+            source="sms",
+        )
+        TransferEvidence.objects.create(
+            user=self.user,
+            transaction=target,
+            account=self.bank,
+            direction="debit",
+            date=date(2026, 1, 2),
+            source="sms",
+            balance_after="950",
+        )
+        response = self.client.get(reverse("statement-row-detail", args=[row.id]))
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["review"]["matches"][0]["id"], str(target.id))
