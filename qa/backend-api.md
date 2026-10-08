@@ -571,17 +571,26 @@ both classification-driven loss and attribution to an unrelated account. Ledger
 balances still recalculate using type, amount and accounts, independently of the
 provider's reported balance. No schema or migration change is needed.
 
-## How does the first statement PDF delivery work?
+## How do statement imports protect ledger correctness?
 
-An authenticated multipart preview endpoint validates an owned active BDT
-reporting account, bounds the upload, and runs pdfplumber in an isolated process
-with a timeout. Versioned profiles use positioned words rather than assuming
-generic table extraction will recover bank tables. Decimal checks reconcile row
-balances and available provider totals/counts; wrapped descriptions are joined,
-identifiers masked, and missing time/summary values stay null.
+Bounded authenticated extraction runs outside database locks. Saved imports are
+unique per user/account/file digest. Immutable masked source rows and editable
+versioned drafts are separate. Decisions acquire the same user lock as ledger
+writers, then lock the row and target. Stable row retry keys prevent duplicate
+posting; identical completed retries return the same transaction. Bulk decisions
+refresh matches and skip stale/ambiguous rows, rolling back unexpected failures.
 
-The endpoint is stateless and cannot post. Passwords are transient and parser
-exceptions do not expose private content. Subsequent deliveries must add durable
-source evidence, general SMS/manual matching, review decisions, and atomic
-idempotent posting. Synthetic PDFs test fees, summary boundaries, reversals,
-locked/unsupported files, account ownership, and worker timeouts.
+Matching uses equal currency/amount/direction and account perspective, with
+posting/value dates within three days. References/balances corroborate. Previously
+linked source fingerprints surface corrected ledger entries outside that window,
+but are not unique identities. Links preserve existing ledger/SMS details.
+Separate source rows within one batch cannot share a transaction. Transfer merges
+retain statement observations or reject a same-batch collision. Unlink keeps the
+ledger record; deletion returns evidence to review. Financial ledger corrections
+require acknowledgement and preserve original extraction. Source discrepancies
+require review, and principal/fee components are independently posted.
+
+The preview endpoint remains stateless. Saved imports require migration
+`statements.0001_initial`. PDFs/passwords are discarded; masked extraction and
+audit history remain. Synthetic fixtures and PostgreSQL concurrency tests cover
+same-file retries, overlaps, corrected values, repeats, fees and transfer merges.

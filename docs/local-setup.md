@@ -375,21 +375,23 @@ Promotional can be allowed again in SMS settings. Run
 `python manage.py test apps.messages.test_promotional_skips apps.messages.tests`
 for classification, learned policy, transaction protection and reprocessing checks.
 
-## Statement PDF Preview Dependencies
+## Statement PDF Import Setup
 
-After pulling the statement-preview changes, update the API virtual environment:
+After pulling the statement-import changes, update the API virtual environment:
 
 ```bash
 cd projects/finance-api
 source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
-python manage.py test apps.statements
+python manage.py migrate
+python manage.py test apps.statements apps.transactions
 ```
 
 Production installs use `requirements.txt`, which includes `pdfplumber`.
 `reportlab` is a development dependency for generating synthetic test PDFs.
-This delivery adds no database migration. Restart the API and web app, then open
-Statements to select an active BDT account and preview a supported digital PDF.
+Migration `statements.0001_initial` adds saved imports and row evidence. Restart
+the API and web app, then open Statements to upload, review and approve a supported
+digital PDF. Run concurrency tests against PostgreSQL, not SQLite.
 The preview endpoint uses a separate Python process from the same virtual
 environment; the deployment must permit starting that process. It creates no
-ledger entries or saved import records.
+ledger entries on upload; masked rows and drafts are saved for review.

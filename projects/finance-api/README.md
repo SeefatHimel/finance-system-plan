@@ -545,34 +545,56 @@ observation's balance when the main transfer balance is empty without choosing a
 unrelated account. Serialization uses prefetched observations without extra queries;
 no database migration is required.
 
-## Statement PDF Preview (First Delivery)
+## Statement PDF Imports
 
-`POST /api/statements/preview/` accepts authenticated multipart `account`, `file`,
-and optional `password`. It previews BDT EBL bank, City Bank savings, and bKash
-digital statements. The selected account must be owned, active, and a compatible
-bank/savings/wallet account. Scans and credit-card statements are unsupported.
+The Statements workflow now saves drafts, suggests existing transactions, and
+supports explicit create/link/skip decisions. BDT EBL bank, City Bank savings,
+and bKash digital layouts are supported. Scans and credit-card billing layouts
+remain unsupported pending separate extraction and accounting validation.
 
-Extraction uses versioned word-coordinate profiles and Decimal balance checks.
-Opening/closing/summary rows are excluded; bank fee rows and reversals remain
-separate. Wallet principal and signed charges are separate, and bKash Total Out
-includes fee debits. Missing time/summary values remain null. The response
-contains masked descriptions, page/row bounds, validation issues, and explicit
-`can_post=false`. It creates no transactions, source messages, or import batches.
+- `POST /api/statements/preview/`: stateless extraction; `can_post=false`.
+- `POST /api/statements/imports/`: multipart account/file/optional password; saves
+  masked extraction and editable drafts, without ledger writes. The same exact
+  file for the same user/account returns its existing review, preserving edits.
+- `GET /api/statements/imports/` and `/{id}/`: paginated history and counts.
+- `GET /api/statements/imports/{id}/rows/`: global state/search/direction/type/
+  category/date filters before pagination (default 50, maximum 100).
+- `GET/PATCH /api/statements/rows/{id}/`: review or correct a pending draft;
+  PATCH requires its current `version` and preserves original extraction.
+- `POST /api/statements/rows/{id}/decide/`: create/link/skip/unlink/reopen.
+- `POST /api/statements/imports/{id}/approve_new/`: explicitly approve up to 50
+  IDs/versions; fresh matches, stale rows and discrepancies remain unresolved.
+- `GET /api/transactions/{id}/statement-evidence/`: on-demand masked sources.
 
-Limits: 4 MiB, 30 pages, 2000 rows, 10 previews/hour/user, and a 20-second isolated
-worker timeout. The upload handler bounds incoming data before full disk writes.
-Files/passwords are not retained; ordinary Django temporary uploads are closed
-with the request. Worker inputs use stdin, parser internals are not returned,
-and responses are `Cache-Control: no-store`. Identifier suffix matches are hints
-only and do not prove ownership.
+Matching uses reporting-account perspective, equal currency/amount/direction,
+and posting/value dates within three days. Reference and reported balance are
+supporting evidence; no suggestion is automatically accepted. Known linked
+source fingerprints also surface user-corrected ledger records outside that
+window. A fingerprint is not unique: genuine repeats remain distinct rows.
+Linking preserves ledger type/category/note/source/balance and existing SMS;
+owned transfers keep canonical From → To and add reporting-side evidence.
 
-Install `requirements.txt` for pdfplumber and `requirements-dev.txt` for the
-reportlab synthetic test generator. Verify with:
+Opening/closing/summary rows are excluded. Wallet inline charges become separate
+fee/refund review rows. For newly posted principal-plus-fee events, the final
+reported balance belongs to the fee entry, not the intermediate principal.
+Original row and summary discrepancies require explicit acknowledgement.
 
-```bash
-python manage.py test apps.statements
-```
+User-level locks shared with transaction writers, row versions, stable retry
+keys and source constraints protect decisions. Identical resolved retries are
+idempotent; stale or conflicting decisions return readable 409 errors. Unlinking
+keeps the ledger entry. Deleted targets return their source rows to review.
+Financial corrections to statement-linked ledger entries require
+`allow_linked_correction`; immutable source values survive. Transfer merges move
+statement links and reject merging separate observations from one batch.
 
-Persistent evidence, cross-source matching, row correction/approval, idempotent
-ledger posting, background jobs, and OCR remain subsequent deliveries. See
-[the import plan](../../docs/statement-pdf-import-plan.md).
+Limits: 4 MiB, 30 pages, 2000 extracted rows (up to 4000 principal/fee review
+components), 10 uploads/hour/user, 20-second isolated extraction worker. History
+matching is bounded and blocks posting if its search is truncated. PDFs/passwords
+are discarded; saved rows contain masked extracted values, corrections and audit
+history. Responses use no-store. Account suffix hints do not prove ownership.
+
+Install requirements, run `python manage.py migrate` (adds
+`statements.0001_initial`), and restart API/web. Verify with
+`python manage.py test apps.statements apps.transactions`; concurrency checks
+require PostgreSQL. Fixtures contain synthetic data only.
+See [the import plan](../../docs/statement-pdf-import-plan.md).

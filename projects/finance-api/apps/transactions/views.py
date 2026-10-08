@@ -2,7 +2,7 @@ import csv
 import json
 
 from django.db import transaction as db_transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import HttpResponse
 from drf_spectacular.utils import extend_schema
 from rest_framework.decorators import action
@@ -14,6 +14,7 @@ from rest_framework.viewsets import ModelViewSet
 from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
 from apps.messages.models import RawMessage
+from apps.statements.serializers import SavedStatementRowSerializer
 
 from .models import Transaction
 from .serializers import (
@@ -38,9 +39,26 @@ class TransactionViewSet(ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(
+        responses=SavedStatementRowSerializer(many=True), tags=["Transactions"]
+    )
+    @action(detail=True, methods=("get",), url_path="statement-evidence")
+    def statement_evidence(self, request, pk=None):
+        record = self.get_object()
+        rows = (
+            record.statement_rows.filter(batch__user=request.user)
+            .select_related("batch__account", "category", "other_account")
+            .order_by("-updated_at")[:100]
+        )
+        return Response(
+            SavedStatementRowSerializer(rows, many=True).data,
+            headers={"Cache-Control": "private, no-store"},
+        )
+
     def get_queryset(self):
         queryset = (
             Transaction.objects.filter(user=self.request.user)
+            .annotate(statement_count=Count("statement_rows", distinct=True))
             .select_related(
                 "account",
                 "transfer_account",
@@ -115,7 +133,9 @@ class TransactionViewSet(ModelViewSet):
             elif ordering == "-date":
                 queryset = queryset.order_by("-date", "-time", "-created_at", "-id")
             else:
-                raise ValidationError({"ordering": "Use -date, -created_at or -updated_at."})
+                raise ValidationError(
+                    {"ordering": "Use -date, -created_at or -updated_at."}
+                )
 
         return queryset
 
@@ -123,13 +143,17 @@ class TransactionViewSet(ModelViewSet):
     @action(detail=True, methods=("get",), url_path="source-messages")
     def source_messages(self, request, pk=None):
         record = self.get_object()
-        message_ids = list(record.transfer_evidence.filter(
-            user=request.user, raw_message__isnull=False,
-        ).values_list("raw_message_id", flat=True))
+        message_ids = list(
+            record.transfer_evidence.filter(
+                user=request.user,
+                raw_message__isnull=False,
+            ).values_list("raw_message_id", flat=True)
+        )
         if record.raw_message_id:
             message_ids.append(record.raw_message_id)
         messages = RawMessage.objects.filter(
-            user=request.user, pk__in=message_ids,
+            user=request.user,
+            pk__in=message_ids,
         ).order_by("received_at", "id")
         return Response(
             TransactionSourceMessageSerializer(messages, many=True).data,

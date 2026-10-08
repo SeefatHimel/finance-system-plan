@@ -36,13 +36,8 @@ class StatementPreviewView(APIView):
         request.upload_handlers.insert(0, BoundedStatementUploadHandler(request))
         return super().initialize_request(request, *args, **kwargs)
 
-    @extend_schema(
-        request=StatementPreviewRequestSerializer,
-        responses=StatementPreviewSerializer,
-        tags=["Statements"],
-    )
-    def post(self, request):
-        serializer = StatementPreviewRequestSerializer(
+    def extract(self, request, serializer=None):
+        serializer = serializer or StatementPreviewRequestSerializer(
             data=request.data, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
@@ -109,6 +104,14 @@ class StatementPreviewView(APIView):
             "Verify the selected account against the masked statement identifier. A suffix match is only a hint, not proof of ownership."
         )
         return Response(preview)
+
+    @extend_schema(
+        request=StatementPreviewRequestSerializer,
+        responses=StatementPreviewSerializer,
+        tags=["Statements"],
+    )
+    def post(self, request):
+        return self.extract(request)
 
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)

@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
@@ -44,9 +44,16 @@ def manual_transfer_data(data):
 
 
 def sms_reporting_account(candidate):
-    incoming = (candidate.suggested_transfer_direction == "credit" if candidate.suggested_transfer_direction
-                else candidate.message_kind in INCOMING_KINDS)
-    return (candidate.destination_account or candidate.account) if incoming else candidate.account
+    incoming = (
+        candidate.suggested_transfer_direction == "credit"
+        if candidate.suggested_transfer_direction
+        else candidate.message_kind in INCOMING_KINDS
+    )
+    return (
+        (candidate.destination_account or candidate.account)
+        if incoming
+        else candidate.account
+    )
 
 
 def sms_transfer_data(candidate, overrides=None):
@@ -54,8 +61,11 @@ def sms_transfer_data(candidate, overrides=None):
     received = timezone.localtime(candidate.raw_message.received_at)
     source = overrides.get("account") or candidate.account
     destination = overrides.get("transfer_account", candidate.destination_account)
-    incoming = (candidate.suggested_transfer_direction == "credit" if candidate.suggested_transfer_direction
-                else candidate.message_kind in INCOMING_KINDS)
+    incoming = (
+        candidate.suggested_transfer_direction == "credit"
+        if candidate.suggested_transfer_direction
+        else candidate.message_kind in INCOMING_KINDS
+    )
     # A receiving SMS with no known sender identifies the destination, not the source.
     if incoming and destination is None:
         source, destination = None, source
@@ -122,8 +132,13 @@ def sms_transfer_data(candidate, overrides=None):
         "direction": "credit" if observed_account == destination else "debit",
     }
     original_account = sms_reporting_account(candidate)
-    if original_account and original_account != observed_account and (
-        "balance_after" not in overrides or overrides["balance_after"] == candidate.balance_after
+    if (
+        original_account
+        and original_account != observed_account
+        and (
+            "balance_after" not in overrides
+            or overrides["balance_after"] == candidate.balance_after
+        )
     ):
         data["balance_after"] = observation["balance_after"] = None
     if not data["amount"]:
@@ -213,15 +228,19 @@ def match_summary(record, kind, reference=""):
 def find_transfer_matches(
     *, user, data, observation, candidate=None, exclude_transaction=None
 ):
-    queryset = Transaction.objects.filter(
-        user=user,
-        type=Transaction.Type.TRANSFER,
-        amount=data["amount"],
-        date__range=(
-            data["date"] - timedelta(days=MATCH_DAYS),
-            data["date"] + timedelta(days=MATCH_DAYS),
-        ),
-    ).select_related("account", "transfer_account").prefetch_related("transfer_evidence")
+    queryset = (
+        Transaction.objects.filter(
+            user=user,
+            type=Transaction.Type.TRANSFER,
+            amount=data["amount"],
+            date__range=(
+                data["date"] - timedelta(days=MATCH_DAYS),
+                data["date"] + timedelta(days=MATCH_DAYS),
+            ),
+        )
+        .select_related("account", "transfer_account")
+        .prefetch_related("transfer_evidence")
+    )
     if data["account"]:
         queryset = queryset.filter(account=data["account"])
     if data["transfer_account"]:
@@ -323,9 +342,7 @@ def add_transfer_evidence(record, observation, candidate=None):
     if candidate:
         if sms_recorded_elsewhere(candidate, exclude_transaction=record):
             raise ValidationError(
-                {
-                    "candidate": "This SMS is already recorded in another transaction."
-                }
+                {"candidate": "This SMS is already recorded in another transaction."}
             )
         existing = record.transfer_evidence.filter(
             raw_message=candidate.raw_message
@@ -426,6 +443,7 @@ def attach_candidate(candidate, record, observation, remember=False):
     candidate.save(update_fields=("transaction", "status", "updated_at"))
     if remember:
         from apps.messages.transfer_suggestions import remember_transfer_path
+
         remember_transfer_path(candidate, record, observation)
     if remember and candidate.sender_rule and not candidate.counterparty_text:
         SenderRuleMapping.objects.update_or_create(
@@ -576,10 +594,20 @@ def merge_transfers(*, user, record_id, other_id):
     before = transaction_snapshot(record)
     ensure_transfer_evidence(record)
     ensure_transfer_evidence(other)
+    shared_batches = record.statement_rows.values_list("batch_id", flat=True)
+    if other.statement_rows.filter(batch_id__in=shared_batches).exists():
+        raise ValidationError(
+            {
+                "transaction": "Both transfers have separate rows in the same statement. Review and unlink one statement observation before merging."
+            }
+        )
     other_before = transaction_snapshot(other)
     # Backfilled evidence carries both original references and balances after the merge.
     other.transfer_evidence.update(transaction=record)
     other.parsed_message_candidates.update(transaction=record)
+    other.statement_rows.update(
+        transaction=record, version=F("version") + 1, updated_at=timezone.now()
+    )
     create_audit_log(
         user=user,
         action=AuditLogEntry.Action.DELETED,

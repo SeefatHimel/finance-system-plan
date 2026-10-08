@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.accounts.models import Account
@@ -13,7 +14,11 @@ class TransactionSourceMessageSerializer(serializers.ModelSerializer):
     body = serializers.SerializerMethodField()
 
     def get_body(self, instance):
-        if instance.status == RawMessage.Status.REDACTED or instance.redacted_at or instance.exclusion_reason:
+        if (
+            instance.status == RawMessage.Status.REDACTED
+            or instance.redacted_at
+            or instance.exclusion_reason
+        ):
             return None
         return instance.body
 
@@ -25,12 +30,20 @@ class TransactionSourceMessageSerializer(serializers.ModelSerializer):
 
 def primary_transfer_evidence(record, evidence_items):
     primary = next(
-        (item for item in evidence_items if item.raw_message_id == record.raw_message_id),
+        (
+            item
+            for item in evidence_items
+            if item.raw_message_id == record.raw_message_id
+        ),
         None,
     )
     if record.raw_message_id is None and record.external_key:
         return next(
-            (item for item in evidence_items if item.external_key == record.external_key),
+            (
+                item
+                for item in evidence_items
+                if item.external_key == record.external_key
+            ),
             primary,
         )
     return primary
@@ -68,6 +81,12 @@ class TransactionSerializer(serializers.ModelSerializer):
     allow_linked_correction = serializers.BooleanField(required=False, write_only=True)
     transfer_evidence = TransferEvidenceSerializer(many=True, read_only=True)
     account_direction = serializers.SerializerMethodField()
+    statement_evidence_count = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_statement_evidence_count(self, instance):
+        count = getattr(instance, "statement_count", None)
+        return count if count is not None else instance.statement_rows.count()
 
     def get_account_direction(self, instance):
         selected = self.context["request"].query_params.get("account")
@@ -112,9 +131,24 @@ class TransactionSerializer(serializers.ModelSerializer):
         allow_linked_correction = validated_data.pop("allow_linked_correction", False)
         evidence_items = list(instance.transfer_evidence.all())
         core_changed = any(
-            field in validated_data and validated_data[field] != getattr(instance, field)
+            field in validated_data
+            and validated_data[field] != getattr(instance, field)
             for field in ("type", "account", "transfer_account", "amount")
         )
+        statement_changed = core_changed or (
+            "direction" in validated_data
+            and validated_data["direction"] != instance.direction
+        )
+        if (
+            statement_changed
+            and instance.statement_rows.exists()
+            and not allow_linked_correction
+        ):
+            raise serializers.ValidationError(
+                {
+                    "allow_linked_correction": "Review the linked statement evidence and confirm this ledger correction before changing its type, accounts, direction or amount."
+                }
+            )
         involves_transfer = (
             instance.type == Transaction.Type.TRANSFER
             or validated_data.get("type") == Transaction.Type.TRANSFER
@@ -134,7 +168,8 @@ class TransactionSerializer(serializers.ModelSerializer):
         was_transfer = instance.type == Transaction.Type.TRANSFER
         old_reporting_account_id = (
             primary_evidence.account_id
-            if was_transfer and primary_evidence else instance.account_id
+            if was_transfer and primary_evidence
+            else instance.account_id
         )
         old_reported_balance = instance.balance_after
         if was_transfer and primary_evidence and old_reported_balance is None:
@@ -142,10 +177,13 @@ class TransactionSerializer(serializers.ModelSerializer):
         primary_account = (
             validated_data.get("transfer_account", instance.transfer_account)
             if validated_data.get("type", instance.type) == Transaction.Type.TRANSFER
-            and primary_evidence and primary_evidence.direction == "credit"
+            and primary_evidence
+            and primary_evidence.direction == "credit"
             else validated_data.get("account", instance.account)
         )
-        reporting_account_changed = old_reporting_account_id != getattr(primary_account, "pk", None)
+        reporting_account_changed = old_reporting_account_id != getattr(
+            primary_account, "pk", None
+        )
         if reporting_account_changed and (
             "balance_after" not in validated_data
             or validated_data["balance_after"] == old_reported_balance
@@ -174,7 +212,9 @@ class TransactionSerializer(serializers.ModelSerializer):
                 evidence.save()
         # Keep observations as provenance when a transfer is reclassified.
         # Reporting only consumes them while this entry remains a transfer.
-        getattr(instance, "_prefetched_objects_cache", {}).pop("transfer_evidence", None)
+        getattr(instance, "_prefetched_objects_cache", {}).pop(
+            "transfer_evidence", None
+        )
         return instance
 
     class Meta:
@@ -184,6 +224,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "allow_linked_correction",
             "transfer_evidence",
             "account_direction",
+            "statement_evidence_count",
             "account",
             "transfer_account",
             "category",
@@ -214,6 +255,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "updated_at",
             "transfer_evidence",
             "account_direction",
+            "statement_evidence_count",
         )
 
     def validate_account(self, account):

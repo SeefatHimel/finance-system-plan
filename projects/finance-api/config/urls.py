@@ -28,6 +28,7 @@ from apps.recurring_bills.views import RecurringBillPaymentCreateView, Recurring
 from apps.reconciliation.views import AccountReconciliationView, BalanceSnapshotViewSet
 from apps.transactions.views import TransactionViewSet
 from apps.statements.views import StatementPreviewView
+from apps.statements.review_views import StatementImportViewSet, StatementRowViewSet
 
 
 router = DefaultRouter()
@@ -41,6 +42,8 @@ router.register("recurring-bills", RecurringBillViewSet, basename="recurring-bil
 router.register("reconciliation/snapshots", BalanceSnapshotViewSet, basename="balance-snapshot")
 router.register("messages/sender-rules", SenderRuleViewSet, basename="sender-rule")
 router.register("transactions", TransactionViewSet, basename="transaction")
+router.register("statements/imports", StatementImportViewSet, basename="statement-import")
+router.register("statements/rows", StatementRowViewSet, basename="statement-row")
 
 
 urlpatterns = [
