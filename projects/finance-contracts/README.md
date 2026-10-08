@@ -250,7 +250,8 @@ remain enforced. Transfers retain From=`account`, To=`transfer_account` and
 canonical debit direction; reversal swaps accounts.
 
 Corrections retain one ledger entry, audit snapshots and unchanged original SMS.
-Account remapping clears obsolete reported balances/fees. If reclassified,
+Account remapping clears obsolete reported balances/fees. A type change preserves
+the primary balance when its reporting account stays the same. If reclassified,
 `transfer_evidence` remains in the response as historical provenance and the
 source-message endpoint still returns its messages. Consumers must only use
 that evidence for transfer balance display/reporting when `type=transfer`.
@@ -284,3 +285,15 @@ This clarifies existing nullable fields without a schema change.
 Transfer evidence includes read-only boolean `is_primary` to identify the observation
 edited through the transaction balance field. When the main balance is null, clients
 may show that report's balance; another account's balance must remain separate.
+
+## Reported Balance Corrections
+
+`balance_after` represents the provider's report for one account, separately from
+the calculated ledger balance. Type/category/detail edits preserve it, including
+zero, while that reporting account stays the same. PATCH with omitted balance
+retains the report; explicit null clears it. A same-account transfer
+reclassification can preserve the primary evidence balance when the main field
+was null. Changing the non-reporting side preserves the primary report. When its
+account changes, omitted/unchanged carried balances clear; an explicit different
+replacement is accepted. SMS confirmation and transfer draft matching/linking
+apply the same rules to parsed values. No generated schema changes are required.

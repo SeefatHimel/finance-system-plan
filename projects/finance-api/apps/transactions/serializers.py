@@ -130,26 +130,31 @@ class TransactionSerializer(serializers.ModelSerializer):
                     "allow_linked_correction": "Review the linked messages and confirm this ledger correction before changing the transfer's type, accounts or amount."
                 }
             )
-        account_changed = (
-            "account" in validated_data and validated_data["account"] != instance.account
-        )
-        type_changed = "type" in validated_data and validated_data["type"] != instance.type
         primary_evidence = primary_transfer_evidence(instance, evidence_items)
+        was_transfer = instance.type == Transaction.Type.TRANSFER
+        old_reporting_account_id = (
+            primary_evidence.account_id
+            if was_transfer and primary_evidence else instance.account_id
+        )
+        old_reported_balance = instance.balance_after
+        if was_transfer and primary_evidence and old_reported_balance is None:
+            old_reported_balance = primary_evidence.balance_after
         primary_account = (
             validated_data.get("transfer_account", instance.transfer_account)
-            if primary_evidence and primary_evidence.direction == "credit"
+            if validated_data.get("type", instance.type) == Transaction.Type.TRANSFER
+            and primary_evidence and primary_evidence.direction == "credit"
             else validated_data.get("account", instance.account)
         )
-        primary_remapped = (
-            validated_data.get("type", instance.type) == Transaction.Type.TRANSFER
-            and primary_evidence is not None
-            and primary_evidence.account_id != getattr(primary_account, "pk", None)
-        )
-        if (account_changed or type_changed or primary_remapped) and (
+        reporting_account_changed = old_reporting_account_id != getattr(primary_account, "pk", None)
+        if reporting_account_changed and (
             "balance_after" not in validated_data
-            or validated_data["balance_after"] == instance.balance_after
+            or validated_data["balance_after"] == old_reported_balance
         ):
             validated_data["balance_after"] = None
+        elif not reporting_account_changed and "balance_after" not in validated_data:
+            # Keep primary evidence usable when a transfer becomes a same-account
+            # expense/income. Explicit null still means the user cleared the report.
+            validated_data["balance_after"] = old_reported_balance
         instance = super().update(instance, validated_data)
         if instance.type == Transaction.Type.TRANSFER:
             for evidence in evidence_items:

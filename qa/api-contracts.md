@@ -291,3 +291,16 @@ Use the transaction balance when present, otherwise the observation marked
 correct. Keep other account balances separate, preserve zero and leave genuinely
 missing balances blank; historical transfer evidence must not supply a balance
 after reclassification to another type.
+
+## How do reported balances behave during correction and SMS confirmation?
+
+Type/category/detail corrections preserve a reported balance, including zero,
+while its reporting account stays the same. For transfers that is the primary
+observation's account, so editing the opposite side does not invalidate it.
+Omitted balance retains the report on that account, including primary evidence
+when reclassifying a transfer whose main balance was empty. Explicit null clears
+it and is not restored by later updates. Account remapping clears omitted or
+unchanged carried values; explicitly different replacements are accepted.
+SMS confirmation and transfer drafts apply the same rule to parsed balances.
+Clients should preserve same-account values and explain clearing on account
+changes. Existing request/response fields suffice; no schema change is needed.

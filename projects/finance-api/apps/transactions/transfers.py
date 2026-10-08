@@ -43,6 +43,12 @@ def manual_transfer_data(data):
     return data, observation
 
 
+def sms_reporting_account(candidate):
+    incoming = (candidate.suggested_transfer_direction == "credit" if candidate.suggested_transfer_direction
+                else candidate.message_kind in INCOMING_KINDS)
+    return (candidate.destination_account or candidate.account) if incoming else candidate.account
+
+
 def sms_transfer_data(candidate, overrides=None):
     overrides = overrides or {}
     received = timezone.localtime(candidate.raw_message.received_at)
@@ -115,6 +121,11 @@ def sms_transfer_data(candidate, overrides=None):
         "account": observed_account,
         "direction": "credit" if observed_account == destination else "debit",
     }
+    original_account = sms_reporting_account(candidate)
+    if original_account and original_account != observed_account and (
+        "balance_after" not in overrides or overrides["balance_after"] == candidate.balance_after
+    ):
+        data["balance_after"] = observation["balance_after"] = None
     if not data["amount"]:
         raise ValidationError(
             {"amount": "An amount is required to find a transfer match."}

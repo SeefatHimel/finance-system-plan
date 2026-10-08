@@ -483,14 +483,22 @@ metadata.
 
 Account corrections remap observations by debit/credit side and clear reported
 balances and fee values belonging to the previous account. An unchanged old
-primary balance is also cleared when its account/type context changes. An
-explicit new balance is accepted; date/time/reference/note/balance edits update
+primary balance is cleared only when its reporting account changes, not merely
+when its type changes. An explicit new balance is accepted; date/time/reference/note/balance edits update
 only the primary observation, not every linked message. Reclassification keeps
 observations as historical provenance and preserves source-message access and
-retry keys. Only current transfers consume those observations in balance
-reporting. No database migration is required.
+retry keys. Same-account reclassification preserves the primary reported balance
+(including a primary-evidence fallback when the root balance is null); the other
+observations remain historical. Only current transfers consume those observations
+in balance reporting. Ordinary updates and type/category changes preserve zero
+and other reported values. An omitted balance preserves it on the same account;
+explicit null clears it. Account remapping clears an omitted or unchanged carried
+value; an explicit replacement is accepted. SMS confirmation and transfer
+matching/linking use the same reporting-account rule for parsed balances.
+No database migration is required.
 
-Regression coverage: `apps.transactions.test_corrections`, together with the
+Regression coverage: `apps.transactions.test_reported_balances` and
+`apps.transactions.test_corrections`, together with the
 transaction, transfer, source-message and message suites. SQLite skips the
 existing PostgreSQL concurrency case.
 

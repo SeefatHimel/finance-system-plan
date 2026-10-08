@@ -553,3 +553,20 @@ Transfer evidence exposes read-only `is_primary`. It shares the same original
 SMS/manual-entry-key selection used by transaction updates, so displaying a balance
 and saving its correction target the same observation. Prefetching avoids additional
 queries. This is response metadata and requires no migration.
+
+## Does changing a transaction type erase its reported balance?
+
+No. A reported balance belongs to its reporting account, independently of the
+ledger type. PATCH preserves omitted or unchanged values, including zero, when
+that account stays the same. Transfers use their primary observation's account;
+changing only the opposite side preserves that report. A same-account transfer
+reclassification can retain the primary observation's balance even when the main
+transaction field was empty, while other linked reports remain historical.
+Explicit null clears the report and later updates do not restore it.
+
+When the reporting account changes, an omitted or unchanged carried balance is
+cleared; an explicitly different replacement is accepted. SMS approval and draft
+transfer matching/linking follow the same rule for parsed balances. This prevents
+both classification-driven loss and attribution to an unrelated account. Ledger
+balances still recalculate using type, amount and accounts, independently of the
+provider's reported balance. No schema or migration change is needed.

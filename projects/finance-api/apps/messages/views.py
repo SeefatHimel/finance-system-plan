@@ -19,6 +19,7 @@ from apps.transactions.transfers import (
     sms_external_key,
     sms_recorded_elsewhere,
     sms_transfer_data,
+    sms_reporting_account,
 )
 
 from .models import (
@@ -619,6 +620,13 @@ class MessageCandidateConfirmView(APIView):
             account = transfer_data["account"]
             transfer_account = transfer_data["transfer_account"]
             payment_method = transfer_data["payment_method"]
+            balance_after = transfer_data["balance_after"]
+        else:
+            original_account = sms_reporting_account(candidate)
+            if original_account and original_account != account and (
+                "balance_after" not in payload or payload["balance_after"] == candidate.balance_after
+            ):
+                balance_after = None
         direction = (
             Transaction.Direction.DEBIT if transaction_type == Transaction.Type.TRANSFER
             else payload.get("direction") or Transaction.default_direction_for_type(transaction_type)
