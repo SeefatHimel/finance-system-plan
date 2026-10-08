@@ -329,3 +329,11 @@ statement-linked entries also require `allow_linked_correction`. No original PDF
 or password is retained. Same-file retries return 200 with preserved review;
 new saved imports return 201 without ledger writes. All these endpoints are
 user-scoped and no-store. Generated client/types include every operation.
+
+Statement review assistance adds `StatementMatch.strength`, merchant/time evidence,
+`StatementReview.draft_issues` and nullable `suggestion`. Explicit decision input
+`remember_choices` defaults false. `GET /api/statements/imports/{id}/summary/`
+returns full-import saved-draft arithmetic and observation decision totals, separately
+from original extraction checks. `POST .../review_selected/` accepts create/skip
+and at most 50 IDs/versions; its response includes `skipped` and unresolved reasons.
+All new endpoints retain owned-resource scoping and `Cache-Control: no-store`.

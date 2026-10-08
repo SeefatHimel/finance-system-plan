@@ -849,6 +849,7 @@ export interface StatementBulkResult {
   id: string;
   reason: string;
 }[];
+  skipped: number;
 }
 
 export interface StatementBulkRow {
@@ -871,6 +872,7 @@ export interface StatementDecision {
   allow_separate?: boolean;
   acknowledge_issues?: boolean;
   acknowledge_conflict?: boolean;
+  remember_choices?: boolean;
 }
 
 export interface StatementImport {
@@ -910,6 +912,9 @@ export interface StatementMatch {
   conflict: boolean;
   can_link: boolean;
   reasons: string[];
+  strength: "strong" | "possible";
+  merchant_similarity: number;
+  time_difference_minutes: number | null;
 }
 
 export interface StatementReview {
@@ -918,6 +923,8 @@ export interface StatementReview {
   matches: StatementMatch[];
   matching_truncated: boolean;
   requires_acknowledgement: boolean;
+  draft_issues: string[];
+  suggestion: StatementSuggestion | null;
 }
 
 export interface StatementRowPage {
@@ -925,4 +932,35 @@ export interface StatementRowPage {
   offset: number;
   limit: number;
   results: SavedStatementRow[];
+}
+
+export interface StatementSelected {
+  rows: StatementBulkRow[];
+  action: "create" | "skip";
+}
+
+export interface StatementSuggestion {
+  type: TransactionType;
+  category: string | null;
+  other_account: string | null;
+  reason: string;
+}
+
+export interface StatementSummary {
+  totals: Record<string, {
+  debit: string;
+  credit: string;
+}>;
+  dispositions: Record<string, {
+  debit: string;
+  credit: string;
+  count: number;
+}>;
+  source_net: string | null;
+  draft_net: string | null;
+  opening_is_derived: boolean;
+  checks: StatementCheck[];
+  discrepancy_count: number;
+  incomplete_count: number;
+  remaining_count: number;
 }

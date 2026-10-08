@@ -330,3 +330,12 @@ expose a read-only statement evidence count and on-demand evidence endpoint.
 Decimal values are strings and unknown time/balance is null. The generated client
 supports both multipart uploads and JSON review operations. All source responses
 are authenticated and no-store; raw PDFs/passwords never enter saved contracts.
+
+### What are the statement review assistance boundaries?
+
+Match strength is an explanation heuristic, not permission to merge. Review payloads
+carry draft issues and optional remembered classification suggestions. Learning is
+opt-in via `remember_choices` on individual create/link. Summary is user-scoped,
+no-store and uses draft observation amounts (linked ledger amounts may differ after
+correction). Selected actions accept create/skip and max 50 IDs/versions; stale,
+matched or discrepant create rows return unresolved reasons. Skip retains ledger data.

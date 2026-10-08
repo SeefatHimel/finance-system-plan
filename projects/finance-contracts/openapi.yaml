@@ -161,6 +161,71 @@ paths:
       description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store. Explicit bulk
         approval of up to 50 row IDs/versions. Fresh matches, source discrepancies and stale rows remain
         unresolved. Unexpected failure rolls back the entire request.'
+  /api/statements/imports/{id}/review_selected/:
+    post:
+      operationId: statements_imports_review_selected_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this statement import.
+        required: true
+      tags:
+      - Statements
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatementSelected'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementBulkResult'
+          description: Successful response
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Owned import, row, or transaction not found.
+        '400':
+          description: Readable field validation or unsafe match/decision error.
+      description: Explicit selected-row create/skip; max 50 IDs/versions. Fresh matches, draft/source discrepancies
+        and stale rows are left for individual review. Skipping never deletes ledger records.
+  /api/statements/imports/{id}/summary/:
+    get:
+      operationId: statements_imports_summary_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this statement import.
+        required: true
+      tags:
+      - Statements
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementSummary'
+          description: Successful response
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Owned import, row, or transaction not found.
+      description: User-scoped, no-store summary of all saved drafts, separate from immutable extraction
+        checks. Decision totals are observation amounts, not recalculated ledger amounts. Skipped rows remain
+        in source arithmetic.
   /api/statements/imports/{id}/rows/:
     get:
       operationId: statements_imports_rows_retrieve
@@ -4371,10 +4436,13 @@ components:
                 format: uuid
               reason:
                 type: string
+        skipped:
+          type: integer
       required:
       - added
       - unchanged
       - unresolved
+      - skipped
     StatementBulkRow:
       type: object
       properties:
@@ -4426,6 +4494,10 @@ components:
         acknowledge_conflict:
           type: boolean
           default: false
+        remember_choices:
+          type: boolean
+          default: false
+          description: Explicitly remember classification choices only after create/link.
       required:
       - action
       - version
@@ -4564,6 +4636,16 @@ components:
           type: array
           items:
             type: string
+        strength:
+          type: string
+          enum:
+          - strong
+          - possible
+        merchant_similarity:
+          type: number
+        time_difference_minutes:
+          type: number
+          nullable: true
       required:
       - account_name
       - amount
@@ -4580,6 +4662,9 @@ components:
       - time
       - transfer_account_name
       - type
+      - strength
+      - merchant_similarity
+      - time_difference_minutes
     StatementReview:
       type: object
       properties:
@@ -4604,12 +4689,22 @@ components:
           type: boolean
         requires_acknowledgement:
           type: boolean
+        draft_issues:
+          type: array
+          items:
+            type: string
+        suggestion:
+          allOf:
+          - $ref: '#/components/schemas/StatementSuggestion'
+          nullable: true
       required:
       - issues
       - matches
       - matching_truncated
       - requires_acknowledgement
       - review_state
+      - draft_issues
+      - suggestion
     StatementRowPage:
       type: object
       properties:
@@ -4628,3 +4723,96 @@ components:
       - limit
       - offset
       - results
+    StatementSelected:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementBulkRow'
+        action:
+          type: string
+          enum:
+          - create
+          - skip
+      required:
+      - rows
+      - action
+    StatementSuggestion:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/TransactionType'
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        other_account:
+          type: string
+          format: uuid
+          nullable: true
+        reason:
+          type: string
+      required:
+      - type
+      - category
+      - other_account
+      - reason
+    StatementSummary:
+      type: object
+      properties:
+        totals:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              debit:
+                type: string
+              credit:
+                type: string
+            required:
+            - debit
+            - credit
+        dispositions:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              debit:
+                type: string
+              credit:
+                type: string
+              count:
+                type: integer
+            required:
+            - debit
+            - credit
+            - count
+        source_net:
+          type: string
+          nullable: true
+        draft_net:
+          type: string
+          nullable: true
+        opening_is_derived:
+          type: boolean
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementCheck'
+        discrepancy_count:
+          type: integer
+        incomplete_count:
+          type: integer
+        remaining_count:
+          type: integer
+      required:
+      - totals
+      - dispositions
+      - source_net
+      - draft_net
+      - opening_is_derived
+      - checks
+      - discrepancy_count
+      - incomplete_count
+      - remaining_count
