@@ -5,7 +5,7 @@ import { useFeedbackMessage } from "@/components/toast-provider";
 import { CalendarBlank, CaretLeft, CaretRight, Plus, SlidersHorizontal, X } from "@phosphor-icons/react";
 import type React from "react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   type Account,
@@ -35,6 +35,8 @@ import { TransferMatchDialog } from "@/components/transfer-match-dialog";
 import { getAccessToken } from "@/lib/auth-storage";
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
 import { TransactionSourceMessages } from "@/components/transaction-source-messages";
+import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
+import { directionForType, transactionTypes } from "@/lib/category-type";
 
 type LoadState =
   | { status: "loading" }
@@ -46,19 +48,6 @@ type LoadState =
       status: "ready";
       transactions: Transaction[];
     };
-
-const transactionTypes: TransactionType[] = [
-  "expense",
-  "income",
-  "transfer",
-  "adjustment",
-  "fee",
-  "refund",
-  "lend",
-  "borrow",
-  "repayment_received",
-  "repayment_paid"
-];
 
 const transactionSources: TransactionSource[] = ["web", "mobile", "sms", "import", "system"];
 
@@ -146,6 +135,10 @@ export function TransactionWorkspace() {
   const [formError, setFormError] = useFeedbackMessage("error");
   const [formMessage, setFormMessage] = useFeedbackMessage("success");
   const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
+  const [createType, setCreateType] = useState<TransactionType>("expense");
+  const [createDirection, setCreateDirection] = useState<TransactionDirection>("debit");
+  const [createCategoryId, setCreateCategoryId] = useState("");
+  const createForm = useRef<HTMLFormElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -174,6 +167,24 @@ export function TransactionWorkspace() {
   const [allowLinkedCorrection, setAllowLinkedCorrection] = useState(false);
   const [isMonthLoading, setIsMonthLoading] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<TransactionColumn[]>(defaultTransactionColumns);
+  const categoryChoice = useCategoryTypeChoice(loadState.status === "ready" ? loadState.categories : []);
+
+  function changeCreateType(type: TransactionType) {
+    setCreateType(type);
+    setCreateDirection(directionForType(type));
+    for (const name of ["balance_after", "transfer_account"]) {
+      const field = createForm.current?.elements.namedItem(name);
+      if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement) field.value = "";
+    }
+  }
+
+  function changeEditingType(type: TransactionType) {
+    setEditingType(type);
+    setEditingDirection(directionForType(type));
+    if (type !== "transfer") setEditingTransferAccountId("");
+    setEditingBalanceAfter("");
+    setAllowLinkedCorrection(false);
+  }
 
   async function loadData(activeFilters = filters, showLoading = true) {
     const accessToken = getAccessToken();
@@ -372,6 +383,9 @@ export function TransactionWorkspace() {
     const transferAccount = String(formData.get("transfer_account") ?? "");
     const category = String(formData.get("category") ?? "");
 
+    if (type === "transfer" && !transferAccount) return setFormError("Choose the other account before saving a transfer.");
+    if (type === "transfer" && transferAccount === String(formData.get("account"))) return setFormError("Choose different From and To accounts for a transfer.");
+
     setFormError(null);
     setFormMessage(null);
     setIsSubmitting(true);
@@ -525,6 +539,8 @@ export function TransactionWorkspace() {
       setFormError("Select a transaction to edit.");
       return;
     }
+    if (editingType === "transfer" && !editingTransferAccountId) return setFormError("Choose the To account before saving a transfer.");
+    if (editingType === "transfer" && editingAccountId === editingTransferAccountId) return setFormError("Choose different From and To accounts for a transfer.");
 
     setFormError(null);
     setFormMessage(null);
@@ -604,6 +620,7 @@ export function TransactionWorkspace() {
 
   return (
     <div className="workspace-grid">
+      {categoryChoice.confirmation}
       {editorMode ? (
         <ModalDialog labelledBy="transaction-editor-title" className="form-drawer transaction-editor-drawer" busy={isSubmitting || isUpdating} onCancel={() => setEditorMode(null)}>
             <div className="form-drawer__header">
@@ -629,7 +646,7 @@ export function TransactionWorkspace() {
               </button>
             </div>
 
-          {editorMode === "create" ? <form className="transaction-form drawer-form" onSubmit={handleSubmit}>
+          {editorMode === "create" ? <form className="transaction-form drawer-form" onSubmit={handleSubmit} ref={createForm}>
             <label className="field">
               <span className="field__label">Date</span>
               <input className="field__control" defaultValue={currentDate()} name="date" required type="date" />
@@ -642,7 +659,7 @@ export function TransactionWorkspace() {
 
             <label className="field">
               <span className="field__label">Type</span>
-              <select className="field__control" name="type" required>
+              <select className="field__control" name="type" required value={createType} onChange={(event) => changeCreateType(event.target.value as TransactionType)}>
                 {transactionTypes.map((type) => (
                   <option key={type} value={type}>
                     {type.replaceAll("_", " ")}
@@ -654,7 +671,7 @@ export function TransactionWorkspace() {
             <label className="field">
               <span className="field__label">Debit / credit</span>
               <span className="field__hint">For transfers: debit means this account sends; credit means this account receives. Select the other account below.</span>
-              <select className="field__control" defaultValue="debit" name="direction" required>
+              <select className="field__control" value={createDirection} onChange={(event) => setCreateDirection(event.target.value as TransactionDirection)} name="direction" required>
                 <option value="debit">Debit</option>
                 <option value="credit">Credit</option>
               </select>
@@ -686,7 +703,7 @@ export function TransactionWorkspace() {
 
             <label className="field">
               <span className="field__label">Category</span>
-              <select className="field__control" name="category">
+              <select className="field__control" name="category" value={createCategoryId} disabled={isSubmitting} onChange={(event) => categoryChoice.choose(event.target.value, createType, (categoryId, type) => { setCreateCategoryId(categoryId); if (type !== createType) changeCreateType(type); })}>
                 <option value="">No category</option>
                 {loadState.categories.map((category) => (
                   <option key={category.id} value={category.id}>
@@ -763,14 +780,7 @@ export function TransactionWorkspace() {
               <span className="field__label">Type</span>
               <select
                 className="field__control"
-                onChange={(event) => {
-                  const type = event.target.value as TransactionType;
-                  setEditingType(type);
-                  setEditingDirection(["income", "refund", "borrow", "repayment_received"].includes(type) ? "credit" : "debit");
-                  if (type !== "transfer") setEditingTransferAccountId("");
-                  setEditingBalanceAfter("");
-                  setAllowLinkedCorrection(false);
-                }}
+                onChange={(event) => changeEditingType(event.target.value as TransactionType)}
                 required
                 value={editingType}
               >
@@ -853,7 +863,8 @@ export function TransactionWorkspace() {
               <span className="field__label">Category</span>
               <select
                 className="field__control"
-                onChange={(event) => setEditingCategoryId(event.target.value)}
+                disabled={isUpdating}
+                onChange={(event) => categoryChoice.choose(event.target.value, editingType, (categoryId, type) => { setEditingCategoryId(categoryId); if (type !== editingType) changeEditingType(type); })}
                 value={editingCategoryId}
               >
                 <option value="">No category</option>
@@ -971,6 +982,9 @@ export function TransactionWorkspace() {
               onClick={() => {
                 setFormError(null);
                 setFormMessage(null);
+                setCreateType("expense");
+                setCreateDirection("debit");
+                setCreateCategoryId("");
                 setEditorMode("create");
               }}
               type="button"

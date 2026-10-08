@@ -32,6 +32,7 @@ import {
 } from "./auth-storage";
 import { AuthRequestError, isAuthenticationFailure } from "./auth-errors";
 import { notifySessionExpired } from "./auth-navigation";
+import { fetchWithConnectionError, responseError } from "./api-errors";
 
 export type {
   AccountType,
@@ -687,7 +688,7 @@ async function performStoredLocalSessionRefresh() {
 
 async function authenticatedFetch(path: string, accessToken: string, init?: RequestInit) {
   if (isCookieSessionToken(accessToken)) {
-    const proxyResponse = await fetch(`/api/backend${path}`, {
+    const proxyResponse = await fetchWithConnectionError(`/api/backend${path}`, {
       ...init,
       cache: "no-store",
       headers: {
@@ -701,13 +702,13 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
     }
 
     if (!proxyResponse.ok) {
-      throw new Error(`Request failed with HTTP ${proxyResponse.status}.`);
+      throw await responseError(proxyResponse);
     }
 
     return proxyResponse;
   }
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  const response = await fetchWithConnectionError(`${getApiBaseUrl()}${path}`, {
     ...init,
     cache: "no-store",
     headers: {
@@ -730,7 +731,7 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
       throw error;
     }
     if (refreshedAccessToken) {
-      const retryResponse = await fetch(`${getApiBaseUrl()}${path}`, {
+      const retryResponse = await fetchWithConnectionError(`${getApiBaseUrl()}${path}`, {
         ...init,
         cache: "no-store",
         headers: {
@@ -743,7 +744,7 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
         return retryResponse;
       }
       if (retryResponse.status !== 401) {
-        throw new Error(`Request failed with HTTP ${retryResponse.status}.`);
+        throw await responseError(retryResponse);
       }
     }
 
@@ -753,7 +754,7 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
   }
 
   if (!response.ok) {
-    throw new Error(`Request failed with HTTP ${response.status}.`);
+    throw await responseError(response);
   }
 
   return response;

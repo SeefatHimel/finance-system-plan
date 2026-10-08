@@ -2466,6 +2466,8 @@ textarea {
 .decision-modal form { display: grid; gap: 14px; }
 .decision-modal__close { align-items: center; background: transparent; border: 0; color: var(--muted); cursor: pointer; display: inline-flex; height: 44px; justify-content: center; position: absolute; right: 10px; top: 10px; width: 44px; }
 .decision-modal__actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+.category-type-dialog form > p { color: var(--muted); line-height: 1.5; margin: 0; }
+.category-type-dialog .decision-modal__actions { flex-wrap: wrap; }
 
 .transaction-editor-drawer { max-width: min(680px, 100vw); }
 .transaction-editor-drawer .transaction-form { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }

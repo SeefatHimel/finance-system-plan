@@ -203,6 +203,8 @@ Important environment note:
 ```bash
 npm run typecheck
 npm run lint
+npm run test:auth
+npm run test:workflows
 ```
 
 ## Primary Screens
@@ -426,3 +428,30 @@ accounts, equal currencies/principal and nearby dates; its explanation identifie
 reference agreement as supporting evidence. Users accept a match to retain both
 observations on one ledger movement. The same SMS cannot be added again merely
 by editing its reference.
+
+## Category and Type Decisions
+
+Add/Edit transaction and SMS review ask before applying a category whose kind
+conflicts with the draft type. Change category and type applies both; Keep current
+type changes only the category; Cancel leaves both unchanged. Nothing is persisted
+until Save/Update/Confirm. Expense categories preserve fee types, income categories
+preserve refunds, and debt categories require choosing lending, borrowing or a
+repayment direction. System categories and No category do not infer a type.
+Manual type selection remains available.
+
+A type change resets debit/credit to its default and clears the draft reported
+balance; leaving a transfer clears the other account. A new transfer requires
+another account. SMS confirmation respects explicit reclassification instead of
+reopening a transfer match based solely on the original parser result. Linked
+ledger corrections still require reviewing and acknowledging the original SMS.
+
+## Actionable Request Errors
+
+The shared client reads API detail and validation errors with readable field labels
+(for example, “Amount: Enter a valid number.”). Forms retain entered values and show
+inline errors plus persistent, dismissible toasts inside the active dialog.
+Permission, missing-item, conflict, throttling, server and connection failures have
+clear fallback/retry messages. Server failure bodies are ignored to avoid rendering
+debug or HTML content. Confirmed 401 responses retain the existing session recovery
+flow; other failures do not sign the user out. `npm run test:workflows` covers error
+formatting, safe fallbacks and category/type compatibility without a running API.

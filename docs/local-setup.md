@@ -262,6 +262,7 @@ Run web checks:
 npm run typecheck
 npm run lint
 npm run test:auth
+npm run test:workflows
 ```
 
 ## Current Mobile Setup (Native)

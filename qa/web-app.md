@@ -485,3 +485,24 @@ The API allows distinct SMS to reuse references and protects retries using the
 raw capture identity. A transfer match displays matching-reference evidence
 alongside account/amount/currency/date compatibility and still needs acceptance.
 That keeps two sides visible while counting the accepted movement once.
+
+## Should changing a category automatically change the transaction type?
+
+Category kinds provide suggestions because type changes affect balances and
+reports. In Add/Edit and SMS review, an incompatible category opens a decision:
+change category and type, keep the current type, or cancel. Compatible fee/expense
+and refund/income choices retain their subtype. Debt categories ask for a specific
+movement; neutral system/empty categories do not infer one. Changes stay in the
+draft until submitted. Type changes clear reported balance and reset direction;
+leaving a transfer clears its other account. Linked corrections still require
+acknowledgement, and explicit SMS reclassification is respected before matching.
+
+## How does the web app make API failures useful to the user?
+
+The shared request layer converts API detail/field errors into readable messages,
+shown inline and in persistent toasts near the active form. Inputs remain available
+for correction. Non-JSON responses have safe fallbacks; server failure bodies are
+ignored. Connection, permission, missing-item, conflict and throttling messages
+explain the next action. Only confirmed authentication failures end a session.
+`npm run test:workflows` tests formatting, fallback behavior and category/type
+compatibility, alongside `npm run test:auth` for session semantics.
