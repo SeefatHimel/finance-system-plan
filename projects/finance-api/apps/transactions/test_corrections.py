@@ -33,6 +33,40 @@ class TransactionCorrectionTests(APITestCase):
     def balances(self):
         return calculate_account_balance_summaries(accounts=[self.a, self.b, self.c])
 
+    def test_primary_balance_metadata_tracks_original_sms_and_keeps_other_side_separate(self):
+        self.record.balance_after = None
+        self.record.save()
+        response = self.client.get(reverse("transaction-detail", kwargs={"pk": self.record.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["balance_after"])
+        primary = [item for item in response.data["transfer_evidence"] if item["is_primary"]]
+        self.assertEqual(len(primary), 1)
+        self.assertEqual(str(primary[0]["account"]), str(self.a.pk))
+        self.assertEqual(primary[0]["balance_after"], "9000.00")
+        self.record.raw_message = self.raws[1]
+        self.record.save()
+        response = self.client.get(reverse("transaction-detail", kwargs={"pk": self.record.pk}))
+        primary = [item for item in response.data["transfer_evidence"] if item["is_primary"]]
+        self.assertEqual(len(primary), 1)
+        self.assertEqual(str(primary[0]["account"]), str(self.b.pk))
+        self.assertEqual(primary[0]["balance_after"], "3000.00")
+
+    def test_primary_balance_metadata_uses_manual_entry_key_without_extra_queries(self):
+        from .serializers import TransferEvidenceSerializer
+        self.record.raw_message = None
+        self.record.external_key = "demo-manual-primary"
+        self.record.save()
+        rows = list(self.record.transfer_evidence.order_by("created_at"))
+        for item in rows:
+            item.raw_message = None
+            item.save()
+        rows[1].external_key = self.record.external_key
+        rows[1].save()
+        record = Transaction.objects.prefetch_related("transfer_evidence").get(pk=self.record.pk)
+        with self.assertNumQueries(0):
+            data = TransferEvidenceSerializer(record.transfer_evidence.all(), many=True).data
+        self.assertEqual([str(item["account"]) for item in data if item["is_primary"]], [str(self.b.pk)])
+
     def test_acknowledged_amount_correction_posts_once_preserves_sms_and_is_audited(self):
         created_at = self.record.created_at
         response = self.patch(amount="1250.00", allow_linked_correction=True)

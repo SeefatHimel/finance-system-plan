@@ -336,3 +336,7 @@ transfer balances/references only when the entry's current `type` is `transfer`;
 historical observations on an expense or other type do not appear as active
 transfer balances. Its normal account and ledger amount continue to come from
 the corrected transaction. The full ledger editor is currently a web workflow.
+
+Transfer evidence cache normalization preserves the read-only `is_primary` flag.
+Older cached records default to false without inferring an observation from another
+account. This keeps the generated transfer response type compatible with old caches.

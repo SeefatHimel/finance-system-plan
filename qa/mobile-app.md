@@ -365,3 +365,7 @@ available. Activity shows per-account evidence balances/references only while
 corrected expense or other type. The ordinary ledger amount and account use the
 corrected transaction. Full ledger corrections currently happen in the web
 editor; this change does not add a native editor.
+
+Transfer evidence caches preserve the API’s read-only `is_primary` flag. Older
+caches lacking the field normalize it to false; cache loading never guesses which
+account supplied the primary report.

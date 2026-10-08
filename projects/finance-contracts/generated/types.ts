@@ -576,6 +576,7 @@ export interface CategoryPatchRequest {
 }
 
 export interface TransferEvidence {
+  is_primary: boolean;
   id: string;
   account: string;
   raw_message: string | null;

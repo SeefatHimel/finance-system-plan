@@ -23,13 +23,34 @@ class TransactionSourceMessageSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+def primary_transfer_evidence(record, evidence_items):
+    primary = next(
+        (item for item in evidence_items if item.raw_message_id == record.raw_message_id),
+        None,
+    )
+    if record.raw_message_id is None and record.external_key:
+        return next(
+            (item for item in evidence_items if item.external_key == record.external_key),
+            primary,
+        )
+    return primary
+
+
 class TransferEvidenceSerializer(serializers.ModelSerializer):
+    is_primary = serializers.SerializerMethodField()
+
+    def get_is_primary(self, instance):
+        record = instance.transaction
+        primary = primary_transfer_evidence(record, record.transfer_evidence.all())
+        return primary is not None and instance.pk == primary.pk
+
     class Meta:
         model = TransferEvidence
         fields = (
             "id",
             "account",
             "raw_message",
+            "is_primary",
             "direction",
             "date",
             "time",
@@ -113,15 +134,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "account" in validated_data and validated_data["account"] != instance.account
         )
         type_changed = "type" in validated_data and validated_data["type"] != instance.type
-        primary_evidence = next(
-            (item for item in evidence_items if item.raw_message_id == instance.raw_message_id),
-            None,
-        )
-        if instance.raw_message_id is None and instance.external_key:
-            primary_evidence = next(
-                (item for item in evidence_items if item.external_key == instance.external_key),
-                primary_evidence,
-            )
+        primary_evidence = primary_transfer_evidence(instance, evidence_items)
         primary_account = (
             validated_data.get("transfer_account", instance.transfer_account)
             if primary_evidence and primary_evidence.direction == "credit"

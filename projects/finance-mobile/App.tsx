@@ -399,7 +399,7 @@ function normalizeTransactionCache(storedTransactions: string | null): Transacti
       const transaction: Transaction = {
         account_direction: stringValue(item.account_direction) || stringValue(item.direction),
         transfer_evidence: Array.isArray(item.transfer_evidence) ? item.transfer_evidence.filter(isRecord).map((evidence) => ({
-          id: stringValue(evidence.id), account: stringValue(evidence.account), raw_message: nullableStringValue(evidence.raw_message),
+          id: stringValue(evidence.id), account: stringValue(evidence.account), raw_message: nullableStringValue(evidence.raw_message), is_primary: evidence.is_primary === true,
           direction: stringValue(evidence.direction) as "debit" | "credit", date: stringValue(evidence.date), time: nullableStringValue(evidence.time),
           balance_after: nullableStringValue(evidence.balance_after), fee_amount: nullableStringValue(evidence.fee_amount),
           reference: stringValue(evidence.reference), provider: stringValue(evidence.provider), source: stringValue(evidence.source) as "web" | "mobile" | "sms" | "import" | "system", note: stringValue(evidence.note)

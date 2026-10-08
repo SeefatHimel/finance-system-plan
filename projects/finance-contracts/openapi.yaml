@@ -3157,8 +3157,12 @@ components:
           minimum: 0
     TransferEvidence:
       type: object
-      required: [id, account, raw_message, direction, date, time, balance_after, fee_amount, reference, provider, source, note]
+      required: [id, account, raw_message, is_primary, direction, date, time, balance_after, fee_amount, reference, provider, source, note]
       properties:
+        is_primary:
+          type: boolean
+          readOnly: true
+          description: Identifies the original observation whose reported balance is edited through the transaction.
         id:
           type: string
           format: uuid

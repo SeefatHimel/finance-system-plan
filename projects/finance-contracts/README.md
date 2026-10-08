@@ -278,3 +278,9 @@ SMS confirmation: omitted `transfer_account`/`payment_method` retains the parsed
 value; explicit `null` clears it. A reviewed transfer reclassified to another type
 must have no destination. Confirming as a transfer still requires another account.
 This clarifies existing nullable fields without a schema change.
+
+## Primary Transfer Reports
+
+Transfer evidence includes read-only boolean `is_primary` to identify the observation
+edited through the transaction balance field. When the main balance is null, clients
+may show that report's balance; another account's balance must remain separate.

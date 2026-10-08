@@ -546,3 +546,10 @@ Yes. Omitted destination/payment-method fields retain parser defaults; explicit
 `null` clears them. Changing a reviewed transfer to income/expense can therefore
 remove its destination instead of the API restoring it. A transfer without another
 account is still rejected, and source SMS remains attached as audit evidence.
+
+## How can the editor identify a transfer's original balance report?
+
+Transfer evidence exposes read-only `is_primary`. It shares the same original
+SMS/manual-entry-key selection used by transaction updates, so displaying a balance
+and saving its correction target the same observation. Prefetching avoids additional
+queries. This is response metadata and requires no migration.

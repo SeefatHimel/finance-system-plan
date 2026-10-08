@@ -528,3 +528,11 @@ SMS confirmation distinguishes omitted fields from explicit `null` for
 `null` clears them. This allows a reviewed transfer to be reclassified as another
 type without restoring its parsed destination. A transfer still requires another
 account; ownership and payment-method/account validation remain enforced.
+
+## Primary Transfer Reports
+
+Transfer evidence responses include read-only `is_primary`, using the same original
+SMS/manual-entry-key selection as transaction corrections. Clients can load that
+observation's balance when the main transfer balance is empty without choosing an
+unrelated account. Serialization uses prefetched observations without extra queries;
+no database migration is required.

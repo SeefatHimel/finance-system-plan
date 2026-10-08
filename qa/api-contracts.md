@@ -283,3 +283,11 @@ nullable `transfer_account`/`payment_method` fields. Clients reclassifying a tra
 must clear its destination; keeping type `transfer` still requires another account.
 API detail and validation-field responses are decoded into readable web feedback;
 server failures use safe retry messages without displaying response bodies.
+
+## Which reported balance should clients load for a matched transfer?
+
+Use the transaction balance when present, otherwise the observation marked
+`is_primary`. This read-only boolean identifies the report that transaction updates
+correct. Keep other account balances separate, preserve zero and leave genuinely
+missing balances blank; historical transfer evidence must not supply a balance
+after reclassification to another type.
