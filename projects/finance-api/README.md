@@ -520,3 +520,11 @@ Use the provider's actual code if available, or leave this field blank.
 Verify with `python manage.py test apps.transactions.test_references
 apps.transactions.test_transfers apps.messages.tests` against the configured
 test database.
+
+## SMS Confirmation Overrides
+
+SMS confirmation distinguishes omitted fields from explicit `null` for
+`transfer_account` and `payment_method`: omission retains parsed defaults, while
+`null` clears them. This allows a reviewed transfer to be reclassified as another
+type without restoring its parsed destination. A transfer still requires another
+account; ownership and payment-method/account validation remain enforced.

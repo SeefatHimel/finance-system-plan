@@ -275,3 +275,11 @@ shapes are unchanged. Reference edits do not bypass same-SMS duplicate guards.
 Match suggestions require accounts, equal currency/principal and nearby dates;
 time is returned for inspection and reference agreement appears only as
 supporting evidence in `reason`. Acceptance remains explicit.
+
+## How should clients clear parsed SMS fields during review?
+
+SMS confirmation uses omission for parsed defaults and explicit `null` to clear
+nullable `transfer_account`/`payment_method` fields. Clients reclassifying a transfer
+must clear its destination; keeping type `transfer` still requires another account.
+API detail and validation-field responses are decoded into readable web feedback;
+server failures use safe retry messages without displaying response bodies.

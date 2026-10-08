@@ -596,8 +596,8 @@ class MessageCandidateConfirmView(APIView):
         payload = serializer.validated_data
 
         account = payload.get("account") or candidate.account
-        transfer_account = payload.get("transfer_account") or candidate.destination_account
-        payment_method = payload.get("payment_method") or candidate.payment_method
+        transfer_account = payload.get("transfer_account", candidate.destination_account)
+        payment_method = payload.get("payment_method", candidate.payment_method)
         category = payload.get("category") if "category" in payload else candidate.category
         amount = payload.get("amount") or candidate.amount
         balance_after = (

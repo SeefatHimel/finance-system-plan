@@ -1623,6 +1623,43 @@ class MessageReviewApiTests(APITestCase):
         self.assertEqual(transaction.raw_message_id, parsed_candidate.raw_message_id)
         self.assertEqual(transaction.external_key, f"raw-message:{parsed_candidate.raw_message_id}")
 
+    def test_reclassification_respects_cleared_destination_and_payment_method(self):
+        candidate_data = self.import_message()
+        candidate = ParsedMessageCandidate.objects.get(id=candidate_data["id"])
+        candidate.destination_account = Account.objects.create(
+            user=self.user, name="Demo transfer destination", type=Account.Type.BANK,
+        )
+        candidate.balance_after = "1000.00"
+        candidate.save()
+        response = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": candidate.id}),
+            {"type": "income", "direction": "credit", "transfer_account": None,
+             "payment_method": None, "balance_after": None, "category": None},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        entry = Transaction.objects.get(id=response.data["transaction"])
+        self.assertEqual(entry.type, Transaction.Type.INCOME)
+        self.assertEqual(entry.direction, Transaction.Direction.CREDIT)
+        self.assertIsNone(entry.transfer_account)
+        self.assertIsNone(entry.payment_method)
+        self.assertIsNone(entry.balance_after)
+        self.assertEqual(entry.raw_message_id, candidate.raw_message_id)
+
+    def test_explicit_empty_destination_still_requires_transfer_account(self):
+        candidate_data = self.import_message()
+        candidate = ParsedMessageCandidate.objects.get(id=candidate_data["id"])
+        candidate.destination_account = Account.objects.create(
+            user=self.user, name="Demo transfer destination", type=Account.Type.BANK,
+        )
+        candidate.save()
+        response = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": candidate.id}),
+            {"type": "transfer", "transfer_account": None}, format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("transfer_account", response.data)
+
     def test_transfer_candidate_requires_destination_account_on_confirm(self):
         candidate = self.import_message()
 

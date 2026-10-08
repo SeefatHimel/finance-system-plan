@@ -271,3 +271,10 @@ Duplicate confirmation/link errors identify an already recorded SMS or retry
 key. Transfer matches require accounts, equal currency/principal and dates
 within three days; time is included for inspection, and reference agreement is
 supporting evidence in `reason`. Shared references never auto-link records.
+
+## Clearing SMS Review Fields
+
+SMS confirmation: omitted `transfer_account`/`payment_method` retains the parsed
+value; explicit `null` clears it. A reviewed transfer reclassified to another type
+must have no destination. Confirming as a transfer still requires another account.
+This clarifies existing nullable fields without a schema change.

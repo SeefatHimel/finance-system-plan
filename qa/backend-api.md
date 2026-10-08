@@ -539,3 +539,10 @@ three-day date window; times are exposed for review. Matching primary or linked
 references strengthen the explanation but neither create nor merge a movement
 automatically. Manual draft retry keys retain their existing semantics. No
 migration or rewriting of old transaction keys is needed.
+
+## Does SMS confirmation respect fields cleared during reclassification?
+
+Yes. Omitted destination/payment-method fields retain parser defaults; explicit
+`null` clears them. Changing a reviewed transfer to income/expense can therefore
+remove its destination instead of the API restoring it. A transfer without another
+account is still rejected, and source SMS remains attached as audit evidence.
