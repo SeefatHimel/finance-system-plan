@@ -24,6 +24,362 @@ tags:
   - name: Audit Logs
   - name: Statements
 paths:
+  /api/statements/imports/:
+    get:
+      operationId: statements_imports_list
+      parameters:
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      tags:
+      - Statements
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedStatementImportList'
+          description: Successful response
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+      description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store.'
+    post:
+      operationId: statements_imports_create
+      tags:
+      - Statements
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StatementPreviewRequest'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementImport'
+          description: Successful response
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '400':
+          description: Readable field validation or unsafe match/decision error.
+        '200':
+          description: Same exact file for this account; existing draft and decisions returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementImport'
+        '422':
+          description: Extraction worker timeout.
+        '429':
+          description: 'Upload rate exceeded: 10/hour/user.'
+        '503':
+          description: Extraction worker unavailable.
+      description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store. Saves masked source
+        rows only; never posts on upload. Original PDF and password are discarded. Limits match the preview
+        endpoint.'
+  /api/statements/imports/{id}/:
+    get:
+      operationId: statements_imports_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this statement import.
+        required: true
+      tags:
+      - Statements
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementImport'
+          description: Successful response
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Owned import, row, or transaction not found.
+      description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store.'
+  /api/statements/imports/{id}/approve_new/:
+    post:
+      operationId: statements_imports_approve_new_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this statement import.
+        required: true
+      tags:
+      - Statements
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatementBulk'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementBulkResult'
+          description: Successful response
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Owned import, row, or transaction not found.
+        '400':
+          description: Readable field validation or unsafe match/decision error.
+      description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store. Explicit bulk
+        approval of up to 50 row IDs/versions. Fresh matches, source discrepancies and stale rows remain
+        unresolved. Unexpected failure rolls back the entire request.'
+  /api/statements/imports/{id}/rows/:
+    get:
+      operationId: statements_imports_rows_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this statement import.
+        required: true
+      - in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      - in: query
+        name: state
+        required: false
+        schema:
+          type: string
+          enum:
+          - pending
+          - new
+          - possible_match
+          - needs_correction
+          - posted
+          - linked
+          - skipped
+      - in: query
+        name: direction
+        required: false
+        schema:
+          $ref: '#/components/schemas/TransactionDirection'
+      - in: query
+        name: type
+        required: false
+        schema:
+          $ref: '#/components/schemas/TransactionType'
+      - in: query
+        name: category
+        required: false
+        schema:
+          type: string
+          description: Owned category UUID, or none for uncategorized.
+      - in: query
+        name: search
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: date_from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: date_to
+        required: false
+        schema:
+          type: string
+          format: date
+      tags:
+      - Statements
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementRowPage'
+          description: Successful response
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Owned import, row, or transaction not found.
+        '400':
+          description: Invalid filters or pagination.
+      description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store.'
+  /api/statements/rows/{id}/:
+    get:
+      operationId: statements_rows_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this statement row.
+        required: true
+      tags:
+      - Statements
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedStatementRow'
+          description: Successful response
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Owned import, row, or transaction not found.
+      description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store.'
+    patch:
+      operationId: statements_rows_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this statement row.
+        required: true
+      tags:
+      - Statements
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStatementRowEdit'
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedStatementRow'
+          description: Successful response
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Owned import, row, or transaction not found.
+        '400':
+          description: Readable field validation or unsafe match/decision error.
+        '409':
+          description: Stale version or already resolved differently. Reload before retrying.
+      description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store.'
+  /api/statements/rows/{id}/decide/:
+    post:
+      operationId: statements_rows_decide_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this statement row.
+        required: true
+      tags:
+      - Statements
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatementDecision'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedStatementRow'
+          description: Successful response
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Owned import, row, or transaction not found.
+        '400':
+          description: Readable field validation or unsafe match/decision error.
+        '409':
+          description: Stale version or already resolved differently. Reload before retrying.
+      description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store. Link attaches
+        evidence without changing existing ledger details. Create requires allow_separate when suggestions
+        exist; unlink keeps the ledger entry. Resolved identical retries are idempotent.'
+  /api/transactions/{id}/statement-evidence/:
+    get:
+      operationId: transactions_statement_evidence_list
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Transactions
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SavedStatementRow'
+          description: Successful response
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Owned import, row, or transaction not found.
+      description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store.'
   /api/statements/preview/:
     post:
       tags: [Statements]
@@ -3306,6 +3662,11 @@ components:
       required:
         [id, account, transfer_account, category, payment_method, raw_message, date, time, type, direction, amount, balance_after, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, reference, counterparty_text, external_key, note, source, needs_review, created_at, updated_at, transfer_evidence, account_direction]
       properties:
+        statement_evidence_count:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: Linked saved statement observations; load full masked evidence on demand.
         transfer_evidence:
           type: array
           items:
@@ -3738,3 +4099,532 @@ components:
           type: array
           items:
             type: string
+    StatementAction:
+      enum:
+      - create
+      - link
+      - skip
+      - unlink
+      - reopen
+      type: string
+      description: '* `create` - create
+
+        * `link` - link
+
+        * `skip` - skip
+
+        * `unlink` - unlink
+
+        * `reopen` - reopen'
+    StatementComponent:
+      enum:
+      - principal
+      - fee
+      type: string
+      description: '* `principal` - Principal
+
+        * `fee` - Fee'
+    PaginatedStatementImportList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=400&limit=100
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=200&limit=100
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementImport'
+    PatchedStatementRowEdit:
+      type: object
+      properties:
+        version:
+          type: integer
+          minimum: 1
+        date:
+          type: string
+          format: date
+          nullable: true
+        time:
+          type: string
+          format: time
+          nullable: true
+        value_date:
+          type: string
+          format: date
+          nullable: true
+        direction:
+          $ref: '#/components/schemas/TransactionDirection'
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          nullable: true
+        balance_after:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          nullable: true
+        type:
+          $ref: '#/components/schemas/TransactionType'
+        other_account:
+          type: string
+          format: uuid
+          nullable: true
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        reference:
+          type: string
+          maxLength: 120
+        counterparty_text:
+          type: string
+          maxLength: 255
+        note:
+          type: string
+          maxLength: 4000
+        classification_confirmed:
+          type: boolean
+      required:
+      - version
+    SavedStatementRow:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        batch:
+          type: string
+          format: uuid
+          readOnly: true
+        position:
+          type: integer
+          readOnly: true
+        component:
+          allOf:
+          - $ref: '#/components/schemas/StatementComponent'
+          readOnly: true
+        extracted:
+          allOf:
+          - $ref: '#/components/schemas/StatementRow'
+          readOnly: true
+        date:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+        time:
+          type: string
+          format: time
+          readOnly: true
+          nullable: true
+        value_date:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+        direction:
+          allOf:
+          - $ref: '#/components/schemas/TransactionDirection'
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        balance_after:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        type:
+          allOf:
+          - $ref: '#/components/schemas/TransactionType'
+          readOnly: true
+        other_account:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        category:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        reference:
+          type: string
+          readOnly: true
+        counterparty_text:
+          type: string
+          readOnly: true
+        note:
+          type: string
+          readOnly: true
+        classification_confirmed:
+          type: boolean
+          readOnly: true
+        state:
+          allOf:
+          - $ref: '#/components/schemas/StatementState'
+          readOnly: true
+        transaction:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        version:
+          type: integer
+          readOnly: true
+        review:
+          allOf:
+          - $ref: '#/components/schemas/StatementReview'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - balance_after
+      - batch
+      - category
+      - classification_confirmed
+      - component
+      - counterparty_text
+      - created_at
+      - date
+      - direction
+      - extracted
+      - id
+      - note
+      - other_account
+      - position
+      - reference
+      - review
+      - state
+      - time
+      - transaction
+      - type
+      - updated_at
+      - value_date
+      - version
+    StatementState:
+      enum:
+      - pending
+      - posted
+      - linked
+      - skipped
+      type: string
+      description: '* `pending` - Pending
+
+        * `posted` - Added
+
+        * `linked` - Linked
+
+        * `skipped` - Skipped'
+    StatementBulk:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementBulkRow'
+      required:
+      - rows
+    StatementBulkResult:
+      type: object
+      properties:
+        added:
+          type: integer
+        unchanged:
+          type: integer
+        unresolved:
+          type: array
+          items:
+            type: object
+            required:
+            - id
+            - reason
+            properties:
+              id:
+                type: string
+                format: uuid
+              reason:
+                type: string
+      required:
+      - added
+      - unchanged
+      - unresolved
+    StatementBulkRow:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+      required:
+      - id
+      - version
+    StatementCounts:
+      type: object
+      properties:
+        total:
+          type: integer
+        pending:
+          type: integer
+        posted:
+          type: integer
+        linked:
+          type: integer
+        skipped:
+          type: integer
+      required:
+      - linked
+      - pending
+      - posted
+      - skipped
+      - total
+    StatementDecision:
+      type: object
+      properties:
+        action:
+          $ref: '#/components/schemas/StatementAction'
+        version:
+          type: integer
+          minimum: 1
+        transaction:
+          type: string
+          format: uuid
+        allow_separate:
+          type: boolean
+          default: false
+        acknowledge_issues:
+          type: boolean
+          default: false
+        acknowledge_conflict:
+          type: boolean
+          default: false
+      required:
+      - action
+      - version
+    StatementImport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        account:
+          type: string
+          format: uuid
+          readOnly: true
+        account_name:
+          type: string
+          readOnly: true
+        profile:
+          type: string
+          readOnly: true
+        parser_version:
+          type: string
+          readOnly: true
+        currency:
+          type: string
+          readOnly: true
+        account_hint:
+          type: string
+          readOnly: true
+        account_identity:
+          type: string
+          readOnly: true
+        period_start:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+        period_end:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+        page_count:
+          type: integer
+          readOnly: true
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementCheck'
+        warnings:
+          type: array
+          items:
+            type: string
+        opening_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        closing_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        counts:
+          allOf:
+          - $ref: '#/components/schemas/StatementCounts'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - account
+      - account_hint
+      - account_identity
+      - account_name
+      - checks
+      - closing_balance
+      - counts
+      - created_at
+      - currency
+      - id
+      - opening_balance
+      - page_count
+      - parser_version
+      - period_end
+      - period_start
+      - profile
+      - updated_at
+      - warnings
+    StatementMatch:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          format: time
+          nullable: true
+        type:
+          type: string
+        source:
+          type: string
+        amount:
+          type: string
+        account_name:
+          type: string
+        transfer_account_name:
+          type: string
+          nullable: true
+        category_name:
+          type: string
+          nullable: true
+        reference:
+          type: string
+        note:
+          type: string
+        balance_after:
+          type: string
+          nullable: true
+        conflict:
+          type: boolean
+        can_link:
+          type: boolean
+        reasons:
+          type: array
+          items:
+            type: string
+      required:
+      - account_name
+      - amount
+      - balance_after
+      - can_link
+      - category_name
+      - conflict
+      - date
+      - id
+      - note
+      - reasons
+      - reference
+      - source
+      - time
+      - transfer_account_name
+      - type
+    StatementReview:
+      type: object
+      properties:
+        issues:
+          type: array
+          items:
+            type: string
+        review_state:
+          type: string
+          enum:
+          - new
+          - possible_match
+          - needs_correction
+          - posted
+          - linked
+          - skipped
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementMatch'
+        matching_truncated:
+          type: boolean
+        requires_acknowledgement:
+          type: boolean
+      required:
+      - issues
+      - matches
+      - matching_truncated
+      - requires_acknowledgement
+      - review_state
+    StatementRowPage:
+      type: object
+      properties:
+        count:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavedStatementRow'
+      required:
+      - count
+      - limit
+      - offset
+      - results

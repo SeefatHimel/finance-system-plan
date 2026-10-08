@@ -314,3 +314,18 @@ Errors distinguish invalid/account/locked/unsupported input (400), worker timeou
 The generated TypeScript client accepts `FormData` for multipart operations and
 lets fetch generate its boundary. Binary schema fields map to `Blob`, boolean
 enums retain boolean literals. JSON operations retain JSON encoding.
+
+## Saved Statement Review Boundary
+
+Saved imports add multipart create, paginated history/detail, globally filtered
+rows, versioned draft PATCH, explicit decide, and bulk approve_new operations.
+Linking preserves existing ledger details; source fingerprints/references are not
+unique keys. `SavedStatementRow` separates immutable extraction from draft edits
+and review metadata. Stale edits/decisions return 409. Bulk approval accepts 50
+IDs/versions and returns added/unchanged/unresolved counts.
+`Transaction.statement_evidence_count` is read-only; full masked observations load
+through `GET /api/transactions/{id}/statement-evidence/`. Financial corrections to
+statement-linked entries also require `allow_linked_correction`. No original PDF
+or password is retained. Same-file retries return 200 with preserved review;
+new saved imports return 201 without ledger writes. All these endpoints are
+user-scoped and no-store. Generated client/types include every operation.

@@ -621,6 +621,7 @@ export interface TransferMergeRequest {
 }
 
 export interface Transaction {
+  statement_evidence_count?: number;
   transfer_evidence: TransferEvidence[];
   account_direction: TransactionDirection;
   id: string;
@@ -778,4 +779,150 @@ export interface StatementPreview {
   rows: StatementRow[];
   checks: StatementCheck[];
   warnings: string[];
+}
+
+export type StatementAction = "create" | "link" | "skip" | "unlink" | "reopen";
+
+export type StatementComponent = "principal" | "fee";
+
+export interface PaginatedStatementImportList {
+  count: number;
+  next?: string | null;
+  previous?: string | null;
+  results: StatementImport[];
+}
+
+export interface PatchedStatementRowEdit {
+  version: number;
+  date?: string | null;
+  time?: string | null;
+  value_date?: string | null;
+  direction?: TransactionDirection;
+  amount?: string | null;
+  balance_after?: string | null;
+  type?: TransactionType;
+  other_account?: string | null;
+  category?: string | null;
+  reference?: string;
+  counterparty_text?: string;
+  note?: string;
+  classification_confirmed?: boolean;
+}
+
+export interface SavedStatementRow {
+  id: string;
+  batch: string;
+  position: number;
+  component: StatementComponent;
+  extracted: StatementRow;
+  date: string | null;
+  time: string | null;
+  value_date: string | null;
+  direction: TransactionDirection;
+  amount: string | null;
+  balance_after: string | null;
+  type: TransactionType;
+  other_account: string | null;
+  category: string | null;
+  reference: string;
+  counterparty_text: string;
+  note: string;
+  classification_confirmed: boolean;
+  state: StatementState;
+  transaction: string | null;
+  version: number;
+  review: StatementReview;
+  created_at: string;
+  updated_at: string;
+}
+
+export type StatementState = "pending" | "posted" | "linked" | "skipped";
+
+export interface StatementBulk {
+  rows: StatementBulkRow[];
+}
+
+export interface StatementBulkResult {
+  added: number;
+  unchanged: number;
+  unresolved: {
+  id: string;
+  reason: string;
+}[];
+}
+
+export interface StatementBulkRow {
+  id: string;
+  version: number;
+}
+
+export interface StatementCounts {
+  total: number;
+  pending: number;
+  posted: number;
+  linked: number;
+  skipped: number;
+}
+
+export interface StatementDecision {
+  action: StatementAction;
+  version: number;
+  transaction?: string;
+  allow_separate?: boolean;
+  acknowledge_issues?: boolean;
+  acknowledge_conflict?: boolean;
+}
+
+export interface StatementImport {
+  id: string;
+  account: string;
+  account_name: string;
+  profile: string;
+  parser_version: string;
+  currency: string;
+  account_hint: string;
+  account_identity: string;
+  period_start: string | null;
+  period_end: string | null;
+  page_count: number;
+  checks: StatementCheck[];
+  warnings: string[];
+  opening_balance: string | null;
+  closing_balance: string | null;
+  counts: StatementCounts;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StatementMatch {
+  id: string;
+  date: string;
+  time: string | null;
+  type: string;
+  source: string;
+  amount: string;
+  account_name: string;
+  transfer_account_name: string | null;
+  category_name: string | null;
+  reference: string;
+  note: string;
+  balance_after: string | null;
+  conflict: boolean;
+  can_link: boolean;
+  reasons: string[];
+}
+
+export interface StatementReview {
+  issues: string[];
+  review_state: "new" | "possible_match" | "needs_correction" | "posted" | "linked" | "skipped";
+  matches: StatementMatch[];
+  matching_truncated: boolean;
+  requires_acknowledgement: boolean;
+}
+
+export interface StatementRowPage {
+  count: number;
+  offset: number;
+  limit: number;
+  results: SavedStatementRow[];
 }

@@ -315,4 +315,18 @@ identifier suffix is only a hint.
 
 Generated clients send FormData without a JSON Content-Type, and shared schema
 types map binary values to Blob. A preview does not establish duplicate identity
-or authorize posting; those contracts belong to the future evidence/review layer.
+or authorize posting; saved review/decision contracts are separate.
+
+## What contracts enable saved statement review?
+
+Imports use multipart creation and paginated history. Saved row responses contain
+immutable extraction, editable draft fields, version, state, transaction link and
+fresh review suggestions. PATCH requires version; decide supports create/link/
+skip/unlink/reopen with explicit separate/discrepancy/conflict acknowledgements.
+Stale/conflicting decisions return 409, scoped validation 400 and foreign IDs 404.
+Bulk approval accepts at most 50 IDs/versions and reports added/unchanged/unresolved.
+Rows support global state/type/category/direction/search/date filters. Transactions
+expose a read-only statement evidence count and on-demand evidence endpoint.
+Decimal values are strings and unknown time/balance is null. The generated client
+supports both multipart uploads and JSON review operations. All source responses
+are authenticated and no-store; raw PDFs/passwords never enter saved contracts.
