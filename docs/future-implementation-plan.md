@@ -1,6 +1,6 @@
 # Future Implementation And Upgrade Plan
 
-Last updated: 2026-10-05
+Last updated: 2026-10-08
 
 This plan lists the next implementation targets after the current local-first
 finance workflow. It is ordered to favor fast validation first, then reliability,
@@ -169,7 +169,9 @@ Tasks:
 - Add tenant/workspace boundaries before adding multiple users.
 - Add role-based permissions for owner, editor, and read-only reviewer.
 - Add per-workspace encryption and data retention policies.
-- Add import tools for existing spreadsheets and bank exports.
+- Add import tools for existing spreadsheets and bank exports. Statement PDF
+  import is a standalone personal-workflow target, not dependent on a multi-user
+  upgrade; see the [sample-informed import plan](statement-pdf-import-plan.md).
 - Add billing/subscription only after privacy, backup, audit, and tenant
   isolation are production-grade.
 

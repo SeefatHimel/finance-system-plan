@@ -22,7 +22,43 @@ tags:
   - name: Recurring Bills
   - name: Reconciliation
   - name: Audit Logs
+  - name: Statements
 paths:
+  /api/statements/preview/:
+    post:
+      tags: [Statements]
+      summary: Preview statement PDF
+      description: |
+        Read-only extraction of BDT EBL bank, City Bank savings, or bKash digital
+        statements. No ledger writes or persisted import batch. Maximum 4 MiB,
+        30 pages, 2000 rows, and 20 seconds of worker processing. Passwords are
+        transient. Response is private and no-store. Limited to 10 requests/hour
+        per authenticated user. Scans and credit-card layouts are unsupported.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StatementPreviewRequest'
+      responses:
+        '200':
+          description: Extracted rows, masked evidence, and validation checks; can_post is false.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementPreview'
+        '400':
+          description: Invalid file/account, unsupported layout, size/page/row limit, or missing/incorrect password.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          description: PDF worker exceeded its processing time limit.
+        '429':
+          description: Preview request rate exceeded.
+        '503':
+          description: Statement worker is unavailable.
   /api/health/:
     get:
       tags: [Health]
@@ -3561,3 +3597,144 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AccountReportTotal'
+    StatementPreviewRequest:
+      type: object
+      required: [account, file]
+      properties:
+        account:
+          type: string
+          format: uuid
+          description: Active owned BDT bank/savings/wallet reporting account.
+        file:
+          type: string
+          format: binary
+        password:
+          type: string
+          maxLength: 256
+          writeOnly: true
+    StatementRow:
+      type: object
+      required: [id, page, row, date, time, posting_date, value_date, description, provider_type, reference, direction, amount, signed_fee, balance_after, issues, bounds]
+      properties:
+        id:
+          type: string
+          description: Preview-only page/row identity, not a ledger UUID or deduplication key.
+        page:
+          type: integer
+        row:
+          type: integer
+        date:
+          type: string
+          format: date
+          nullable: true
+        time:
+          type: string
+          nullable: true
+        posting_date:
+          type: string
+          format: date
+          nullable: true
+        value_date:
+          type: string
+          format: date
+          nullable: true
+        description:
+          type: string
+          description: Wrapped row text with long numeric personal identifiers masked.
+        provider_type:
+          type: string
+        reference:
+          type: string
+        direction:
+          type: string
+          enum: [debit, credit]
+        amount:
+          type: string
+          nullable: true
+        signed_fee:
+          type: string
+          description: Separate signed wallet charge; negative values debit the wallet.
+        balance_after:
+          type: string
+          nullable: true
+        issues:
+          type: array
+          items:
+            type: string
+        bounds:
+          type: array
+          description: PDF point coordinates [left, top, right, bottom].
+          items:
+            type: number
+    StatementCheck:
+      type: object
+      required: [label, expected, observed, passed]
+      properties:
+        label:
+          type: string
+        expected:
+          type: string
+          nullable: true
+        observed:
+          type: string
+          nullable: true
+        passed:
+          type: boolean
+          nullable: true
+          description: Null means source data did not permit the check.
+    StatementPreview:
+      type: object
+      required: [account, account_hint, account_identity, profile, parser_version, currency, page_count, period_start, period_end, opening_balance, closing_balance, balance_transitions_checked, needs_review_count, can_post, rows, checks, warnings]
+      properties:
+        account:
+          type: string
+          format: uuid
+        account_hint:
+          type: string
+        account_identity:
+          type: string
+          enum: [matched_suffix, verify]
+          description: A suffix hint is not proof of ownership.
+        profile:
+          type: string
+          enum: [ebl_bank, city_bank, bkash]
+        parser_version:
+          type: string
+        currency:
+          type: string
+          enum: [BDT]
+        page_count:
+          type: integer
+        period_start:
+          type: string
+          format: date
+          nullable: true
+        period_end:
+          type: string
+          format: date
+          nullable: true
+        opening_balance:
+          type: string
+          nullable: true
+        closing_balance:
+          type: string
+          nullable: true
+        balance_transitions_checked:
+          type: integer
+        needs_review_count:
+          type: integer
+        can_post:
+          type: boolean
+          enum: [false]
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementRow'
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementCheck'
+        warnings:
+          type: array
+          items:
+            type: string

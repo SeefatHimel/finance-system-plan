@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     "apps.recurring_bills",
     "apps.reconciliation",
     "apps.reports",
+    "apps.statements",
     "apps.transactions",
     "apps.users",
 ]

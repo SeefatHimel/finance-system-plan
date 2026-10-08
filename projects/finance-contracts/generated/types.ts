@@ -727,3 +727,55 @@ export interface MonthlyReport {
   categories: CategoryTotal[];
   accounts: AccountReportTotal[];
 }
+
+export interface StatementPreviewRequest {
+  account: string;
+  file: Blob;
+  password?: string;
+}
+
+export interface StatementRow {
+  id: string;
+  page: number;
+  row: number;
+  date: string | null;
+  time: string | null;
+  posting_date: string | null;
+  value_date: string | null;
+  description: string;
+  provider_type: string;
+  reference: string;
+  direction: "debit" | "credit";
+  amount: string | null;
+  signed_fee: string;
+  balance_after: string | null;
+  issues: string[];
+  bounds: number[];
+}
+
+export interface StatementCheck {
+  label: string;
+  expected: string | null;
+  observed: string | null;
+  passed: boolean | null;
+}
+
+export interface StatementPreview {
+  account: string;
+  account_hint: string;
+  account_identity: "matched_suffix" | "verify";
+  profile: "ebl_bank" | "city_bank" | "bkash";
+  parser_version: string;
+  currency: "BDT";
+  page_count: number;
+  period_start: string | null;
+  period_end: string | null;
+  opening_balance: string | null;
+  closing_balance: string | null;
+  balance_transitions_checked: number;
+  needs_review_count: number;
+  can_post: false;
+  rows: StatementRow[];
+  checks: StatementCheck[];
+  warnings: string[];
+}

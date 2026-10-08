@@ -297,3 +297,20 @@ was null. Changing the non-reporting side preserves the primary report. When its
 account changes, omitted/unchanged carried balances clear; an explicit different
 replacement is accepted. SMS confirmation and transfer draft matching/linking
 apply the same rules to parsed values. No generated schema changes are required.
+
+## Statement Preview Boundary
+
+`POST /api/statements/preview/` is an authenticated multipart upload containing
+`account`, `file`, and optional transient `password`. `StatementPreview` returns
+normalized rows, masked descriptions, page/row bounds, account suffix hints, and
+validation checks; unknown check results are null and `can_post` is always false.
+It is a stateless preview, not a ledger import or deduplication endpoint.
+
+Supported first layouts: BDT EBL bank, City Bank savings, and bKash digital PDFs.
+Limits: 4 MiB, 30 pages, 2000 rows, 10 requests/hour/user, 20-second worker limit.
+Errors distinguish invalid/account/locked/unsupported input (400), worker timeout
+(422), throttling (429), and worker unavailability (503). Responses are no-store.
+
+The generated TypeScript client accepts `FormData` for multipart operations and
+lets fetch generate its boundary. Binary schema fields map to `Blob`, boolean
+enums retain boolean literals. JSON operations retain JSON encoding.

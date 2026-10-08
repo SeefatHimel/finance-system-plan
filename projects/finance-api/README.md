@@ -157,7 +157,7 @@ The API service runs migrations on startup and then serves on port `8000`.
 ## Verification
 
 ```bash
-python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards apps.recurring_bills apps.audit_logs
+python manage.py test apps.health apps.users apps.accounts apps.categories apps.payment_methods apps.messages apps.transactions apps.reports apps.reconciliation apps.debts apps.credit_cards apps.recurring_bills apps.audit_logs apps.statements
 ```
 
 ## Django Apps
@@ -544,3 +544,35 @@ SMS/manual-entry-key selection as transaction corrections. Clients can load that
 observation's balance when the main transfer balance is empty without choosing an
 unrelated account. Serialization uses prefetched observations without extra queries;
 no database migration is required.
+
+## Statement PDF Preview (First Delivery)
+
+`POST /api/statements/preview/` accepts authenticated multipart `account`, `file`,
+and optional `password`. It previews BDT EBL bank, City Bank savings, and bKash
+digital statements. The selected account must be owned, active, and a compatible
+bank/savings/wallet account. Scans and credit-card statements are unsupported.
+
+Extraction uses versioned word-coordinate profiles and Decimal balance checks.
+Opening/closing/summary rows are excluded; bank fee rows and reversals remain
+separate. Wallet principal and signed charges are separate, and bKash Total Out
+includes fee debits. Missing time/summary values remain null. The response
+contains masked descriptions, page/row bounds, validation issues, and explicit
+`can_post=false`. It creates no transactions, source messages, or import batches.
+
+Limits: 4 MiB, 30 pages, 2000 rows, 10 previews/hour/user, and a 20-second isolated
+worker timeout. The upload handler bounds incoming data before full disk writes.
+Files/passwords are not retained; ordinary Django temporary uploads are closed
+with the request. Worker inputs use stdin, parser internals are not returned,
+and responses are `Cache-Control: no-store`. Identifier suffix matches are hints
+only and do not prove ownership.
+
+Install `requirements.txt` for pdfplumber and `requirements-dev.txt` for the
+reportlab synthetic test generator. Verify with:
+
+```bash
+python manage.py test apps.statements
+```
+
+Persistent evidence, cross-source matching, row correction/approval, idempotent
+ledger posting, background jobs, and OCR remain subsequent deliveries. See
+[the import plan](../../docs/statement-pdf-import-plan.md).

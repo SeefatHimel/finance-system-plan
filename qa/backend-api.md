@@ -570,3 +570,18 @@ transfer matching/linking follow the same rule for parsed balances. This prevent
 both classification-driven loss and attribution to an unrelated account. Ledger
 balances still recalculate using type, amount and accounts, independently of the
 provider's reported balance. No schema or migration change is needed.
+
+## How does the first statement PDF delivery work?
+
+An authenticated multipart preview endpoint validates an owned active BDT
+reporting account, bounds the upload, and runs pdfplumber in an isolated process
+with a timeout. Versioned profiles use positioned words rather than assuming
+generic table extraction will recover bank tables. Decimal checks reconcile row
+balances and available provider totals/counts; wrapped descriptions are joined,
+identifiers masked, and missing time/summary values stay null.
+
+The endpoint is stateless and cannot post. Passwords are transient and parser
+exceptions do not expose private content. Subsequent deliveries must add durable
+source evidence, general SMS/manual matching, review decisions, and atomic
+idempotent posting. Synthetic PDFs test fees, summary boundaries, reversals,
+locked/unsupported files, account ownership, and worker timeouts.

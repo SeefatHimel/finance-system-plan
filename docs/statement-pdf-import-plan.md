@@ -1,0 +1,197 @@
+# Statement PDF Import Plan
+
+Last updated: 2026-10-08
+
+Status: first read-only upload/extraction/validation preview implemented. The
+web Statements page and `POST /api/statements/preview/` support the initial BDT
+digital layouts. Durable import evidence, matching, correction/approval, and
+ledger posting remain planned; `source=import` alone does not implement them.
+
+## Evidence And Initial Scope
+
+Private, user-provided EBL bank, City Bank savings, and bKash statement samples
+were inspected locally. Text extraction covered every page; rendered first,
+final, and relevant summary pages were checked against the extracted columns.
+A temporary coordinate-based extraction experiment reconciled row balance
+changes and the available summary totals/counts. This establishes feasibility
+for these layouts, not production accuracy across all statement versions.
+
+No original PDFs, extracted financial values, personal identifiers, filenames,
+or private source links belong in this repository. Commit only synthetic
+fixtures that reproduce the structural cases below.
+
+The reviewed EBL sample is a bank account statement containing card payments,
+not a credit-card statement. Credit-card billing layouts require separate
+samples before claiming support.
+
+| Layout | Observed structure | Required handling |
+| --- | --- | --- |
+| EBL bank | Transaction date, wrapped description, reference column, debits, credits, balance; value dates and identifiers embedded in descriptions | Extract by column position and dated row anchors. Exclude the dated opening balance even though it occupies the credit column. Preserve embedded value date separately. |
+| EBL bank summaries | Closing balance follows the final dated row; a later page contains totals, debit/credit counts, uncollected funds, unsettled transaction section, and a reversal legend | Detect section boundaries. Store summary facts separately; never append them to the last transaction. Reconcile totals and counts excluding opening balance. |
+| City Bank savings | Date, description, cheque number, withdrawal, deposit, balance; repeated headers and footer; totals and opening/available balance at the end | Use withdrawal/deposit columns for direction. Preserve printed descriptions even when truncated. Verify totals and opening-to-closing balance. |
+| City Bank reversals | A purchase, reversing credit, and subsequent purchase can share date, merchant, and amount | Keep each movement. Suggest reversal relationships without treating an opposite-direction row as a duplicate. |
+| bKash | Date and time, transaction type, wrapped details, Out, In, signed Charge/Fee, balance; transaction ID inside details | Use In/Out rather than the type label for direction. Preserve time and principal separately from fees. Join wrapped descriptions/IDs before classification. |
+| bKash fees and summaries | Negative fee values debit the wallet in the reviewed layouts; Total Out includes charges | Validate signed fee effects using balance arithmetic. Do not drop the sign or compare principal-only Out sums to fee-inclusive totals. |
+
+Other observations:
+
+- All reviewed pages have a native text layer. Default table extraction returned
+  no transaction tables for the bank statements and header-only tables for
+  bKash. Native text does not guarantee that generic table extraction works.
+- EBL principal and charge rows can repeat embedded references and descriptions.
+  A reference is supporting evidence, never a unique transaction identifier.
+- EBL card purchases can be recorded later than the embedded value date. A value
+  date is not automatically the purchase timestamp.
+- Filename dates can disagree with the statement period printed inside the PDF.
+  Parse the document metadata and show discrepancies; do not trust filenames.
+- Opening balances, summary totals, and statement issue dates are not money
+  movements. An opening balance cannot be imported as income.
+
+## Extraction And Normalization
+
+1. Accept an authenticated upload and select a reporting account. Detect provider
+   and layout using header anchors and column geometry, then check ownership,
+   currency, and account identity against the selected account. Support multiple
+   accounts/sections only when each section is explicitly mapped.
+2. Inspect the PDF for encryption, page count, native text, and supported layout.
+   Accept an unlock password transiently; never store it, put it in a URL, or log
+   it. The reviewed unlocked files do not validate the encrypted-file flow.
+3. Start with `pdfplumber` word coordinates and provider-specific, versioned
+   profiles. Detect headers on each page rather than assuming one fixed absolute
+   position. Reconstruct wrapped rows, exclude footers/summary sections, and
+   retain page, row, and bounding-box provenance.
+4. Normalize date, optional time, posting date, value date, currency, principal,
+   debit/credit direction, signed adjustments, reported balance, description,
+   and available references. Preserve absent time as null. Keep full account,
+   phone, card, and customer identifiers out of ordinary ledger descriptions;
+   store only safe masked matching hints and access-controlled source evidence.
+5. Use local OCR/table reconstruction only for image-only or unsupported layouts.
+   Evaluate Docling as a fallback against synthetic samples; do not introduce
+   OCR for supported digital statements just because generic table detection
+   fails. Unknown layouts remain reviewable and cannot silently post.
+
+For the reviewed wallet layout, the balance equation is:
+
+`next balance = previous balance + In - Out + signed Charge/Fee`
+
+The negative fee is an additional debit. Other layouts must declare their own
+sign and summary conventions. Use Decimal arithmetic, not floating-point
+amounts. When no opening balance is printed, an implied opening balance may be
+displayed as a derived check; it must not be presented as bank-reported data.
+
+Store printed available balance, ledger closing balance, uncollected funds,
+unsettled amounts, and credit-card amount due/limit as distinct facts. Only apply
+a reconciliation identity when the profile establishes compatible semantics.
+
+## Statement Evidence And Matching
+
+Proposed backend concepts:
+
+- `StatementImport`: user, reporting account, file digest, detected profile and
+  parser version, period, currency, job status, summary checks, and retention
+  metadata. Processing is separate from ledger posting.
+- `StatementRow`: stable source identity, page/row locations, normalized values,
+  validation results, review decision, and optional ledger/evidence links.
+- Fee/adjustment components: preserve separately posted fee rows and inline
+  wallet charges. Associate a charge with a principal only when evidence proves
+  the relationship; never discard a row because its reference repeats.
+
+Extend matching beyond the existing transfer-specific matcher to purchases,
+income, fees, cashback, refunds, and other ordinary transactions. Account,
+currency, direction, principal, references, merchant hints, reported balance,
+and date semantics all contribute. A unique corroborated reference is stronger
+than merchant similarity; date/amount proximity alone is insufficient.
+
+Use posting/value dates as extra matching evidence without overwriting an
+existing SMS transaction's date or user corrections. Date windows are
+provider-specific and measured against fixtures, not a blanket large window.
+
+An accepted existing-transaction match attaches the statement evidence to the
+ledger record instead of posting another movement. Preserve its category,
+type, notes, original source, and original SMS. Conflicting amounts, balances,
+or account mappings require an explicit correction decision. Retain multiple
+source observations without silently replacing the primary reported balance.
+
+For owned-account transfers, retain canonical From -> To direction and the
+statement's reporting side. Match opposite account observations through the
+existing transfer evidence model. Wallet funding is a transfer only if the
+other owned account is established; merchant wording alone cannot establish
+ownership. A fee is an additional expense even when linked to that transfer,
+and must affect the ledger exactly once.
+
+Retries of the same file/row must be idempotent under database constraints and
+atomic posting. The constraint must include user/account scope. Re-parsing
+creates a reviewable extraction revision and preserves accepted ledger links.
+Overlapping statements and unlocked/re-exported copies can have different file
+digests: compare source observations across batches and propose matches rather
+than relying on file hashes alone. Do not collapse genuine repeat purchases or
+principal/fee components sharing a reference.
+
+## Review And Automation Flow
+
+`Upload -> Account/layout check -> Extract -> Validate -> Match -> Review -> Post/link`
+
+The web app should show:
+
+- Extraction progress without blocking navigation.
+- Statement period/account, parsed row count, summary reconciliation, and gaps.
+- Filters for New, Possible match, Needs correction, and Already linked, plus
+  date/type/category and readable error reasons.
+- Original row/page evidence alongside editable fields; wrapped text stays
+  available, with private identifiers masked outside protected source access.
+- Bulk approval for validated new rows and explicit acceptance of match
+  suggestions. Any unresolved row remains visible and unposted.
+- A summary and toast indicating how many entries were added, linked, or left
+  unresolved. Posting failures and retries must not create partial duplicates.
+
+Reuse existing account/category suggestions, but keep layout/direction parsing
+separate from SMS sender learning. Learn merchant aliases and confirmed mappings
+from user decisions. Start with user-reviewed posting. Future opt-in automation
+can link or post unambiguous validated cases with audit history and reversible
+links; AI confidence alone never authorizes a money movement or merge.
+
+## Current Delivery Limits
+
+The first delivery is a stateless preview: no database migrations, persisted
+import batch, ledger writes, OCR, or approval controls. Passwords/files are not
+retained. Limits are 4 MiB, 30 pages, 2000 rows, 10 previews/hour/user, and a
+20-second isolated worker timeout. Accounts must be owned, active, BDT, and
+compatible with the detected bank/wallet profile. The UI includes search,
+direction/issue filters, pagination, cancellation, inline errors, and toasts.
+The worker may finish after client cancellation, but can never post.
+
+## Delivery Sequence And Acceptance Checks
+
+1. Build synthetic EBL bank, City Bank, and bKash fixtures, then versioned
+   extraction profiles. Reproduce repeated headers, wrapped text, empty reference
+   columns, mixed direction labels, signed fees, opening/closing/summary rows,
+   posting/value dates, and purchase/reversal/re-purchase collisions.
+2. Implement authenticated import jobs, source retention, normalized evidence,
+   reconciliation checks, cross-source matching, and idempotent posting.
+3. Add statement review UI and bulk actions; test account remapping, saved edits,
+   same-file retry, overlapping statements, ambiguous matches, and concurrent
+   approval. Update contracts and project-specific docs with the delivered API.
+4. Validate actual credit-card layouts separately, including liability direction,
+   repayments, interest, installments, refunds, fees, and separate currencies.
+5. Measure extraction/matching precision and expand OCR or opt-in automation
+   only after reviewing failures on additional layouts.
+
+Before claiming a profile is supported, all fixture rows must have explainable
+direction/amounts, balance transitions must reconcile where evidence permits,
+and statement totals/counts must agree under that provider's conventions.
+Insufficient source data is a visible limitation, not a fabricated successful
+check. Manual corrections and linked SMS transactions survive every retry.
+
+Raw files need bounded upload/page/processing limits, protected temporary
+storage, redacted logs, user-scoped access, and an explicit deletion policy.
+Local extraction is the default; an external OCR/AI service requires a separate
+data-processing decision and must not receive private statements implicitly.
+
+## Technical References
+
+- [pdfplumber](https://github.com/jsvine/pdfplumber): text coordinates and
+  configurable table extraction.
+- [pypdf text extraction limitations](https://pypdf.readthedocs.io/en/stable/user/extract-text.html):
+  PDF positioning and scanned-document limitations.
+- [Docling](https://docling-project.github.io/docling/): candidate local OCR and
+  document/table reconstruction fallback.

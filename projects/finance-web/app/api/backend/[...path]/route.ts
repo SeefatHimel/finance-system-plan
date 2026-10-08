@@ -23,11 +23,11 @@ async function proxyBackendRequest(request: NextRequest, context: RouteContext) 
     return NextResponse.json({ error: "Cross-origin request rejected." }, { status: 403 });
   }
 
-  const requestBody =
-    request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
-
   try {
     const session = await getCookieBackedAccessToken();
+    const isStatementUpload = context.params.path.join("/") === "api/statements/preview";
+    const requestBody = request.method === "GET" || request.method === "HEAD" ? undefined
+      : isStatementUpload ? await readStatementBody(request) : await request.arrayBuffer();
     const response = await fetchBackend(request, context.params.path, session.accessToken, requestBody);
 
     if (response.status === 401) {
@@ -39,7 +39,7 @@ async function proxyBackendRequest(request: NextRequest, context: RouteContext) 
     return buildProxyResponse(response, session.rotatedTokens);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Request failed.";
-    const status = isAuthenticationFailure(error) ? 401 : 502;
+    const status = error instanceof StatementUploadLimitError ? 413 : isAuthenticationFailure(error) ? 401 : 502;
     const response = NextResponse.json(
       {
         error: message
@@ -53,6 +53,32 @@ async function proxyBackendRequest(request: NextRequest, context: RouteContext) 
     }
     return response;
   }
+}
+
+class StatementUploadLimitError extends Error {
+  constructor() { super("Choose a statement PDF no larger than 4 MiB."); }
+}
+
+async function readStatementBody(request: NextRequest): Promise<ArrayBuffer> {
+  const maxBytes = 4 * 1024 * 1024 + 65536;
+  if (Number(request.headers.get("content-length")) > maxBytes) throw new StatementUploadLimitError();
+  const reader = request.body?.getReader();
+  if (!reader) return new ArrayBuffer(0);
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) { await reader.cancel(); throw new StatementUploadLimitError(); }
+      chunks.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return bytes.buffer;
 }
 
 async function fetchBackend(

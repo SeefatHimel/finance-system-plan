@@ -2885,3 +2885,15 @@ textarea {
 @media (max-width: 600px) {
   .action-toast { left: 16px; right: 16px; top: max(16px, env(safe-area-inset-top)); }
 }
+/* Statement previews keep long evidence inside a scrollable table on phones. */
+.statement-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
+.statement-preview .form-grid { display: grid; gap: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 20px; }
+.statement-preview .statement-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.statement-table-wrap { max-width: 100%; overflow-x: auto; }
+.statement-table { width: 100%; min-width: 950px; border-collapse: collapse; }
+.statement-table th, .statement-table td { padding: 0.85rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--panel-border); }
+.statement-table td:nth-child(3) { min-width: 200px; max-width: 360px; overflow-wrap: anywhere; }
+.statement-table td:nth-child(2), .statement-table td:nth-child(5), .statement-table td:nth-child(6), .statement-table td:nth-child(7) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.statement-checks, .statement-warnings { padding-left: 1.4rem; line-height: 1.7; }
+.statement-error { color: #ff7c87; }
+@media (max-width: 620px) { .statement-preview .form-grid { grid-template-columns: minmax(0, 1fr); } }

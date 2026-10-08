@@ -537,3 +537,16 @@ Changing the non-reporting side of a transfer also preserves it; changing the
 reporting account clears it with an inline explanation. SMS review and Add follow
 the same rule. Explicit blank input clears the report without later restoration.
 Other linked reports are read-only here.
+
+## Can users upload bank and wallet statement PDFs?
+
+The Statements page supports authenticated, read-only previews for the initial
+EBL bank, City Bank savings, and bKash digital layouts. It shows extracted rows
+and reconciliation checks, filters by search/direction/validation issues, and
+paginates without rendering every row at once. Toasts complement inline errors.
+
+The cookie proxy forwards multipart bodies with size guards and normal session
+refresh. Passwords are cleared on submission and never stored. Abort/stale-result
+guards prevent cancelled uploads or changed account/file selections from showing
+an obsolete preview. Approval, source matching, and ledger imports are still
+planned; the UI clearly states that preview adds no transactions.

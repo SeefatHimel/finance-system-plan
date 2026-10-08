@@ -304,3 +304,15 @@ unchanged carried values; explicitly different replacements are accepted.
 SMS confirmation and transfer drafts apply the same rule to parsed balances.
 Clients should preserve same-account values and explain clearing on account
 changes. Existing request/response fields suffice; no schema change is needed.
+
+## How is statement PDF preview represented in the contract?
+
+The request is multipart `account` + binary `file` + optional write-only
+`password`. The response contains rows and summary checks rather than transaction
+UUIDs; page/row IDs identify positions within this preview only. Decimal amounts
+are strings, absent time/balances are nullable, and `can_post` is false. A matching
+identifier suffix is only a hint.
+
+Generated clients send FormData without a JSON Content-Type, and shared schema
+types map binary values to Blob. A preview does not establish duplicate identity
+or authorize posting; those contracts belong to the future evidence/review layer.

@@ -48,12 +48,17 @@ def ts_type(schema: dict[str, Any] | None) -> str:
         key = "oneOf" if "oneOf" in schema else "anyOf"
         base = " | ".join(ts_type(part) for part in schema[key])
     elif "enum" in schema:
-        base = " | ".join(quote(str(value)) for value in schema["enum"])
+        base = " | ".join(
+            str(value).lower() if isinstance(value, (bool, int, float)) else quote(str(value))
+            for value in schema["enum"]
+        )
     else:
         schema_type = schema.get("type")
         if isinstance(schema_type, list):
             return " | ".join(ts_type({**schema, "type": item}) for item in schema_type)
-        if schema_type == "array":
+        if schema_type == "string" and schema.get("format") == "binary":
+            base = "Blob"
+        elif schema_type == "array":
             base = f"{ts_type(schema.get('items'))}[]"
         elif schema_type == "boolean":
             base = "boolean"
@@ -98,6 +103,8 @@ def response_type(operation: dict[str, Any]) -> str:
 
 def request_body_type(operation: dict[str, Any]) -> str | None:
     content = operation.get("requestBody", {}).get("content", {})
+    if "multipart/form-data" in content:
+        return "FormData"
     if "application/json" not in content:
         return None
     return ts_type(content["application/json"].get("schema"))
@@ -168,7 +175,7 @@ def generate_client(openapi: dict[str, Any]) -> str:
             query_type = query_parameter_type(operation)
             params = path_parameters(path)
             for type_name in re.findall(r"\b[A-Z][A-Za-z0-9_]+\b", f"{return_type} {body_type or ''} {query_type or ''}"):
-                if type_name != "Blob":
+                if type_name not in {"Blob", "FormData"}:
                     imports.add(type_name)
 
             signature_parts: list[str] = []
@@ -234,11 +241,12 @@ def generate_client(openapi: dict[str, Any]) -> str:
         "    if (this.config.accessToken) {\n"
         "      headers.Authorization = `Bearer ${this.config.accessToken}`;\n"
         "    }\n"
-        "    if (options.body !== undefined) {\n"
+        "    const isMultipart = typeof FormData !== 'undefined' && options.body instanceof FormData;\n"
+        "    if (options.body !== undefined && !isMultipart) {\n"
         "      headers['Content-Type'] = 'application/json';\n"
         "    }\n\n"
         "    const response = await fetch(url, {\n"
-        "      body: options.body === undefined ? undefined : JSON.stringify(options.body),\n"
+        "      body: isMultipart ? options.body as FormData : options.body === undefined ? undefined : JSON.stringify(options.body),\n"
         "      headers,\n"
         "      method: options.method,\n"
         "    });\n\n"

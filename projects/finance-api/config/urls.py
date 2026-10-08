@@ -27,6 +27,7 @@ from apps.payment_methods.views import PaymentMethodViewSet
 from apps.recurring_bills.views import RecurringBillPaymentCreateView, RecurringBillViewSet
 from apps.reconciliation.views import AccountReconciliationView, BalanceSnapshotViewSet
 from apps.transactions.views import TransactionViewSet
+from apps.statements.views import StatementPreviewView
 
 
 router = DefaultRouter()
@@ -47,6 +48,7 @@ urlpatterns = [
     path("api/auth/", include("apps.users.urls")),
     path("api/", include(router.urls)),
     path("api/health/", include("apps.health.urls")),
+    path("api/statements/preview/", StatementPreviewView.as_view(), name="statement-preview"),
     path("api/messages/import/", RawMessageImportView.as_view(), name="raw-message-import"),
     path(
         "api/messages/capture-preferences/",

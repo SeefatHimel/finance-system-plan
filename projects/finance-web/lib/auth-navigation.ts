@@ -5,7 +5,7 @@ export const sessionChannelName = "finance.session.v1";
 export type LoginReason = "required" | "expired" | "signed-out";
 
 const protectedPaths = new Set([
-  "/", "/transactions", "/accounts", "/messages/review", "/sms-settings",
+  "/", "/transactions", "/accounts", "/messages/review", "/sms-settings", "/statements",
   "/reports", "/debts", "/credit-cards", "/recurring-bills", "/reconciliation", "/audit-logs"
 ]);
 

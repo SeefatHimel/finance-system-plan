@@ -14,6 +14,23 @@ easy to forget, and hard to automate. This project turns that existing workflow
 into a structured system that can support manual entry, automatic SMS capture,
 monthly reports, reconciliation, and eventually product-level features.
 
+## Can statement PDFs be imported alongside SMS transactions?
+
+Read-only statement previews are implemented; ledger import is still planned.
+Private sample inspection established that
+EBL bank, City Bank savings, and bKash digital statements can be extracted using
+provider-specific column positions, even when generic table detection fails.
+The preview API normalizes statement rows and checks balances/provider totals.
+A later evidence/review layer will suggest links to SMS/manual entries before
+posting new rows.
+An accepted match adds evidence to one ledger movement and preserves user edits.
+
+The design must exclude opening/closing balances and summary rows, preserve
+posting/value dates, handle inline wallet charges and separately posted bank
+fees, and retain genuine reversals and repeated purchases. References are not
+unique identities. Credit-card statement layouts still need separate validation.
+See [the statement PDF import plan](../docs/statement-pdf-import-plan.md).
+
 ## What problem does it solve?
 
 It solves three related problems:

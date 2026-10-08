@@ -32,7 +32,7 @@ test('return URLs reject external redirects, encoded path tricks, and auth/API l
 });
 
 test('every current workspace is a permitted return route', () => {
-  for (const path of ['/', '/transactions', '/accounts', '/messages/review', '/sms-settings',
+  for (const path of ['/', '/transactions', '/accounts', '/messages/review', '/sms-settings', '/statements',
     '/reports', '/debts', '/credit-cards', '/recurring-bills', '/reconciliation', '/audit-logs']) {
     assert(isProtectedPath(path));
     assert.equal(safeReturnPath(path), path);

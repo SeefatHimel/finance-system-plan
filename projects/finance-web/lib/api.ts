@@ -1422,3 +1422,31 @@ export async function mergeTransfers(accessToken: string, retainedId: string, du
   });
   return transactionSchema.parse(await response.json());
 }
+
+const statementRowSchema = z.object({
+  id: z.string(), page: z.number(), row: z.number(), date: z.string().nullable(),
+  time: z.string().nullable(), posting_date: z.string().nullable(), value_date: z.string().nullable(),
+  description: z.string(), provider_type: z.string(), reference: z.string(),
+  direction: z.enum(["debit", "credit"]), amount: z.string().nullable(), signed_fee: z.string(),
+  balance_after: z.string().nullable(), issues: z.array(z.string()), bounds: z.array(z.number())
+});
+const statementPreviewSchema = z.object({
+  account: z.string(), account_hint: z.string(), account_identity: z.enum(["matched_suffix", "verify"]),
+  profile: z.string(), parser_version: z.string(), currency: z.string(), page_count: z.number(),
+  period_start: z.string().nullable(), period_end: z.string().nullable(),
+  opening_balance: z.string().nullable(), closing_balance: z.string().nullable(),
+  balance_transitions_checked: z.number(), needs_review_count: z.number(), can_post: z.literal(false),
+  rows: z.array(statementRowSchema),
+  checks: z.array(z.object({ label: z.string(), expected: z.string().nullable(), observed: z.string().nullable(), passed: z.boolean().nullable() })),
+  warnings: z.array(z.string())
+});
+export type StatementPreview = z.infer<typeof statementPreviewSchema>;
+
+export async function previewStatement(accessToken: string, account: string, file: File, password: string, signal?: AbortSignal): Promise<StatementPreview> {
+  const body = new FormData();
+  body.set("account", account);
+  body.set("file", file);
+  if (password) body.set("password", password);
+  const response = await authenticatedFetch("/api/statements/preview/", accessToken, { method: "POST", body, signal });
+  return statementPreviewSchema.parse(await response.json());
+}
