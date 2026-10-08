@@ -170,8 +170,9 @@ Tasks:
 - Add role-based permissions for owner, editor, and read-only reviewer.
 - Add per-workspace encryption and data retention policies.
 - Add import tools for existing spreadsheets and bank exports. Statement PDF
-  import is a standalone personal-workflow target, not dependent on a multi-user
-  upgrade; see the [sample-informed import plan](statement-pdf-import-plan.md).
+  review/import is implemented for initial BDT bank/wallet layouts; expand layouts,
+  OCR and opt-in automation independently of a multi-user upgrade; see the
+  [sample-informed import plan](statement-pdf-import-plan.md).
 - Add billing/subscription only after privacy, backup, audit, and tenant
   isolation are production-grade.
 

@@ -83,6 +83,7 @@ const accountSchema = z.object({
 });
 
 const categorySchema = z.object({
+  is_active: z.boolean().default(true),
   id: z.string(),
   kind: z.string(),
   name: z.string()
@@ -219,6 +220,7 @@ const transactionSchema = z.object({
   updated_at: z.string(),
   account_direction: z.string(),
   transfer_evidence: z.array(transferEvidenceSchema),
+  statement_evidence_count: z.number().default(0),
   account: z.string(),
   amount: z.string(),
   balance_after: z.string().nullable(),
@@ -1449,4 +1451,64 @@ export async function previewStatement(accessToken: string, account: string, fil
   if (password) body.set("password", password);
   const response = await authenticatedFetch("/api/statements/preview/", accessToken, { method: "POST", body, signal });
   return statementPreviewSchema.parse(await response.json());
+}
+
+const savedStatementSchema = z.object({
+  id: z.string(), account: z.string(), account_name: z.string(), profile: z.string(), parser_version: z.string(), currency: z.string(),
+  account_hint: z.string(), account_identity: z.string(), period_start: z.string().nullable(), period_end: z.string().nullable(), page_count: z.number(),
+  opening_balance: z.string().nullable(), closing_balance: z.string().nullable(), checks: statementPreviewSchema.shape.checks, warnings: z.array(z.string()),
+  counts: z.object({ total: z.number(), pending: z.number(), posted: z.number(), linked: z.number(), skipped: z.number() }), created_at: z.string(), updated_at: z.string()
+});
+const statementMatchSchema = z.object({
+  id: z.string(), date: z.string(), time: z.string().nullable(), type: z.string(), source: z.string(), amount: z.string(), account_name: z.string(),
+  transfer_account_name: z.string().nullable(), category_name: z.string().nullable(), reference: z.string(), note: z.string(), balance_after: z.string().nullable(),
+  conflict: z.boolean(), can_link: z.boolean(), reasons: z.array(z.string())
+});
+const savedStatementRowSchema = z.object({
+  id: z.string(), batch: z.string(), position: z.number(), component: z.enum(["principal", "fee"]), extracted: statementRowSchema,
+  date: z.string().nullable(), time: z.string().nullable(), value_date: z.string().nullable(), direction: z.enum(["debit", "credit"]), amount: z.string().nullable(), balance_after: z.string().nullable(),
+  type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]),
+  other_account: z.string().nullable(), category: z.string().nullable(), reference: z.string(), counterparty_text: z.string(), note: z.string(), classification_confirmed: z.boolean(),
+  state: z.enum(["pending", "posted", "linked", "skipped"]), transaction: z.string().nullable(), version: z.number(), created_at: z.string(), updated_at: z.string(),
+  review: z.object({ issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
+});
+const statementRowPageSchema = z.object({ count: z.number(), offset: z.number(), limit: z.number(), results: z.array(savedStatementRowSchema) });
+const statementHistorySchema = z.object({ count: z.number(), next: z.string().nullable(), previous: z.string().nullable(), results: z.array(savedStatementSchema) });
+export type SavedStatement = z.infer<typeof savedStatementSchema>;
+export type SavedStatementRow = z.infer<typeof savedStatementRowSchema>;
+export type StatementMatch = z.infer<typeof statementMatchSchema>;
+export type StatementRowPage = z.infer<typeof statementRowPageSchema>;
+export type StatementHistory = z.infer<typeof statementHistorySchema>;
+export type StatementRowEdit = Pick<SavedStatementRow, "version" | "date" | "time" | "value_date" | "direction" | "amount" | "balance_after" | "type" | "other_account" | "category" | "reference" | "counterparty_text" | "note" | "classification_confirmed">;
+export type StatementDecision = { action: "create" | "link" | "skip" | "unlink" | "reopen"; version: number; transaction?: string; allow_separate?: boolean; acknowledge_issues?: boolean; acknowledge_conflict?: boolean };
+
+export async function createStatementImport(token: string, account: string, file: File, password: string, signal?: AbortSignal): Promise<SavedStatement> {
+  const body = new FormData(); body.set("account", account); body.set("file", file); if (password) body.set("password", password);
+  return savedStatementSchema.parse(await (await authenticatedFetch("/api/statements/imports/", token, { method: "POST", body, signal })).json());
+}
+export async function listStatementImports(token: string, offset = 0, signal?: AbortSignal): Promise<StatementHistory> {
+  return statementHistorySchema.parse(await (await authenticatedFetch(`/api/statements/imports/?limit=20&offset=${offset}`, token, { signal })).json());
+}
+export async function getStatementImport(token: string, id: string, signal?: AbortSignal): Promise<SavedStatement> {
+  return savedStatementSchema.parse(await (await authenticatedFetch(`/api/statements/imports/${id}/`, token, { signal })).json());
+}
+export async function listStatementRows(token: string, id: string, filters: Record<string, string>, offset = 0, signal?: AbortSignal): Promise<StatementRowPage> {
+  const query = new URLSearchParams({ limit: "50", offset: String(offset) }); Object.entries(filters).forEach(([key, value]) => { if (value) query.set(key, value); });
+  return statementRowPageSchema.parse(await (await authenticatedFetch(`/api/statements/imports/${id}/rows/?${query}`, token, { signal })).json());
+}
+export async function getStatementRow(token: string, id: string, signal?: AbortSignal): Promise<SavedStatementRow> {
+  return savedStatementRowSchema.parse(await (await authenticatedFetch(`/api/statements/rows/${id}/`, token, { signal })).json());
+}
+export async function updateStatementRow(token: string, id: string, input: StatementRowEdit): Promise<SavedStatementRow> {
+  return savedStatementRowSchema.parse(await (await authenticatedFetch(`/api/statements/rows/${id}/`, token, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })).json());
+}
+export async function decideStatementRow(token: string, id: string, input: StatementDecision): Promise<SavedStatementRow> {
+  return savedStatementRowSchema.parse(await (await authenticatedFetch(`/api/statements/rows/${id}/decide/`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })).json());
+}
+export async function approveNewStatementRows(token: string, id: string, rows: { id: string; version: number }[]) {
+  const response = await authenticatedFetch(`/api/statements/imports/${id}/approve_new/`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows }) });
+  return z.object({ added: z.number(), unchanged: z.number(), unresolved: z.array(z.object({ id: z.string(), reason: z.string() })) }).parse(await response.json());
+}
+export async function listTransactionStatementEvidence(token: string, id: string, signal?: AbortSignal): Promise<SavedStatementRow[]> {
+  return z.array(savedStatementRowSchema).parse(await (await authenticatedFetch(`/api/transactions/${id}/statement-evidence/`, token, { signal })).json());
 }

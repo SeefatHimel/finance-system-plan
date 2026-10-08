@@ -186,9 +186,11 @@ Backend:
 
 - CSV/Excel export. Started with authenticated filtered transaction CSV export.
 - Import tools from existing spreadsheet
-- Statement PDF import. Started with read-only upload/extraction previews for
+- Statement PDF import. Delivered saved upload/extraction reviews for
   EBL bank, City Bank savings, and bKash digital profiles and reconciliation.
-  Persistent review, cross-source evidence matching, and posting remain planned. See [the detailed plan](statement-pdf-import-plan.md).
+  Persistent review, cross-source evidence matching, explicit posting/linking, history
+  and retry protection are implemented; OCR and card billing layouts remain
+  planned. See [the detailed plan](statement-pdf-import-plan.md).
 - Audit log. Started with transaction create/update/delete history and a
   read-only API.
 - Backup/restore support. Started with local PostgreSQL dump, guarded restore,

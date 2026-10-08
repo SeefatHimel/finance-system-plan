@@ -540,13 +540,17 @@ Other linked reports are read-only here.
 
 ## Can users upload bank and wallet statement PDFs?
 
-The Statements page supports authenticated, read-only previews for the initial
-EBL bank, City Bank savings, and bKash digital layouts. It shows extracted rows
-and reconciliation checks, filters by search/direction/validation issues, and
-paginates without rendering every row at once. Toasts complement inline errors.
+Yes. Statements saves supported digital BDT imports and resumes them from history.
+Review filters apply across all rows before pagination. The viewport-centered row
+editor shows original masked evidence beside all editable draft details. Saving
+refreshes matches; linking preserves one existing ledger entry, while adding
+despite suggestions asks for separate-movement confirmation. Bulk approval only
+posts validated new visible rows and reports unresolved items. Toasts complement
+readable errors and stale-version reload recovery; reload clears the obsolete
+error toast. Wallet fees have separate rows.
 
-The cookie proxy forwards multipart bodies with size guards and normal session
-refresh. Passwords are cleared on submission and never stored. Abort/stale-result
-guards prevent cancelled uploads or changed account/file selections from showing
-an obsolete preview. Approval, source matching, and ledger imports are still
-planned; the UI clearly states that preview adds no transactions.
+The cookie proxy keeps auth refresh and upload limits. Passwords clear on submit;
+cancelled responses cannot overwrite the UI. A cancelled server upload may save
+a draft but never posts. Resolved drafts require unlink/reopen before editing;
+ledger corrections remain in Transactions, with original statement rows available
+on demand. Scans/card billing layouts and automatic posting remain unsupported.

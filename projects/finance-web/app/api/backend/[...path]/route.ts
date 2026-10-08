@@ -25,7 +25,7 @@ async function proxyBackendRequest(request: NextRequest, context: RouteContext) 
 
   try {
     const session = await getCookieBackedAccessToken();
-    const isStatementUpload = context.params.path.join("/") === "api/statements/preview";
+    const isStatementUpload = ["api/statements/preview", "api/statements/imports"].includes(context.params.path.join("/")) && request.method === "POST";
     const requestBody = request.method === "GET" || request.method === "HEAD" ? undefined
       : isStatementUpload ? await readStatementBody(request) : await request.arrayBuffer();
     const response = await fetchBackend(request, context.params.path, session.accessToken, requestBody);

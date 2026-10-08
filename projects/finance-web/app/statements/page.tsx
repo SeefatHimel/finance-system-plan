@@ -1,5 +1,5 @@
-import { StatementPreviewWorkspace } from "@/components/statement-preview-workspace";
+import { StatementImportWorkspace } from "@/components/statement-import-workspace";
 
-export default function StatementsPage() {
-  return <main className="main"><StatementPreviewWorkspace /></main>;
+export default function StatementsPage({ searchParams }: { searchParams: { import?: string } }) {
+  return <main className="main"><StatementImportWorkspace initialImportId={searchParams.import} /></main>;
 }

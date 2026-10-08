@@ -490,28 +490,39 @@ linked observations remain read-only. Explicitly blanking the field persists a
 clear and is not restored on later updates. These rules also apply to manual Add
 transaction and SMS review. The API enforces the same account ownership rule.
 
-## Statement PDF Previews
+## Statement PDF Imports
 
-The authenticated `/statements` page is available from the sidebar. Choose an
-active BDT bank/savings/wallet account, upload an EBL bank, City Bank savings, or
-bKash digital statement, and optionally provide its unlock password. Preview
-shows the printed period and masked account hint, extracted date/time and value
-dates, descriptions/references, principal, signed fee, reported balance, and
-row/summary validation. Filters cover search, direction, and rows needing
-correction; results paginate in groups of 50 and remain horizontally scrollable
-inside the table on phones.
+The authenticated `/statements` page accepts supported BDT bank/wallet PDFs and
+saves review drafts. Uploading does not post transactions. Choose the reporting
+account, upload a PDF, inspect original checks, then review rows individually or
+explicitly approve validated new rows on the visible page (maximum 50).
 
-This first delivery is read-only: it has no Add/Approve controls, persistent
-import history, matching, or row editing. No ledger records are created. Scanned
-and credit-card statements are unsupported. The page explains this limit before
-upload, preserves readable inline errors, and announces success/errors through
-the existing toast system.
+Saved import history preserves corrections and decisions across navigation and
+same-file retries. Filters cover review state, search, debit/credit, type,
+category and dates across the entire batch; results paginate in groups of 50.
+Search/filter requests are debounced and stale responses aborted. Row actions
+wait for the displayed filters to finish loading. Tables scroll within their
+container on phones.
 
-Uploads use multipart through the existing cookie-backed proxy, retaining auth
-refresh and session-expiry behavior. Client, proxy, and API reject oversized
-PDFs; the file limit is 4 MiB (proxy allowance: 64 KiB for multipart metadata).
-The password field is cleared on submission and is never written to browser
-storage. Cancel/unmount aborts the client request and prevents stale preview
-updates; the server worker may continue until its independent 20-second limit.
-Navigation remains available while extraction runs. Changing account/file clears
-the preceding preview so it cannot be mistaken for the new selection.
+The viewport-centered row editor shows immutable masked extraction alongside
+editable date/time/value date, type/direction, other owned account, category,
+amount, reported balance, reference, counterparty and note. Category/type changes
+reuse the existing confirmation flow and preserve reported balance, including
+zero. Save draft changes before accepting a match or adding. Possible matches
+show their evidence; accepting counts one existing movement and preserves its
+corrections. Adding despite suggestions requires a separate-movement confirmation.
+Source discrepancies and balance conflicts require acknowledgement. Inline wallet
+fees have independent review rows.
+
+Resolved rows can be reopened (skipped) or unlinked; unlinking leaves the ledger
+entry. Make ledger corrections in Transactions, where linked original statement
+rows load on demand. Readable inline errors and toasts include reload recovery
+for stale versions. Reloading dismisses the obsolete error notification. Bulk approval reports added/unchanged/unresolved counts and
+checks matches again on the server.
+
+Multipart uploads use the cookie proxy with session refresh and body limits.
+Passwords clear on submission and are never stored in the browser. Cancellation
+aborts the response; a server draft may still finish and appear in history, but
+upload never posts. Limits are 4 MiB, 30 pages and supported digital layouts;
+scans and credit-card billing statements remain unsupported. Original PDFs and
+passwords are discarded; masked rows are retained as evidence.

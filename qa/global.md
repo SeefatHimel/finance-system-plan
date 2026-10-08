@@ -16,20 +16,14 @@ monthly reports, reconciliation, and eventually product-level features.
 
 ## Can statement PDFs be imported alongside SMS transactions?
 
-Read-only statement previews are implemented; ledger import is still planned.
-Private sample inspection established that
-EBL bank, City Bank savings, and bKash digital statements can be extracted using
-provider-specific column positions, even when generic table detection fails.
-The preview API normalizes statement rows and checks balances/provider totals.
-A later evidence/review layer will suggest links to SMS/manual entries before
-posting new rows.
-An accepted match adds evidence to one ledger movement and preserves user edits.
-
-The design must exclude opening/closing balances and summary rows, preserve
-posting/value dates, handle inline wallet charges and separately posted bank
-fees, and retain genuine reversals and repeated purchases. References are not
-unique identities. Credit-card statement layouts still need separate validation.
-See [the statement PDF import plan](../docs/statement-pdf-import-plan.md).
+Yes. Supported EBL bank, City Bank savings and bKash digital PDFs save masked
+review drafts. Accepting a suggested SMS/manual match attaches evidence to one
+ledger movement and preserves its edits. New rows require explicit individual or
+bulk approval; upload never posts. Same-file retries resume decisions, overlapping
+files suggest existing movements, and source fingerprints are never unique keys.
+Opening/summary balances are excluded; wallet fees are independent review rows.
+Reversals and genuine repeats remain separate. Scans/card billing layouts and
+automatic posting remain future work. See [the import plan](../docs/statement-pdf-import-plan.md).
 
 ## What problem does it solve?
 

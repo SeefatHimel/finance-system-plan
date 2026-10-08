@@ -2893,7 +2893,22 @@ textarea {
 .statement-table { width: 100%; min-width: 950px; border-collapse: collapse; }
 .statement-table th, .statement-table td { padding: 0.85rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--panel-border); }
 .statement-table td:nth-child(3) { min-width: 200px; max-width: 360px; overflow-wrap: anywhere; }
-.statement-table td:nth-child(2), .statement-table td:nth-child(5), .statement-table td:nth-child(6), .statement-table td:nth-child(7) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.statement-table td:nth-child(2), .statement-table td:nth-child(5), .statement-table td:nth-child(6) { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .statement-checks, .statement-warnings { padding-left: 1.4rem; line-height: 1.7; }
 .statement-error { color: #ff7c87; }
 @media (max-width: 620px) { .statement-preview .form-grid { grid-template-columns: minmax(0, 1fr); } }
+.statement-preview .form-grid > .field { align-self: start; }
+.statement-history { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); margin: 20px 0; }
+.statement-history-item { display: flex; flex-direction: column; gap: 8px; text-align: left; border: 1px solid var(--panel-border); border-radius: 10px; padding: 16px; background: #0a1724; color: var(--foreground); cursor: pointer; overflow-wrap: anywhere; }
+.statement-history-item small { color: var(--muted); }
+.statement-history-item:hover, .statement-history-item--active { border-color: var(--accent); }
+.statement-date-range { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.statement-row-body { padding: 24px; overflow-y: auto; min-height: 0; }
+.statement-edit-fields { border: 0; padding: 0; margin: 20px 0; display: grid; gap: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
+.statement-edit-fields .field--wide { grid-column: 1 / -1; }
+.statement-row-body .statement-actions { margin-top: 20px; }
+.statement-evidence-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.statement-row-dialog .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+@media (max-width: 620px) { .statement-edit-fields { grid-template-columns: minmax(0, 1fr); } .statement-row-body { padding: 18px; } }
+.statement-filter-grid { margin-bottom: 16px; }
+.statement-table-wrap + .statement-actions { margin-top: 16px; }

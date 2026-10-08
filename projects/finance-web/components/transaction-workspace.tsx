@@ -35,6 +35,7 @@ import { TransferMatchDialog } from "@/components/transfer-match-dialog";
 import { getAccessToken } from "@/lib/auth-storage";
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
 import { TransactionSourceMessages } from "@/components/transaction-source-messages";
+import { TransactionStatementEvidence } from "@/components/transaction-statement-evidence";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
 import { balanceAfterAccountChange, balanceReportingAccount, editableReportedBalance } from "@/lib/transaction-balances";
@@ -630,11 +631,13 @@ export function TransactionWorkspace() {
   const editingTransaction = loadState.transactions.find((item) => item.id === editingTransactionId);
   const primaryBalanceReport = editingTransaction?.transfer_evidence.find((item) => item.is_primary);
   const balanceAccountId = balanceReportingAccount({ type: editingType, account: editingAccountId, transfer_account: editingTransferAccountId }, primaryBalanceReport?.direction);
-  const requiresLinkedCorrection = Boolean(editingTransaction && editingTransaction.transfer_evidence.length > 1 &&
-    (editingTransaction.type === "transfer" || editingType === "transfer") && (
+  const requiresLinkedCorrection = Boolean(editingTransaction && (
+    editingTransaction.statement_evidence_count > 0 || (editingTransaction.transfer_evidence.length > 1 &&
+    (editingTransaction.type === "transfer" || editingType === "transfer"))) && (
       editingTransaction.type !== editingType || editingTransaction.account !== editingAccountId ||
       editingTransaction.transfer_account !== (editingType === "transfer" ? editingTransferAccountId || null : null) ||
-      Number(editingTransaction.amount) !== Number(editingAmount)
+      Number(editingTransaction.amount) !== Number(editingAmount) ||
+      (editingTransaction.statement_evidence_count > 0 && editingTransaction.direction !== editingDirection)
     ));
 
   return (
@@ -782,6 +785,7 @@ export function TransactionWorkspace() {
 
           {editorMode === "edit" ? <form className="transaction-form drawer-form" onSubmit={handleUpdate}>
             <TransactionSourceMessages key={editingTransactionId} transactionId={editingTransactionId} />
+            {editingTransaction?.statement_evidence_count ? <TransactionStatementEvidence key={`statement-${editingTransactionId}`} transactionId={editingTransactionId} /> : null}
             <label className="field">
               <span className="field__label">Date</span>
               <input
@@ -989,7 +993,7 @@ export function TransactionWorkspace() {
               </div>
             </fieldset>
             <label className="review-remember field--wide"><input checked={editingNeedsReview} onChange={(event) => setEditingNeedsReview(event.target.checked)} type="checkbox" /><span><strong>Needs review</strong><small>Keep this ledger entry marked for further checking.</small></span></label>
-            {requiresLinkedCorrection ? <label className="review-remember field--wide"><input checked={allowLinkedCorrection} onChange={(event) => setAllowLinkedCorrection(event.target.checked)} required type="checkbox" /><span><strong>I reviewed the linked messages and confirm this ledger correction</strong><small>Account changes remap observations by debit/credit side and clear old reported balances. Changing type keeps the linked messages as history. Original SMS stays unchanged.</small></span></label> : null}
+            {requiresLinkedCorrection ? <label className="review-remember field--wide"><input checked={allowLinkedCorrection} onChange={(event) => setAllowLinkedCorrection(event.target.checked)} required type="checkbox" /><span><strong>I reviewed the linked evidence and confirm this ledger correction</strong><small>Account changes remap transfer observations by debit/credit side and clear old reported balances. Original SMS and statement snapshots stay unchanged as history.</small></span></label> : null}
             <button className="button button--ghost field--wide" disabled={isUpdating || (requiresLinkedCorrection && !allowLinkedCorrection)} type="submit">
               {isUpdating ? <ButtonBusy label="Updating" /> : "Update transaction"}
             </button>

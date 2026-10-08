@@ -2,10 +2,10 @@
 
 Last updated: 2026-10-08
 
-Status: first read-only upload/extraction/validation preview implemented. The
-web Statements page and `POST /api/statements/preview/` support the initial BDT
-digital layouts. Durable import evidence, matching, correction/approval, and
-ledger posting remain planned; `source=import` alone does not implement them.
+Status: saved imports, matching, editable review, explicit posting/linking,
+import history, bulk approval and retry protection implemented for the initial
+BDT digital layouts. The preview endpoint remains stateless. OCR, credit-card
+billing layouts and automatic posting remain future work.
 
 ## Evidence And Initial Scope
 
@@ -85,11 +85,11 @@ a reconciliation identity when the profile establishes compatible semantics.
 
 ## Statement Evidence And Matching
 
-Proposed backend concepts:
+Delivered backend concepts:
 
 - `StatementImport`: user, reporting account, file digest, detected profile and
-  parser version, period, currency, job status, summary checks, and retention
-  metadata. Processing is separate from ledger posting.
+  parser version, period, currency, summary checks and timestamps. Masked extraction is retained;
+  original PDFs and passwords are discarded. Processing is separate from posting.
 - `StatementRow`: stable source identity, page/row locations, normalized values,
   validation results, review decision, and optional ledger/evidence links.
 - Fee/adjustment components: preserve separately posted fee rows and inline
@@ -103,8 +103,9 @@ and date semantics all contribute. A unique corroborated reference is stronger
 than merchant similarity; date/amount proximity alone is insufficient.
 
 Use posting/value dates as extra matching evidence without overwriting an
-existing SMS transaction's date or user corrections. Date windows are
-provider-specific and measured against fixtures, not a blanket large window.
+existing SMS transaction's date or user corrections. The current window is three days; changing it requires fixture evidence.
+Previously linked identical source values also surface corrected ledger entries
+outside that window and require draft correction before linking.
 
 An accepted existing-transaction match attaches the statement evidence to the
 ledger record instead of posting another movement. Preserve its category,
@@ -120,8 +121,8 @@ ownership. A fee is an additional expense even when linked to that transfer,
 and must affect the ledger exactly once.
 
 Retries of the same file/row must be idempotent under database constraints and
-atomic posting. The constraint must include user/account scope. Re-parsing
-creates a reviewable extraction revision and preserves accepted ledger links.
+atomic posting. The constraint must include user/account scope. Exact-file retries reopen the original extraction and preserve accepted links.
+Extraction revisions/re-parsing saved imports remain future work.
 Overlapping statements and unlocked/re-exported copies can have different file
 digests: compare source observations across batches and propose matches rather
 than relying on file hashes alone. Do not collapse genuine repeat purchases or
@@ -131,7 +132,7 @@ principal/fee components sharing a reference.
 
 `Upload -> Account/layout check -> Extract -> Validate -> Match -> Review -> Post/link`
 
-The web app should show:
+The web app shows:
 
 - Extraction progress without blocking navigation.
 - Statement period/account, parsed row count, summary reconciliation, and gaps.
@@ -152,13 +153,18 @@ links; AI confidence alone never authorizes a money movement or merge.
 
 ## Current Delivery Limits
 
-The first delivery is a stateless preview: no database migrations, persisted
-import batch, ledger writes, OCR, or approval controls. Passwords/files are not
-retained. Limits are 4 MiB, 30 pages, 2000 rows, 10 previews/hour/user, and a
-20-second isolated worker timeout. Accounts must be owned, active, BDT, and
-compatible with the detected bank/wallet profile. The UI includes search,
-direction/issue filters, pagination, cancellation, inline errors, and toasts.
-The worker may finish after client cancellation, but can never post.
+Saved imports require `statements.0001_initial`. The selected reporting account
+is fixed for a saved batch; remapping needs a new upload for the correct account.
+Original PDFs/passwords are not retained, so source viewing exposes masked row
+extraction/page provenance, not the PDF itself. Original checks are not rewritten
+by draft edits. No OCR, saved extraction revisions, background queue, or automatic
+posting is delivered. Limits: 4 MiB, 30 pages, 2000 source rows, 10 uploads/hour/user,
+20-second worker timeout. Saved review components can double for inline fees.
+Bulk approval handles up to 50 visible rows; matches and discrepancies require
+individual review. History queries are bounded; truncated matching blocks posting.
+The worker may finish after client cancellation and save a draft, but cannot post.
+
+The initial extraction and review delivery (steps 1–3 below) is complete.
 
 ## Delivery Sequence And Acceptance Checks
 

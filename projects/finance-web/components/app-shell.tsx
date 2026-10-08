@@ -41,7 +41,7 @@ const navItems: NavItem[] = [
   { href: "/transactions", icon: ListBullets, label: "Transactions", subtitle: "Record, review, and export money movement", title: "Transactions" },
   { href: "/accounts", icon: CreditCard, label: "Accounts", subtitle: "Manage accounts and transaction categories", title: "Accounts & categories" },
   { href: "/messages/review", icon: ChatCenteredText, label: "SMS review", subtitle: "Review parsed messages before they enter your ledger", title: "SMS review" },
-  { href: "/statements", icon: FileText, label: "Statements", subtitle: "Preview statement rows and verify balances", title: "Statement PDFs" },
+  { href: "/statements", icon: FileText, label: "Statements", subtitle: "Review statement imports, matches, and ledger evidence", title: "Statement PDFs" },
   { href: "/sms-settings", icon: GearSix, label: "SMS settings", subtitle: "Configure payment methods and sender rules", title: "SMS settings" },
   { href: "/reports", icon: ChartBar, label: "Reports", subtitle: "Understand monthly income, expenses, and net movement", title: "Monthly reports" },
   { href: "/debts", icon: PlusCircle, label: "Debts", subtitle: "Track money borrowed, lent, and repaid", title: "Debts & lending" },
