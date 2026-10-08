@@ -366,6 +366,21 @@ not promote entries. It uses the same all-month default, remaining filters and
 URL persistence as Recently added. This is a latest-first view, with no fixed
 lookback period. CSV export retains chronological order.
 
+Month arrows and the month input update immediately and stay usable while data
+loads. A 250 ms debounce combines rapid month changes into one transaction
+request. Each new selection cancels queued/in-flight work; a request-generation
+guard also prevents late responses or errors from replacing the latest selection.
+Apply filters, Clear and ordering switches load immediately and cancel a pending
+month request. Previous results remain visible with their original ordering and
+a loading message identifying the requested and displayed month. A failed
+refresh preserves those results and offers Retry loading transactions. Initial
+loads still use the page loading/error state.
+
+Navigation reuses the workspace's account, category and payment-method lists;
+only transactions are fetched again. Initial loads and successful transaction
+mutations refresh all four lists so account balances stay current. This reuse is
+limited to the mounted workspace, with no persistent transaction cache.
+
 ## Original SMS in the Transaction Editor
 
 Edit transaction opens an expanded Original SMS section above the fields.

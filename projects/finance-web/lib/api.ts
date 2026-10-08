@@ -760,8 +760,8 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
   return response;
 }
 
-export async function listAccounts(accessToken: string): Promise<Account[]> {
-  const response = await authenticatedFetch("/api/accounts/", accessToken);
+export async function listAccounts(accessToken: string, signal?: AbortSignal): Promise<Account[]> {
+  const response = await authenticatedFetch("/api/accounts/", accessToken, { signal });
   return collectionSchema(accountSchema).parse(await response.json());
 }
 
@@ -811,8 +811,8 @@ export async function updateAccount(
   return accountSchema.parse(await response.json());
 }
 
-export async function listCategories(accessToken: string): Promise<Category[]> {
-  const response = await authenticatedFetch("/api/categories/", accessToken);
+export async function listCategories(accessToken: string, signal?: AbortSignal): Promise<Category[]> {
+  const response = await authenticatedFetch("/api/categories/", accessToken, { signal });
   return collectionSchema(categorySchema).parse(await response.json());
 }
 
@@ -852,8 +852,8 @@ export async function updateCategory(
   return categorySchema.parse(await response.json());
 }
 
-export async function listPaymentMethods(accessToken: string): Promise<PaymentMethod[]> {
-  const response = await authenticatedFetch("/api/payment-methods/", accessToken);
+export async function listPaymentMethods(accessToken: string, signal?: AbortSignal): Promise<PaymentMethod[]> {
+  const response = await authenticatedFetch("/api/payment-methods/", accessToken, { signal });
   return collectionSchema(paymentMethodSchema).parse(await response.json());
 }
 
@@ -1066,7 +1066,8 @@ export async function listTransactionSourceMessages(accessToken: string, id: str
 
 export async function listTransactions(
   accessToken: string,
-  filters: TransactionFilters = {}
+  filters: TransactionFilters = {},
+  signal?: AbortSignal
 ): Promise<Transaction[]> {
   const params = new URLSearchParams();
 
@@ -1078,7 +1079,7 @@ export async function listTransactions(
 
   const query = params.toString();
   const path = query ? `/api/transactions/?${query}` : "/api/transactions/";
-  const response = await authenticatedFetch(path, accessToken);
+  const response = await authenticatedFetch(path, accessToken, { signal });
   return collectionSchema(transactionSchema).parse(await response.json());
 }
 

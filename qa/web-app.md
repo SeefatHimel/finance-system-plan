@@ -437,6 +437,24 @@ including new entries, edits, newly linked transfer evidence and merges. It also
 opens all months and preserves filters on reload, with no fixed lookback period.
 Reading an entry or retrying an accepted transfer link does not promote it.
 
+## Why does navigating several months remain responsive on a slow connection?
+
+The selected month changes immediately; controls remain enabled during loading.
+A 250 ms debounce combines rapid navigation into one transaction request. A new
+selection cancels pending work and aborts the old request immediately, while a
+generation guard prevents an outdated response, error or finalizer from changing
+the newest state. Explicit filter application, Clear and ordering switches load
+immediately and cancel any queued month navigation. Unmounting cancels the work.
+
+The table keeps the last successful results, labels the requested and displayed
+month while loading, and preserves their ordering labels until replacement data
+arrives. A failed refresh keeps the table and offers Retry. Navigation fetches
+transactions only, reusing account/category/payment-method data in the mounted
+workspace. Initial loads and successful mutations refresh all lists, including
+account balances. There is no persistent cache. Regression tests cover rapid
+clicks, queued cancellation and late responses/finalizers; browser checks cover
+delayed responses, navigation during a request and failure/retry.
+
 ## Can rejection teach the app to skip advertisements?
 
 Yes, for recognized non-transaction types. The Apply to menu can save a skip for

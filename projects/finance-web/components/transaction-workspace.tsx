@@ -5,7 +5,7 @@ import { useFeedbackMessage } from "@/components/toast-provider";
 import { CalendarBlank, CaretLeft, CaretRight, Plus, SlidersHorizontal, X } from "@phosphor-icons/react";
 import type React from "react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   type Account,
@@ -38,6 +38,7 @@ import { TransactionSourceMessages } from "@/components/transaction-source-messa
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
 import { editableReportedBalance } from "@/lib/transaction-balances";
+import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
 
 type LoadState =
   | { status: "loading" }
@@ -120,7 +121,7 @@ const moneyFormatter = new Intl.NumberFormat("en-BD", {
 const activityTimeFormatter = new Intl.DateTimeFormat("en-BD", { dateStyle: "medium", timeStyle: "short" });
 
 export function TransactionWorkspace() {
-  const [filters, setFilters] = useState<TransactionFilterState>({
+  const [filters, setFilterState] = useState<TransactionFilterState>({
     account: "",
     category: "",
     direction: "",
@@ -130,6 +131,16 @@ export function TransactionWorkspace() {
     source: "",
     type: ""
   });
+  const filtersRef = useRef(filters);
+  const setFilters = useCallback((next: TransactionFilterState) => {
+    filtersRef.current = next;
+    setFilterState(next);
+  }, []);
+  const dataRequests = useRef(new LatestRequest());
+  const readyData = useRef<Extract<LoadState, { status: "ready" }> | null>(null);
+  const [displayedFilters, setDisplayedFilters] = useState(filters);
+  const [requestedFilters, setRequestedFilters] = useState(filters);
+  const [refreshError, setRefreshError] = useFeedbackMessage("error");
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [transferDecision, setTransferDecision] = useState<{ input: CreateTransactionInput; matches: TransferMatch[]; mergeId?: string } | null>(null);
   const [matchError, setMatchError] = useFeedbackMessage("error");
@@ -166,7 +177,7 @@ export function TransactionWorkspace() {
   const [editingSource, setEditingSource] = useState<TransactionSource>("web");
   const [editingNeedsReview, setEditingNeedsReview] = useState(false);
   const [allowLinkedCorrection, setAllowLinkedCorrection] = useState(false);
-  const [isMonthLoading, setIsMonthLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<TransactionColumn[]>(defaultTransactionColumns);
   const categoryChoice = useCategoryTypeChoice(loadState.status === "ready" ? loadState.categories : []);
 
@@ -187,43 +198,51 @@ export function TransactionWorkspace() {
     setAllowLinkedCorrection(false);
   }
 
-  async function loadData(activeFilters = filters, showLoading = true) {
-    const accessToken = getAccessToken();
+  const markPending = useCallback((activeFilters: TransactionFilterState) => {
+    setRequestedFilters(activeFilters);
+    setRefreshError(null);
+    setIsRefreshing(true);
+  }, [setRefreshError]);
 
+  const requestData = useCallback(async (activeFilters: TransactionFilterState, refreshLookups: boolean, ticket: RequestTicket) => {
+    const accessToken = getAccessToken();
     if (!accessToken) {
-      setLoadState({ message: "Sign in before managing transactions.", status: "error" });
+      if (ticket.isCurrent()) {
+        setLoadState({ message: "Sign in before managing transactions.", status: "error" });
+        setIsRefreshing(false);
+      }
       return;
     }
-
-    if (showLoading) {
-      setLoadState({ status: "loading" });
-    }
-
+    if (!readyData.current) setLoadState({ status: "loading" });
     try {
-      const [accounts, categories, transactions, paymentMethods] = await Promise.all([
-        listAccounts(accessToken),
-        listCategories(accessToken),
-        listTransactions(accessToken, activeFilters),
-        listPaymentMethods(accessToken)
-      ]);
-
-      setLoadState({ accounts, categories, paymentMethods, status: "ready", transactions });
+      const previous = readyData.current;
+      const next: Extract<LoadState, { status: "ready" }> = previous && !refreshLookups
+        ? { ...previous, transactions: await listTransactions(accessToken, activeFilters, ticket.signal) }
+        : await Promise.all([
+            listAccounts(accessToken, ticket.signal), listCategories(accessToken, ticket.signal),
+            listTransactions(accessToken, activeFilters, ticket.signal), listPaymentMethods(accessToken, ticket.signal)
+          ]).then(([accounts, categories, transactions, paymentMethods]) => ({ accounts, categories, transactions, paymentMethods, status: "ready" as const }));
+      if (!ticket.isCurrent()) return;
+      readyData.current = next;
+      setLoadState(next);
+      setDisplayedFilters(activeFilters);
     } catch (error) {
-      setLoadState({
-        message: error instanceof Error ? error.message : "Could not load transactions.",
-        status: "error"
-      });
+      if (!ticket.isCurrent()) return;
+      const message = error instanceof Error ? error.message : "Could not load transactions.";
+      if (readyData.current) setRefreshError(message);
+      else setLoadState({ message, status: "error" });
+    } finally {
+      if (ticket.isCurrent()) setIsRefreshing(false);
     }
-  }
+  }, [setRefreshError]);
+
+  const loadData = useCallback((activeFilters = filtersRef.current, refreshLookups = true) => {
+    markPending(activeFilters);
+    return dataRequests.current.run((ticket) => requestData(activeFilters, refreshLookups, ticket));
+  }, [markPending, requestData]);
 
   useEffect(() => {
-    const accessToken = getAccessToken();
-
-    if (!accessToken) {
-      setLoadState({ message: "Sign in before managing transactions.", status: "error" });
-      return;
-    }
-
+    const requests = dataRequests.current;
     const searchParams = new URLSearchParams(window.location.search);
     const requestedSearch = searchParams.get("search")?.trim() ?? "";
     const requestedOrdering = searchParams.get("ordering");
@@ -238,26 +257,10 @@ export function TransactionWorkspace() {
       source: (searchParams.get("source") ?? "") as TransactionFilterState["source"],
       type: (searchParams.get("type") ?? "") as TransactionFilterState["type"]
     };
-
     setFilters(requestedFilters);
-    setLoadState({ status: "loading" });
-
-    void Promise.all([
-      listAccounts(accessToken),
-      listCategories(accessToken),
-      listTransactions(accessToken, requestedFilters),
-      listPaymentMethods(accessToken)
-    ])
-      .then(([accounts, categories, transactions, paymentMethods]) => {
-        setLoadState({ accounts, categories, paymentMethods, status: "ready", transactions });
-      })
-      .catch((error) => {
-        setLoadState({
-          message: error instanceof Error ? error.message : "Could not load transactions.",
-          status: "error"
-        });
-      });
-  }, []);
+    void loadData(requestedFilters);
+    return () => requests.cancel();
+  }, [loadData, setFilters]);
 
   useEffect(() => {
     try {
@@ -277,8 +280,8 @@ export function TransactionWorkspace() {
 
   function handleFilterSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    applyFilterUrl(filters);
-    void loadData(filters);
+    applyFilterUrl(filtersRef.current);
+    void loadData(filtersRef.current, false);
   }
 
   function applyFilterUrl(nextFilters: TransactionFilterState) {
@@ -290,25 +293,21 @@ export function TransactionWorkspace() {
     window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params.toString()}` : ""}`);
   }
 
-  async function selectMonth(month: string) {
-    const nextFilters = { ...filters, month };
+  function selectMonth(selection: string | number) {
+    const current = filtersRef.current;
+    const month = typeof selection === "number" ? shiftMonth(current.month, selection) : selection;
+    const nextFilters = { ...current, month };
     setFilters(nextFilters);
     applyFilterUrl(nextFilters);
-    setIsMonthLoading(true);
-    try {
-      await loadData(nextFilters, false);
-    } finally {
-      setIsMonthLoading(false);
-    }
+    markPending(nextFilters);
+    dataRequests.current.schedule((ticket) => { void requestData(nextFilters, false, ticket); }, 250);
   }
 
-  async function selectOrdering(ordering: TransactionFilterState["ordering"]) {
-    const nextFilters = { ...filters, ordering, month: ordering !== "-date" ? "" : currentMonth() };
+  function selectOrdering(ordering: TransactionFilterState["ordering"]) {
+    const nextFilters = { ...filtersRef.current, ordering, month: ordering !== "-date" ? "" : currentMonth() };
     setFilters(nextFilters);
     applyFilterUrl(nextFilters);
-    setIsMonthLoading(true);
-    try { await loadData(nextFilters, false); }
-    finally { setIsMonthLoading(false); }
+    void loadData(nextFilters, false);
   }
 
   function toggleColumn(column: TransactionColumn) {
@@ -328,14 +327,14 @@ export function TransactionWorkspace() {
       category: "",
       direction: "",
       month: "",
-      ordering: filters.ordering,
+      ordering: filtersRef.current.ordering,
       search: "",
       source: "",
       type: ""
     };
     setFilters(clearedFilters);
     applyFilterUrl(clearedFilters);
-    void loadData(clearedFilters);
+    void loadData(clearedFilters, false);
   }
 
   async function handleExportTransactions() {
@@ -417,7 +416,7 @@ export function TransactionWorkspace() {
       }
       await createTransaction(accessToken, input);
       form.reset();
-      await loadData(filters, false);
+      await loadData(filters);
       setEditorMode(null);
       setFormMessage("Transaction saved.");
     } catch (error) {
@@ -442,7 +441,7 @@ export function TransactionWorkspace() {
       }
       setTransferDecision(null);
       setEditorMode(null);
-      await loadData(filters, false);
+      await loadData(filters);
       setFormMessage(match ? "Transfer linked. Both accounts show one movement." : "Transfer kept separate.");
     } catch (error) {
       setMatchError(error instanceof Error ? error.message : "Could not link transfer.");
@@ -486,7 +485,7 @@ export function TransactionWorkspace() {
     setDeletingTransactionId(transaction.id);
     try {
       await deleteTransaction(accessToken, transaction.id);
-      await loadData(filters, false);
+      await loadData(filters);
       setFormMessage("Transaction deleted.");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Could not delete transaction.");
@@ -569,7 +568,7 @@ export function TransactionWorkspace() {
         transfer_account: editingType === "transfer" ? editingTransferAccountId || null : null,
         type: editingType
       });
-      await loadData(filters, false);
+      await loadData(filters);
       setEditorMode(null);
       setFormMessage("Transaction updated.");
     } catch (error) {
@@ -1007,26 +1006,25 @@ export function TransactionWorkspace() {
           {formMessage ? <p className="form-success">{formMessage}</p> : null}
 
           <div className="transaction-view-switch" aria-label="Transaction ordering">
-            <button className="button button--ghost" aria-pressed={filters.ordering === "-date"} disabled={isMonthLoading} onClick={() => void selectOrdering("-date")} type="button">By transaction date</button>
-            <button className="button button--ghost" aria-pressed={filters.ordering === "-created_at"} disabled={isMonthLoading} onClick={() => void selectOrdering("-created_at")} type="button">Recently added</button>
-            <button className="button button--ghost" aria-pressed={filters.ordering === "-updated_at"} disabled={isMonthLoading} onClick={() => void selectOrdering("-updated_at")} type="button">Recently updated</button>
+            <button className="button button--ghost" aria-pressed={filters.ordering === "-date"} onClick={() => selectOrdering("-date")} type="button">By transaction date</button>
+            <button className="button button--ghost" aria-pressed={filters.ordering === "-created_at"} onClick={() => selectOrdering("-created_at")} type="button">Recently added</button>
+            <button className="button button--ghost" aria-pressed={filters.ordering === "-updated_at"} onClick={() => selectOrdering("-updated_at")} type="button">Recently updated</button>
           </div>
 
           <form className="filter-form transaction-filter-form" onSubmit={handleFilterSubmit}>
             <div className="field transaction-month-filter">
               <span className="field__label">Month</span>
-              <span className="month-navigator" aria-busy={isMonthLoading}>
-                <button aria-label="Previous month" disabled={isMonthLoading} onClick={() => void selectMonth(shiftMonth(filters.month, -1))} type="button"><CaretLeft aria-hidden="true" size={18} /></button>
+              <span className="month-navigator" aria-busy={isRefreshing}>
+                <button aria-label="Previous month" onClick={() => selectMonth(-1)} type="button"><CaretLeft aria-hidden="true" size={18} /></button>
                 <input
                   className="field__control"
-                  disabled={isMonthLoading}
                   name="month"
                   onChange={(event) => void selectMonth(event.target.value)}
                   type="month"
                   value={filters.month}
                 />
-                <button aria-label="Next month" disabled={isMonthLoading} onClick={() => void selectMonth(shiftMonth(filters.month, 1))} type="button"><CaretRight aria-hidden="true" size={18} /></button>
-                <button aria-label="Current month" className="month-navigator__today" disabled={isMonthLoading || filters.month === currentMonth()} onClick={() => void selectMonth(currentMonth())} title="Current month" type="button"><CalendarBlank aria-hidden="true" size={18} /></button>
+                <button aria-label="Next month" onClick={() => selectMonth(1)} type="button"><CaretRight aria-hidden="true" size={18} /></button>
+                <button aria-label="Current month" className="month-navigator__today" disabled={filters.month === currentMonth()} onClick={() => void selectMonth(currentMonth())} title="Current month" type="button"><CalendarBlank aria-hidden="true" size={18} /></button>
               </span>
             </div>
 
@@ -1153,8 +1151,9 @@ export function TransactionWorkspace() {
 
           <div className="transaction-table-toolbar">
             <div>
-              <p className="section-subtitle">{filters.ordering === "-updated_at" ? "Latest saved changes first, including new entries, edits and linked transfer evidence. Transaction dates may be older." : filters.ordering === "-created_at" ? "Newest ledger additions first. Transaction dates may be older; edits do not change added time." : "Showing records by transaction date from the authenticated backend API."}</p>
-              {isMonthLoading ? <span className="transaction-refresh-state"><ButtonBusy label="Updating transactions" /></span> : null}
+              <p className="section-subtitle">{displayedFilters.ordering === "-updated_at" ? "Latest saved changes first, including new entries, edits and linked transfer evidence. Transaction dates may be older." : displayedFilters.ordering === "-created_at" ? "Newest ledger additions first. Transaction dates may be older; edits do not change added time." : "Showing records by transaction date from the authenticated backend API."}</p>
+              {isRefreshing ? <span className="transaction-refresh-state"><ButtonBusy label={`Loading ${requestedFilters.month || "all months"}. Showing ${displayedFilters.month || "all months"} results until ready.`} /></span> : null}
+              {refreshError ? <div className="transaction-refresh-error" role="alert"><p className="form-error">{refreshError} Showing {displayedFilters.month || "all months"} results.</p><button className="button button--ghost button--small" onClick={() => void loadData(requestedFilters, false)} type="button">Retry loading transactions</button></div> : null}
             </div>
             <details className="column-picker">
               <summary><SlidersHorizontal aria-hidden="true" size={17} />Columns <span>{visibleColumns.length}/{transactionColumns.length}</span></summary>
@@ -1179,12 +1178,12 @@ export function TransactionWorkspace() {
               <p>No transactions yet.</p>
             </div>
           ) : (
-            <div className="table-wrap">
+            <div className="table-wrap" aria-busy={isRefreshing}>
               <table className="data-table">
                 <thead>
                   <tr>
-                    {filters.ordering === "-created_at" ? <th>Added</th> : null}
-                    {filters.ordering === "-updated_at" ? <th>Updated</th> : null}
+                    {displayedFilters.ordering === "-created_at" ? <th>Added</th> : null}
+                    {displayedFilters.ordering === "-updated_at" ? <th>Updated</th> : null}
                     {visibleColumns.includes("date") ? <th>Date</th> : null}
                     {visibleColumns.includes("time") ? <th>Time</th> : null}
                     {visibleColumns.includes("description") ? <th>Description</th> : null}
@@ -1201,7 +1200,7 @@ export function TransactionWorkspace() {
                 <tbody>
                   {loadState.transactions.map((transaction) => (
                     <tr key={transaction.id}>
-                      {filters.ordering !== "-date" ? <td><time dateTime={filters.ordering === "-updated_at" ? transaction.updated_at : transaction.created_at}>{activityTimeFormatter.format(new Date(filters.ordering === "-updated_at" ? transaction.updated_at : transaction.created_at))}</time></td> : null}
+                      {displayedFilters.ordering !== "-date" ? <td><time dateTime={displayedFilters.ordering === "-updated_at" ? transaction.updated_at : transaction.created_at}>{activityTimeFormatter.format(new Date(displayedFilters.ordering === "-updated_at" ? transaction.updated_at : transaction.created_at))}</time></td> : null}
                       {visibleColumns.includes("date") ? <td>{transaction.date}</td> : null}
                       {visibleColumns.includes("time") ? <td>{formatTransactionTime(transaction.time)}</td> : null}
                       {visibleColumns.includes("description") ? <td>
