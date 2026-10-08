@@ -506,3 +506,12 @@ ignored. Connection, permission, missing-item, conflict and throttling messages
 explain the next action. Only confirmed authentication failures end a session.
 `npm run test:workflows` tests formatting, fallback behavior and category/type
 compatibility, alongside `npm run test:auth` for session semantics.
+
+## Why could a reported balance appear blank when editing a matched transfer?
+
+The transaction's main balance can be empty while linked transfer observations
+contain per-account balances. The editor now falls back only to the primary report
+identified by the API, labels its account and lists all saved linked balances.
+Zero is preserved; missing values stay blank rather than borrowing another
+account's balance or the calculated ledger balance. Account/type corrections still
+clear the draft balance. Other linked reports are read-only here.

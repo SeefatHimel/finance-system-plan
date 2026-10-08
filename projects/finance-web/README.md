@@ -455,3 +455,13 @@ clear fallback/retry messages. Server failure bodies are ignored to avoid render
 debug or HTML content. Confirmed 401 responses retain the existing session recovery
 flow; other failures do not sign the user out. `npm run test:workflows` covers error
 formatting, safe fallbacks and category/type compatibility without a running API.
+
+## Loading Reported Balances While Editing
+
+The editor loads the stored transaction balance, including zero. If a transfer's
+main balance is empty, it uses only the primary transfer report identified by the
+API. It never substitutes the opposite account's balance or a calculated ledger
+balance. The field identifies the reporting account, and an expanded Saved transfer
+reported balances section shows each linked account's stored balance separately.
+Missing balances remain blank. Account/type changes continue to clear the draft
+balance. Other linked observations remain read-only in this editor.

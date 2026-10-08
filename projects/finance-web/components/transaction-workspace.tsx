@@ -37,6 +37,7 @@ import { ButtonBusy, LoadingState } from "@/components/loading-state";
 import { TransactionSourceMessages } from "@/components/transaction-source-messages";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
+import { editableReportedBalance } from "@/lib/transaction-balances";
 
 type LoadState =
   | { status: "loading" }
@@ -511,7 +512,7 @@ export function TransactionWorkspace() {
     setEditingTransferAccountId(transaction.transfer_account ?? "");
     setEditingCategoryId(transaction.category ?? "");
     setEditingAmount(transaction.amount);
-    setEditingBalanceAfter(transaction.balance_after ?? "");
+    setEditingBalanceAfter(editableReportedBalance(transaction));
     setEditingReference(transaction.reference);
     setEditingCounterpartyText(transaction.counterparty_text);
     setEditingNote(transaction.note ?? "");
@@ -611,6 +612,8 @@ export function TransactionWorkspace() {
   }
 
   const editingTransaction = loadState.transactions.find((item) => item.id === editingTransactionId);
+  const primaryBalanceReport = editingTransaction?.transfer_evidence.find((item) => item.is_primary);
+  const balanceAccountId = editingType === "transfer" ? (primaryBalanceReport?.direction === "credit" ? editingTransferAccountId : primaryBalanceReport?.direction === "debit" ? editingAccountId : null) : editingAccountId;
   const requiresLinkedCorrection = Boolean(editingTransaction && editingTransaction.transfer_evidence.length > 1 &&
     (editingTransaction.type === "transfer" || editingType === "transfer") && (
       editingTransaction.type !== editingType || editingTransaction.account !== editingAccountId ||
@@ -898,7 +901,14 @@ export function TransactionWorkspace() {
                 type="text"
                 value={editingBalanceAfter}
               />
+              {balanceAccountId ? <small className="field__hint">Reported for {loadState.accounts.find((account) => account.id === balanceAccountId)?.name ?? "this account"}. This is the balance from the report, rather than the calculated ledger balance.</small> : <small className="field__hint">Optional balance from the original report. Linked account balances are shown below.</small>}
             </label>
+
+            {editingTransaction?.type === "transfer" && editingTransaction.transfer_evidence.length ? <details className="raw-message field--wide" open>
+              <summary>Saved transfer reported balances</summary>
+              {editingTransaction.transfer_evidence.map((item) => <p key={item.id}><strong>{loadState.accounts.find((account) => account.id === item.account)?.name ?? "Unknown account"}</strong>: {item.balance_after === null ? "No reported balance" : moneyFormatter.format(Number(item.balance_after))}{item.is_primary ? " · Primary report" : " · Linked report"}</p>)}
+              <p>These are the saved reports for each account. Changing the type or accounts clears the draft balance so an old value is not assigned to another account.</p>
+            </details> : null}
 
             <label className="field">
               <span className="field__label">Reference</span>

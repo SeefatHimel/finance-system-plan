@@ -202,7 +202,7 @@ const smsDeviceStatusSchema = z.object({
 });
 
 const transferEvidenceSchema = z.object({
-  id: z.string(), account: z.string(), raw_message: z.string().nullable(),
+  id: z.string(), account: z.string(), raw_message: z.string().nullable(), is_primary: z.boolean().default(false),
   direction: z.string(), date: z.string(), time: z.string().nullable(),
   balance_after: z.string().nullable(), fee_amount: z.string().nullable(),
   reference: z.string(), provider: z.string(), source: z.string(), note: z.string()

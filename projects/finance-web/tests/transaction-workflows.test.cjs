@@ -5,8 +5,9 @@ const { mkdtempSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const output = mkdtempSync(join(tmpdir(), 'finance-workflows-test-'));
-execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--rootDir', '..', '--outDir', output, 'lib/api-errors.ts', 'lib/category-type.ts'], { cwd: resolve(__dirname, '..') });
+execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--rootDir', '..', '--outDir', output, 'lib/api-errors.ts', 'lib/category-type.ts', 'lib/transaction-balances.ts'], { cwd: resolve(__dirname, '..') });
 const { responseError, fetchWithConnectionError } = require(join(output, 'finance-web/lib/api-errors.js'));
+const { editableReportedBalance } = require(join(output, 'finance-web/lib/transaction-balances.js'));
 const { categoryTypeProposal, directionForType } = require(join(output, 'finance-web/lib/category-type.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
 const error = (body, status = 400) => responseError(new Response(JSON.stringify(body), { status }));
@@ -47,4 +48,15 @@ test('incompatible categories propose a type while debt requires a specific move
   assert.deepEqual(categoryTypeProposal(category('debt'), 'expense').options, ['lend', 'borrow', 'repayment_received', 'repayment_paid']);
   for (const type of ['income','refund','borrow','repayment_received']) assert.equal(directionForType(type), 'credit');
   for (const type of ['expense','fee','transfer','adjustment','lend','repayment_paid']) assert.equal(directionForType(type), 'debit');
+});
+
+test('editing loads stored balances or the primary transfer report, including zero', () => {
+  const record = {type: 'transfer', balance_after: null, transfer_evidence: [
+    {is_primary: false, balance_after: '3000.00'}, {is_primary: true, balance_after: '9000.00'}
+  ]};
+  assert.equal(editableReportedBalance(record), '9000.00');
+  assert.equal(editableReportedBalance({...record, balance_after: '0.00'}), '0.00');
+  assert.equal(editableReportedBalance({...record, type: 'expense'}), '');
+  assert.equal(editableReportedBalance({...record, transfer_evidence: [{is_primary: false, balance_after: '3000.00'}]}), '');
+  assert.equal(editableReportedBalance({...record, transfer_evidence: [{is_primary: true, balance_after: '0.00'}]}), '0.00');
 });
