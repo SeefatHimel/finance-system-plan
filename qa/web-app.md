@@ -480,8 +480,8 @@ proxy preserves the API's private/no-store response header.
 
 Yes. The editor includes existing financial fields plus payment method, source,
 Needs review and four masked sender/receiver identifiers. Methods are filtered
-by account; account changes clear the old method and reported balance. Review
-status is visible in the table. Original SMS and system IDs/timestamps are
+by account; account changes clear the old method. Reported balance clears only
+when its reporting account changes. Review status is visible in the table. Original SMS and system IDs/timestamps are
 read-only; History records ledger corrections.
 
 Transfer direction uses explicit From/To fields and a Reverse action. Changing
@@ -511,9 +511,9 @@ reports. In Add/Edit and SMS review, an incompatible category opens a decision:
 change category and type, keep the current type, or cancel. Compatible fee/expense
 and refund/income choices retain their subtype. Debt categories ask for a specific
 movement; neutral system/empty categories do not infer one. Changes stay in the
-draft until submitted. Type changes clear reported balance and reset direction;
-leaving a transfer clears its other account. Linked corrections still require
-acknowledgement, and explicit SMS reclassification is respected before matching.
+draft until submitted. Type changes reset direction and preserve reported balance
+while its reporting account stays the same; leaving a transfer clears its other
+account. Linked corrections still require acknowledgement, and explicit SMS reclassification is respected before matching.
 
 ## How does the web app make API failures useful to the user?
 
@@ -531,5 +531,9 @@ The transaction's main balance can be empty while linked transfer observations
 contain per-account balances. The editor now falls back only to the primary report
 identified by the API, labels its account and lists all saved linked balances.
 Zero is preserved; missing values stay blank rather than borrowing another
-account's balance or the calculated ledger balance. Account/type corrections still
-clear the draft balance. Other linked reports are read-only here.
+account's balance or the calculated ledger balance. Type/category and ordinary
+corrections preserve this report while its reporting account stays the same.
+Changing the non-reporting side of a transfer also preserves it; changing the
+reporting account clears it with an inline explanation. SMS review and Add follow
+the same rule. Explicit blank input clears the report without later restoration.
+Other linked reports are read-only here.

@@ -33,6 +33,7 @@ import { TransferMatchDialog } from "@/components/transfer-match-dialog";
 import { getAccessToken } from "@/lib/auth-storage";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
+import { balanceAfterAccountChange } from "@/lib/transaction-balances";
 
 type ReviewState =
   | { status: "loading" }
@@ -129,7 +130,7 @@ export function MessageReviewWorkspace() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [rejectDraft, setRejectDraft] = useState<RejectDraft | null>(null);
-  const [classificationDrafts, setClassificationDrafts] = useState<Record<string, { type: TransactionType; category: string; balanceAfter: string }>>({});
+  const [classificationDrafts, setClassificationDrafts] = useState<Record<string, { type: TransactionType; category: string; balanceAfter: string; balanceCleared?: boolean }>>({});
   const categoryChoice = useCategoryTypeChoice(reviewState.status === "ready" ? reviewState.categories : []);
 
   async function loadData(showLoading = true) {
@@ -189,12 +190,18 @@ export function MessageReviewWorkspace() {
   const accountDraft = activeCandidate ? accountDrafts[activeCandidate.id] ?? accountReviewDefaults(activeCandidate) : null;
   function updateAccountDraft(patch: Partial<ReturnType<typeof accountReviewDefaults>>) {
     if (!activeCandidate || !accountDraft) return;
+    if (patch.account !== undefined && classification) {
+      const balanceAfter = balanceAfterAccountChange(classification.balanceAfter, accountDraft.account, patch.account);
+      if (balanceAfter !== classification.balanceAfter) {
+        setClassificationDrafts((current) => ({ ...current, [activeCandidate.id]: { ...classification, balanceAfter, balanceCleared: true } }));
+      }
+    }
     setAccountDrafts((current) => ({ ...current, [activeCandidate.id]: { ...accountDraft, ...patch } }));
   }
   const classification = activeCandidate ? classificationDrafts[activeCandidate.id] ?? { type: activeCandidate.transaction_type as TransactionType, category: activeCandidate.category ?? "", balanceAfter: activeCandidate.balance_after ?? "" } : null;
   function applyClassification(category: string, type: TransactionType) {
     if (!activeCandidate || !classification) return;
-    setClassificationDrafts((current) => ({ ...current, [activeCandidate.id]: { type, category, balanceAfter: type !== classification.type ? "" : classification.balanceAfter } }));
+    setClassificationDrafts((current) => ({ ...current, [activeCandidate.id]: { ...classification, type, category } }));
     if (type !== classification.type) {
       updateAccountDraft({ direction: directionForType(type), ...(type !== "transfer" ? { other: "" } : {}) });
     }
@@ -424,7 +431,7 @@ export function MessageReviewWorkspace() {
                   <label className="field"><span className="field__label">Other transfer account</span><select className="field__control" value={accountDraft?.other ?? ""} onChange={(event) => updateAccountDraft({ other: event.target.value })} name="transfer_account"><option value="">No other account</option>{reviewState.accounts.filter((account) => account.id !== accountDraft?.account).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select><span className="field__hint">Credit: money came from this account. Debit: money went to this account.</span>{activeCandidate.transfer_suggestion_reason && accountDraft?.account === accountReviewDefaults(activeCandidate).account && accountDraft?.other === accountReviewDefaults(activeCandidate).other && accountDraft?.direction === accountReviewDefaults(activeCandidate).direction ? <span className="field__hint" role="status">{accountDraft?.other ? `Suggested: ${reviewState.accounts.find((account) => account.id === accountDraft.other)?.name ?? "saved account"}. ` : ""}{activeCandidate.transfer_suggestion_reason}</span> : null}</label>
                   <label className="field"><span className="field__label">Date</span><input className="field__control" defaultValue={dateInputFromTimestamp(activeCandidate.raw_message.received_at)} name="date" type="date" /></label>
                   <label className="field"><span className="field__label">Time</span><input className="field__control" defaultValue={timeInputFromTimestamp(activeCandidate.raw_message.received_at)} name="time" type="time" /></label>
-                  <label className="field"><span className="field__label">Balance after</span><input className="field__control" value={classification?.balanceAfter ?? ""} onChange={(event) => setClassificationDrafts((current) => ({ ...current, [activeCandidate.id]: { type: classification?.type ?? activeCandidate.transaction_type as TransactionType, category: classification?.category ?? "", balanceAfter: event.target.value } }))} inputMode="decimal" name="balance_after" /></label>
+                  <label className="field"><span className="field__label">Balance after</span><input className="field__control" value={classification?.balanceAfter ?? ""} onChange={(event) => setClassificationDrafts((current) => ({ ...current, [activeCandidate.id]: { type: classification?.type ?? activeCandidate.transaction_type as TransactionType, category: classification?.category ?? "", balanceAfter: event.target.value } }))} inputMode="decimal" name="balance_after" /><span className="field__hint">Reported for the selected account; kept when type changes.</span>{classification && "balanceCleared" in classification && classification.balanceCleared ? <span className="field__hint" role="status">Reported balance cleared because its reporting account changed. Enter the balance for the new account if available.</span> : null}</label>
                   <label className="field"><span className="field__label">Merchant / counterparty</span><input className="field__control" defaultValue={activeCandidate.counterparty_text} name="counterparty_text" /></label>
                   <label className="field"><span className="field__label">Reference</span><input className="field__control" defaultValue={activeCandidate.reference} name="reference" /></label>
                   <fieldset className="review-identifier-grid field--wide"><legend>Masked sender and receiver identifiers</legend><p>These values help match a saved payment method. Store only masked values or a safe suffix, never a full card number. Choose the ledger account in “Other transfer account” above.</p><label className="field"><span className="field__label">Sender account</span><input className="field__control" defaultValue={activeCandidate.sender_account_identifier} name="sender_account_identifier" /></label><label className="field"><span className="field__label">Sender card</span><input className="field__control" defaultValue={activeCandidate.sender_card_identifier} name="sender_card_identifier" /></label><label className="field"><span className="field__label">Receiver account</span><input className="field__control" defaultValue={activeCandidate.receiver_account_identifier} name="receiver_account_identifier" /></label><label className="field"><span className="field__label">Receiver card</span><input className="field__control" defaultValue={activeCandidate.receiver_card_identifier} name="receiver_card_identifier" /></label></fieldset>

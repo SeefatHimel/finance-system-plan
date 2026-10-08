@@ -37,7 +37,7 @@ import { ButtonBusy, LoadingState } from "@/components/loading-state";
 import { TransactionSourceMessages } from "@/components/transaction-source-messages";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
-import { editableReportedBalance } from "@/lib/transaction-balances";
+import { balanceAfterAccountChange, balanceReportingAccount, editableReportedBalance } from "@/lib/transaction-balances";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
 
 type LoadState =
@@ -166,6 +166,9 @@ export function TransactionWorkspace() {
   const [editingCategoryId, setEditingCategoryId] = useState("");
   const [editingAmount, setEditingAmount] = useState("");
   const [editingBalanceAfter, setEditingBalanceAfter] = useState("");
+  const [editingBalanceNotice, setEditingBalanceNotice] = useState("");
+  const [createAccountId, setCreateAccountId] = useState("");
+  const [createBalanceNotice, setCreateBalanceNotice] = useState("");
   const [editingReference, setEditingReference] = useState("");
   const [editingCounterpartyText, setEditingCounterpartyText] = useState("");
   const [editingNote, setEditingNote] = useState("");
@@ -184,18 +187,31 @@ export function TransactionWorkspace() {
   function changeCreateType(type: TransactionType) {
     setCreateType(type);
     setCreateDirection(directionForType(type));
-    for (const name of ["balance_after", "transfer_account"]) {
+    for (const name of type !== "transfer" ? ["transfer_account"] : []) {
       const field = createForm.current?.elements.namedItem(name);
       if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement) field.value = "";
     }
   }
 
-  function changeEditingType(type: TransactionType) {
-    setEditingType(type);
-    setEditingDirection(directionForType(type));
-    if (type !== "transfer") setEditingTransferAccountId("");
-    setEditingBalanceAfter("");
+  function changeEditingContext(patch: Partial<{ type: TransactionType; account: string; transfer_account: string }>) {
+    const record = loadState.status === "ready" ? loadState.transactions.find((item) => item.id === editingTransactionId) : null;
+    const primaryDirection = record?.transfer_evidence.find((item) => item.is_primary)?.direction;
+    const before = { type: editingType, account: editingAccountId, transfer_account: editingTransferAccountId };
+    const after = { ...before, ...patch };
+    const nextBalance = balanceAfterAccountChange(editingBalanceAfter, balanceReportingAccount(before, primaryDirection), balanceReportingAccount(after, primaryDirection));
+    if (nextBalance !== editingBalanceAfter) {
+      setEditingBalanceAfter(nextBalance);
+      setEditingBalanceNotice("Reported balance cleared because its reporting account changed. Enter the balance for the new account if available.");
+    }
+    setEditingType(after.type);
+    setEditingAccountId(after.account);
+    setEditingTransferAccountId(after.transfer_account);
     setAllowLinkedCorrection(false);
+  }
+
+  function changeEditingType(type: TransactionType) {
+    changeEditingContext({ type, ...(type !== "transfer" ? { transfer_account: "" } : {}) });
+    setEditingDirection(directionForType(type));
   }
 
   const markPending = useCallback((activeFilters: TransactionFilterState) => {
@@ -512,6 +528,7 @@ export function TransactionWorkspace() {
     setEditingCategoryId(transaction.category ?? "");
     setEditingAmount(transaction.amount);
     setEditingBalanceAfter(editableReportedBalance(transaction));
+    setEditingBalanceNotice("");
     setEditingReference(transaction.reference);
     setEditingCounterpartyText(transaction.counterparty_text);
     setEditingNote(transaction.note ?? "");
@@ -612,7 +629,7 @@ export function TransactionWorkspace() {
 
   const editingTransaction = loadState.transactions.find((item) => item.id === editingTransactionId);
   const primaryBalanceReport = editingTransaction?.transfer_evidence.find((item) => item.is_primary);
-  const balanceAccountId = editingType === "transfer" ? (primaryBalanceReport?.direction === "credit" ? editingTransferAccountId : primaryBalanceReport?.direction === "debit" ? editingAccountId : null) : editingAccountId;
+  const balanceAccountId = balanceReportingAccount({ type: editingType, account: editingAccountId, transfer_account: editingTransferAccountId }, primaryBalanceReport?.direction);
   const requiresLinkedCorrection = Boolean(editingTransaction && editingTransaction.transfer_evidence.length > 1 &&
     (editingTransaction.type === "transfer" || editingType === "transfer") && (
       editingTransaction.type !== editingType || editingTransaction.account !== editingAccountId ||
@@ -681,7 +698,14 @@ export function TransactionWorkspace() {
 
             <label className="field">
               <span className="field__label">Account</span>
-              <select className="field__control" name="account" required>
+              <select className="field__control" name="account" required value={createAccountId} onChange={(event) => {
+                const field = createForm.current?.elements.namedItem("balance_after");
+                if (field instanceof HTMLInputElement && balanceAfterAccountChange(field.value, createAccountId, event.target.value) !== field.value) {
+                  field.value = "";
+                  setCreateBalanceNotice("Reported balance cleared because its reporting account changed. Enter the balance for the new account if available.");
+                }
+                setCreateAccountId(event.target.value);
+              }}>
                 <option value="">Select account</option>
                 {loadState.accounts.map((account) => (
                   <option key={account.id} value={account.id}>
@@ -730,6 +754,7 @@ export function TransactionWorkspace() {
             <label className="field">
               <span className="field__label">Reported balance after (optional)</span>
               <input className="field__control" inputMode="decimal" name="balance_after" placeholder="72,308.00" type="text" />
+              {createBalanceNotice ? <small className="field__hint" role="status">{createBalanceNotice}</small> : null}
             </label>
 
             <label className="field">
@@ -797,11 +822,9 @@ export function TransactionWorkspace() {
             {editingType === "transfer" ? <div className="field">
               <span className="field__label">Direction</span>
               <button className="button button--ghost" onClick={() => {
-                setEditingAccountId(editingTransferAccountId);
-                setEditingTransferAccountId(editingAccountId);
+                changeEditingContext({ account: editingTransferAccountId, transfer_account: editingAccountId });
                 setEditingDirection("debit");
                 setEditingPaymentMethodId("");
-                setEditingBalanceAfter("");
                 setAllowLinkedCorrection(false);
               }} type="button">Reverse transfer direction</button>
               <small>Money moves from the From account to the To account.</small>
@@ -823,9 +846,8 @@ export function TransactionWorkspace() {
               <select
                 className="field__control"
                 onChange={(event) => {
-                  setEditingAccountId(event.target.value);
+                  changeEditingContext({ account: event.target.value });
                   setEditingPaymentMethodId("");
-                  setEditingBalanceAfter("");
                   setAllowLinkedCorrection(false);
                 }}
                 required
@@ -846,8 +868,7 @@ export function TransactionWorkspace() {
                 className="field__control"
                 disabled={editingType !== "transfer"}
                 onChange={(event) => {
-                  setEditingTransferAccountId(event.target.value);
-                  setEditingBalanceAfter("");
+                  changeEditingContext({ transfer_account: event.target.value });
                   setAllowLinkedCorrection(false);
                 }}
                 value={editingTransferAccountId}
@@ -896,17 +917,18 @@ export function TransactionWorkspace() {
               <input
                 className="field__control"
                 inputMode="decimal"
-                onChange={(event) => setEditingBalanceAfter(event.target.value)}
+                onChange={(event) => { setEditingBalanceAfter(event.target.value); setEditingBalanceNotice(""); }}
                 type="text"
                 value={editingBalanceAfter}
               />
               {balanceAccountId ? <small className="field__hint">Reported for {loadState.accounts.find((account) => account.id === balanceAccountId)?.name ?? "this account"}. This is the balance from the report, rather than the calculated ledger balance.</small> : <small className="field__hint">Optional balance from the original report. Linked account balances are shown below.</small>}
+              {editingBalanceNotice ? <small className="field__hint" role="status">{editingBalanceNotice}</small> : null}
             </label>
 
             {editingTransaction?.type === "transfer" && editingTransaction.transfer_evidence.length ? <details className="raw-message field--wide" open>
               <summary>Saved transfer reported balances</summary>
               {editingTransaction.transfer_evidence.map((item) => <p key={item.id}><strong>{loadState.accounts.find((account) => account.id === item.account)?.name ?? "Unknown account"}</strong>: {item.balance_after === null ? "No reported balance" : moneyFormatter.format(Number(item.balance_after))}{item.is_primary ? " · Primary report" : " · Linked report"}</p>)}
-              <p>These are the saved reports for each account. Changing the type or accounts clears the draft balance so an old value is not assigned to another account.</p>
+              <p>These are the saved reports for each account. The draft balance is kept while its reporting account stays the same. Moving it to another account clears it.</p>
             </details> : null}
 
             <label className="field">
@@ -992,6 +1014,8 @@ export function TransactionWorkspace() {
                 setFormError(null);
                 setFormMessage(null);
                 setCreateType("expense");
+                setCreateAccountId("");
+                setCreateBalanceNotice("");
                 setCreateDirection("debit");
                 setCreateCategoryId("");
                 setEditorMode("create");

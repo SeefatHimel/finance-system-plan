@@ -8,7 +8,7 @@ const output = mkdtempSync(join(tmpdir(), 'finance-workflows-test-'));
 execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--rootDir', '..', '--outDir', output, 'lib/api-errors.ts', 'lib/category-type.ts', 'lib/transaction-balances.ts', 'lib/latest-request.ts'], { cwd: resolve(__dirname, '..') });
 const { responseError, fetchWithConnectionError } = require(join(output, 'finance-web/lib/api-errors.js'));
 const { LatestRequest } = require(join(output, 'finance-web/lib/latest-request.js'));
-const { editableReportedBalance } = require(join(output, 'finance-web/lib/transaction-balances.js'));
+const { editableReportedBalance, balanceAfterAccountChange, balanceReportingAccount } = require(join(output, 'finance-web/lib/transaction-balances.js'));
 const { categoryTypeProposal, directionForType } = require(join(output, 'finance-web/lib/category-type.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
 const error = (body, status = 400) => responseError(new Response(JSON.stringify(body), { status }));
@@ -60,6 +60,22 @@ test('editing loads stored balances or the primary transfer report, including ze
   assert.equal(editableReportedBalance({...record, type: 'expense'}), '');
   assert.equal(editableReportedBalance({...record, transfer_evidence: [{is_primary: false, balance_after: '3000.00'}]}), '');
   assert.equal(editableReportedBalance({...record, transfer_evidence: [{is_primary: true, balance_after: '0.00'}]}), '0.00');
+});
+
+test('reported balance follows its account across classification and transfer corrections', () => {
+  const outgoing = {type: 'transfer', account: 'A', transfer_account: 'B'};
+  const account = (context, direction) => balanceReportingAccount(context, direction);
+  assert.equal(balanceAfterAccountChange('0.00', 'A', 'A'), '0.00');
+  assert.equal(balanceAfterAccountChange('9000.00', '', 'A'), '9000.00');
+  assert.equal(balanceAfterAccountChange('9000.00', 'A', 'B'), '');
+  for (const type of ['expense', 'fee', 'income', 'refund', 'transfer']) {
+    assert.equal(balanceAfterAccountChange('9000.00', account(outgoing), account({...outgoing, type})), '9000.00');
+  }
+  assert.equal(account(outgoing, 'credit'), 'B');
+  assert.equal(account({...outgoing, type: 'income'}, 'credit'), 'A');
+  assert.equal(balanceAfterAccountChange('3000.00', account(outgoing, 'credit'), account({...outgoing, account: 'C'}, 'credit')), '3000.00');
+  assert.equal(balanceAfterAccountChange('3000.00', account(outgoing, 'credit'), account({...outgoing, transfer_account: 'C'}, 'credit')), '');
+  assert.equal(balanceAfterAccountChange('3000.00', account(outgoing, 'credit'), account({...outgoing, type:'income', account:'B'}, 'credit')), '3000.00');
 });
 
 test('rapid navigation debounces to the last choice and cancel removes queued work', (t) => {

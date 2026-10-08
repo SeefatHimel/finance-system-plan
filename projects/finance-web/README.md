@@ -412,13 +412,15 @@ The transaction editor exposes date/time, type, direction, account, destination,
 category, amount, reported balance, transaction reference, counterparty, note,
 payment method, source, review status and all four masked sender/receiver
 identifiers. Payment-method choices belong to the selected account; changing
-that account clears its payment method and reported balance. Needs review is
+that account clears its payment method; the reported balance is cleared only if
+its reporting account changes. Needs review is
 also visible in the transaction list. Full numeric identifiers are reduced to
 safe suffixes by the API. Original SMS and generated IDs/timestamps remain
 read-only evidence; corrections are available in History.
 
 Transfers use From account and To account, with Reverse transfer direction
-swapping them and clearing the payment method/reported balance. They are saved
+swapping them and clearing the payment method. A reversal clears the reported
+balance when its reporting account changes. They are saved
 as canonical debit transfers. Changing the amount, accounts or type of an entry
 with multiple transfer observations requires the checkbox acknowledging that
 the linked messages were reviewed. Core edits reset that acknowledgement and
@@ -454,8 +456,9 @@ preserve refunds, and debt categories require choosing lending, borrowing or a
 repayment direction. System categories and No category do not infer a type.
 Manual type selection remains available.
 
-A type change resets debit/credit to its default and clears the draft reported
-balance; leaving a transfer clears the other account. A new transfer requires
+A type change resets debit/credit to its default; leaving a transfer clears the
+other account. Reported balances, including zero, survive type/category changes
+while the reporting account stays the same in Add/Edit and SMS review. A new transfer requires
 another account. SMS confirmation respects explicit reclassification instead of
 reopening a transfer match based solely on the original parser result. Linked
 ledger corrections still require reviewing and acknowledging the original SMS.
@@ -478,5 +481,11 @@ main balance is empty, it uses only the primary transfer report identified by th
 API. It never substitutes the opposite account's balance or a calculated ledger
 balance. The field identifies the reporting account, and an expanded Saved transfer
 reported balances section shows each linked account's stored balance separately.
-Missing balances remain blank. Account/type changes continue to clear the draft
-balance. Other linked observations remain read-only in this editor.
+Missing balances remain blank. Type, category, direction and ordinary detail
+changes preserve the report while its account stays the same. Changing the other
+side of a transfer also preserves the primary report. Changing the reporting
+account or reversing a transfer to a different reporting account clears the draft
+with an inline explanation; users may enter a balance for the new account. Other
+linked observations remain read-only. Explicitly blanking the field persists a
+clear and is not restored on later updates. These rules also apply to manual Add
+transaction and SMS review. The API enforces the same account ownership rule.
