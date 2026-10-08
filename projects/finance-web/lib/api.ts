@@ -1460,6 +1460,7 @@ const savedStatementSchema = z.object({
   counts: z.object({ total: z.number(), pending: z.number(), posted: z.number(), linked: z.number(), skipped: z.number() }), created_at: z.string(), updated_at: z.string()
 });
 const statementMatchSchema = z.object({
+  strength: z.enum(["strong", "possible"]).default("possible"), merchant_similarity: z.number().default(0), time_difference_minutes: z.number().nullable().default(null),
   id: z.string(), date: z.string(), time: z.string().nullable(), type: z.string(), source: z.string(), amount: z.string(), account_name: z.string(),
   transfer_account_name: z.string().nullable(), category_name: z.string().nullable(), reference: z.string(), note: z.string(), balance_after: z.string().nullable(),
   conflict: z.boolean(), can_link: z.boolean(), reasons: z.array(z.string())
@@ -1470,7 +1471,7 @@ const savedStatementRowSchema = z.object({
   type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]),
   other_account: z.string().nullable(), category: z.string().nullable(), reference: z.string(), counterparty_text: z.string(), note: z.string(), classification_confirmed: z.boolean(),
   state: z.enum(["pending", "posted", "linked", "skipped"]), transaction: z.string().nullable(), version: z.number(), created_at: z.string(), updated_at: z.string(),
-  review: z.object({ issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
+  review: z.object({ draft_issues: z.array(z.string()).default([]), suggestion: z.object({ type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]), category: z.string().nullable(), other_account: z.string().nullable(), reason: z.string() }).nullable().default(null), issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
 });
 const statementRowPageSchema = z.object({ count: z.number(), offset: z.number(), limit: z.number(), results: z.array(savedStatementRowSchema) });
 const statementHistorySchema = z.object({ count: z.number(), next: z.string().nullable(), previous: z.string().nullable(), results: z.array(savedStatementSchema) });
@@ -1480,7 +1481,7 @@ export type StatementMatch = z.infer<typeof statementMatchSchema>;
 export type StatementRowPage = z.infer<typeof statementRowPageSchema>;
 export type StatementHistory = z.infer<typeof statementHistorySchema>;
 export type StatementRowEdit = Pick<SavedStatementRow, "version" | "date" | "time" | "value_date" | "direction" | "amount" | "balance_after" | "type" | "other_account" | "category" | "reference" | "counterparty_text" | "note" | "classification_confirmed">;
-export type StatementDecision = { action: "create" | "link" | "skip" | "unlink" | "reopen"; version: number; transaction?: string; allow_separate?: boolean; acknowledge_issues?: boolean; acknowledge_conflict?: boolean };
+export type StatementDecision = { action: "create" | "link" | "skip" | "unlink" | "reopen"; version: number; transaction?: string; remember_choices?: boolean; allow_separate?: boolean; acknowledge_issues?: boolean; acknowledge_conflict?: boolean };
 
 export async function createStatementImport(token: string, account: string, file: File, password: string, signal?: AbortSignal): Promise<SavedStatement> {
   const body = new FormData(); body.set("account", account); body.set("file", file); if (password) body.set("password", password);
@@ -1511,4 +1512,18 @@ export async function approveNewStatementRows(token: string, id: string, rows: {
 }
 export async function listTransactionStatementEvidence(token: string, id: string, signal?: AbortSignal): Promise<SavedStatementRow[]> {
   return z.array(savedStatementRowSchema).parse(await (await authenticatedFetch(`/api/transactions/${id}/statement-evidence/`, token, { signal })).json());
+}
+
+const statementSummarySchema = z.object({
+  totals: z.record(z.object({ debit: z.string(), credit: z.string() })),
+  dispositions: z.record(z.object({ count: z.number(), debit: z.string(), credit: z.string() })),
+  source_net: z.string().nullable(), draft_net: z.string().nullable(), opening_is_derived: z.boolean(),
+  checks: statementPreviewSchema.shape.checks, discrepancy_count: z.number(), incomplete_count: z.number(), remaining_count: z.number()
+});
+export type StatementSummary = z.infer<typeof statementSummarySchema>;
+export async function getStatementSummary(token: string, id: string, signal?: AbortSignal): Promise<StatementSummary> {
+  return statementSummarySchema.parse(await (await authenticatedFetch(`/api/statements/imports/${id}/summary/`, token, { signal })).json());
+}
+export async function reviewSelectedStatementRows(token: string, id: string, rows: { id: string; version: number }[], action: "create" | "skip") {
+  return z.object({ added: z.number(), skipped: z.number(), unchanged: z.number(), unresolved: z.array(z.object({ id: z.string(), reason: z.string() })) }).parse(await (await authenticatedFetch(`/api/statements/imports/${id}/review_selected/`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows, action }) })).json());
 }

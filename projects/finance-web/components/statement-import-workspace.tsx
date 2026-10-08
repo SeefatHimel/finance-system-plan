@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { approveNewStatementRows, createStatementImport, getStatementImport, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementRowPage } from "@/lib/api";
+import { createStatementImport, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { transactionTypes } from "@/lib/category-type";
 import { LoadingState } from "@/components/loading-state";
 import { ModalDialog } from "@/components/modal-dialog";
+import { StatementImportSummary } from "@/components/statement-summary";
 import { StatementRowDialog } from "@/components/statement-row-dialog";
 import { useToast } from "@/components/toast-provider";
 
@@ -44,7 +45,9 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
   const [retry, setRetry] = useState(0);
   const [selectedRow, setSelectedRow] = useState<SavedStatementRow | null>(null);
   const [rowLoading, setRowLoading] = useState(false);
-  const [confirmBulk, setConfirmBulk] = useState(false);
+  const [summary, setSummary] = useState<StatementSummary | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [confirmBulk, setConfirmBulk] = useState<{ action: "create" | "skip"; rows: { id: string; version: number }[] } | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
 
@@ -71,8 +74,8 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
   }, [historyOffset, epoch, retry]);
   useEffect(() => {
     const controller = new AbortController(); const token = getAccessToken(); setBatchError(null);
-    if (!token || !batchId) { setBatch(null); return; }
-    void getStatementImport(token, batchId, controller.signal).then((result) => { if (!controller.signal.aborted) setBatch(result); }).catch((reason: unknown) => { if (!controller.signal.aborted) { setBatch(null); setBatchError(reason instanceof Error ? reason.message : "Could not load this statement."); } });
+    if (!token || !batchId) { setBatch(null); setSummary(null); return; }
+    void Promise.all([getStatementImport(token, batchId, controller.signal), getStatementSummary(token, batchId, controller.signal)]).then(([result, analysis]) => { if (!controller.signal.aborted) { setBatch(result); setSummary(analysis); } }).catch((reason: unknown) => { if (!controller.signal.aborted) { setBatch(null); setBatchError(reason instanceof Error ? reason.message : "Could not load this statement."); } });
     return () => controller.abort();
   }, [batchId, epoch, retry]);
   useEffect(() => {
@@ -85,8 +88,10 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
     return () => controller.abort();
   }, [batchId, appliedFilters, offset, epoch, retry]);
 
+  useEffect(() => { setSelectedIds([]); }, [batchId, offset, appliedFilters]);
+
   function openBatch(id: string) {
-    rowRequest.current?.abort(); setSelectedRow(null); setRowLoading(false); setBatch(null); setRows(null);
+    rowRequest.current?.abort(); setSelectedRow(null); setRowLoading(false); setBatch(null); setSummary(null); setRows(null);
     setFilters(emptyFilters); setAppliedFilters(emptyFilters); setOffset(0); setBatchId(id);
     router.replace(`/statements?import=${id}`, { scroll: false });
   }
@@ -111,13 +116,34 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
   }
   const eligible = rows?.results.filter((row) => row.review.review_state === "new" && !row.review.issues.length && !row.review.requires_acknowledgement) ?? [];
   async function approveBulk() {
-    const token = getAccessToken(); if (!token || !batch || bulkBusy) return;
+    const token = getAccessToken(); if (!token || !batch || !confirmBulk || bulkBusy) return;
     setBulkBusy(true); setBulkError(null);
     try {
-      const result = await approveNewStatementRows(token, batch.id, eligible.map((row) => ({ id: row.id, version: row.version })));
-      setEpoch((n) => n + 1); setConfirmBulk(false);
-      notify(`${result.added} added, ${result.unchanged} already resolved, ${result.unresolved.length} left for individual review.`);
+      const result = await reviewSelectedStatementRows(token, batch.id, confirmBulk.rows, confirmBulk.action);
+      setEpoch((n) => n + 1); setConfirmBulk(null);
+      setSelectedIds([]);
+      notify(`${result.added} added, ${result.skipped} skipped, ${result.unchanged} already resolved, ${result.unresolved.length} left for individual review.`);
     } catch (reason) { setBulkError(fail(reason, "Could not approve these rows.")); } finally { setBulkBusy(false); }
+  }
+  function confirmRows(action: "create" | "skip", items: SavedStatementRow[]) {
+    setBulkError(null); setConfirmBulk({ action, rows: items.map(({ id, version }) => ({ id, version })) });
+  }
+  async function nextRow() {
+    if (!selectedRow || !rows) return;
+    const index = rows.results.findIndex(row => row.id === selectedRow.id);
+    const next = rows.results.slice(index + 1).find(row => row.state === "pending" && !row.transaction);
+    if (next) { await reviewRow(next.id); return; }
+    const token = getAccessToken();
+    if (token) {
+      try {
+        for (let pageOffset = offset + 50; pageOffset < rows.count; pageOffset += 50) {
+          const page = await listStatementRows(token, batchId, appliedFilters, pageOffset);
+          const candidate = page.results.find(row => row.state === "pending" && !row.transaction);
+          if (candidate) { setOffset(pageOffset); await reviewRow(candidate.id); return; }
+        }
+      } catch (reason) { fail(reason, "Could not load the next row."); return; }
+    }
+    setSelectedRow(null); notify("No more unresolved rows after this row in the current filters.");
   }
   function filter(key: keyof typeof emptyFilters, value: string) { setFilters((old) => ({ ...old, [key]: value })); }
   const uploadAccounts = accounts.filter((a) => a.is_active && a.currency === "BDT" && ["bank", "savings", "mobile_wallet"].includes(a.type));
@@ -150,6 +176,7 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
         <p>Verify this statement belongs to the selected account. A suffix match is a hint; it does not prove ownership.</p>
         <div className="metric-row">{[["Review rows", batch.counts.total], ["Pending", batch.counts.pending], ["Added", batch.counts.posted], ["Linked", batch.counts.linked], ["Skipped", batch.counts.skipped]].map(([name, value]) => <div className="metric" key={name}><span className="metric__label">{name}</span><strong className="metric__value">{value}</strong></div>)}</div>
         <details className="raw-message"><summary>Original extraction checks</summary><ul className="statement-checks">{batch.checks.map((check) => <li key={check.label}><strong>{check.passed === null ? "Unavailable" : check.passed ? "Passed" : "Needs review"}</strong> — {check.label}{check.expected !== null ? ` · Reported ${check.expected}, extracted ${check.observed ?? "unknown"}` : " · Not printed or readable"}</li>)}</ul><ul className="statement-warnings">{batch.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul><p>These checks describe the original extraction. Draft corrections are saved separately; source discrepancies require explicit review.</p></details>
+        {summary ? <StatementImportSummary summary={summary} currency={batch.currency} /> : null}
         <p className="inline-note">Opening balances are not imported as income. Fees are separate review movements. Unknown times remain empty.</p>
       </div></section>
       <section className="panel"><div className="panel__body"><h2 className="section-title">Statement review</h2>
@@ -161,16 +188,16 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
           <label className="field"><span className="field__label">Category</span><select className="field__control" value={filters.category} onChange={(e) => filter("category", e.target.value)}><option value="">All categories</option><option value="none">Uncategorized</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
           <div className="statement-date-range"><label className="field"><span className="field__label">From date</span><input className="field__control" type="date" value={filters.date_from} onChange={(e) => filter("date_from", e.target.value)} /></label><label className="field"><span className="field__label">To date</span><input className="field__control" type="date" value={filters.date_to} onChange={(e) => filter("date_to", e.target.value)} /></label></div>
         </div>
-        <div className="statement-actions"><button className="button button--ghost" type="button" onClick={() => setFilters(emptyFilters)}>Clear filters</button><button className="button button--primary" type="button" disabled={filtersPending || rowsLoading || rowsError !== null || !eligible.length || setupLoading || bulkBusy} onClick={() => { setBulkError(null); setConfirmBulk(true); }}>Approve {eligible.length} new rows on this page</button></div>
+        <div className="statement-actions"><button className="button button--ghost" type="button" onClick={() => setFilters(emptyFilters)}>Clear filters</button><button className="button button--primary" type="button" disabled={filtersPending || rowsLoading || rowsError !== null || !eligible.length || setupLoading || bulkBusy} onClick={() => confirmRows("create", eligible)}>Approve {eligible.length} new rows on this page</button><button className="button" type="button" disabled={rowsLoading || filtersPending || bulkBusy || !selectedIds.length} onClick={() => confirmRows("create", rows?.results.filter(row => selectedIds.includes(row.id)) ?? [])}>Approve selected new rows ({selectedIds.length})</button><button className="button" type="button" disabled={rowsLoading || filtersPending || bulkBusy || !selectedIds.length} onClick={() => confirmRows("skip", rows?.results.filter(row => selectedIds.includes(row.id)) ?? [])}>Skip selected ({selectedIds.length})</button></div>
         <p>{rows?.count ?? 0} matching rows · Page {Math.floor(offset / 50) + 1} of {Math.max(1, Math.ceil((rows?.count ?? 0) / 50))}. Suggestions are checked again before every decision.</p>
         {rowsError ? <p role="alert" className="form-error">{rowsError}</p> : null}
         {rowsLoading ? <p role="status">Loading matching rows…</p> : null}
         <div className="statement-table-wrap" tabIndex={0} role="region" aria-label="Statement review rows" aria-busy={rowsLoading}>
-          <table className="statement-table"><thead><tr>{["Page / row", "Date / time", "Description", "Type / category", "Amount", "Balance after", "Review", "Actions"].map((name) => <th key={name} scope="col">{name}</th>)}</tr></thead><tbody>{rows?.results.map((row) => <tr key={row.id}>
-            <td>{row.extracted.page} / {row.extracted.row}<br /><small>{row.component}</small></td><td>{row.date ?? "Unknown date"}{row.time ? <><br />{row.time}</> : null}{row.value_date ? <><br /><small>Value: {row.value_date}</small></> : null}</td>
+          <table className="statement-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="Select unresolved rows on this page" disabled={rowsLoading || filtersPending || bulkBusy} checked={Boolean(rows?.results.some(row => row.state === "pending")) && rows!.results.filter(row => row.state === "pending").every(row => selectedIds.includes(row.id))} onChange={event => setSelectedIds(event.target.checked ? rows?.results.filter(row => row.state === "pending" && !row.transaction).map(row => row.id) ?? [] : [])} /></th>{["Page / row", "Date / time", "Description", "Type / category", "Amount", "Balance after", "Review", "Actions"].map((name) => <th key={name} scope="col">{name}</th>)}</tr></thead><tbody>{rows?.results.map((row) => <tr key={row.id}>
+            <td><input type="checkbox" aria-label={`Select source row ${row.position} ${row.component}`} checked={selectedIds.includes(row.id)} disabled={row.state !== "pending" || Boolean(row.transaction) || rowsLoading || filtersPending || bulkBusy} onChange={event => setSelectedIds(old => event.target.checked ? [...old, row.id] : old.filter(id => id !== row.id))} /></td><td>{row.extracted.page} / {row.extracted.row}<br /><small>{row.component}</small></td><td>{row.date ?? "Unknown date"}{row.time ? <><br />{row.time}</> : null}{row.value_date ? <><br /><small>Value: {row.value_date}</small></> : null}</td>
             <td><strong>{row.counterparty_text || row.extracted.provider_type || "Statement movement"}</strong><div>{row.note}</div>{row.reference ? <small>Reference: {row.reference}</small> : null}</td>
             <td>{row.type.replaceAll("_", " ")}<br /><small>{row.direction} · {categories.find((c) => c.id === row.category)?.name ?? "Uncategorized"}</small></td><td>{batch.currency} {row.amount ?? "Missing"}</td><td>{row.balance_after ?? "Not reported"}</td>
-            <td><strong>{labels[row.review.review_state] ?? row.review.review_state}</strong>{row.review.matches.length ? <div>{row.review.matches.length} suggestion{row.review.matches.length === 1 ? "" : "s"}</div> : null}{row.review.issues.length ? <small>{row.review.issues[0]}</small> : null}{row.review.requires_acknowledgement ? <small>Source discrepancy · review required</small> : null}</td>
+            <td><strong>{labels[row.review.review_state] ?? row.review.review_state}</strong>{row.review.matches.some(match => match.strength === "strong") ? <div>Strong match found</div> : null}{row.review.suggestion ? <small>Remembered choices available</small> : null}{row.review.matches.length ? <div>{row.review.matches.length} suggestion{row.review.matches.length === 1 ? "" : "s"}</div> : null}{row.review.issues.length ? <small>{row.review.issues[0]}</small> : null}{row.review.requires_acknowledgement ? <small>Source or draft discrepancy · review required</small> : null}</td>
             <td><button className="button button--small" type="button" disabled={filtersPending || rowsLoading || rowLoading || bulkBusy || setupLoading || setupError !== null} onClick={() => void reviewRow(row.id)}>Review row</button></td>
           </tr>)}</tbody></table>
         </div>
@@ -179,7 +206,7 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
       </div></section>
     </> : null}
     {rowLoading ? <p role="status">Loading row and fresh suggestions…</p> : null}
-    {selectedRow && batch ? <StatementRowDialog key={selectedRow.id} row={selectedRow} batch={batch} accounts={accounts} categories={categories} onCancel={() => setSelectedRow(null)} onReload={() => void reviewRow(selectedRow.id)} onChange={(updated, close) => { setSelectedRow(close ? null : updated); setEpoch((n) => n + 1); }} /> : null}
-    {confirmBulk && batch ? <ModalDialog labelledBy="statement-bulk-title" busy={bulkBusy} onCancel={() => setConfirmBulk(false)}><h2 id="statement-bulk-title">Approve {eligible.length} new rows?</h2><p>This adds only the validated new rows currently on this page to {batch.account_name}. Matches, source discrepancies and stale rows stay unresolved for individual review. Fees count as separate movements.</p>{bulkError ? <p role="alert" className="form-error">{bulkError}</p> : null}<div className="decision-modal__actions"><button className="button" type="button" disabled={bulkBusy} onClick={() => setConfirmBulk(false)}>Cancel</button><button className="button button--primary" type="button" disabled={bulkBusy || !eligible.length} onClick={() => void approveBulk()}>{bulkBusy ? "Approving…" : "Confirm & add new rows"}</button></div></ModalDialog> : null}
+    {selectedRow && batch ? <StatementRowDialog key={selectedRow.id} row={selectedRow} batch={batch} accounts={accounts} categories={categories} onCancel={() => setSelectedRow(null)} onNext={nextRow} onReload={() => void reviewRow(selectedRow.id)} onChange={(updated, close) => { setSelectedRow(close ? null : updated); setEpoch((n) => n + 1); }} /> : null}
+    {confirmBulk && batch ? <ModalDialog labelledBy="statement-bulk-title" busy={bulkBusy} onCancel={() => setConfirmBulk(null)}><h2 id="statement-bulk-title">{confirmBulk.action === "skip" ? "Skip" : "Approve"} {confirmBulk.rows.length} selected rows?</h2><p>{confirmBulk.action === "skip" ? "This skips the selected unresolved rows without deleting ledger transactions." : `This adds only validated new rows to ${batch.account_name}.`} Matches, source discrepancies and stale rows stay unresolved for individual review. Fees count as separate movements.</p>{bulkError ? <p role="alert" className="form-error">{bulkError}</p> : null}<div className="decision-modal__actions"><button className="button" type="button" disabled={bulkBusy} onClick={() => setConfirmBulk(null)}>Cancel</button><button className="button button--primary" type="button" disabled={bulkBusy || !confirmBulk.rows.length} onClick={() => void approveBulk()}>{bulkBusy ? "Saving…" : confirmBulk.action === "skip" ? "Confirm & skip rows" : "Confirm & add new rows"}</button></div></ModalDialog> : null}
   </div>;
 }

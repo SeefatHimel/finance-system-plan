@@ -526,3 +526,26 @@ aborts the response; a server draft may still finish and appear in history, but
 upload never posts. Limits are 4 MiB, 30 pages and supported digital layouts;
 scans and credit-card billing statements remain unsupported. Original PDFs and
 passwords are discarded; masked rows are retained as evidence.
+
+### Faster statement review
+
+Statement review shows strong/possible match explanations, separate saved-draft
+reconciliation and an import summary. Summary amounts describe draft observations;
+linked ledger transactions may have later corrections. Skipped rows still contribute
+to the statement's arithmetic, while decision counts show review progress.
+
+Select unresolved rows on the current page to approve validated new rows or skip
+selected rows. Confirmation captures their IDs/versions; fresh matches, stale
+versions and source/draft discrepancies stay for individual review. Selection clears
+when the import, page or applied filters change. Bulk skipping never deletes ledger
+records. The existing approve-all-new action remains available for each page.
+
+The row editor supports Save & next and Next unresolved row, including later pages
+under the current filters. Save changes before moving next. Shortcuts within the
+editor: Alt+S saves, Alt+Shift+S saves and moves next, Alt+Right opens the next row.
+These controls never approve transactions implicitly.
+
+Remember my choices is explicit on individual add/link decisions. A later matching
+source pattern offers Apply suggested choices for type/category/other owned account;
+applying it creates an unsaved draft change and preserves reported financial fields.
+Save and review before posting. Generic transfer descriptions are not learned.

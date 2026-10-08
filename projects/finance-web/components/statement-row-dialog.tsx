@@ -13,13 +13,14 @@ function editable(row: SavedStatementRow): StatementRowEdit {
   return { version: row.version, date: row.date, time: row.time, value_date: row.value_date, direction: row.direction, amount: row.amount, balance_after: row.balance_after, type: row.type, other_account: row.other_account, category: row.category, reference: row.reference, counterparty_text: row.counterparty_text, note: row.note, classification_confirmed: row.classification_confirmed };
 }
 
-export function StatementRowDialog({ row, batch, accounts, categories, onChange, onCancel, onReload }: {
+export function StatementRowDialog({ row, batch, accounts, categories, onChange, onCancel, onReload, onNext }: {
   row: SavedStatementRow; batch: SavedStatement; accounts: Account[]; categories: Category[];
-  onChange: (row: SavedStatementRow, close: boolean) => void; onCancel: () => void; onReload: () => void;
+  onChange: (row: SavedStatementRow, close: boolean) => void; onCancel: () => void; onReload: () => void; onNext: () => Promise<void>;
 }) {
   const { notify, dismiss } = useToast();
   const categoryChoice = useCategoryTypeChoice(categories);
   const [draft, setDraft] = useState(() => editable(row));
+  const [rememberChoices, setRememberChoices] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ackIssues, setAckIssues] = useState(false);
@@ -37,20 +38,25 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     const message = reason instanceof Error ? reason.message : "Could not save the statement row.";
     setError(message); notify(message, "error");
   }
-  async function save() {
+  async function save(next = false) {
     const token = getAccessToken(); if (!token || busy) return;
     setBusy(true); setError(null);
     try {
       const result = await updateStatementRow(token, row.id, draft);
       setDraft(editable(result)); setAckIssues(false); setAckConflict(false);
-      onChange(result, false); notify("Draft saved. Match suggestions refreshed; no ledger changes yet.");
+      onChange(result, false); if (next) await onNext(); notify("Draft saved. Match suggestions refreshed; no ledger changes yet.");
     } catch (reason) { showError(reason); } finally { setBusy(false); }
+  }
+  async function advance() {
+    if (busy || dirty) return;
+    setBusy(true);
+    try { await onNext(); } finally { setBusy(false); }
   }
   async function decide(action: StatementDecision["action"], transaction?: string, separate = false) {
     const token = getAccessToken(); if (!token || busy) return;
     setBusy(true); setError(null);
     try {
-      const result = await decideStatementRow(token, row.id, { action, version: row.version, transaction, allow_separate: separate, acknowledge_issues: ackIssues, acknowledge_conflict: ackConflict });
+      const result = await decideStatementRow(token, row.id, { action, version: row.version, transaction, remember_choices: rememberChoices, allow_separate: separate, acknowledge_issues: ackIssues, acknowledge_conflict: ackConflict });
       onChange(result, true);
       const messages = { create: "Transaction added from the statement.", link: "Statement evidence linked. The transaction is counted once.", skip: "Statement row skipped.", unlink: "Statement evidence unlinked. The ledger transaction was kept.", reopen: "Skipped row reopened for review." };
       notify(messages[action]);
@@ -59,7 +65,11 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
   return <>
     <ModalDialog labelledBy="statement-row-title" className="form-drawer statement-row-dialog" busy={busy} onCancel={onCancel}>
       <div className="form-drawer__header"><div><h2 id="statement-row-title">Review statement {row.component === "fee" ? "fee" : "transaction"}</h2><p>{batch.account_name} · Page {source.page}, source row {source.row}</p></div><button type="button" className="icon-button" aria-label="Close statement row" disabled={busy} onClick={onCancel}>×</button></div>
-      <div className="statement-row-body">
+      <div className="statement-row-body" onKeyDown={(event) => {
+        if (!event.altKey || busy || confirmSeparate || confirmUnlink) return;
+        if (event.key.toLowerCase() === "s" && !isResolved && dirty) { event.preventDefault(); void save(event.shiftKey); }
+        if (event.key === "ArrowRight") { event.preventDefault(); if (dirty) showError(new Error("Save your changes before moving to the next row.")); else void advance(); }
+      }}>
         <details className="raw-message" open><summary>Original extracted row</summary>
           <p>{source.date ?? "Unknown date"}{source.time ? ` · ${source.time}` : ""} · {source.provider_type || source.direction}</p>
           <p className="statement-evidence-text">{source.description}</p>
@@ -71,6 +81,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         {row.component === "fee" ? <p className="inline-note">This is the separate charge from the source row. Approving the principal does not approve this fee.</p> : source.signed_fee !== "0.00" ? <p className="inline-note">The inline fee has its own review row. The final reported balance is saved on the fee entry when you add new movements.</p> : null}
         {isResolved ? <p>This row is {row.state === "posted" ? "added" : row.state}. {row.transaction ? <>Ledger entry: {row.transaction}. Make ledger corrections in <Link href="/transactions">Transactions</Link>.</> : "You can reopen it below."}</p> : null}
         {!row.transaction && ["posted", "linked"].includes(row.state) ? <p>The previous ledger entry was deleted. Review this source row before recording it again.</p> : null}
+        {!isResolved && row.review.suggestion ? <section className="raw-message"><strong>Remembered choices</strong><p>{row.review.suggestion.reason}</p><p>{row.review.suggestion.type} · {categories.find(c => c.id === row.review.suggestion?.category)?.name ?? "Uncategorized"}{row.review.suggestion.other_account ? ` · ${accounts.find(a => a.id === row.review.suggestion?.other_account)?.name ?? "Other account"}` : ""}</p><button className="button" type="button" disabled={busy || dirty} onClick={() => { const choice = row.review.suggestion; if (choice) setDraft(old => ({ ...old, type: choice.type, category: choice.category, other_account: choice.other_account, classification_confirmed: true })); }}>Apply remembered choices</button></section> : null}
         <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
           <fieldset className="statement-edit-fields" disabled={busy || isResolved}>
             <legend className="visually-hidden">Transaction draft</legend>
@@ -89,14 +100,17 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
             <label className="review-remember field--wide"><input type="checkbox" checked={draft.classification_confirmed} onChange={(e) => setField("classification_confirmed", e.target.checked)} /><span>I reviewed whether this movement is a transfer between my own accounts.</span></label>
           </fieldset>
           {draft.type === "transfer" ? <p>Transfer path: {draft.direction === "credit" ? `${accounts.find((a) => a.id === draft.other_account)?.name ?? "Other account"} → ${batch.account_name}` : `${batch.account_name} → ${accounts.find((a) => a.id === draft.other_account)?.name ?? "Other account"}`}</p> : null}
-          {!isResolved ? <button className="button" type="submit" disabled={busy || !dirty}>Save draft & refresh matches</button> : null}
+          {!isResolved ? <div className="statement-actions"><button className="button" type="submit" disabled={busy || !dirty}>Save draft & refresh matches</button><button className="button" type="button" disabled={busy || !dirty} onClick={() => void save(true)}>Save & next</button></div> : null}
         </form>
+        <p className="inline-note">Shortcuts: Alt+S saves; Alt+Shift+S saves and moves next; Alt+Right opens the next unresolved row.</p>
+        {!isResolved ? <label className="review-remember"><input type="checkbox" checked={rememberChoices} disabled={busy} onChange={e => setRememberChoices(e.target.checked)} /><span>Remember my category and transfer choices after I add or accept a match. Suggestions stay reviewable.</span></label> : null}
+        {row.review.draft_issues.length ? <section className="raw-message"><strong>Saved draft reconciliation</strong><ul>{row.review.draft_issues.map(issue => <li key={issue}>{issue}</li>)}</ul><p>Original extraction checks remain unchanged.</p></section> : null}
         {dirty ? <p className="inline-note">Save your draft changes before accepting a match or adding the transaction.</p> : null}
         {!isResolved && row.review.issues.length ? <ul className="statement-error">{row.review.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : null}
-        {row.review.requires_acknowledgement && !isResolved ? <label className="review-remember"><input type="checkbox" checked={ackIssues} onChange={(e) => setAckIssues(e.target.checked)} /><span>I reviewed the source discrepancies and confirm the values being recorded.</span></label> : null}
+        {row.review.requires_acknowledgement && !isResolved ? <label className="review-remember"><input type="checkbox" checked={ackIssues} onChange={(e) => setAckIssues(e.target.checked)} /><span>I reviewed the source and saved draft discrepancies and confirm the values being recorded.</span></label> : null}
         {row.review.matches.some((match) => match.conflict) && !isResolved ? <label className="review-remember"><input type="checkbox" checked={ackConflict} onChange={(e) => setAckConflict(e.target.checked)} /><span>I reviewed the differing reported balances. Linking preserves the existing ledger balance and both observations.</span></label> : null}
         {!isResolved && row.review.matches.length ? <section><h3>Possible matches</h3><p>Verify the same money movement. Linking keeps the existing transaction and your corrections.</p><div className="transfer-match-list">{row.review.matches.map((match) => <article className="transfer-match-card" key={match.id}>
-          <strong>{match.account_name}{match.transfer_account_name ? ` → ${match.transfer_account_name}` : ""} · {match.type.replaceAll("_", " ")}</strong>
+          <strong>{match.strength === "strong" ? "Strong match" : "Possible match"} · {match.account_name}{match.transfer_account_name ? ` → ${match.transfer_account_name}` : ""} · {match.type.replaceAll("_", " ")}</strong>
           <p>{batch.currency} {match.amount} · {match.date}{match.time ? ` · ${match.time}` : ""} · {match.source}</p>
           <p>{match.note}</p>{match.reference ? <p>Reference: {match.reference}</p> : null}{match.category_name ? <p>Category: {match.category_name}</p> : null}
           <ul>{match.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
@@ -104,7 +118,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         </article>)}</div></section> : null}
         {error ? <div><p role="alert" className="form-error">{error}</p><button className="button" type="button" disabled={busy} onClick={() => { dismiss(); onReload(); }}>Reload row · discard unsaved changes</button></div> : null}
         <div className="statement-actions">
-          <button className="button button--ghost" type="button" disabled={busy} onClick={onCancel}>Close</button>
+          <button className="button button--ghost" type="button" disabled={busy} onClick={onCancel}>Close</button><button className="button" type="button" disabled={busy || dirty} onClick={() => void advance()}>Next unresolved row</button>
           {!isResolved ? <><button className="button" type="button" disabled={busy || dirty} onClick={() => void decide("skip")}>Skip this row</button><button className="button button--primary" type="button" disabled={busy || dirty || row.review.issues.length > 0 || (row.review.requires_acknowledgement && !ackIssues)} onClick={() => row.review.matches.length ? setConfirmSeparate(true) : void decide("create")}>Add {row.component === "fee" ? "fee" : "transaction"}{row.review.matches.length ? " as separate" : ""}</button></> : row.transaction ? <button className="button" type="button" disabled={busy} onClick={() => setConfirmUnlink(true)}>Unlink statement evidence</button> : <button className="button" type="button" disabled={busy} onClick={() => void decide("reopen")}>Reopen skipped row</button>}
         </div>
       </div>

@@ -554,3 +554,12 @@ cancelled responses cannot overwrite the UI. A cancelled server upload may save
 a draft but never posts. Resolved drafts require unlink/reopen before editing;
 ledger corrections remain in Transactions, with original statement rows available
 on demand. Scans/card billing layouts and automatic posting remain unsupported.
+
+### How can users review a large statement efficiently?
+
+They can select pending rows for validated-new approval or skipping, with an explicit
+confirmation and fresh server validation. Save & next and Alt+S / Alt+Shift+S /
+Alt+Right navigate unresolved rows without implicit approval. Remembered choices
+are displayed for explicit application and saving. The import summary separates
+principal/fee amounts and decision counts; saved-draft checks remain separate from
+original extraction checks, and skipped rows remain part of statement arithmetic.
