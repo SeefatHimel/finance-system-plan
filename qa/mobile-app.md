@@ -50,6 +50,11 @@ debug key. The permanent key, build commands, signature verification, APK/AAB
 paths, and physical-phone SMS smoke test are documented in
 `projects/finance-mobile/docs/signed-android-release.md`.
 
+Each update uses the same signing key and a larger Android version code. The
+Expo Android version code and native Gradle value stay aligned so regenerating
+native files preserves upgrade compatibility. Package, Expo and device-status
+versions identify the same release.
+
 ## What is currently implemented in the mobile app?
 
 - Project scaffold with Expo + TypeScript.

@@ -73,8 +73,14 @@ back to the debug key when any value is missing.
 ## 4. Set the release version
 
 Before distributing an update, increase `versionCode` and update `versionName`
-in `android/app/build.gradle`. Keep the Expo `version` in `app.json` aligned.
-Android requires a larger `versionCode` for every upgrade.
+in `android/app/build.gradle`. Keep `expo.version` and `expo.android.versionCode`
+in `app.json` aligned with those native values, including when regenerating the
+Android project. Update the version in `package.json`, the root package entries
+in `package-lock.json`, and the SMS device-status `app_version` values in
+`App.tsx`. Android requires a larger `versionCode` for every upgrade.
+
+The current release is **0.1.3**, Android version code **4**. It includes bundled
+icon loading and capture-policy choices that wrap and ignore swipe gestures.
 
 ## 5. Build the signed APK
 
@@ -91,6 +97,16 @@ The APK is created at:
 ```text
 android/app/build/outputs/apk/release/app-release.apk
 ```
+
+Keep a versioned copy outside Gradle's output folder, which can be replaced by
+the next build. From the `android` directory, for the current release:
+
+```bash
+mkdir -p ../dist/releases
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.3.apk
+```
+
+The `dist/` directory is ignored by Git; release binaries stay out of commits.
 
 The repository already contains the native Android project and SMS capture
 module. Do not run `expo prebuild --clean` before a release unless native files

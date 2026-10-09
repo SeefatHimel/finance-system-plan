@@ -6,3 +6,4 @@ dist/
 *.jks
 *-release.keystore
 android/keystore.properties
+android/.kotlin/
