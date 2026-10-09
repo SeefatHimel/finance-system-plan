@@ -399,3 +399,32 @@ its start. The guard resets for the next gesture and permits accessibility
 activation without touch movement. Gesture regressions run with
 `npm run test:gestures` from `projects/finance-mobile`; device smoke testing should
 verify that swipes do not change the policy and deliberate taps still do.
+
+## Why could the signed app show queued SMS while background sync said nothing was waiting?
+
+Earlier builds had separate encrypted native capture and app retry queues. History
+scans moved records to the app queue, while the background worker consumed only
+native captures. Version 0.1.4 migrates existing retry records into the native
+queue and makes that worker the single consumer for installed Android captures
+and scans. Migration preserves backend identities and reprocessing intent and
+commits both encrypted values atomically. Each successful upload is acknowledged
+immediately, and all SMS pending indicators use native queue metadata. The
+activity summary identifies the unrelated manual transaction queue explicitly.
+
+## How does the mobile UI stay current without continuously refreshing APIs?
+
+In installed builds, while signed in and foregrounded, it reads local native
+sync status every 1.5 seconds and when resumed. This is not backend API polling.
+Review and transaction lists reload when a sync run completes. Native uploads
+use WorkManager connectivity constraints, continue bounded batches, and retry
+network errors, HTTP 408/429 and server failures. API-rejected records are held
+for explicit retry while other messages continue. Foreground/auth requests also
+have a timeout, including response-body reads, so a request cannot hang forever.
+
+## How do mobile screens avoid system-bar overlap and overflowing text?
+
+The root uses a safe-area provider and safe-area views for Android and iOS system
+insets. Horizontal text columns have bounded width, zero flex basis and shrink
+support; long labels wrap and the header title can scale down on narrow screens.
+These native layout changes need validation on a physical phone, including
+larger accessibility fonts; browser previews cannot prove Android inset behavior.

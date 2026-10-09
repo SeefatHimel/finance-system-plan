@@ -79,8 +79,8 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.3**, Android version code **4**. It includes bundled
-icon loading and capture-policy choices that wrap and ignore swipe gestures.
+The current release is **0.1.4**, Android version code **5**. It adds a shared native SMS upload queue, migration of pending app records,
+per-message progress, bounded API requests, safe system insets and wrapping text.
 
 ## 5. Build the signed APK
 
@@ -103,7 +103,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.3.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.4.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -171,3 +171,12 @@ Test on a physical Android phone:
 7. Import captured messages and sync the queued item.
 8. Confirm it appears in the SMS review inbox and can become a transaction.
 9. Close and reopen the app to verify queues and authentication survive restart.
+
+For the 0.1.4 upgrade smoke test, install over the existing app with the same
+signing key. Confirm that previously queued SMS begin uploading and the header
+count falls after successful requests. Compare header and capture-section counts;
+check that pending manual transactions are labelled separately. Check the header
+below the Android notification bar and the privacy card at default and enlarged
+font sizes. Verify one rejected sender cannot block other messages, retry after a
+network interruption, and check progress after reopening the app. Use synthetic
+messages for repeatable tests and keep private SMS out of screenshots/logs.

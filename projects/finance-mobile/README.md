@@ -361,3 +361,14 @@ the corrected transaction. The full ledger editor is currently a web workflow.
 Transfer evidence cache normalization preserves the read-only `is_primary` flag.
 Older cached records default to false without inferring an observation from another
 account. This keeps the generated transfer response type compatible with old caches.
+
+## Installed Android queue and layout (0.1.4)
+
+Installed builds use a single native SMS upload queue for captures and scans.
+Existing app retry records migrate without losing their import identities.
+Uploads persist progress after each successful response, retry temporary failures,
+and retain rejected records for explicit retry. Header and scan counts share the
+native pending count; the activity summary identifies pending manual entries.
+Foreground status refresh reads local native metadata, not a periodic backend API.
+The header and tabs respect Android system insets, and card text wraps within its
+available width. See `docs/native-sms-capture.md` for details and checks.

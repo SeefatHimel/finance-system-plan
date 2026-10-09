@@ -1,6 +1,6 @@
 # Native Android SMS Capture
 
-Last updated: 2026-09-29
+Last updated: 2026-10-09
 
 ## Scope
 
@@ -36,7 +36,7 @@ The implementation is intentionally narrow:
 - `App.tsx`
   - requests SMS permission on Android
   - syncs enabled sender rules to the native module
-  - imports captured native messages into the raw SMS queue
+  - scans directly into the native encrypted queue and schedules its worker
 
 ## Fresh Device Setup
 
@@ -92,6 +92,50 @@ Debug Android builds also show a two-step `Clear SMS test data` action. It
 clears local captured/processed fingerprints, the local raw queue, and the
 signed-in user's backend SMS candidates and SMS-created transactions. The API
 returns `404` for this operation when `DJANGO_DEBUG=false`.
+
+## Queue ownership and progress
+
+In installed Android builds, both live captures and history scans are uploaded
+by the same native WorkManager consumer. The previous encrypted app retry queue
+is merged into the native queue when sync is configured or requested. Migration
+commits both encrypted values together, keeps backend device-message IDs and
+reprocessing choices, and deduplicates records already captured natively. An
+upgrade retains pending messages; do not uninstall or clear application data.
+
+Each successful response is acknowledged immediately. Work is limited to 1,000
+eligible records or approximately four minutes per run, with continuation for
+remaining eligible records. Connectivity failures, HTTP 408/429 and server
+errors use WorkManager retry. Other rejected records remain encrypted and are
+held for explicit retry without blocking later records. `Retry background sync`
+releases that hold. Authentication failures require signing in again. Native
+HTTP requests have 15-second connect and 20-second read timeouts; foreground API
+and authentication requests have a 25-second timeout covering the response body.
+
+The header, home and scan sections use the native pending count. The activity
+summary labels the separate manual transaction queue explicitly. While signed
+in and foregrounded, the UI reads **local native status** every 1.5 seconds and
+on app resume. This does not poll backend lists: review and activity reload at
+sync completion. Background work continues independently of the UI. Android
+scheduling and connectivity still govern when uploads run.
+
+`SafeAreaProvider` and the safe-area view keep the header and bottom tabs outside
+system bars. Text in horizontal cards has a bounded, shrinking flex column;
+labels can wrap, and the header title can shrink on narrow displays.
+
+Verification commands from `projects/finance-mobile`:
+
+```bash
+npm run typecheck
+npm run test:network
+npm run test:gestures
+cd android
+./gradlew :finance-sms-capture:testDebugUnitTest :app:compileDebugKotlin
+```
+
+The native tests cover the 440-record migration, repeat migration, duplicate
+capture, reprocessing choices, malformed migration records and retryable HTTP
+responses. A physical phone is still required for status-bar/text scaling and
+closed-app SMS upload validation.
 
 ## Privacy Guardrails
 
