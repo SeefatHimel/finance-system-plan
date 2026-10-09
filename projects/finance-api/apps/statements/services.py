@@ -6,6 +6,7 @@ import re
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 from django.db import transaction as db_transaction
 from django.db.models import Q
@@ -221,6 +222,78 @@ def dates_for(row):
     return [d for d in (row.date, row.value_date) if d is not None]
 
 
+def reporting_observations(record, account_id):
+    """Keep reporting-account evidence intact; never borrow another side's fields."""
+    if record.type != "transfer":
+        return [record]
+    observations = [
+        e for e in record.transfer_evidence.all() if e.account_id == account_id
+    ]
+    if observations:
+        return observations
+    if record.account_id == account_id:
+        return [record]  # Legacy source-account report.
+    # Without receiving-account evidence, the source date is only a search hint.
+    return [
+        SimpleNamespace(
+            id=record.id,
+            date=record.date,
+            time=None,
+            balance_after=None,
+            reference="",
+            note="",
+            source=record.source,
+            date_is_fallback=True,
+        )
+    ]
+
+
+def evaluate_observation(row, record, observation, compatible_fields, previously_seen):
+    distance = min(abs((d - observation.date).days) for d in dates_for(row))
+    if distance > MATCH_DAYS and not previously_seen:
+        return None
+    reference_matches = bool(row.reference.strip()) and (
+        row.reference.strip().casefold() == observation.reference.strip().casefold()
+    )
+    reported_balance = observation.balance_after
+    balance_matches = (
+        row.balance_after is not None and row.balance_after == reported_balance
+    )
+    conflict = (
+        row.balance_after is not None
+        and reported_balance is not None
+        and not balance_matches
+    )
+    signals, reasons, extra_score = match_signals(
+        row,
+        record,
+        observation,
+        distance,
+        reference_matches,
+        balance_matches,
+        conflict or not compatible_fields,
+        previously_seen,
+    )
+    score = (
+        extra_score
+        + (300 if previously_seen else 0)
+        + (100 if reference_matches else 0)
+        + (30 if balance_matches else 0)
+        - distance
+    )
+    return {
+        "observation": observation,
+        "distance": distance,
+        "reference_matches": reference_matches,
+        "balance_matches": balance_matches,
+        "reported_balance": reported_balance,
+        "conflict": conflict,
+        "signals": signals,
+        "extra_reasons": reasons,
+        "score": score,
+    }
+
+
 def find_matches(rows):
     """One bounded history query, then bucket by amount and account perspective."""
     pending = [r for r in rows if not resolved(r) and not financial_issues(r)]
@@ -350,51 +423,34 @@ def find_matches(rows):
                 if not previously_seen:
                     continue
                 compatible_fields = False
-            observations = (
-                [
-                    e
-                    for e in record.transfer_evidence.all()
-                    if e.account_id == batch.account_id
-                ]
-                if record.type == "transfer"
-                else []
-            )
-            candidate_dates = [record.date] + [e.date for e in observations]
-            distance = min(
-                abs((d - other).days)
-                for d in dates_for(row)
-                for other in candidate_dates
-            )
-            if distance > MATCH_DAYS and not previously_seen:
+            evaluations = [
+                result
+                for observation in reporting_observations(record, batch.account_id)
+                if (
+                    result := evaluate_observation(
+                        row, record, observation, compatible_fields, previously_seen
+                    )
+                )
+                is not None
+            ]
+            if not evaluations:
                 continue
-            refs = [record.reference] + [e.reference for e in observations]
-            reference_matches = bool(row.reference.strip()) and any(
-                row.reference.strip().casefold() == r.strip().casefold() for r in refs
+            selected = max(
+                evaluations,
+                key=lambda result: (
+                    result["signals"]["strength"] == "strong",
+                    not result["conflict"],
+                    result["score"],
+                    -result["distance"],
+                    str(result["observation"].id),
+                ),
             )
-            balances = (
-                [e.balance_after for e in observations]
-                if record.type == "transfer"
-                else [record.balance_after]
-            )
-            if (
-                record.type == "transfer"
-                and not observations
-                and record.account_id == batch.account_id
-            ):
-                balances = [record.balance_after]
-            known_balances = [b for b in balances if b is not None]
-            reported_balance = (
-                min(known_balances, key=lambda b: abs(b - row.balance_after))
-                if row.balance_after is not None and known_balances
-                else known_balances[0]
-                if known_balances
-                else None
-            )
-            conflict = (
-                row.balance_after is not None
-                and bool(known_balances)
-                and row.balance_after not in known_balances
-            )
+            observation = selected["observation"]
+            distance = selected["distance"]
+            reference_matches = selected["reference_matches"]
+            balance_matches = selected["balance_matches"]
+            reported_balance = selected["reported_balance"]
+            conflict = selected["conflict"]
             reasons = [
                 "Same account perspective, currency, direction and amount."
                 if compatible_fields
@@ -407,7 +463,7 @@ def find_matches(rows):
                 )
             if reference_matches:
                 reasons.append("Reference also agrees; references can be reused.")
-            if row.balance_after is not None and row.balance_after in known_balances:
+            if balance_matches:
                 reasons.append("Reported balance also agrees.")
             if conflict:
                 reasons.append(
@@ -417,33 +473,21 @@ def find_matches(rows):
                 reasons.append(
                     "Another row in this statement is already attached to this movement."
                 )
-            signals, extra_reasons, extra_score = match_signals(
-                row,
-                record,
-                observations,
-                distance,
-                reference_matches,
-                row.balance_after is not None and row.balance_after in known_balances,
-                conflict or not compatible_fields,
-                previously_seen,
-            )
-            reasons.extend(extra_reasons)
+            signals = selected["signals"]
+            reasons.extend(selected["extra_reasons"])
+            if getattr(observation, "date_is_fallback", False):
+                reasons.append(
+                    "No receiving-account observation exists. The sender's date is only a search hint; its time, reference and balance were not used."
+                )
+            elif record.type == "transfer":
+                reasons.append(
+                    "Date, time, reference and balance were evaluated together from one reporting-account observation."
+                )
             if row.value_date:
                 reasons.append(
                     f"Posting date {row.date}; printed value date {row.value_date}. Both were considered."
                 )
-            score = (
-                extra_score
-                + (300 if previously_seen else 0)
-                + (100 if reference_matches else 0)
-                + (
-                    30
-                    if row.balance_after is not None
-                    and row.balance_after in known_balances
-                    else 0
-                )
-                - distance
-            )
+            score = selected["score"]
             candidates.append(
                 (
                     score,
@@ -451,10 +495,12 @@ def find_matches(rows):
                     {
                         **signals,
                         "id": str(record.id),
-                        "date": record.date.isoformat(),
-                        "time": record.time.isoformat() if record.time else None,
+                        "date": observation.date.isoformat(),
+                        "time": observation.time.isoformat()
+                        if observation.time
+                        else None,
                         "type": record.type,
-                        "source": record.source,
+                        "source": observation.source,
                         "amount": str(record.amount),
                         "account_name": record.account.name,
                         "transfer_account_name": record.transfer_account.name
@@ -463,8 +509,8 @@ def find_matches(rows):
                         "category_name": record.category.name
                         if record.category
                         else None,
-                        "reference": record.reference,
-                        "note": record.note[:500],
+                        "reference": observation.reference,
+                        "note": observation.note[:500],
                         "balance_after": str(reported_balance)
                         if reported_balance is not None
                         else None,

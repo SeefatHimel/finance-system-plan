@@ -347,3 +347,8 @@ bounded, paginated ledger-only account observations. It excludes confirmed and
 suggested matches, exposes incomplete coverage through `complete` and `warnings`,
 and has no financial side effects. It does not guarantee absence outside the
 statement period or when extraction/matching coverage is incomplete.
+
+Statement suggestions expose the selected reporting-account observation's fields,
+not a mixture of canonical and account-side evidence. Clients should show those
+fields together; a transfer's canonical ledger date may differ. Fallback search
+hints are explained in `reasons` and contain no borrowed sender balance/time/reference.

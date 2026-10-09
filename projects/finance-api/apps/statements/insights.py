@@ -121,7 +121,7 @@ def remember(row, user):
 def match_signals(
     row,
     record,
-    observations,
+    observation,
     distance,
     reference_matches,
     balance_matches,
@@ -133,17 +133,14 @@ def match_signals(
         max(
             (
                 SequenceMatcher(None, left, merchant_text(text)).ratio()
-                for text in [record.counterparty_text, record.note]
-                + [e.note for e in observations]
+                for text in [record.counterparty_text, observation.note]
             ),
             default=0,
         )
         if left
         else 0
     )
-    observations_with_time = [(record.date, record.time)] + [
-        (e.date, e.time) for e in observations
-    ]
+    observations_with_time = [(observation.date, observation.time)]
     minutes = (
         min(
             (

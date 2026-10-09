@@ -811,3 +811,136 @@ class StatementComparisonTests(APITestCase):
         result = self.comparison(batch).data
         self.assertEqual(result["counts"]["skipped"], 3)
         self.assertEqual(result["count"], 0)
+
+
+class StatementObservationMatchTests(APITestCase):
+    setUp = SavedStatementTests.setUp
+    upload = SavedStatementTests.upload
+    ledger_purchase = SavedStatementTests.ledger_purchase
+    decide = SavedStatementTests.decide
+
+    def incoming(self, **fields):
+        return self.ledger_purchase(
+            type="transfer",
+            account=self.wallet,
+            transfer_account=self.bank,
+            amount="50.00",
+            **fields,
+        )
+
+    def observe(self, record, **fields):
+        return TransferEvidence.objects.create(
+            user=self.user,
+            transaction=record,
+            account=self.bank,
+            direction="credit",
+            source="sms",
+            **fields,
+        )
+
+    def row_and_matches(self, batch):
+        from .services import find_matches
+
+        row = batch.rows.get(direction="credit")
+        return row, find_matches([row])[0][row.id]
+
+    def test_sender_date_cannot_admit_far_away_receiving_balance(self):
+        batch = self.upload()
+        record = self.incoming(balance_after="42.00")
+        self.observe(record, date=date(2026, 1, 20), balance_after="1000.00")
+        row, matches = self.row_and_matches(batch)
+        self.assertEqual(matches, [])
+        response = self.decide(row, action="link", transaction=str(record.id))
+        self.assertEqual(response.status_code, 400)
+        self.assertIsNone(batch.rows.get(id=row.id).transaction_id)
+
+    def test_two_receiving_observations_cannot_combine_date_and_balance(self):
+        batch = self.upload()
+        record = self.incoming(note="", reference="", counterparty_text="")
+        self.observe(record, date=date(2026, 1, 2), balance_after="900.00")
+        self.observe(record, date=date(2026, 1, 4), balance_after="1000.00")
+        _, matches = self.row_and_matches(batch)
+        match = matches[0]
+        self.assertEqual(match["strength"], "possible")
+        self.assertEqual(match["date"], "2026-01-04")
+        self.assertEqual(match["balance_after"], "1000.00")
+        self.assertTrue(any("Date difference: 2 days." in r for r in match["reasons"]))
+
+    def test_reference_and_time_from_distinct_observations_do_not_corroborate(self):
+        from datetime import time
+
+        from .services import find_matches
+
+        batch = self.upload()
+        row = batch.rows.get(direction="credit")
+        row.reference = "RECEIPT"
+        row.time = time(8)
+        row.value_date = date(2026, 1, 3)
+        row.balance_after = None
+        row.save()
+        record = self.incoming(note="", reference="", counterparty_text="")
+        self.observe(record, date=date(2026, 1, 2), reference="RECEIPT", time=None)
+        self.observe(record, date=date(2026, 1, 3), reference="", time=time(8))
+        match = find_matches([row])[0][row.id][0]
+        self.assertEqual(match["strength"], "possible")
+        self.assertEqual(match["reference"], "RECEIPT")
+        self.assertIsNone(match["time_difference_minutes"])
+        self.assertIsNone(match["time"])
+
+    def test_genuine_receiving_match_displays_and_links_one_observation(self):
+        from datetime import time
+
+        from .services import find_matches
+
+        batch = self.upload()
+        row = batch.rows.get(direction="credit")
+        row.reference = "RECEIVING-REF"
+        row.time = time(7, 15)
+        row.save()
+        record = self.incoming(
+            date=date(2026, 4, 2),
+            time=time(23),
+            reference="SENDER-REF",
+            balance_after="42.00",
+        )
+        self.observe(
+            record,
+            date=date(2026, 1, 2),
+            time=time(7, 15),
+            reference="RECEIVING-REF",
+            balance_after="1000.00",
+            note="Receiving report",
+        )
+        match = find_matches([row])[0][row.id][0]
+        self.assertEqual(match["strength"], "strong")
+        self.assertEqual(match["date"], "2026-01-02")
+        self.assertEqual(match["time"], "07:15:00")
+        self.assertEqual(match["reference"], "RECEIVING-REF")
+        self.assertEqual(match["balance_after"], "1000.00")
+        self.assertEqual(match["note"], "Receiving report")
+        self.assertEqual(match["time_difference_minutes"], 0)
+        response = self.decide(row, action="link", transaction=str(record.id))
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertEqual(record.date, date(2026, 4, 2))
+        self.assertEqual(record.balance_after, Decimal("42.00"))
+
+    def test_incoming_without_observation_does_not_borrow_sender_details(self):
+        from datetime import time
+
+        from .services import find_matches
+
+        batch = self.upload()
+        row = batch.rows.get(direction="credit")
+        row.reference = "SENDER-REF"
+        row.time = time(8)
+        row.save()
+        self.incoming(time=time(8), reference="SENDER-REF", balance_after="1000.00")
+        match = find_matches([row])[0][row.id][0]
+        self.assertEqual(match["strength"], "possible")
+        self.assertIsNone(match["balance_after"])
+        self.assertIsNone(match["time"])
+        self.assertEqual(match["reference"], "")
+        self.assertTrue(
+            any("only a search hint" in reason for reason in match["reasons"])
+        )

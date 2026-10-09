@@ -343,3 +343,9 @@ scoped statement/ledger coverage counts and paginated ledger-only observations.
 `complete=false` means absence is provisional; inspect `warnings`. Suggestions
 are excluded from ledger-only counts, and this read-only endpoint never changes
 ledger entries. It requires authentication and returns `Cache-Control: no-store`.
+
+Statement match `date`, `time`, `reference`, `balance_after`, `note`, and `source`
+refer to the selected reporting-account observation. They may differ from canonical
+transaction fields for a transfer. A receiving-side fallback with no observation
+has unknown time/balance and an empty reference, explained in `reasons`. Existing
+response shapes are unchanged.

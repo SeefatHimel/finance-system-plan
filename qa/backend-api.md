@@ -617,3 +617,12 @@ as provisional coverage; comparison never deletes or posts transactions.
 Skipping a PDF row is a posting decision, not evidence of absence: skipped source
 rows still participate in reverse coverage, so their ledger candidates are not
 incorrectly labelled ledger-only.
+
+### How do statement matches avoid mixing transfer observations?
+
+Each reporting-account observation is scored independently. Its date/time,
+reference and balance stay together, and the best eligible observation supplies
+the displayed suggestion. A nearby sender date cannot corroborate a receiving
+balance observed much later. Without receiving-account evidence, sender date is
+only a search hint; sender time/reference/balance do not supply corroboration.
+Linking requires explicit confirmation and preserves the existing ledger fields.

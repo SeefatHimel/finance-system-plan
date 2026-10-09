@@ -643,3 +643,12 @@ make absence provisional (`complete=false`). Comparison never posts or deletes.
 Equal amount and reported balance on the same day can produce a strong suggestion;
 shared claims across source rows remain ambiguous. Confirming a link saves the
 masked PDF row as evidence without overwriting ledger/SMS fields or counting twice.
+
+Statement transfer suggestions evaluate reporting-account observations separately.
+Date proximity, time, reference, balance, and observation note must come from one
+observation; the displayed suggestion uses that same observation. If receiving-
+account evidence exists, the sender's canonical date cannot replace its date.
+Without receiving evidence, the sender date is only a fallback search hint; sender
+time, reference, and balance do not corroborate the receiving statement. Legacy
+source-account reports can still use the canonical source fields when no account
+observation exists. Confirming a suggestion preserves canonical ledger fields.

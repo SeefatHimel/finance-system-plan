@@ -246,3 +246,14 @@ reporting-account ledger observation. Even a small difference remains an explici
 conflict; do not silently round it away or assume available and statement balances
 have identical semantics. Exact matching selects the agreeing observation when
 several observations exist for the same account.
+
+### Keep transfer corroboration within one observation
+
+Evaluate each observation of the selected reporting account independently. Do not
+combine the sender's canonical date with the receiver's balance, or combine one
+report's reference with another report's timestamp. The selected eligible
+observation supplies the suggestion's date/time/reference/balance/note/source.
+Receiving-account evidence takes precedence over canonical sender fields. If it is
+absent, sender date is only a fallback search hint, with no borrowed sender time,
+reference or balance. Legacy source-account canonical reports remain usable.
+Explicit links preserve both original ledger fields and separate statement evidence.
