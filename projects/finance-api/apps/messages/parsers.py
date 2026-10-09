@@ -1,8 +1,6 @@
 import re
 from decimal import Decimal, InvalidOperation
 
-from apps.payment_methods.models import PaymentMethod
-
 from .identifiers import sanitize_financial_identifier
 from .models import ParsedMessageCandidate, SenderRule, SenderRuleMapping
 
@@ -696,23 +694,12 @@ def _extract_merchant_text(body: str) -> str:
 
 
 def _find_payment_method_hint(*, user, text: str, excluded_account_id=None):
-    if not text:
-        return None
+    from apps.payment_methods.resolution import text_identifier_evidence, unique_method
 
-    normalized_text = _normalize_identifier(text)
-    if not normalized_text:
-        return None
-
-    payment_methods = PaymentMethod.objects.filter(user=user, is_active=True, account__is_active=True).select_related("account")
-    matches = []
-    for payment_method in payment_methods:
-        if excluded_account_id and payment_method.account_id == excluded_account_id:
-            continue
-        identifier = _normalize_identifier(payment_method.identifier)
-        if len(identifier) >= 4 and identifier in normalized_text:
-            matches.append(payment_method)
-    accounts = {method.account_id for method in matches}
-    return matches[0] if len(accounts) == 1 else None
+    evidence = text_identifier_evidence(text)
+    if re.fullmatch(r"[\d+ -]{7,}", text.strip()):
+        evidence.append(("account", text.strip()))
+    return unique_method(user=user, evidence=evidence, excluded_account_id=excluded_account_id)
 
 
 def _extract_identifier_evidence(body: str, message_kind: str) -> dict[str, str]:
@@ -758,38 +745,9 @@ def _extract_identifier_evidence(body: str, message_kind: str) -> dict[str, str]
     return identifiers
 
 def _find_payment_method_for_identifiers(*, user, identifiers: tuple[str, ...], provider: str):
-    normalized_identifiers = {
-        _normalize_identifier(identifier)
-        for identifier in identifiers
-        if identifier
-    }
-    if not normalized_identifiers:
-        return None
+    from apps.payment_methods.resolution import unique_method
 
-    payment_methods = PaymentMethod.objects.filter(user=user, is_active=True, account__is_active=True)
-    if provider:
-        payment_methods = payment_methods.filter(
-            provider__in={
-                provider,
-                PaymentMethod.Provider.BANK,
-                PaymentMethod.Provider.CARD,
-                PaymentMethod.Provider.MANUAL,
-                PaymentMethod.Provider.OTHER,
-            }
-        )
-    payment_methods = payment_methods.select_related("account")
-    matches = []
-    for payment_method in payment_methods:
-        configured_identifier = _normalize_identifier(payment_method.identifier)
-        if len(configured_identifier) < 4:
-            continue
-        if any(
-            configured_identifier in identifier or identifier in configured_identifier
-            for identifier in normalized_identifiers
-        ):
-            matches.append(payment_method)
-    accounts = {method.account_id for method in matches}
-    return matches[0] if len(accounts) == 1 else None
+    return unique_method(user=user, evidence=list(zip(("account", "card"), identifiers)), provider=provider)
 
 
 def _normalize_identifier(value: str) -> str:

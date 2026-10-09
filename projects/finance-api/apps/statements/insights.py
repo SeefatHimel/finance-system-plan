@@ -68,6 +68,18 @@ def suggestions(rows):
     if not rows:
         return {}
     batch = rows[0].batch
+    from apps.payment_methods.models import PaymentMethod
+    from apps.payment_methods.resolution import (
+        matching_methods,
+        named_methods,
+        text_identifier_evidence,
+    )
+
+    methods = list(
+        PaymentMethod.objects.filter(
+            user_id=batch.user_id, is_active=True, account__is_active=True
+        ).select_related("account")
+    )
     keys = {pattern(row)[0] for row in rows} - {None}
     mappings = {
         m.pattern_key: m
@@ -80,7 +92,44 @@ def suggestions(rows):
     }
     result = {}
     for row in rows:
+        # Numeric identity hints require transfer wording. Descriptions remain
+        # immutable and the hint never changes a row or its ledger movement.
+        from .services import transfer_hint
+
+        if transfer_hint(row):
+            identity_matches = matching_methods(
+                user=batch.user_id,
+                methods=methods,
+                evidence=text_identifier_evidence(row.extracted.get("description", "")),
+                excluded_account_id=batch.account_id,
+            )
+            if len({m.account_id for m in identity_matches}) > 1:
+                continue
+            method = identity_matches[0] if identity_matches else None
+            if method and method.account.currency == batch.currency:
+                result[row.id] = {
+                    "type": "transfer",
+                    "category": None,
+                    "other_account": str(method.account_id),
+                    "reason": f"Matched a saved identifier for {method.account.name}. Verify the transfer path.",
+                }
+                continue
         mapping = mappings.get(pattern(row)[0])
+        if not mapping and transfer_hint(row):
+            matches = named_methods(
+                row.extracted.get("description", ""), methods, batch.account_id
+            )
+            if (
+                len({m.account_id for m in matches}) == 1
+                and matches[0].account.currency == batch.currency
+            ):
+                result[row.id] = {
+                    "type": "transfer",
+                    "category": None,
+                    "other_account": str(matches[0].account_id),
+                    "reason": f"Matched a saved name alias for {matches[0].account.name}. Verify this is your own-account transfer.",
+                }
+            continue
         if not mapping or mapping.direction != row.direction:
             continue
         if mapping.category and not mapping.category.is_active:

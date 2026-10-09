@@ -293,3 +293,13 @@ A stale fingerprint cannot hide a financially incompatible ledger entry from
 ledger-only results. Evidence and ledger records remain intact until explicit
 unlink and review. Editorial category/note changes and previously acknowledged
 balance differences do not invalidate a financial identity match.
+
+### Reuse account identity metadata
+
+Payment methods can register multiple typed masked identifiers and text aliases.
+The shared resolver suggests the reporting account from the header suffix and
+shows ambiguity rather than choosing between collisions. Saved imports recompute
+this advisory mapping from current settings. Transfer-worded source rows can also
+suggest the other owned account from explicit account/card/wallet evidence or a
+saved text alias, without changing the extracted description or posting values.
+Identity hints do not merge transactions or accept statement matches.

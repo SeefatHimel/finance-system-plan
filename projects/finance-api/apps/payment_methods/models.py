@@ -1,4 +1,5 @@
 import uuid
+from typing import ClassVar
 
 from django.conf import settings
 from django.db import models
@@ -32,6 +33,13 @@ class PaymentMethod(models.Model):
     name = models.CharField(max_length=120)
     provider = models.CharField(max_length=32, choices=Provider.choices)
     identifier = models.CharField(max_length=120, blank=True)
+    identifier_kind = models.CharField(
+        max_length=16,
+        choices=(("any", "Unspecified"), ("account", "Account"), ("card", "Card")),
+        default="any",
+    )
+    additional_identifiers = models.JSONField(default=list, blank=True)
+    aliases = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     display_order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -39,7 +47,7 @@ class PaymentMethod(models.Model):
 
     class Meta:
         ordering = ("display_order", "name")
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(
                 fields=("user", "name"),
                 name="unique_payment_method_name_per_user",

@@ -686,3 +686,16 @@ Reports return BDT-only daily income/expense totals (including zero-activity day
 and expense-only `spending_categories`; own-account transfers are excluded from
 income/spending but remain in account movement. Daily chart totals come from the
 full server-side period, independently of transaction-list pagination.
+
+Payment methods support `identifier_kind` (`account`, `card`, legacy `any`), up to
+20 additional typed masked identifiers with optional labels, and up to 20 text
+aliases. Full unmasked values are reduced to safe suffixes by API validation;
+labels and numeric identifiers are separate fields. Apply the payment-method
+migration with the normal `python manage.py migrate` command before deploying.
+SMS endpoint matching and PDF account hints share a read-only identity resolver:
+visible prefixes can distinguish otherwise identical suffixes, independent card
+and account observations must agree, and shared suffixes remain ambiguous. User
+and active-account/method scope always apply. PDF transfer hints require transfer
+wording and preserve masked extraction. Alias changes do not reparse pending SMS,
+rewrite transaction fields, alter balances, accept matches, or backfill evidence.
+Future parsing and explicit re-runs can use the updated mappings.

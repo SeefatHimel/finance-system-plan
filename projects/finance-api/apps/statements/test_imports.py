@@ -1219,3 +1219,95 @@ class AcceptedStatementLinkTests(APITestCase):
         Transaction.objects.filter(pk=record.pk).update(account=other)
         detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data
         self.assertEqual(detail["review"]["review_state"], "needs_correction")
+
+
+class StatementIdentitySuggestionTests(APITestCase):
+    setUp = SavedStatementTests.setUp
+    upload = SavedStatementTests.upload
+
+    def test_numeric_transfer_suggestion_is_read_only(self):
+        from apps.payment_methods.models import PaymentMethod
+
+        from .insights import suggestions
+
+        batch = self.upload()
+        row = batch.rows.first()
+        row.extracted = {
+            **row.extracted,
+            "description": "Transfer to wallet ****4444",
+            "provider_type": "Transfer",
+        }
+        PaymentMethod.objects.create(
+            user=self.user,
+            account=self.wallet,
+            name="Synthetic wallet method",
+            provider="bkash",
+            additional_identifiers=[
+                {"kind": "account", "value": "4444", "label": "Wallet"}
+            ],
+        )
+        before = (row.type, row.other_account_id, row.note, row.extracted.copy())
+        hint = suggestions([row])[row.id]
+        self.assertEqual(hint["other_account"], str(self.wallet.id))
+        self.assertIn("saved identifier", hint["reason"])
+        self.assertEqual(
+            (row.type, row.other_account_id, row.note, row.extracted), before
+        )
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_name_alias_only_suggests_transfer_wording(self):
+        from apps.payment_methods.models import PaymentMethod
+
+        from .insights import suggestions
+
+        batch = self.upload()
+        row = batch.rows.first()
+        PaymentMethod.objects.create(
+            user=self.user,
+            account=self.wallet,
+            name="Synthetic wallet method",
+            provider="bkash",
+            aliases=["Pocket wallet"],
+        )
+        row.extracted = {
+            **row.extracted,
+            "description": "Payment at Pocket wallet",
+            "provider_type": "Purchase",
+        }
+        self.assertNotIn(row.id, suggestions([row]))
+        row.extracted = {
+            **row.extracted,
+            "description": "Transfer to Pocket wallet",
+            "provider_type": "Transfer",
+        }
+        self.assertEqual(
+            suggestions([row])[row.id]["other_account"], str(self.wallet.id)
+        )
+
+    def test_shared_numeric_identity_does_not_guess(self):
+        from apps.payment_methods.models import PaymentMethod
+
+        from .insights import suggestions
+
+        batch = self.upload()
+        row = batch.rows.first()
+        row.extracted = {
+            **row.extracted,
+            "description": "Transfer to wallet ****4444",
+            "provider_type": "Transfer",
+        }
+        for account in (
+            self.wallet,
+            Account.objects.create(
+                user=self.user, name="Synthetic extra wallet", type="mobile_wallet"
+            ),
+        ):
+            PaymentMethod.objects.create(
+                user=self.user,
+                account=account,
+                name=account.name,
+                provider="bkash",
+                identifier="4444",
+                identifier_kind="account",
+            )
+        self.assertNotIn(row.id, suggestions([row]))

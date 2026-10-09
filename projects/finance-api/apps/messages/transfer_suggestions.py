@@ -6,6 +6,7 @@ from django.db.models import Q
 
 from apps.accounts.models import Account
 from apps.payment_methods.models import PaymentMethod
+from apps.payment_methods.resolution import matching_methods, named_methods
 
 from .models import ParsedMessageCandidate, TransferCounterpartyMapping
 
@@ -49,14 +50,17 @@ def named_match(text, name):
 
 
 def unique_named_account(user, text, reporting_account):
+    raw_text = text
     text = normalized_name(text)
     methods = PaymentMethod.objects.filter(user=user, is_active=True, account__is_active=True).exclude(account=reporting_account).select_related("account")
     accounts = {}
+    for method in named_methods(raw_text, methods):
+        accounts[method.account_id] = method.account
     for account in Account.objects.filter(user=user, is_active=True).exclude(pk=reporting_account.pk):
         if named_match(text, account.name):
             accounts[account.pk] = account
     for method in methods:
-        if named_match(text, method.name) or any(mentioned(text, alias) for alias in PROVIDER_ALIASES.get(method.provider, ())):
+        if named_match(text, method.name) or any(mentioned(text, alias) for alias in (*method.aliases, *PROVIDER_ALIASES.get(method.provider, ()))):
             accounts[method.account_id] = method.account
     if len(accounts) == 1:
         return next(iter(accounts.values())), "Matched a saved account/payment-method name or provider alias."
@@ -71,6 +75,13 @@ def apply_transfer_suggestion(parsed, user, reporting_account, evidence_accounts
     source, destination, source_method, destination_method = evidence_accounts
     incoming = (parsed["suggested_transfer_direction"] == "credit" if parsed["suggested_transfer_direction"]
                 else parsed["message_kind"] in INCOMING)
+    other_role = "sender" if incoming else "receiver"
+    identifier_matches = matching_methods(user=user, evidence=[
+        (kind, parsed.get(f"{other_role}_{kind}_identifier", "")) for kind in ("account", "card")
+    ], excluded_account_id=reporting_account.pk)
+    if len({method.account_id for method in identifier_matches}) > 1:
+        parsed["transfer_suggestion_reason"] = "Several saved accounts match the other account's identifiers. Choose the transfer path manually."
+        return
     other = source if incoming and destination else destination if not incoming else None
     if other and other.pk != reporting_account.pk and (not parsed["transfer_suggestion_reason"] or parsed["transfer_suggestion_reason"].startswith("Matched saved payment-method identifiers")):
         # Two identified endpoints are stronger than learned or name-based hints.

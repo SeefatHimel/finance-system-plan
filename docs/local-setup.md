@@ -400,3 +400,9 @@ Statement review assistance requires the latest API migrations, including
 `statements.0002_statementmapping`. Run `python manage.py migrate` from
 `projects/finance-api` before restarting API/web. The remembered-choice table stores
 scoped classifications; PDF/password retention remains unchanged (neither is saved).
+
+The payment-method identity metadata update adds one migration. Run the existing
+API `python manage.py migrate` command before testing identifiers and aliases.
+Existing methods default to an unspecified identifier kind; no historical ledger
+fields or money values are backfilled. Configure optional mappings in SMS settings
+→ Payment methods, then test Numbers / Labels / Both on Transactions.

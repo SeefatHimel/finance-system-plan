@@ -15,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
-from apps.payment_methods.models import PaymentMethod
+from apps.payment_methods.resolution import statement_account_suggestion
 
 from .serializers import StatementPreviewRequestSerializer, StatementPreviewSerializer
 from .uploads import BoundedStatementUploadHandler
@@ -92,13 +92,13 @@ class StatementPreviewView(APIView):
             )
         preview["account"] = str(account.id)
         hint = preview["account_hint"]
-        identifiers = PaymentMethod.objects.filter(
-            user=request.user, account=account, is_active=True
-        ).values_list("identifier", flat=True)
-        suffix_matches = bool(hint) and any(
-            "".join(c for c in identifier if c.isdigit()).endswith(hint[-4:])
-            for identifier in identifiers
+        suggestion = statement_account_suggestion(
+            user=request.user, profile=preview["profile"], hint=hint
         )
+        preview["account_suggestion"] = suggestion
+        suffix_matches = bool(suggestion and suggestion["account"] == str(account.id))
+        if suggestion and suggestion["ambiguous"]:
+            preview["warnings"].append(suggestion["reason"])
         preview["account_identity"] = "matched_suffix" if suffix_matches else "verify"
         preview["warnings"].append(
             "Verify the selected account against the masked statement identifier. A suffix match is only a hint, not proof of ownership."

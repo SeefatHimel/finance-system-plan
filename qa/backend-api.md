@@ -661,3 +661,13 @@ are required, month cannot be combined with a range, and the maximum span is
 366 days. Reports aggregate the user's BDT ledger for the whole selected period,
 return daily totals including zero days, and exclude owned transfers from income
 and spending. The full daily series does not depend on list pagination.
+
+### How do aliases improve matching without changing ledger values?
+
+Payment methods carry typed numeric identifiers and separate text aliases. One
+resolver provides user-scoped, active account/method hints for SMS and statements.
+Prefixes can disambiguate suffixes, but independent account/card evidence must
+agree. Collision cases return ambiguity. PDF transfer suggestions require transfer
+wording; arbitrary references and amounts are not identity evidence. Saving these
+metadata fields never writes transactions, balances, source evidence or accepted
+links. Updated mappings apply to future parsing and explicit parser re-runs.

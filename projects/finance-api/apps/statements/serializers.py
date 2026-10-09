@@ -80,10 +80,18 @@ class StatementCheckSerializer(serializers.Serializer):
     passed = serializers.BooleanField(allow_null=True)
 
 
+class StatementAccountSuggestionSerializer(serializers.Serializer):
+    account = serializers.UUIDField(allow_null=True)
+    name = serializers.CharField(allow_blank=True)
+    reason = serializers.CharField()
+    ambiguous = serializers.BooleanField()
+
+
 class StatementPreviewSerializer(serializers.Serializer):
     account = serializers.UUIDField()
     account_hint = serializers.CharField()
     account_identity = serializers.ChoiceField(choices=["matched_suffix", "verify"])
+    account_suggestion = StatementAccountSuggestionSerializer(allow_null=True)
     profile = serializers.CharField()
     parser_version = serializers.CharField()
     currency = serializers.CharField()
@@ -111,6 +119,25 @@ class StatementCountsSerializer(serializers.Serializer):
 class StatementImportSerializer(serializers.ModelSerializer):
     account_name = serializers.CharField(source="account.name", read_only=True)
     counts = serializers.SerializerMethodField()
+    account_suggestion = serializers.SerializerMethodField()
+
+    @extend_schema_field(StatementAccountSuggestionSerializer(allow_null=True))
+    def get_account_suggestion(self, instance):
+        from apps.payment_methods.models import PaymentMethod
+        from apps.payment_methods.resolution import statement_account_suggestion
+
+        if "identity_methods" not in self.context:
+            self.context["identity_methods"] = list(
+                PaymentMethod.objects.filter(
+                    user_id=instance.user_id, is_active=True, account__is_active=True
+                ).select_related("account")
+            )
+        return statement_account_suggestion(
+            user=instance.user_id,
+            profile=instance.profile,
+            hint=instance.account_hint,
+            methods=self.context["identity_methods"],
+        )
 
     @extend_schema_field(StatementCountsSerializer)
     def get_counts(self, instance):
@@ -130,6 +157,7 @@ class StatementImportSerializer(serializers.ModelSerializer):
             "currency",
             "account_hint",
             "account_identity",
+            "account_suggestion",
             "period_start",
             "period_end",
             "page_count",

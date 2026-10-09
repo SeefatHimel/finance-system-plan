@@ -296,3 +296,11 @@ remember explicitly confirmed classifications and check corrected draft arithmet
 Selected actions and Save & next reduce repetitive work. Posting/linking remains
 explicit, so ambiguous matches and reconciliation differences receive human review.
 Scanned PDFs and credit-card billing layouts still need separate extraction work.
+
+### Is identity mapping part of the financial ledger?
+
+It is supporting metadata. Multiple masked identifiers and aliases can identify a
+saved account or payment method across SMS/PDF formats and provide report labels.
+Identity resolution does not establish that two entries are the same movement;
+transaction matching and explicit confirmation remain separate. Editing identity
+settings never changes historical money or ledger evidence.
