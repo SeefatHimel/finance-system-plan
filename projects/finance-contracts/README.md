@@ -385,3 +385,13 @@ and saved imports add nullable `account_suggestion`, with account ID/name, reaso
 and an ambiguity flag. A suggested account is advisory and does not replace the
 user-selected account or authorize posting. Transaction financial contracts and
 raw identifier fields are unchanged.
+
+Transaction list and CSV export add optional `date_field` (`date`, `created_at`,
+`updated_at`; default `date`) with the same month/paired-range parameters.
+Statement import lists add `date_field` (`created_at`, `updated_at`; default
+`updated_at`) and month/paired-range filters before pagination. Timestamp calendar
+days use Asia/Dhaka. Invalid date fields/months and incomplete/conflicting ranges
+return 400. Statement comparison adds paired inclusive start/end dates for
+ledger-only rows: `count` and page links use filtered results, while `counts` keeps
+whole-statement coverage. Ranges are capped at 366 days; schemas do not change.
+Regenerate clients with `python scripts/generate_ts_client.py` from this project.

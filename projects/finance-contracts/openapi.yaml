@@ -28,6 +28,21 @@ paths:
     get:
       operationId: statements_imports_list
       parameters:
+      - in: query
+        name: date_field
+        schema: {type: string, enum: [created_at, updated_at], default: updated_at}
+        description: Import activity date in Asia/Dhaka; filtering precedes pagination.
+      - in: query
+        name: month
+        schema: {type: string, pattern: '^\d{4}-\d{2}$'}
+      - in: query
+        name: start_date
+        schema: {type: string, format: date}
+        description: Inclusive start; requires end_date and excludes month.
+      - in: query
+        name: end_date
+        schema: {type: string, format: date}
+        description: Inclusive end; range at most 366 days.
       - name: limit
         required: false
         in: query
@@ -1712,6 +1727,18 @@ paths:
         - bearerAuth: []
       parameters:
         - in: query
+          name: date_field
+          schema: {type: string, enum: [date, created_at, updated_at], default: date}
+          description: Date used by month and range filters; timestamp days use Asia/Dhaka.
+        - in: query
+          name: start_date
+          schema: {type: string, format: date}
+          description: Inclusive start date; requires end_date and excludes month.
+        - in: query
+          name: end_date
+          schema: {type: string, format: date}
+          description: Inclusive end date; range at most 366 days.
+        - in: query
           name: month
           schema:
             type: string
@@ -1845,6 +1872,10 @@ paths:
         - bearerAuth: []
       parameters:
         - in: query
+          name: date_field
+          schema: {type: string, enum: [date, created_at, updated_at], default: date}
+          description: Date used by month and range filters; timestamp days use Asia/Dhaka.
+        - in: query
           name: start_date
           schema: {type: string, format: date}
           description: Inclusive start date; requires end_date and excludes month.
@@ -1858,7 +1889,7 @@ paths:
             type: string
             enum: ['-date', '-created_at', '-updated_at']
             default: '-date'
-          description: Sort newest transaction dates first (default), newest ledger additions first, or latest saved changes first. Month still filters the transaction date; omit it to include older transactions recently added or updated. Creation and edits update updated_at, as do newly linked transfer evidence and merges; reads and idempotent transfer retries do not. Edits and linked evidence do not change created_at.
+          description: Sort newest transaction dates first (default), newest ledger additions first, or latest saved changes first. Date filters use date_field (transaction date by default); omit dates to include all activity. Creation and edits update updated_at, as do newly linked transfer evidence and merges; reads and idempotent transfer retries do not. Edits and linked evidence do not change created_at.
         - in: query
           name: month
           schema:
@@ -2093,6 +2124,14 @@ paths:
     get:
       operationId: statements_imports_comparison_retrieve
       parameters:
+      - in: query
+        name: start_date
+        schema: {type: string, format: date}
+        description: Inclusive ledger-only table filter within the printed statement period; full coverage counts stay unchanged.
+      - in: query
+        name: end_date
+        schema: {type: string, format: date}
+        description: Inclusive end; requires start_date and range at most 366 days. The table count and pagination use the filtered results.
       - in: path
         name: id
         schema:

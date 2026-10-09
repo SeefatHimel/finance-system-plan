@@ -227,7 +227,8 @@ Transaction listing accepts `ordering` with enum values `-date` and
 the whitelist. `created_at` and `updated_at` are read-only in transaction responses.
 Update time includes new entries, edits, new transfer evidence and merges;
 reads and idempotent retries leave it unchanged. To include old transactions
-newly added or edited, omit the financial-month filter. CSV
+newly added or edited, omit date bounds or choose `date_field=created_at` /
+`updated_at` with the desired activity period. CSV
 export keeps its existing chronological order and does not accept this option.
 
 ## What does learning a skipped message type change in the API?
@@ -384,3 +385,13 @@ Payment-method contracts add bounded typed identifier/alias lists and a primary
 identifier kind; the migration defaults existing methods to `any`. Statements
 expose advisory account mapping information. Transaction identifiers, amounts,
 balances and linked evidence keep their existing contracts.
+
+## Are creation/update date filters independent from transaction dates?
+
+Yes. Transaction list/export accept an explicit `date_field` with the existing
+month or paired inclusive range. Import history has its own created/updated
+whitelist. Server timestamp days use Asia/Dhaka. The generated TypeScript query
+types describe these parameters; invalid/mixed/incomplete ranges return 400.
+Comparison ranges filter ledger-only rows before pagination: `count` is filtered,
+while `counts` remains whole-statement coverage. Clients must label that distinction
+and must not interpret date filtering as a change to matching or ledger evidence.

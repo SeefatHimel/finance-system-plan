@@ -58,6 +58,10 @@ export class FinanceApiClient {
   }
 
   async getApiStatementsImports(query?: {
+  date_field?: "created_at" | "updated_at";
+  month?: string;
+  start_date?: string;
+  end_date?: string;
   limit?: number;
   offset?: number;
 }): Promise<PaginatedStatementImportList> {
@@ -376,6 +380,9 @@ export class FinanceApiClient {
   }
 
   async exportFilteredTransactionsAsCSV(query?: {
+  date_field?: "date" | "created_at" | "updated_at";
+  start_date?: string;
+  end_date?: string;
   month?: string;
   account?: string;
   category?: string;
@@ -400,6 +407,7 @@ export class FinanceApiClient {
   }
 
   async listTransactionsForCurrentUser(query?: {
+  date_field?: "date" | "created_at" | "updated_at";
   start_date?: string;
   end_date?: string;
   ordering?: "-date" | "-created_at" | "-updated_at";
@@ -455,6 +463,8 @@ export class FinanceApiClient {
   }
 
   async getApiStatementsImportsIdComparison(pathParams: {id: string }, query?: {
+  start_date?: string;
+  end_date?: string;
   offset?: number;
   limit?: number;
 }): Promise<StatementComparison> {
