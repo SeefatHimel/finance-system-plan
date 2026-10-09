@@ -626,3 +626,12 @@ the displayed suggestion. A nearby sender date cannot corroborate a receiving
 balance observed much later. Without receiving-account evidence, sender date is
 only a search hint; sender time/reference/balance do not supply corroboration.
 Linking requires explicit confirmation and preserves the existing ledger fields.
+
+### Can correcting a PDF draft falsely make a printed transaction ledger-only?
+
+Original extracted rows and corrected drafts are matched independently for reverse
+coverage. Candidates found through either view are excluded from ledger-only
+results. Original inline fee amounts are reconstructed from signed fees; draft
+transfer classification/path changes do not erase source coverage. Financial
+corrections, missing original fields and failed draft reconciliation make absence
+provisional and show warnings. Comparison writes neither ledger nor draft evidence.

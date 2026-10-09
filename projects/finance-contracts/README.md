@@ -349,3 +349,9 @@ refer to the selected reporting-account observation. They may differ from canoni
 transaction fields for a transfer. A receiving-side fallback with no observation
 has unknown time/balance and an empty reference, explained in `reasons`. Existing
 response shapes are unchanged.
+
+Statement comparison coverage considers immutable PDF rows separately from draft
+suggestions. Candidates from either view are excluded from ledger-only results.
+Changed matching values and failed draft reconciliation set `complete=false` with
+warnings; `ledger_only_available=true` can still expose provisional results.
+Missing original financial fields remain incomplete after draft correction.

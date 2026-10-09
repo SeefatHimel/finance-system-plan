@@ -2,42 +2,97 @@
 
 from collections import Counter
 from copy import copy
+from datetime import date, time
+from decimal import Decimal
 
 from django.db.models import Q
 
 from apps.transactions.models import Transaction
 
-from .insights import prepare
+from .insights import analyze
 from .services import (
     MAX_MATCH_HISTORY,
     financial_issues,
     find_matches,
+    ledger_money,
     review_context,
 )
 
 
+def original_coverage_row(row):
+    """A read-only view of printed values, independent of corrected draft fields."""
+    candidate = copy(row)
+    source = row.extracted
+    candidate.date = date.fromisoformat(source["date"]) if source.get("date") else None
+    candidate.value_date = (
+        date.fromisoformat(source["value_date"]) if source.get("value_date") else None
+    )
+    candidate.time = time.fromisoformat(source["time"]) if source.get("time") else None
+    fee = Decimal(source.get("signed_fee", "0"))
+    candidate.amount = (
+        ledger_money(abs(fee))
+        if row.component == "fee"
+        else ledger_money(source.get("amount"))
+    )
+    candidate.direction = (
+        ("debit" if fee < 0 else "credit")
+        if row.component == "fee"
+        else source["direction"]
+    )
+    candidate.balance_after = ledger_money(source.get("balance_after"))
+    candidate.reference = source.get("reference", "")
+    candidate.counterparty_text = source.get("description", "")[:255]
+    candidate.note = source.get("description", "")
+    candidate.type = "income" if candidate.direction == "credit" else "expense"
+    candidate.other_account_id = None
+    candidate.transaction_id = None
+    candidate.state = "pending"
+    return candidate
+
+
+def matching_values_changed(row, original):
+    return any(
+        getattr(row, field) != getattr(original, field)
+        for field in (
+            "date",
+            "value_date",
+            "time",
+            "amount",
+            "direction",
+            "balance_after",
+            "reference",
+        )
+    )
+
+
 def compare(batch, rows, offset=0, limit=50):
-    prepare(rows)
-    # Skipping is a posting decision, not evidence that the row was absent from
-    # the PDF. Still compare skipped source rows when measuring ledger coverage.
-    coverage_rows = []
-    for row in rows:
-        candidate = copy(row)
-        if candidate.state == "skipped":
-            candidate.state = "pending"
-        coverage_rows.append(candidate)
-    matches, truncated = find_matches(coverage_rows)
+    draft_summary = analyze(batch, rows)
+    source_rows = [original_coverage_row(row) for row in rows]
+    source_matches, source_truncated = find_matches(source_rows)
+    draft_matches, draft_truncated = find_matches(rows)
+    truncated = source_truncated or draft_truncated
     linked = {r.transaction_id for r in rows if r.transaction_id}
-    suggested = {m["id"] for values in matches.values() for m in values}
+    # Either view may explain a recorded movement. Corrections never erase what
+    # was printed, and corrected draft candidates remain available for review.
+    suggested = {
+        m["id"]
+        for matches in (source_matches, draft_matches)
+        for values in matches.values()
+        for m in values
+    }
     counts = Counter()
     for row in rows:
         if row.transaction_id:
             state = "matched"
         elif row.state == "skipped":
             state = "skipped"
-        elif matches[row.id] or (
-            review_context(row, [], truncated)["review_state"] == "needs_correction"
-            or truncated
+        elif (
+            draft_matches[row.id]
+            or source_matches[row.id]
+            or (
+                review_context(row, [], truncated)["review_state"] == "needs_correction"
+                or truncated
+            )
         ):
             state = "needs_review"
         else:
@@ -49,12 +104,30 @@ def compare(batch, rows, offset=0, limit=50):
         warnings.append(
             "Matching history exceeded the limit; ledger-only results are unavailable."
         )
-    if any(len(values) >= 8 for values in matches.values()):
+    suggestions_limited = any(
+        len(values) >= 8
+        for matches in (source_matches, draft_matches)
+        for values in matches.values()
+    )
+    if suggestions_limited:
         complete = False
         warnings.append(
             "Some rows reached the suggestion limit; absence cannot be established safely."
         )
-    if any(financial_issues(r) for r in rows):
+    if any(
+        matching_values_changed(row, original)
+        for row, original in zip(rows, source_rows, strict=True)
+    ):
+        complete = False
+        warnings.append(
+            "Saved draft matching values differ from the original PDF. PDF coverage and corrected posting values were compared separately; absence remains provisional."
+        )
+    if draft_summary["discrepancy_count"]:
+        complete = False
+        warnings.append(
+            "Saved draft balances or totals do not reconcile. Review the import summary before treating unmatched ledger entries as absent."
+        )
+    if any(financial_issues(r) for r in rows + source_rows):
         complete = False
         warnings.append(
             "Incomplete statement rows may hide matches; absence remains provisional."
@@ -65,7 +138,7 @@ def compare(batch, rows, offset=0, limit=50):
             "Original extraction checks failed; verify the PDF before treating rows as absent."
         )
     start, end = batch.period_start, batch.period_end
-    unavailable = truncated or any(len(values) >= 8 for values in matches.values())
+    unavailable = truncated or suggestions_limited
     if start is None or end is None:
         warnings.append(
             "A printed statement period is required for ledger-only comparison."

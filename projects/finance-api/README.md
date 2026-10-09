@@ -652,3 +652,11 @@ Without receiving evidence, the sender date is only a fallback search hint; send
 time, reference, and balance do not corroborate the receiving statement. Legacy
 source-account reports can still use the canonical source fields when no account
 observation exists. Confirming a suggestion preserves canonical ledger fields.
+
+Reverse statement coverage uses read-only copies of the original extracted PDF
+fields, separately from corrected-draft suggestions. Inline fee copies use the
+printed signed fee's absolute amount and sign, not the principal amount. A ledger
+candidate found through either view is excluded from ledger-only results. Source
+rows still participate after skip/link decisions. Edited matching values, missing
+original financial fields, or failed draft reconciliation make comparison
+provisional and produce warnings; they never change extraction evidence or drafts.

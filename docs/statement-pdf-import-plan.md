@@ -257,3 +257,17 @@ Receiving-account evidence takes precedence over canonical sender fields. If it 
 absent, sender date is only a fallback search hint, with no borrowed sender time,
 reference or balance. Legacy source-account canonical reports remain usable.
 Explicit links preserve both original ledger fields and separate statement evidence.
+
+### Preserve PDF coverage through draft corrections
+
+Determine statement presence using immutable extracted dates/times, direction,
+principal or inline fee amount, balance and reference. Draft classification and
+owned-other-account selections do not restrict this source coverage check. Compare
+corrected drafts independently so their suggestions still participate. Exclude
+candidates found through either view from ledger-only results. A changed draft
+must not erase a transaction actually printed in the PDF.
+
+Source/draft matching differences and failed saved-draft reconciliation make
+absence provisional with explicit comparison warnings. Original missing amounts
+or dates remain incomplete even after a valid draft correction. Corrections and
+source evidence are never rewritten by the read-only comparison endpoint.

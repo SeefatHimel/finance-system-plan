@@ -352,3 +352,8 @@ Statement suggestions expose the selected reporting-account observation's fields
 not a mixture of canonical and account-side evidence. Clients should show those
 fields together; a transfer's canonical ledger date may differ. Fallback search
 hints are explained in `reasons` and contain no borrowed sender balance/time/reference.
+
+For statement comparison, `complete=false` also reports edited source/draft
+matching values or failed saved-draft reconciliation. Availability and completeness
+are distinct: ledger-only results can be available but provisional. Original PDF
+coverage and corrected-draft candidates both prevent a false ledger-only label.

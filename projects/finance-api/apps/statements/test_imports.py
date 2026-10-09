@@ -812,6 +812,91 @@ class StatementComparisonTests(APITestCase):
         self.assertEqual(result["counts"]["skipped"], 3)
         self.assertEqual(result["count"], 0)
 
+    def test_draft_amount_edits_do_not_erase_original_pdf_coverage(self):
+        batch = self.upload()
+        record = self.ledger_purchase()
+        before = list(batch.rows.values_list("id", "extracted"))
+        batch.rows.filter(direction="debit").update(amount="51.00")
+        result = self.comparison(batch).data
+        self.assertEqual(result["count"], 0)
+        self.assertFalse(result["complete"])
+        self.assertTrue(result["ledger_only_available"])
+        self.assertTrue(
+            any("original PDF" in warning for warning in result["warnings"])
+        )
+        self.assertTrue(
+            any("do not reconcile" in warning for warning in result["warnings"])
+        )
+        self.assertEqual(before, list(batch.rows.values_list("id", "extracted")))
+        self.assertTrue(
+            all(
+                row.amount == Decimal("51.00")
+                for row in batch.rows.filter(direction="debit")
+            )
+        )
+        record.refresh_from_db()
+        self.assertEqual(record.amount, Decimal("50.00"))
+
+    def test_original_date_direction_and_transfer_path_survive_draft_edits(self):
+        batch = self.upload()
+        self.ledger_purchase(type="transfer", transfer_account=self.wallet)
+        other = Account.objects.create(
+            user=self.user,
+            name="Synthetic other wallet",
+            type="mobile_wallet",
+            currency="BDT",
+        )
+        batch.rows.filter(direction="debit").update(
+            date=date(2026, 2, 2),
+            direction="credit",
+            type="transfer",
+            other_account=other,
+        )
+        result = self.comparison(batch).data
+        self.assertEqual(result["count"], 0)
+        self.assertFalse(result["complete"])
+        self.assertGreater(result["counts"].get("needs_review", 0), 0)
+
+    def test_corrected_draft_candidates_remain_covered_beside_original_pdf(self):
+        batch = self.upload()
+        self.ledger_purchase(amount="51.00")
+        batch.rows.filter(direction="debit").update(amount="51.00")
+        result = self.comparison(batch).data
+        self.assertEqual(result["count"], 0)
+        self.assertFalse(result["complete"])
+
+    def test_inline_fee_coverage_uses_printed_fee_not_principal_or_edited_fee(self):
+        batch = self.upload(synthetic_pdf("bkash"), self.wallet)
+        fee = batch.rows.get(position=3, component="fee")
+        original_fee = abs(Decimal(fee.extracted["signed_fee"]))
+        self.ledger_purchase(
+            account=self.wallet,
+            amount=original_fee,
+            date=fee.date,
+            type="fee",
+            direction=fee.direction,
+            balance_after=fee.balance_after,
+        )
+        fee.amount = original_fee + Decimal("1.00")
+        fee.save()
+        result = self.comparison(batch).data
+        self.assertEqual(result["count"], 0)
+        self.assertFalse(result["complete"])
+
+    def test_original_missing_amount_remains_provisional_after_correction(self):
+        batch = self.upload()
+        row = batch.rows.first()
+        row.extracted = {**row.extracted, "amount": None}
+        row.amount = Decimal("50.00")
+        row.save()
+        result = self.comparison(batch).data
+        self.assertFalse(result["complete"])
+        self.assertTrue(
+            any(
+                "Incomplete statement rows" in warning for warning in result["warnings"]
+            )
+        )
+
 
 class StatementObservationMatchTests(APITestCase):
     setUp = SavedStatementTests.setUp
