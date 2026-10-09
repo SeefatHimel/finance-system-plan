@@ -12,8 +12,7 @@ from .models import StatementImport, StatementRow
 from .parser import MAX_BYTES
 
 
-class StatementPreviewRequestSerializer(serializers.Serializer):
-    account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none())
+class StatementIdentifyRequestSerializer(serializers.Serializer):
     file = serializers.FileField()
     password = serializers.CharField(
         required=False,
@@ -23,6 +22,17 @@ class StatementPreviewRequestSerializer(serializers.Serializer):
         trim_whitespace=False,
     )
 
+    def validate_file(self, value):
+        if value.size > MAX_BYTES:
+            raise serializers.ValidationError("Choose a PDF no larger than 4 MiB.")
+        if not value.name.lower().endswith(".pdf"):
+            raise serializers.ValidationError("Choose a statement PDF.")
+        return value
+
+
+class StatementPreviewRequestSerializer(StatementIdentifyRequestSerializer):
+    account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none())
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
@@ -30,13 +40,6 @@ class StatementPreviewRequestSerializer(serializers.Serializer):
             self.fields["account"].queryset = Account.objects.filter(
                 user=request.user, is_active=True
             )
-
-    def validate_file(self, value):
-        if value.size > MAX_BYTES:
-            raise serializers.ValidationError("Choose a PDF no larger than 4 MiB.")
-        if not value.name.lower().endswith(".pdf"):
-            raise serializers.ValidationError("Choose a statement PDF.")
-        return value
 
     def validate_account(self, value):
         if value.type not in {
@@ -85,6 +88,12 @@ class StatementAccountSuggestionSerializer(serializers.Serializer):
     name = serializers.CharField(allow_blank=True)
     reason = serializers.CharField()
     ambiguous = serializers.BooleanField()
+
+
+class StatementIdentifySerializer(serializers.Serializer):
+    profile = serializers.CharField()
+    account_hint = serializers.CharField()
+    account_suggestion = StatementAccountSuggestionSerializer(allow_null=True)
 
 
 class StatementPreviewSerializer(serializers.Serializer):

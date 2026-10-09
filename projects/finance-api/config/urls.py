@@ -11,25 +11,27 @@ from apps.categories.views import CategoryViewSet
 from apps.credit_cards.views import CreditCardBillViewSet, CreditCardPaymentCreateView
 from apps.debts.views import DebtPaymentCreateView, DebtViewSet
 from apps.messages.views import (
-    MessageCandidateConfirmView,
     MessageCandidateBulkReprocessView,
-    MessageCandidateReprocessView,
+    MessageCandidateConfirmView,
     MessageCandidateRejectView,
+    MessageCandidateReprocessView,
     MessageReviewListView,
     RawMessageImportView,
     RawMessageRedactView,
     SenderRuleViewSet,
     SmsCapturePreferenceView,
-    SmsDeviceStatusView,
     SmsDevelopmentResetView,
+    SmsDeviceStatusView,
 )
 from apps.payment_methods.views import PaymentMethodViewSet
-from apps.recurring_bills.views import RecurringBillPaymentCreateView, RecurringBillViewSet
 from apps.reconciliation.views import AccountReconciliationView, BalanceSnapshotViewSet
-from apps.transactions.views import TransactionViewSet
-from apps.statements.views import StatementPreviewView
+from apps.recurring_bills.views import (
+    RecurringBillPaymentCreateView,
+    RecurringBillViewSet,
+)
 from apps.statements.review_views import StatementImportViewSet, StatementRowViewSet
-
+from apps.statements.views import StatementIdentifyView, StatementPreviewView
+from apps.transactions.views import TransactionViewSet
 
 router = DefaultRouter()
 router.register("accounts", AccountViewSet, basename="account")
@@ -52,6 +54,7 @@ urlpatterns = [
     path("api/", include(router.urls)),
     path("api/health/", include("apps.health.urls")),
     path("api/statements/preview/", StatementPreviewView.as_view(), name="statement-preview"),
+    path("api/statements/identify/", StatementIdentifyView.as_view(), name="statement-identify"),
     path("api/messages/import/", RawMessageImportView.as_view(), name="raw-message-import"),
     path(
         "api/messages/capture-preferences/",

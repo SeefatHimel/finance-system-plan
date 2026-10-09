@@ -725,3 +725,43 @@ Schema verification note: authenticated runtime schema generation exposes the
 new date parameters. Anonymous automatic generation currently fails in the
 existing `CategorySerializer.get_fields` user lookup; the checked-in shared
 OpenAPI and generated TypeScript client remain the integration contract.
+
+## Account recognition profiles
+
+Account create/update accepts optional `identity` metadata: provider, masked primary
+identifier and its account/card kind, up to 20 additional typed identifiers with
+labels, and up to 20 text aliases. Numbers with no mask are reduced to the last four
+digits before storage; numbers are not valid text aliases. A profile needs at least
+one identifier or alias. Ownership comes from the account and authenticated user,
+not client-supplied payment-method IDs.
+
+`Account.identity_method` points to one shared `PaymentMethod`, so SMS and PDF
+resolution and SMS-settings edits use the same values. Apply migration
+`accounts.0002_account_identity_method` before deploying the API. Existing accounts
+and payment methods are unchanged by this additive migration. Omitting `identity`
+preserves a profile; `identity: null` disables it without deleting saved evidence.
+Sending a non-null profile re-enables it. Other separately saved payment methods
+remain available. Profile creation/update is atomic and account updates lock the
+account row. A managed profile cannot be moved to another account through the
+payment-method API. Deleting an unused account removes its managed profile; linked
+ledger records still protect account deletion, with a readable 400 response and
+transaction rollback.
+
+Authenticated `POST /api/statements/identify/` accepts multipart `file` and optional
+transient `password`, without requiring an account. It returns only `profile`,
+masked `account_hint`, and nullable `account_suggestion`. It writes no import or
+ledger data and uses the preview upload/worker limits, no-store response, and
+separate 10/hour recognition throttle. Suggestions include only owned, active BDT
+accounts compatible with the parser profile. Duplicate suffixes remain ambiguous.
+Import still requires an explicit selected account and separate row confirmation.
+Card identifiers improve SMS recognition; this does not add card-statement or OCR
+parser support. Profile edits never rewrite transaction amounts or balances.
+
+Verify with:
+
+```sh
+DATABASE_URL= .venv/bin/python manage.py test apps.accounts apps.payment_methods apps.statements apps.messages --noinput
+```
+
+Masked identifiers exposing more than ten digits also reduce to a last-four
+suffix, so adding a mask character cannot preserve a nearly complete card number.

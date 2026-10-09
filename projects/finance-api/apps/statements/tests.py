@@ -193,6 +193,138 @@ class StatementParserTests(SimpleTestCase):
             self.assertEqual(error.exception.code, code)
 
 
+class StatementAccountIdentificationTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = get_user_model().objects.create_user(
+            username="synthetic-statement-identify"
+        )
+        self.client.force_authenticate(self.user)
+
+    def add_account(self, name="Synthetic identified bank", **fields):
+        response = self.client.post(
+            reverse("account-list"),
+            {
+                "name": name,
+                "type": "bank",
+                "identity": {
+                    "provider": "ebl",
+                    "identifier": "0123",
+                    "identifier_kind": "account",
+                },
+                **fields,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        return response.data["id"]
+
+    def identify(self, content=None, **fields):
+        return self.client.post(
+            reverse("statement-identify"),
+            {
+                "file": SimpleUploadedFile(
+                    "synthetic.pdf",
+                    content or synthetic_pdf(),
+                    content_type="application/pdf",
+                ),
+                **fields,
+            },
+            format="multipart",
+        )
+
+    def test_identification_before_account_selection_is_private_and_read_only(self):
+        from .models import StatementImport, StatementRow
+
+        account = self.add_account()
+        response = self.identify()
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response["Cache-Control"], "no-store")
+        self.assertEqual(
+            set(response.data), {"profile", "account_hint", "account_suggestion"}
+        )
+        self.assertNotIn("9876543210123", str(response.data))
+        self.assertEqual(response.data["account_suggestion"]["account"], account)
+        self.assertFalse(response.data["account_suggestion"]["ambiguous"])
+        self.assertEqual(
+            (
+                StatementImport.objects.count(),
+                StatementRow.objects.count(),
+                Transaction.objects.count(),
+            ),
+            (0, 0, 0),
+        )
+        self.client.force_authenticate(None)
+        self.assertEqual(self.identify().status_code, 401)
+
+    def test_suffix_collisions_are_explicit_and_selected_account_is_authoritative(self):
+        account = self.add_account()
+        self.add_account("Second synthetic bank")
+        response = self.identify()
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertTrue(response.data["account_suggestion"]["ambiguous"])
+        self.assertIsNone(response.data["account_suggestion"]["account"])
+        preview = self.client.post(
+            reverse("statement-preview"),
+            {
+                "account": account,
+                "file": SimpleUploadedFile("synthetic.pdf", synthetic_pdf()),
+            },
+            format="multipart",
+        )
+        self.assertEqual(preview.status_code, 200, preview.data)
+        self.assertEqual(preview.data["account"], account)
+        self.assertEqual(preview.data["account_identity"], "verify")
+
+    def test_ineligible_foreign_and_inactive_accounts_are_not_suggested(self):
+        self.add_account("Synthetic credit card", type="credit_card")
+        self.add_account("Synthetic wallet", type="mobile_wallet")
+        self.add_account("Synthetic foreign currency", currency="USD")
+        self.add_account("Synthetic archived bank", is_active=False)
+        disabled = self.add_account("Synthetic disabled recognition")
+        self.client.patch(
+            reverse("account-detail", kwargs={"pk": disabled}),
+            {"identity": None},
+            format="json",
+        )
+        other = get_user_model().objects.create_user(
+            username="synthetic-foreign-statement"
+        )
+        account = Account.objects.create(user=other, name="Foreign bank", type="bank")
+        PaymentMethod.objects.create(
+            user=other,
+            account=account,
+            name="Foreign method",
+            provider="ebl",
+            identifier="0123",
+            identifier_kind="account",
+        )
+        response = self.identify()
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNone(response.data["account_suggestion"])
+
+    def test_invalid_and_locked_files_require_valid_transient_password(self):
+        self.assertEqual(self.identify(b"not a pdf").status_code, 400)
+        self.assertEqual(self.identify(b"%PDF-" + b"x" * MAX_BYTES).status_code, 400)
+        locked = synthetic_pdf(password="synthetic-password")
+        self.assertEqual(self.identify(locked).status_code, 400)
+        response = self.identify(locked, password="synthetic-password")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertNotIn("synthetic-password", str(response.data))
+
+    def test_recognition_has_a_separate_bounded_allowance_from_import_preview(self):
+        import time
+
+        cache.set(
+            f"throttle_statement_preview_{self.user.pk}", [time.time()] * 10, 3600
+        )
+        self.assertEqual(self.identify().status_code, 200)
+        cache.set(
+            f"throttle_statement_identify_{self.user.pk}", [time.time()] * 10, 3600
+        )
+        self.assertEqual(self.identify().status_code, 429)
+
+
 class StatementPreviewApiTests(APITestCase):
     def setUp(self):
         cache.clear()

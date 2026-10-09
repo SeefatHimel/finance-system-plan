@@ -25,6 +25,13 @@ class Account(models.Model):
     name = models.CharField(max_length=120)
     type = models.CharField(max_length=32, choices=Type.choices)
     currency = models.CharField(max_length=3, default="BDT")
+    identity_method = models.OneToOneField(
+        "payment_methods.PaymentMethod",
+        on_delete=models.SET_NULL,
+        related_name="identity_account",
+        null=True,
+        blank=True,
+    )
     starting_balance = models.DecimalField(
         max_digits=14,
         decimal_places=2,

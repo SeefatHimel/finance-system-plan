@@ -304,3 +304,15 @@ saved account or payment method across SMS/PDF formats and provide report labels
 Identity resolution does not establish that two entries are the same movement;
 transaction matching and explicit confirmation remain separate. Editing identity
 settings never changes historical money or ledger evidence.
+
+### Can recognition be configured directly on an account?
+
+Yes. Bank accounts, wallets and credit cards can have a shared recognition profile
+with masked numbers, last-four suffixes, additional typed identifiers and aliases.
+It uses the existing payment-method registry for SMS and supported PDF formats.
+PDFs can suggest the account before import; ambiguous suffixes require manual
+selection. This metadata does not rewrite transactions or balances and does not
+replace transfer/duplicate matching or explicit financial confirmation.
+
+Masked identifiers exposing more than ten digits also reduce to a last-four
+suffix, so adding a mask character cannot preserve a nearly complete card number.

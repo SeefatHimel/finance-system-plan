@@ -417,3 +417,23 @@ API `python manage.py migrate` command before testing identifiers and aliases.
 Existing methods default to an unspecified identifier kind; no historical ledger
 fields or money values are backfilled. Configure optional mappings in SMS settings
 → Payment methods, then test Numbers / Labels / Both on Transactions.
+
+### Account recognition migration and checks
+
+After pulling account recognition support, run `python manage.py migrate` from
+`projects/finance-api` with the normal virtual environment activated. Migration
+`accounts.0002_account_identity_method` adds a nullable link to the shared
+payment-method registry; it does not copy identifiers or alter financial records.
+Start the updated API before using Accounts recognition fields or PDF account
+suggestions in the web app.
+
+For isolated checks, from `projects/finance-api` run:
+
+```sh
+DATABASE_URL= .venv/bin/python manage.py test apps.accounts apps.payment_methods apps.statements apps.messages --noinput
+```
+
+From `projects/finance-web` run `npm run test:identities`, `npm run typecheck`,
+`npm run lint`, and `npm run build`. PDF account recognition is authenticated,
+read-only and has a separate 10/hour recognition throttle; it does not require
+production financial data for testing. Use synthetic statements and identifiers.

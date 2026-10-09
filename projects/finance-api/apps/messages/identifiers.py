@@ -10,6 +10,10 @@ def sanitize_financial_identifier(value: str) -> str:
     digits = re.sub(r"[^0-9]", "", compact)
     if len(digits) < 4:
         return ""
-    if not any(marker in compact for marker in _MASK_MARKERS) and len(digits) > 4:
+    # A mask character must not let an almost-complete card number through.
+    # Retain up to six prefix and four suffix digits; reduce longer evidence.
+    if len(digits) > 10 or (
+        not any(marker in compact for marker in _MASK_MARKERS) and len(digits) > 4
+    ):
         return digits[-4:]
     return compact[:120]

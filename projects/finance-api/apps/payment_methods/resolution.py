@@ -123,6 +123,21 @@ def text_identifier_evidence(text):
 
 
 def statement_account_suggestion(*, user, profile, hint, methods=None):
+    eligible_types = {"mobile_wallet"} if profile == "bkash" else {"bank", "savings"}
+    if methods is None:
+        methods = PaymentMethod.objects.filter(
+            user=user,
+            is_active=True,
+            account__is_active=True,
+            account__type__in=eligible_types,
+            account__currency="BDT",
+        ).select_related("account")
+    else:
+        methods = [
+            m
+            for m in methods
+            if m.account.type in eligible_types and m.account.currency == "BDT"
+        ]
     matches = matching_methods(
         user=user,
         evidence=[("account", hint)],

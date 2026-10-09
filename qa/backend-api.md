@@ -683,3 +683,24 @@ and happens before pagination/export. Statement detail/actions ignore list-only
 period selection. Comparison ranges narrow only ledger-only results, before
 pagination; filtered `count` differs deliberately from whole-statement `counts`.
 Matching coverage and financial records remain unchanged. No migration is needed.
+
+## How are account/card numbers attached to accounts and recognized?
+
+Accounts accept optional nested identity metadata and manage one shared payment
+method, rather than a second independent identifier store. Ownership is supplied
+by the parent account. Validation masks unmasked numbers to last four digits,
+checks typed additional identifiers and aliases, and rejects empty enabled
+profiles. Atomic writes and an account row lock protect concurrent creation.
+Omitting metadata preserves it; null disables that profile without rewriting
+historical amounts, reported balances, or references. Other payment methods remain
+available. Managed methods cannot be moved to a different account. Protected
+account deletion rolls back profile removal and returns a readable validation error.
+
+The read-only statement identify endpoint uses the bounded preview worker without
+requiring a selected account. It returns only masked header evidence and an owned,
+active, compatible BDT account suggestion. Ambiguous suffixes require selection.
+Import and posting remain separate explicit actions; credit-card SMS identifiers
+are supported but credit-card PDF layouts still need separate extraction support.
+
+Masked identifiers exposing more than ten digits also reduce to a last-four
+suffix, so adding a mask character cannot preserve a nearly complete card number.

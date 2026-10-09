@@ -17,13 +17,23 @@ from rest_framework.views import APIView
 
 from apps.payment_methods.resolution import statement_account_suggestion
 
-from .serializers import StatementPreviewRequestSerializer, StatementPreviewSerializer
+from .serializers import (
+    StatementIdentifyRequestSerializer,
+    StatementIdentifySerializer,
+    StatementPreviewRequestSerializer,
+    StatementPreviewSerializer,
+)
 from .uploads import BoundedStatementUploadHandler
 
 
 class StatementPreviewThrottle(UserRateThrottle):
     scope = "statement_preview"
     rate = "10/hour"
+
+
+class StatementIdentifyThrottle(StatementPreviewThrottle):
+    # Recognition must not consume the user's existing preview/import allowance.
+    scope = "statement_identify"
 
 
 @method_decorator(sensitive_post_parameters("password", "file"), name="dispatch")
@@ -41,7 +51,7 @@ class StatementPreviewView(APIView):
             data=request.data, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
-        account = serializer.validated_data["account"]
+        account = serializer.validated_data.get("account")
         payload = {
             "pdf": base64.b64encode(serializer.validated_data["file"].read()).decode(
                 "ascii"
@@ -82,7 +92,9 @@ class StatementPreviewView(APIView):
         if "error" in output:
             raise ValidationError({"file": [output["error"]], "code": [output["code"]]})
         preview = output["preview"]
-        if (preview["profile"] == "bkash") != (account.type == "mobile_wallet"):
+        if account and (preview["profile"] == "bkash") != (
+            account.type == "mobile_wallet"
+        ):
             raise ValidationError(
                 {
                     "account": [
@@ -90,13 +102,15 @@ class StatementPreviewView(APIView):
                     ]
                 }
             )
-        preview["account"] = str(account.id)
+        preview["account"] = str(account.id) if account else None
         hint = preview["account_hint"]
         suggestion = statement_account_suggestion(
             user=request.user, profile=preview["profile"], hint=hint
         )
         preview["account_suggestion"] = suggestion
-        suffix_matches = bool(suggestion and suggestion["account"] == str(account.id))
+        suffix_matches = bool(
+            account and suggestion and suggestion["account"] == str(account.id)
+        )
         if suggestion and suggestion["ambiguous"]:
             preview["warnings"].append(suggestion["reason"])
         preview["account_identity"] = "matched_suffix" if suffix_matches else "verify"
@@ -116,4 +130,25 @@ class StatementPreviewView(APIView):
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)
         response["Cache-Control"] = "no-store"
+        return response
+
+
+class StatementIdentifyView(StatementPreviewView):
+    throttle_classes = (StatementIdentifyThrottle,)
+
+    @extend_schema(
+        request=StatementIdentifyRequestSerializer,
+        responses=StatementIdentifySerializer,
+        tags=["Statements"],
+    )
+    def post(self, request):
+        serializer = StatementIdentifyRequestSerializer(
+            data=request.data, context={"request": request}
+        )
+        response = self.extract(request, serializer)
+        if response.status_code == status.HTTP_200_OK:
+            response.data = {
+                key: response.data[key]
+                for key in ("profile", "account_hint", "account_suggestion")
+            }
         return response
