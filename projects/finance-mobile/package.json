@@ -8,7 +8,8 @@
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
     "test:gestures": "node --test tests/tap-gesture.test.cjs",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "test:network": "node --test tests/bounded-fetch.test.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",

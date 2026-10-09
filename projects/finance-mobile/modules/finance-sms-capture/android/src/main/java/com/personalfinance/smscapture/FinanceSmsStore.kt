@@ -87,6 +87,11 @@ object FinanceSmsStore {
     for (index in 0 until messages.length()) {
       val current = messages.optJSONObject(index) ?: continue
       if (current.optString("id") == stableId) {
+        if (includeProcessed) {
+          current.put("reprocessExisting", true)
+          current.remove("rejected")
+          writeEncryptedPreference(context, KEY_MESSAGES, messages.toString())
+        }
         rememberProcessedId(context, stableId)
         return AppendStatus.DUPLICATE
       }
@@ -98,6 +103,7 @@ object FinanceSmsStore {
         .put("sender", sender)
         .put("body", body)
         .put("receivedAt", receivedAt)
+        .put("reprocessExisting", includeProcessed)
     )
     writeEncryptedPreference(context, KEY_MESSAGES, messages.toString())
     rememberProcessedId(context, stableId)
@@ -214,25 +220,61 @@ object FinanceSmsStore {
   }
 
   @Synchronized
-  fun getMessages(context: Context, limit: Int): List<Map<String, String>> {
+  fun getMessages(context: Context, limit: Int, includeRejected: Boolean = true): List<Map<String, String>> {
     val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
     val boundedLimit = limit.coerceIn(1, 1000)
-    val start = (messages.length() - boundedLimit).coerceAtLeast(0)
     val result = mutableListOf<Map<String, String>>()
 
-    for (index in start until messages.length()) {
+    for (index in 0 until messages.length()) {
       val item = messages.optJSONObject(index) ?: continue
+      if (!includeRejected && item.optBoolean("rejected")) continue
+      if (result.size >= boundedLimit) break
       result.add(
         mapOf(
           "id" to item.optString("id"),
           "sender" to item.optString("sender"),
           "body" to item.optString("body"),
-          "receivedAt" to item.optString("receivedAt")
+          "receivedAt" to item.optString("receivedAt"),
+          "deviceMessageId" to item.optString("deviceMessageId", "native:${item.optString("id")}"),
+          "reprocessExisting" to item.optBoolean("reprocessExisting").toString()
         )
       )
     }
 
     return result
+  }
+
+  @Synchronized
+  fun markRejected(context: Context, id: String) {
+    val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
+    for (index in 0 until messages.length()) {
+      val item = messages.getJSONObject(index)
+      if (item.optString("id") == id) item.put("rejected", true)
+    }
+    writeEncryptedPreference(context, KEY_MESSAGES, messages.toString())
+  }
+
+  @Synchronized
+  fun retryRejected(context: Context) {
+    val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
+    for (index in 0 until messages.length()) messages.getJSONObject(index).remove("rejected")
+    writeEncryptedPreference(context, KEY_MESSAGES, messages.toString())
+  }
+
+  @Synchronized
+  fun acknowledgeMessage(context: Context, uploaded: Map<String, String>) {
+    val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
+    val remaining = JSONArray()
+    for (index in 0 until messages.length()) {
+      val item = messages.getJSONObject(index)
+      val sameRequest = item.optString("id") == uploaded.getValue("id") &&
+        item.optBoolean("reprocessExisting").toString() == uploaded.getValue("reprocessExisting")
+      if (!sameRequest) remaining.put(item)
+    }
+    // Persist each acknowledgment so interrupted work resumes from the remaining messages.
+    check(prefs(context).edit().putString(KEY_MESSAGES, FinanceSmsCrypto.encrypt(remaining.toString())).commit()) {
+      "Could not save SMS upload progress."
+    }
   }
 
   @Synchronized
@@ -258,9 +300,28 @@ object FinanceSmsStore {
   fun getSecureRawQueue(context: Context): String =
     readEncryptedPreference(context, KEY_REACT_RAW_QUEUE, "[]")
 
+  @Synchronized
   fun setSecureRawQueue(context: Context, value: String) {
     writeEncryptedPreference(context, KEY_REACT_RAW_QUEUE, value)
   }
+
+  @Synchronized
+  fun migrateRawQueue(context: Context) {
+    val legacy = JSONArray(getSecureRawQueue(context))
+    if (legacy.length() == 0) return
+    val captured = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
+    val merged = mergeSmsQueues(captured, legacy)
+    // Commit both encrypted values together before the worker can acknowledge messages.
+    check(prefs(context).edit()
+      .putString(KEY_MESSAGES, FinanceSmsCrypto.encrypt(merged.toString()))
+      .putString(KEY_REACT_RAW_QUEUE, FinanceSmsCrypto.encrypt("[]"))
+      .commit()) { "Could not migrate the encrypted SMS queue." }
+  }
+
+  @Synchronized
+  fun pendingMessageCount(context: Context): Int =
+    JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]")).length() +
+      JSONArray(getSecureRawQueue(context)).length()
 
   fun configureSyncSession(
     context: Context,
@@ -315,13 +376,22 @@ object FinanceSmsStore {
 
   fun getSyncStatus(context: Context): Map<String, Any> {
     val payload = runCatching {
-      JSONObject(prefs(context).getString(KEY_SYNC_STATUS, "{}"))
+      JSONObject(prefs(context).getString(KEY_SYNC_STATUS, "{}") ?: "{}")
     }.getOrElse { JSONObject() }
+    val pending = pendingMessageCount(context)
+    val storedState = payload.optString("state", "idle")
+    val waiting = pending > 0 && storedState == "success"
+    val rejected = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]")).let { messages ->
+      (0 until messages.length()).count { messages.getJSONObject(it).optBoolean("rejected") }
+    }
     return mapOf(
-      "state" to payload.optString("state", "idle"),
-      "message" to payload.optString("message", "No background sync has run yet."),
+      "pendingCount" to pending,
+      "state" to if (waiting) (if (rejected > 0) "error" else "idle") else storedState,
+      "message" to if (waiting && rejected > 0) "$pending waiting; $rejected need attention. Refresh sender rules and retry."
+        else if (waiting) "$pending SMS message(s) are waiting to sync."
+        else payload.optString("message", "No background sync has run yet."),
       "importedCount" to payload.optInt("importedCount", 0),
-      "rejectedCount" to payload.optInt("rejectedCount", 0),
+      "rejectedCount" to rejected,
       "updatedAt" to payload.optString("updatedAt", "")
     )
   }

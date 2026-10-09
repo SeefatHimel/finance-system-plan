@@ -9,6 +9,7 @@ export type NativeSmsSenderRule = {
 };
 
 export type NativeSmsBackgroundSyncStatus = {
+  pendingCount?: number;
   importedCount: number;
   message: string;
   rejectedCount: number;

@@ -1,3 +1,5 @@
+import { boundedFetch } from "./bounded-fetch";
+
 import type { TransferEvidence, TransferMatch } from "../../finance-contracts/generated/types";
 export type { TransferMatch } from "../../finance-contracts/generated/types";
 
@@ -495,7 +497,7 @@ export async function checkHealth(): Promise<HealthResult> {
 }
 
 export async function login(username: string, password: string): Promise<AuthTokens> {
-  const response = await fetch(`${getApiBaseUrl()}/api/auth/login/`, {
+  const response = await boundedFetch(`${getApiBaseUrl()}/api/auth/login/`, {
     body: JSON.stringify({ password, username }),
     headers: {
       "Content-Type": "application/json"
@@ -516,7 +518,7 @@ export async function login(username: string, password: string): Promise<AuthTok
 }
 
 export async function refreshLogin(refreshToken: string): Promise<AuthTokens> {
-  const response = await fetch(`${getApiBaseUrl()}/api/auth/refresh/`, {
+  const response = await boundedFetch(`${getApiBaseUrl()}/api/auth/refresh/`, {
     body: JSON.stringify({ refresh: refreshToken }),
     headers: {
       "Content-Type": "application/json"
@@ -561,7 +563,7 @@ export async function logout(refreshToken: string): Promise<void> {
 }
 
 export async function getCurrentUser(accessToken: string): Promise<CurrentUser> {
-  const response = await fetch(`${getApiBaseUrl()}/api/auth/me/`, {
+  const response = await boundedFetch(`${getApiBaseUrl()}/api/auth/me/`, {
     headers: {
       Authorization: `Bearer ${accessToken}`
     }
@@ -578,7 +580,7 @@ export async function getCurrentUser(accessToken: string): Promise<CurrentUser> 
 }
 
 async function authenticatedFetch(path: string, accessToken: string, init?: RequestInit): Promise<Response> {
-  const request = (token: string) => fetch(`${getApiBaseUrl()}${path}`, {
+  const request = (token: string) => boundedFetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     headers: {
       ...(init?.headers ?? {}),

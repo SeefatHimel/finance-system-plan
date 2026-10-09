@@ -5,6 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Alert,
   Animated,
   Easing,
@@ -1452,6 +1453,10 @@ export default function App() {
     );
   };
 
+  const pendingSmsCount = isNativeSmsCaptureAvailable()
+    ? smsBackgroundStatus?.pendingCount ?? rawQueue.length
+    : rawQueue.length;
+
   const refreshSmsPermissionState = async () => {
     if (Platform.OS !== "android" || !isNativeSmsCaptureAvailable()) {
       setSmsPermissionState("denied");
@@ -1473,7 +1478,7 @@ export default function App() {
           app_version: "0.1.3",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
-          pending_upload_count: rawQueue.length,
+          pending_upload_count: pendingSmsCount,
           platform: Platform.OS,
           sms_permission_state: isGranted ? "granted" : "denied"
         }).catch(() => undefined);
@@ -1487,6 +1492,9 @@ export default function App() {
   const refreshSmsBackgroundStatus = async () => {
     const nextStatus = await getNativeSmsBackgroundSyncStatus();
     setSmsBackgroundStatus(nextStatus);
+    if (isNativeSmsCaptureAvailable()) {
+      setRawQueue(normalizeRawQueue(await loadSecureSmsQueue()));
+    }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
         app_version: "0.1.3",
@@ -1494,7 +1502,7 @@ export default function App() {
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
         last_error: nextStatus.state === "error" ? nextStatus.message : "",
-        pending_upload_count: rawQueue.length,
+        pending_upload_count: nextStatus.pendingCount ?? pendingSmsCount,
         platform: Platform.OS,
         sms_permission_state: smsPermissionState === "granted" ? "granted" : smsPermissionState === "denied" ? "denied" : "unknown"
       }).catch(() => undefined);
@@ -1521,9 +1529,7 @@ export default function App() {
     }));
     try {
       await enqueueNativeSmsBackgroundSync();
-      await new Promise<void>((resolve) => setTimeout(() => resolve(), 600));
       await refreshSmsBackgroundStatus();
-      setTimeout(() => void refreshSmsBackgroundStatus(), 3000);
     } catch (error) {
       setSmsBackgroundStatus({
         importedCount: 0,
@@ -1569,7 +1575,7 @@ export default function App() {
             app_version: "0.1.3",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
-            pending_upload_count: rawQueue.length,
+            pending_upload_count: pendingSmsCount,
             platform: Platform.OS,
             sms_permission_state: "granted"
           }).catch(() => undefined);
@@ -1705,6 +1711,10 @@ export default function App() {
   };
 
   const handleImportCapturedSmsMessages = async () => {
+    if (isNativeSmsCaptureAvailable()) {
+      await handleRetrySmsBackgroundSync();
+      return;
+    }
     const enabledRules = senderRules.filter(
       (rule) =>
         rule.is_active
@@ -1820,7 +1830,7 @@ export default function App() {
     await updateSmsDeviceStatus(accessToken.trim(), {
       background_state: "running",
       device_id: "android-primary",
-      pending_upload_count: rawQueue.length,
+      pending_upload_count: pendingSmsCount,
       platform: Platform.OS,
       sms_permission_state: "granted"
     }).catch(() => undefined);
@@ -1846,6 +1856,13 @@ export default function App() {
         limit: 500,
         toTimestamp
       });
+      if (isNativeSmsCaptureAvailable()) {
+        await enqueueNativeSmsBackgroundSync();
+        await refreshSmsBackgroundStatus();
+        setRawQueueState("ok");
+        setRawQueueMessage(`Scanned ${scanResult.scannedCount} SMS. ${scanResult.capturedCount} newly queued; background sync will upload pending messages when connected.`);
+        return;
+      }
       const capturedMessages = await getCapturedSmsMessages(500);
       const queuedMessages = [...rawQueue];
       const queuedMessageIndexes = new Map(
@@ -1968,7 +1985,7 @@ export default function App() {
         background_state: "error",
         failed_upload_count: Math.max(1, rawQueue.length),
         last_error: error instanceof Error ? error.message : "Could not scan and sync SMS messages.",
-        pending_upload_count: rawQueue.length
+        pending_upload_count: pendingSmsCount
       }).catch(() => undefined);
     }
   };
@@ -2209,6 +2226,10 @@ export default function App() {
   };
 
   const handleSyncRawQueue = async () => {
+    if (isNativeSmsCaptureAvailable()) {
+      await handleRetrySmsBackgroundSync();
+      return;
+    }
     if (!accessToken.trim()) {
       setRawQueueState("error");
       setRawQueueMessage("Sign in first or paste a valid access token.");
@@ -2796,6 +2817,45 @@ export default function App() {
         setRawQueueMessage("Could not load local raw message queue.");
       });
   }, []);
+
+  useEffect(() => {
+    if (!isNativeSmsCaptureAvailable() || !accessToken) return;
+    let active = AppState.currentState === "active";
+    let disposed = false;
+    let reading = false;
+    let previous: NativeSmsBackgroundSyncStatus | null = null;
+    const readStatus = async () => {
+      if (!active || disposed || reading) return;
+      reading = true;
+      try {
+        const [status, storedQueue] = await Promise.all([
+          getNativeSmsBackgroundSyncStatus(), loadSecureSmsQueue()
+        ]);
+        if (!status || disposed || !active) return;
+        setSmsBackgroundStatus(status);
+        // The native worker now owns migrated app queue records.
+        setRawQueue(normalizeRawQueue(storedQueue));
+        const finished = previous?.state === "running" && status.state !== "running";
+        const completedSinceLastRead = previous !== null && status.state !== "running" && status.importedCount > 0 &&
+          status.updatedAt !== previous?.updatedAt;
+        if (finished || completedSinceLastRead) {
+          void Promise.all([handleLoadReviewCandidates(), handleLoadTransactions()]);
+        }
+        previous = status;
+      } catch {
+        // Keep the last known state; manual refresh reports connection failures.
+      } finally {
+        reading = false;
+      }
+    };
+    void readStatus();
+    const timer = setInterval(() => void readStatus(), 1500);
+    const subscription = AppState.addEventListener("change", (state) => {
+      active = state === "active";
+      if (active) void readStatus();
+    });
+    return () => { disposed = true; clearInterval(timer); subscription.remove(); };
+  }, [accessToken]);
 
   useEffect(() => {
     configureAuthenticationRecovery(async () => {
@@ -3809,7 +3869,8 @@ export default function App() {
           {rawQueueState === "error" ? <Text style={styles.errorText}>{rawQueueMessage}</Text> : null}
 
           <View style={styles.listSection}>
-            <Text style={styles.listTitle}>Queued Messages ({rawQueue.length})</Text>
+            <Text style={styles.listTitle}>{isNativeSmsCaptureAvailable() ? "Messages awaiting handoff" : "Queued Messages"} ({rawQueue.length})</Text>
+            {isNativeSmsCaptureAvailable() ? <Text style={styles.meta}>Native SMS upload queue: {pendingSmsCount} pending. Background sync uploads these messages.</Text> : null}
             {rawQueue.map((queuedMessage) => (
               <View key={queuedMessage.id} style={styles.queueItem}>
                 <Text style={styles.listItem}>
@@ -4075,7 +4136,7 @@ export default function App() {
         <View style={styles.mobileRowBody}>
           <Text style={styles.mobileScanBannerTitle}>Scan phone messages</Text>
           <Text style={styles.mobileScanBannerMeta}>
-            {rawQueue.length ? `${rawQueue.length} message(s) waiting to sync` : "Find new and historical transactions"}
+            {pendingSmsCount ? `${pendingSmsCount} message(s) waiting to sync` : "Find new and historical transactions"}
           </Text>
         </View>
         <MaterialCommunityIcons color="#32d8f2" name="chevron-right" size={23} />
@@ -4194,7 +4255,7 @@ export default function App() {
         <View style={styles.mobileSummaryDivider} />
         <View>
           <Text style={styles.mobileSummaryValue}>{transactionQueue.length}</Text>
-          <Text style={styles.mobileSummaryLabel}>waiting to sync</Text>
+          <Text style={styles.mobileSummaryLabel}>manual pending</Text>
         </View>
         <Pressable onPress={handleLoadTransactions} style={styles.mobileIconAction}>
           <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
@@ -5042,7 +5103,7 @@ export default function App() {
         <View style={styles.mobileSection}>
           <View style={styles.mobileSectionHeader}>
             <Text style={styles.mobileSectionTitle}>4. Scan and sync</Text>
-            <Text style={styles.mobileSectionMeta}>{rawQueue.length} waiting</Text>
+            <Text style={styles.mobileSectionMeta}>{pendingSmsCount} waiting</Text>
           </View>
           <Text style={styles.mobileFieldLabel}>Choose what to scan</Text>
           <View style={styles.mobileSegmentedControl}>
@@ -5414,11 +5475,11 @@ export default function App() {
                     ? "Syncing"
                     : state === "error"
                       ? "Offline"
-                      : "Ready"}
+                      : pendingSmsCount > 0 ? "Pending" : "Ready"}
             </Text>
             <Text style={styles.mobileSyncMeta}>
-              {rawQueue.length
-                ? `${rawQueue.length} queued`
+              {pendingSmsCount
+                ? `${pendingSmsCount} queued`
                 : smsBackgroundStatus?.state === "running"
                   ? "SMS syncing"
                   : smsBackgroundStatus?.state === "error"

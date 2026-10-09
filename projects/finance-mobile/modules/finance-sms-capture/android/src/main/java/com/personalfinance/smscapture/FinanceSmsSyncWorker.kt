@@ -11,6 +11,7 @@ import androidx.work.WorkerParameters
 import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONObject
+import kotlinx.coroutines.ensureActive
 
 class FinanceSmsSyncWorker(
   appContext: Context,
@@ -18,74 +19,67 @@ class FinanceSmsSyncWorker(
 ) : CoroutineWorker(appContext, workerParams) {
   override suspend fun doWork(): Result {
     var session = FinanceSmsStore.getSyncSession(applicationContext) ?: return Result.success()
-    val messages = FinanceSmsStore.getMessages(applicationContext, 500)
-    if (messages.isEmpty()) {
-      FinanceSmsStore.setSyncStatus(applicationContext, "success", "No SMS messages are waiting to sync.")
-      return Result.success()
-    }
-
-    FinanceSmsStore.setSyncStatus(applicationContext, "running", "Syncing ${messages.size} captured SMS message(s)…")
-    val completedIds = mutableListOf<String>()
     var importedCount = 0
     var rejectedCount = 0
-
-    return try {
+    try {
+      FinanceSmsStore.migrateRawQueue(applicationContext)
+      val messages = FinanceSmsStore.getMessages(applicationContext, 1000, includeRejected = false)
+      if (messages.isEmpty()) {
+        val pending = FinanceSmsStore.pendingMessageCount(applicationContext)
+        FinanceSmsStore.setSyncStatus(applicationContext, if (pending > 0) "error" else "success",
+          if (pending > 0) "$pending SMS message(s) need attention. Refresh sender rules and retry."
+          else "No SMS messages are waiting to sync.", rejectedCount = pending)
+        return Result.success()
+      }
+      FinanceSmsStore.setSyncStatus(applicationContext, "running", "Syncing ${messages.size} queued SMS message(s)…")
+      val startedAt = android.os.SystemClock.elapsedRealtime()
       for (message in messages) {
+        if (android.os.SystemClock.elapsedRealtime() - startedAt >= 240_000) break
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
         var response = importMessage(session, message)
         if (response.code == HttpURLConnection.HTTP_UNAUTHORIZED) {
           session = refreshSession(session) ?: run {
-            FinanceSmsStore.setSyncStatus(
-              applicationContext,
-              "error",
-              "The saved session expired. Open Finance Mobile and sign in again.",
-              importedCount,
-              rejectedCount
-            )
+            FinanceSmsStore.setSyncStatus(applicationContext, "error",
+              "The saved session expired. Open Finance Mobile and sign in again.", importedCount, rejectedCount)
             return Result.failure()
           }
           response = importMessage(session, message)
         }
-
-        when (response.code) {
-          in 200..299 -> {
-            completedIds.add(message.getValue("id"))
+        when {
+          response.code in 200..299 -> {
+            FinanceSmsStore.acknowledgeMessage(applicationContext, message)
             importedCount += 1
           }
-          in 400..499 -> throw RejectedMessageException(response.code)
+          isRetryableSmsResponse(response.code) -> throw IllegalStateException(
+            "Finance API returned ${response.code}. Queued SMS will retry automatically.")
+          response.code == 401 || response.code == 403 -> {
+            FinanceSmsStore.setSyncStatus(applicationContext, "error",
+              "SMS upload is not authorized (${response.code}). Open the app and sign in again.", importedCount, rejectedCount)
+            return Result.failure()
+          }
+          response.code in 400..499 -> {
+            FinanceSmsStore.markRejected(applicationContext, message.getValue("id"))
+            rejectedCount += 1
+          }
           else -> throw IllegalStateException("Finance API returned ${response.code}.")
         }
+        val pending = FinanceSmsStore.pendingMessageCount(applicationContext)
+        FinanceSmsStore.setSyncStatus(applicationContext, "running",
+          "Uploaded $importedCount; $pending waiting; $rejectedCount need attention.", importedCount, rejectedCount)
       }
-
-      FinanceSmsStore.clearMessages(applicationContext, completedIds)
-      FinanceSmsStore.setSyncStatus(
-        applicationContext,
-        "success",
-        "Background sync imported $importedCount and rejected $rejectedCount message(s).",
-        importedCount,
-        rejectedCount
-      )
-      Result.success()
-    } catch (error: RejectedMessageException) {
-      rejectedCount += 1
-      FinanceSmsStore.clearMessages(applicationContext, completedIds)
-      FinanceSmsStore.setSyncStatus(
-        applicationContext,
-        "error",
-        "A queued SMS was rejected by the Finance API (${error.statusCode}). It remains encrypted on this device; refresh sender rules, then retry.",
-        importedCount,
-        rejectedCount
-      )
-      Result.failure()
+      val pending = FinanceSmsStore.pendingMessageCount(applicationContext)
+      FinanceSmsStore.setSyncStatus(applicationContext, if (rejectedCount > 0) "error" else "success",
+        if (rejectedCount > 0) "Uploaded $importedCount. $rejectedCount SMS were rejected and remain encrypted; refresh sender rules and retry. $pending waiting."
+        else "Uploaded $importedCount SMS message(s). $pending waiting.", importedCount, rejectedCount)
+      val hasMore = FinanceSmsStore.getMessages(applicationContext, 1, includeRejected = false).isNotEmpty()
+      if (hasMore) enqueue(applicationContext)
+      return if (rejectedCount > 0 && !hasMore) Result.failure() else Result.success()
+    } catch (error: kotlinx.coroutines.CancellationException) {
+      throw error
     } catch (error: Exception) {
-      FinanceSmsStore.clearMessages(applicationContext, completedIds)
-      FinanceSmsStore.setSyncStatus(
-        applicationContext,
-        "error",
-        error.message ?: "Background SMS sync failed and will retry.",
-        importedCount,
-        rejectedCount
-      )
-      Result.retry()
+      FinanceSmsStore.setSyncStatus(applicationContext, "error",
+        error.message ?: "Background SMS sync failed and will retry.", importedCount, rejectedCount)
+      return Result.retry()
     }
   }
 
@@ -97,8 +91,8 @@ class FinanceSmsSyncWorker(
       .put("sender", message.getValue("sender"))
       .put("body", message.getValue("body"))
       .put("received_at", message.getValue("receivedAt"))
-      .put("device_message_id", "native:${message.getValue("id")}")
-      .put("reprocess_existing", false)
+      .put("device_message_id", message.getValue("deviceMessageId"))
+      .put("reprocess_existing", message.getValue("reprocessExisting").toBoolean())
     return request(
       url = "${session.apiBaseUrl}/api/messages/import/",
       body = payload.toString(),
@@ -112,9 +106,10 @@ class FinanceSmsSyncWorker(
       url = "${session.apiBaseUrl}/api/auth/refresh/",
       body = payload.toString()
     )
-    if (response.code !in 200..299) {
-      return null
+    if (isRetryableSmsResponse(response.code)) {
+      throw IllegalStateException("Session refresh is temporarily unavailable (${response.code}); SMS will retry.")
     }
+    if (response.code !in 200..299) return null
     val parsed = JSONObject(response.body)
     val accessToken = parsed.optString("access")
     val refreshToken = parsed.optString("refresh", session.refreshToken)
@@ -143,26 +138,28 @@ class FinanceSmsSyncWorker(
         setRequestProperty("Authorization", authorization)
       }
     }
-    connection.outputStream.use { stream ->
-      stream.write(body.toByteArray(Charsets.UTF_8))
+    try {
+      connection.outputStream.use { stream ->
+        stream.write(body.toByteArray(Charsets.UTF_8))
+      }
+      val code = connection.responseCode
+      val responseBody = (if (code in 200..299) connection.inputStream else connection.errorStream)
+        ?.bufferedReader()
+        ?.use { it.readText() }
+        .orEmpty()
+      return HttpResponse(code, responseBody)
+    } finally {
+      connection.disconnect()
     }
-    val code = connection.responseCode
-    val responseBody = (if (code in 200..299) connection.inputStream else connection.errorStream)
-      ?.bufferedReader()
-      ?.use { it.readText() }
-      .orEmpty()
-    connection.disconnect()
-    return HttpResponse(code, responseBody)
   }
 
   private data class HttpResponse(val code: Int, val body: String)
-
-  private class RejectedMessageException(val statusCode: Int) : Exception()
 
   companion object {
     private const val UNIQUE_WORK_NAME = "finance-sms-background-sync"
 
     fun enqueue(context: Context) {
+      FinanceSmsStore.migrateRawQueue(context)
       val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()

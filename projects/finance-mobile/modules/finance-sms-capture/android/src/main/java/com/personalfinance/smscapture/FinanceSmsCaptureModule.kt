@@ -74,6 +74,9 @@ class FinanceSmsCaptureModule : Module() {
 
     AsyncFunction("setSecureRawQueueAsync") { value: String ->
       FinanceSmsStore.setSecureRawQueue(requireContext(), value)
+      if (FinanceSmsStore.getSyncSession(requireContext()) != null) {
+        FinanceSmsSyncWorker.enqueue(requireContext())
+      }
     }
 
     AsyncFunction("configureBackgroundSyncAsync") { apiBaseUrl: String, accessToken: String, refreshToken: String, username: String ->
@@ -92,6 +95,7 @@ class FinanceSmsCaptureModule : Module() {
     }
 
     AsyncFunction("enqueueBackgroundSyncAsync") {
+      FinanceSmsStore.retryRejected(requireContext())
       FinanceSmsSyncWorker.enqueue(requireContext())
     }
 
