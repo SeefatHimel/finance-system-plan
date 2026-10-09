@@ -671,3 +671,15 @@ agree. Collision cases return ambiguity. PDF transfer suggestions require transf
 wording; arbitrary references and amounts are not identity evidence. Saving these
 metadata fields never writes transactions, balances, source evidence or accepted
 links. Updated mappings apply to future parsing and explicit parser re-runs.
+
+## Which date does an API history filter use?
+
+Transaction list/export whitelist `date_field` as `date`, `created_at` or
+`updated_at` (default transaction date). Statement import lists whitelist
+`created_at`/`updated_at` (default updated). Both accept a valid month or paired
+inclusive start/end dates, limited to 366 days, and reject invalid/conflicting
+parameters. Timestamp date lookups use Asia/Dhaka. Filtering preserves ownership
+and happens before pagination/export. Statement detail/actions ignore list-only
+period selection. Comparison ranges narrow only ledger-only results, before
+pagination; filtered `count` differs deliberately from whole-statement `counts`.
+Matching coverage and financial records remain unchanged. No migration is needed.

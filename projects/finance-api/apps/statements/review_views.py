@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.debug import sensitive_post_parameters
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -62,6 +62,12 @@ class NoStoreMixin:
 
 
 @method_decorator(sensitive_post_parameters("password", "file"), name="dispatch")
+@extend_schema_view(list=extend_schema(parameters=[
+    OpenApiParameter("date_field", str, enum=["created_at", "updated_at"], description="Import activity date; defaults to updated_at, in Asia/Dhaka."),
+    OpenApiParameter("month", str, description="YYYY-MM; excludes a custom range."),
+    OpenApiParameter("start_date", OpenApiTypes.DATE, description="Inclusive start; requires end_date."),
+    OpenApiParameter("end_date", OpenApiTypes.DATE, description="Inclusive end; range at most 366 days."),
+]))
 class StatementImportViewSet(
     NoStoreMixin,
     mixins.ListModelMixin,
@@ -83,7 +89,7 @@ class StatementImportViewSet(
     def get_queryset(self):
         if not self.request.user.is_authenticated:
             return StatementImport.objects.none()
-        return (
+        queryset = (
             StatementImport.objects.filter(user=self.request.user)
             .select_related("account")
             .annotate(
@@ -108,6 +114,14 @@ class StatementImportViewSet(
             )
             .order_by("-updated_at", "-id")
         )
+        if self.action == "list":
+            from apps.reports.periods import filter_period
+            queryset = filter_period(
+                queryset, self.request.query_params,
+                fields={"created_at": "created_at__date", "updated_at": "updated_at__date"},
+                default="updated_at",
+            )
+        return queryset
 
     @extend_schema(
         request=StatementPreviewRequestSerializer,
@@ -295,13 +309,17 @@ class StatementImportViewSet(
         parameters=[
             OpenApiParameter("offset", int),
             OpenApiParameter("limit", int),
+            OpenApiParameter("start_date", OpenApiTypes.DATE),
+            OpenApiParameter("end_date", OpenApiTypes.DATE),
         ],
     )
     @action(detail=True, methods=("get",))
     def comparison(self, request, pk=None):
         from .comparison import compare
+        from apps.reports.periods import custom_bounds
 
         batch = self.get_object()
+        bounds = custom_bounds(request.query_params)
         try:
             offset = int(request.query_params.get("offset", "0"))
             limit = int(request.query_params.get("limit", "50"))
@@ -314,7 +332,7 @@ class StatementImportViewSet(
         rows = list(
             batch.rows.select_related("batch__account", "other_account", "category")
         )
-        return Response(compare(batch, rows, offset, limit))
+        return Response(compare(batch, rows, offset, limit, bounds=bounds))
 
     @extend_schema(responses=StatementSummarySerializer, tags=["Statements"])
     @action(detail=True, methods=("get",))

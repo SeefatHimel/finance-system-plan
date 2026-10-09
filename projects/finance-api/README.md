@@ -287,7 +287,8 @@ with before/after snapshots of normalized ledger fields. Audit log entries are
 read-only through the API and can be filtered by `action`, `entity_type`, and
 `entity_id`.
 
-Transaction list and CSV export endpoints share filters for `month`, `account`,
+Transaction list and CSV export endpoints share filters for `month`, paired `start_date`/`end_date`,
+`date_field`, `account`,
 `category`, `type`, `direction`, `source`, and `search`. Source separates web,
 mobile, SMS, import, and system-created ledger rows. Search matches normalized
 text evidence: reference or TrxID, counterparty text, note, and external
@@ -424,8 +425,8 @@ changes first, including new records, edits, new transfer evidence and merges.
 Reads and idempotent transfer retries do not advance `updated_at`. These three
 values are accepted; other values return 400. User ownership and existing
 filters apply before sorting,
-with an ID tie-breaker for stable results. Month remains a transaction-date
-filter. Edits and linked observations do not change `created_at`. CSV exports
+with an ID tie-breaker for stable results. Period filters use the selected
+`date_field`, defaulting to transaction date. Edits and linked observations do not change `created_at`. CSV exports
 remain chronological. No migration is required for update ordering: it uses the
 existing timestamp, without backfilling past evidence links. Verify with
 `python manage.py test apps.transactions.tests apps.transactions.test_transfers`.
@@ -699,3 +700,28 @@ and active-account/method scope always apply. PDF transfer hints require transfe
 wording and preserve masked extraction. Alias changes do not reparse pending SMS,
 rewrite transaction fields, alter balances, accept matches, or backfill evidence.
 Future parsing and explicit re-runs can use the updated mappings.
+
+## Date filters for transaction and statement history
+
+Transaction list and CSV export accept `date_field=date|created_at|updated_at`
+(default `date`), with either `month=YYYY-MM` or paired inclusive
+`start_date`/`end_date`. Timestamp days use the API's Asia/Dhaka timezone.
+Invalid fields/months, mixed month/range, reversed or incomplete ranges return
+field-specific 400 errors; ranges allow at most 366 inclusive days. Ownership
+filters still apply. No migration is needed.
+
+Statement import lists accept the same period parameters with
+`date_field=created_at|updated_at` (default `updated_at`), before pagination.
+Detail and decision endpoints remain accessible independently of list filters.
+Statement comparison accepts paired `start_date`/`end_date` to filter ledger-only
+rows within the printed statement period before pagination. Its `count` refers to
+filtered ledger-only rows; `counts` continues to cover the whole statement.
+Filtering does not change matching scope, evidence or financial records.
+
+Verify with `python manage.py test apps.reports apps.transactions.tests
+apps.statements.test_imports`.
+
+Schema verification note: authenticated runtime schema generation exposes the
+new date parameters. Anonymous automatic generation currently fails in the
+existing `CategorySerializer.get_fields` user lookup; the checked-in shared
+OpenAPI and generated TypeScript client remain the integration contract.

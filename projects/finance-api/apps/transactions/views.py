@@ -4,7 +4,8 @@ import json
 from django.db import transaction as db_transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -35,6 +36,15 @@ from .transfers import (
 )
 
 
+transaction_date_parameters = [
+    OpenApiParameter("date_field", str, enum=["date", "created_at", "updated_at"], description="Period date basis; timestamp days use Asia/Dhaka."),
+    OpenApiParameter("month", str, description="YYYY-MM; excludes a custom range."),
+    OpenApiParameter("start_date", OpenApiTypes.DATE, description="Inclusive start; requires end_date."),
+    OpenApiParameter("end_date", OpenApiTypes.DATE, description="Inclusive end; range at most 366 days."),
+]
+
+
+@extend_schema_view(list=extend_schema(parameters=transaction_date_parameters))
 class TransactionViewSet(ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = (IsAuthenticated,)
@@ -69,20 +79,13 @@ class TransactionViewSet(ModelViewSet):
             .prefetch_related("transfer_evidence")
         )
 
-        from apps.reports.periods import custom_bounds
+        from apps.reports.periods import filter_period
 
-        bounds = custom_bounds(self.request.query_params)
-        if bounds:
-            queryset = queryset.filter(date__range=bounds)
-        month = self.request.query_params.get("month")
-        if month:
-            try:
-                year, month_number = month.split("-", maxsplit=1)
-                int(year)
-                int(month_number)
-            except ValueError as exc:
-                raise ValidationError({"month": "Use YYYY-MM format."}) from exc
-            queryset = queryset.filter(date__year=year, date__month=month_number)
+        queryset = filter_period(
+            queryset, self.request.query_params,
+            fields={"date": "date", "created_at": "created_at__date", "updated_at": "updated_at__date"},
+            default="date",
+        )
 
         account = self.request.query_params.get("account")
         if account:
@@ -267,6 +270,7 @@ class TransactionViewSet(ModelViewSet):
         )
         instance.delete()
 
+    @extend_schema(parameters=transaction_date_parameters)
     @action(detail=False, methods=("get",), url_path="export")
     def export(self, request):
         response = HttpResponse(content_type="text/csv")

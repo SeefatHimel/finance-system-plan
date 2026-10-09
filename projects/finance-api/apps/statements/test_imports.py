@@ -686,6 +686,22 @@ class StatementComparisonTests(APITestCase):
             reverse("statement-import-comparison", args=[batch.id]), query
         )
 
+    def test_ledger_dates_filter_before_pagination_without_changing_coverage(self):
+        batch = self.upload()
+        first = self.ledger_purchase(amount="701.00", date=date(2026, 1, 2))
+        second = self.ledger_purchase(amount="702.00", date=date(2026, 1, 3))
+        self.ledger_purchase(amount="703.00", date=date(2026, 1, 5))
+        before = Transaction.objects.count()
+        response = self.comparison(batch, start_date="2026-01-02", end_date="2026-01-03", limit=1, offset=1)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["counts"]["ledger_only"], 3)
+        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(response.data["results"][0]["id"], str(second.id))
+        response = self.comparison(batch, start_date="2026-01-02", end_date="2026-01-02")
+        self.assertEqual(response.data["results"][0]["id"], str(first.id))
+        self.assertEqual(Transaction.objects.count(), before)
+        self.assertEqual(self.comparison(batch, start_date="2026-01-01").status_code, 400)
+
     def test_possible_match_is_not_ledger_only_and_confirmed_evidence_survives(self):
         batch = self.upload()
         record = self.ledger_purchase()

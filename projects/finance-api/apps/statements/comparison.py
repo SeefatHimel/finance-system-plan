@@ -66,7 +66,7 @@ def matching_values_changed(row, original):
     )
 
 
-def compare(batch, rows, offset=0, limit=50):
+def compare(batch, rows, offset=0, limit=50, bounds=None):
     draft_summary = analyze(batch, rows)
     source_rows = [original_coverage_row(row) for row in rows]
     source_matches, source_truncated = find_matches(source_rows)
@@ -253,6 +253,8 @@ def compare(batch, rows, offset=0, limit=50):
             }
         )
     counts["ledger_only"] = len(results)
+    if bounds:
+        results = [row for row in results if bounds[0] <= row["date"] <= bounds[1]]
     return {
         "ledger_only_available": not unavailable,
         "counts": dict(counts),
