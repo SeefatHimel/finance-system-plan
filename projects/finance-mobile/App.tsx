@@ -1480,7 +1480,7 @@ function FinanceApp() {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.3",
+          app_version: "0.1.4",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1502,7 +1502,7 @@ function FinanceApp() {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.3",
+        app_version: "0.1.4",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1577,7 +1577,7 @@ function FinanceApp() {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.3",
+            app_version: "0.1.4",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1592,7 +1592,7 @@ function FinanceApp() {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.3",
+          app_version: "0.1.4",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
