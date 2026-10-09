@@ -2915,3 +2915,17 @@ textarea {
 
 .statement-summary-table { width: 100%; min-width: 480px; border-collapse: collapse; }
 .statement-summary-table th, .statement-summary-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--panel-border); }
+
+.dashboard-date-controls { padding: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+.dashboard-period-modes, .dashboard-range-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.dashboard-date-controls p { flex-basis: 100%; margin: 0; }
+.dashboard-range-form .field { min-width: 150px; }
+@media (max-width: 600px) {
+  .dashboard-date-controls { padding: 14px; }
+  .dashboard-range-form { width: 100%; }
+  .dashboard-range-form .field { flex: 1; min-width: 130px; }
+}
+.dashboard-period-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.dashboard-period-totals article { padding: 16px; display: grid; gap: 8px; }
+.dashboard-period-totals strong { font-size: 1.3rem; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .dashboard-period-totals { grid-template-columns: 1fr; gap: 10px; } }

@@ -262,7 +262,11 @@ const monthlyReportSchema = z.object({
   currency: z.string(),
   expense_total: z.string(),
   income_total: z.string(),
-  month: z.string(),
+  month: z.string().nullable(),
+  start_date: z.string(),
+  end_date: z.string(),
+  daily: z.array(z.object({ date: z.string(), income_total: z.string(), expense_total: z.string() })),
+  spending_categories: z.array(z.object({ name: z.string(), amount: z.string() })),
   net_total: z.string()
 });
 
@@ -452,6 +456,8 @@ export type CreateTransactionInput = {
 };
 
 export type TransactionFilters = {
+  start_date?: string;
+  end_date?: string;
   account?: string;
   category?: string;
   direction?: TransactionDirection | "";
@@ -1156,6 +1162,12 @@ export async function getMonthlyReport(
 ): Promise<MonthlyReport> {
   const params = new URLSearchParams({ month });
   const response = await authenticatedFetch(`/api/reports/monthly/?${params}`, accessToken);
+  return monthlyReportSchema.parse(await response.json());
+}
+
+export async function getPeriodReport(accessToken: string, start_date: string, end_date: string, signal?: AbortSignal): Promise<MonthlyReport> {
+  const params = new URLSearchParams({ start_date, end_date });
+  const response = await authenticatedFetch(`/api/reports/monthly/?${params}`, accessToken, { signal });
   return monthlyReportSchema.parse(await response.json());
 }
 

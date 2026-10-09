@@ -557,3 +557,13 @@ printed statement period. Entries with pending suggestions are excluded from the
 ledger-only list. Warnings identify provisional coverage; absence never triggers
 automatic deletion. Linked rows retain printed date/time/description/balance as
 separate statement evidence accessible from Transactions.
+
+The dashboard offers Daily, Monthly and Custom range controls, inclusive of both
+selected dates. Daily/month navigation remains available during loading; requests
+are debounced for 250 ms and aborted/ignored on a newer selection. Existing data
+stays visible with its loaded date label until the next response succeeds.
+Income, spending, net movement, daily chart and recent transactions use the same
+period. Current net position, device health and pending-review queue remain live.
+Custom dates apply together and are limited to 366 days. The BDT chart uses complete
+API daily totals rather than a possibly paginated transaction list. Transfers are
+excluded from income/spending and uncategorized spending is included.

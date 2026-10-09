@@ -37,7 +37,7 @@ import {
   type ParsedMessageCandidate,
   type SmsDeviceStatus,
   type Transaction,
-  getMonthlyReport,
+  getPeriodReport,
   getSmsDeviceStatus,
   listAccounts,
   listCategories,
@@ -79,10 +79,15 @@ const compactNumber = new Intl.NumberFormat("en", {
 
 const categoryColors = ["#55e6a5", "#5d9bff", "#9973f0", "#ff706a", "#ffbe4f", "#66758f"];
 
-function currentMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+type DateRange = { start: string; end: string };
+function localDate(value = new Date()) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 }
+function monthRange(month: string): DateRange {
+  const [year, number] = month.split("-").map(Number);
+  return { start: `${month}-01`, end: localDate(new Date(year, number, 0)) };
+}
+function currentRange() { return monthRange(localDate().slice(0, 7)); }
 
 function titleCase(value: string) {
   return value
@@ -129,30 +134,10 @@ function candidateIcon(provider: string) {
   return ChatCenteredText;
 }
 
-function buildCashFlowData(transactions: Transaction[]): CashFlowPoint[] {
-  const byDate = new Map<string, { inflow: number; outflow: number }>();
-
-  for (const transaction of [...transactions].reverse()) {
-    const entry = byDate.get(transaction.date) ?? { inflow: 0, outflow: 0 };
-    const amount = Number(transaction.amount);
-    if (transaction.direction === "credit") entry.inflow += amount;
-    else entry.outflow += amount;
-    byDate.set(transaction.date, entry);
-  }
-
-  let inflow = 0;
-  let outflow = 0;
-  return Array.from(byDate.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, value]) => {
-      inflow += value.inflow;
-      outflow += value.outflow;
-      return {
-        date: new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short" }).format(new Date(`${date}T00:00:00`)),
-        inflow,
-        outflow
-      };
-    });
+function buildCashFlowData(daily: MonthlyReport["daily"]): CashFlowPoint[] {
+  return daily.map(day => ({
+    date: formatDate(day.date), inflow: Number(day.income_total), outflow: Number(day.expense_total)
+  }));
 }
 
 function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
@@ -167,7 +152,7 @@ function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
     );
   }
   return (
-    <div className="cash-flow-chart" aria-label="Thirty day cash flow chart">
+    <div className="cash-flow-chart" aria-label="Daily income and spending for the selected period">
       <ResponsiveContainer height="100%" width="100%">
         <AreaChart data={data} margin={{ bottom: 0, left: -12, right: 8, top: 14 }}>
           <CartesianGrid stroke="#24364d" strokeDasharray="0" vertical={false} />
@@ -185,10 +170,10 @@ function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
   );
 }
 
-function SpendingChart({ categories, expenseCategoryNames }: { categories: MonthlyReport["categories"]; expenseCategoryNames: Set<string> }) {
+function SpendingChart({ categories }: { categories: MonthlyReport["categories"] }) {
   const data = categories
     .map((category) => ({ amount: Number(category.amount), name: category.name }))
-    .filter((category) => category.amount > 0 && expenseCategoryNames.has(category.name))
+    .filter((category) => category.amount > 0)
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 6);
   const total = data.reduce((sum, category) => sum + category.amount, 0);
@@ -229,6 +214,24 @@ function SpendingChart({ categories, expenseCategoryNames }: { categories: Month
 
 export function DashboardWorkspace({ health }: { health: HealthStatus }) {
   const [state, setState] = useState<DashboardState>({ status: "loading" });
+  const [mode, setMode] = useState<"daily" | "monthly" | "custom">("monthly");
+  const [range, setRange] = useState<DateRange>(currentRange);
+  const [custom, setCustom] = useState<DateRange>(currentRange);
+  const [periodLoading, setPeriodLoading] = useState(true);
+  const [periodError, setPeriodError] = useState("");
+
+  function navigate(delta: number) {
+    if (mode === "daily") {
+      const day = new Date(`${range.start}T12:00:00`);
+      day.setDate(day.getDate() + delta);
+      const value = localDate(day);
+      setRange({ start: value, end: value });
+    } else {
+      const day = new Date(`${range.start}T12:00:00`);
+      day.setMonth(day.getMonth() + delta, 1);
+      setRange(monthRange(localDate(day).slice(0, 7)));
+    }
+  }
 
   useEffect(() => {
     const accessToken = getAccessToken();
@@ -237,21 +240,32 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
       return;
     }
 
-    Promise.all([
-      listAccounts(accessToken),
-      listCategories(accessToken),
-      listMessageCandidates(accessToken),
-      getSmsDeviceStatus(accessToken),
-      getMonthlyReport(accessToken, currentMonth()),
-      listTransactions(accessToken)
-    ])
-      .then(([accounts, categories, candidates, deviceStatus, report, transactions]) => {
-        setState({ accounts, candidates, categories, deviceStatus, report, status: "ready", transactions });
-      })
-      .catch((error) => {
-        setState({ message: error instanceof Error ? error.message : "Could not load dashboard.", status: "error" });
-      });
-  }, []);
+    let active = true;
+    const controller = new AbortController();
+    setPeriodLoading(true);
+    setPeriodError("");
+    const timer = window.setTimeout(() => {
+      Promise.all([
+        listAccounts(accessToken),
+        listCategories(accessToken),
+        listMessageCandidates(accessToken),
+        getSmsDeviceStatus(accessToken),
+        getPeriodReport(accessToken, range.start, range.end, controller.signal),
+        listTransactions(accessToken, { start_date: range.start, end_date: range.end }, controller.signal)
+      ])
+        .then(([accounts, categories, candidates, deviceStatus, report, transactions]) => {
+          if (active) setState({ accounts, candidates, categories, deviceStatus, report, status: "ready", transactions });
+        })
+        .catch((error) => {
+          if (!active) return;
+          const message = error instanceof Error ? error.message : "Could not load dashboard.";
+          setPeriodError(message);
+          setState(previous => previous.status === "ready" ? previous : { message, status: "error" });
+        })
+        .finally(() => { if (active) setPeriodLoading(false); });
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); controller.abort(); };
+  }, [range.start, range.end]);
 
   const dashboardData = useMemo(() => {
     if (state.status !== "ready") return null;
@@ -267,9 +281,8 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
       accountById,
       automatedTransactions,
       captureCount: automatedTransactions.length + state.candidates.length,
-      cashFlow: buildCashFlowData(state.transactions),
+      cashFlow: buildCashFlowData(state.report.daily),
       categoryById,
-      expenseCategoryNames: new Set(state.categories.filter((category) => category.kind === "expense").map((category) => category.name)),
       lastSyncLabel: state.deviceStatus.last_successful_sync_at
         ? `Last successful sync ${new Intl.DateTimeFormat("en-US", { day: "numeric", hour: "numeric", minute: "2-digit", month: "short" }).format(new Date(state.deviceStatus.last_successful_sync_at))}`
         : state.deviceStatus.health_label,
@@ -295,6 +308,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
     );
   }
 
+  const periodLabel = state.report.start_date === state.report.end_date ? formatDate(state.report.start_date) : `${formatDate(state.report.start_date)} – ${formatDate(state.report.end_date)}`;
   const pendingCount = state.candidates.length;
   const autoPostedCount = dashboardData.automatedTransactions.length;
   const netMovement = Number(state.report.net_total);
@@ -303,6 +317,40 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
 
   return (
     <div className="automation-dashboard">
+      <section className="dashboard-panel dashboard-date-controls" aria-label="Dashboard date controls">
+        <div className="dashboard-period-modes" role="group" aria-label="Period view">
+          {(["daily", "monthly", "custom"] as const).map(value => <button className={`button${mode === value ? " button--primary" : ""}`} type="button" aria-pressed={mode === value} key={value} onClick={() => {
+            setMode(value);
+            if (value === "daily") { const today = localDate(); setRange({ start: today, end: today }); }
+            if (value === "monthly") setRange(currentRange());
+            if (value === "custom") setCustom(range);
+          }}>{value === "custom" ? "Custom range" : titleCase(value)}</button>)}
+        </div>
+        {mode === "custom" ? <form className="dashboard-range-form" onSubmit={event => {
+          event.preventDefault();
+          if (!custom.start || !custom.end || custom.start > custom.end) { setPeriodError("End date must be on or after start date."); return; }
+          const days = (Date.parse(custom.end) - Date.parse(custom.start)) / 86400000;
+          if (days > 365) { setPeriodError("Choose a range of at most 366 days."); return; }
+          setPeriodError(""); setRange({ ...custom });
+        }}>
+          <label className="field"><span className="field__label">Start date</span><input className="field__control" type="date" required value={custom.start} onChange={event => setCustom(old => ({ ...old, start: event.target.value }))} /></label>
+          <label className="field"><span className="field__label">End date</span><input className="field__control" type="date" required min={custom.start} value={custom.end} onChange={event => setCustom(old => ({ ...old, end: event.target.value }))} /></label>
+          <button className="button button--primary" type="submit">Apply dates</button>
+        </form> : <div className="dashboard-range-form">
+          <button className="button" type="button" aria-label={`Previous ${mode === "daily" ? "day" : "month"}`} onClick={() => navigate(-1)}>←</button>
+          <label className="field"><span className="field__label">{mode === "daily" ? "Day" : "Month"}</span><input className="field__control" type={mode === "daily" ? "date" : "month"} value={mode === "daily" ? range.start : range.start.slice(0, 7)} onChange={event => {
+            if (event.target.value) setRange(mode === "daily" ? { start: event.target.value, end: event.target.value } : monthRange(event.target.value));
+          }} /></label>
+          <button className="button" type="button" aria-label={`Next ${mode === "daily" ? "day" : "month"}`} onClick={() => navigate(1)}>→</button>
+        </div>}
+        <p role="status">{periodLoading ? "Updating selected period…" : `Showing ${periodLabel}`}. Current balances and review queue stay live.</p>
+        {periodError ? <p className="form-error" role="alert">{periodError}</p> : null}
+      </section>
+      <section className="dashboard-period-totals" aria-label="Selected period totals" aria-busy={periodLoading}>
+        <article className="dashboard-panel"><span>Income</span><strong>{money.format(Number(state.report.income_total))}</strong></article>
+        <article className="dashboard-panel"><span>Spending</span><strong>{money.format(Number(state.report.expense_total))}</strong></article>
+        <article className="dashboard-panel"><span>Net movement</span><strong>{money.format(netMovement)}</strong></article>
+      </section>
       <section className="dashboard-hero-grid">
         <article className="dashboard-panel net-position-panel">
           <div className="net-position-panel__summary">
@@ -310,11 +358,11 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
               <div className="panel-label">Net position <Info aria-hidden="true" size={15} /></div>
               <strong className="net-position-value"><span>BDT</span> {new Intl.NumberFormat("en-BD", { maximumFractionDigits: 0 }).format(dashboardData.netPosition)}</strong>
               <p className={`net-position-change${netMovement < 0 ? " net-position-change--negative" : ""}`}>
-                {netMovement >= 0 ? "+" : "-"}{money.format(Math.abs(netMovement))} <span>this month</span>
+                {netMovement >= 0 ? "+" : "-"}{money.format(Math.abs(netMovement))} <span>for {periodLabel}</span>
               </p>
             </div>
             <div className="chart-heading">
-              <span>30-day cash flow</span>
+              <span>Daily cash flow</span>
               <div><span><i className="legend-dot legend-dot--inflow" />Inflow</span><span><i className="legend-dot legend-dot--outflow" />Outflow</span></div>
             </div>
           </div>
@@ -343,7 +391,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
       <section className="dashboard-middle-grid">
         <article className="dashboard-panel spending-panel">
           <h2>Spending by category</h2>
-          <SpendingChart categories={state.report.categories} expenseCategoryNames={dashboardData.expenseCategoryNames} />
+          <SpendingChart categories={state.report.spending_categories} />
         </article>
 
         <article className="dashboard-panel attention-panel">
@@ -373,11 +421,11 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
 
       <section className="dashboard-panel recent-transactions-panel">
         <div className="dashboard-panel__heading recent-transactions-heading">
-          <h2>Recent transactions</h2>
+          <h2>Recent transactions in selected period</h2>
           <div><Link className="dashboard-button dashboard-button--secondary" href="/transactions"><Plus aria-hidden="true" size={15} />Add transaction</Link><Link href="/transactions">View all <ArrowRight aria-hidden="true" size={15} /></Link></div>
         </div>
         {dashboardData.recentTransactions.length === 0 ? (
-          <div className="dashboard-empty"><Receipt aria-hidden="true" size={28} /><strong>No transactions yet</strong><span>Synced and manually recorded activity will appear here.</span></div>
+          <div className="dashboard-empty"><Receipt aria-hidden="true" size={28} /><strong>No transactions in this period</strong><span>Synced and manually recorded activity will appear here.</span></div>
         ) : (
           <div className="dashboard-table-wrap">
             <table className="dashboard-table">

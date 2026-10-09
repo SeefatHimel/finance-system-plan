@@ -571,3 +571,11 @@ confirm links in the editor or approve validated new rows. A separate paginated
 ledger-only list highlights recorded entries with no statement suggestion within
 that account's printed period. Warnings explain provisional absence; no automatic
 deletion occurs. PDF evidence remains separate from edited ledger details.
+
+### How does dashboard date navigation stay fluid and consistent?
+
+Daily/month controls change immediately; period requests are debounced by 250 ms
+and stale responses are ignored. Existing data and its date label stay visible
+until a new response succeeds. Custom dates apply together. Totals, daily chart,
+spending categories and recent activity use that period, while current balances
+and the review queue remain live. The chart uses complete API daily aggregates.
