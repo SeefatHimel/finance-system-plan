@@ -2072,6 +2072,48 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/statements/imports/{id}/comparison/:
+    get:
+      operationId: statements_imports_comparison_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this statement import.
+        required: true
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      tags:
+      - Statements
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementComparison'
+          description: Successful response
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Owned import, row, or transaction not found.
+      description: Read-only account-perspective comparison within the printed period. Matched, needs_review,
+        statement_only, skipped counts and paginated ledger_only entries. Suggested ledger matches are excluded
+        from ledger_only. complete=false marks limited or incomplete extraction/matching; absence is provisional
+        and never authorizes deletion.
 components:
   securitySchemes:
     bearerAuth:
@@ -4816,3 +4858,80 @@ components:
       - discrepancy_count
       - incomplete_count
       - remaining_count
+    StatementLedgerOnly:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          nullable: true
+        direction:
+          type: string
+          enum:
+          - debit
+          - credit
+        amount: &id001
+          type: string
+        balance_after:
+          type: string
+          nullable: true
+        description: *id001
+        source: *id001
+      required:
+      - id
+      - date
+      - time
+      - direction
+      - amount
+      - balance_after
+      - description
+      - source
+    StatementComparison:
+      type: object
+      properties:
+        ledger_only_available:
+          type: boolean
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+        period_start:
+          type: string
+          format: date
+          nullable: true
+        period_end:
+          type: string
+          format: date
+          nullable: true
+        complete:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        count:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementLedgerOnly'
+      required:
+      - ledger_only_available
+      - counts
+      - period_start
+      - period_end
+      - complete
+      - warnings
+      - count
+      - offset
+      - limit
+      - results

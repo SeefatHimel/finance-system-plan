@@ -337,3 +337,9 @@ returns full-import saved-draft arithmetic and observation decision totals, sepa
 from original extraction checks. `POST .../review_selected/` accepts create/skip
 and at most 50 IDs/versions; its response includes `skipped` and unresolved reasons.
 All new endpoints retain owned-resource scoping and `Cache-Control: no-store`.
+
+`GET /api/statements/imports/{id}/comparison/?offset=0&limit=50` returns account-
+scoped statement/ledger coverage counts and paginated ledger-only observations.
+`complete=false` means absence is provisional; inspect `warnings`. Suggestions
+are excluded from ledger-only counts, and this read-only endpoint never changes
+ledger entries. It requires authentication and returns `Cache-Control: no-store`.

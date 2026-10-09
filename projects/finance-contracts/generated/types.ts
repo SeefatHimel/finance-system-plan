@@ -964,3 +964,27 @@ export interface StatementSummary {
   incomplete_count: number;
   remaining_count: number;
 }
+
+export interface StatementLedgerOnly {
+  id: string;
+  date: string;
+  time: string | null;
+  direction: "debit" | "credit";
+  amount: string;
+  balance_after: string | null;
+  description: string;
+  source: string;
+}
+
+export interface StatementComparison {
+  ledger_only_available: boolean;
+  counts: Record<string, number>;
+  period_start: string | null;
+  period_end: string | null;
+  complete: boolean;
+  warnings: string[];
+  count: number;
+  offset: number;
+  limit: number;
+  results: StatementLedgerOnly[];
+}

@@ -339,3 +339,11 @@ opt-in via `remember_choices` on individual create/link. Summary is user-scoped,
 no-store and uses draft observation amounts (linked ledger amounts may differ after
 correction). Selected actions accept create/skip and max 50 IDs/versions; stale,
 matched or discrepant create rows return unresolved reasons. Skip retains ledger data.
+
+### What does the statement comparison endpoint guarantee?
+
+The authenticated no-store GET returns component-level comparison counts and
+bounded, paginated ledger-only account observations. It excludes confirmed and
+suggested matches, exposes incomplete coverage through `complete` and `warnings`,
+and has no financial side effects. It does not guarantee absence outside the
+statement period or when extraction/matching coverage is incomplete.
