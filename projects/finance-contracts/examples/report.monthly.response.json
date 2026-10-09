@@ -25,5 +25,174 @@
       "money_in": "50000.00",
       "money_out": "16800.00"
     }
+  ],
+  "start_date": "2026-05-01",
+  "end_date": "2026-05-31",
+  "daily": [
+    {
+      "date": "2026-05-01",
+      "income_total": "50000.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-02",
+      "income_total": "0.00",
+      "expense_total": "21000.00"
+    },
+    {
+      "date": "2026-05-03",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-04",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-05",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-06",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-07",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-08",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-09",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-10",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-11",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-12",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-13",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-14",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-15",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-16",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-17",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-18",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-19",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-20",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-21",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-22",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-23",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-24",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-25",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-26",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-27",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-28",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-29",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-30",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    },
+    {
+      "date": "2026-05-31",
+      "income_total": "0.00",
+      "expense_total": "0.00"
+    }
+  ],
+  "spending_categories": [
+    {
+      "name": "Groceries",
+      "amount": "6200.00"
+    },
+    {
+      "name": "Uncategorized",
+      "amount": "14800.00"
+    }
   ]
 }

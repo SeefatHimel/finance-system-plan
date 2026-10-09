@@ -1845,6 +1845,14 @@ paths:
         - bearerAuth: []
       parameters:
         - in: query
+          name: start_date
+          schema: {type: string, format: date}
+          description: Inclusive start date; requires end_date and excludes month.
+        - in: query
+          name: end_date
+          schema: {type: string, format: date}
+          description: Inclusive end date; range at most 366 days.
+        - in: query
           name: ordering
           schema:
             type: string
@@ -2052,6 +2060,7 @@ paths:
     get:
       tags: [Reports]
       summary: Get monthly totals by category and account movement
+      description: Also accepts a single-day or custom inclusive date range and returns complete daily BDT totals.
       security:
         - bearerAuth: []
       parameters:
@@ -2061,6 +2070,14 @@ paths:
             type: string
             pattern: '^\d{4}-\d{2}$'
           description: Month in YYYY-MM format. Defaults to current month.
+        - in: query
+          name: start_date
+          schema: {type: string, format: date}
+          description: Inclusive start date. Supply with end_date instead of month; at most 366 days.
+        - in: query
+          name: end_date
+          schema: {type: string, format: date}
+          description: Inclusive end date. Use the same date as start_date for a daily report.
       responses:
         '200':
           description: Monthly report
@@ -2413,10 +2430,17 @@ components:
         display_order:
           type: integer
           minimum: 0
+    PaymentIdentifier:
+      type: object
+      required: [kind, value, label]
+      properties:
+        kind: {type: string, enum: [account, card]}
+        value: {type: string, maxLength: 120}
+        label: {type: string, maxLength: 80, default: ""}
     PaymentMethod:
       type: object
       required:
-        [id, account, name, provider, identifier, is_active, display_order, created_at, updated_at]
+        [id, account, name, provider, identifier, identifier_kind, additional_identifiers, aliases, is_active, display_order, created_at, updated_at]
       properties:
         id:
           type: string
@@ -2432,7 +2456,20 @@ components:
         identifier:
           type: string
           maxLength: 120
-          description: Optional masked phone, card suffix, bank nickname, or other user-safe identifier.
+          description: Optional masked numeric account/card identifier or safe suffix. Text names belong in aliases.
+        identifier_kind:
+          type: string
+          enum: [any, account, card]
+          default: any
+        additional_identifiers:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/PaymentIdentifier'
+        aliases:
+          type: array
+          maxItems: 20
+          items: {type: string, minLength: 4, maxLength: 80}
         is_active:
           type: boolean
         display_order:
@@ -2444,6 +2481,13 @@ components:
         updated_at:
           type: string
           format: date-time
+    PaymentIdentifierInput:
+      type: object
+      required: [kind, value]
+      properties:
+        kind: {type: string, enum: [account, card]}
+        value: {type: string, maxLength: 120}
+        label: {type: string, maxLength: 80, default: ""}
     PaymentMethodCreateRequest:
       type: object
       required: [account, name, provider]
@@ -2460,6 +2504,19 @@ components:
           type: string
           maxLength: 120
           default: ""
+        identifier_kind:
+          type: string
+          enum: [any, account, card]
+          default: any
+        additional_identifiers:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/PaymentIdentifierInput'
+        aliases:
+          type: array
+          maxItems: 20
+          items: {type: string, minLength: 4, maxLength: 80}
         is_active:
           type: boolean
           default: true
@@ -2481,6 +2538,19 @@ components:
         identifier:
           type: string
           maxLength: 120
+        identifier_kind:
+          type: string
+          enum: [any, account, card]
+          default: any
+        additional_identifiers:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/PaymentIdentifierInput'
+        aliases:
+          type: array
+          maxItems: 20
+          items: {type: string, minLength: 4, maxLength: 80}
         is_active:
           type: boolean
         display_order:
@@ -4038,13 +4108,35 @@ components:
         money_out:
           type: string
           example: "21000.00"
+    DailyReportTotal:
+      type: object
+      required: [date, income_total, expense_total]
+      properties:
+        date: {type: string, format: date}
+        income_total: {type: string}
+        expense_total: {type: string}
     MonthlyReport:
       type: object
-      required: [month, currency, income_total, expense_total, net_total, categories, accounts]
+      required: [month, start_date, end_date, currency, income_total, expense_total, net_total, daily, spending_categories, categories, accounts]
       properties:
         month:
           type: string
+          nullable: true
           pattern: '^\d{4}-\d{2}$'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        daily:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyReportTotal'
+        spending_categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryTotal'
         currency:
           type: string
           example: BDT
@@ -4065,6 +4157,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AccountReportTotal'
+    StatementAccountSuggestion:
+      type: object
+      nullable: true
+      required: [account, name, reason, ambiguous]
+      properties:
+        account: {type: string, format: uuid, nullable: true}
+        name: {type: string}
+        reason: {type: string}
+        ambiguous: {type: boolean}
     StatementPreviewRequest:
       type: object
       required: [account, file]
@@ -4159,6 +4260,8 @@ components:
           format: uuid
         account_hint:
           type: string
+        account_suggestion:
+          $ref: '#/components/schemas/StatementAccountSuggestion'
         account_identity:
           type: string
           enum: [matched_suffix, verify]
@@ -4569,6 +4672,8 @@ components:
         account_hint:
           type: string
           readOnly: true
+        account_suggestion:
+          $ref: '#/components/schemas/StatementAccountSuggestion'
         account_identity:
           type: string
           readOnly: true

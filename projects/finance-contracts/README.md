@@ -361,3 +361,27 @@ single-row retrieve/PATCH/decision requests. Opening a candidate alone never
 bypasses shared-row ambiguity. Responses retain their existing shapes and return
 requested rows only; explicit individual acceptance still rechecks one-to-one
 link eligibility. Statement-wide search limits remain visible in review warnings.
+
+Accepted statement evidence is validated against current ledger financial identity.
+A linked/posted row can retain its transaction ID and persisted state while its
+`review.review_state` becomes `needs_correction`; `review.issues` explains why.
+Comparison counts it as `needs_review`, summary counts it as unresolved, and
+coverage is provisional. Clients must use review state to label confirmation.
+The existing unlink action preserves the ledger entry and returns it to review.
+
+Reports and transaction lists accept paired inclusive `start_date` / `end_date`
+instead of `month` (same date for a daily view; at most 366 days). The report
+returns `month: null` for a custom range, explicit start/end dates, zero-filled
+`daily` totals and expense-only `spending_categories`. All report amounts are BDT;
+transfers affect account movement but do not count as income/spending. Invalid
+ranges return 400. Transaction lists retain their normal pagination and ordering.
+
+`PaymentMethod` adds `identifier_kind`, `additional_identifiers` and `aliases`.
+Each additional identifier has an account/card kind, safe value and optional input
+label (returned as a string). Lists are capped at 20 entries; duplicate typed
+identifiers and invalid/numeric-only text aliases return field-specific errors.
+Existing primary identifiers retain legacy `any` compatibility. Statement preview
+and saved imports add nullable `account_suggestion`, with account ID/name, reason
+and an ambiguity flag. A suggested account is advisory and does not replace the
+user-selected account or authorize posting. Transaction financial contracts and
+raw identifier fields are unchanged.

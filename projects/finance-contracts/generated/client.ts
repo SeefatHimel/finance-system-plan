@@ -400,6 +400,8 @@ export class FinanceApiClient {
   }
 
   async listTransactionsForCurrentUser(query?: {
+  start_date?: string;
+  end_date?: string;
   ordering?: "-date" | "-created_at" | "-updated_at";
   month?: string;
   account?: string;
@@ -446,6 +448,8 @@ export class FinanceApiClient {
 
   async getMonthlyTotalsByCategoryAndAccountMovement(query?: {
   month?: string;
+  start_date?: string;
+  end_date?: string;
 }): Promise<MonthlyReport> {
     return this.request<MonthlyReport>("/api/reports/monthly/", { method: "GET", query });
   }

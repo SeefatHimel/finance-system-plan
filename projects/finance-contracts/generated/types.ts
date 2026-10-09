@@ -113,16 +113,31 @@ export interface AccountPatchRequest {
   display_order?: number;
 }
 
+export interface PaymentIdentifier {
+  kind: "account" | "card";
+  value: string;
+  label: string;
+}
+
 export interface PaymentMethod {
   id: string;
   account: string;
   name: string;
   provider: PaymentProvider;
   identifier: string;
+  identifier_kind: "any" | "account" | "card";
+  additional_identifiers: PaymentIdentifier[];
+  aliases: string[];
   is_active: boolean;
   display_order: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface PaymentIdentifierInput {
+  kind: "account" | "card";
+  value: string;
+  label?: string;
 }
 
 export interface PaymentMethodCreateRequest {
@@ -130,6 +145,9 @@ export interface PaymentMethodCreateRequest {
   name: string;
   provider: PaymentProvider;
   identifier?: string;
+  identifier_kind?: "any" | "account" | "card";
+  additional_identifiers?: PaymentIdentifierInput[];
+  aliases?: string[];
   is_active?: boolean;
   display_order?: number;
 }
@@ -139,6 +157,9 @@ export interface PaymentMethodPatchRequest {
   name?: string;
   provider?: PaymentProvider;
   identifier?: string;
+  identifier_kind?: "any" | "account" | "card";
+  additional_identifiers?: PaymentIdentifierInput[];
+  aliases?: string[];
   is_active?: boolean;
   display_order?: number;
 }
@@ -719,14 +740,31 @@ export interface AccountReportTotal {
   money_out: string;
 }
 
+export interface DailyReportTotal {
+  date: string;
+  income_total: string;
+  expense_total: string;
+}
+
 export interface MonthlyReport {
-  month: string;
+  month: string | null;
+  start_date: string;
+  end_date: string;
+  daily: DailyReportTotal[];
+  spending_categories: CategoryTotal[];
   currency: string;
   income_total: string;
   expense_total: string;
   net_total: string;
   categories: CategoryTotal[];
   accounts: AccountReportTotal[];
+}
+
+export interface StatementAccountSuggestion {
+  account: string | null;
+  name: string;
+  reason: string;
+  ambiguous: boolean;
 }
 
 export interface StatementPreviewRequest {
@@ -764,6 +802,7 @@ export interface StatementCheck {
 export interface StatementPreview {
   account: string;
   account_hint: string;
+  account_suggestion?: StatementAccountSuggestion;
   account_identity: "matched_suffix" | "verify";
   profile: "ebl_bank" | "city_bank" | "bkash";
   parser_version: string;
@@ -883,6 +922,7 @@ export interface StatementImport {
   parser_version: string;
   currency: string;
   account_hint: string;
+  account_suggestion?: StatementAccountSuggestion;
   account_identity: string;
   period_start: string | null;
   period_end: string | null;

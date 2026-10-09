@@ -362,3 +362,25 @@ Single-row statement responses use the same statement-wide shared-candidate
 confidence as the table. `strength=possible` does not forbid explicit individual
 acceptance; `can_link` and fresh decision validation still enforce eligibility.
 Opening one row cannot bypass the statement-wide matching history limit.
+
+### Can a saved statement link become invalid without being deleted?
+
+Yes. Ledger edits can change the financial identity. The row retains its state
+and transaction ID for audit, but review returns `needs_correction` and an issue.
+Comparison counts it as needing review; summary counts it as unresolved. Repeated
+acceptance returns 409 until the evidence is unlinked and reviewed again.
+
+### Does a daily view need a separate reporting endpoint?
+
+No. The existing report and transaction endpoints accept inclusive start/end dates;
+equal dates select one day. Monthly queries remain supported. Reports add period
+metadata, nullable month for ranges, daily totals and expense-only category totals.
+Paired dates are validated consistently, with a maximum of 366 days.
+
+### Are identifier labels replacements for stored transaction identifiers?
+
+No. They are payment-method metadata, separate from text matching aliases.
+Payment-method contracts add bounded typed identifier/alias lists and a primary
+identifier kind; the migration defaults existing methods to `any`. Statements
+expose advisory account mapping information. Transaction identifiers, amounts,
+balances and linked evidence keep their existing contracts.

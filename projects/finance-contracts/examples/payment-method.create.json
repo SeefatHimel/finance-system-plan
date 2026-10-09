@@ -4,5 +4,10 @@
   "provider": "bkash",
   "identifier": "01700000000",
   "is_active": true,
-  "display_order": 10
+  "display_order": 10,
+  "identifier_kind": "account",
+  "additional_identifiers": [],
+  "aliases": [
+    "Personal wallet"
+  ]
 }
