@@ -635,3 +635,12 @@ results. Original inline fee amounts are reconstructed from signed fees; draft
 transfer classification/path changes do not erase source coverage. Financial
 corrections, missing original fields and failed draft reconciliation make absence
 provisional and show warnings. Comparison writes neither ledger nor draft evidence.
+
+### Why does opening one statement row no longer strengthen a shared match?
+
+All matcher calls include unresolved siblings from that same saved statement.
+The list, detail response, edited-draft response and explicit decision therefore
+use the same ambiguity rules. Only requested suggestions are returned. After a
+competing row is skipped or corrected, fresh results can become strong. Explicit
+individual acceptance is still allowed, and the existing one-to-one constraint
+prevents another row from linking the same movement.

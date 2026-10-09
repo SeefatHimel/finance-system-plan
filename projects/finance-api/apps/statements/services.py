@@ -295,6 +295,29 @@ def evaluate_observation(row, record, observation, compatible_fields, previously
 
 
 def find_matches(rows):
+    """Apply statement-wide ambiguity even when an editor requests one row.
+
+    Supplied objects take precedence over persisted siblings, so corrected drafts
+    and immutable source views retain their own values. Return requested rows only.
+    """
+    requested = list(rows)
+    if not requested or not any(
+        not resolved(r) and not financial_issues(r) for r in requested
+    ):
+        return {r.id: [] for r in requested}, False
+    batch = requested[0].batch
+    siblings = list(
+        batch.rows.exclude(id__in=[r.id for r in requested]).select_related(
+            "batch__account",
+            "other_account",
+            "category",
+        )
+    )
+    matches, truncated = _find_statement_matches(requested + siblings)
+    return {r.id: matches[r.id] for r in requested}, truncated
+
+
+def _find_statement_matches(rows):
     """One bounded history query, then bucket by amount and account perspective."""
     pending = [r for r in rows if not resolved(r) and not financial_issues(r)]
     results = {r.id: [] for r in rows}
@@ -563,7 +586,7 @@ def review_context(row, matches, truncated=False):
     orphaned = row.state in {"posted", "linked"} and row.transaction_id is None
     if truncated and not resolved(row):
         issues.append(
-            "Too much matching history. Open this row individually to search its date window."
+            "Too much matching history to check statement-wide ambiguity. Import a shorter statement period or resolve other pending rows before trying again."
         )
     if resolved(row):
         state = row.state
@@ -674,7 +697,7 @@ def decide_locked(*, row, user, payload, request):
         if truncated:
             raise ValidationError(
                 {
-                    "row": "The matching window is too busy to review safely. Narrow the row date."
+                    "row": "The statement matching window is too busy to review safely. Import a shorter statement period or resolve other pending rows."
                 }
             )
         records = list(row.batch.rows.select_related("batch"))

@@ -357,3 +357,8 @@ For statement comparison, `complete=false` also reports edited source/draft
 matching values or failed saved-draft reconciliation. Availability and completeness
 are distinct: ledger-only results can be available but provisional. Original PDF
 coverage and corrected-draft candidates both prevent a false ledger-only label.
+
+Single-row statement responses use the same statement-wide shared-candidate
+confidence as the table. `strength=possible` does not forbid explicit individual
+acceptance; `can_link` and fresh decision validation still enforce eligibility.
+Opening one row cannot bypass the statement-wide matching history limit.

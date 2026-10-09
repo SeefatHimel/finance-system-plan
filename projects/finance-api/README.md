@@ -660,3 +660,10 @@ candidate found through either view is excluded from ledger-only results. Source
 rows still participate after skip/link decisions. Edited matching values, missing
 original financial fields, or failed draft reconciliation make comparison
 provisional and produce warnings; they never change extraction evidence or drafts.
+
+Match confidence is statement-wide even for a single-row read, edit or decision.
+The matcher checks unresolved siblings from the same saved statement and returns
+only the requested suggestions. Supplied row/source copies take precedence over
+persisted siblings. Shared candidates stay possible in the table and editor;
+explicit individual acceptance remains allowed, with fresh one-to-one checks.
+History limits apply to the statement-wide check and block unsafe decisions.

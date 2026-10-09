@@ -589,6 +589,10 @@ class StatementInsightTests(APITestCase):
 
         batch = self.upload()
         row = batch.rows.first()
+        # Isolate ledger-candidate ties from competition between statement rows.
+        batch.rows.exclude(id=row.id).filter(direction=row.direction).update(
+            amount=Decimal(60)
+        )
         row.time = time(12, 0)
         row.save()
         target = self.ledger_purchase(counterparty_text="SYNTH SHOP", time=time(12, 1))
@@ -749,9 +753,11 @@ class StatementComparisonTests(APITestCase):
         batch = self.upload()
         self.ledger_purchase(reference="", note="", counterparty_text="")
         row = batch.rows.filter(amount="50.00").first()
+        other = batch.rows.filter(direction="debit").exclude(id=row.id).first()
+        other.amount = Decimal("60.00")
+        other.save()
         matches, _ = find_matches([row])
         self.assertEqual(matches[row.id][0]["strength"], "strong")
-        other = batch.rows.exclude(id=row.id).first()
         other.amount, other.date, other.direction, other.balance_after = (
             row.amount,
             row.date,
@@ -1029,3 +1035,83 @@ class StatementObservationMatchTests(APITestCase):
         self.assertTrue(
             any("only a search hint" in reason for reason in match["reasons"])
         )
+
+
+class StatementWideAmbiguityTests(APITestCase):
+    setUp = SavedStatementTests.setUp
+    upload = SavedStatementTests.upload
+    edit = SavedStatementTests.edit
+    ledger_purchase = SavedStatementTests.ledger_purchase
+    decide = SavedStatementTests.decide
+
+    def test_table_and_single_row_editor_keep_shared_candidate_possible(self):
+        from .services import find_matches
+
+        batch = self.upload()
+        self.ledger_purchase()
+        row = batch.rows.filter(direction="debit").first()
+        table = self.client.get(reverse("statement-import-rows", args=[batch.id])).data
+        listed = next(r for r in table["results"] if r["id"] == str(row.id))["review"][
+            "matches"
+        ]
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data[
+            "review"
+        ]["matches"]
+        self.assertEqual(listed, detail)
+        self.assertEqual(detail[0]["strength"], "possible")
+        self.assertTrue(
+            any("Multiple statement rows" in reason for reason in detail[0]["reasons"])
+        )
+        subset, _ = find_matches([row])
+        self.assertEqual(set(subset), {row.id})
+        self.assertEqual(subset[row.id], detail)
+
+    def test_saving_editor_checks_siblings_and_reflects_changed_competition(self):
+        batch = self.upload()
+        self.ledger_purchase()
+        row = batch.rows.filter(direction="debit").first()
+        response = self.edit(row, note="Synthetic edited note")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["review"]["matches"][0]["strength"], "possible")
+        other = batch.rows.filter(direction="debit").exclude(id=row.id).first()
+        self.assertEqual(self.decide(other, action="skip").status_code, 200)
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data
+        self.assertEqual(detail["review"]["matches"][0]["strength"], "strong")
+
+    def test_explicit_confirmation_rechecks_shared_candidate_and_counts_once(self):
+        from .services import find_matches
+
+        batch = self.upload()
+        target = self.ledger_purchase()
+        row = batch.rows.filter(direction="debit").first()
+        observed = []
+
+        def inspect(rows):
+            result = find_matches(rows)
+            if result[0].get(row.id):
+                observed.append(result[0][row.id][0]["strength"])
+            return result
+
+        with patch("apps.statements.services.find_matches", side_effect=inspect):
+            response = self.decide(row, action="link", transaction=str(target.id))
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(observed, ["possible"])
+        self.assertEqual(Transaction.objects.filter(user=self.user).count(), 1)
+        other = batch.rows.filter(direction="debit").exclude(id=row.id).first()
+        detail = self.client.get(reverse("statement-row-detail", args=[other.id])).data
+        self.assertFalse(detail["review"]["matches"][0]["can_link"])
+        self.assertEqual(
+            self.decide(other, action="link", transaction=str(target.id)).status_code,
+            400,
+        )
+
+    def test_other_statement_does_not_create_same_statement_ambiguity(self):
+        batch = self.upload()
+        self.ledger_purchase()
+        row = batch.rows.filter(direction="debit").first()
+        other = batch.rows.filter(direction="debit").exclude(id=row.id).first()
+        self.decide(other, action="skip")
+        other_batch = self.upload(synthetic_pdf("city_bank", bad_balance=True))
+        self.assertNotEqual(batch.id, other_batch.id)
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data
+        self.assertEqual(detail["review"]["matches"][0]["strength"], "strong")

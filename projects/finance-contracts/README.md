@@ -355,3 +355,9 @@ suggestions. Candidates from either view are excluded from ledger-only results.
 Changed matching values and failed draft reconciliation set `complete=false` with
 warnings; `ledger_only_available=true` can still expose provisional results.
 Missing original financial fields remain incomplete after draft correction.
+
+Statement match strength uses unresolved siblings from the same import, including
+single-row retrieve/PATCH/decision requests. Opening a candidate alone never
+bypasses shared-row ambiguity. Responses retain their existing shapes and return
+requested rows only; explicit individual acceptance still rechecks one-to-one
+link eligibility. Statement-wide search limits remain visible in review warnings.

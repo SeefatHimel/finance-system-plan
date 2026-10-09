@@ -271,3 +271,14 @@ Source/draft matching differences and failed saved-draft reconciliation make
 absence provisional with explicit comparison warnings. Original missing amounts
 or dates remain incomplete even after a valid draft correction. Corrections and
 source evidence are never rewritten by the read-only comparison endpoint.
+
+### Use consistent statement-wide match confidence
+
+Single-row reads, draft edits and confirmations include unresolved siblings from
+the same statement when calculating shared candidate claims. Opening one row does
+not promote a shared candidate to strong. Other statements do not compete in this
+same-statement ambiguity check. Supplied corrected/source views retain their own
+values, while missing siblings are loaded from the saved draft. Return only the
+requested rows. Explicit individual acceptance remains available; it rechecks
+current evidence and cannot attach one movement twice within the same statement.
+Statement-wide history limits are surfaced instead of bypassed by opening a row.
