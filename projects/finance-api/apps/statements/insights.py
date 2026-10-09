@@ -7,6 +7,8 @@ from datetime import datetime
 from decimal import Decimal
 from difflib import SequenceMatcher
 
+from django.db.models import prefetch_related_objects
+
 from .models import StatementMapping
 
 
@@ -205,6 +207,11 @@ def analyze(batch, rows):
     Skips remain part of statement arithmetic; disposition totals describe which
     movements actually entered this ledger. No source checks are rewritten.
     """
+    from .link_validation import accepted_link_issues
+
+    prefetch_related_objects(
+        rows, "batch__account", "transaction__account", "transaction__transfer_account"
+    )
     groups = defaultdict(list)
     totals = {
         kind: {"debit": Decimal(0), "credit": Decimal(0)}
@@ -223,7 +230,10 @@ def analyze(batch, rows):
     for row in rows:
         groups[row.position].append(row)
         state = (
-            row.state if row.state == "skipped" or row.transaction_id else "unresolved"
+            row.state
+            if row.state == "skipped"
+            or (row.transaction_id and not accepted_link_issues(row))
+            else "unresolved"
         )
         states[state]["count"] += 1
         if row.amount is None:

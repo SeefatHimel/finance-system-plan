@@ -644,3 +644,12 @@ use the same ambiguity rules. Only requested suggestions are returned. After a
 competing row is skipped or corrected, fresh results can become strong. Explicit
 individual acceptance is still allowed, and the existing one-to-one constraint
 prevents another row from linking the same movement.
+
+### What happens when a ledger edit invalidates accepted PDF evidence?
+
+Row review, comparison and reconciliation summary revalidate financial identity.
+Amount, direction, currency and account-path mismatches show correction issues,
+count as unresolved and make comparison provisional. Historical fingerprints do
+not hide financially incompatible ledger entries. Reads never remove evidence;
+explicit unlink preserves the ledger transaction and returns the row to review.
+Idempotent acceptance rejects a stale financial link instead of confirming it.

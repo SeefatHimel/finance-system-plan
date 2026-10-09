@@ -667,3 +667,12 @@ only the requested suggestions. Supplied row/source copies take precedence over
 persisted siblings. Shared candidates stay possible in the table and editor;
 explicit individual acceptance remains allowed, with fresh one-to-one checks.
 History limits apply to the statement-wide check and block unsafe decisions.
+
+Accepted statement links are revalidated on row review, summary and comparison
+reads against the current ledger amount, account perspective, currency and owned
+transfer counterpart. Incompatible links remain attached for audit but show
+`needs_correction`, count as unresolved/needs review, and make coverage provisional.
+Unlink the evidence to review again; this preserves the ledger entry. Repeating
+an old acceptance cannot acknowledge an invalid link. Notes and categories do
+not change financial identity; explicitly acknowledged balance differences remain
+valid evidence from separate observations.

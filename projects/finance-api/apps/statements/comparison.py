@@ -1,6 +1,6 @@
 """Read-only, account-scoped statement/ledger coverage. Absence is not deletion."""
 
-from collections import Counter
+from collections import Counter, defaultdict
 from copy import copy
 from datetime import date, time
 from decimal import Decimal
@@ -10,6 +10,7 @@ from django.db.models import Q
 from apps.transactions.models import Transaction
 
 from .insights import analyze
+from .link_validation import accepted_link_issues
 from .services import (
     MAX_MATCH_HISTORY,
     financial_issues,
@@ -71,7 +72,10 @@ def compare(batch, rows, offset=0, limit=50):
     source_matches, source_truncated = find_matches(source_rows)
     draft_matches, draft_truncated = find_matches(rows)
     truncated = source_truncated or draft_truncated
-    linked = {r.transaction_id for r in rows if r.transaction_id}
+    invalid_links = {r.id for r in rows if accepted_link_issues(r)}
+    linked = {
+        r.transaction_id for r in rows if r.transaction_id and r.id not in invalid_links
+    }
     # Either view may explain a recorded movement. Corrections never erase what
     # was printed, and corrected draft candidates remain available for review.
     suggested = {
@@ -80,9 +84,26 @@ def compare(batch, rows, offset=0, limit=50):
         for values in matches.values()
         for m in values
     }
+    # A historical fingerprint still explains where an invalid link came from,
+    # but must not hide a financially incompatible movement as covered.
+    coverage_by_amount = defaultdict(list)
+    for candidate in rows + source_rows:
+        coverage_by_amount[candidate.amount].append(candidate)
+    for row in rows:
+        if row.id not in invalid_links:
+            continue
+        compatible_source = False
+        for candidate in coverage_by_amount[row.transaction.amount]:
+            if not accepted_link_issues(candidate, row.transaction):
+                compatible_source = True
+                break
+        if not compatible_source:
+            suggested.discard(str(row.transaction_id))
     counts = Counter()
     for row in rows:
-        if row.transaction_id:
+        if row.id in invalid_links:
+            state = "needs_review"
+        elif row.transaction_id:
             state = "matched"
         elif row.state == "skipped":
             state = "skipped"
@@ -100,6 +121,11 @@ def compare(batch, rows, offset=0, limit=50):
         counts[state] += 1
     warnings = []
     complete = not truncated
+    if invalid_links:
+        complete = False
+        warnings.append(
+            "Some linked ledger entries changed their financial values or account path. Unlink and review those rows; accepted evidence is preserved and coverage remains provisional."
+        )
     if truncated:
         warnings.append(
             "Matching history exceeded the limit; ledger-only results are unavailable."

@@ -20,6 +20,7 @@ from apps.transactions.serializers import TransactionSerializer
 from apps.transactions.transfers import add_transfer_evidence, lock_transfer_user
 
 from .insights import analyze, match_signals, remember
+from .link_validation import accepted_link_issues
 from .models import StatementImport, StatementRow
 
 MAX_MATCH_HISTORY = 10000
@@ -582,13 +583,16 @@ def review_context(row, matches, truncated=False):
             (r._draft_issues for r in records if r.id == row.id), []
         )
     draft_issues = row._draft_issues
-    issues = posting_issues(row) if not resolved(row) else []
+    link_issues = accepted_link_issues(row)
+    issues = posting_issues(row) if not resolved(row) else link_issues
     orphaned = row.state in {"posted", "linked"} and row.transaction_id is None
     if truncated and not resolved(row):
         issues.append(
             "Too much matching history to check statement-wide ambiguity. Import a shorter statement period or resolve other pending rows before trying again."
         )
-    if resolved(row):
+    if link_issues:
+        state = "needs_correction"
+    elif resolved(row):
         state = row.state
     else:
         state = (
@@ -655,6 +659,10 @@ def decide_locked(*, row, user, payload, request):
     action = payload["action"]
     target = payload.get("transaction")
     if resolved(row) and action not in {"unlink", "reopen"}:
+        if accepted_link_issues(row):
+            raise ReviewConflict(
+                "The linked ledger entry changed. Unlink the evidence and review this row again."
+            )
         if (
             (action == "skip" and row.state == "skipped")
             or (action == "create" and row.state == "posted")

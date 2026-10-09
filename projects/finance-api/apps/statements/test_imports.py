@@ -1115,3 +1115,107 @@ class StatementWideAmbiguityTests(APITestCase):
         self.assertNotEqual(batch.id, other_batch.id)
         detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data
         self.assertEqual(detail["review"]["matches"][0]["strength"], "strong")
+
+
+class AcceptedStatementLinkTests(APITestCase):
+    setUp = SavedStatementTests.setUp
+    upload = SavedStatementTests.upload
+    decide = SavedStatementTests.decide
+    ledger_purchase = SavedStatementTests.ledger_purchase
+    comparison = StatementComparisonTests.comparison
+
+    def linked_row(self):
+        batch = self.upload()
+        row = batch.rows.first()
+        record = self.ledger_purchase()
+        response = self.decide(row, action="link", transaction=str(record.id))
+        self.assertEqual(response.status_code, 200, response.data)
+        row.refresh_from_db()
+        return batch, row, record
+
+    def test_changed_amount_is_reviewable_and_not_hidden_from_ledger_only(self):
+        batch, row, record = self.linked_row()
+        Transaction.objects.filter(pk=record.pk).update(amount=Decimal(75))
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data
+        self.assertEqual(detail["review"]["review_state"], "needs_correction")
+        self.assertIn("Unlink", detail["review"]["issues"][0])
+        comparison = self.comparison(batch).data
+        self.assertFalse(comparison["complete"])
+        self.assertEqual(comparison["counts"].get("matched", 0), 0)
+        self.assertIn(str(record.id), [r["id"] for r in comparison["results"]])
+        summary = self.client.get(
+            reverse("statement-import-summary", args=[batch.id])
+        ).data
+        self.assertEqual(summary["remaining_count"], batch.rows.count())
+        repeat = self.decide(row, action="link", transaction=str(record.id))
+        self.assertEqual(repeat.status_code, 409)
+        self.assertEqual(self.decide(row, action="unlink").status_code, 200)
+        self.assertTrue(Transaction.objects.filter(pk=record.pk).exists())
+
+    def test_account_direction_and_currency_edits_invalidate_accepted_link(self):
+        _, row, record = self.linked_row()
+        other = Account.objects.create(
+            user=self.user, name="Synthetic other", type="bank", currency="BDT"
+        )
+        for changes in (
+            {"account_id": other.id},
+            {"direction": "credit"},
+        ):
+            with self.subTest(changes=changes):
+                Transaction.objects.filter(pk=record.pk).update(**changes)
+                detail = self.client.get(
+                    reverse("statement-row-detail", args=[row.id])
+                ).data
+                self.assertEqual(detail["review"]["review_state"], "needs_correction")
+                Transaction.objects.filter(pk=record.pk).update(
+                    account=self.bank, direction="debit"
+                )
+        Account.objects.filter(pk=self.bank.pk).update(currency="USD")
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data
+        self.assertEqual(detail["review"]["review_state"], "needs_correction")
+
+    def test_editorial_changes_keep_financial_link_valid_and_reads_do_not_mutate(self):
+        batch, row, record = self.linked_row()
+        original_version = row.version
+        original_source = row.extracted
+        Transaction.objects.filter(pk=record.pk).update(
+            note="Synthetic updated note", category=None
+        )
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data
+        self.assertEqual(detail["review"]["review_state"], "linked")
+        self.assertEqual(self.comparison(batch).data["counts"]["matched"], 1)
+        row.refresh_from_db()
+        self.assertEqual(row.version, original_version)
+        self.assertEqual(row.extracted, original_source)
+        self.assertEqual(row.transaction_id, record.id)
+
+    def test_posted_row_also_requires_review_after_amount_edit(self):
+        batch = self.upload()
+        row = batch.rows.first()
+        self.assertEqual(self.decide(row).status_code, 200)
+        row.refresh_from_db()
+        Transaction.objects.filter(pk=row.transaction_id).update(amount=Decimal(75))
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data
+        self.assertEqual(detail["state"], "posted")
+        self.assertEqual(detail["review"]["review_state"], "needs_correction")
+        self.assertEqual(self.comparison(batch).data["counts"].get("matched", 0), 0)
+
+    def test_receiving_transfer_link_rechecks_other_owned_account(self):
+        batch = self.upload()
+        row = batch.rows.get(direction="credit")
+        record = self.ledger_purchase(
+            type="transfer", account=self.wallet, transfer_account=self.bank
+        )
+        response = self.decide(
+            row, action="link", transaction=str(record.id), acknowledge_conflict=True
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        row.refresh_from_db()
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data
+        self.assertEqual(detail["review"]["review_state"], "linked")
+        other = Account.objects.create(
+            user=self.user, name="Synthetic sender", type="bank", currency="BDT"
+        )
+        Transaction.objects.filter(pk=record.pk).update(account=other)
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id])).data
+        self.assertEqual(detail["review"]["review_state"], "needs_correction")

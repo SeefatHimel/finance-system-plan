@@ -282,3 +282,14 @@ values, while missing siblings are loaded from the saved draft. Return only the
 requested rows. Explicit individual acceptance remains available; it rechecks
 current evidence and cannot attach one movement twice within the same statement.
 Statement-wide history limits are surfaced instead of bypassed by opening a row.
+
+### Revalidate accepted financial identity
+
+Accepted PDF evidence must not certify a ledger movement solely because its link
+exists. Reads recheck amount, debit/credit perspective, reporting-account currency
+and account path (including a selected owned transfer counterpart). Stale links
+show a correction warning, count as needing review and make coverage provisional.
+A stale fingerprint cannot hide a financially incompatible ledger entry from
+ledger-only results. Evidence and ledger records remain intact until explicit
+unlink and review. Editorial category/note changes and previously acknowledged
+balance differences do not invalidate a financial identity match.
