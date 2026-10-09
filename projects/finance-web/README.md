@@ -549,3 +549,11 @@ Remember my choices is explicit on individual add/link decisions. A later matchi
 source pattern offers Apply suggested choices for type/category/other owned account;
 applying it creates an unsaved draft change and preserves reported financial fields.
 Save and review before posting. Generic transfer descriptions are not learned.
+
+The statement review table displays PDF rows alongside ledger suggestions, with
+explicit confirmation in the row editor. The Statement vs ledger section shows
+comparison counts and a paginated ledger-only list for the selected account's
+printed statement period. Entries with pending suggestions are excluded from the
+ledger-only list. Warnings identify provisional coverage; absence never triggers
+automatic deletion. Linked rows retain printed date/time/description/balance as
+separate statement evidence accessible from Transactions.

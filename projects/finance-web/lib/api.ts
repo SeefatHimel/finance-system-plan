@@ -1527,3 +1527,14 @@ export async function getStatementSummary(token: string, id: string, signal?: Ab
 export async function reviewSelectedStatementRows(token: string, id: string, rows: { id: string; version: number }[], action: "create" | "skip") {
   return z.object({ added: z.number(), skipped: z.number(), unchanged: z.number(), unresolved: z.array(z.object({ id: z.string(), reason: z.string() })) }).parse(await (await authenticatedFetch(`/api/statements/imports/${id}/review_selected/`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows, action }) })).json());
 }
+
+const statementComparisonSchema = z.object({
+  counts: z.record(z.number()), period_start: z.string().nullable(), period_end: z.string().nullable(),
+  ledger_only_available: z.boolean(), complete: z.boolean(), warnings: z.array(z.string()), count: z.number(), offset: z.number(), limit: z.number(),
+  results: z.array(z.object({ id: z.string(), date: z.string(), time: z.string().nullable(), direction: z.string(),
+    amount: z.string(), balance_after: z.string().nullable(), description: z.string(), source: z.string() }))
+});
+export type StatementComparison = z.infer<typeof statementComparisonSchema>;
+export async function getStatementComparison(token: string, id: string, offset = 0, signal?: AbortSignal): Promise<StatementComparison> {
+  return statementComparisonSchema.parse(await (await authenticatedFetch(`/api/statements/imports/${id}/comparison/?limit=50&offset=${offset}`, token, { signal })).json());
+}

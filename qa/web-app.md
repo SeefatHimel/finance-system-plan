@@ -563,3 +563,11 @@ Alt+Right navigate unresolved rows without implicit approval. Remembered choices
 are displayed for explicit application and saving. The import summary separates
 principal/fee amounts and decision counts; saved-draft checks remain separate from
 original extraction checks, and skipped rows remain part of statement arithmetic.
+
+### How can users compare a PDF statement with their recorded transactions?
+
+Statement rows show suggested ledger movements alongside the PDF values. Users
+confirm links in the editor or approve validated new rows. A separate paginated
+ledger-only list highlights recorded entries with no statement suggestion within
+that account's printed period. Warnings explain provisional absence; no automatic
+deletion occurs. PDF evidence remains separate from edited ledger details.
