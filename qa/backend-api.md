@@ -605,3 +605,15 @@ draft checks recompute balances and net movement without rewriting source extrac
 checks; discrepancies block bulk creation and need individual acknowledgement.
 Match strength uses merchant/time/reference/balance corroboration; ties remain possible.
 Selected create/skip actions preserve locks, version checks, ownership and atomicity.
+
+### How do statement imports identify ledger-only entries?
+
+A read-only comparison scopes ledger history to the authenticated owner, selected
+account and printed statement period. Account-specific transfer observations define
+coverage and balance. Confirmed links and pending suggestions are excluded from
+ledger-only results. Missing/incomplete extraction or matching limits are reported
+as provisional coverage; comparison never deletes or posts transactions.
+
+Skipping a PDF row is a posting decision, not evidence of absence: skipped source
+rows still participate in reverse coverage, so their ledger candidates are not
+incorrectly labelled ledger-only.

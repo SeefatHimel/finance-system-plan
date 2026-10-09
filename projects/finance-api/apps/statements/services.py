@@ -383,6 +383,13 @@ def find_matches(rows):
             ):
                 balances = [record.balance_after]
             known_balances = [b for b in balances if b is not None]
+            reported_balance = (
+                min(known_balances, key=lambda b: abs(b - row.balance_after))
+                if row.balance_after is not None and known_balances
+                else known_balances[0]
+                if known_balances
+                else None
+            )
             conflict = (
                 row.balance_after is not None
                 and bool(known_balances)
@@ -404,7 +411,7 @@ def find_matches(rows):
                 reasons.append("Reported balance also agrees.")
             if conflict:
                 reasons.append(
-                    "Reported balances differ; explicitly review this conflict."
+                    f"Reported balances differ: statement {row.balance_after}, ledger observation {reported_balance}, difference {row.balance_after - reported_balance:+.2f}. Explicitly review this conflict."
                 )
             if record.id in occupied:
                 reasons.append(
@@ -458,8 +465,8 @@ def find_matches(rows):
                         else None,
                         "reference": record.reference,
                         "note": record.note[:500],
-                        "balance_after": str(known_balances[0])
-                        if known_balances
+                        "balance_after": str(reported_balance)
+                        if reported_balance is not None
                         else None,
                         "conflict": conflict,
                         "can_link": compatible_fields and record.id not in occupied,
@@ -471,7 +478,19 @@ def find_matches(rows):
             item[2]
             for item in sorted(candidates, key=lambda item: (-item[0], item[1]))[:8]
         ]
+    # A corroborated candidate shared by two source rows is still ambiguous.
+    claims = defaultdict(set)
     for row in pending:
+        for match in results[row.id]:
+            if match["can_link"]:
+                claims[match["id"]].add(row.id)
+    for row in pending:
+        for match in results[row.id]:
+            if match["strength"] == "strong" and len(claims[match["id"]]) > 1:
+                match["strength"] = "possible"
+                match["reasons"].append(
+                    "Multiple statement rows suggest this movement; confirm one-to-one correspondence."
+                )
         strong = [
             m for m in results[row.id] if m["strength"] == "strong" and m["can_link"]
         ]

@@ -358,3 +358,27 @@ class StatementBulkResultSerializer(serializers.Serializer):
     skipped = serializers.IntegerField()
     unchanged = serializers.IntegerField()
     unresolved = serializers.ListField(child=serializers.DictField())
+
+
+class StatementLedgerOnlySerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    date = serializers.DateField()
+    time = serializers.TimeField(allow_null=True)
+    direction = serializers.ChoiceField(choices=["debit", "credit"])
+    amount = serializers.CharField()
+    balance_after = serializers.CharField(allow_null=True)
+    description = serializers.CharField()
+    source = serializers.CharField()
+
+
+class StatementComparisonSerializer(serializers.Serializer):
+    ledger_only_available = serializers.BooleanField()
+    counts = serializers.DictField(child=serializers.IntegerField())
+    period_start = serializers.DateField(allow_null=True)
+    period_end = serializers.DateField(allow_null=True)
+    complete = serializers.BooleanField()
+    warnings = serializers.ListField(child=serializers.CharField())
+    count = serializers.IntegerField()
+    offset = serializers.IntegerField()
+    limit = serializers.IntegerField()
+    results = StatementLedgerOnlySerializer(many=True)

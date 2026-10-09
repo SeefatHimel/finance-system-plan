@@ -173,7 +173,9 @@ def match_signals(
         ]
     )
     strong = not conflict and (
-        previously_seen or (corroboration >= 2 and distance <= 1)
+        previously_seen
+        or (balance_matches and distance == 0)
+        or (corroboration >= 2 and distance <= 1)
     )
     reasons = []
     if merchant >= 0.6:

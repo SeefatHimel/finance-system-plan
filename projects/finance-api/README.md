@@ -632,3 +632,14 @@ use the existing user/row lock order and atomic transaction protections.
 
 Apply migration `statements.0002_statementmapping` before using remembered
 choices (`python manage.py migrate`). No original PDF or password is retained.
+
+Statement/ledger comparison (`GET /api/statements/imports/{id}/comparison/`)
+returns confirmed, review, statement-only and skipped component counts, plus
+paginated ledger-only entries (default 50, maximum 100). Coverage uses the printed
+period and selected account; transfers use that account's observations for dates
+and balances. Possible matches are excluded from ledger-only results. Missing
+periods, extraction discrepancies, incomplete rows and bounded-history limits
+make absence provisional (`complete=false`). Comparison never posts or deletes.
+Equal amount and reported balance on the same day can produce a strong suggestion;
+shared claims across source rows remain ambiguous. Confirming a link saves the
+masked PDF row as evidence without overwriting ledger/SMS fields or counting twice.

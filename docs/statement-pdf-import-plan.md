@@ -219,3 +219,30 @@ Selected-row create/skip actions use frozen IDs/versions (max 50), fresh backend
 validation and atomic decisions. Save & next and editor shortcuts speed review
 without accepting matches or posting implicitly. OCR, card billing layouts and
 precision-based automatic posting remain future work.
+
+### Statement-to-ledger comparison
+
+Review extracted transactions in a table alongside existing-ledger suggestions.
+Confirmed links retain masked printed PDF fields separately from canonical ledger
+values. No duplicate movement is created. Amount plus reporting-account balance
+on the same day is a strong suggestion; shared candidates across source rows and
+multiple corroborated ledger candidates remain ambiguous. Confirmation is explicit.
+
+Compare in both directions: statement-only rows may be added after validation;
+ledger-only entries are shown for investigation within the selected account's
+printed period. Account-side transfer observations define date/balance coverage.
+Unresolved candidate matches are excluded from ledger-only results. Failed source
+checks, incomplete source rows, missing periods and search limits make absence
+provisional, never an instruction to delete. Older statements may predate recorded
+ledger history; category/merchant wording differences do not establish duplicates.
+
+A private evaluation of the four supplied digital layouts passed all available
+printed-total checks. The sanitized export lacks original merchant/reference text
+and saved account identifiers, limiting fuzzy matching and account identification.
+Real exports/PDFs stay outside the repository; regression fixtures are synthetic.
+
+Balance differences are shown with their signed delta against the nearest
+reporting-account ledger observation. Even a small difference remains an explicit
+conflict; do not silently round it away or assume available and statement balances
+have identical semantics. Exact matching selects the agreeing observation when
+several observations exist for the same account.

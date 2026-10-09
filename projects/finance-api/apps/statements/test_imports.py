@@ -669,3 +669,145 @@ class StatementInsightTests(APITestCase):
         response = self.client.get(reverse("statement-row-detail", args=[row.id]))
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["review"]["matches"][0]["id"], str(target.id))
+
+
+class StatementComparisonTests(APITestCase):
+    setUp = SavedStatementTests.setUp
+    upload = SavedStatementTests.upload
+    decide = SavedStatementTests.decide
+    ledger_purchase = SavedStatementTests.ledger_purchase
+
+    def comparison(self, batch, **query):
+        return self.client.get(
+            reverse("statement-import-comparison", args=[batch.id]), query
+        )
+
+    def test_possible_match_is_not_ledger_only_and_confirmed_evidence_survives(self):
+        batch = self.upload()
+        record = self.ledger_purchase()
+        response = self.comparison(batch)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["counts"]["ledger_only"], 0)
+        row = batch.rows.filter(amount="50.00").first()
+        self.assertEqual(
+            self.decide(row, action="link", transaction=str(record.id)).status_code, 200
+        )
+        row.refresh_from_db()
+        self.assertTrue(row.extracted["description"])
+        self.assertEqual(row.state, "linked")
+        record.refresh_from_db()
+        self.assertEqual(record.note, "My corrected note")
+        self.assertEqual(self.comparison(batch).data["counts"]["matched"], 1)
+
+    def test_only_same_account_and_period_are_compared_and_no_writes(self):
+        batch = self.upload()
+        self.ledger_purchase(amount="19.00")
+        self.ledger_purchase(amount="21.00", account=self.wallet)
+        self.ledger_purchase(amount="23.00", date=date(2030, 1, 1))
+        before = Transaction.objects.count()
+        response = self.comparison(batch)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["amount"], "19.00")
+        self.assertEqual(Transaction.objects.count(), before)
+        self.assertEqual(response["Cache-Control"], "no-store")
+
+    def test_missing_period_and_bad_pagination(self):
+        batch = self.upload()
+        batch.period_start = None
+        batch.save()
+        self.assertFalse(self.comparison(batch).data["complete"])
+        self.assertEqual(self.comparison(batch, limit=101).status_code, 400)
+        self.client.force_authenticate(
+            get_user_model().objects.create_user(username="other-comparison-user")
+        )
+        self.assertEqual(self.comparison(batch).status_code, 404)
+
+    def test_transfer_uses_reporting_observation_date_and_balance(self):
+        batch = self.upload()
+        record = self.ledger_purchase(
+            type="transfer",
+            transfer_account=self.wallet,
+            amount="19.00",
+            date=date(2030, 1, 1),
+        )
+        TransferEvidence.objects.create(
+            user=self.user,
+            transaction=record,
+            account=self.bank,
+            direction="debit",
+            date=date(2026, 1, 2),
+            balance_after="931.00",
+            source="sms",
+        )
+        result = self.comparison(batch).data["results"][0]
+        self.assertEqual(result["date"], date(2026, 1, 2))
+        self.assertEqual(result["balance_after"], "931.00")
+
+    def test_amount_balance_and_same_day_is_strong_but_shared_claim_is_ambiguous(self):
+        from .services import find_matches
+
+        batch = self.upload()
+        self.ledger_purchase(reference="", note="", counterparty_text="")
+        row = batch.rows.filter(amount="50.00").first()
+        matches, _ = find_matches([row])
+        self.assertEqual(matches[row.id][0]["strength"], "strong")
+        other = batch.rows.exclude(id=row.id).first()
+        other.amount, other.date, other.direction, other.balance_after = (
+            row.amount,
+            row.date,
+            row.direction,
+            row.balance_after,
+        )
+        other.save()
+        matches, _ = find_matches(list(batch.rows.select_related("batch__account")))
+        self.assertEqual(matches[row.id][0]["strength"], "possible")
+
+    def test_incoming_transfer_does_not_use_other_accounts_balance(self):
+        batch = self.upload()
+        batch.account = self.wallet
+        batch.save()
+        record = self.ledger_purchase(
+            type="transfer",
+            account=self.bank,
+            transfer_account=self.wallet,
+            amount="19.00",
+            balance_after="555.00",
+        )
+        result = self.comparison(batch).data["results"][0]
+        self.assertEqual(result["id"], str(record.id))
+        self.assertEqual(result["direction"], "credit")
+        self.assertIsNone(result["balance_after"])
+
+    def test_history_limit_never_labels_unsearched_ledger_as_extra(self):
+        batch = self.upload()
+        self.ledger_purchase(amount="19.00")
+        with patch(
+            "apps.statements.comparison.find_matches",
+            return_value=({r.id: [] for r in batch.rows.all()}, True),
+        ):
+            result = self.comparison(batch).data
+        self.assertFalse(result["ledger_only_available"])
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["results"], [])
+
+    def test_small_balance_difference_still_requires_explicit_review(self):
+        from .services import find_matches
+
+        batch = self.upload()
+        self.ledger_purchase(balance_after="949.67", reference="", note="")
+        row = batch.rows.filter(amount="50.00").first()
+        match = find_matches([row])[0][row.id][0]
+        self.assertTrue(match["conflict"])
+        self.assertEqual(match["strength"], "possible")
+        self.assertTrue(
+            any("difference +0.33" in reason for reason in match["reasons"])
+        )
+
+    def test_skipped_pdf_rows_still_count_as_statement_coverage(self):
+        batch = self.upload()
+        self.ledger_purchase()
+        for row in batch.rows.all():
+            self.assertEqual(self.decide(row, action="skip").status_code, 200)
+        result = self.comparison(batch).data
+        self.assertEqual(result["counts"]["skipped"], 3)
+        self.assertEqual(result["count"], 0)

@@ -24,6 +24,7 @@ from .serializers import (
     SavedStatementRowSerializer,
     StatementBulkResultSerializer,
     StatementBulkSerializer,
+    StatementComparisonSerializer,
     StatementDecisionSerializer,
     StatementImportSerializer,
     StatementPreviewRequestSerializer,
@@ -287,6 +288,33 @@ class StatementImportViewSet(
                 ).data,
             }
         )
+
+    @extend_schema(
+        responses=StatementComparisonSerializer,
+        tags=["Statements"],
+        parameters=[
+            OpenApiParameter("offset", int),
+            OpenApiParameter("limit", int),
+        ],
+    )
+    @action(detail=True, methods=("get",))
+    def comparison(self, request, pk=None):
+        from .comparison import compare
+
+        batch = self.get_object()
+        try:
+            offset = int(request.query_params.get("offset", "0"))
+            limit = int(request.query_params.get("limit", "50"))
+            if offset < 0 or not 1 <= limit <= 100:
+                raise ValueError
+        except ValueError as error:
+            raise ValidationError(
+                {"pagination": "Use offset >= 0 and limit from 1 to 100."}
+            ) from error
+        rows = list(
+            batch.rows.select_related("batch__account", "other_account", "category")
+        )
+        return Response(compare(batch, rows, offset, limit))
 
     @extend_schema(responses=StatementSummarySerializer, tags=["Statements"])
     @action(detail=True, methods=("get",))
