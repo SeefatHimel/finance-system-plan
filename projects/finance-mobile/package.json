@@ -1,12 +1,13 @@
 {
   "name": "finance-mobile",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "main": "expo/AppEntry",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
+    "test:gestures": "node --test tests/tap-gesture.test.cjs",
     "ios": "expo run:ios"
   },
   "dependencies": {
@@ -14,6 +15,7 @@
     "@react-native-async-storage/async-storage": "2.1.2",
     "expo": "~53.0.0",
     "expo-asset": "^11.1.7",
+    "expo-file-system": "~18.1.11",
     "expo-font": "^13.3.2",
     "expo-secure-store": "~14.2.4",
     "expo-status-bar": "~2.2.3",

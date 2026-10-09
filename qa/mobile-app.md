@@ -369,3 +369,28 @@ editor; this change does not add a native editor.
 Transfer evidence caches preserve the API’s read-only `is_primary` flag. Older
 caches lacking the field normalize it to false; cache loading never guesses which
 account supplied the primary report.
+
+## Why can icons be blank in a standalone APK even when the font is bundled?
+
+In the current Expo SDK, `expo-font` uses `expo-asset` to load the bundled font,
+and Android asset caching needs the native file-permission interface supplied by
+`expo-file-system`. Expo Go includes that module, but a standalone APK must
+declare it as a dependency itself. The app includes the SDK-compatible module
+and preloads `MaterialCommunityIcons.font` before rendering icon-bearing screens.
+Session restoration can run in parallel; failed font loads show a readable error
+instead of invisible controls. Icons load locally and do not need the backend or
+a development server. External-storage permissions inherited from the library
+are blocked; font loading only uses the app's private cache. Release smoke tests
+include offline cold-launch checks.
+
+## How do SMS settings avoid accidental changes while scrolling?
+
+Capture providers, non-transaction message kinds and retention choices wrap into
+visible rows instead of requiring nested sideways scrolling. Each choice has a
+48-point minimum height and labels can wrap at larger text sizes. The parent
+scroll view can cancel the press; a separate touch-movement guard also suppresses
+selection once movement exceeds eight points, even when the finger returns to
+its start. The guard resets for the next gesture and permits accessibility
+activation without touch movement. Gesture regressions run with
+`npm run test:gestures` from `projects/finance-mobile`; device smoke testing should
+verify that swipes do not change the policy and deliberate taps still do.

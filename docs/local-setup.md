@@ -278,6 +278,16 @@ npm run start
 
 From the Expo terminal, press `a` to launch Android emulator.
 
+Run mobile checks from `projects/finance-mobile`:
+
+```bash
+npm run typecheck
+npm run test:gestures
+```
+
+The gesture suite checks that dragging over capture-policy choices does not
+activate them. Check the wrapped layout and scrolling on a physical phone too.
+
 The app starts with a health-check screen and calls:
 
 ```txt

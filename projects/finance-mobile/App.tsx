@@ -1,4 +1,5 @@
 import { StatusBar } from "expo-status-bar";
+import { useFonts } from "expo-font";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useRef, useState } from "react";
@@ -92,6 +93,7 @@ import {
   type NativeSmsBackgroundSyncStatus,
   type SmsInboxSender
 } from "./modules/finance-sms-capture/src";
+import { ChoicePressable } from "./src/choice-pressable";
 import { clearSession, loadSession, saveSession } from "./src/session";
 import { loadSecureSmsQueue, saveSecureSmsQueue } from "./src/secure-sms-queue";
 
@@ -740,6 +742,7 @@ function candidateReviewReason(candidate: ParsedMessageCandidate) {
 }
 
 export default function App() {
+  const [iconsLoaded, iconFontError] = useFonts(MaterialCommunityIcons.font);
   const [result, setResult] = useState<HealthResult | null>(null);
   const [state, setState] = useState<ViewState>("idle");
   const [username, setUsername] = useState("");
@@ -1467,7 +1470,7 @@ export default function App() {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.0",
+          app_version: "0.1.2",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: rawQueue.length,
@@ -1486,7 +1489,7 @@ export default function App() {
     setSmsBackgroundStatus(nextStatus);
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.0",
+        app_version: "0.1.2",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1563,7 +1566,7 @@ export default function App() {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.0",
+            app_version: "0.1.2",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: rawQueue.length,
@@ -1578,7 +1581,7 @@ export default function App() {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.0",
+          app_version: "0.1.2",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -4650,51 +4653,49 @@ export default function App() {
             Excluded messages keep only a private duplicate-check ID so they are not uploaded again. Their SMS text is not stored by the server.
           </Text>
           <Text style={styles.mobileFieldLabel}>Providers</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.mobileChoiceRow}>
-              {smsProviderOptions.map((provider) => {
-                const excluded = smsCapturePreference.excluded_providers.includes(provider.value);
-                const captureKey = `provider:${provider.value}`;
-                return (
-                  <Pressable
-                    accessibilityRole="switch"
-                    accessibilityState={{ checked: !excluded }}
-                    disabled={Boolean(updatingCaptureKey)}
-                    key={provider.value}
-                    onPress={() => void handleToggleCaptureExclusion("provider", provider.value)}
-                    style={[styles.mobileChoice, !excluded ? styles.mobileChoiceActive : null]}
-                  >
-                    <Text style={[styles.mobileChoiceText, !excluded ? styles.mobileChoiceTextActive : null]}>
-                      {updatingCaptureKey === captureKey ? "Updating…" : `${provider.label} · ${excluded ? "Excluded" : "Tracking"}`}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </ScrollView>
+          <View style={styles.mobilePolicyChoices}>
+            {smsProviderOptions.map((provider) => {
+              const excluded = smsCapturePreference.excluded_providers.includes(provider.value);
+              const captureKey = `provider:${provider.value}`;
+              return (
+                <ChoicePressable
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: !excluded }}
+                  disabled={Boolean(updatingCaptureKey)}
+                  key={provider.value}
+                  onPress={() => void handleToggleCaptureExclusion("provider", provider.value)}
+                  style={[styles.mobileChoice, styles.mobilePolicyChoice, !excluded ? styles.mobileChoiceActive : null]}
+                >
+                  <Text style={[styles.mobileChoiceText, styles.mobilePolicyChoiceText, !excluded ? styles.mobileChoiceTextActive : null]}>
+                    {updatingCaptureKey === captureKey ? "Updating…" : `${provider.label} · ${excluded ? "Excluded" : "Tracking"}`}
+                  </Text>
+                </ChoicePressable>
+              );
+            })}
+          </View>
           <Text style={styles.mobileFieldLabel}>Non-transaction messages</Text>
-          <View style={styles.mobileChoiceRow}>
+          <View style={styles.mobilePolicyChoices}>
             {["otp_or_security", "balance_notice", "promotional"].map((messageKind) => {
               const excluded = smsCapturePreference.excluded_message_kinds.includes(messageKind);
               const captureKey = `message_kind:${messageKind}`;
               return (
-                <Pressable
+                <ChoicePressable
                   accessibilityRole="switch"
                   accessibilityState={{ checked: !excluded }}
                   disabled={Boolean(updatingCaptureKey)}
                   key={messageKind}
                   onPress={() => void handleToggleCaptureExclusion("message_kind", messageKind)}
-                  style={[styles.mobileChoice, !excluded ? styles.mobileChoiceActive : null]}
+                  style={[styles.mobileChoice, styles.mobilePolicyChoice, !excluded ? styles.mobileChoiceActive : null]}
                 >
-                  <Text style={[styles.mobileChoiceText, !excluded ? styles.mobileChoiceTextActive : null]}>
+                  <Text style={[styles.mobileChoiceText, styles.mobilePolicyChoiceText, !excluded ? styles.mobileChoiceTextActive : null]}>
                     {updatingCaptureKey === captureKey ? "Updating…" : `${titleCase(messageKind)} · ${excluded ? "Excluded" : "Allowed"}`}
                   </Text>
-                </Pressable>
+                </ChoicePressable>
               );
             })}
           </View>
           <Text style={styles.mobileFieldLabel}>Original SMS retention after confirmation</Text>
-          <View style={styles.mobileChoiceRow}>
+          <View style={styles.mobilePolicyChoices}>
             {[
               { label: "Remove now", value: 0 },
               { label: "7 days", value: 7 },
@@ -4703,18 +4704,18 @@ export default function App() {
             ].map((option) => {
               const selected = smsCapturePreference.raw_sms_retention_days === option.value;
               return (
-                <Pressable
+                <ChoicePressable
                   accessibilityRole="radio"
                   accessibilityState={{ checked: selected }}
                   disabled={Boolean(updatingCaptureKey)}
                   key={option.label}
                   onPress={() => void handleUpdateSmsRetention(option.value)}
-                  style={[styles.mobileChoice, selected ? styles.mobileChoiceActive : null]}
+                  style={[styles.mobileChoice, styles.mobilePolicyChoice, selected ? styles.mobileChoiceActive : null]}
                 >
-                  <Text style={[styles.mobileChoiceText, selected ? styles.mobileChoiceTextActive : null]}>
+                  <Text style={[styles.mobileChoiceText, styles.mobilePolicyChoiceText, selected ? styles.mobileChoiceTextActive : null]}>
                     {updatingCaptureKey === "retention" && selected ? "Updating…" : option.label}
                   </Text>
-                </Pressable>
+                </ChoicePressable>
               );
             })}
           </View>
@@ -5259,6 +5260,25 @@ export default function App() {
     </View>
   );
 
+  if (!iconsLoaded) {
+    return (
+      <SafeAreaView style={styles.mobileRoot}>
+        <StatusBar style="light" />
+        <View style={styles.mobileSessionLoader}>
+          {iconFontError ? null : <ActivityIndicator color="#55e6a5" size="large" />}
+          <Text accessibilityRole={iconFontError ? "alert" : "text"} style={styles.mobileEmptyTitle}>
+            {iconFontError ? "Could not load app icons" : "Preparing your workspace"}
+          </Text>
+          <Text style={styles.mobileEmptyCopy}>
+            {iconFontError
+              ? "Close and reopen the app. If this continues, install the latest build."
+              : "Loading app icons…"}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (sessionRestoring) {
     return (
       <SafeAreaView style={styles.mobileRoot}>
@@ -5618,6 +5638,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     paddingVertical: 4
+  },
+  mobilePolicyChoices: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingVertical: 4
+  },
+  mobilePolicyChoice: {
+    justifyContent: "center",
+    maxWidth: "100%",
+    minHeight: 48
+  },
+  mobilePolicyChoiceText: {
+    flexShrink: 1,
+    textAlign: "center"
   },
   mobileChoiceText: {
     color: "#a9bad0",

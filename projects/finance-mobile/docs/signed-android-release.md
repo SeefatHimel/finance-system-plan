@@ -83,7 +83,7 @@ From `projects/finance-mobile`:
 ```bash
 npm install
 cd android
-./gradlew clean assembleRelease
+NODE_ENV=production ./gradlew clean assembleRelease
 ```
 
 The APK is created at:
@@ -139,9 +139,16 @@ privacy-policy, consent, and disclosure requirements before submitting it.
 
 Test on a physical Android phone:
 
-1. Install the signed release APK and sign in.
+1. Install the signed release APK and verify icons on the login screen, bottom
+   navigation and empty review state, including a cold launch without internet.
+   Then sign in. The bundled icon font depends on the `expo-file-system` native
+   module included in this project; installing Expo Go does not supply modules
+   to the standalone APK.
 2. Confirm the production API health check succeeds.
 3. Load payment methods and sender rules.
+   Verify all capture-policy/retention options fit the screen and wrap as needed.
+   Swipe across a setting without changing it, then verify a deliberate tap
+   changes only that setting.
 4. Enable only trusted sender rules and grant SMS permissions.
 5. Sync the rules to native capture.
 6. Receive a matching test SMS.

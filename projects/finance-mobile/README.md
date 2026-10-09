@@ -7,6 +7,12 @@ React Native Android app for quick capture and SMS-based transaction tracking.
 Phase 1 scaffold now includes:
 
 - Expo + React Native TypeScript setup.
+- Bundled Material Community icon font preloaded before rendering app screens.
+  Standalone builds include the SDK-compatible `expo-file-system` native module
+  required by `expo-asset` to copy the font into its local cache. Font loading
+  failures show a readable startup error instead of silently blank icons.
+  The Android manifest blocks the dependency's external-storage permissions;
+  font loading only uses the app's private cache.
 - Environment-based API base URL (`EXPO_PUBLIC_API_BASE_URL`).
 - Health check screen that calls `GET /api/health/`.
 - Login test flow that calls `POST /api/auth/login/`.
@@ -46,6 +52,11 @@ Phase 1 scaffold now includes:
     creation, local enablement, and immediate native-rule sync
   - loads and updates the server-side capture policy for provider,
     OTP/security, and balance-notice exclusions
+  - wraps capture-policy and retention options into visible rows, with 48-point
+    minimum tap targets and multi-line labels for larger text sizes
+  - cancels a setting selection after touch movement exceeds eight points,
+    including a drag that returns to its start; accessibility activation remains
+    available without a touch gesture
   - removes excluded providers from native sender capture immediately
   - presents a four-step setup checklist and lets the user choose immediate,
     7-day, 30-day, or manual raw-SMS redaction after confirmation
@@ -157,6 +168,16 @@ The mobile login flow uses OS-backed SecureStore and rotates the saved JWT pair
 on app launch. See `../../docs/auth-token-storage-plan.md`.
 
 ## Native Android SMS Capture
+
+Run mobile checks from this project directory:
+
+```bash
+npm run typecheck
+npm run test:gestures
+```
+
+The gesture tests cover tap-versus-drag handling for capture settings. Verify
+wrapping, larger text sizes and swipe cancellation on a physical Android phone.
 
 The app includes a local Android native module under
 `modules/finance-sms-capture/`. It is only available in a generated Android
