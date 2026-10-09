@@ -395,3 +395,21 @@ return 400. Statement comparison adds paired inclusive start/end dates for
 ledger-only rows: `count` and page links use filtered results, while `counts` keeps
 whole-statement coverage. Ranges are capped at 366 days; schemas do not change.
 Regenerate clients with `python scripts/generate_ts_client.py` from this project.
+
+### Account-owned identity metadata and pre-import recognition
+
+`Account` adds nullable optional `identity`; create/patch accept
+`AccountIdentityInput`. The server assigns ownership and the shared payment-method
+ID. Omitted identity preserves existing mappings, null disables that account's
+profile, and a non-null profile activates it. Primary and additional identifiers
+are masked or last-four suffixes; masked inputs exposing more than ten digits also
+reduce to last four. Aliases cannot be numeric-only. Account-managed
+payment methods cannot be reassigned to another account.
+
+Multipart `POST /api/statements/identify/` requires only file and optional password.
+`StatementIdentification` returns parser profile, masked account hint and nullable
+account suggestion, including explicit ambiguity. It is read-only, no-store, and
+shares preview extraction bounds and has a separate 10/hour throttle. Existing preview/import still require the user's
+selected eligible account; recognition does not authorize ledger posting. The
+additive account migration must precede API deployment; regenerate clients with
+`python scripts/generate_ts_client.py`.

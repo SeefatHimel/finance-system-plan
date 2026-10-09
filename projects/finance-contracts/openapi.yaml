@@ -460,6 +460,28 @@ paths:
         '404':
           description: Owned import, row, or transaction not found.
       description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store.'
+  /api/statements/identify/:
+    post:
+      tags: [Statements]
+      summary: Identify statement account
+      description: Read-only PDF account recognition before choosing an account. Same upload and worker bounds as preview; has a separate 10 requests/hour recognition throttle. Returns only masked header evidence and an owned, active, compatible BDT account suggestion. Saves no PDF, password, import, or ledger transaction. Suffix collisions require manual selection.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {$ref: '#/components/schemas/StatementIdentifyRequest'}
+      responses:
+        '200':
+          description: Masked account evidence and optional suggestion; no-store.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StatementIdentification'}
+        '400': {description: Invalid file or password, or unsupported layout.}
+        '401': {$ref: '#/components/responses/UnauthorizedError'}
+        '422': {description: PDF worker timeout.}
+        '429': {description: Preview request rate exceeded.}
+        '503': {description: Statement worker unavailable.}
   /api/statements/preview/:
     post:
       tags: [Statements]
@@ -2382,6 +2404,10 @@ components:
       required:
         [id, name, type, currency, starting_balance, ledger_balance, latest_reported_balance, latest_reported_balance_date, is_active, display_order, created_at, updated_at]
       properties:
+        identity:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/AccountIdentity'
         id:
           type: string
           format: uuid
@@ -2430,6 +2456,10 @@ components:
       type: object
       required: [name, type]
       properties:
+        identity:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/AccountIdentityInput'
         name:
           type: string
           maxLength: 120
@@ -2453,6 +2483,10 @@ components:
     AccountPatchRequest:
       type: object
       properties:
+        identity:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/AccountIdentityPatchInput'
         name:
           type: string
           maxLength: 120
@@ -2469,6 +2503,50 @@ components:
         display_order:
           type: integer
           minimum: 0
+    AccountIdentityInput:
+      type: object
+      required: [provider]
+      description: Account-owned recognition profile in the shared payment-method registry. Omit to preserve it; null disables it. At least one identifier or alias is required. Unmasked numbers and masked values exposing more than ten digits are stored as last-four suffixes.
+      properties:
+        provider: {$ref: '#/components/schemas/PaymentProvider'}
+        identifier: {type: string, maxLength: 120, default: ""}
+        identifier_kind: {type: string, enum: [any, account, card], description: Defaults to card for new credit-card accounts and account for other new profiles.}
+        additional_identifiers:
+          type: array
+          maxItems: 20
+          items: {$ref: '#/components/schemas/PaymentIdentifierInput'}
+        aliases:
+          type: array
+          maxItems: 20
+          items: {type: string, minLength: 4, maxLength: 80}
+    AccountIdentityPatchInput:
+      type: object
+      description: Partial update of an existing account recognition profile. Creating a profile on an existing account still requires provider and at least one identifier or alias. Omission preserves values; null disables the profile.
+      properties:
+        provider: {$ref: '#/components/schemas/PaymentProvider'}
+        identifier: {type: string, maxLength: 120, default: ""}
+        identifier_kind: {type: string, enum: [any, account, card], description: Defaults to card for new credit-card accounts and account for other new profiles.}
+        additional_identifiers:
+          type: array
+          maxItems: 20
+          items: {$ref: '#/components/schemas/PaymentIdentifierInput'}
+        aliases:
+          type: array
+          maxItems: 20
+          items: {type: string, minLength: 4, maxLength: 80}
+    AccountIdentity:
+      type: object
+      required: [id, provider, identifier, identifier_kind, additional_identifiers, aliases, is_active]
+      properties:
+        id: {type: string, format: uuid, readOnly: true}
+        provider: {$ref: '#/components/schemas/PaymentProvider'}
+        identifier: {type: string}
+        identifier_kind: {type: string, enum: [any, account, card]}
+        additional_identifiers:
+          type: array
+          items: {$ref: '#/components/schemas/PaymentIdentifier'}
+        aliases: {type: array, items: {type: string}}
+        is_active: {type: boolean, readOnly: true}
     PaymentIdentifier:
       type: object
       required: [kind, value, label]
@@ -4205,6 +4283,19 @@ components:
         name: {type: string}
         reason: {type: string}
         ambiguous: {type: boolean}
+    StatementIdentifyRequest:
+      type: object
+      required: [file]
+      properties:
+        file: {type: string, format: binary}
+        password: {type: string, maxLength: 256, writeOnly: true}
+    StatementIdentification:
+      type: object
+      required: [profile, account_hint, account_suggestion]
+      properties:
+        profile: {type: string}
+        account_hint: {type: string, description: Masked statement account suffix.}
+        account_suggestion: {$ref: '#/components/schemas/StatementAccountSuggestion'}
     StatementPreviewRequest:
       type: object
       required: [account, file]

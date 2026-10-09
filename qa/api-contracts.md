@@ -395,3 +395,18 @@ types describe these parameters; invalid/mixed/incomplete ranges return 400.
 Comparison ranges filter ledger-only rows before pagination: `count` is filtered,
 while `counts` remains whole-statement coverage. Clients must label that distinction
 and must not interpret date filtering as a change to matching or ledger evidence.
+
+## What is the account recognition API boundary?
+
+Account create/update adds optional nullable `identity` with provider, primary
+identifier/kind, typed additional identifiers and aliases. Ownership and the
+shared payment-method ID are server-managed. Omission preserves an existing
+profile; null disables it. Values are masked or last-four suffixes, and existing
+ledger fields are unchanged. The additive migration precedes deployment.
+
+`POST /api/statements/identify/` accepts multipart file/password without an account,
+returns only masked hint/profile and nullable account suggestion, and saves
+nothing. It shares preview extraction limits and no-store behavior, with a
+separate 10/hour throttle that preserves the import allowance. Only owned,
+active compatible BDT accounts can be suggested. Preview/import still require the
+chosen account, and suggestions never authorize posting or linking.

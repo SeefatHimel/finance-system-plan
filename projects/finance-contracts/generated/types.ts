@@ -81,6 +81,7 @@ export interface AuditLogEntry {
 }
 
 export interface Account {
+  identity?: AccountIdentity | null;
   id: string;
   name: string;
   type: AccountType;
@@ -96,6 +97,7 @@ export interface Account {
 }
 
 export interface AccountCreateRequest {
+  identity?: AccountIdentityInput | null;
   name: string;
   type: AccountType;
   currency?: string;
@@ -105,12 +107,39 @@ export interface AccountCreateRequest {
 }
 
 export interface AccountPatchRequest {
+  identity?: AccountIdentityPatchInput | null;
   name?: string;
   type?: AccountType;
   currency?: string;
   starting_balance?: string;
   is_active?: boolean;
   display_order?: number;
+}
+
+export interface AccountIdentityInput {
+  provider: PaymentProvider;
+  identifier?: string;
+  identifier_kind?: "any" | "account" | "card";
+  additional_identifiers?: PaymentIdentifierInput[];
+  aliases?: string[];
+}
+
+export interface AccountIdentityPatchInput {
+  provider?: PaymentProvider;
+  identifier?: string;
+  identifier_kind?: "any" | "account" | "card";
+  additional_identifiers?: PaymentIdentifierInput[];
+  aliases?: string[];
+}
+
+export interface AccountIdentity {
+  id: string;
+  provider: PaymentProvider;
+  identifier: string;
+  identifier_kind: "any" | "account" | "card";
+  additional_identifiers: PaymentIdentifier[];
+  aliases: string[];
+  is_active: boolean;
 }
 
 export interface PaymentIdentifier {
@@ -765,6 +794,17 @@ export interface StatementAccountSuggestion {
   name: string;
   reason: string;
   ambiguous: boolean;
+}
+
+export interface StatementIdentifyRequest {
+  file: Blob;
+  password?: string;
+}
+
+export interface StatementIdentification {
+  profile: string;
+  account_hint: string;
+  account_suggestion: StatementAccountSuggestion;
 }
 
 export interface StatementPreviewRequest {
