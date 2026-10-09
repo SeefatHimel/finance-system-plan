@@ -69,6 +69,11 @@ class TransactionViewSet(ModelViewSet):
             .prefetch_related("transfer_evidence")
         )
 
+        from apps.reports.periods import custom_bounds
+
+        bounds = custom_bounds(self.request.query_params)
+        if bounds:
+            queryset = queryset.filter(date__range=bounds)
         month = self.request.query_params.get("month")
         if month:
             try:

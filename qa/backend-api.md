@@ -653,3 +653,11 @@ count as unresolved and make comparison provisional. Historical fingerprints do
 not hide financially incompatible ledger entries. Reads never remove evidence;
 explicit unlink preserves the ledger transaction and returns the row to review.
 Idempotent acceptance rejects a stale financial link instead of confirming it.
+
+### How are daily and custom dashboard periods calculated?
+
+Reports and transaction lists share inclusive date-range validation. Both dates
+are required, month cannot be combined with a range, and the maximum span is
+366 days. Reports aggregate the user's BDT ledger for the whole selected period,
+return daily totals including zero days, and exclude owned transfers from income
+and spending. The full daily series does not depend on list pagination.

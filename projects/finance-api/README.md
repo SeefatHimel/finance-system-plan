@@ -676,3 +676,13 @@ Unlink the evidence to review again; this preserves the ledger entry. Repeating
 an old acceptance cannot acknowledge an invalid link. Notes and categories do
 not change financial identity; explicitly acknowledged balance differences remain
 valid evidence from separate observations.
+
+Dashboard reporting supports inclusive `start_date` / `end_date` on
+`GET /api/reports/monthly/` and `GET /api/transactions/`. Supply both instead
+of `month`, with a maximum span of 366 days. Equal dates select one day; missing,
+invalid, reversed or oversized ranges return field-specific 400 errors. Monthly
+requests retain their existing behavior and add explicit period metadata.
+Reports return BDT-only daily income/expense totals (including zero-activity days)
+and expense-only `spending_categories`; own-account transfers are excluded from
+income/spending but remain in account movement. Daily chart totals come from the
+full server-side period, independently of transaction-list pagination.
