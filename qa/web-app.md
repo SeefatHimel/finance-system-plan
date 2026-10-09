@@ -25,7 +25,7 @@ status, and signed amounts. Manual transaction entry remains available but is a
 secondary action. It also has a transactions page for listing and creating
 manual transactions and an accounts page for managing accounts and
 categories, an SMS settings page for managing payment methods and sender rules,
-an SMS review inbox for parsed message candidates, a monthly reports page, and
+an SMS review inbox for parsed message candidates, a period reports page, and
 a debt/lending dashboard for creating debt records and repayments, a credit
 card bills page for statement balances, due dates, minimum dues, and payments,
 and a recurring bills page for repeating payment schedules. It also has a
@@ -136,7 +136,7 @@ and its filters are the primary surface; manual create/edit forms open in a
 focused, viewport-centered dialog only when requested. The compact table combines type, direction,
 reference, and counterparty context into a scannable description while keeping
 reported balance, signed amount, history, edit, and delete actions visible. It
-supports filters for month, type, account, category, debit/credit direction,
+supports filters for daily/monthly/custom dates, type, account, category, debit/credit direction,
 source, and search text. Search matches transaction id/reference,
 sent-to/received-from text, note, and backend duplicate key. It supports
 updating and deleting transaction rows, and can download a CSV export using the
@@ -242,7 +242,7 @@ the workspace immediately removes it from review with explicit feedback.
 
 The current reports page calls the Django monthly report endpoint and shows
 income, expense, net total, category totals, and account movement for a selected
-month. This is the first web version of the spreadsheet's monthly summary view.
+daily, monthly or custom period.
 
 ## What does the current reconciliation page do?
 
@@ -429,12 +429,12 @@ The Recently added view orders the ledger by creation time and shows Added
 timestamps alongside transaction date/time. Selecting it removes the default
 current-month restriction so approving an old SMS is immediately discoverable.
 Account, category, type, source, direction and search filters still apply.
-Month, when chosen, filters transaction date. The URL preserves ordering and
-all-month selection on reload. Edits and linked evidence do not make an existing
+Periods filter the selected transaction/added/updated date basis. The URL preserves
+ordering, period and date basis on reload. Edits and linked evidence do not make an existing
 transfer a new addition. Switching back restores the current transaction month.
 Recently updated instead orders by latest saved change and shows Updated time,
 including new entries, edits, newly linked transfer evidence and merges. It also
-opens all months and preserves filters on reload, with no fixed lookback period.
+opens All dates and preserves filters on reload, with no fixed lookback period.
 Reading an entry or retrying an accepted transfer link does not promote it.
 
 ## Why does navigating several months remain responsive on a slow connection?
@@ -595,3 +595,27 @@ Labels and Both, remembered per signed-in user on that browser. The app derives
 labels from settings at display time and retains raw numbers for ambiguous or
 unmapped values. Editing, original evidence and CSV data are unchanged. Renaming a
 label changes presentation without modifying the ledger or transaction timestamps.
+
+## How do date controls work across the web app?
+
+A shared controlled component provides Daily, Monthly, Custom range and optional
+All dates. Each dated list names its date basis, and current financial totals and
+forms remain live. Transactions can filter transaction, added or updated dates;
+the URL and CSV retain that choice. Reports/dashboard default to the current
+month, while histories can include all dates. Custom drafts apply together after
+validation, with a 366-day inclusive limit. Date navigation remains enabled while
+requests debounce/abort; previously loaded report/transaction data keeps its own
+period label until replacement succeeds. Paginated statements filter server-side,
+including ledger-only rows, without narrowing whole-statement coverage totals.
+Browser-filtered timestamp histories use local days; API-filtered timestamps use
+Asia/Dhaka. Unknown dates are included only in All dates.
+
+## Can the frontend keep an idle backend awake?
+
+The root heartbeat checks a public same-origin health proxy on startup and every
+ten minutes while online, including the login page. It uses no auth refresh or
+financial data, skips overlapping requests, times out, and cleans up on unmount.
+Optional shared storage reduces repeat checks between tabs. Failures are quiet;
+reconnection and returning to a tab check again when due. A browser that suspends
+or closes the page cannot provide reliable uptime. `npm run test:dates` covers
+calendar boundaries, custom validation and heartbeat timing/offline/cleanup.

@@ -1,5 +1,8 @@
 "use client";
 
+import { DatePeriodControls } from "@/components/date-period-controls";
+import { allDates, periodBounds, type DatePeriod } from "@/lib/date-period";
+
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createStatementImport, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
@@ -29,6 +32,10 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
   const [uploadError, setUploadError] = useState<string | null>(null);
   const uploadRequest = useRef<AbortController | null>(null);
   const rowRequest = useRef<AbortController | null>(null);
+  const [historyPeriod, setHistoryPeriod] = useState<DatePeriod>(allDates);
+  const [historyDateField, setHistoryDateField] = useState<"updated_at" | "created_at">("updated_at");
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [rowPeriod, setRowPeriod] = useState<DatePeriod>(allDates);
   const [history, setHistory] = useState<StatementHistory | null>(null);
   const [historyOffset, setHistoryOffset] = useState(0);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -69,10 +76,16 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
   }, [retry]);
   useEffect(() => {
     const controller = new AbortController(); const token = getAccessToken(); if (!token) return;
-    setHistoryError(null);
-    void listStatementImports(token, historyOffset, controller.signal).then((result) => { if (!controller.signal.aborted) setHistory(result); }).catch((reason: unknown) => { if (!controller.signal.aborted) setHistoryError(reason instanceof Error ? reason.message : "Could not load import history."); });
-    return () => controller.abort();
-  }, [historyOffset, epoch, retry]);
+    setHistoryError(null); setHistoryLoading(true);
+    const timer = window.setTimeout(() => {
+      void listStatementImports(token, historyOffset, controller.signal, { ...periodBounds(historyPeriod), date_field: historyDateField }).then((result) => {
+        if (!controller.signal.aborted) setHistory(result);
+      }).catch((reason: unknown) => {
+        if (!controller.signal.aborted) setHistoryError(reason instanceof Error ? reason.message : "Could not load import history.");
+      }).finally(() => { if (!controller.signal.aborted) setHistoryLoading(false); });
+    }, 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [historyOffset, historyPeriod, historyDateField, epoch, retry]);
   useEffect(() => {
     const controller = new AbortController(); const token = getAccessToken(); setBatchError(null);
     if (!token || !batchId) { setBatch(null); setSummary(null); return; }
@@ -93,7 +106,7 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
 
   function openBatch(id: string) {
     rowRequest.current?.abort(); setSelectedRow(null); setRowLoading(false); setBatch(null); setSummary(null); setRows(null);
-    setFilters(emptyFilters); setAppliedFilters(emptyFilters); setOffset(0); setBatchId(id);
+    setRowPeriod(allDates); setFilters(emptyFilters); setAppliedFilters(emptyFilters); setOffset(0); setBatchId(id);
     router.replace(`/statements?import=${id}`, { scroll: false });
   }
   function fail(reason: unknown, fallback: string) { const message = reason instanceof Error ? reason.message : fallback; notify(message, "error"); return message; }
@@ -164,11 +177,15 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
       {uploadError ? <p role="alert" className="form-error">{uploadError}</p> : null}
     </div></section>
     <section className="panel"><div className="panel__body"><h2 className="section-title">Import history</h2><p className="section-subtitle">Resume saved reviews. Uploading the same file for the same account reopens its draft and preserves your decisions.</p>
+      <DatePeriodControls label="Statement import dates" description="Activity calendar days use Asia/Dhaka" value={historyPeriod} onChange={period => { setHistoryPeriod(period); setHistoryOffset(0); }}>
+        <label className="field"><span className="field__label">Filter date</span><select aria-label="Filter date" className="field__control" value={historyDateField} onChange={event => { setHistoryDateField(event.target.value as typeof historyDateField); setHistoryOffset(0); }}><option value="updated_at">Updated date</option><option value="created_at">Imported date</option></select></label>
+      </DatePeriodControls>
+      {historyLoading ? <p role="status">Updating import history…</p> : null}
       {historyError ? <p role="alert" className="form-error">{historyError}</p> : null}
       {!history && !historyError ? <p role="status">Loading import history…</p> : null}
-      {history && !history.results.length ? <p>No statement imports yet.</p> : null}
+      {history && !history.results.length ? <p>No statement imports match these dates.</p> : null}
       <div className="statement-history">{history?.results.map((entry) => <button className={`statement-history-item${entry.id === batchId ? " statement-history-item--active" : ""}`} aria-current={entry.id === batchId ? "true" : undefined} type="button" key={entry.id} onClick={() => openBatch(entry.id)}><strong>{entry.account_name} · {labels[entry.profile] ?? entry.profile}</strong><span>{entry.period_start ?? "Unknown"} → {entry.period_end ?? "Unknown"}</span><small>{entry.counts.pending} pending · {entry.counts.posted} added · {entry.counts.linked} linked · {entry.counts.skipped} skipped</small><small>Updated {new Date(entry.updated_at).toLocaleString()}</small></button>)}</div>
-      <div className="statement-actions"><button className="button" type="button" disabled={!historyOffset} onClick={() => setHistoryOffset(Math.max(0, historyOffset - 20))}>Newer imports</button><button className="button" type="button" disabled={!history?.next} onClick={() => setHistoryOffset(historyOffset + 20)}>Older imports</button><button className="button button--ghost" type="button" onClick={() => setRetry((n) => n + 1)}>Refresh statements</button></div>
+      <div className="statement-actions"><button className="button" type="button" disabled={historyLoading || !historyOffset} onClick={() => setHistoryOffset(Math.max(0, historyOffset - 20))}>Newer imports</button><button className="button" type="button" disabled={historyLoading || !history?.next} onClick={() => setHistoryOffset(historyOffset + 20)}>Older imports</button><button className="button button--ghost" type="button" onClick={() => setRetry((n) => n + 1)}>Refresh statements</button></div>
     </div></section>
     {batchError ? <p role="alert" className="form-error">{batchError}</p> : null}
     {batchId && !batch && !batchError ? <LoadingState compact label="Loading statement" detail="Retrieving your saved review" /> : null}
@@ -182,15 +199,16 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
         <p className="inline-note">Opening balances are not imported as income. Fees are separate review movements. Unknown times remain empty.</p>
       </div></section>
       <section className="panel"><div className="panel__body"><h2 className="section-title">Statement review</h2>
+        <DatePeriodControls label="Statement row dates" description="Based on saved row date; unknown dates remain visible under All dates" value={rowPeriod} onChange={period => { setRowPeriod(period); setFilters(old => ({ ...old, date_from: period.start, date_to: period.end })); }} />
         <div className="form-grid statement-filter-grid">
           <label className="field"><span className="field__label">Search rows</span><input className="field__control" type="search" value={filters.search} onChange={(e) => filter("search", e.target.value)} placeholder="Description, reference, counterparty" /></label>
           <label className="field"><span className="field__label">Review state</span><select className="field__control" value={filters.state} onChange={(e) => filter("state", e.target.value)}><option value="">All rows</option>{["pending", "new", "possible_match", "needs_correction", "posted", "linked", "skipped"].map((state) => <option key={state} value={state}>{labels[state]}</option>)}</select></label>
           <label className="field"><span className="field__label">Debit / credit</span><select className="field__control" value={filters.direction} onChange={(e) => filter("direction", e.target.value)}><option value="">All directions</option><option value="debit">Debit</option><option value="credit">Credit</option></select></label>
           <label className="field"><span className="field__label">Type</span><select className="field__control" value={filters.type} onChange={(e) => filter("type", e.target.value)}><option value="">All types</option>{transactionTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
           <label className="field"><span className="field__label">Category</span><select className="field__control" value={filters.category} onChange={(e) => filter("category", e.target.value)}><option value="">All categories</option><option value="none">Uncategorized</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-          <div className="statement-date-range"><label className="field"><span className="field__label">From date</span><input className="field__control" type="date" value={filters.date_from} onChange={(e) => filter("date_from", e.target.value)} /></label><label className="field"><span className="field__label">To date</span><input className="field__control" type="date" value={filters.date_to} onChange={(e) => filter("date_to", e.target.value)} /></label></div>
+
         </div>
-        <div className="statement-actions"><button className="button button--ghost" type="button" onClick={() => setFilters(emptyFilters)}>Clear filters</button><button className="button button--primary" type="button" disabled={filtersPending || rowsLoading || rowsError !== null || !eligible.length || setupLoading || bulkBusy} onClick={() => confirmRows("create", eligible)}>Approve {eligible.length} new rows on this page</button><button className="button" type="button" disabled={rowsLoading || filtersPending || bulkBusy || !selectedIds.length} onClick={() => confirmRows("create", rows?.results.filter(row => selectedIds.includes(row.id)) ?? [])}>Approve selected new rows ({selectedIds.length})</button><button className="button" type="button" disabled={rowsLoading || filtersPending || bulkBusy || !selectedIds.length} onClick={() => confirmRows("skip", rows?.results.filter(row => selectedIds.includes(row.id)) ?? [])}>Skip selected ({selectedIds.length})</button></div>
+        <div className="statement-actions"><button className="button button--ghost" type="button" onClick={() => { setFilters(emptyFilters); setRowPeriod(allDates); }}>Clear filters</button><button className="button button--primary" type="button" disabled={filtersPending || rowsLoading || rowsError !== null || !eligible.length || setupLoading || bulkBusy} onClick={() => confirmRows("create", eligible)}>Approve {eligible.length} new rows on this page</button><button className="button" type="button" disabled={rowsLoading || filtersPending || bulkBusy || !selectedIds.length} onClick={() => confirmRows("create", rows?.results.filter(row => selectedIds.includes(row.id)) ?? [])}>Approve selected new rows ({selectedIds.length})</button><button className="button" type="button" disabled={rowsLoading || filtersPending || bulkBusy || !selectedIds.length} onClick={() => confirmRows("skip", rows?.results.filter(row => selectedIds.includes(row.id)) ?? [])}>Skip selected ({selectedIds.length})</button></div>
         <p>{rows?.count ?? 0} matching rows · Page {Math.floor(offset / 50) + 1} of {Math.max(1, Math.ceil((rows?.count ?? 0) / 50))}. Suggestions are checked again before every decision.</p>
         {rowsError ? <p role="alert" className="form-error">{rowsError}</p> : null}
         {rowsLoading ? <p role="status">Loading matching rows…</p> : null}

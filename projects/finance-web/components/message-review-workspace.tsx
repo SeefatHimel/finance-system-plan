@@ -1,5 +1,8 @@
 "use client";
 
+import { DatePeriodControls } from "@/components/date-period-controls";
+import { allDates, dateInPeriod, type DatePeriod } from "@/lib/date-period";
+
 import { useFeedbackMessage } from "@/components/toast-provider";
 
 import { ArrowClockwise, ArrowLeft, ArrowRight, CheckCircle, FunnelSimple, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
@@ -124,6 +127,7 @@ export function MessageReviewWorkspace() {
   const [workingCandidateId, setWorkingCandidateId] = useState<string | null>(null);
   const [reprocessingCandidateId, setReprocessingCandidateId] = useState<string | null>(null);
   const [isBulkReprocessing, setIsBulkReprocessing] = useState(false);
+  const [period, setPeriod] = useState<DatePeriod>(allDates);
   const [query, setQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
   const [issueFilter, setIssueFilter] = useState("all");
@@ -173,6 +177,7 @@ export function MessageReviewWorkspace() {
     if (reviewState.status !== "ready") return [];
     const normalizedQuery = query.trim().toLowerCase();
     return reviewState.candidates.filter((candidate) => {
+      if (!dateInPeriod(candidate.raw_message.received_at, period)) return false;
       if (providerFilter !== "all" && candidate.provider !== providerFilter) return false;
       if (typeFilter !== "all" && candidate.transaction_type !== typeFilter) return false;
       if (categoryFilter === "uncategorized" && candidate.category) return false;
@@ -184,7 +189,7 @@ export function MessageReviewWorkspace() {
       return [candidate.provider, candidate.message_kind, candidate.raw_message.sender, candidate.counterparty_text, candidate.reference]
         .some((value) => value.toLowerCase().includes(normalizedQuery));
     });
-  }, [categoryFilter, issueFilter, providerFilter, query, reviewState, typeFilter]);
+  }, [categoryFilter, issueFilter, providerFilter, query, reviewState, typeFilter, period]);
 
   const activeCandidate = filteredCandidates.find((candidate) => candidate.id === activeCandidateId) ?? filteredCandidates[0] ?? null;
   const accountDraft = activeCandidate ? accountDrafts[activeCandidate.id] ?? accountReviewDefaults(activeCandidate) : null;
@@ -393,6 +398,7 @@ export function MessageReviewWorkspace() {
         <section className="review-split">
           <aside className="panel review-queue" aria-label="Pending messages">
             <div className="review-queue__filters">
+              <DatePeriodControls label="SMS received dates" description="Based on message received date in your local timezone" value={period} onChange={setPeriod} />
               <label className="review-search"><MagnifyingGlass aria-hidden="true" size={18} /><input aria-label="Search review queue" onChange={(event) => setQuery(event.target.value)} placeholder="Search sender or merchant" type="search" value={query} /></label>
               <div className="review-filter-row"><FunnelSimple aria-hidden="true" size={17} /><select aria-label="Filter by provider" onChange={(event) => setProviderFilter(event.target.value)} value={providerFilter}><option value="all">All providers</option>{providers.map((provider) => <option key={provider} value={provider}>{formatLabel(provider)}</option>)}</select><select aria-label="Filter by issue" onChange={(event) => setIssueFilter(event.target.value)} value={issueFilter}><option value="all">All states</option><option value="missing">Needs input</option><option value="ready">Ready to confirm</option></select></div>
               <div className="review-filter-row review-filter-row--fields">

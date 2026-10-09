@@ -1,5 +1,7 @@
 "use client";
 
+import { DatedList } from "@/components/dated-list";
+
 import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
 import type React from "react";
@@ -430,9 +432,10 @@ export function RecurringBillWorkspace() {
       <section className="panel">
         <div className="panel__body">
           <h2 className="section-title">Bill schedule</h2>
-          {state.bills.length === 0 ? (
+          <DatedList items={state.bills} fields={[{ label: "Next due date", date: bill => bill.next_due_date }]} label="Recurring bill history">{bills => <>
+          {bills.length === 0 ? (
             <div className="empty-state">
-              <p>No recurring bills yet.</p>
+              <p>No recurring bills match these dates.</p>
             </div>
           ) : (
             <div className="table-wrap">
@@ -451,7 +454,7 @@ export function RecurringBillWorkspace() {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.bills.map((bill) => (
+                  {bills.map((bill) => (
                     <tr key={bill.id}>
                       <td>{bill.name}</td>
                       <td>{accountNames.get(bill.account) ?? bill.account}</td>
@@ -470,6 +473,7 @@ export function RecurringBillWorkspace() {
               </table>
             </div>
           )}
+          </>}</DatedList>
         </div>
       </section>
     </div>

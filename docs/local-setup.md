@@ -263,6 +263,7 @@ npm run typecheck
 npm run lint
 npm run test:auth
 npm run test:workflows
+npm run test:dates
 ```
 
 ## Current Mobile Setup (Native)

@@ -354,15 +354,15 @@ pending items, use Re-run parser or Reapply rules to pending after the API migra
 Transactions offers By transaction date, Recently added and Recently updated
 views. Recently added sorts by ledger `created_at`, clears the transaction-month restriction when
 selected, and displays an Added timestamp in the browser's local timezone next
-to the original transaction date/time. Other filters remain available; selecting
-a month still filters the original transaction date. Switching back opens the
+to the original transaction date/time. Other filters remain available; dates use the selected transaction/added/updated
+basis (Recently added selects Added date, Recently updated selects Updated date). Switching back opens the
 current transaction month. Ordering and an explicitly empty month survive URL
 reloads, including Clear filters. Newly added backdated records appear first.
 Edits and extra evidence linked to an existing transfer do not change its added
 time or produce another ledger record. Recently updated sorts by `updated_at`
 and shows an Updated timestamp for the latest save, including new entries,
 edits, newly linked transfer evidence and merges. Reads and transfer retries do
-not promote entries. It uses the same all-month default, remaining filters and
+not promote entries. It uses the same All dates default, remaining filters and
 URL persistence as Recently added. This is a latest-first view, with no fixed
 lookback period. CSV export retains chronological order.
 
@@ -581,3 +581,46 @@ Editing forms, CSV exports and original source evidence retain their identifiers
 Saved statement headers show account mapping suggestions/conflicts, while transfer
 row suggestions can use a mapped number or confirmed text alias. Suggestions
 require review and never record money by themselves.
+
+## Shared date controls and backend availability
+
+Daily, Monthly and Custom range controls are shared by the dashboard, reports,
+transactions, SMS review, statement imports/rows/ledger comparison, debt history,
+credit-card bills, recurring bills, reconciliation snapshots and audit history.
+Dashboard/reports start in the current month; other histories offer All dates.
+Transactions retain their current-month default and share the selected period and
+date basis in the URL. Transaction, Added and Updated date are separate choices;
+Recently added/updated selects the corresponding date basis and opens All dates.
+CSV exports use the same date basis and inclusive boundaries as the table.
+
+Each view labels its date basis: SMS received time, bill statement/due date, debt
+opened/due date, next bill due date, snapshot check time or audit event time.
+Timestamp collections filtered in the browser use the browser's local calendar;
+server-filtered transaction/import timestamps use the API's Asia/Dhaka timezone.
+Date-only fields keep their recorded calendar day. Unknown dates remain visible
+under All dates and are excluded from a chosen period. Current balances, outstanding
+totals, forms and review counts stay live while their history tables are filtered.
+
+Custom ranges apply both dates together and allow at most 366 inclusive days.
+Date navigation stays enabled during loading. Server-filtered views cancel stale
+requests; reports, transactions and statement histories debounce rapid changes.
+Paginated statement views filter on the API before pagination. Ledger-only date
+filters narrow the table inside the printed statement period; comparison totals
+continue to describe the whole statement.
+
+A root-level heartbeat calls the public same-origin `/api/health` proxy when the
+app opens and every ten minutes while online. The proxy checks the configured
+backend `/api/health/` without credentials, auth refresh, financial data or caching.
+Requests have bounded timeouts; failures stay quiet. Reconnection or returning to
+the tab checks again if due. Tabs share their latest successful check through
+optional local storage, reducing repeat traffic. Browser suspension/closure stops
+reliable scheduling: this is best-effort keep-alive, not an uptime guarantee.
+
+Run `npm run test:dates` for calendar, range, heartbeat timing/offline/abort checks.
+
+Date-control browser QA used the installed Playwright/Chromium fallback because
+the Browser plugin was unavailable. Synthetic data in an isolated temporary
+SQLite database covered desktop and 390px mobile layouts, daily/custom filtering,
+rapid navigation, URL restoration, matching CSV exports and paginated statements.
+The actual login-page heartbeat was verified with accelerated browser time,
+including offline/reconnect behavior. No production financial data was used.

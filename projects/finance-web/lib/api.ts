@@ -459,6 +459,7 @@ export type CreateTransactionInput = {
 };
 
 export type TransactionFilters = {
+  date_field?: "date" | "created_at" | "updated_at";
   start_date?: string;
   end_date?: string;
   account?: string;
@@ -1503,8 +1504,10 @@ export async function createStatementImport(token: string, account: string, file
   const body = new FormData(); body.set("account", account); body.set("file", file); if (password) body.set("password", password);
   return savedStatementSchema.parse(await (await authenticatedFetch("/api/statements/imports/", token, { method: "POST", body, signal })).json());
 }
-export async function listStatementImports(token: string, offset = 0, signal?: AbortSignal): Promise<StatementHistory> {
-  return statementHistorySchema.parse(await (await authenticatedFetch(`/api/statements/imports/?limit=20&offset=${offset}`, token, { signal })).json());
+export async function listStatementImports(token: string, offset = 0, signal?: AbortSignal, filters: { start_date?: string; end_date?: string; date_field?: "updated_at" | "created_at" } = {}): Promise<StatementHistory> {
+  const query = new URLSearchParams({ limit: "20", offset: String(offset) });
+  Object.entries(filters).forEach(([key, value]) => { if (value) query.set(key, value); });
+  return statementHistorySchema.parse(await (await authenticatedFetch(`/api/statements/imports/?${query}`, token, { signal })).json());
 }
 export async function getStatementImport(token: string, id: string, signal?: AbortSignal): Promise<SavedStatement> {
   return savedStatementSchema.parse(await (await authenticatedFetch(`/api/statements/imports/${id}/`, token, { signal })).json());
@@ -1551,6 +1554,8 @@ const statementComparisonSchema = z.object({
     amount: z.string(), balance_after: z.string().nullable(), description: z.string(), source: z.string() }))
 });
 export type StatementComparison = z.infer<typeof statementComparisonSchema>;
-export async function getStatementComparison(token: string, id: string, offset = 0, signal?: AbortSignal): Promise<StatementComparison> {
-  return statementComparisonSchema.parse(await (await authenticatedFetch(`/api/statements/imports/${id}/comparison/?limit=50&offset=${offset}`, token, { signal })).json());
+export async function getStatementComparison(token: string, id: string, offset = 0, signal?: AbortSignal, filters: { start_date?: string; end_date?: string } = {}): Promise<StatementComparison> {
+  const query = new URLSearchParams({ limit: "50", offset: String(offset) });
+  Object.entries(filters).forEach(([key, value]) => { if (value) query.set(key, value); });
+  return statementComparisonSchema.parse(await (await authenticatedFetch(`/api/statements/imports/${id}/comparison/?${query}`, token, { signal })).json());
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { DatedList } from "@/components/dated-list";
+
 import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
 import type React from "react";
@@ -398,9 +400,10 @@ export function ReconciliationWorkspace() {
       <section className="panel">
         <div className="panel__body">
           <h2 className="section-title">Snapshot history</h2>
-          {state.snapshots.length === 0 ? (
+          <DatedList items={state.snapshots} fields={[{ label: "Checked date", date: snapshot => snapshot.checked_at }]} label="Snapshot history">{snapshots => <>
+          {snapshots.length === 0 ? (
             <div className="empty-state">
-              <p>No balance snapshots yet.</p>
+              <p>No snapshots match these dates.</p>
             </div>
           ) : (
             <div className="table-wrap">
@@ -418,7 +421,7 @@ export function ReconciliationWorkspace() {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.snapshots.map((snapshot) => (
+                  {snapshots.map((snapshot) => (
                     <tr key={snapshot.id}>
                       <td>{accountNames.get(snapshot.account) ?? snapshot.account}</td>
                       <td>{formatDateTime(snapshot.checked_at)}</td>
@@ -436,6 +439,7 @@ export function ReconciliationWorkspace() {
               </table>
             </div>
           )}
+          </>}</DatedList>
         </div>
       </section>
     </div>

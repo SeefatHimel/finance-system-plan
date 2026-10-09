@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { ToastProvider } from "@/components/toast-provider";
 import { AppShell } from "@/components/app-shell";
 import { AuthProvider } from "@/components/auth-provider";
+import { BackendHeartbeat } from "@/components/backend-heartbeat";
 
 import "./globals.css";
 
@@ -24,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body><ToastProvider><AuthProvider><AppShell>{children}</AppShell></AuthProvider></ToastProvider></body>
+      <body><BackendHeartbeat /><ToastProvider><AuthProvider><AppShell>{children}</AppShell></AuthProvider></ToastProvider></body>
     </html>
   );
 }

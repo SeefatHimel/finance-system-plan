@@ -2919,6 +2919,17 @@ textarea {
 .dashboard-date-controls { padding: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
 .dashboard-period-modes, .dashboard-range-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
 .dashboard-date-controls p { flex-basis: 100%; margin: 0; }
+.date-period-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin: 16px 0; min-width: 0; }
+.date-period-modes, .date-period-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; max-width: 100%; min-width: 0; }
+.date-period-fields .field { flex: 1; min-width: 130px; max-width: 100%; }
+.date-period-controls .field__control { min-width: 0; width: 100%; }
+.date-period-controls .button { min-height: 44px; }
+.date-period-caption, .date-period-controls > .form-error { flex-basis: 100%; margin: 0; color: var(--muted); }
+.date-period-controls > .form-error { color: var(--danger); }
+@media (max-width: 600px) {
+  .date-period-modes, .date-period-fields { width: 100%; }
+  .date-period-modes .button { flex: 1 1 auto; padding-inline: 12px; }
+}
 .dashboard-range-form .field { min-width: 150px; }
 @media (max-width: 600px) {
   .dashboard-date-controls { padding: 14px; }

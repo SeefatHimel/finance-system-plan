@@ -4,7 +4,7 @@ import { identifierLabel, useIdentifierView } from "@/components/identifier-view
 
 import { useFeedbackMessage } from "@/components/toast-provider";
 
-import { CalendarBlank, CaretLeft, CaretRight, Plus, SlidersHorizontal, X } from "@phosphor-icons/react";
+import { Plus, SlidersHorizontal, X } from "@phosphor-icons/react";
 import type React from "react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -41,6 +41,8 @@ import { TransactionStatementEvidence } from "@/components/transaction-statement
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
 import { balanceAfterAccountChange, balanceReportingAccount, editableReportedBalance } from "@/lib/transaction-balances";
+import { DatePeriodControls } from "@/components/date-period-controls";
+import { periodFromFilters, periodLabel, type DatePeriod } from "@/lib/date-period";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
 
 type LoadState =
@@ -78,6 +80,9 @@ type TransactionFilterState = Required<Pick<TransactionFilters, "direction" | "s
   account: string;
   category: string;
   month: string;
+  start_date: string;
+  end_date: string;
+  date_field: "date" | "created_at" | "updated_at";
   ordering: "-date" | "-created_at" | "-updated_at";
   search: string;
 };
@@ -95,12 +100,6 @@ function currentDate() {
 function currentTime() {
   const date = new Date();
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function shiftMonth(value: string, amount: number) {
-  const [year, month] = (value || currentMonth()).split("-").map(Number);
-  const shifted = new Date(year, month - 1 + amount, 1);
-  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function formatTransactionTime(value: string | null) {
@@ -129,11 +128,15 @@ export function TransactionWorkspace() {
     category: "",
     direction: "",
     month: currentMonth(),
+    start_date: "",
+    end_date: "",
+    date_field: "date",
     ordering: "-date",
     search: "",
     source: "",
     type: ""
   });
+  const [dateView, setDateView] = useState<DatePeriod["mode"]>("monthly");
   const filtersRef = useRef(filters);
   const setFilters = useCallback((next: TransactionFilterState) => {
     filtersRef.current = next;
@@ -271,13 +274,17 @@ export function TransactionWorkspace() {
       account: searchParams.get("account") ?? "",
       category: searchParams.get("category") ?? "",
       direction: (searchParams.get("direction") ?? "") as TransactionFilterState["direction"],
-      month: searchParams.has("month") ? searchParams.get("month") ?? "" : requestedSearch || ordering !== "-date" ? "" : currentMonth(),
+      month: searchParams.has("start_date") || searchParams.has("end_date") ? "" : searchParams.has("month") ? searchParams.get("month") ?? "" : requestedSearch || ordering !== "-date" ? "" : currentMonth(),
+      start_date: searchParams.get("start_date") ?? "",
+      end_date: searchParams.get("end_date") ?? "",
+      date_field: searchParams.get("date_field") === "created_at" ? "created_at" : searchParams.get("date_field") === "updated_at" ? "updated_at" : "date",
       ordering,
       search: requestedSearch,
       source: (searchParams.get("source") ?? "") as TransactionFilterState["source"],
       type: (searchParams.get("type") ?? "") as TransactionFilterState["type"]
     };
     setFilters(requestedFilters);
+    setDateView(periodFromFilters(requestedFilters, searchParams.get("date_view") ?? undefined).mode);
     void loadData(requestedFilters);
     return () => requests.cancel();
   }, [loadData, setFilters]);
@@ -304,29 +311,34 @@ export function TransactionWorkspace() {
     void loadData(filtersRef.current, false);
   }
 
-  function applyFilterUrl(nextFilters: TransactionFilterState) {
+  function applyFilterUrl(nextFilters: TransactionFilterState, view = dateView) {
     const params = new URLSearchParams();
     params.set("month", nextFilters.month);
+    params.set("date_view", view);
     Object.entries(nextFilters).forEach(([key, value]) => {
       if (value) params.set(key, value);
     });
     window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params.toString()}` : ""}`);
   }
 
-  function selectMonth(selection: string | number) {
-    const current = filtersRef.current;
-    const month = typeof selection === "number" ? shiftMonth(current.month, selection) : selection;
-    const nextFilters = { ...current, month };
+  function selectPeriod(period: DatePeriod) {
+    setDateView(period.mode);
+    const nextFilters = { ...filtersRef.current,
+      month: period.mode === "monthly" ? period.start.slice(0, 7) : "",
+      start_date: period.mode === "daily" || period.mode === "custom" ? period.start : "",
+      end_date: period.mode === "daily" || period.mode === "custom" ? period.end : ""
+    };
     setFilters(nextFilters);
-    applyFilterUrl(nextFilters);
+    applyFilterUrl(nextFilters, period.mode);
     markPending(nextFilters);
     dataRequests.current.schedule((ticket) => { void requestData(nextFilters, false, ticket); }, 250);
   }
 
   function selectOrdering(ordering: TransactionFilterState["ordering"]) {
-    const nextFilters = { ...filtersRef.current, ordering, month: ordering !== "-date" ? "" : currentMonth() };
+    const nextFilters: TransactionFilterState = { ...filtersRef.current, ordering, month: ordering !== "-date" ? "" : currentMonth(), start_date: "", end_date: "", date_field: ordering === "-created_at" ? "created_at" : ordering === "-updated_at" ? "updated_at" : "date" };
+    setDateView(ordering === "-date" ? "monthly" : "all");
     setFilters(nextFilters);
-    applyFilterUrl(nextFilters);
+    applyFilterUrl(nextFilters, ordering === "-date" ? "monthly" : "all");
     void loadData(nextFilters, false);
   }
 
@@ -347,13 +359,17 @@ export function TransactionWorkspace() {
       category: "",
       direction: "",
       month: "",
+      start_date: "",
+      end_date: "",
+      date_field: filtersRef.current.date_field,
       ordering: filtersRef.current.ordering,
       search: "",
       source: "",
       type: ""
     };
+    setDateView("all");
     setFilters(clearedFilters);
-    applyFilterUrl(clearedFilters);
+    applyFilterUrl(clearedFilters, "all");
     void loadData(clearedFilters, false);
   }
 
@@ -374,7 +390,7 @@ export function TransactionWorkspace() {
       const objectUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
-      link.download = `transactions-${filters.month || "all"}.csv`;
+      link.download = `transactions-${filters.month || (filters.start_date ? `${filters.start_date}-to-${filters.end_date}` : "all")}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -1042,23 +1058,14 @@ export function TransactionWorkspace() {
             <button className="button button--ghost" aria-pressed={filters.ordering === "-updated_at"} onClick={() => selectOrdering("-updated_at")} type="button">Recently updated</button>
           </div>
 
-          <form className="filter-form transaction-filter-form" onSubmit={handleFilterSubmit}>
-            <div className="field transaction-month-filter">
-              <span className="field__label">Month</span>
-              <span className="month-navigator" aria-busy={isRefreshing}>
-                <button aria-label="Previous month" onClick={() => selectMonth(-1)} type="button"><CaretLeft aria-hidden="true" size={18} /></button>
-                <input
-                  className="field__control"
-                  name="month"
-                  onChange={(event) => void selectMonth(event.target.value)}
-                  type="month"
-                  value={filters.month}
-                />
-                <button aria-label="Next month" onClick={() => selectMonth(1)} type="button"><CaretRight aria-hidden="true" size={18} /></button>
-                <button aria-label="Current month" className="month-navigator__today" disabled={filters.month === currentMonth()} onClick={() => void selectMonth(currentMonth())} title="Current month" type="button"><CalendarBlank aria-hidden="true" size={18} /></button>
-              </span>
-            </div>
+          <DatePeriodControls label="Transaction dates" description={filters.date_field === "date" ? "Based on transaction date" : "Activity calendar days use Asia/Dhaka"} value={periodFromFilters(filters, dateView)} onChange={selectPeriod}>
+            <label className="field"><span className="field__label">Filter date</span><select aria-label="Filter date" className="field__control" value={filters.date_field} onChange={event => {
+              const nextFilters = { ...filtersRef.current, date_field: event.target.value as TransactionFilterState["date_field"] };
+              setFilters(nextFilters); applyFilterUrl(nextFilters); void loadData(nextFilters, false);
+            }}><option value="date">Transaction date</option><option value="created_at">Added date</option><option value="updated_at">Updated date</option></select></label>
+          </DatePeriodControls>
 
+          <form className="filter-form transaction-filter-form" onSubmit={handleFilterSubmit}>
             <label className="field">
               <span className="field__label">Type</span>
               <select
@@ -1183,8 +1190,8 @@ export function TransactionWorkspace() {
           <div className="transaction-table-toolbar">
             <div>
               <p className="section-subtitle">{displayedFilters.ordering === "-updated_at" ? "Latest saved changes first, including new entries, edits and linked transfer evidence. Transaction dates may be older." : displayedFilters.ordering === "-created_at" ? "Newest ledger additions first. Transaction dates may be older; edits do not change added time." : "Showing records by transaction date from the authenticated backend API."}</p>
-              {isRefreshing ? <span className="transaction-refresh-state"><ButtonBusy label={`Loading ${requestedFilters.month || "all months"}. Showing ${displayedFilters.month || "all months"} results until ready.`} /></span> : null}
-              {refreshError ? <div className="transaction-refresh-error" role="alert"><p className="form-error">{refreshError} Showing {displayedFilters.month || "all months"} results.</p><button className="button button--ghost button--small" onClick={() => void loadData(requestedFilters, false)} type="button">Retry loading transactions</button></div> : null}
+              {isRefreshing ? <span className="transaction-refresh-state"><ButtonBusy label={`Loading ${periodLabel(periodFromFilters(requestedFilters))}. Showing ${periodLabel(periodFromFilters(displayedFilters))} results until ready.`} /></span> : null}
+              {refreshError ? <div className="transaction-refresh-error" role="alert"><p className="form-error">{refreshError} Showing {periodLabel(periodFromFilters(displayedFilters))} results.</p><button className="button button--ghost button--small" onClick={() => void loadData(requestedFilters, false)} type="button">Retry loading transactions</button></div> : null}
             </div>
             {identifierView.control}
             <details className="column-picker">

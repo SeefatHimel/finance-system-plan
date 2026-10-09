@@ -46,6 +46,8 @@ import {
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { LoadingState } from "@/components/loading-state";
+import { DatePeriodControls } from "@/components/date-period-controls";
+import { monthPeriod, type DatePeriod } from "@/lib/date-period";
 
 type DashboardState =
   | { status: "loading" }
@@ -78,16 +80,6 @@ const compactNumber = new Intl.NumberFormat("en", {
 });
 
 const categoryColors = ["#55e6a5", "#5d9bff", "#9973f0", "#ff706a", "#ffbe4f", "#66758f"];
-
-type DateRange = { start: string; end: string };
-function localDate(value = new Date()) {
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
-}
-function monthRange(month: string): DateRange {
-  const [year, number] = month.split("-").map(Number);
-  return { start: `${month}-01`, end: localDate(new Date(year, number, 0)) };
-}
-function currentRange() { return monthRange(localDate().slice(0, 7)); }
 
 function titleCase(value: string) {
   return value
@@ -214,24 +206,9 @@ function SpendingChart({ categories }: { categories: MonthlyReport["categories"]
 
 export function DashboardWorkspace({ health }: { health: HealthStatus }) {
   const [state, setState] = useState<DashboardState>({ status: "loading" });
-  const [mode, setMode] = useState<"daily" | "monthly" | "custom">("monthly");
-  const [range, setRange] = useState<DateRange>(currentRange);
-  const [custom, setCustom] = useState<DateRange>(currentRange);
+  const [range, setRange] = useState<DatePeriod>(monthPeriod);
   const [periodLoading, setPeriodLoading] = useState(true);
   const [periodError, setPeriodError] = useState("");
-
-  function navigate(delta: number) {
-    if (mode === "daily") {
-      const day = new Date(`${range.start}T12:00:00`);
-      day.setDate(day.getDate() + delta);
-      const value = localDate(day);
-      setRange({ start: value, end: value });
-    } else {
-      const day = new Date(`${range.start}T12:00:00`);
-      day.setMonth(day.getMonth() + delta, 1);
-      setRange(monthRange(localDate(day).slice(0, 7)));
-    }
-  }
 
   useEffect(() => {
     const accessToken = getAccessToken();
@@ -318,31 +295,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
   return (
     <div className="automation-dashboard">
       <section className="dashboard-panel dashboard-date-controls" aria-label="Dashboard date controls">
-        <div className="dashboard-period-modes" role="group" aria-label="Period view">
-          {(["daily", "monthly", "custom"] as const).map(value => <button className={`button${mode === value ? " button--primary" : ""}`} type="button" aria-pressed={mode === value} key={value} onClick={() => {
-            setMode(value);
-            if (value === "daily") { const today = localDate(); setRange({ start: today, end: today }); }
-            if (value === "monthly") setRange(currentRange());
-            if (value === "custom") setCustom(range);
-          }}>{value === "custom" ? "Custom range" : titleCase(value)}</button>)}
-        </div>
-        {mode === "custom" ? <form className="dashboard-range-form" onSubmit={event => {
-          event.preventDefault();
-          if (!custom.start || !custom.end || custom.start > custom.end) { setPeriodError("End date must be on or after start date."); return; }
-          const days = (Date.parse(custom.end) - Date.parse(custom.start)) / 86400000;
-          if (days > 365) { setPeriodError("Choose a range of at most 366 days."); return; }
-          setPeriodError(""); setRange({ ...custom });
-        }}>
-          <label className="field"><span className="field__label">Start date</span><input className="field__control" type="date" required value={custom.start} onChange={event => setCustom(old => ({ ...old, start: event.target.value }))} /></label>
-          <label className="field"><span className="field__label">End date</span><input className="field__control" type="date" required min={custom.start} value={custom.end} onChange={event => setCustom(old => ({ ...old, end: event.target.value }))} /></label>
-          <button className="button button--primary" type="submit">Apply dates</button>
-        </form> : <div className="dashboard-range-form">
-          <button className="button" type="button" aria-label={`Previous ${mode === "daily" ? "day" : "month"}`} onClick={() => navigate(-1)}>←</button>
-          <label className="field"><span className="field__label">{mode === "daily" ? "Day" : "Month"}</span><input className="field__control" type={mode === "daily" ? "date" : "month"} value={mode === "daily" ? range.start : range.start.slice(0, 7)} onChange={event => {
-            if (event.target.value) setRange(mode === "daily" ? { start: event.target.value, end: event.target.value } : monthRange(event.target.value));
-          }} /></label>
-          <button className="button" type="button" aria-label={`Next ${mode === "daily" ? "day" : "month"}`} onClick={() => navigate(1)}>→</button>
-        </div>}
+        <DatePeriodControls label="Dashboard dates" allowAll={false} value={range} onChange={setRange} />
         <p role="status">{periodLoading ? "Updating selected period…" : `Showing ${periodLabel}`}. Current balances and review queue stay live.</p>
         {periodError ? <p className="form-error" role="alert">{periodError}</p> : null}
       </section>

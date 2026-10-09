@@ -1,5 +1,7 @@
 "use client";
 
+import { DatedList } from "@/components/dated-list";
+
 import type React from "react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -270,15 +272,16 @@ export function AuditLogWorkspace() {
             </div>
           ) : null}
 
-          {state.status === "ready" && state.entries.length === 0 ? (
+          <DatedList items={state.status === "ready" ? state.entries : []} fields={[{ label: "Event date", date: entry => entry.created_at }]} label="Audit history">{entries => <>
+          {state.status === "ready" && entries.length === 0 ? (
             <div className="empty-state">
               <p className="section-subtitle">No audit entries match these filters.</p>
             </div>
           ) : null}
 
-          {state.status === "ready" && state.entries.length > 0 ? (
+          {state.status === "ready" && entries.length > 0 ? (
             <div className="list-stack">
-              {state.entries.map((entry) => {
+              {entries.map((entry) => {
                 const fields = changedFields(entry);
 
                 return (
@@ -308,6 +311,7 @@ export function AuditLogWorkspace() {
               })}
             </div>
           ) : null}
+          </>}</DatedList>
         </div>
       </section>
     </div>

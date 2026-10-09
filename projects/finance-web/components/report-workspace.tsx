@@ -1,12 +1,13 @@
 "use client";
 
-import type React from "react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { type MonthlyReport, getMonthlyReport } from "@/lib/api";
+import { type MonthlyReport, getPeriodReport } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { LoadingState } from "@/components/loading-state";
+import { DatePeriodControls } from "@/components/date-period-controls";
+import { monthPeriod, periodLabel, type DatePeriod } from "@/lib/date-period";
 
 type ReportState =
   | { status: "loading" }
@@ -18,57 +19,47 @@ const moneyFormatter = new Intl.NumberFormat("en-BD", {
   style: "currency"
 });
 
-function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
-}
-
 function formatMoney(value: string) {
   return moneyFormatter.format(Number(value));
 }
 
 export function ReportWorkspace() {
-  const [month, setMonth] = useState(currentMonth);
+  // Use a timezone-independent first render, then select the browser's current month.
+  const [period, setPeriod] = useState<DatePeriod>(() => monthPeriod(new Date().toISOString().slice(0, 7)));
+  useEffect(() => { setPeriod(monthPeriod()); }, []);
   const [reportState, setReportState] = useState<ReportState>({ status: "loading" });
-
-  async function loadReport(selectedMonth: string) {
-    const accessToken = getAccessToken();
-
-    if (!accessToken) {
-      setReportState({ message: "Sign in before viewing reports.", status: "error" });
-      return;
-    }
-
-    setReportState({ status: "loading" });
-
-    try {
-      const report = await getMonthlyReport(accessToken, selectedMonth);
-      setReportState({ report, status: "ready" });
-    } catch (error) {
-      setReportState({
-        message: error instanceof Error ? error.message : "Could not load monthly report.",
-        status: "error"
-      });
-    }
-  }
-
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   useEffect(() => {
-    void loadReport(currentMonth());
-  }, []);
-
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void loadReport(month);
-  }
+    const controller = new AbortController();
+    const token = getAccessToken();
+    if (!token) { setReportState({ status: "error", message: "Sign in before viewing reports." }); return; }
+    setLoading(true); setError("");
+    const timer = window.setTimeout(() => {
+      void getPeriodReport(token, period.start, period.end, controller.signal).then(report => {
+        if (!controller.signal.aborted) setReportState({ report, status: "ready" });
+      }).catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          const message = reason instanceof Error ? reason.message : "Could not load report.";
+          setError(message);
+          setReportState(old => old.status === "ready" ? old : { message, status: "error" });
+        }
+      }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    }, 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [period.start, period.end]);
+  const controls = <DatePeriodControls label="Report dates" allowAll={false} value={period} onChange={setPeriod} />;
 
   if (reportState.status === "loading") {
-    return <LoadingState detail="Aggregating income, expenses, and category totals" label="Generating monthly report" />;
+    return <>{controls}<LoadingState detail="Aggregating income, expenses, and category totals" label="Generating report" /></>;
   }
 
   if (reportState.status === "error") {
     return (
       <div className="panel">
         <div className="panel__body empty-state">
-          <h1 className="section-title">Monthly report</h1>
+          <h1 className="section-title">Financial report</h1>
+          {controls}
           <p className="section-subtitle">{reportState.message}</p>
           <Link className="button button--primary" href="/login">
             Sign in
@@ -86,31 +77,17 @@ export function ReportWorkspace() {
         <div className="panel__body">
           <div className="report-header">
             <div>
-              <h1 className="section-title">Monthly report</h1>
+              <h1 className="section-title">Financial report</h1>
               <p className="section-subtitle">
-                Summary for {report.month}, calculated by the Django API.
+                Summary for {periodLabel({ mode: "custom", start: report.start_date, end: report.end_date })}, calculated by the Django API.
               </p>
             </div>
-
-            <form className="month-form" onSubmit={handleSubmit}>
-              <label className="field">
-                <span className="field__label">Month</span>
-                <input
-                  className="field__control"
-                  name="month"
-                  onChange={(event) => setMonth(event.target.value)}
-                  required
-                  type="month"
-                  value={month}
-                />
-              </label>
-              <button className="button button--primary" type="submit">
-                View
-              </button>
-            </form>
           </div>
 
-          <div className="metric-row" aria-label="Monthly totals">
+          {controls}
+          {loading ? <p role="status">Updating selected period… Previous totals remain visible until ready.</p> : null}
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          <div className="metric-row" aria-label="Selected period totals" aria-busy={loading}>
             <div className="metric">
               <span className="metric__label">Income</span>
               <span className="metric__value">{formatMoney(report.income_total)}</span>
@@ -131,7 +108,7 @@ export function ReportWorkspace() {
         <div className="panel__body">
           <h2 className="section-title">Category totals</h2>
           {report.categories.length === 0 ? (
-            <p className="muted-text">No category totals for this month.</p>
+            <p className="muted-text">No category totals for this period.</p>
           ) : (
             <div className="list-stack">
               {report.categories.map((category) => (
@@ -149,7 +126,7 @@ export function ReportWorkspace() {
         <div className="panel__body">
           <h2 className="section-title">Account movement</h2>
           {report.accounts.length === 0 ? (
-            <p className="muted-text">No account movement for this month.</p>
+            <p className="muted-text">No account movement for this period.</p>
           ) : (
             <div className="table-wrap">
               <table className="data-table">

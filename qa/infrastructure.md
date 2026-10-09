@@ -104,3 +104,11 @@ with an Android Keystore key, Android application backup is disabled, and an
 explicit logout revokes the refresh token and clears the native session and
 local SMS state. Public Play Store distribution still requires a separate
 SMS-permission policy review.
+
+## Does the browser health heartbeat guarantee backend uptime?
+
+No. An open online web app checks the configured backend through an uncached
+same-origin health proxy every ten minutes, with bounded timeouts and no auth.
+This can keep an active session warm. Browser suspension, closure or offline
+state prevents reliable scheduling; production availability requires hosting
+that meets the desired uptime rather than relying on client activity.

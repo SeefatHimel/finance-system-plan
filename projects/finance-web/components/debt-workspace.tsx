@@ -1,5 +1,7 @@
 "use client";
 
+import { DatedList } from "@/components/dated-list";
+
 import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
 import type React from "react";
@@ -327,9 +329,10 @@ export function DebtWorkspace() {
       <section className="panel">
         <div className="panel__body">
           <h2 className="section-title">People and balances</h2>
-          {debtState.debts.length === 0 ? (
+          <DatedList items={debtState.debts} fields={[{ label: "Opened date", date: debt => debt.opened_at }, { label: "Due date", date: debt => debt.due_date }]} label="Debt history">{debts => <>
+          {debts.length === 0 ? (
             <div className="empty-state">
-              <p>No debt records yet.</p>
+              <p>No debt records match these dates.</p>
             </div>
           ) : (
             <div className="table-wrap">
@@ -347,7 +350,7 @@ export function DebtWorkspace() {
                   </tr>
                 </thead>
                 <tbody>
-                  {debtState.debts.map((debt) => (
+                  {debts.map((debt) => (
                     <tr key={debt.id}>
                       <td>{debt.counterparty_name}</td>
                       <td>{formatLabel(debt.direction)}</td>
@@ -363,6 +366,7 @@ export function DebtWorkspace() {
               </table>
             </div>
           )}
+          </>}</DatedList>
         </div>
       </section>
     </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { DatedList } from "@/components/dated-list";
+
 import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
 import type React from "react";
@@ -385,9 +387,10 @@ export function CreditCardWorkspace() {
       <section className="panel">
         <div className="panel__body">
           <h2 className="section-title">Bill history</h2>
-          {state.bills.length === 0 ? (
+          <DatedList items={state.bills} fields={[{ label: "Statement date", date: bill => bill.statement_date }, { label: "Due date", date: bill => bill.due_date }]} label="Card bill history">{bills => <>
+          {bills.length === 0 ? (
             <div className="empty-state">
-              <p>No credit card bills yet.</p>
+              <p>No card bills match these dates.</p>
             </div>
           ) : (
             <div className="table-wrap">
@@ -407,7 +410,7 @@ export function CreditCardWorkspace() {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.bills.map((bill) => (
+                  {bills.map((bill) => (
                     <tr key={bill.id}>
                       <td>{accountNames.get(bill.account) ?? bill.account}</td>
                       <td>{bill.statement_date}</td>
@@ -427,6 +430,7 @@ export function CreditCardWorkspace() {
               </table>
             </div>
           )}
+          </>}</DatedList>
         </div>
       </section>
     </div>
