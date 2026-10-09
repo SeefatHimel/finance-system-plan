@@ -22,7 +22,8 @@
     "expo-status-bar": "~2.2.3",
     "finance-sms-capture": "file:./modules/finance-sms-capture",
     "react": "19.0.0",
-    "react-native": "0.79.0"
+    "react-native": "0.79.0",
+    "react-native-safe-area-context": "^5.4.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

@@ -13,7 +13,6 @@ import {
   PermissionsAndroid,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -94,6 +93,8 @@ import {
   type NativeSmsBackgroundSyncStatus,
   type SmsInboxSender
 } from "./modules/finance-sms-capture/src";
+import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from "react-native-safe-area-context";
+
 import { ChoicePressable } from "./src/choice-pressable";
 import { clearSession, loadSession, saveSession } from "./src/session";
 import { loadSecureSmsQueue, saveSecureSmsQueue } from "./src/secure-sms-queue";
@@ -743,6 +744,10 @@ function candidateReviewReason(candidate: ParsedMessageCandidate) {
 }
 
 export default function App() {
+  return <SafeAreaProvider initialMetrics={initialWindowMetrics}><FinanceApp /></SafeAreaProvider>;
+}
+
+function FinanceApp() {
   const [iconsLoaded, iconFontError] = useFonts(MaterialCommunityIcons.font);
   const [result, setResult] = useState<HealthResult | null>(null);
   const [state, setState] = useState<ViewState>("idle");
@@ -4253,7 +4258,7 @@ export default function App() {
           <Text style={styles.mobileSummaryLabel}>captured</Text>
         </View>
         <View style={styles.mobileSummaryDivider} />
-        <View>
+        <View style={styles.mobileRowBody}>
           <Text style={styles.mobileSummaryValue}>{transactionQueue.length}</Text>
           <Text style={styles.mobileSummaryLabel}>manual pending</Text>
         </View>
@@ -5452,8 +5457,8 @@ export default function App() {
           <MaterialCommunityIcons color="#dce8f6" name={mobilePanel ? "arrow-left" : "menu"} size={27} />
         </Pressable>
         <View style={styles.mobileHeaderTitleWrap}>
-          <Text style={styles.mobileAppTitle}>Signal <Text style={styles.mobileAppTitleAccent}>Inbox</Text></Text>
-          <Text style={styles.mobileAppSubtitle}>Bank & wallet SMS to insights</Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.mobileAppTitle}>Signal <Text style={styles.mobileAppTitleAccent}>Inbox</Text></Text>
+          <Text numberOfLines={2} style={styles.mobileAppSubtitle}>Bank & wallet SMS to insights</Text>
         </View>
         <Pressable
           accessibilityLabel="Refresh server and SMS synchronization status"
@@ -5465,7 +5470,7 @@ export default function App() {
           ) : (
             <View style={[styles.mobileSyncDot, state === "error" ? styles.mobileSyncDotError : null]} />
           )}
-          <View>
+          <View style={{ flexShrink: 1 }}>
             <Text style={styles.mobileSyncTitle}>
               {smsPermissionState !== "granted"
                 ? "Setup"
@@ -5949,7 +5954,9 @@ const styles = StyleSheet.create({
     width: 44
   },
   mobileHeaderTitleWrap: {
-    flex: 1
+    flex: 1,
+    minWidth: 0,
+    flexShrink: 1
   },
   mobileHeroAmount: {
     color: "#f6f8fc",
@@ -6158,6 +6165,8 @@ const styles = StyleSheet.create({
     padding: 14
   },
   mobileAutomationCopy: {
+    flexShrink: 1,
+    width: "100%",
     color: "#a9bad0",
     fontSize: 13,
     lineHeight: 19,
@@ -6227,8 +6236,9 @@ const styles = StyleSheet.create({
     gap: 10
   },
   mobileSetupStepText: {
-    color: "#91a7c2",
     flex: 1,
+    flexShrink: 1,
+    color: "#91a7c2",
     fontSize: 13
   },
   mobileSetupStepTextDone: {
@@ -6450,7 +6460,10 @@ const styles = StyleSheet.create({
   },
   mobileRowBody: {
     flex: 1,
-    minWidth: 0
+    flexBasis: 0,
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: "100%"
   },
   mobileRowIcon: {
     alignItems: "center",
@@ -6512,6 +6525,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16
   },
   mobileSecondaryActionText: {
+    flexShrink: 1,
+    textAlign: "center",
     color: "#dce8f6",
     fontSize: 14,
     fontWeight: "700"
@@ -6522,6 +6537,8 @@ const styles = StyleSheet.create({
   mobileSectionHeader: {
     alignItems: "center",
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
     justifyContent: "space-between"
   },
   mobileSectionMeta: {
@@ -6625,6 +6642,8 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
   mobileSyncChip: {
+    maxWidth: "38%",
+    flexShrink: 1,
     alignItems: "center",
     backgroundColor: "#0e2131",
     borderColor: "#284058",
