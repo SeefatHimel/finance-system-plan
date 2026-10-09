@@ -624,3 +624,31 @@ SQLite database covered desktop and 390px mobile layouts, daily/custom filtering
 rapid navigation, URL restoration, matching CSV exports and paginated statements.
 The actual login-page heartbeat was verified with accelerated browser time,
 including offline/reconnect behavior. No production financial data was used.
+
+## Account numbers and PDF account suggestions
+
+Accounts → Add/Edit account includes optional recognition metadata: bank/wallet
+provider, masked account/card number or last four digits, additional cards/accounts
+with labels, and text aliases. Credit-card creation defaults the number kind to
+Card; bank/wallet numbers use Account. Full numeric input is reduced to the last
+four digits before transmission, and the API repeats this validation. Account
+search includes saved masked identifiers, labels, and aliases. Disabling the
+profile preserves its values and does not disable other payment methods in SMS
+settings. Those settings share the same registry; historical ledger values remain
+unchanged.
+
+Choosing a PDF starts a read-only account check before import. The form shows the
+masked header and a suggested account with a Use suggested account button. A
+manually selected account remains selected; a differing suggestion produces a
+warning. Missing or ambiguous matches require manual selection. Locked PDFs can
+be retried with the transient password via Check account suggestion. Passwords
+are cleared when uploading the draft; no browser persistence is used. Changing
+file/password aborts pending recognition, and stale replies cannot change the
+suggestion. Cancel account check allows immediate manual selection/import. Import waits for an active recognition check and still creates only a
+review draft. Recognition failures allow manual selection and normal import.
+
+Run `npm run test:identities` for request-masking regressions, alongside typecheck,
+lint, and build. Card-billing statements and scans still require new parsers.
+
+Masked identifiers exposing more than ten digits also reduce to a last-four
+suffix, so adding a mask character cannot preserve a nearly complete card number.

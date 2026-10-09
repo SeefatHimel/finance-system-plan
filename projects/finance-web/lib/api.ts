@@ -68,6 +68,12 @@ const currentUserSchema = z.object({
 });
 
 const accountSchema = z.object({
+  identity: z.object({
+    id: z.string(), provider: z.string(), identifier: z.string(),
+    identifier_kind: z.enum(["any", "account", "card"]),
+    additional_identifiers: z.array(z.object({ kind: z.enum(["account", "card"]), value: z.string(), label: z.string() })),
+    aliases: z.array(z.string()), is_active: z.boolean()
+  }).nullable().default(null),
   created_at: z.string(),
   currency: z.string(),
   display_order: z.number(),
@@ -784,6 +790,7 @@ export async function createAccount(
   const response = await authenticatedFetch("/api/accounts/", accessToken, {
     body: JSON.stringify({
       currency: input.currency ?? "BDT",
+      identity: input.identity,
       name: input.name,
       starting_balance: financialNumber(input.starting_balance || "0.00", "starting balance"),
       type: input.type
@@ -1503,6 +1510,15 @@ export type StatementDecision = { action: "create" | "link" | "skip" | "unlink" 
 export async function createStatementImport(token: string, account: string, file: File, password: string, signal?: AbortSignal): Promise<SavedStatement> {
   const body = new FormData(); body.set("account", account); body.set("file", file); if (password) body.set("password", password);
   return savedStatementSchema.parse(await (await authenticatedFetch("/api/statements/imports/", token, { method: "POST", body, signal })).json());
+}
+const statementIdentificationSchema = z.object({
+  profile: z.string(), account_hint: z.string(),
+  account_suggestion: z.object({ account: z.string().nullable(), name: z.string(), reason: z.string(), ambiguous: z.boolean() }).nullable()
+});
+export type StatementIdentification = z.infer<typeof statementIdentificationSchema>;
+export async function identifyStatementAccount(token: string, file: File, password: string, signal?: AbortSignal): Promise<StatementIdentification> {
+  const body = new FormData(); body.set("file", file); if (password) body.set("password", password);
+  return statementIdentificationSchema.parse(await (await authenticatedFetch("/api/statements/identify/", token, { method: "POST", body, signal })).json());
 }
 export async function listStatementImports(token: string, offset = 0, signal?: AbortSignal, filters: { start_date?: string; end_date?: string; date_field?: "updated_at" | "created_at" } = {}): Promise<StatementHistory> {
   const query = new URLSearchParams({ limit: "20", offset: String(offset) });

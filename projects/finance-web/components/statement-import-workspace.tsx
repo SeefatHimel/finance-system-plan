@@ -5,7 +5,7 @@ import { allDates, periodBounds, type DatePeriod } from "@/lib/date-period";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { createStatementImport, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
+import { identifyStatementAccount, type StatementIdentification, createStatementImport, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { transactionTypes } from "@/lib/category-type";
 import { LoadingState } from "@/components/loading-state";
@@ -31,6 +31,10 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const uploadRequest = useRef<AbortController | null>(null);
+  const identityRequest = useRef<AbortController | null>(null);
+  const [identifying, setIdentifying] = useState(false);
+  const [identification, setIdentification] = useState<StatementIdentification | null>(null);
+  const [identityError, setIdentityError] = useState<string | null>(null);
   const rowRequest = useRef<AbortController | null>(null);
   const [historyPeriod, setHistoryPeriod] = useState<DatePeriod>(allDates);
   const [historyDateField, setHistoryDateField] = useState<"updated_at" | "created_at">("updated_at");
@@ -60,7 +64,7 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
   const [bulkError, setBulkError] = useState<string | null>(null);
 
   useEffect(() => { setBatchId(initialImportId ?? ""); }, [initialImportId]);
-  useEffect(() => () => { uploadRequest.current?.abort(); rowRequest.current?.abort(); }, []);
+  useEffect(() => () => { uploadRequest.current?.abort(); rowRequest.current?.abort(); identityRequest.current?.abort(); }, []);
   useEffect(() => {
     const timer = window.setTimeout(() => { setAppliedFilters(filters); setOffset(0); }, 250);
     return () => window.clearTimeout(timer);
@@ -110,8 +114,23 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
     router.replace(`/statements?import=${id}`, { scroll: false });
   }
   function fail(reason: unknown, fallback: string) { const message = reason instanceof Error ? reason.message : fallback; notify(message, "error"); return message; }
+  async function identifyFile(selected: File | null, unlock: string) {
+    identityRequest.current?.abort(); identityRequest.current = null;
+    setIdentification(null); setIdentityError(null); setIdentifying(false);
+    const token = getAccessToken(); if (!selected || !token) return;
+    if (selected.size > 4 * 1024 * 1024 || !selected.name.toLowerCase().endsWith(".pdf")) { setIdentityError("Choose a statement PDF no larger than 4 MiB."); return; }
+    const controller = new AbortController(); identityRequest.current = controller; setIdentifying(true);
+    try {
+      const result = await identifyStatementAccount(token, selected, unlock, controller.signal);
+      if (!controller.signal.aborted) setIdentification(result);
+    } catch (reason) {
+      if (!controller.signal.aborted) setIdentityError(reason instanceof Error ? reason.message : "Could not identify the statement account. Choose it manually.");
+    } finally {
+      if (identityRequest.current === controller) { identityRequest.current = null; setIdentifying(false); }
+    }
+  }
   async function upload(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const token = getAccessToken(); if (!token || !account || !file || uploading) return;
+    event.preventDefault(); const token = getAccessToken(); if (!token || !account || !file || uploading || identifying) return;
     if (file.size > 4 * 1024 * 1024 || !file.name.toLowerCase().endsWith(".pdf")) { setUploadError(fail(new Error("Choose a statement PDF no larger than 4 MiB."), "Invalid file.")); return; }
     const controller = new AbortController(); uploadRequest.current = controller;
     const unlock = password; setPassword(""); setUploading(true); setUploadError(null);
@@ -168,9 +187,19 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
       {setupError ? <p role="alert" className="form-error">{setupError}</p> : null}
       <form className="form-grid" onSubmit={upload}>
         <label className="field"><span className="field__label">Statement account</span><select className="field__control" required disabled={setupLoading || uploading} value={account} onChange={(e) => setAccount(e.target.value)}><option value="">{setupLoading ? "Loading accounts…" : "Choose the reporting account"}</option>{uploadAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-        <label className="field"><span className="field__label">Statement PDF</span><input className="field__control" type="file" accept=".pdf,application/pdf" required disabled={uploading} onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPassword(""); setUploadError(null); }} /><span className="field__hint">Up to 4 MiB and 30 pages. Digital bank/wallet statements; scans and card billing statements are unsupported.</span></label>
-        <label className="field"><span className="field__label">PDF password (if locked)</span><input className="field__control" type="password" autoComplete="off" maxLength={256} disabled={uploading} value={password} onChange={(e) => setPassword(e.target.value)} /><span className="field__hint">Used transiently and cleared on submission.</span></label>
-        <div className="statement-actions"><button className="button button--primary" type="submit" disabled={setupLoading || uploading || !account || !file}>{uploading ? "Reading statement…" : "Upload & review"}</button>{uploading ? <button className="button" type="button" onClick={() => { uploadRequest.current?.abort(); uploadRequest.current = null; setUploading(false); notify("Preview request cancelled. If a draft finishes saving, it will appear in import history."); }}>Cancel upload</button> : null}</div>
+        <label className="field"><span className="field__label">Statement PDF</span><input className="field__control" type="file" accept=".pdf,application/pdf" required disabled={uploading} onChange={(e) => { const selected = e.target.files?.[0] ?? null; setFile(selected); setPassword(""); setUploadError(null); void identifyFile(selected, ""); }} /><span className="field__hint">Up to 4 MiB and 30 pages. Digital bank/wallet statements; scans and card billing statements are unsupported.</span></label>
+        <label className="field"><span className="field__label">PDF password (if locked)</span><input className="field__control" type="password" autoComplete="off" maxLength={256} disabled={uploading} value={password} onChange={(e) => { setPassword(e.target.value); identityRequest.current?.abort(); identityRequest.current = null; setIdentifying(false); setIdentification(null); setIdentityError(null); }} /><span className="field__hint">Used transiently and cleared on submission.</span></label>
+        {file ? <div className="field--wide" aria-live="polite">
+          {identifying ? <p className="inline-note">Checking the statement account…</p> : null}
+          {identityError ? <p className="form-error">{identityError} You can retry recognition or choose the account manually.</p> : null}
+          {identification ? <p className="inline-note">Statement identifier: {identification.account_hint || "Unavailable"}. {identification.account_suggestion?.ambiguous ? identification.account_suggestion.reason : identification.account_suggestion ? `Suggested account: ${identification.account_suggestion.name}. Verify the statement header.` : "No saved account match. Choose manually, or save its account number in Accounts for future suggestions."}{identification.account_suggestion?.account && account && account !== identification.account_suggestion.account ? " Your selected account differs from this suggestion; check it before importing." : ""}</p> : null}
+          <div className="statement-actions">
+            <button className="button" type="button" disabled={uploading || identifying || setupLoading} onClick={() => void identifyFile(file, password)}>Check account suggestion</button>
+            {identifying ? <button className="button" type="button" onClick={() => { identityRequest.current?.abort(); identityRequest.current = null; setIdentifying(false); setIdentityError("Account check cancelled. Choose the account manually or retry."); }}>Cancel account check</button> : null}
+            {identification?.account_suggestion?.account && identification.account_suggestion.account !== account ? <button className="button" type="button" disabled={uploading || setupLoading} onClick={() => setAccount(identification.account_suggestion?.account ?? "")}>Use suggested account</button> : null}
+          </div>
+        </div> : null}
+        <div className="statement-actions"><button className="button button--primary" type="submit" disabled={setupLoading || uploading || identifying || !account || !file}>{uploading ? "Reading statement…" : "Upload & review"}</button>{uploading ? <button className="button" type="button" onClick={() => { uploadRequest.current?.abort(); uploadRequest.current = null; setUploading(false); notify("Preview request cancelled. If a draft finishes saving, it will appear in import history."); }}>Cancel upload</button> : null}</div>
       </form>
       {!setupLoading && !setupError && !uploadAccounts.length ? <p>Add an active BDT bank or wallet account in Accounts first.</p> : null}
       {uploading ? <p role="status">Extracting rows and checking balances. You can keep navigating.</p> : null}

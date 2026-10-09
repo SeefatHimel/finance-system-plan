@@ -619,3 +619,19 @@ Optional shared storage reduces repeat checks between tabs. Failures are quiet;
 reconnection and returning to a tab check again when due. A browser that suspends
 or closes the page cannot provide reliable uptime. `npm run test:dates` covers
 calendar boundaries, custom validation and heartbeat timing/offline/cleanup.
+
+## Can users save account/card numbers while adding or editing an account?
+
+Yes. Optional recognition fields include provider, primary account/card kind,
+number, additional typed numbers with labels, and aliases. The client reduces full
+unmasked numbers to last four before submitting; the API sanitizes again. The
+profile uses the shared SMS payment-method registry. Disabling it leaves other
+payment methods available, and profile changes do not rewrite existing money.
+
+PDF selection starts an account check and shows masked header evidence, an
+explanation and a Use suggested account action. It never replaces a manual
+selection or posts money automatically. Ambiguous/no matches leave selection to
+the user. Locked files can be checked again with a transient password. File and
+password changes cancel old requests; aborted/stale results cannot update the
+suggestion. Checks can be cancelled to continue manually. Upload creates only a
+review draft for the selected account.
