@@ -1,5 +1,7 @@
 "use client";
 
+import { PaymentIdentityFields, type ExtraIdentifier, type IdentifierKind } from "@/components/payment-identity-fields";
+
 import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
 import type React from "react";
@@ -99,6 +101,12 @@ export function SmsSettingsWorkspace() {
   const [editingPaymentMethodName, setEditingPaymentMethodName] = useState("");
   const [editingPaymentMethodProvider, setEditingPaymentMethodProvider] = useState<PaymentProvider>("bkash");
   const [editingPaymentMethodIdentifier, setEditingPaymentMethodIdentifier] = useState("");
+  const [newIdentifierKind, setNewIdentifierKind] = useState<IdentifierKind>("any");
+  const [newIdentifiers, setNewIdentifiers] = useState<ExtraIdentifier[]>([]);
+  const [newAliases, setNewAliases] = useState("");
+  const [editingIdentifierKind, setEditingIdentifierKind] = useState<IdentifierKind>("any");
+  const [editingIdentifiers, setEditingIdentifiers] = useState<ExtraIdentifier[]>([]);
+  const [editingAliases, setEditingAliases] = useState("");
 
   const [editingSenderRuleId, setEditingSenderRuleId] = useState("");
   const [editingSenderRuleAccount, setEditingSenderRuleAccount] = useState("");
@@ -225,11 +233,15 @@ export function SmsSettingsWorkspace() {
       await createPaymentMethod(accessToken, {
         account: String(formData.get("account") ?? ""),
         identifier: String(formData.get("identifier") ?? ""),
+        identifier_kind: newIdentifierKind,
+        additional_identifiers: newIdentifiers,
+        aliases: newAliases.split("\n").map(value => value.trim()).filter(Boolean),
         name: String(formData.get("name") ?? ""),
         provider: String(formData.get("provider") ?? "bkash") as PaymentProvider
       });
       form.reset();
       await loadData(false);
+      setNewIdentifiers([]); setNewAliases(""); setNewIdentifierKind("any");
       notify("Payment method added.");
     } catch (error) {
       setPaymentMethodError(error instanceof Error ? error.message : "Could not create payment method.");
@@ -285,6 +297,9 @@ export function SmsSettingsWorkspace() {
     setEditingPaymentMethodName(selected?.name ?? "");
     setEditingPaymentMethodProvider((selected?.provider ?? "bkash") as PaymentProvider);
     setEditingPaymentMethodIdentifier(selected?.identifier ?? "");
+    setEditingIdentifierKind(selected?.identifier_kind ?? "any");
+    setEditingIdentifiers(selected?.additional_identifiers ?? []);
+    setEditingAliases(selected?.aliases.join("\n") ?? "");
   }
 
   function handleSelectSenderRule(senderRuleId: string) {
@@ -322,6 +337,9 @@ export function SmsSettingsWorkspace() {
       await updatePaymentMethod(accessToken, editingPaymentMethodId, {
         account: editingPaymentMethodAccount,
         identifier: editingPaymentMethodIdentifier,
+        identifier_kind: editingIdentifierKind,
+        additional_identifiers: editingIdentifiers,
+        aliases: editingAliases.split("\n").map(value => value.trim()).filter(Boolean),
         name: editingPaymentMethodName,
         provider: editingPaymentMethodProvider
       });
@@ -616,6 +634,7 @@ export function SmsSettingsWorkspace() {
               <span className="field__hint">Used to match SMS account/card evidence to this alias. Never enter a full card number.</span>
             </label>
 
+            <PaymentIdentityFields kind={newIdentifierKind} onKind={setNewIdentifierKind} identifiers={newIdentifiers} onIdentifiers={setNewIdentifiers} aliases={newAliases} onAliases={setNewAliases} disabled={!hasAccounts || isSavingPaymentMethod} />
             {paymentMethodError ? <p className="form-error field--wide">{paymentMethodError}</p> : null}
 
             <button className="button button--primary" disabled={!hasAccounts || isSavingPaymentMethod} type="submit">
@@ -633,7 +652,7 @@ export function SmsSettingsWorkspace() {
                     <strong>{method.name}</strong>
                     <span className="list-row__meta">
                       {formatLabel(method.provider)} · {accountNameById.get(method.account) ?? "Unknown account"}
-                      {method.identifier ? ` · ${method.identifier}` : ""}
+                      {method.identifier ? ` · ${method.identifier}` : ""}{method.additional_identifiers.length ? ` · ${method.additional_identifiers.length} more identifiers` : ""}{method.aliases.length ? ` · Aliases: ${method.aliases.join(", ")}` : ""}
                     </span>
                   </div>
                   <div className="list-row__actions">
@@ -717,6 +736,7 @@ export function SmsSettingsWorkspace() {
               />
               <span className="field__hint">Use a masked value or last four digits only.</span>
             </label>
+            <PaymentIdentityFields kind={editingIdentifierKind} onKind={setEditingIdentifierKind} identifiers={editingIdentifiers} onIdentifiers={setEditingIdentifiers} aliases={editingAliases} onAliases={setEditingAliases} disabled={!editingPaymentMethodId || isUpdatingPaymentMethod} />
             <button className="button button--ghost" disabled={isUpdatingPaymentMethod} type="submit">
               {isUpdatingPaymentMethod ? <ButtonBusy label="Updating" /> : "Update payment method"}
             </button>

@@ -572,6 +572,13 @@ ledger-only list highlights recorded entries with no statement suggestion within
 that account's printed period. Warnings explain provisional absence; no automatic
 deletion occurs. PDF evidence remains separate from edited ledger details.
 
+### How does statement review show a ledger edit that breaks an accepted match?
+
+The table derives confirmation from review state as well as the attached ledger
+ID. Invalid financial links show “Linked entry needs review”; the editor shows
+its correction issue and retains the explicit unlink action. Evidence is preserved
+and unlinking does not delete the ledger transaction.
+
 ### How does dashboard date navigation stay fluid and consistent?
 
 Daily/month controls change immediately; period requests are debounced by 250 ms
@@ -579,3 +586,12 @@ and stale responses are ignored. Existing data and its date label stay visible
 until a new response succeeds. Custom dates apply together. Totals, daily chart,
 spending categories and recent activity use that period, while current balances
 and the review queue remain live. The chart uses complete API daily aggregates.
+
+### Can reports show friendly names instead of masked numbers?
+
+Yes. Payment-method settings attach optional labels to additional bank/card
+identifiers and maintain text aliases for matching. Transactions offer Numbers,
+Labels and Both, remembered per signed-in user on that browser. The app derives
+labels from settings at display time and retains raw numbers for ambiguous or
+unmapped values. Editing, original evidence and CSV data are unchanged. Renaming a
+label changes presentation without modifying the ledger or transaction timestamps.

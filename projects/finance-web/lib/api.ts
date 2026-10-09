@@ -90,6 +90,9 @@ const categorySchema = z.object({
 });
 
 const paymentMethodSchema = z.object({
+  identifier_kind: z.enum(["any", "account", "card"]).default("any"),
+  additional_identifiers: z.array(z.object({ kind: z.enum(["account", "card"]), value: z.string(), label: z.string().default("") })).default([]),
+  aliases: z.array(z.string()).default([]),
   account: z.string(),
   id: z.string(),
   identifier: z.string(),
@@ -1467,6 +1470,7 @@ export async function previewStatement(accessToken: string, account: string, fil
 
 const savedStatementSchema = z.object({
   id: z.string(), account: z.string(), account_name: z.string(), profile: z.string(), parser_version: z.string(), currency: z.string(),
+  account_suggestion: z.object({ account: z.string().nullable(), name: z.string(), reason: z.string(), ambiguous: z.boolean() }).nullable().optional(),
   account_hint: z.string(), account_identity: z.string(), period_start: z.string().nullable(), period_end: z.string().nullable(), page_count: z.number(),
   opening_balance: z.string().nullable(), closing_balance: z.string().nullable(), checks: statementPreviewSchema.shape.checks, warnings: z.array(z.string()),
   counts: z.object({ total: z.number(), pending: z.number(), posted: z.number(), linked: z.number(), skipped: z.number() }), created_at: z.string(), updated_at: z.string()

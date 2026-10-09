@@ -2929,3 +2929,6 @@ textarea {
 .dashboard-period-totals article { padding: 16px; display: grid; gap: 8px; }
 .dashboard-period-totals strong { font-size: 1.3rem; overflow-wrap: anywhere; }
 @media (max-width: 600px) { .dashboard-period-totals { grid-template-columns: 1fr; gap: 10px; } }
+.payment-identity-fields { border: 1px solid var(--border-color, #294158); border-radius: 10px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.payment-identity-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.payment-identity-row .field { flex: 1; min-width: 150px; }

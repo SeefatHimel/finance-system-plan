@@ -1,5 +1,7 @@
 "use client";
 
+import { identifierLabel, useIdentifierView } from "@/components/identifier-view";
+
 import { useFeedbackMessage } from "@/components/toast-provider";
 
 import { CalendarBlank, CaretLeft, CaretRight, Plus, SlidersHorizontal, X } from "@phosphor-icons/react";
@@ -182,6 +184,7 @@ export function TransactionWorkspace() {
   const [editingNeedsReview, setEditingNeedsReview] = useState(false);
   const [allowLinkedCorrection, setAllowLinkedCorrection] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const identifierView = useIdentifierView();
   const [visibleColumns, setVisibleColumns] = useState<TransactionColumn[]>(defaultTransactionColumns);
   const categoryChoice = useCategoryTypeChoice(loadState.status === "ready" ? loadState.categories : []);
 
@@ -1183,6 +1186,7 @@ export function TransactionWorkspace() {
               {isRefreshing ? <span className="transaction-refresh-state"><ButtonBusy label={`Loading ${requestedFilters.month || "all months"}. Showing ${displayedFilters.month || "all months"} results until ready.`} /></span> : null}
               {refreshError ? <div className="transaction-refresh-error" role="alert"><p className="form-error">{refreshError} Showing {displayedFilters.month || "all months"} results.</p><button className="button button--ghost button--small" onClick={() => void loadData(requestedFilters, false)} type="button">Retry loading transactions</button></div> : null}
             </div>
+            {identifierView.control}
             <details className="column-picker">
               <summary><SlidersHorizontal aria-hidden="true" size={17} />Columns <span>{visibleColumns.length}/{transactionColumns.length}</span></summary>
               <div className="column-picker__menu">
@@ -1253,8 +1257,8 @@ export function TransactionWorkspace() {
                           ? moneyFormatter.format(Number(transaction.balance_after))
                           : "-"}
                       </td> : null}
-                      {visibleColumns.includes("senderIdentifiers") ? <td><span className="transaction-ledger-primary">{transaction.sender_account_identifier || "—"}</span><span className="transaction-ledger-secondary">{transaction.sender_card_identifier ? `Card ${transaction.sender_card_identifier}` : "No card identifier"}</span></td> : null}
-                      {visibleColumns.includes("receiverIdentifiers") ? <td><span className="transaction-ledger-primary">{transaction.receiver_account_identifier || "—"}</span><span className="transaction-ledger-secondary">{transaction.receiver_card_identifier ? `Card ${transaction.receiver_card_identifier}` : "No card identifier"}</span></td> : null}
+                      {visibleColumns.includes("senderIdentifiers") ? <td><span className="transaction-ledger-primary">{identifierView.format(transaction.sender_account_identifier, identifierLabel(transaction.sender_account_identifier, "account", loadState.paymentMethods, accountNames, transaction.direction === "debit" ? transaction.account : undefined))}</span><span className="transaction-ledger-secondary">{transaction.sender_card_identifier ? `Card ${identifierView.format(transaction.sender_card_identifier, identifierLabel(transaction.sender_card_identifier, "card", loadState.paymentMethods, accountNames, transaction.direction === "debit" ? transaction.account : undefined))}` : "No card identifier"}</span></td> : null}
+                      {visibleColumns.includes("receiverIdentifiers") ? <td><span className="transaction-ledger-primary">{identifierView.format(transaction.receiver_account_identifier, identifierLabel(transaction.receiver_account_identifier, "account", loadState.paymentMethods, accountNames, (transaction.type === "transfer" ? transaction.transfer_account ?? undefined : transaction.direction === "credit" ? transaction.account : undefined)))}</span><span className="transaction-ledger-secondary">{transaction.receiver_card_identifier ? `Card ${identifierView.format(transaction.receiver_card_identifier, identifierLabel(transaction.receiver_card_identifier, "card", loadState.paymentMethods, accountNames, (transaction.type === "transfer" ? transaction.transfer_account ?? undefined : transaction.direction === "credit" ? transaction.account : undefined)))}` : "No card identifier"}</span></td> : null}
                       {visibleColumns.includes("amount") ? <td className={transaction.account_direction === "credit" ? "transaction-ledger-amount transaction-ledger-amount--credit" : "transaction-ledger-amount"}>
                         {transaction.account_direction === "credit" ? "+" : "-"}{moneyFormatter.format(Number(transaction.amount))}
                       </td> : null}

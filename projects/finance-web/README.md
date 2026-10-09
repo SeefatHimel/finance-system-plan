@@ -558,6 +558,10 @@ ledger-only list. Warnings identify provisional coverage; absence never triggers
 automatic deletion. Linked rows retain printed date/time/description/balance as
 separate statement evidence accessible from Transactions.
 
+Statement rows with stale financial links display “Linked entry needs review”
+instead of “Confirmed match”. The row editor shows correction issues even while
+evidence is attached; unlink evidence to review again without deleting money.
+
 The dashboard offers Daily, Monthly and Custom range controls, inclusive of both
 selected dates. Daily/month navigation remains available during loading; requests
 are debounced for 250 ms and aborted/ignored on a newer selection. Existing data
@@ -567,3 +571,13 @@ period. Current net position, device health and pending-review queue remain live
 Custom dates apply together and are limited to 366 days. The BDT chart uses complete
 API daily totals rather than a possibly paginated transaction list. Transfers are
 excluded from income/spending and uncategorized spending is included.
+
+Payment-method settings let users save bank/card identifier types, multiple masked
+identifiers with friendly labels, and newline-separated text aliases. Transactions
+have an Identifier display selector: Numbers (default), Labels, or Both. The
+preference is stored locally per signed-in user; ambiguous/unmapped numbers remain
+visible. Labels are derived from current settings, never written into transactions.
+Editing forms, CSV exports and original source evidence retain their identifiers.
+Saved statement headers show account mapping suggestions/conflicts, while transfer
+row suggestions can use a mapped number or confirmed text alias. Suggestions
+require review and never record money by themselves.
