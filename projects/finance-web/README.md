@@ -328,11 +328,37 @@ context; repeating the same action produces a fresh notification.
 
 ## SMS Review Queue
 
-Queue items show the SMS received date and time in the browser's local timezone.
-Provider, review-state, category, and transaction-type filters combine with
-search. Category filtering includes Uncategorized and uses parsed/remembered
-candidate values, not unsaved detail-form choices. All filters remain available
-on phone layouts. Received time is not a separately parsed bank transaction time.
+A compact Received dates toolbar sits above both panes, with All dates, Daily,
+Monthly and Custom range views. Day/month arrows and Today/Current month retain
+shared date semantics; custom dates apply together after validation. The date
+basis is the SMS received date in the browser's local timezone.
+
+The queue keeps search and a Filters button visible. Provider, review-state,
+category (including Uncategorized), and transaction-type controls open in a
+viewport-centered dialog and apply immediately. Escape closes it and restores
+focus to the trigger. Removable filter chips and a filtered/total count show the
+current scope. Clear filters resets these four choices, retaining search and dates.
+Filters use parsed/remembered candidate values, not unsaved detail-form choices.
+
+Each queue row has three lines: amount/received day, counterparty/provider, and
+its first required correction or ready status. The full received timestamp and
+confidence remain in the selected message details; the date also has a timestamp
+tooltip. Desktop queue and detail panes scroll independently within the viewport.
+The editor footer keeps Previous/Next, position, Reject and Confirm & add visible;
+navigation also scrolls the selected queue row into view without moving the page.
+On phones, the queue is a bounded vertical list above the full-height editor;
+all filters and footer navigation remain available.
+
+Masked identifiers and original SMS/parser evidence are collapsible. Both open
+for low-confidence messages; identifiers also open when the reporting account is
+missing, and evidence opens for duplicates. Collapsing identifiers retains the
+inputs and their confirmation payload. Received time is not a separately parsed
+bank transaction time.
+
+For layout regression checks, use synthetic candidates to verify monthly/custom
+filtering, combined filters and chip removal, an empty search, Escape/focus return,
+Previous/Next, independent pane scrolling, and confirmation with identifiers
+collapsed. Check a desktop viewport and a 390px phone for clipping and overflow.
 
 ## Transfer Suggestions In SMS Review
 

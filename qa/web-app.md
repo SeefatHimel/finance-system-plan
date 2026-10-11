@@ -207,10 +207,25 @@ navigate between candidates, and keep context while editing one focused item.
 Dashboard attention rows deep-link to the exact candidate, and the review page
 keeps the selected candidate id in the URL so the state can be shared or
 revisited.
-Each queue item shows the SMS received date and time in the browser's local
-timezone, consistent with the detail form. It is labeled Received because SMS
-receipt time is not necessarily the bank's transaction time. Filters combine
-and use the latest loaded candidate category/type, not unsaved form edits.
+A compact Received dates toolbar spans both panes; search and a Filters button
+stay above the queue. Provider, state, category and type filters apply immediately
+in a viewport-centered dialog, with removable chips and a filtered/total count.
+Escape restores focus to the trigger. Clear filters retains search and dates.
+Three-line rows show amount/received day, counterparty/provider and the first
+correction or ready state. The selected details retain confidence and the full
+received timestamp in the browser's local timezone; SMS receipt time is not
+necessarily the bank's transaction time. Filters combine and use the latest
+loaded candidate category/type, not unsaved form edits.
+
+Desktop panes scroll independently inside a bounded workspace, leaving the
+queue and editor footer visible. Previous/Next and position sit with Reject and
+Confirm & add; the selected queue row follows navigation without moving the page.
+Phones use a bounded vertical queue above the editor. Masked
+identifiers and parser evidence collapse to reduce form height; low confidence
+opens both, a missing account opens identifiers, and duplicates open evidence.
+Collapsed inputs remain mounted and included in confirmation. Synthetic browser
+checks cover filtering, search/empty states, navigation, disclosure, collapsed
+identifier submission, focus return and desktop/phone overflow.
 It shows raw SMS evidence, parser
 notes, parser confidence, review or duplicate reason, detected
 provider/message kind, amount, reference, balance, fee, counterparty text, and
