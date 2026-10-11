@@ -7,7 +7,7 @@ import { useFeedbackMessage } from "@/components/toast-provider";
 
 import { ArrowClockwise, ArrowLeft, ArrowRight, CheckCircle, FunnelSimple, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
 import {
@@ -129,6 +129,8 @@ export function MessageReviewWorkspace() {
   const [isBulkReprocessing, setIsBulkReprocessing] = useState(false);
   const [period, setPeriod] = useState<DatePeriod>(allDates);
   const [query, setQuery] = useState("");
+  const queueList = useRef<HTMLDivElement>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [providerFilter, setProviderFilter] = useState("all");
   const [issueFilter, setIssueFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -212,6 +214,16 @@ export function MessageReviewWorkspace() {
     }
   }
   const activeIndex = activeCandidate ? filteredCandidates.findIndex((candidate) => candidate.id === activeCandidate.id) : -1;
+  useEffect(() => {
+    const list = queueList.current;
+    const selected = list?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!list || !selected) return;
+    const itemBounds = selected.getBoundingClientRect();
+    const listBounds = list.getBoundingClientRect();
+    if (itemBounds.top < listBounds.top) list.scrollTop += itemBounds.top - listBounds.top;
+    else if (itemBounds.bottom > listBounds.bottom) list.scrollTop += itemBounds.bottom - listBounds.bottom;
+  }, [activeCandidate?.id]);
+
   const accountNameById = useMemo(() => reviewState.status === "ready"
     ? new Map(reviewState.accounts.map((account) => [account.id, account.name]))
     : new Map<string, string>(), [reviewState]);
@@ -376,6 +388,16 @@ export function MessageReviewWorkspace() {
     }
   }
 
+  function clearFilters() {
+    setProviderFilter("all"); setIssueFilter("all"); setCategoryFilter("all"); setTypeFilter("all");
+  }
+  const activeFilters = [
+    { key: "provider", value: providerFilter, label: formatLabel(providerFilter), clear: () => setProviderFilter("all") },
+    { key: "state", value: issueFilter, label: issueFilter === "missing" ? "Needs input" : "Ready to confirm", clear: () => setIssueFilter("all") },
+    { key: "category", value: categoryFilter, label: categoryFilter === "uncategorized" ? "Uncategorized" : reviewState.status === "ready" ? reviewState.categories.find(category => category.id === categoryFilter)?.name ?? "Category" : "Category", clear: () => setCategoryFilter("all") },
+    { key: "type", value: typeFilter, label: formatLabel(typeFilter), clear: () => setTypeFilter("all") }
+  ].filter(filter => filter.value !== "all");
+
   if (reviewState.status === "loading") return <LoadingState detail="Checking messages and parser confidence" label="Preparing the review inbox" />;
   if (reviewState.status === "error") return <section className="panel"><div className="panel__body"><h2 className="section-title">SMS review inbox</h2><p className="section-subtitle">{reviewState.message}</p></div></section>;
 
@@ -392,25 +414,30 @@ export function MessageReviewWorkspace() {
       {actionError ? <p className="form-error">{actionError}</p> : null}
       {actionMessage ? <p className="form-success"><CheckCircle aria-hidden="true" size={18} weight="fill" />{actionMessage}</p> : null}
 
+      {reviewState.candidates.length > 0 ? <section className="panel review-date-toolbar"><DatePeriodControls compact label="Received dates" description="SMS received date · Local timezone" value={period} onChange={setPeriod} /></section> : null}
+
       {reviewState.candidates.length === 0 ? (
         <section className="panel"><div className="panel__body empty-state"><CheckCircle aria-hidden="true" size={34} weight="fill" /><h2 className="section-title">Review queue is clear</h2><p className="section-subtitle">No captured messages currently require a decision.</p></div></section>
       ) : (
         <section className="review-split">
           <aside className="panel review-queue" aria-label="Pending messages">
             <div className="review-queue__filters">
-              <DatePeriodControls label="SMS received dates" description="Based on message received date in your local timezone" value={period} onChange={setPeriod} />
-              <label className="review-search"><MagnifyingGlass aria-hidden="true" size={18} /><input aria-label="Search review queue" onChange={(event) => setQuery(event.target.value)} placeholder="Search sender or merchant" type="search" value={query} /></label>
-              <div className="review-filter-row"><FunnelSimple aria-hidden="true" size={17} /><select aria-label="Filter by provider" onChange={(event) => setProviderFilter(event.target.value)} value={providerFilter}><option value="all">All providers</option>{providers.map((provider) => <option key={provider} value={provider}>{formatLabel(provider)}</option>)}</select><select aria-label="Filter by issue" onChange={(event) => setIssueFilter(event.target.value)} value={issueFilter}><option value="all">All states</option><option value="missing">Needs input</option><option value="ready">Ready to confirm</option></select></div>
-              <div className="review-filter-row review-filter-row--fields">
-                <select aria-label="Filter by category" onChange={(event) => setCategoryFilter(event.target.value)} value={categoryFilter}><option value="all">All categories</option><option value="uncategorized">Uncategorized</option>{reviewState.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
-                <select aria-label="Filter by transaction type" onChange={(event) => setTypeFilter(event.target.value)} value={typeFilter}><option value="all">All types</option>{transactionTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select>
+              <div className="review-queue__search-row">
+                <label className="review-search"><MagnifyingGlass aria-hidden="true" size={18} /><input aria-label="Search review queue" onChange={event => setQuery(event.target.value)} placeholder="Search messages" type="search" value={query} /></label>
+                <button className="button button--ghost review-filter-trigger" aria-label={`Filters${activeFilters.length ? `, ${activeFilters.length} active` : ""}`} aria-haspopup="dialog" onClick={() => setFiltersOpen(true)} type="button"><FunnelSimple aria-hidden="true" size={18} /><span>Filters{activeFilters.length ? ` (${activeFilters.length})` : ""}</span></button>
               </div>
+              {activeFilters.length ? <div className="review-active-filters" aria-label="Active filters">{activeFilters.map(filter => <button key={filter.key} type="button" onClick={filter.clear} aria-label={`Remove ${filter.label} filter`}>{filter.label}<X aria-hidden="true" size={12} /></button>)}<button type="button" onClick={clearFilters}>Clear filters</button></div> : null}
+              <span className="review-queue__count" role="status">{filteredCandidates.length} of {reviewState.candidates.length} messages</span>
             </div>
-            <div className="review-queue__list">
+            <div className="review-queue__list" ref={queueList}>
               {filteredCandidates.map((candidate) => {
                 const issues = candidateIssues(candidate);
                 const selected = candidate.id === activeCandidate?.id;
-                return <button aria-current={selected ? "true" : undefined} className={`review-queue-item${selected ? " review-queue-item--active" : ""}`} key={candidate.id} onClick={() => setActiveCandidateId(candidate.id)} type="button"><span className="review-queue-item__top"><strong>{candidate.amount ? `BDT ${candidate.amount}` : "Amount needed"}</strong><small>{confidencePercent(candidate.confidence)}</small></span><span>{formatLabel(candidate.provider)} · {formatLabel(candidate.message_kind)}</span><small>{candidate.counterparty_text || candidate.raw_message.sender}</small><small>Received <time dateTime={candidate.raw_message.received_at}>{formatDateTime(candidate.raw_message.received_at)}</time></small><span className={issues.length ? "review-queue-item__issue" : "review-queue-item__ready"}>{issues[0] ?? "Ready to confirm"}</span></button>;
+                return <button aria-current={selected ? "true" : undefined} className={`review-queue-item${selected ? " review-queue-item--active" : ""}`} key={candidate.id} onClick={() => setActiveCandidateId(candidate.id)} type="button">
+                  <span className="review-queue-item__top"><strong>{candidate.amount ? `BDT ${candidate.amount}` : "Amount needed"}</strong><small><time dateTime={candidate.raw_message.received_at} title={formatDateTime(candidate.raw_message.received_at)}>{new Intl.DateTimeFormat("en-BD", { month: "short", day: "numeric" }).format(new Date(candidate.raw_message.received_at))}</time></small></span>
+                  <span className="review-queue-item__description"><span title={candidate.counterparty_text || formatLabel(candidate.message_kind)}>{candidate.counterparty_text || formatLabel(candidate.message_kind)}</span><small>· {formatLabel(candidate.provider)}</small></span>
+                  <span className={issues.length ? "review-queue-item__issue" : "review-queue-item__ready"}>{issues[0] ?? "Ready to confirm"}</span>
+                </button>;
               })}
               {!filteredCandidates.length ? <div className="review-queue__empty">No messages match these filters.</div> : null}
             </div>
@@ -419,9 +446,10 @@ export function MessageReviewWorkspace() {
           {activeCandidate ? (
             <article className="panel review-detail" key={activeCandidate.id}>
               <form onSubmit={(event) => void handleConfirm(activeCandidate, event)}>
+                <div className="review-detail__content">
                 <div className="review-detail__header">
                   <div><span className="review-card__eyebrow">{formatLabel(activeCandidate.provider)} / {formatLabel(activeCandidate.message_kind)}</span><h2 className="review-card__amount">{activeCandidate.amount ? `BDT ${activeCandidate.amount}` : "Complete the amount"}</h2><p className="review-card__confidence">{confidenceLabel(activeCandidate.confidence)} ({confidencePercent(activeCandidate.confidence)})</p></div>
-                  <div className="review-detail__pager"><button aria-label="Previous message" disabled={activeIndex <= 0} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex - 1]?.id ?? activeCandidate.id)} type="button"><ArrowLeft size={18} /></button><span>{activeIndex + 1} / {filteredCandidates.length}</span><button aria-label="Next message" disabled={activeIndex >= filteredCandidates.length - 1} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex + 1]?.id ?? activeCandidate.id)} type="button"><ArrowRight size={18} /></button></div>
+
                 </div>
 
                 <div className="review-issue-bar"><Warning aria-hidden="true" size={19} weight="fill" /><div><strong>{reviewReason(activeCandidate)}</strong><span>{formatDateTime(activeCandidate.raw_message.received_at)} · {activeCandidate.raw_message.sender}</span></div></div>
@@ -440,20 +468,31 @@ export function MessageReviewWorkspace() {
                   <label className="field"><span className="field__label">Balance after</span><input className="field__control" value={classification?.balanceAfter ?? ""} onChange={(event) => setClassificationDrafts((current) => ({ ...current, [activeCandidate.id]: { type: classification?.type ?? activeCandidate.transaction_type as TransactionType, category: classification?.category ?? "", balanceAfter: event.target.value } }))} inputMode="decimal" name="balance_after" /><span className="field__hint">Reported for the selected account; kept when type changes.</span>{classification && "balanceCleared" in classification && classification.balanceCleared ? <span className="field__hint" role="status">Reported balance cleared because its reporting account changed. Enter the balance for the new account if available.</span> : null}</label>
                   <label className="field"><span className="field__label">Merchant / counterparty</span><input className="field__control" defaultValue={activeCandidate.counterparty_text} name="counterparty_text" /></label>
                   <label className="field"><span className="field__label">Reference</span><input className="field__control" defaultValue={activeCandidate.reference} name="reference" /></label>
-                  <fieldset className="review-identifier-grid field--wide"><legend>Masked sender and receiver identifiers</legend><p>These values help match a saved payment method. Store only masked values or a safe suffix, never a full card number. Choose the ledger account in “Other transfer account” above.</p><label className="field"><span className="field__label">Sender account</span><input className="field__control" defaultValue={activeCandidate.sender_account_identifier} name="sender_account_identifier" /></label><label className="field"><span className="field__label">Sender card</span><input className="field__control" defaultValue={activeCandidate.sender_card_identifier} name="sender_card_identifier" /></label><label className="field"><span className="field__label">Receiver account</span><input className="field__control" defaultValue={activeCandidate.receiver_account_identifier} name="receiver_account_identifier" /></label><label className="field"><span className="field__label">Receiver card</span><input className="field__control" defaultValue={activeCandidate.receiver_card_identifier} name="receiver_card_identifier" /></label></fieldset>
+                  <details className="review-identifiers field--wide" open={!accountDraft?.account || Number(activeCandidate.confidence) < 0.65}><summary>Masked sender and receiver identifiers</summary><fieldset className="review-identifier-grid field--wide"><legend>Masked sender and receiver identifiers</legend><p>These values help match a saved payment method. Store only masked values or a safe suffix, never a full card number. Choose the ledger account in “Other transfer account” above.</p><label className="field"><span className="field__label">Sender account</span><input className="field__control" defaultValue={activeCandidate.sender_account_identifier} name="sender_account_identifier" /></label><label className="field"><span className="field__label">Sender card</span><input className="field__control" defaultValue={activeCandidate.sender_card_identifier} name="sender_card_identifier" /></label><label className="field"><span className="field__label">Receiver account</span><input className="field__control" defaultValue={activeCandidate.receiver_account_identifier} name="receiver_account_identifier" /></label><label className="field"><span className="field__label">Receiver card</span><input className="field__control" defaultValue={activeCandidate.receiver_card_identifier} name="receiver_card_identifier" /></label></fieldset></details>
                   <label className="field field--wide"><span className="field__label">Ledger note</span><input className="field__control" defaultValue={normalizedNote(activeCandidate)} name="note" /><span className="field__hint">The full SMS is not copied into your transaction note.</span></label>
                   <label className="field field--wide review-remember"><input defaultChecked name="remember_mapping" type="checkbox" /><span><strong>Use these choices for similar messages</strong><small>Saved after confirmation. Transfer choices are scoped to this reporting account and counterparty; other messages keep their own choices.</small></span></label>
                 </div>
 
-                <details className="raw-message"><summary>Original SMS and parser evidence</summary><p>{activeCandidate.raw_message.body}</p><p>{activeCandidate.parser_notes}</p>{activeCandidate.raw_message.status !== "redacted" ? <div className="raw-message-actions"><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleReprocess(activeCandidate)} type="button">{reprocessingCandidateId === activeCandidate.id ? <ButtonBusy label="Re-running parser" /> : <><ArrowClockwise aria-hidden="true" size={18} />Re-run parser</>}</button><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleRedact(activeCandidate)} type="button">Redact original SMS now</button></div> : <span className="status-badge status-badge--ok">Original SMS redacted</span>}</details>
+                <details className="raw-message" open={Number(activeCandidate.confidence) < 0.65 || Boolean(activeCandidate.raw_message.duplicate_of)}><summary>Original SMS and parser evidence</summary><p>{activeCandidate.raw_message.body}</p><p>{activeCandidate.parser_notes}</p>{activeCandidate.raw_message.status !== "redacted" ? <div className="raw-message-actions"><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleReprocess(activeCandidate)} type="button">{reprocessingCandidateId === activeCandidate.id ? <ButtonBusy label="Re-running parser" /> : <><ArrowClockwise aria-hidden="true" size={18} />Re-run parser</>}</button><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleRedact(activeCandidate)} type="button">Redact original SMS now</button></div> : <span className="status-badge status-badge--ok">Original SMS redacted</span>}</details>
 
-                <div className="review-sticky-actions"><div><strong>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"}</strong><span>{candidateIssues(activeCandidate).length ? `${candidateIssues(activeCandidate).length} item(s) need attention` : "Ready to add to ledger"}</span></div><button className="button button--danger" disabled={workingCandidateId === activeCandidate.id} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })} type="button">Reject</button><button className="button button--primary" disabled={workingCandidateId === activeCandidate.id} type="submit">{workingCandidateId === activeCandidate.id ? <ButtonBusy label="Confirming" /> : "Confirm & add"}</button></div>
+                </div>
+                <div className="review-sticky-actions"><div className="review-action-status"><strong>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"}</strong><span>{candidateIssues(activeCandidate).length ? `${candidateIssues(activeCandidate).length} item(s) need attention` : "Ready to add to ledger"}</span></div><div className="review-detail__pager" role="group" aria-label="Message navigation"><button aria-label="Previous message" disabled={activeIndex <= 0} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex - 1]?.id ?? activeCandidate.id)} type="button"><ArrowLeft size={18} /></button><span>{activeIndex + 1} / {filteredCandidates.length}</span><button aria-label="Next message" disabled={activeIndex >= filteredCandidates.length - 1} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex + 1]?.id ?? activeCandidate.id)} type="button"><ArrowRight size={18} /></button></div><button className="button button--danger" disabled={workingCandidateId === activeCandidate.id} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })} type="button">Reject</button><button className="button button--primary" disabled={workingCandidateId === activeCandidate.id} type="submit">{workingCandidateId === activeCandidate.id ? <ButtonBusy label="Confirming" /> : "Confirm & add"}</button></div>
               </form>
             </article>
           ) : null}
         </section>
       )}
 
+      {filtersOpen ? <ModalDialog labelledBy="review-filters-title" className="decision-modal review-filter-dialog" onCancel={() => setFiltersOpen(false)}>
+        <button className="decision-modal__close" aria-label="Close filters" onClick={() => setFiltersOpen(false)} type="button"><X size={20} /></button>
+        <h2 id="review-filters-title">Filter messages</h2><p>Filters apply immediately to the review queue.</p>
+              <div className="review-filter-row"><FunnelSimple aria-hidden="true" size={17} /><select aria-label="Filter by provider" onChange={(event) => setProviderFilter(event.target.value)} value={providerFilter}><option value="all">All providers</option>{providers.map((provider) => <option key={provider} value={provider}>{formatLabel(provider)}</option>)}</select><select aria-label="Filter by issue" onChange={(event) => setIssueFilter(event.target.value)} value={issueFilter}><option value="all">All states</option><option value="missing">Needs input</option><option value="ready">Ready to confirm</option></select></div>
+              <div className="review-filter-row review-filter-row--fields">
+                <select aria-label="Filter by category" onChange={(event) => setCategoryFilter(event.target.value)} value={categoryFilter}><option value="all">All categories</option><option value="uncategorized">Uncategorized</option>{reviewState.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
+                <select aria-label="Filter by transaction type" onChange={(event) => setTypeFilter(event.target.value)} value={typeFilter}><option value="all">All types</option>{transactionTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select>
+              </div>
+        <div className="decision-modal__actions"><button className="button button--ghost" onClick={clearFilters} type="button">Clear filters</button><button className="button button--primary" onClick={() => setFiltersOpen(false)} type="button">Done</button></div>
+      </ModalDialog> : null}
       {rejectDraft ? <ModalDialog labelledBy="reject-title" busy={workingCandidateId === rejectDraft.candidate.id} onCancel={() => setRejectDraft(null)}><button aria-label="Close rejection options" className="decision-modal__close" disabled={workingCandidateId === rejectDraft.candidate.id} onClick={() => setRejectDraft(null)} type="button"><X size={20} /></button><h2 id="reject-title">Reject this message</h2><p>Choose whether to reject only this message or remember a skip rule. Skipping a recognized promotional, OTP/security or balance-notice type applies across your trusted senders and keeps transaction messages enabled. Undo the rule in SMS settings.</p><form onSubmit={(event) => void handleReject(event)}><label className="field"><span className="field__label">Reason</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, reason: event.target.value })} value={rejectDraft.reason}>{[["not_transaction", "Not a transaction"], ["otp_security", "OTP or security"], ["duplicate", "Duplicate"], ["wrong_provider_account", "Wrong provider or account"], ["personal", "Personal or non-financial"], ["unsupported_format", "Unsupported format"], ["other", "Other"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field"><span className="field__label">Apply to</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, scope: event.target.value as RejectDraft["scope"] })} value={rejectDraft.scope}><option value="message">Only this message</option><option value="kind">This message and skip its non-transaction type</option><option value="sender">This message and disable {rejectDraft.candidate.raw_message.sender}</option><option value="provider">This message and exclude all {formatLabel(rejectDraft.candidate.provider)} messages</option></select></label><label className="field"><span className="field__label">Note (optional)</span><input className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, note: event.target.value })} value={rejectDraft.note} /></label><label className="review-remember"><input checked={rejectDraft.redact} onChange={(event) => setRejectDraft({ ...rejectDraft, redact: event.target.checked })} type="checkbox" /><span><strong>Redact original SMS now</strong><small>Parsed metadata remains for audit and duplicate protection.</small></span></label><div className="decision-modal__actions"><button className="button button--ghost" disabled={workingCandidateId === rejectDraft.candidate.id} onClick={() => setRejectDraft(null)} type="button">Cancel</button><button className="button button--danger" disabled={workingCandidateId === rejectDraft.candidate.id} type="submit">{workingCandidateId === rejectDraft.candidate.id ? <ButtonBusy label="Rejecting" /> : "Reject message"}</button></div></form></ModalDialog> : null}
       {transferDecision ? <TransferMatchDialog matches={transferDecision.matches} busy={workingCandidateId !== null} error={matchError} onAccept={(match) => void handleTransferDecision(match)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
     </div>

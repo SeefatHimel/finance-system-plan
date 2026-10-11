@@ -3,9 +3,9 @@
 import { useEffect, useId, useState } from "react";
 import { allDates, dailyPeriod, dateRangeError, monthPeriod, periodLabel, shiftPeriod, type DatePeriod } from "@/lib/date-period";
 
-export function DatePeriodControls({ value, onChange, allowAll = true, label = "Date filter", description, children }: {
+export function DatePeriodControls({ value, onChange, allowAll = true, label = "Date filter", description, children, compact = false }: {
   value: DatePeriod; onChange: (value: DatePeriod) => void; allowAll?: boolean;
-  label?: string; description?: string; children?: React.ReactNode;
+  label?: string; description?: string; children?: React.ReactNode; compact?: boolean;
 }) {
   const id = useId();
   const [custom, setCustom] = useState({ start: value.start || dailyPeriod().start, end: value.end || dailyPeriod().end });
@@ -24,20 +24,23 @@ export function DatePeriodControls({ value, onChange, allowAll = true, label = "
   }
 
   const mode = customOpen ? "custom" : value.mode;
-  return <div className="date-period-controls" role="region" aria-label={label}>
+  function chooseMode(choice: DatePeriod["mode"]) {
+    setError("");
+    setCustomOpen(choice === "custom");
+    if (choice === "all") onChange({ ...allDates });
+    if (choice === "daily") onChange(dailyPeriod(value.start || undefined));
+    if (choice === "monthly") onChange(monthPeriod(value.start.slice(0, 7) || undefined));
+  }
+  return <div className={`date-period-controls${compact ? " date-period-controls--compact" : ""}`} role="region" aria-label={label}>
     {children}
-    <div className="date-period-modes" role="group" aria-label={`${label} view`}>
+    {compact ? <label className="field date-period-mode"><span className="field__label">{label}</span><select className="field__control" aria-label={`${label} view`} value={mode} onChange={event => chooseMode(event.target.value as DatePeriod["mode"])}>
+      {allowAll ? <option value="all">All dates</option> : null}<option value="daily">Daily</option><option value="monthly">Monthly</option><option value="custom">Custom range</option>
+    </select></label> : <div className="date-period-modes" role="group" aria-label={`${label} view`}>
       {([...(allowAll ? ["all"] as const : []), "daily", "monthly", "custom"] as const).map(choice => <button
         className={`button${mode === choice ? " button--primary" : " button--ghost"}`} type="button" aria-pressed={mode === choice} key={choice}
-        onClick={() => {
-          setError("");
-          setCustomOpen(choice === "custom");
-          if (choice === "all") onChange({ ...allDates });
-          if (choice === "daily") onChange(dailyPeriod(value.start || undefined));
-          if (choice === "monthly") onChange(monthPeriod(value.start.slice(0, 7) || undefined));
-        }}
+        onClick={() => chooseMode(choice)}
       >{{ all: "All dates", daily: "Daily", monthly: "Monthly", custom: "Custom range" }[choice]}</button>)}
-    </div>
+    </div>}
     {mode === "custom" ? <div className="date-period-fields" onKeyDown={event => {
       if (event.key === "Enter" && event.target instanceof HTMLInputElement) { event.preventDefault(); event.stopPropagation(); applyCustom(); }
     }}>
@@ -52,7 +55,7 @@ export function DatePeriodControls({ value, onChange, allowAll = true, label = "
       <button className="button button--ghost" type="button" aria-label={`Next ${mode === "daily" ? "day" : "month"}`} onClick={() => onChange(shiftPeriod(value, 1))}>→</button>
       <button className="button button--ghost" type="button" onClick={() => onChange(mode === "daily" ? dailyPeriod() : monthPeriod())}>{mode === "daily" ? "Today" : "Current month"}</button>
     </div> : null}
-    <p className="date-period-caption">{periodLabel(value)}{description ? ` · ${description}` : ""}</p>
+    <p className="date-period-caption" title={compact ? periodLabel(value) : undefined}>{compact && mode !== "custom" ? description || periodLabel(value) : `${periodLabel(value)}${description ? ` · ${description}` : ""}`}</p>
     {error ? <p className="form-error" role="alert">{error}</p> : null}
   </div>;
 }
