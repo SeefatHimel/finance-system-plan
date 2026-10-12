@@ -678,3 +678,40 @@ lint, and build. Card-billing statements and scans still require new parsers.
 
 Masked identifiers exposing more than ten digits also reduce to a last-four
 suffix, so adding a mask character cannot preserve a nearly complete card number.
+
+## Configurable Quick Add
+
+Open **Quick Add presets** (`/quick-add`) to create, edit, duplicate, enable,
+disable or reorder named shortcuts such as Lunch or Transport. Choose an
+expense/income type and optional default account, category, amount, merchant
+and note. Favorites feed the dashboard and global Quick Add menu; the initial
+menu shows at most six, with See all for other enabled presets. Account/category
+shortlists come from favorite presets and retain the current selection. See all
+opens searchable active choices. No preset is created automatically.
+
+A shortcut opens an amount-focused draft. It never saves by itself. Account,
+category, type and optional details can be changed for one entry without editing
+the preset. Switching presets preserves entered amount, note and merchant.
+Full entry carries the complete draft into the existing transaction editor for
+transfers and other advanced fields. The compact form supports expense/income.
+
+Today and Now are defaults, resolved on the first Save. Yesterday, a calendar,
+unknown time, or an hour-then-minute clock allow corrections. The web clock
+supports tap/drag and exact hour/minute typing, including every minute and
+AM/PM boundaries. The existing transaction editor also exposes this clock.
+Dialogs stay centered in the viewport, scroll internally, and keep Save visible;
+the phone toolbar has an accessible Quick Add button beside the account menu.
+
+Saving uses the Quick Add API and refreshes mounted ledger/dashboard/accounts/
+reports while preserving their filters. A successful Save displays a toast.
+Before posting, the immutable request is stored in per-user/backend tab
+`sessionStorage`. After an uncertain response, fields lock and Retry same entry
+uses the same UUID and values, including after a reload. Closing the dialog keeps
+that pending request. A known validation rejection permits correction. A 409
+requires reviewing the ledger rather than creating a replacement automatically.
+This is tab-local retry recovery; closing the browser tab may discard it. The
+web client does not have a durable offline queue.
+
+Checks: `npm run test:quick-add`, `npm run test:auth`, `npm run test:workflows`,
+`npm run test:dates`, `npm run typecheck`, and `npm run build`. Browser QA uses
+synthetic data, including a lost success response followed by reload and retry.

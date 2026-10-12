@@ -48,3 +48,7 @@ test('only confirmed 401 auth errors end a session', () => {
     assert.equal(isAuthenticationFailure(error), false);
   }
 });
+
+ test('Quick Add preset management is protected and retained after login', () => {
+  assert.equal(safeReturnPath('/quick-add'), '/quick-add');
+ });

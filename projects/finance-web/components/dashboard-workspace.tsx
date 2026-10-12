@@ -209,6 +209,8 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
   const [range, setRange] = useState<DatePeriod>(monthPeriod);
   const [periodLoading, setPeriodLoading] = useState(true);
   const [periodError, setPeriodError] = useState("");
+  const [ledgerRevision, setLedgerRevision] = useState(0);
+  useEffect(() => { const refresh = () => setLedgerRevision(value => value + 1); window.addEventListener("finance:transactions-changed", refresh); return () => window.removeEventListener("finance:transactions-changed", refresh); }, []);
 
   useEffect(() => {
     const accessToken = getAccessToken();
@@ -242,7 +244,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
         .finally(() => { if (active) setPeriodLoading(false); });
     }, 250);
     return () => { active = false; window.clearTimeout(timer); controller.abort(); };
-  }, [range.start, range.end]);
+  }, [range.start, range.end, ledgerRevision]);
 
   const dashboardData = useMemo(() => {
     if (state.status !== "ready") return null;

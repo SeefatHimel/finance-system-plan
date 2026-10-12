@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { getSmsDeviceStatus, listMessageCandidates } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { QuickAddProvider, QuickAddButton } from "./quick-add";
 import { useAuth } from "@/components/auth-provider";
 import { ButtonBusy } from "@/components/loading-state";
 
@@ -39,6 +40,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/", icon: House, label: "Dashboard", subtitle: "Your financial position at a glance", title: "Dashboard" },
   { href: "/transactions", icon: ListBullets, label: "Transactions", subtitle: "Record, review, and export money movement", title: "Transactions" },
+  { href: "/quick-add", icon: PlusCircle, label: "Quick Add presets", subtitle: "Configure your manual-entry shortcuts", title: "Quick Add presets" },
   { href: "/accounts", icon: CreditCard, label: "Accounts", subtitle: "Manage accounts and transaction categories", title: "Accounts & categories" },
   { href: "/messages/review", icon: ChatCenteredText, label: "SMS review", subtitle: "Review parsed messages before they enter your ledger", title: "SMS review" },
   { href: "/statements", icon: FileText, label: "Statements", subtitle: "Review statement imports, matches, and ledger evidence", title: "Statement PDFs" },
@@ -202,7 +204,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className={`app-frame${isSidebarCollapsed ? " app-frame--sidebar-collapsed" : ""}`}>
+    <QuickAddProvider><div className={`app-frame${isSidebarCollapsed ? " app-frame--sidebar-collapsed" : ""}`}>
       <aside className={`app-sidebar${isMobileNavOpen ? " app-sidebar--open" : ""}`} id="primary-navigation">
         <Link className="app-logo" href="/" aria-label="Finance dashboard" onClick={(event) => handleNavigation(event, "/")}>
           <DiamondsFour aria-hidden="true" className="app-logo__mark" size={31} weight="fill" />
@@ -292,6 +294,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           ) : null}
 
+          <QuickAddButton />
           <div className="account-controls" ref={accountMenu}>
             <button className="user-avatar" aria-label="Account menu" aria-controls="account-menu"
               aria-expanded={isAccountMenuOpen} onClick={() => setIsAccountMenuOpen((open) => !open)}
@@ -308,6 +311,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
         <div aria-busy={isNavigating} className={`app-main${isNavigating ? " app-main--navigating" : ""}`}>{children}</div>
       </div>
-    </div>
+    </div></QuickAddProvider>
   );
 }

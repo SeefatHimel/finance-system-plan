@@ -1,3 +1,4 @@
+import type { QuickPreset, PresetInput, QuickEntryInput } from "../../finance-contracts/quick-add";
 import { z } from "zod";
 
 import type {
@@ -762,7 +763,7 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
         return retryResponse;
       }
       if (retryResponse.status !== 401) {
-        throw await responseError(retryResponse);
+        throw Object.assign(await responseError(retryResponse), { status: retryResponse.status });
       }
     }
 
@@ -772,7 +773,7 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
   }
 
   if (!response.ok) {
-    throw await responseError(response);
+    throw Object.assign(await responseError(response), { status: response.status });
   }
 
   return response;
@@ -1574,4 +1575,22 @@ export async function getStatementComparison(token: string, id: string, offset =
   const query = new URLSearchParams({ limit: "50", offset: String(offset) });
   Object.entries(filters).forEach(([key, value]) => { if (value) query.set(key, value); });
   return statementComparisonSchema.parse(await (await authenticatedFetch(`/api/statements/imports/${id}/comparison/?${query}`, token, { signal })).json());
+}
+
+export async function listQuickPresets(accessToken: string): Promise<QuickPreset[]> {
+  const response = await authenticatedFetch("/api/quick-add/presets/", accessToken);
+  return await response.json() as QuickPreset[];
+}
+export async function saveQuickPreset(accessToken: string, input: PresetInput | Partial<PresetInput>, id?: string): Promise<QuickPreset> {
+  const response = await authenticatedFetch(`/api/quick-add/presets/${id ? `${id}/` : ""}`, accessToken, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  return await response.json() as QuickPreset;
+}
+export async function postQuickEntry(accessToken: string, input: QuickEntryInput): Promise<{ transaction: string; replayed: boolean }> {
+  const response = await authenticatedFetch("/api/quick-add/entries/", accessToken, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  return await response.json() as { transaction: string; replayed: boolean };
+}
+
+export async function reorderQuickPresets(accessToken: string, ids: string[]): Promise<QuickPreset[]> {
+  const response = await authenticatedFetch("/api/quick-add/presets/reorder/", accessToken, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
+  return await response.json() as QuickPreset[];
 }

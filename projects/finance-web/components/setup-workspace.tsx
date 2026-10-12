@@ -110,6 +110,9 @@ export function SetupWorkspace() {
 
   useEffect(() => {
     void loadData();
+    const refresh = () => { void loadData(); };
+    window.addEventListener("finance:transactions-changed", refresh);
+    return () => window.removeEventListener("finance:transactions-changed", refresh);
   }, []);
 
   async function handleAccountSubmit(event: React.FormEvent<HTMLFormElement>) {

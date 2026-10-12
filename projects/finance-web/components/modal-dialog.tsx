@@ -4,11 +4,11 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "@/components/toast-provider";
 
-type Props = { children: ReactNode; labelledBy: string; className?: string; busy?: boolean; onCancel: () => void };
+type Props = { initialFocus?: string; children: ReactNode; labelledBy: string; className?: string; busy?: boolean; onCancel: () => void };
 let openDialogs = 0;
 let previousOverflow = "";
 
-function DialogSurface({ children, labelledBy, className = "decision-modal", busy = false, onCancel, returnFocus }: Props & { returnFocus: HTMLElement | null }) {
+function DialogSurface({ children, labelledBy, className = "decision-modal", busy = false, onCancel, returnFocus, initialFocus }: Props & { returnFocus: HTMLElement | null }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const { registerModal } = useToast();
   useEffect(() => {
@@ -29,6 +29,9 @@ function DialogSurface({ children, labelledBy, className = "decision-modal", bus
       });
     };
   }, [registerModal, returnFocus]);
+  useEffect(() => {
+    if (initialFocus) dialog.current?.querySelector<HTMLElement>(initialFocus)?.focus({ preventScroll: true });
+  }, [initialFocus]);
   return (
     <dialog aria-labelledby={labelledBy} className={`${className} viewport-modal`} ref={dialog}
       onCancel={(event) => { event.preventDefault(); if (!busy) onCancel(); }}

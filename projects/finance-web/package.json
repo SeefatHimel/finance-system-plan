@@ -11,7 +11,8 @@
     "test:auth": "node --test tests/auth-session.test.cjs",
     "test:workflows": "node --test tests/transaction-workflows.test.cjs",
     "test:dates": "node --test tests/date-health.test.cjs",
-    "test:identities": "node --test tests/account-identity.test.cjs"
+    "test:identities": "node --test tests/account-identity.test.cjs",
+    "test:quick-add": "node --test tests/quick-add.test.cjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

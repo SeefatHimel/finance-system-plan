@@ -650,3 +650,22 @@ the user. Locked files can be checked again with a transient password. File and
 password changes cancel old requests; aborted/stale results cannot update the
 suggestion. Checks can be cancelled to continue manually. Upload creates only a
 review draft for the selected account.
+
+## What makes Quick Add configurable without slowing down manual entry?
+
+The preset page stores user-defined shortcuts, optional defaults and favorite/
+enabled/order choices. Six favorites form the initial menu and dashboard tiles;
+See all and searchable account/category lists keep the complete choices nearby.
+Amount receives focus. Entry overrides and switching presets do not edit saved
+defaults. Full entry carries all draft values into the existing detailed editor.
+A viewport dialog with a visible Save footer and toast completes the flow.
+
+## How do time selection and uncertain saves work in Quick Add?
+
+Today/Now resolve at first Save; users can select Yesterday, calendar dates,
+unknown time or a draggable hour-then-minute clock with exact numeric fallback.
+Every minute is retained. The immutable request is stored in per-user/backend
+sessionStorage before posting. Uncertain saves lock fields and retry the same
+request after close/reload; known rejections permit correction. This recovery
+lasts within the browser tab, not a durable web offline queue. Successful saves
+refresh mounted ledger and summary screens without resetting selected filters.

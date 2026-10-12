@@ -25,6 +25,8 @@ function formatMoney(value: string) {
 
 export function ReportWorkspace() {
   // Use a timezone-independent first render, then select the browser's current month.
+  const [ledgerRevision, setLedgerRevision] = useState(0);
+  useEffect(() => { const refresh = () => setLedgerRevision(value => value + 1); window.addEventListener("finance:transactions-changed", refresh); return () => window.removeEventListener("finance:transactions-changed", refresh); }, []);
   const [period, setPeriod] = useState<DatePeriod>(() => monthPeriod(new Date().toISOString().slice(0, 7)));
   useEffect(() => { setPeriod(monthPeriod()); }, []);
   const [reportState, setReportState] = useState<ReportState>({ status: "loading" });
@@ -47,7 +49,7 @@ export function ReportWorkspace() {
       }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 250);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [period.start, period.end]);
+  }, [period.start, period.end, ledgerRevision]);
   const controls = <DatePeriodControls label="Report dates" allowAll={false} value={period} onChange={setPeriod} />;
 
   if (reportState.status === "loading") {

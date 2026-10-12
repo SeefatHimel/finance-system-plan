@@ -1,5 +1,9 @@
 "use client";
 
+import { QuickTimePicker } from "./quick-time-picker";
+import { useQuickAdd } from "./quick-add";
+import { localDay, localTime } from "../../finance-contracts/quick-add";
+
 import { identifierLabel, useIdentifierView } from "@/components/identifier-view";
 
 import { useFeedbackMessage } from "@/components/toast-provider";
@@ -123,6 +127,8 @@ const moneyFormatter = new Intl.NumberFormat("en-BD", {
 const activityTimeFormatter = new Intl.DateTimeFormat("en-BD", { dateStyle: "medium", timeStyle: "short" });
 
 export function TransactionWorkspace() {
+  const quickAdd = useQuickAdd();
+  const { fullDraft, consumeFullDraft } = quickAdd;
   const [filters, setFilterState] = useState<TransactionFilterState>({
     account: "",
     category: "",
@@ -152,11 +158,13 @@ export function TransactionWorkspace() {
   const [matchError, setMatchError] = useFeedbackMessage("error");
   const [formError, setFormError] = useFeedbackMessage("error");
   const [formMessage, setFormMessage] = useFeedbackMessage("success");
+  const [clockEdit, setClockEdit] = useState<{ mode: "create" | "edit"; value: string } | null>(null);
   const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
   const [createType, setCreateType] = useState<TransactionType>("expense");
   const [createDirection, setCreateDirection] = useState<TransactionDirection>("debit");
   const [createCategoryId, setCreateCategoryId] = useState("");
   const createForm = useRef<HTMLFormElement>(null);
+  const [createDefaults, setCreateDefaults] = useState<{ amount: string; note: string; counterparty_text: string; date: string; time: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -304,6 +312,20 @@ export function TransactionWorkspace() {
       // Fall back to the complete default table when storage is unavailable.
     }
   }, []);
+
+  useEffect(() => {
+    const refresh = () => { void loadData(filtersRef.current); };
+    window.addEventListener("finance:transactions-changed", refresh);
+    return () => window.removeEventListener("finance:transactions-changed", refresh);
+  }, [loadData]);
+  useEffect(() => {
+    if (!fullDraft) return;
+    const draft = fullDraft;
+    setCreateType(draft.type); setCreateDirection(draft.type === "income" ? "credit" : "debit");
+    setCreateAccountId(draft.account); setCreateCategoryId(draft.category); setEditorMode("create");
+    setCreateDefaults({ amount: draft.amount, note: draft.note, counterparty_text: draft.counterparty_text, date: draft.dateMode === "today" ? localDay() : draft.date, time: draft.timeMode === "now" ? localTime() : draft.timeMode === "none" ? "" : draft.time });
+    consumeFullDraft();
+  }, [fullDraft, consumeFullDraft]);
 
   function handleFilterSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -662,6 +684,7 @@ export function TransactionWorkspace() {
   return (
     <div className="workspace-grid">
       {categoryChoice.confirmation}
+      {clockEdit ? <QuickTimePicker value={clockEdit.value} onCancel={() => setClockEdit(null)} onApply={time => { if (clockEdit.mode === "edit") setEditingTime(time); else { const field = createForm.current?.elements.namedItem("time"); if (field instanceof HTMLInputElement) field.value = time; } setClockEdit(null); }} /> : null}
       {editorMode ? (
         <ModalDialog labelledBy="transaction-editor-title" className="form-drawer transaction-editor-drawer" busy={isSubmitting || isUpdating} onCancel={() => setEditorMode(null)}>
             <div className="form-drawer__header">
@@ -690,13 +713,14 @@ export function TransactionWorkspace() {
           {editorMode === "create" ? <form className="transaction-form drawer-form" onSubmit={handleSubmit} ref={createForm}>
             <label className="field">
               <span className="field__label">Date</span>
-              <input className="field__control" defaultValue={currentDate()} name="date" required type="date" />
+              <input className="field__control" defaultValue={createDefaults?.date ?? currentDate()} name="date" required type="date" />
             </label>
 
-            <label className="field">
-              <span className="field__label">Time</span>
-              <input className="field__control" defaultValue={currentTime()} name="time" type="time" />
-            </label>
+            <div className="field">
+              <label className="field__label" htmlFor="create-transaction-time">Time</label>
+              <input id="create-transaction-time" className="field__control" defaultValue={createDefaults?.time ?? currentTime()} name="time" type="time" />
+              <button className="quick-see-all" type="button" onClick={() => { const field = createForm.current?.elements.namedItem("time"); setClockEdit({ mode: "create", value: field instanceof HTMLInputElement ? field.value || currentTime() : currentTime() }); }}>Choose time on clock</button>
+            </div>
 
             <label className="field">
               <span className="field__label">Type</span>
@@ -767,6 +791,7 @@ export function TransactionWorkspace() {
                 className="field__control"
                 min="0.01"
                 name="amount"
+                defaultValue={createDefaults?.amount ?? ""}
                 inputMode="decimal"
                 required
                 type="text"
@@ -787,12 +812,12 @@ export function TransactionWorkspace() {
 
             <label className="field">
               <span className="field__label">Sent to / received from</span>
-              <input className="field__control" name="counterparty_text" type="text" />
+              <input className="field__control" name="counterparty_text" defaultValue={createDefaults?.counterparty_text ?? ""} type="text" />
             </label>
 
             <label className="field field--wide">
               <span className="field__label">Note</span>
-              <input className="field__control" name="note" type="text" />
+              <input className="field__control" name="note" defaultValue={createDefaults?.note ?? ""} type="text" />
             </label>
 
             {formError ? <p className="form-error field--wide">{formError}</p> : null}
@@ -816,15 +841,11 @@ export function TransactionWorkspace() {
               />
             </label>
 
-            <label className="field">
-              <span className="field__label">Time</span>
-              <input
-                className="field__control"
-                onChange={(event) => setEditingTime(event.target.value)}
-                type="time"
-                value={editingTime}
-              />
-            </label>
+            <div className="field">
+              <label className="field__label" htmlFor="edit-transaction-time">Time</label>
+              <input id="edit-transaction-time" className="field__control" onChange={event => setEditingTime(event.target.value)} type="time" value={editingTime} />
+              <button className="quick-see-all" type="button" onClick={() => setClockEdit({ mode: "edit", value: editingTime || currentTime() })}>Choose time on clock</button>
+            </div>
 
             <label className="field">
               <span className="field__label">Type</span>
@@ -1041,6 +1062,7 @@ export function TransactionWorkspace() {
                 setCreateBalanceNotice("");
                 setCreateDirection("debit");
                 setCreateCategoryId("");
+                setCreateDefaults(null);
                 setEditorMode("create");
               }}
               type="button"
