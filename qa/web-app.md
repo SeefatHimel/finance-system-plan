@@ -759,3 +759,12 @@ action bar. Edit directly fetches the saved UUID independently of list filters.
 Undo uses the server descriptor, refreshes lists/review, and refuses later changes.
 User/session changes clear recovery state; no financial snapshots are stored in
 the browser. Only the latest unchanged action is undoable for 24 hours.
+
+### Why group date/time and hide unrelated transfer fields?
+
+Date and time need readable controls rather than two full-width columns. A
+wrapping compact group serves Add, Edit and SMS review, stacking when a small
+viewport or larger text needs it. Only transfers can submit a second ledger
+account. SMS selectors say From/To according to the reporting perspective; type
+switches retain draft transfer choices and account-bound reported balances.
+Hiding a field alone neither changes a balance nor saves a transaction.

@@ -187,6 +187,7 @@ export function TransactionWorkspace() {
   const [editingDirection, setEditingDirection] = useState<TransactionDirection>("debit");
   const [editingAccountId, setEditingAccountId] = useState("");
   const [editingTransferAccountId, setEditingTransferAccountId] = useState("");
+  const transferAccountDraft = useRef<{ from: string; to: string } | null>(null);
   const [editingCategoryId, setEditingCategoryId] = useState("");
   const [editingAmount, setEditingAmount] = useState("");
   const [editingBalanceAfter, setEditingBalanceAfter] = useState("");
@@ -221,13 +222,24 @@ export function TransactionWorkspace() {
   }
 
   function changeEditingType(type: TransactionType) {
-    if (type === "transfer" && editingType !== "transfer") setReportingAccount(editingAccountId);
-    if (type === "transfer" && editingType !== "transfer" && editingDirection === "credit") {
-      changeEditingContext({ type, account: "", transfer_account: editingAccountId });
-    } else if (editingType === "transfer" && type !== "transfer") {
+    if (type === editingType) return;
+    if (type === "transfer") {
+      setReportingAccount(editingAccountId);
+      const saved = transferAccountDraft.current;
+      if (saved && [saved.from, saved.to].includes(editingAccountId)) {
+        changeEditingContext({ type, account: saved.from, transfer_account: saved.to });
+      } else if (editingDirection === "credit") {
+        changeEditingContext({ type, account: "", transfer_account: editingAccountId });
+      } else {
+        changeEditingContext({ type, transfer_account: "" });
+      }
+      setEditingPaymentMethodId("");
+    } else if (editingType === "transfer") {
+      transferAccountDraft.current = { from: editingAccountId, to: editingTransferAccountId };
       changeEditingContext({ type, account: directionForType(type) === "credit" ? editingTransferAccountId : editingAccountId, transfer_account: "" });
-    } else changeEditingContext({ type, ...(type !== "transfer" ? { transfer_account: "" } : {}) });
-    if (type === "transfer") setEditingPaymentMethodId("");
+    } else {
+      changeEditingContext({ type, transfer_account: "" });
+    }
     setEditingDirection(directionForType(type));
   }
 
@@ -322,6 +334,7 @@ export function TransactionWorkspace() {
   }, [loadData]);
   const openNewTransaction = useCallback((defaults?: { type: TransactionType; account: string; category: string; amount: string; note: string; counterparty_text: string; date: string; time: string }) => {
     editLoad.current?.abort();
+    transferAccountDraft.current = null;
     saveKey.current = `manual-entry:${crypto.randomUUID()}`;
     setEditingRecord(null); setEditingTransactionId("");
     setEditingDate(defaults?.date ?? currentDate()); setEditingTime(defaults?.time ?? currentTime());
@@ -527,6 +540,7 @@ export function TransactionWorkspace() {
     if (controller.signal.aborted) return;
     setEditingRecord(transaction);
     setEditingTransactionId(transactionId);
+    transferAccountDraft.current = null;
     setEditingDate(transaction.date);
     setEditingTime(transaction.time ?? "");
     setEditingType(transaction.type as TransactionType);
@@ -674,21 +688,23 @@ export function TransactionWorkspace() {
           <form className="transaction-form drawer-form" onSubmit={handleSave}>
             {editorMode === "edit" ? <TransactionSourceMessages key={editingTransactionId} transactionId={editingTransactionId} /> : null}
             {editingTransaction?.statement_evidence_count ? <TransactionStatementEvidence key={`statement-${editingTransactionId}`} transactionId={editingTransactionId} /> : null}
-            <label className="field">
-              <span className="field__label">Date</span>
-              <input
-                className="field__control"
-                onChange={(event) => setEditingDate(event.target.value)}
-                required
-                type="date"
-                value={editingDate}
-              />
-            </label>
+            <div className="transaction-datetime" role="group" aria-label="Date and time">
+              <label className="field">
+                <span className="field__label">Date</span>
+                <input
+                  className="field__control"
+                  onChange={(event) => setEditingDate(event.target.value)}
+                  required
+                  type="date"
+                  value={editingDate}
+                />
+              </label>
 
-            <div className="field">
-              <label className="field__label" htmlFor="edit-transaction-time">Time</label>
-              <input id="edit-transaction-time" step="1" className="field__control" onChange={event => setEditingTime(event.target.value)} type="time" value={editingTime} />
-              <button className="quick-see-all" type="button" onClick={() => setClockEdit({ value: editingTime || currentTime() })}>Choose time on clock</button>
+              <div className="field">
+                <label className="field__label" htmlFor="edit-transaction-time">Time</label>
+                <input id="edit-transaction-time" step="1" className="field__control" onChange={event => setEditingTime(event.target.value)} type="time" value={editingTime} />
+                <button className="quick-see-all" type="button" onClick={() => setClockEdit({ value: editingTime || currentTime() })}>Choose time on clock</button>
+              </div>
             </div>
 
             <label className="field">

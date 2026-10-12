@@ -3122,3 +3122,11 @@ textarea {
 @media (pointer: coarse) { .action-toast button { min-height: 44px; min-width: 44px; } }
 .recent-action { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px; margin: 12px 0; border: 1px solid var(--panel-border); border-radius: 8px; }
 .recent-action__buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+/* Compact date/time groups wrap according to available space and text size. */
+.transaction-datetime { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px; min-width: 0; max-width: 30rem; }
+.transaction-datetime > .field { flex: 1 1 10rem; min-width: min(100%, 10rem); }
+.transaction-datetime > .field:first-child { flex-basis: 11rem; min-width: min(100%, 11rem); }
+.transaction-datetime .field__control { min-width: 0; width: 100%; min-height: 44px; }
+
+.transaction-datetime + .field { align-content: start; }

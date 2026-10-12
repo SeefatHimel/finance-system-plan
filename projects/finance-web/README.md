@@ -847,3 +847,15 @@ pressing Edit never accepts or undoes a transaction. Auth changes clear recovery
 state; late responses cannot carry it across users. Deletions and bulk PDF posting
 are outside this recovery flow. Apply the API migration before deploying the web
 client. Native recovery buttons are not part of this web editor change.
+
+### Compact date/time and contextual transfer accounts
+
+SMS review and the shared Add/Edit editor group date and time in one compact
+form section. Controls wrap when available space or larger text requires it,
+keeping separate labels, native pickers and comfortable tap targets. SMS review
+shows From/To account selectors only for transfers, with labels following the
+reporting account's Debit/Credit perspective. Non-transfer submissions explicitly
+send no transfer account. Switching types preserves the other-account draft and
+account-bound balances; returning to a transfer restores its prior direction
+and account pair where the currently selected account still belongs to it.
+Existing linked-transfer correction acknowledgement remains required.
