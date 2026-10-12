@@ -223,7 +223,14 @@ stolen token.
 
 Transaction list and CSV export endpoints support the same user-scoped filters:
 month, account, category, type, debit/credit direction, source, and `search`
-across reference, counterparty text, note, and external duplicate key. Source
+across ledger fields, related names, numbers, dates/times, identifiers, review
+status and linked transfer observations. Space-separated terms must each match
+somewhere; quoted phrases stay together and formatted decimal amounts work.
+Queries are case-insensitive, bounded to 256 characters/12 terms, and activity
+timestamps use Asia/Dhaka. Correlated EXISTS queries on owned transfer evidence
+keep one transaction row instead of multiplying joins. Raw SMS bodies are
+excluded. UUID fragments require eight hexadecimal characters, so short amount
+terms do not match random internal IDs. Source
 filtering separates web, mobile, SMS, import, and system-generated ledger rows.
 
 ## How do you validate cross-user object access?

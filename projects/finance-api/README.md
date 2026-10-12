@@ -290,9 +290,25 @@ read-only through the API and can be filtered by `action`, `entity_type`, and
 Transaction list and CSV export endpoints share filters for `month`, paired `start_date`/`end_date`,
 `date_field`, `account`,
 `category`, `type`, `direction`, `source`, and `search`. Source separates web,
-mobile, SMS, import, and system-created ledger rows. Search matches normalized
-text evidence: reference or TrxID, counterparty text, note, and external
-duplicate key.
+mobile, SMS, import, and system-created ledger rows. Search covers ledger text,
+both account names/types/currency, category and payment-method names, type,
+direction, source, amount, reported balance, ISO dates/times, local activity
+timestamps, review status, identifiers, IDs and external keys. Linked transfer
+observations add their account, provider, source, direction, date/time, balance,
+fee, reference and note. Raw SMS bodies are outside ledger search.
+
+Search uses case-insensitive partial matching. Each space-separated term must
+match somewhere on the transaction or its linked evidence; quoted phrases stay
+together. Display labels such as "City Bank" match their enum values. Numeric
+terms accept thousands separators, and exact decimal comparisons preserve cents
+across supported databases. UUID searches require at least eight hexadecimal
+characters, avoiding short amount queries matching random ID fragments. Activity timestamps search in Asia/Dhaka, matching
+the activity date filters. Empty/whitespace queries do not restrict results.
+Queries are limited to 256 characters and 12 terms; excess input returns field
+validation errors. The same search applies to CSV export and combines with all
+existing filters. Correlated EXISTS on user-owned transfer evidence avoids
+duplicate ledger rows and one-to-many join multiplication. Account/transaction
+ownership checks remain enforced. Verify with `apps.transactions.test_search`.
 
 All finance endpoints except `/api/health/` require authentication.
 

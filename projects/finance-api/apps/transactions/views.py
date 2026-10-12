@@ -18,6 +18,7 @@ from apps.messages.models import RawMessage
 from apps.statements.serializers import SavedStatementRowSerializer
 
 from .models import Transaction
+from .search import SEARCH_DESCRIPTION, filter_transaction_search
 from .serializers import (
     TransactionSerializer,
     TransactionSourceMessageSerializer,
@@ -37,6 +38,7 @@ from .transfers import (
 
 
 transaction_date_parameters = [
+    OpenApiParameter("search", str, description=SEARCH_DESCRIPTION),
     OpenApiParameter("date_field", str, enum=["date", "created_at", "updated_at"], description="Period date basis; timestamp days use Asia/Dhaka."),
     OpenApiParameter("month", str, description="YYYY-MM; excludes a custom range."),
     OpenApiParameter("start_date", OpenApiTypes.DATE, description="Inclusive start; requires end_date."),
@@ -119,20 +121,7 @@ class TransactionViewSet(ModelViewSet):
         if source:
             queryset = queryset.filter(source=source)
 
-        search = self.request.query_params.get("search")
-        if search:
-            queryset = queryset.filter(
-                Q(reference__icontains=search)
-                | Q(counterparty_text__icontains=search)
-                | Q(sender_account_identifier__icontains=search)
-                | Q(sender_card_identifier__icontains=search)
-                | Q(receiver_account_identifier__icontains=search)
-                | Q(receiver_card_identifier__icontains=search)
-                | Q(note__icontains=search)
-                | Q(external_key__icontains=search)
-                | Q(transfer_evidence__reference__icontains=search)
-                | Q(transfer_evidence__note__icontains=search)
-            ).distinct()
+        queryset = filter_transaction_search(queryset, self.request.query_params.get("search"), user=self.request.user)
 
         if self.action == "list":
             ordering = self.request.query_params.get("ordering", "-date")
