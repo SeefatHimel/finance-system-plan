@@ -4,6 +4,7 @@ import { useFeedbackMessage } from "@/components/toast-provider";
 
 import type React from "react";
 import Link from "next/link";
+import { SlidersHorizontal } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import {
@@ -46,6 +47,26 @@ const categoryKinds: CategoryKind[] = ["expense", "income", "transfer", "debt", 
 
 type SetupTab = "accounts" | "categories";
 type SetupDrawer = "account-create" | "account-edit" | "category-create" | "category-edit" | null;
+
+type AccountColumn = "type" | "currency" | "ledgerBalance" | "reportedBalance" | "status";
+
+const accountColumns: { id: AccountColumn; label: string }[] = [
+  { id: "type", label: "Type" },
+  { id: "currency", label: "Currency" },
+  { id: "ledgerBalance", label: "Ledger balance" },
+  { id: "reportedBalance", label: "Latest reported" },
+  { id: "status", label: "Status" }
+];
+const defaultAccountColumns = accountColumns.map((column) => column.id);
+const accountColumnsStorageKey = "finance.accounts.columns.v1";
+
+function persistAccountColumns(columns: AccountColumn[]) {
+  try {
+    window.localStorage.setItem(accountColumnsStorageKey, JSON.stringify(columns));
+  } catch {
+    // Column preferences are optional when browser storage is unavailable.
+  }
+}
 
 function sortByName<T extends { name: string }>(items: T[]) {
   return [...items].sort((left, right) => left.name.localeCompare(right.name));
@@ -102,6 +123,30 @@ export function SetupWorkspace() {
   const [accountStatusFilter, setAccountStatusFilter] = useState<"active" | "all" | "inactive">("all");
   const [categorySearch, setCategorySearch] = useState("");
   const [categoryKindFilter, setCategoryKindFilter] = useState<CategoryKind | "all">("all");
+
+  const [visibleAccountColumns, setVisibleAccountColumns] = useState<AccountColumn[]>(defaultAccountColumns);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(accountColumnsStorageKey);
+      if (!stored) return;
+      const parsed: unknown = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        const columns = accountColumns.filter((column) => parsed.includes(column.id)).map((column) => column.id);
+        if (parsed.length === 0 || columns.length > 0) setVisibleAccountColumns(columns);
+      }
+    } catch {
+      // Keep the default view if the saved preference cannot be read.
+    }
+  }, []);
+
+  function toggleAccountColumn(column: AccountColumn) {
+    const next = accountColumns.filter((item) => item.id === column
+      ? !visibleAccountColumns.includes(item.id)
+      : visibleAccountColumns.includes(item.id)).map((item) => item.id);
+    setVisibleAccountColumns(next);
+    persistAccountColumns(next);
+  }
 
   async function loadData() {
     const accessToken = getAccessToken();
@@ -409,7 +454,55 @@ export function SetupWorkspace() {
             setupState.accounts.length === 0 ? (
               <div className="empty-state empty-state--centered"><div className="empty-state__icon">▣</div><strong>No accounts yet</strong><span>Add your first account to start tracking money movement.</span><button className="button button--primary" onClick={() => { setAccountError(null); setAccountIdentity(emptyAccountIdentity()); setDrawer("account-create"); }} type="button">Add account</button></div>
             ) : (
-              <><div className="data-toolbar"><label className="search-control"><span aria-hidden="true">⌕</span><input aria-label="Search accounts" onChange={(event) => setAccountSearch(event.target.value)} placeholder="Search accounts" type="search" value={accountSearch} /></label><div className="data-toolbar__filters"><select aria-label="Filter accounts by type" className="compact-select" onChange={(event) => setAccountTypeFilter(event.target.value as AccountType | "all")} value={accountTypeFilter}><option value="all">All types</option>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select><select aria-label="Filter accounts by status" className="compact-select" onChange={(event) => setAccountStatusFilter(event.target.value as "active" | "all" | "inactive")} value={accountStatusFilter}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div></div>{visibleAccounts.length === 0 ? <div className="empty-state empty-state--centered empty-state--compact"><strong>No matching accounts</strong><span>Try a different search term or filter.</span><button className="button button--ghost" onClick={() => { setAccountSearch(""); setAccountTypeFilter("all"); setAccountStatusFilter("all"); }} type="button">Clear filters</button></div> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Name</th><th>Type</th><th>Currency</th><th>Ledger balance</th><th><span className="account-table-heading">Latest reported <HelpTooltip label="About reported balance differences">Compares the ledger at the report’s time with the reported balance. Red differences are review hints; later transactions are excluded. If timing is unclear, check the report first. Credit-card balances can represent available credit and stay references.</HelpTooltip></span></th><th>Status</th><th className="align-right">Actions</th></tr></thead><tbody>{visibleAccounts.map((account) => <tr key={account.id}><td><strong>{account.name}</strong>{account.identity?.is_active ? <small className="meta"> {account.identity.identifier || account.identity.additional_identifiers[0]?.value || "Aliases saved"}</small> : null}</td><td><span className="type-label">{account.type.replaceAll("_", " ")}</span></td><td>{account.currency}</td><td className="amount-cell">{formatAccountBalance(account, account.ledger_balance)}</td><td className="amount-cell"><LatestReportedBalance account={account} /></td><td><span className={`status-badge status-badge--${account.is_active ? "ok" : "inactive"}`}><span aria-hidden="true" className="status-badge__dot" />{account.is_active ? "Active" : "Inactive"}</span></td><td><div className="row-actions"><button className="button button--ghost button--small" onClick={() => handleSelectAccount(account.id)} type="button">Edit</button><button className="button button--danger button--small" disabled={deletingAccountId === account.id} onClick={() => void handleDeleteAccount(account)} type="button">{deletingAccountId === account.id ? "Deleting…" : "Delete"}</button></div></td></tr>)}</tbody></table></div>}</>
+              <>
+                <div className="data-toolbar account-table-toolbar">
+                  <label className="search-control"><span aria-hidden="true">⌕</span><input aria-label="Search accounts" onChange={(event) => setAccountSearch(event.target.value)} placeholder="Search accounts" type="search" value={accountSearch} /></label>
+                  <div className="data-toolbar__filters">
+                    <select aria-label="Filter accounts by type" className="compact-select" onChange={(event) => setAccountTypeFilter(event.target.value as AccountType | "all")} value={accountTypeFilter}><option value="all">All types</option>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select>
+                    <select aria-label="Filter accounts by status" className="compact-select" onChange={(event) => setAccountStatusFilter(event.target.value as "active" | "all" | "inactive")} value={accountStatusFilter}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+                    <details className="column-picker account-column-picker">
+                      <summary><SlidersHorizontal aria-hidden="true" size={17} />Columns <span>{visibleAccountColumns.length + 2}/{accountColumns.length + 2}</span></summary>
+                      <div className="column-picker__menu">
+                        <strong>Visible columns</strong>
+                        <label><input checked disabled type="checkbox" /><span>Name (always visible)</span></label>
+                        {accountColumns.map((column) => <label key={column.id}>
+                          <input checked={visibleAccountColumns.includes(column.id)} onChange={() => toggleAccountColumn(column.id)} type="checkbox" />
+                          <span>{column.label}</span>
+                        </label>)}
+                        <label><input checked disabled type="checkbox" /><span>Actions (always visible)</span></label>
+                        <button className="button button--ghost button--small" onClick={() => {
+                          setVisibleAccountColumns(defaultAccountColumns);
+                          persistAccountColumns(defaultAccountColumns);
+                        }} type="button">Show all</button>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+                {visibleAccounts.length === 0 ? <div className="empty-state empty-state--centered empty-state--compact"><strong>No matching accounts</strong><span>Try a different search term or filter.</span><button className="button button--ghost" onClick={() => { setAccountSearch(""); setAccountTypeFilter("all"); setAccountStatusFilter("all"); }} type="button">Clear filters</button></div> : (
+                  <div className="table-wrap">
+                    <table className="data-table account-data-table" style={{ minWidth: visibleAccountColumns.length ? `${320 + visibleAccountColumns.length * 130}px` : 0 }}>
+                      <thead><tr>
+                        <th>Name</th>
+                        {visibleAccountColumns.includes("type") ? <th>Type</th> : null}
+                        {visibleAccountColumns.includes("currency") ? <th>Currency</th> : null}
+                        {visibleAccountColumns.includes("ledgerBalance") ? <th>Ledger balance</th> : null}
+                        {visibleAccountColumns.includes("reportedBalance") ? <th><span className="account-table-heading">Latest reported <HelpTooltip label="About reported balance differences">Compares the ledger at the report’s time with the reported balance. Red differences are review hints; later transactions are excluded. If timing is unclear, check the report first. Credit-card balances can represent available credit and stay references.</HelpTooltip></span></th> : null}
+                        {visibleAccountColumns.includes("status") ? <th>Status</th> : null}
+                        <th className="align-right">Actions</th>
+                      </tr></thead>
+                      <tbody>{visibleAccounts.map((account) => <tr key={account.id}>
+                        <td><strong>{account.name}</strong>{account.identity?.is_active ? <small className="meta"> {account.identity.identifier || account.identity.additional_identifiers[0]?.value || "Aliases saved"}</small> : null}</td>
+                        {visibleAccountColumns.includes("type") ? <td><span className="type-label">{account.type.replaceAll("_", " ")}</span></td> : null}
+                        {visibleAccountColumns.includes("currency") ? <td>{account.currency}</td> : null}
+                        {visibleAccountColumns.includes("ledgerBalance") ? <td className="amount-cell">{formatAccountBalance(account, account.ledger_balance)}</td> : null}
+                        {visibleAccountColumns.includes("reportedBalance") ? <td className="amount-cell"><LatestReportedBalance account={account} /></td> : null}
+                        {visibleAccountColumns.includes("status") ? <td><span className={`status-badge status-badge--${account.is_active ? "ok" : "inactive"}`}><span aria-hidden="true" className="status-badge__dot" />{account.is_active ? "Active" : "Inactive"}</span></td> : null}
+                        <td><div className="row-actions"><button className="button button--ghost button--small" onClick={() => handleSelectAccount(account.id)} type="button">Edit</button><button className="button button--danger button--small" disabled={deletingAccountId === account.id} onClick={() => void handleDeleteAccount(account)} type="button">{deletingAccountId === account.id ? "Deleting…" : "Delete"}</button></div></td>
+                      </tr>)}</tbody>
+                    </table>
+                  </div>
+                )}
+              </>
             )
           ) : (
             setupState.categories.length === 0 ? (

@@ -778,3 +778,13 @@ and card balances stay references because available credit and ledger balances
 can have different meanings. Header help explains this without adding actions
 that change money. Active/Inactive badges are quiet, readable status text. Browser
 and Apple icons reuse the existing four-diamond Finance logo.
+
+### Can users choose which Accounts columns to show?
+
+Yes. The Columns menu uses the same checkbox pattern as Transactions and saves
+the selection locally in the browser. Type, currency, ledger balance, latest
+reported evidence, and status are optional; Name and Actions remain visible.
+All columns start visible and Show all resets the selection. The table narrows
+when columns are hidden. These preferences do not modify account data or filters
+and remain separate from transaction column preferences. Unavailable or malformed
+browser storage falls back to the default view.

@@ -2520,6 +2520,12 @@ textarea {
 .transaction-view-switch .button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .transaction-table-toolbar .section-subtitle { margin: 0; }
 .transaction-refresh-state { color: var(--accent); display: inline-flex; font-size: 12px; margin-top: 6px; }
+.account-table-toolbar { flex-wrap: wrap; }
+.account-table-toolbar .data-toolbar__filters { flex-wrap: wrap; }
+.account-column-picker .column-picker__menu { z-index: 10; }
+.account-column-picker label:has(input:disabled) { color: var(--muted); cursor: default; }
+.account-data-table td:first-child { white-space: normal; overflow-wrap: anywhere; }
+
 .column-picker { position: relative; }
 .column-picker summary { align-items: center; background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; color: var(--foreground); cursor: pointer; display: inline-flex; font-size: 13px; font-weight: 750; gap: 7px; list-style: none; min-height: 42px; padding: 0 13px; }
 .column-picker summary::-webkit-details-marker { display: none; }

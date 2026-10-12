@@ -876,3 +876,13 @@ account Active/Inactive labels include a small decorative dot and remain plain
 status text. The app's four-diamond SVG logo also supplies `app/favicon.ico` at
 16/32/48/64 pixels and an opaque 180-pixel `app/apple-icon.png`. Next.js file-based
 metadata serves all icon routes publicly, including the login page.
+
+## Account table columns
+
+Accounts has a Columns menu alongside search and filters. Type, Currency, Ledger
+balance, Latest reported, and Status can be hidden independently. Name and Actions
+stay visible so accounts can always be identified and edited. All columns are shown
+initially; Show all restores that view. Preferences are saved only in this browser
+under `finance.accounts.columns.v1`, separately from Transactions. Hiding columns
+does not change balances, records, or search/filter results. The table narrows as
+columns are hidden, with horizontal scrolling available on smaller screens.
