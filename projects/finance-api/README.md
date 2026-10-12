@@ -820,3 +820,34 @@ python manage.py makemigrations --check --dry-run
 Use a disposable test database. SQLite checks the request behavior; PostgreSQL
 is required to exercise row-lock concurrency. Quick Add is a manual-entry
 shortcut, not a recurring bill or an automatic posting rule.
+
+## Account-bound reported balances for transfers
+
+Transaction create/patch accepts `reported_balances`, a list of up to two
+`{account, balance_after}` entries for the transfer's owned From/To accounts.
+Omitted accounts preserve saved reports; explicit null clears the selected report.
+Amounts stay positive. Reported balances can be negative (for example an overdraft)
+and remain provider/manual observations, separate from the calculated ledger.
+Responses include both account balances and `balance_reporting_account`, identifying
+the owner of the primary legacy `balance_after` value.
+
+The implementation reuses `TransferEvidence`; no migration or second ledger entry
+is needed. Missing secondary manual reports get stable per-transaction/account
+keys, so repeated saves cannot create duplicate observations. Primary and secondary
+report edits are included in the existing transaction audit snapshots. Original SMS
+bodies and PDF extraction snapshots remain unchanged. Incoming non-transfer SMS
+converted to a transfer retains its report on the receiving account. Restoring a
+previously reclassified transfer restores its original reporting-account context.
+
+Reversing both endpoints preserves each account's balances and changes observation
+debit/credit directions. Replacing an account clears its old reported balance and
+fees before reassignment, while the unchanged account retains its own report.
+Existing linked-correction acknowledgement, user-level locks, ownership validation,
+matching and explicit posting/linking rules still apply. Legacy single-balance
+clients remain supported. Transfers remain excluded from income and expense totals.
+
+Targeted checks (from this project):
+
+```sh
+DATABASE_URL= .venv/bin/python manage.py test apps.transactions.test_account_reports apps.transactions.test_reported_balances apps.transactions.test_corrections apps.transactions.test_transfers --noinput
+```

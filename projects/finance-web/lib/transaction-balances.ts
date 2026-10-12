@@ -23,3 +23,25 @@ export function editableReportedBalance(record: BalanceRecord): string {
   // A receiving account's balance must never be substituted for the primary report.
   return record.transfer_evidence.find((item) => item.is_primary)?.balance_after ?? "";
 }
+
+export function accountBoundBalances(record: Omit<BalanceRecord, "transfer_evidence"> & {
+  account: string;
+  balance_reporting_account?: string | null;
+  reported_balances?: { account: string; balance_after: string | null }[];
+  transfer_evidence: Array<{ account: string; is_primary: boolean; balance_after: string | null }>;
+}): Record<string, string> {
+  if (record.type !== "transfer") return {
+    ...Object.fromEntries(record.transfer_evidence.map(item => [item.account, item.balance_after ?? ""])),
+    [record.account]: record.balance_after ?? ""
+  };
+  if (record.reported_balances?.length) return Object.fromEntries(record.reported_balances.map(item => [item.account, item.balance_after ?? ""]));
+  const balances = Object.fromEntries(record.transfer_evidence.map(item => [item.account, item.balance_after ?? ""]));
+  const primary = record.transfer_evidence.find(item => item.is_primary);
+  const account = record.balance_reporting_account || primary?.account || record.account;
+  balances[account] = editableReportedBalance(record);
+  return balances;
+}
+
+export function transferBalancePayload(from: string, to: string, balances: Record<string, string>) {
+  return [...new Set([from, to])].filter(Boolean).map(account => ({ account, balance_after: balances[account] || null }));
+}

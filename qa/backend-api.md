@@ -723,3 +723,19 @@ after edits or deletion, without reverting corrections. Reference ownership is
 checked for new writes; a replay remains recognizable after defaults change.
 Distinct UUIDs allow two genuinely separate equal purchases. Presets are owned
 CRUD records with active compatible defaults and shared ordering/favorite state.
+
+## How does one transfer retain both account balances?
+
+Optional account-bound `reported_balances` are stored as transfer observations,
+not additional ledger transactions. The serializer validates at most two owned
+endpoint accounts and rejects duplicate/unrelated accounts. Responses include
+`balance_reporting_account` identifying the primary report owner. Positive amounts
+and independent debit/credit account histories remain unchanged; negative reported
+balances are allowed. Missing secondary manual observations use stable keys.
+
+On reversal, account identity is preserved while evidence direction changes. When
+an endpoint is replaced, its old report/fee is cleared before reassignment; the
+unchanged account keeps its balance. Incoming SMS reclassification retains the
+receiving bank's balance. Original SMS/PDF evidence is unchanged, while corrections
+are captured in existing audit snapshots and user-locked atomic writes. Legacy
+single-balance inputs remain supported. No database migration is necessary.

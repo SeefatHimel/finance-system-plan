@@ -7,6 +7,11 @@ from apps.messages.identifiers import sanitize_financial_identifier
 from apps.messages.models import RawMessage
 from apps.payment_methods.models import PaymentMethod
 
+from .balance_reports import (
+    account_reports,
+    primary_transfer_evidence,
+    write_account_reports,
+)
 from .models import Transaction, TransferEvidence
 
 
@@ -28,25 +33,59 @@ class TransactionSourceMessageSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-def primary_transfer_evidence(record, evidence_items):
-    primary = next(
-        (
-            item
-            for item in evidence_items
-            if item.raw_message_id == record.raw_message_id
-        ),
-        None,
+class AccountReportedBalanceSerializer(serializers.Serializer):
+    account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none())
+    balance_after = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
     )
-    if record.raw_message_id is None and record.external_key:
-        return next(
-            (
-                item
-                for item in evidence_items
-                if item.external_key == record.external_key
-            ),
-            primary,
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            fields["account"].queryset = Account.objects.filter(
+                user=request.user, is_active=True
+            )
+        return fields
+
+
+@extend_schema_field(AccountReportedBalanceSerializer(many=True))
+class AccountReportedBalancesField(serializers.Field):
+    def get_attribute(self, instance):
+        return instance
+
+    def to_internal_value(self, data):
+        if not isinstance(data, list) or len(data) > 2:
+            raise serializers.ValidationError(
+                "Provide at most two account balance reports."
+            )
+        child = AccountReportedBalanceSerializer(
+            data=data, many=True, context=self.context
         )
-    return primary
+        child.is_valid(raise_exception=True)
+        return child.validated_data
+
+    def to_representation(self, record):
+        if record.type != Transaction.Type.TRANSFER:
+            return []
+        chosen, primary = account_reports(record)
+        return [
+            {
+                "account": str(account_id),
+                "balance_after": (
+                    str(chosen[account_id].balance_after)
+                    if account_id in chosen
+                    and chosen[account_id].balance_after is not None
+                    else str(record.balance_after)
+                    if not primary
+                    and not chosen
+                    and account_id == record.account_id
+                    and record.balance_after is not None
+                    else None
+                ),
+            }
+            for account_id in (record.account_id, record.transfer_account_id)
+        ]
 
 
 class TransferEvidenceSerializer(serializers.ModelSerializer):
@@ -78,10 +117,21 @@ class TransferEvidenceSerializer(serializers.ModelSerializer):
 
 
 class TransactionSerializer(serializers.ModelSerializer):
+    reported_balances = AccountReportedBalancesField(required=False)
+    balance_reporting_account = serializers.SerializerMethodField()
     allow_linked_correction = serializers.BooleanField(required=False, write_only=True)
     transfer_evidence = TransferEvidenceSerializer(many=True, read_only=True)
     account_direction = serializers.SerializerMethodField()
     statement_evidence_count = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.UUIDField())
+    def get_balance_reporting_account(self, record):
+        primary = (
+            primary_transfer_evidence(record, list(record.transfer_evidence.all()))
+            if record.type == Transaction.Type.TRANSFER
+            else None
+        )
+        return str(primary.account_id if primary else record.account_id)
 
     @extend_schema_field(serializers.IntegerField())
     def get_statement_evidence_count(self, instance):
@@ -128,6 +178,7 @@ class TransactionSerializer(serializers.ModelSerializer):
         return record
 
     def update(self, instance, validated_data):
+        reports = validated_data.pop("reported_balances", None)
         allow_linked_correction = validated_data.pop("allow_linked_correction", False)
         evidence_items = list(instance.transfer_evidence.all())
         core_changed = any(
@@ -166,6 +217,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             )
         primary_evidence = primary_transfer_evidence(instance, evidence_items)
         was_transfer = instance.type == Transaction.Type.TRANSFER
+        old_endpoint_ids = {instance.account_id, instance.transfer_account_id}
         old_reporting_account_id = (
             primary_evidence.account_id
             if was_transfer and primary_evidence
@@ -174,6 +226,15 @@ class TransactionSerializer(serializers.ModelSerializer):
         old_reported_balance = instance.balance_after
         if was_transfer and primary_evidence and old_reported_balance is None:
             old_reported_balance = primary_evidence.balance_after
+        if reports is not None and not was_transfer and primary_evidence:
+            # Restore the original report when returning to a transfer. The
+            # non-transfer scalar may have belonged to the other account.
+            old_reporting_account_id = primary_evidence.account_id
+            old_reported_balance = (
+                instance.balance_after
+                if instance.account_id == primary_evidence.account_id
+                else primary_evidence.balance_after
+            )
         primary_account = (
             validated_data.get("transfer_account", instance.transfer_account)
             if validated_data.get("type", instance.type) == Transaction.Type.TRANSFER
@@ -181,6 +242,22 @@ class TransactionSerializer(serializers.ModelSerializer):
             and primary_evidence.direction == "credit"
             else validated_data.get("account", instance.account)
         )
+        new_type = validated_data.get("type", instance.type)
+        new_from = validated_data.get("account", instance.account)
+        new_to = validated_data.get("transfer_account", instance.transfer_account)
+        # Swapping From/To changes debit/credit, not ownership of the report.
+        if new_type == Transaction.Type.TRANSFER and old_reporting_account_id in {
+            new_from.pk,
+            new_to.pk,
+        }:
+            if reports is not None or (
+                was_transfer
+                and instance.account_id == new_to.pk
+                and instance.transfer_account_id == new_from.pk
+            ):
+                primary_account = (
+                    new_from if old_reporting_account_id == new_from.pk else new_to
+                )
         reporting_account_changed = old_reporting_account_id != getattr(
             primary_account, "pk", None
         )
@@ -193,23 +270,80 @@ class TransactionSerializer(serializers.ModelSerializer):
             # Keep primary evidence usable when a transfer becomes a same-account
             # expense/income. Explicit null still means the user cleared the report.
             validated_data["balance_after"] = old_reported_balance
+        original_report = {
+            "account": primary_account,
+            "balance_after": validated_data.get("balance_after", old_reported_balance),
+            "raw_message": instance.raw_message,
+            "reference": instance.reference,
+            "date": instance.date,
+            "time": instance.time,
+            "source": instance.source,
+            "external_key": instance.external_key,
+            "note": instance.note,
+        }
         instance = super().update(instance, validated_data)
         if instance.type == Transaction.Type.TRANSFER:
+            endpoint_ids = {instance.account_id, instance.transfer_account_id}
+            preserve_accounts = reports is not None or old_endpoint_ids == endpoint_ids
+            retained_ids = {
+                item.account_id
+                for item in evidence_items
+                if item.account_id in endpoint_ids
+            }
             for evidence in evidence_items:
                 new_account_id = (
                     instance.transfer_account_id
                     if evidence.direction == "credit"
                     else instance.account_id
                 )
+                if preserve_accounts and evidence.account_id in {
+                    instance.account_id,
+                    instance.transfer_account_id,
+                }:
+                    new_account_id = evidence.account_id
+                    evidence.direction = (
+                        "credit"
+                        if new_account_id == instance.transfer_account_id
+                        else "debit"
+                    )
+                elif preserve_accounts and new_account_id in retained_ids:
+                    new_account_id = next(
+                        pk for pk in endpoint_ids if pk not in retained_ids
+                    )
                 if new_account_id != evidence.account_id:
                     evidence.account_id = new_account_id
                     evidence.balance_after = None
                     evidence.fee_amount = None
+                evidence.direction = (
+                    "credit"
+                    if new_account_id == instance.transfer_account_id
+                    else "debit"
+                )
                 if primary_evidence and evidence.pk == primary_evidence.pk:
                     for field in ("balance_after", "reference", "date", "time", "note"):
                         if field in validated_data:
                             setattr(evidence, field, getattr(instance, field))
                 evidence.save()
+            if reports is not None:
+                if not primary_evidence:
+                    from .transfers import add_transfer_evidence
+
+                    if (
+                        original_report["raw_message"]
+                        and TransferEvidence.objects.filter(
+                            raw_message=original_report["raw_message"]
+                        ).exists()
+                    ):
+                        raise serializers.ValidationError(
+                            {
+                                "raw_message": "This SMS is already linked to a transfer. Review and merge or link the existing movement instead."
+                            }
+                        )
+                    add_transfer_evidence(instance, original_report)
+                getattr(instance, "_prefetched_objects_cache", {}).pop(
+                    "transfer_evidence", None
+                )
+                write_account_reports(instance, reports)
         # Keep observations as provenance when a transfer is reclassified.
         # Reporting only consumes them while this entry remains a transfer.
         getattr(instance, "_prefetched_objects_cache", {}).pop(
@@ -236,6 +370,8 @@ class TransactionSerializer(serializers.ModelSerializer):
             "direction",
             "amount",
             "balance_after",
+            "reported_balances",
+            "balance_reporting_account",
             "sender_account_identifier",
             "sender_card_identifier",
             "receiver_account_identifier",
@@ -323,6 +459,25 @@ class TransactionSerializer(serializers.ModelSerializer):
             )
 
         account = attrs.get("account", getattr(self.instance, "account", None))
+        reports = attrs.get("reported_balances")
+        if reports is not None:
+            if transaction_type != Transaction.Type.TRANSFER:
+                raise serializers.ValidationError(
+                    {
+                        "reported_balances": "Account-specific balances are only available for transfers."
+                    }
+                )
+            ids = [item["account"].pk for item in reports]
+            if (
+                len(ids) > 2
+                or len(ids) != len(set(ids))
+                or any(pk not in {account.pk, transfer_account.pk} for pk in ids)
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "reported_balances": "Report each From/To account at most once; other accounts are not part of this transfer."
+                    }
+                )
         if account and transfer_account and account.id == transfer_account.id:
             raise serializers.ValidationError(
                 {

@@ -710,3 +710,18 @@ the per-candidate direction draft and hidden form input without submitting or
 resetting other edits, accounts, Type or Category. Incoming SMS still defaults
 to Credit for the receiving account. Existing classification defaults and explicit
 confirmation/match decisions remain unchanged; busy confirmation disables the button.
+
+## Why are there two reported balance fields for a transfer?
+
+Each tracked account can report a different balance after the same movement.
+Add/Edit shows one optional field per account, explicitly labelled sending/debit
+or receiving/credit. Drafts use account IDs rather than From/To position, so reversal
+preserves their values. Incoming entries converted to transfers keep the reporting
+bank in To and ask for From. Unknown balances stay blank; zero and negative reported
+balances remain valid, while the transfer amount remains positive.
+
+The editor loads both reports after saving/reopening and retains original SMS/PDF
+source evidence. Both fields belong to one canonical transfer; matching/linking is
+still explicit. All-account lists show a neutral transfer amount and internal
+movement label; an account filter shows its debit or credit. Transfers do not count
+as income or expense. Linked correction confirmation still applies where required.

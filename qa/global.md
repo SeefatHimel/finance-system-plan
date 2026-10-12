@@ -325,3 +325,11 @@ Users control favorites, ordering and enabled state; selecting a shortcut opens
 an editable draft and Save is always required. Presets are reusable defaults,
 not recurring transactions or automation rules. Compact entries become ordinary
 ledger records, so balances, reports and audit history stay consistent.
+
+### Does an incoming internal transfer count as income or expense?
+
+Neither. One positive-amount transfer debits From and credits To once. A receiving
+bank can provide its SMS and balance even though the money came from the other
+account. Each side can have an optional reported balance; those observations do
+not move money or change overall income/spending. Direction corrections preserve
+balance ownership, while original source evidence remains available for review.

@@ -429,3 +429,13 @@ Clients freeze retries rather than recomputing Now or assigning a new ID after
 an uncertain response. Generated types describe the API; portable `quick-add.ts`
 helpers share client validation and preset-copy behavior. The API remains the
 validation and ledger authority.
+
+## How are transfer balances separated from transfer direction?
+
+`reported_balances` is a bounded list of owned endpoint account IDs and nullable
+balances. `balance_reporting_account` identifies the primary legacy report owner.
+From/To determine debit/credit and the positive amount, rather than reporting-account
+position. Swapping endpoints preserves account-bound balances. A second report is
+an observation of the same transfer, not another ledger record. Unknown values are
+null, and negative reported balances are valid. Non-transfer/unrelated/duplicate
+account reports return validation errors; legacy scalar inputs remain supported.

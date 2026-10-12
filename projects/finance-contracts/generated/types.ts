@@ -726,7 +726,14 @@ export interface TransferMergeRequest {
   transaction: string;
 }
 
+export interface AccountReportedBalance {
+  account: string;
+  balance_after: string | null;
+}
+
 export interface Transaction {
+  reported_balances?: AccountReportedBalance[];
+  balance_reporting_account?: string;
   statement_evidence_count?: number;
   transfer_evidence: TransferEvidence[];
   account_direction: TransactionDirection;
@@ -766,6 +773,7 @@ export interface TransactionSourceMessage {
 }
 
 export interface TransactionCreateRequest {
+  reported_balances?: AccountReportedBalance[];
   account: string;
   transfer_account?: string | null;
   category?: string | null;
@@ -790,6 +798,7 @@ export interface TransactionCreateRequest {
 }
 
 export interface TransactionPatchRequest {
+  reported_balances?: AccountReportedBalance[];
   allow_linked_correction?: boolean;
   account?: string;
   transfer_account?: string | null;

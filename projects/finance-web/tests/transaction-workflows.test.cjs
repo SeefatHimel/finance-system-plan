@@ -8,7 +8,7 @@ const output = mkdtempSync(join(tmpdir(), 'finance-workflows-test-'));
 execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--rootDir', '..', '--outDir', output, 'lib/api-errors.ts', 'lib/category-type.ts', 'lib/transaction-balances.ts', 'lib/latest-request.ts', '../finance-contracts/transfer-comparison.ts'], { cwd: resolve(__dirname, '..') });
 const { responseError, fetchWithConnectionError } = require(join(output, 'finance-web/lib/api-errors.js'));
 const { LatestRequest } = require(join(output, 'finance-web/lib/latest-request.js'));
-const { editableReportedBalance, balanceAfterAccountChange, balanceReportingAccount } = require(join(output, 'finance-web/lib/transaction-balances.js'));
+const { editableReportedBalance, balanceAfterAccountChange, balanceReportingAccount, accountBoundBalances, transferBalancePayload } = require(join(output, 'finance-web/lib/transaction-balances.js'));
 const { categoryTypeProposal, directionForType } = require(join(output, 'finance-web/lib/category-type.js'));
 const { transferComparison } = require(join(output, 'finance-contracts/transfer-comparison.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
@@ -94,6 +94,18 @@ test('reported balance follows its account across classification and transfer co
   assert.equal(balanceAfterAccountChange('3000.00', account(outgoing, 'credit'), account({...outgoing, account: 'C'}, 'credit')), '3000.00');
   assert.equal(balanceAfterAccountChange('3000.00', account(outgoing, 'credit'), account({...outgoing, transfer_account: 'C'}, 'credit')), '');
   assert.equal(balanceAfterAccountChange('3000.00', account(outgoing, 'credit'), account({...outgoing, type:'income', account:'B'}, 'credit')), '3000.00');
+});
+
+test('transfer fields bind both balances to accounts across reversals and preserve receiving reports', () => {
+  const record = { type: 'transfer', account: 'A', balance_after: '3000.00', transfer_evidence: [
+    {account:'A', is_primary:false, balance_after:'9000.00'}, {account:'B', is_primary:true, balance_after:'3000.00'}
+  ] };
+  const balances = accountBoundBalances(record);
+  assert.deepEqual(balances, {A:'9000.00', B:'3000.00'});
+  assert.deepEqual(transferBalancePayload('B','A',balances), [{account:'B',balance_after:'3000.00'},{account:'A',balance_after:'9000.00'}]);
+  assert.deepEqual(transferBalancePayload('C','B',balances), [{account:'C',balance_after:null},{account:'B',balance_after:'3000.00'}]);
+  assert.deepEqual(accountBoundBalances({...record, reported_balances:[{account:'A',balance_after:null},{account:'B',balance_after:'0.00'}]}), {A:'',B:'0.00'});
+  assert.deepEqual(accountBoundBalances({...record,type:'income',account:'B'}), {A:'9000.00',B:'3000.00'});
 });
 
 test('rapid navigation debounces to the last choice and cancel removes queued work', (t) => {

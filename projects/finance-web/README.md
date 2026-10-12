@@ -753,3 +753,28 @@ web client does not have a durable offline queue.
 Checks: `npm run test:quick-add`, `npm run test:auth`, `npm run test:workflows`,
 `npm run test:dates`, `npm run typecheck`, and `npm run build`. Browser QA uses
 synthetic data, including a lost success response followed by reload and retry.
+
+## Transfer direction and reported balance fields
+
+Add/Edit transaction shows two optional account-labelled balance fields for a
+transfer. Values are keyed by account ID, so reversing From/To preserves each
+account's reported balance. Blank means unknown; zero and negative provider
+balances are valid. The amount itself remains positive. Incoming income/refund
+entries converted to transfers place the reporting account in To and ask the user
+to select From. The receiving bank's SMS balance remains on that bank. Reopening
+loads both saved reports; leaving a transfer selects the sending/receiving account
+according to the chosen non-transfer type and keeps that account's balance.
+
+Manual Add retains its reporting-account Debit/Credit perspective and labels each
+balance as sending or receiving. Both reports are saved on one canonical transfer,
+and existing matching/linking decisions remain explicit. All-account transaction
+lists show internal transfers with a neutral unsigned amount; filtering a single
+account shows its debit/credit sign. Transfers count as neither income nor expense.
+Original SMS and statement evidence remains available in the editor. Existing
+linked correction confirmation still applies when its accounts/type/amount change.
+
+Verified with workflow tests, typecheck/lint/build and synthetic Playwright flows
+for incoming conversion, reverse/reload, both balances, manual Add and mobile fit.
+
+Deploy the updated API before this web workflow; both editable balances require
+the account-bound report API. No database migration is needed for this change.

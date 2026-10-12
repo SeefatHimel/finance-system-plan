@@ -226,6 +226,8 @@ const transferMatchSchema = z.object({
 export type { TransferMatch } from "../../finance-contracts/generated/types";
 
 const transactionSchema = z.object({
+  balance_reporting_account: z.string().nullable().optional(),
+  reported_balances: z.array(z.object({ account: z.string(), balance_after: z.string().nullable() })).optional(),
   created_at: z.string(),
   updated_at: z.string(),
   account_direction: z.string(),
@@ -443,6 +445,7 @@ export type AccountReconciliation = z.infer<typeof accountReconciliationSchema>;
 export type AuditLogEntry = z.infer<typeof auditLogEntrySchema>;
 
 export type CreateTransactionInput = {
+  reported_balances?: { account: string; balance_after: string | null }[];
   account: string;
   amount: string;
   balance_after?: string | null;
@@ -490,6 +493,7 @@ export type UpdateSenderRuleInput = SenderRulePatchRequest;
 export type ConfirmMessageCandidateInput = ParsedMessageConfirmRequest;
 
 export type UpdateTransactionInput = {
+  reported_balances?: { account: string; balance_after: string | null }[];
   allow_linked_correction?: boolean;
   account?: string;
   amount?: string;
@@ -1128,6 +1132,7 @@ export async function createTransaction(
   const response = await authenticatedFetch("/api/transactions/", accessToken, {
     body: JSON.stringify({
       ...input,
+      ...(input.reported_balances ? { reported_balances: input.reported_balances.map(item => ({ ...item, balance_after: optionalFinancialNumber(item.balance_after, "reported balance") })) } : {}),
       amount: financialNumber(input.amount, "amount"),
       balance_after: optionalFinancialNumber(input.balance_after, "balance after"),
       source: input.source ?? "web"
@@ -1155,6 +1160,7 @@ export async function updateTransaction(
   const response = await authenticatedFetch(`/api/transactions/${id}/`, accessToken, {
     body: JSON.stringify({
       ...input,
+      ...(input.reported_balances ? { reported_balances: input.reported_balances.map(item => ({ ...item, balance_after: optionalFinancialNumber(item.balance_after, "reported balance") })) } : {}),
       ...(input.amount !== undefined ? { amount: financialNumber(input.amount, "amount") } : {}),
       ...(input.balance_after !== undefined
         ? { balance_after: optionalFinancialNumber(input.balance_after, "balance after") }
@@ -1424,6 +1430,7 @@ function transferMatchBody(input: TransferMatchInput) {
     ...input,
     ...(draft ? { draft: {
       ...draft,
+      ...("reported_balances" in draft && draft.reported_balances ? { reported_balances: draft.reported_balances.map(item => ({ ...item, balance_after: optionalFinancialNumber(item.balance_after, "reported balance") })) } : {}),
       ...(draft.amount !== undefined ? { amount: financialNumber(draft.amount, "amount") } : {}),
       ...(draft.balance_after !== undefined ? { balance_after: optionalFinancialNumber(draft.balance_after, "balance after") } : {})
     } } : {})

@@ -4365,11 +4365,27 @@ components:
           type: string
           format: uuid
           description: The duplicate posted transfer to merge into the transfer in the URL.
+    AccountReportedBalance:
+      type: object
+      required: [account, balance_after]
+      properties:
+        account: {type: string, format: uuid}
+        balance_after: {type: string, nullable: true, description: Provider/manual reported balance for this account; negative balances are allowed.}
     Transaction:
       type: object
       required:
         [id, account, transfer_account, category, payment_method, raw_message, date, time, type, direction, amount, balance_after, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, reference, counterparty_text, external_key, note, source, needs_review, created_at, updated_at, transfer_evidence, account_direction]
       properties:
+        reported_balances:
+          type: array
+          maxItems: 2
+          description: Account-bound balance reports for transfers. Omitted accounts preserve their reports; explicit null clears the selected report. Values never create another money movement.
+          items: {$ref: '#/components/schemas/AccountReportedBalance'}
+        balance_reporting_account:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Account owning the primary reported balance, independent of the canonical sending account.
         statement_evidence_count:
           type: integer
           minimum: 0
@@ -4484,6 +4500,11 @@ components:
       type: object
       required: [account, date, type, amount]
       properties:
+        reported_balances:
+          type: array
+          maxItems: 2
+          description: Account-bound balance reports for transfers. Omitted accounts preserve their reports; explicit null clears the selected report. Values never create another money movement.
+          items: {$ref: '#/components/schemas/AccountReportedBalance'}
         account:
           type: string
           format: uuid
@@ -4552,6 +4573,11 @@ components:
     TransactionPatchRequest:
       type: object
       properties:
+        reported_balances:
+          type: array
+          maxItems: 2
+          description: Account-bound balance reports for transfers. Omitted accounts preserve their reports; explicit null clears the selected report. Values never create another money movement.
+          items: {$ref: '#/components/schemas/AccountReportedBalance'}
         allow_linked_correction:
           type: boolean
           default: false

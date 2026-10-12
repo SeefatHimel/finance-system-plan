@@ -455,3 +455,19 @@ transfer drafts. It resolves account names and displays credit drafts in the
 same sender-to-receiver order as API match summaries, preserving edited amount,
 date/time, reference and descriptive fields. It does not change payloads, match
 eligibility or ledger behavior; no API schema change is required.
+
+### Account-specific transfer balance reports
+
+`Transaction`, `TransactionCreateRequest` and `TransactionPatchRequest` add
+`reported_balances` with at most two `AccountReportedBalance` objects. Every object
+requires an owned From/To account and a nullable decimal balance; duplicates,
+unrelated/foreign accounts and use on non-transfers return 400. Omitted accounts
+preserve their report, null clears the selected report, and negative reported
+balances are allowed. Transfer amounts still must be positive.
+
+Responses add read-only `balance_reporting_account` for the primary legacy scalar
+balance. Transfer endpoints are canonical From/To, independently of which account
+reported the SMS. Reversal preserves report ownership, and adding/editing a second
+report never creates a second transaction. Existing fields and manual Credit-create
+normalization remain compatible. No database migration is required. Regenerate
+TypeScript interfaces with `python scripts/generate_ts_client.py`.

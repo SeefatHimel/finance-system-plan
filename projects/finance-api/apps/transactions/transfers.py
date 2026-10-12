@@ -30,7 +30,13 @@ def lock_transfer_user(user):
 
 def manual_transfer_data(data):
     data = dict(data)
+    reports = data.pop("reported_balances", None)
     observation = dict(data)
+    if reports is not None:
+        observation["reported_balances"] = reports
+        own_report = next((item for item in reports if item["account"] == data["account"]), None)
+        if own_report:
+            observation["balance_after"] = data["balance_after"] = own_report["balance_after"]
     if data.get("type") != Transaction.Type.TRANSFER:
         raise ValidationError({"type": "Only transfers can be matched."})
     if data.get("direction") == Transaction.Direction.CREDIT:
@@ -387,6 +393,9 @@ def add_transfer_evidence(record, observation, candidate=None):
     )
     # New evidence changes the ledger record; retries that reuse evidence do not.
     record.save(update_fields=("updated_at",))
+    if "reported_balances" in observation:
+        from .balance_reports import write_account_reports
+        write_account_reports(record, observation["reported_balances"])
     return evidence
 
 
