@@ -79,8 +79,9 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.4**, Android version code **5**. It adds a shared native SMS upload queue, migration of pending app records,
-per-message progress, bounded API requests, safe system insets and wrapping text.
+The current release is **0.1.5**, Android version code **6**. It adds shared
+Quick Add presets, compact manual entries, an encrypted pending-entry queue and
+native date/time selection, alongside the existing SMS queue and layout fixes.
 
 ## 5. Build the signed APK
 
@@ -103,7 +104,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.4.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.5.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -180,3 +181,14 @@ below the Android notification bar and the privacy card at default and enlarged
 font sizes. Verify one rejected sender cannot block other messages, retry after a
 network interruption, and check progress after reopening the app. Use synthetic
 messages for repeatable tests and keep private SMS out of screenshots/logs.
+
+For the 0.1.5 upgrade smoke test, verify Quick Add from the header, Home, Activity
+and More. Create a synthetic preset, change its defaults for one entry and Save.
+Check Android clock hour/minute selection and exact input, Today/Yesterday,
+unknown time, keyboard layout and the visible Save footer. Save offline, reopen
+and reconnect; verify the pending entry syncs once and the notification changes
+from device save to ledger sync. Check two equal purchases stay separate. The
+backend must have `quick_add.0001_initial` applied before using these endpoints.
+The native picker is autolinked from the installed dependency; preserve the
+tracked Android SMS/signing configuration instead of regenerating it with
+`expo prebuild --clean`.

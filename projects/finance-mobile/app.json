@@ -2,7 +2,7 @@
   "expo": {
     "name": "Finance Mobile",
     "slug": "finance-mobile",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "assetBundlePatterns": [
@@ -11,7 +11,7 @@
     "android": {
       "allowBackup": false,
       "package": "com.personalfinance.mobile",
-      "versionCode": 5,
+      "versionCode": 6,
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"
