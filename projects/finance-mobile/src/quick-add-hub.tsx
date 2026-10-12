@@ -5,6 +5,7 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  type RefObject,
 } from "react";
 import {
   Alert,
@@ -114,6 +115,19 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
       propsRef = useRef(props);
     propsRef.current = props;
     const insets = useSafeAreaInsets();
+    const primaryInput = useRef<TextInput>(null);
+    const [modalShown, setModalShown] = useState(false);
+    useEffect(() => {
+      if (surface === null) {
+        setModalShown(false);
+        return;
+      }
+      if (!modalShown || (surface !== "entry" && surface !== "preset")) return;
+      // Android's dialog must own window focus before requesting the IME.
+      // Also focus when switching from the manager to its editor in the same dialog.
+      const frame = requestAnimationFrame(() => primaryInput.current?.focus());
+      return () => cancelAnimationFrame(frame);
+    }, [modalShown, surface]);
     const queueKey = `finance.quick.queue.${scope ?? "none"}`,
       cacheKey = `finance.quick.cache.${scope ?? "none"}`;
     useEffect(() => {
@@ -477,12 +491,15 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
           visible={surface !== null}
           transparent
           animationType="slide"
+          onShow={() => setModalShown(true)}
           onRequestClose={() => {
             if (!busy) setSurface(null);
           }}
         >
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            // Android's native Modal already uses adjustResize; avoid resizing twice.
+            enabled={Platform.OS === "ios"}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
             style={[
               s.scrim,
               { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 8 },
@@ -510,6 +527,8 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
               <ScrollView
                 pointerEvents={busy ? "none" : "auto"}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="none"
+                removeClippedSubviews={false}
                 style={s.scroll}
                 contentContainerStyle={s.body}
               >
@@ -636,7 +655,7 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                       value={draft.amount}
                       onChange={(amount) => choose({ amount })}
                       numeric
-                      autoFocus
+                      inputRef={primaryInput}
                     />
                     <Choices
                       label="Account"
@@ -870,7 +889,7 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                       value={editing.input.name}
                       onChange={(name) => changePreset({ name })}
                       maxLength={120}
-                      autoFocus
+                      inputRef={primaryInput}
                     />
                     <View style={s.row}>
                       {["expense", "income"].map((type) => (
@@ -1076,14 +1095,14 @@ function Field({
   value,
   onChange,
   numeric,
-  autoFocus,
+  inputRef,
   maxLength,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   numeric?: boolean;
-  autoFocus?: boolean;
+  inputRef?: RefObject<TextInput | null>;
   maxLength?: number;
 }) {
   return (
@@ -1091,7 +1110,7 @@ function Field({
       <Text style={s.muted}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
-        autoFocus={autoFocus}
+        ref={inputRef}
         value={value}
         onChangeText={onChange}
         keyboardType={numeric ? "decimal-pad" : "default"}

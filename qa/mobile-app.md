@@ -438,6 +438,20 @@ Yesterday, native calendar/clock and exact text input make timestamps easy to
 correct. Android's native clock and iOS's spinner require the committed native
 picker dependency to be included in the next installed build.
 
+## How does Quick Add avoid losing keyboard focus in its popup?
+
+Mount-time autofocus can run before Android's dialog owns window focus. The form
+waits for `Modal.onShow`, then focuses its primary input on the next frame. Moving
+from an already visible manager into a preset editor also focuses once. Closing
+or switching away cancels pending focus; typing and background refreshes do not
+refocus or remount inputs. Android uses the native dialog's `adjustResize` instead
+of also shrinking a JavaScript KeyboardAvoidingView; iOS keeps padding avoidance.
+Scrolling retains the keyboard and mounted inputs. Component regressions cover
+focus timing, cancellation and retained preset/entry drafts, with native keyboard
+behavior requiring a physical-device check.
+Release 0.1.10 (Android code 11) packages this fix using the existing signing key;
+component checks and signed assembly passed, with the OnePlus keyboard check pending.
+
 ## Is the new Quick Add offline queue the same as the SMS or legacy manual queue?
 
 No. Quick Add uses encrypted chunked SecureStore documents scoped by backend

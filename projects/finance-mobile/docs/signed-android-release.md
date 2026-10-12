@@ -79,8 +79,9 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.9**, Android version code **10**. It fixes the
-0.1.8 sign-in failure caused by returning a native `SmsSession` through Expo.
+The current release is **0.1.10**, Android version code **11**. It fixes Quick Add
+popup focus timing and removes competing Android keyboard resizing. It retains
+0.1.9's fix for returning a native `SmsSession` through Expo during sign-in.
 Command-only session/scheduling methods now resolve without a result. It includes
 the recent transfer comparison layout, review date/time and Debit/Credit controls,
 account-labelled balance conflict choices, compact explanation icons and
@@ -110,7 +111,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.9.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.10.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -214,7 +215,7 @@ Share diagnostics must contain no message body, sender, user or credential.
 Test slow responses, rejected records and a temporarily failing first record
 with synthetic data. A failing record must not block valid later records.
 
-Release 0.1.8 is superseded because its sign-in bridge failed. Use 0.1.9 with
+Release 0.1.8 is superseded because its sign-in bridge failed. Use 0.1.10 with
 the same signing key. Verify transfer comparison
 scrolling and fixed actions, local review date/time, direction changes retaining
 edited fields, required same-account balance choices, tap-to-open help, and
@@ -241,3 +242,22 @@ All 23 native tests passed, including the three bridge conversion regressions.
 The release signature matches the previous APK, Android code is 10, and the
 embedded JavaScript and MaterialCommunityIcons font are present. Physical-device
 sign-in and SMS smoke tests remain unverified.
+
+For 0.1.10 (Android code 11), install over the existing app using the same signing
+key. In More > Quick Add presets, create and edit a preset: type in its name,
+default amount, merchant and note; switch fields and scroll with the keyboard
+open. Repeat through the header plus button for a Quick Add transaction. Verify
+that the keyboard stays usable, the focused field remains visible, and returning
+from the background preserves the draft. Wait for a reference refresh while
+typing. Save/Cancel must remain reachable on a small screen. These checks need a
+physical device, particularly the reported OnePlus 12R / Android 16.
+
+Run `npm run test:quick-add-focus` alongside the existing mobile checks before
+assembly. Its component tests cover native-window focus timing, manager/editor
+transitions, cancellation and retained drafts; mocked native views do not verify
+an Android IME.
+
+The 0.1.10 build passed typecheck, 23 JavaScript tests, 23 native tests and signed
+assembly. Package metadata is 0.1.10/code 11, the signing certificate matches
+0.1.9, and the embedded JavaScript and exact icon font were verified. Device
+keyboard checks remain pending.

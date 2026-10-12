@@ -1,6 +1,6 @@
 {
   "name": "finance-mobile",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "main": "expo/AppEntry",
   "scripts": {
@@ -11,6 +11,7 @@
     "ios": "expo run:ios",
     "test:network": "node --test tests/bounded-fetch.test.cjs",
     "test:quick-add": "node --test tests/quick-add.test.cjs",
+    "test:quick-add-focus": "node --test tests/quick-add-focus.test.cjs",
     "test:sms-sync": "node --test tests/sms-sync.test.cjs"
   },
   "dependencies": {
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
+    "react-test-renderer": "19.0.0",
     "typescript": "^5.7.0"
   }
 }

@@ -384,6 +384,13 @@ See all. A shortcut prefills a draft; only Save records it. Overrides do not edi
 the preset, and applying another preset retains typed amount/note/merchant.
 Full entry carries the draft into the existing detailed tools for advanced types.
 
+Quick Add waits for the native popup's `onShow` event before focusing Amount or
+Preset name, and focuses once when switching from the preset manager to an editor.
+Typing, reference refreshes and same-user token refreshes keep the input mounted
+without requesting focus again. Android lets the native dialog resize for the
+keyboard; iOS retains padding-based keyboard avoidance. The form keeps offscreen
+inputs attached and does not dismiss the keyboard when scrolling.
+
 Today/Now resolve when saving. Yesterday, native calendar, unknown time and a
 native hour/minute picker support backdated entries. Android uses the system
 clock, including exact-minute text input; iOS uses a spinner with Apply/Cancel.
@@ -416,7 +423,7 @@ review. Removing a pending device copy never deletes a ledger record, and a
 request with an uncertain outcome may already have posted. The legacy detailed
 manual queue is retained, not silently migrated into the new queue.
 
-Run `npm run typecheck`, `npm run test:quick-add`, `npm run test:network` and
+Run `npm run typecheck`, `npm run test:quick-add`, `npm run test:quick-add-focus`, `npm run test:network` and
 `npm run test:gestures`. Secure document tests use an injectable store; native
 picker, keyboard, modal and device storage behavior still need a physical-device
 check. The 0.1.5 signed build verifies bundling, signature and native module packaging.
@@ -529,3 +536,19 @@ mobile typecheck and signed release assembly passed. The packaged APK was checke
 for version 0.1.9/code 10, the same certificate as the previous APK, a bundled
 JavaScript runtime and the exact MaterialCommunityIcons font. No connected
 Android device or configured emulator was available for sign-in verification.
+
+### Quick Add keyboard fix in release 0.1.10
+
+Android code 11 waits for the native popup window before requesting input focus
+and uses Android's own keyboard resize instead of shrinking the form twice.
+Preset and transaction inputs stay mounted across typing and reference refreshes.
+The signed update keeps the existing signing key and the 0.1.9 sign-in bridge fix.
+After upgrading, test Create/Edit preset and Quick Add: type in several fields,
+scroll with the keyboard open, and confirm Save/Cancel remain reachable. Native
+keyboard behavior needs phone verification; component tests cover focus timing
+and draft preservation.
+
+Verification: mobile typecheck, all 23 JavaScript tests, all 23 native tests and
+signed release assembly passed. The APK reports 0.1.10/code 11, matches the
+previous signing certificate, and contains the JavaScript bundle and icon font.
+No Android device or emulator was connected for the keyboard check.

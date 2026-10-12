@@ -1,0 +1,172 @@
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const { readFileSync } = require("node:fs");
+const { resolve } = require("node:path");
+const ts = require("typescript");
+const React = require("react");
+const { act, create } = require("react-test-renderer");
+global.IS_REACT_ACT_ENVIRONMENT = true;
+
+function harness(os = "android") {
+  const frames = new Map();
+  let nextFrame = 0;
+  global.requestAnimationFrame = (callback) => {
+    frames.set(++nextFrame, callback);
+    return nextFrame;
+  };
+  global.cancelAnimationFrame = (id) => frames.delete(id);
+  const focused = [];
+  const preset = {
+    id: "preset-demo", name: "Lunch", type: "expense", account: "cash",
+    category: null, amount: null, note: "", counterparty_text: "",
+    is_enabled: true, is_favorite: true, display_order: 0, available: true,
+  };
+  let resume;
+  const api = {
+    listAccounts: async () => [{ id: "cash", name: "Cash", is_active: true }],
+    listCategories: async () => [],
+    listQuickPresets: async () => [preset],
+  };
+  const native = {
+    Alert: {},
+    AppState: { currentState: "active", addEventListener: (_event, callback) => {
+      resume = callback;
+      return { remove() {} };
+    } },
+    KeyboardAvoidingView: "KeyboardAvoidingView",
+    Modal: ({ visible, ...props }) => visible ? React.createElement("Modal", props) : null,
+    Platform: { OS: os },
+    Pressable: "Pressable", ScrollView: "ScrollView", Text: "Text",
+    TextInput: "TextInput", View: "View", StyleSheet: { create: (value) => value },
+  };
+  const cache = new Map();
+  function load(file) {
+    file = resolve(file);
+    if (cache.has(file)) return cache.get(file).exports;
+    const mod = { exports: {} };
+    cache.set(file, mod);
+    const code = ts.transpileModule(readFileSync(file, "utf8"), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021,
+        jsx: ts.JsxEmit.ReactJSX },
+    }).outputText;
+    new Function("module", "exports", "require", code)(mod, mod.exports, (name) => {
+      if (name === "react" || name === "react/jsx-runtime") return require(name);
+      if (name === "react-native") return native;
+      if (name === "react-native-safe-area-context") return { useSafeAreaInsets: () => ({ top: 24, bottom: 24 }) };
+      if (name === "expo-secure-store") return {
+        getItemAsync: async () => null, setItemAsync: async () => {}, deleteItemAsync: async () => {},
+      };
+      if (name === "./api") return api;
+      if (name === "./native-time-field") return { NativeDateField: "NativeDateField", NativeTimeField: "NativeTimeField" };
+      return load(resolve(file, "..", `${name}.ts`));
+    });
+    return mod.exports;
+  }
+  const { QuickAddHub } = load(resolve(__dirname, "../src/quick-add-hub.tsx"));
+  const ref = React.createRef();
+  const props = { ref, token: "synthetic-token", scope: "synthetic-scope", onFavorites() {},
+    onPendingCount() {}, onReferences() {}, onSaved() {}, onFullEntry() {} };
+  let tree;
+  return {
+    focused,
+    async mount() {
+      await act(async () => { tree = create(React.createElement(QuickAddHub, props), {
+        createNodeMock: (element) => element.type === "TextInput"
+          ? { focus: () => focused.push(element.props.accessibilityLabel) } : null,
+      }); });
+    },
+    async openEntry() { await act(async () => ref.current.open(preset.id)); },
+    async manage() { await act(async () => ref.current.manage()); },
+    async shown() { await act(async () => tree.root.findByType("Modal").props.onShow()); },
+    async flushFrames() { await act(async () => {
+      const pending = [...frames.values()]; frames.clear(); pending.forEach((callback) => callback());
+    }); },
+    input(label) { return tree.root.findAllByType("TextInput").find((node) => node.props.accessibilityLabel === label); },
+    keyboardView() { return tree.root.findByType("KeyboardAvoidingView"); },
+    async press(label) { await act(async () => {
+      const button = tree.root.findAllByType("Pressable").find((node) =>
+        node.props.accessibilityLabel === label || node.findAllByType("Text").some((text) => text.props.children === label));
+      assert.ok(button, `Missing button: ${label}`);
+      button.props.onPress();
+    }); },
+    async type(label, value) { await act(async () => this.input(label).props.onChangeText(value)); },
+    async refreshAndRerender() { await act(async () => {
+      resume("active");
+      tree.update(React.createElement(QuickAddHub, { ...props, token: "refreshed-same-user-token", onReferences() {} }));
+    }); },
+    async dispose() { await act(async () => tree.unmount()); },
+  };
+}
+
+test("Android entry waits for its native window, retains the focused input on updates, and cancels closed focus requests", async () => {
+  const h = harness();
+  await h.mount();
+  try {
+    await h.openEntry();
+    await h.flushFrames();
+    assert.deepEqual(h.focused, []);
+    assert.equal(h.input("Amount").props.autoFocus, undefined);
+    assert.equal(h.keyboardView().props.enabled, false);
+    assert.equal(h.keyboardView().props.behavior, undefined);
+    await h.shown();
+    await h.flushFrames();
+    assert.deepEqual(h.focused, ["Amount"]);
+    const input = h.input("Amount");
+    await h.type("Amount", "125.50");
+    await h.refreshAndRerender();
+    await h.flushFrames();
+    assert.equal(h.input("Amount"), input);
+    assert.equal(input.props.value, "125.50");
+    assert.deepEqual(h.focused, ["Amount"]);
+    await h.press("Close");
+    await h.openEntry();
+    await h.flushFrames();
+    assert.deepEqual(h.focused, ["Amount"]);
+    await h.shown();
+    await h.press("Close");
+    await h.flushFrames();
+    assert.deepEqual(h.focused, ["Amount"]);
+  } finally { await h.dispose(); }
+});
+
+test("preset editor focuses inside an already shown manager without losing typed settings on refresh", async () => {
+  const h = harness();
+  await h.mount();
+  try {
+    await h.manage();
+    await h.shown();
+    await h.press("Create preset");
+    await h.flushFrames();
+    assert.deepEqual(h.focused, ["Preset name"]);
+    const name = h.input("Preset name");
+    const note = h.input("Default note");
+    await h.type("Preset name", "Morning coffee");
+    await h.type("Default note", "Keep my draft");
+    await h.refreshAndRerender();
+    await h.flushFrames();
+    assert.equal(h.input("Preset name"), name);
+    assert.equal(h.input("Default note"), note);
+    assert.equal(name.props.value, "Morning coffee");
+    assert.equal(note.props.value, "Keep my draft");
+    assert.deepEqual(h.focused, ["Preset name"]);
+    await h.press("Cancel");
+    await h.press("Edit Lunch");
+    await h.flushFrames();
+    assert.deepEqual(h.focused, ["Preset name", "Preset name"]);
+  } finally { await h.dispose(); }
+});
+
+test("iOS retains padding-based keyboard avoidance and also waits until the modal is shown", async () => {
+  const h = harness("ios");
+  await h.mount();
+  try {
+    await h.openEntry();
+    assert.equal(h.keyboardView().props.enabled, true);
+    assert.equal(h.keyboardView().props.behavior, "padding");
+    await h.flushFrames();
+    assert.deepEqual(h.focused, []);
+    await h.shown();
+    await h.flushFrames();
+    assert.deepEqual(h.focused, ["Amount"]);
+  } finally { await h.dispose(); }
+});
