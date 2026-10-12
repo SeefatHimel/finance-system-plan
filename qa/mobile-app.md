@@ -512,3 +512,12 @@ The modal shows both entries' account-labelled reported balances. Same-account
 disagreements have explicit balance choices and a disabled link button until
 each conflict is resolved. The server validates the reviewed values again;
 a stale choice does not post. Keeping entries separate is always available.
+
+### How does mobile review handle three-digit account/card suffixes?
+
+It displays API-provided sender/receiver account and card/method choices, with no
+weak default selected. Buttons update the corresponding draft account using the
+current Debit/Credit direction and preserve other edits. Confirmation/linking is
+still explicit. Older APIs omit the optional list safely; longer saved identifiers
+remain useful without separate short mappings. A new mobile release is needed for
+the buttons; no APK was built during implementation.

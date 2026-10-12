@@ -2,7 +2,7 @@ import type { QuickPreset, PresetInput, QuickEntryInput } from "../../finance-co
 import { boundedFetch } from "./bounded-fetch";
 import { quickSessionScope } from "./secure-document";
 
-import type { TransferEvidence, TransferMatch } from "../../finance-contracts/generated/types";
+import type { IdentitySuggestion, TransferEvidence, TransferMatch } from "../../finance-contracts/generated/types";
 export type { TransferMatch } from "../../finance-contracts/generated/types";
 
 declare const process: {
@@ -166,6 +166,8 @@ export type RawMessage = {
 };
 
 export type ParsedMessageCandidate = {
+  identity_suggestions?: IdentitySuggestion[];
+  suggested_transfer_direction?: "" | "debit" | "credit";
   account: string | null;
   amount: string | null;
   balance_after: string | null;

@@ -482,3 +482,20 @@ so the API can reject stale decisions atomically. Original messages remain
 available and the transfer still counts once. Deploy the updated API before
 clients relying on `reported_balances` and `balance_choices`. Device rendering
 of this matching flow still requires Android validation.
+
+### Short account/card suffix suggestions
+
+SMS review displays review-only sender/receiver suggestions for three-digit
+suffixes, including saved account and card/method names. A longer saved identifier
+can match a shorter SMS ending without another mapping. Weak initial account and
+method defaults remain empty, even when there is a single match. Choose a
+suggestion or the ordinary account selector, then explicitly confirm/link.
+
+Suggestion buttons respect the draft Debit/Credit direction: the reporting choice
+sets account and payment method, while the other choice sets the transfer account.
+Other draft fields remain unchanged and no transaction is saved on a suggestion
+click. Missing suggestion fields from older APIs default to an empty list.
+One/two-digit identities are excluded; ownership/provider/kind scope and visible
+digit conflicts are enforced by the API. Re-run parsing for old pending messages
+whose shorter suffixes were discarded. This change requires a new mobile release
+to display the buttons; no APK was built as part of this implementation.

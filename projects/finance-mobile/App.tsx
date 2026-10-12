@@ -131,7 +131,9 @@ type ReviewCandidateDraft = {
   transactionType: string;
 };
 function isIncomingReview(candidate: ParsedMessageCandidate) {
-  return ["cash_in", "receive_money", "bank_transfer_in"].includes(candidate.message_kind);
+  return candidate.suggested_transfer_direction
+    ? candidate.suggested_transfer_direction === "credit"
+    : ["cash_in", "receive_money", "bank_transfer_in"].includes(candidate.message_kind);
 }
 
 type QueuedRawMessage = {
@@ -1387,20 +1389,26 @@ function FinanceApp() {
     }
   };
 
-  const buildReviewDraft = (candidate: ParsedMessageCandidate): ReviewCandidateDraft => ({
-    accountId: isIncomingReview(candidate) ? candidate.destination_account ?? candidate.account ?? "" : candidate.account ?? "",
-    direction: isIncomingReview(candidate) || ["income", "refund"].includes(candidate.transaction_type) ? "credit" : "debit",
-    amount: candidate.amount ?? "",
-    categoryId: candidate.category ?? "",
-    counterpartyText: candidate.counterparty_text,
-    date: candidate.raw_message.received_at.slice(0, 10),
-    note: "",
-    paymentMethodId: (isIncomingReview(candidate) && candidate.destination_account ? candidate.destination_payment_method : candidate.payment_method) ?? "",
-    reference: candidate.reference,
-    time: inputTimeFromTimestamp(candidate.raw_message.received_at),
-    transactionType: candidate.transaction_type,
-    transferAccountId: (isIncomingReview(candidate) ? candidate.destination_account ? candidate.account : null : candidate.destination_account) ?? ""
-  });
+  const buildReviewDraft = (candidate: ParsedMessageCandidate): ReviewCandidateDraft => {
+    const incoming = isIncomingReview(candidate);
+    const direction = candidate.suggested_transfer_direction || (incoming || ["income", "refund"].includes(candidate.transaction_type) ? "credit" : "debit");
+    const reportingRole = direction === "credit" ? "receiver" : "sender";
+    const weakRoles = new Set((candidate.identity_suggestions ?? []).map(hint => hint.role));
+    return {
+      accountId: weakRoles.has(reportingRole) ? "" : (incoming ? candidate.destination_account ?? candidate.account : candidate.account) ?? "",
+      direction,
+      amount: candidate.amount ?? "",
+      categoryId: candidate.category ?? "",
+      counterpartyText: candidate.counterparty_text,
+      date: candidate.raw_message.received_at.slice(0, 10),
+      note: "",
+      paymentMethodId: weakRoles.has(reportingRole) ? "" : (incoming && candidate.destination_account ? candidate.destination_payment_method : candidate.payment_method) ?? "",
+      reference: candidate.reference,
+      time: inputTimeFromTimestamp(candidate.raw_message.received_at),
+      transactionType: candidate.transaction_type,
+      transferAccountId: weakRoles.has(reportingRole === "receiver" ? "sender" : "receiver") ? "" : (incoming ? candidate.destination_account ? candidate.account : null : candidate.destination_account) ?? ""
+    };
+  };
 
   const getReviewDraft = (candidate: ParsedMessageCandidate): ReviewCandidateDraft =>
     reviewDrafts[candidate.id] ?? buildReviewDraft(candidate);
@@ -4403,6 +4411,23 @@ function FinanceApp() {
             </View>
             <Text style={styles.mobileRowMeta}>{draft.direction === "credit" ? "Money into" : "Money out of"} {accounts.find(account => account.id === draft.accountId)?.name ?? "the selected account"}</Text>
             <Text numberOfLines={3} style={styles.mobileSmsQuoteText}>{candidate.raw_message.body}</Text>
+            {(candidate.identity_suggestions ?? []).map(hint => {
+              const reporting = hint.role === (draft.direction === "credit" ? "receiver" : "sender");
+              if (!reporting && draft.transactionType !== "transfer") return null;
+              return <View key={hint.role} style={styles.mobileSmsQuote}>
+                <Text style={styles.mobileRowTitle}>Check {hint.role} account · {hint.observed_identifiers.join(" / ")}</Text>
+                <Text style={styles.mobileRowMeta}>{hint.reason}</Text>
+                {hint.choices.map(choice => <Pressable key={choice.payment_method} accessibilityRole="button"
+                  accessibilityState={{ selected: (reporting ? draft.accountId === choice.account && draft.paymentMethodId === choice.payment_method : draft.transferAccountId === choice.account), disabled: isWorking || (!reporting && draft.accountId === choice.account) }}
+                  disabled={isWorking || (!reporting && draft.accountId === choice.account)} style={styles.mobileSecondaryAction}
+                  onPress={() => updateReviewDraft(candidate, reporting
+                    ? { accountId: choice.account, paymentMethodId: choice.payment_method, transferAccountId: draft.transferAccountId === choice.account ? "" : draft.transferAccountId }
+                    : { transferAccountId: choice.account })}>
+                  <Text style={styles.mobileSecondaryActionText}>{(reporting ? draft.accountId === choice.account && draft.paymentMethodId === choice.payment_method : draft.transferAccountId === choice.account) ? "Selected · " : ""}{choice.name} · {choice.method_name}</Text>
+                </Pressable>)}
+                {!hint.choices.length ? <Text style={styles.mobileRowMeta}>No compatible saved identifier. Choose the account below after checking the SMS.</Text> : null}
+              </View>;
+            })}
 
             <View style={styles.mobileRangeRow}>
               <View style={styles.mobileRangeField}>
