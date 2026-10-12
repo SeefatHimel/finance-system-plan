@@ -1,7 +1,7 @@
 import { QuickAddHub, type QuickAddHandle } from "./src/quick-add-hub";
 import { quickSessionScope } from "./src/secure-document";
 import { NativeTimeField } from "./src/native-time-field";
-import { smsSyncPresentation } from "./src/sms-sync-presentation";
+import { smsSyncPresentation, smsSyncDiagnostics } from "./src/sms-sync-presentation";
 import { localDay, localTime, type QuickPreset, type QuickDraft } from "../finance-contracts/quick-add";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
@@ -19,6 +19,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -83,6 +84,8 @@ import {
   clearNativeSmsBackgroundSyncSession,
   clearCapturedSmsMessages,
   configureNativeSmsBackgroundSync,
+  initializeNativeSmsSession,
+  refreshNativeSmsSession,
   configureNativeSmsSenderRules,
   enqueueNativeSmsBackgroundSync,
   getCapturedSmsMessages,
@@ -887,6 +890,7 @@ function FinanceApp() {
   const [smsDevResetMessage, setSmsDevResetMessage] = useState("");
   const [smsBackgroundStatus, setSmsBackgroundStatus] = useState<NativeSmsBackgroundSyncStatus | null>(null);
   const [smsRetryRequested, setSmsRetryRequested] = useState(false);
+  const [showSmsDiagnostics, setShowSmsDiagnostics] = useState(false);
   const smsRetryInFlight = useRef(false);
   const [reviewState, setReviewState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [reviewMessage, setReviewMessage] = useState("");
@@ -1493,7 +1497,7 @@ function FinanceApp() {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.6",
+          app_version: "0.1.7",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1515,7 +1519,7 @@ function FinanceApp() {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.6",
+        app_version: "0.1.7",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1592,7 +1596,7 @@ function FinanceApp() {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.6",
+            app_version: "0.1.7",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1607,7 +1611,7 @@ function FinanceApp() {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.6",
+          app_version: "0.1.7",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -2350,6 +2354,19 @@ function FinanceApp() {
     setSmsBackgroundStatus(null);
   };
 
+  const recoverStoredSession = async (stored: { username: string; access: string; refresh: string }, rejectedAccess = stored.access) => {
+    if (isNativeSmsCaptureAvailable()) {
+      await configureNativeSmsBackgroundSync(getApiBaseUrl(), stored.access, stored.refresh, stored.username);
+      const result = await refreshNativeSmsSession(stored.username, rejectedAccess);
+      if (result) {
+        if (result.status === "auth") throw new AuthenticationError(result.message || "Session expired.");
+        if (result.status !== "ok" || !result.access || !result.refresh) throw new Error(result.message || "Session refresh did not complete.");
+        return { access: result.access, refresh: result.refresh };
+      }
+    }
+    return refreshLogin(stored.refresh);
+  };
+
   const handleLogin = async () => {
     setAuthState("loading");
     setAuthMessage("");
@@ -2373,6 +2390,7 @@ function FinanceApp() {
       } else if (hasQueuedSms) {
         await AsyncStorage.setItem(rawMessageQueueOwnerKey, nextUsername);
       }
+      await initializeNativeSmsSession(getApiBaseUrl(), tokens.access, tokens.refresh, nextUsername);
       await saveSession({ ...tokens, username: nextUsername });
       setAccessToken(tokens.access);
       setRefreshToken(tokens.refresh);
@@ -2762,7 +2780,7 @@ function FinanceApp() {
         } catch (error) {
           if (error instanceof AuthenticationError) {
             try {
-              const tokens = await refreshLogin(sessionToRestore.refresh);
+              const tokens = await recoverStoredSession(sessionToRestore);
               await saveSession({ ...tokens, username: storedSession.username });
               setAccessToken(tokens.access);
               setRefreshToken(tokens.refresh);
@@ -2883,7 +2901,7 @@ function FinanceApp() {
   }, [accessToken]);
 
   useEffect(() => {
-    configureAuthenticationRecovery(async () => {
+    configureAuthenticationRecovery(async (rejectedAccess) => {
       const storedSession = await loadSession();
       if (!storedSession) {
         return null;
@@ -2891,9 +2909,10 @@ function FinanceApp() {
 
       try {
         const nativeSession = await getNativeSmsBackgroundSyncSession();
-        const tokens = await refreshLogin(
-          nativeSession?.username === storedSession.username ? nativeSession.refresh : storedSession.refresh
-        );
+        const tokens = await recoverStoredSession(nativeSession?.username === storedSession.username
+          ? { ...storedSession, access: nativeSession.access, refresh: nativeSession.refresh }
+          : storedSession, rejectedAccess);
+        if ((await loadSession())?.username !== storedSession.username) throw new Error("The signed-in session changed.");
         await saveSession({ ...tokens, username: storedSession.username });
         setAccessToken(tokens.access);
         setRefreshToken(tokens.refresh);
@@ -2901,7 +2920,7 @@ function FinanceApp() {
         setAuthMessage("Session refreshed.");
         return tokens.access;
       } catch (error) {
-        if (error instanceof AuthenticationError) {
+        if (error instanceof AuthenticationError && (await loadSession())?.username === storedSession.username) {
           await clearSession();
           setAccessToken("");
           setRefreshToken("");
@@ -4715,14 +4734,15 @@ function FinanceApp() {
             {smsSync.message}
           </Text>
           <Text style={styles.mobileRowMeta}>
-            {pendingSmsCount} saved on device · {Math.max(0, pendingSmsCount - (smsBackgroundStatus?.rejectedCount ?? 0))} waiting to upload
+            {smsBackgroundStatus?.pendingCountKnown === false ? "Count unavailable" : `${smsBackgroundStatus?.queueReadable === false ? "Last known count: " : ""}${pendingSmsCount} saved on device · ${Math.max(0, pendingSmsCount - (smsBackgroundStatus?.rejectedCount ?? 0) - (smsBackgroundStatus?.delayedCount ?? 0))} waiting to upload`}
+            {smsBackgroundStatus?.delayedCount ? ` · ${smsBackgroundStatus.delayedCount} temporarily delayed` : ""}
             {smsBackgroundStatus?.rejectedCount ? ` · ${smsBackgroundStatus.rejectedCount} need correction` : ""}
           </Text>
           {smsBackgroundStatus?.nextAttemptAt && new Date(smsBackgroundStatus.nextAttemptAt).getTime() > Date.now() ? (
             <Text style={styles.mobileRowMeta}>Retry no earlier than {new Date(smsBackgroundStatus.nextAttemptAt).toLocaleTimeString()} · requires connectivity</Text>
           ) : null}
           {smsBackgroundStatus?.updatedAt ? (
-            <Text style={styles.mobileRowMeta}>Last update {formatMobileDate(smsBackgroundStatus.updatedAt)}</Text>
+            <Text style={styles.mobileRowMeta}>Last activity {new Date(smsBackgroundStatus.updatedAt).toLocaleString()}</Text>
           ) : null}
           <Pressable
             disabled={smsSync.running || smsRetryRequested}
@@ -4734,6 +4754,18 @@ function FinanceApp() {
               {smsRetryRequested ? "Requesting retry…" : smsSync.running ? "Uploading SMS…" : "Retry background sync"}
             </Text>
           </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setShowSmsDiagnostics(value => !value)} style={styles.mobileSecondaryAction}>
+            <Text style={styles.mobileSecondaryActionText}>{showSmsDiagnostics ? "Hide sync diagnostics" : "Show sync diagnostics"}</Text>
+          </Pressable>
+          {showSmsDiagnostics ? (
+            <View style={{ gap: 10 }}>
+              <Text style={styles.mobileRowMeta}>Includes sync counts, stage and error codes. SMS text and login tokens are excluded.</Text>
+              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.7", getApiBaseUrl())}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.7", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
+                <Text style={styles.mobileSecondaryActionText}>Share diagnostics</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.mobileSection}>
@@ -5524,7 +5556,7 @@ function FinanceApp() {
                 : state === "error" && !smsSync.running ? "Offline" : smsSync.label}
             </Text>
             <Text style={styles.mobileSyncMeta}>
-              {pendingSmsCount
+              {smsBackgroundStatus?.pendingCountKnown === false ? "Count unavailable" : pendingSmsCount
                 ? `${pendingSmsCount} queued`
                 : smsBackgroundStatus?.state === "running"
                   ? "SMS syncing"

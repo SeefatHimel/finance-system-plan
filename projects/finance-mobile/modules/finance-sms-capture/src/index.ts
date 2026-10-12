@@ -10,11 +10,19 @@ export type NativeSmsSenderRule = {
 
 export type NativeSmsBackgroundSyncStatus = {
   pendingCount?: number;
+  pendingCountKnown?: boolean;
   failureKind?: string;
   workerRunning?: boolean;
   retryScheduled?: boolean;
   retryAttempt?: number;
   nextAttemptAt?: string;
+  stage?: string;
+  httpCode?: number;
+  errorClass?: string;
+  queuedFailureCodes?: Record<string, number>;
+  delayedCount?: number;
+  configuredHost?: string;
+  queueReadable?: boolean;
   importedCount: number;
   message: string;
   rejectedCount: number;
@@ -43,6 +51,8 @@ export type NativeSmsScanOptions = {
 };
 
 type FinanceSmsCaptureModule = {
+  initializeBackgroundSyncSessionAsync?(apiBaseUrl: string, accessToken: string, refreshToken: string, username: string): Promise<void>;
+  refreshBackgroundSyncSessionAsync?(username: string, rejectedAccess: string): Promise<{status: "ok" | "auth" | "error"; access?: string; refresh?: string; message?: string}>;
   clearBackgroundSyncSessionAsync(): Promise<void>;
   clearCapturedMessagesAsync(ids: string[]): Promise<void>;
   configureBackgroundSyncAsync(
@@ -185,6 +195,14 @@ export async function configureNativeSmsBackgroundSync(
     return;
   }
   await module.configureBackgroundSyncAsync(apiBaseUrl, accessToken, refreshToken, username);
+}
+
+export async function initializeNativeSmsSession(apiBaseUrl: string, access: string, refresh: string, username: string) {
+  await getNativeModule()?.initializeBackgroundSyncSessionAsync?.(apiBaseUrl, access, refresh, username);
+}
+
+export async function refreshNativeSmsSession(username: string, rejectedAccess: string) {
+  return await getNativeModule()?.refreshBackgroundSyncSessionAsync?.(username, rejectedAccess) ?? null;
 }
 
 export async function clearNativeSmsBackgroundSyncSession() {

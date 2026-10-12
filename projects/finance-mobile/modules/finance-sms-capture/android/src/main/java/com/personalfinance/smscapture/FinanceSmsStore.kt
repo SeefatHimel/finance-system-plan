@@ -23,6 +23,7 @@ object FinanceSmsStore {
     DUPLICATE,
     UNTRACKED
   }
+  private data class QueueSnapshot(val pending: Int, val rejected: Int, val delayed: Int, val failures: Map<String, Int>)
 
   data class SenderRule(
     val id: String,
@@ -30,13 +31,6 @@ object FinanceSmsStore {
     val sender: String,
     val pattern: String,
     val isActive: Boolean
-  )
-
-  data class SyncSession(
-    val apiBaseUrl: String,
-    val accessToken: String,
-    val refreshToken: String,
-    val username: String
   )
 
   private data class InboxSenderSummary(
@@ -228,6 +222,7 @@ object FinanceSmsStore {
     for (index in 0 until messages.length()) {
       val item = messages.optJSONObject(index) ?: continue
       if (!includeRejected && item.optBoolean("rejected")) continue
+      if (!includeRejected && item.optLong("retryAt") > System.currentTimeMillis()) continue
       if (result.size >= boundedLimit) break
       result.add(
         mapOf(
@@ -245,11 +240,11 @@ object FinanceSmsStore {
   }
 
   @Synchronized
-  fun markRejected(context: Context, id: String) {
+  fun markRejected(context: Context, id: String, code: Int = 400) {
     val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
     for (index in 0 until messages.length()) {
       val item = messages.getJSONObject(index)
-      if (item.optString("id") == id) item.put("rejected", true)
+      if (item.optString("id") == id) item.put("rejected", true).put("httpCode", code)
     }
     writeEncryptedPreference(context, KEY_MESSAGES, messages.toString())
   }
@@ -257,12 +252,16 @@ object FinanceSmsStore {
   @Synchronized
   fun retryRejected(context: Context) {
     val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
-    for (index in 0 until messages.length()) messages.getJSONObject(index).remove("rejected")
+    for (index in 0 until messages.length()) {
+      messages.getJSONObject(index).remove("rejected")
+      messages.getJSONObject(index).remove("retryAt")
+    }
     writeEncryptedPreference(context, KEY_MESSAGES, messages.toString())
   }
 
   @Synchronized
-  fun acknowledgeMessage(context: Context, uploaded: Map<String, String>) {
+  fun acknowledgeMessage(context: Context, uploaded: Map<String, String>, owner: String? = null) {
+    if (owner != null && getSyncSession(context)?.username != owner) throw SmsSessionChanged()
     val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
     val remaining = JSONArray()
     for (index in 0 until messages.length()) {
@@ -323,6 +322,22 @@ object FinanceSmsStore {
     JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]")).length() +
       JSONArray(getSecureRawQueue(context)).length()
 
+  @Synchronized
+  fun postponeMessage(context: Context, id: String, code: Int, until: Long) {
+    val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
+    for (index in 0 until messages.length()) {
+      val item = messages.getJSONObject(index)
+      if (item.optString("id") == id) item.put("retryAt", until).put("httpCode", code)
+    }
+    writeEncryptedPreference(context, KEY_MESSAGES, messages.toString())
+  }
+
+  @Synchronized
+  fun retryableMessageCount(context: Context): Int {
+    val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
+    return (0 until messages.length()).count { !messages.getJSONObject(it).optBoolean("rejected") }
+  }
+
   fun configureSyncSession(
     context: Context,
     apiBaseUrl: String,
@@ -338,20 +353,20 @@ object FinanceSmsStore {
     writeEncryptedPreference(context, KEY_SYNC_SESSION, payload.toString())
   }
 
-  fun getSyncSession(context: Context): SyncSession? {
+  fun getSyncSession(context: Context): SmsSession? {
     val payload = readEncryptedPreference(context, KEY_SYNC_SESSION, "")
     if (payload.isBlank()) {
       return null
     }
-    val parsed = runCatching { JSONObject(payload) }.getOrNull() ?: return null
+    val parsed = try { JSONObject(payload) } catch (error: Exception) { throw SmsStorageException(error) }
     val apiBaseUrl = parsed.optString("apiBaseUrl").trimEnd('/')
     val accessToken = parsed.optString("accessToken")
     val refreshToken = parsed.optString("refreshToken")
     val username = parsed.optString("username")
     if (apiBaseUrl.isBlank() || accessToken.isBlank() || refreshToken.isBlank() || username.isBlank()) {
-      return null
+      throw SmsStorageException(IllegalStateException("Incomplete saved session"))
     }
-    return SyncSession(apiBaseUrl, accessToken, refreshToken, username)
+    return SmsSession(apiBaseUrl, accessToken, refreshToken, username)
   }
 
   fun clearSyncSession(context: Context) {
@@ -364,14 +379,24 @@ object FinanceSmsStore {
     message: String,
     importedCount: Int = 0,
     rejectedCount: Int = 0,
-    failureKind: String = ""
+    failureKind: String = "",
+    stage: String = "",
+    httpCode: Int = 0,
+    errorClass: String = ""
   ) {
+    val knownPending = runCatching { pendingMessageCount(context) }.getOrNull()
+    val previousStatus = runCatching { JSONObject(prefs(context).getString(KEY_SYNC_STATUS, "{}") ?: "{}") }.getOrElse { JSONObject() }
     val payload = JSONObject()
       .put("state", state)
       .put("message", message)
       .put("importedCount", importedCount)
       .put("rejectedCount", rejectedCount)
       .put("failureKind", failureKind)
+      .put("stage", stage)
+      .put("httpCode", httpCode)
+      .put("errorClass", errorClass)
+      .put("pendingCount", knownPending ?: previousStatus.optInt("pendingCount"))
+      .put("pendingCountKnown", knownPending != null || previousStatus.optBoolean("pendingCountKnown", previousStatus.has("pendingCount")))
       .put("updatedAt", isoFromMillis(System.currentTimeMillis()))
     prefs(context).edit().putString(KEY_SYNC_STATUS, payload.toString()).apply()
   }
@@ -381,21 +406,35 @@ object FinanceSmsStore {
     val payload = runCatching {
       JSONObject(prefs(context).getString(KEY_SYNC_STATUS, "{}") ?: "{}")
     }.getOrElse { JSONObject() }
-    val pending = pendingMessageCount(context)
+    val snapshot = runCatching {
+      val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
+      val legacyCount = JSONArray(getSecureRawQueue(context)).length()
+      QueueSnapshot(messages.length() + legacyCount,
+        (0 until messages.length()).count { messages.getJSONObject(it).optBoolean("rejected") },
+        (0 until messages.length()).count { messages.getJSONObject(it).optLong("retryAt") > System.currentTimeMillis() },
+        (0 until messages.length()).map { messages.getJSONObject(it).optInt("httpCode") }.filter { it >= 400 }.groupingBy { it.toString() }.eachCount())
+    }.getOrNull()
+    val pending = snapshot?.pending ?: payload.optInt("pendingCount")
     val storedState = payload.optString("state", "idle")
     val waiting = pending > 0 && storedState == "success"
-    val rejected = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]")).let { messages ->
-      (0 until messages.length()).count { messages.getJSONObject(it).optBoolean("rejected") }
-    }
+    val rejected = snapshot?.rejected ?: payload.optInt("rejectedCount")
     return mapOf(
       "pendingCount" to pending,
-      "state" to if (waiting) (if (rejected > 0) "error" else "idle") else storedState,
-      "message" to if (waiting && rejected > 0) "$pending waiting; $rejected need attention. Refresh sender rules and retry."
+      "pendingCountKnown" to (snapshot != null || payload.optBoolean("pendingCountKnown", payload.has("pendingCount"))),
+      "state" to if (snapshot == null) "error" else if (waiting) (if (rejected > 0) "error" else "idle") else storedState,
+      "message" to if (snapshot == null) "Encrypted SMS data could not be read. Saved data is retained; the displayed count is the last known count."
+        else if (waiting && rejected > 0) "$pending waiting; $rejected need attention. Refresh sender rules and retry."
         else if (waiting) "$pending SMS message(s) are waiting to sync."
         else payload.optString("message", "No background sync has run yet."),
       "importedCount" to payload.optInt("importedCount", 0),
       "rejectedCount" to rejected,
-      "failureKind" to if (waiting && rejected > 0) "rejected" else payload.optString("failureKind", ""),
+      "failureKind" to if (snapshot == null) "storage" else if (waiting && rejected > 0) "rejected" else payload.optString("failureKind", ""),
+      "queueReadable" to (snapshot != null),
+      "delayedCount" to (snapshot?.delayed ?: 0),
+      "queuedFailureCodes" to (snapshot?.failures ?: emptyMap<String, Int>()),
+      "stage" to payload.optString("stage", ""),
+      "httpCode" to payload.optInt("httpCode", 0),
+      "errorClass" to payload.optString("errorClass", ""),
       "updatedAt" to payload.optString("updatedAt", "")
     )
   }
@@ -450,14 +489,13 @@ object FinanceSmsStore {
       writeEncryptedPreference(context, key, stored)
       return stored
     }
-    return runCatching { FinanceSmsCrypto.decrypt(stored) }.getOrElse {
-      prefs(context).edit().remove(key).apply()
-      fallback
+    return try { FinanceSmsCrypto.decrypt(stored) } catch (error: Exception) {
+      throw SmsStorageException(error)
     }
   }
 
   private fun writeEncryptedPreference(context: Context, key: String, value: String) {
-    prefs(context).edit().putString(key, FinanceSmsCrypto.encrypt(value)).apply()
+    check(prefs(context).edit().putString(key, FinanceSmsCrypto.encrypt(value)).commit()) { "Could not persist SMS state." }
   }
 
   private fun normalize(value: String) = value.trim().lowercase(Locale.US)

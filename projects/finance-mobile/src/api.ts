@@ -1,5 +1,6 @@
 import type { QuickPreset, PresetInput, QuickEntryInput } from "../../finance-contracts/quick-add";
 import { boundedFetch } from "./bounded-fetch";
+import { quickSessionScope } from "./secure-document";
 
 import type { TransferEvidence, TransferMatch } from "../../finance-contracts/generated/types";
 export type { TransferMatch } from "../../finance-contracts/generated/types";
@@ -26,7 +27,7 @@ export class AuthenticationError extends Error {
   }
 }
 
-type AuthenticationRecovery = () => Promise<string | null>;
+type AuthenticationRecovery = (rejectedAccessToken: string) => Promise<string | null>;
 
 let authenticationRecovery: AuthenticationRecovery | null = null;
 let authenticationRecoveryPromise: Promise<string | null> | null = null;
@@ -51,12 +52,12 @@ export function configureAuthenticationRecovery(recovery: AuthenticationRecovery
   authenticationRecoveryPromise = null;
 }
 
-async function recoverAccessToken() {
+async function recoverAccessToken(rejectedAccessToken: string) {
   if (!authenticationRecovery) {
     return null;
   }
   if (!authenticationRecoveryPromise) {
-    authenticationRecoveryPromise = authenticationRecovery().finally(() => {
+    authenticationRecoveryPromise = authenticationRecovery(rejectedAccessToken).finally(() => {
       authenticationRecoveryPromise = null;
     });
   }
@@ -594,8 +595,11 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
   let response = await request(accessToken);
 
   if (response.status === 401) {
-    const recoveredAccessToken = await recoverAccessToken();
+    const recoveredAccessToken = await recoverAccessToken(accessToken);
     if (recoveredAccessToken) {
+      if (quickSessionScope(accessToken, getApiBaseUrl()) !== quickSessionScope(recoveredAccessToken, getApiBaseUrl())) {
+        throw new Error("The signed-in user changed. Retry from the current session.");
+      }
       response = await request(recoveredAccessToken);
     }
   }

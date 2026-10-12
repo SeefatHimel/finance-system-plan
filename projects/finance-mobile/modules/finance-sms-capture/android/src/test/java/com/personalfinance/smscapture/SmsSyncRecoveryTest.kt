@@ -28,6 +28,7 @@ class SmsSyncRecoveryTest {
     assertEquals("network", dns.kind)
     assertTrue(dns.message.contains("remain saved"))
     assertEquals("network", smsSyncFailure(SocketTimeoutException()).kind)
+    assertEquals("network", smsSyncFailure(java.io.InterruptedIOException("timeout")).kind)
     assertEquals("server", smsSyncFailure(SmsRetryableHttpException(503)).kind)
     assertEquals("other", smsSyncFailure(IllegalStateException()).kind)
   }

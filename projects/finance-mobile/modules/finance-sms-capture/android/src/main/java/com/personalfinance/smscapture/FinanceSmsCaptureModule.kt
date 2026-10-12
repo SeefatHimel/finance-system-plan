@@ -7,11 +7,16 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import androidx.core.content.ContextCompat
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 class FinanceSmsCaptureModule : Module() {
+  private val ioQueue = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private var connectivity: ConnectivityManager? = null
   private var networkCallback: ConnectivityManager.NetworkCallback? = null
   @Volatile private var validatedNetwork: Network? = null
@@ -42,6 +47,7 @@ class FinanceSmsCaptureModule : Module() {
       }
     }
     OnDestroy {
+      ioQueue.cancel()
       networkCallback?.let { callback -> runCatching { connectivity?.unregisterNetworkCallback(callback) } }
       networkCallback = null
       connectivity = null
@@ -95,7 +101,7 @@ class FinanceSmsCaptureModule : Module() {
         toTimestamp,
         includeProcessed
       )
-    }
+    }.runOnQueue(ioQueue)
 
     AsyncFunction("clearCapturedMessagesAsync") { ids: List<String> ->
       FinanceSmsStore.clearMessages(requireContext(), ids)
@@ -114,32 +120,42 @@ class FinanceSmsCaptureModule : Module() {
       if (FinanceSmsStore.getSyncSession(requireContext()) != null) {
         FinanceSmsSyncWorker.enqueue(requireContext()).get(15, TimeUnit.SECONDS)
       }
-    }
+    }.runOnQueue(ioQueue)
 
     AsyncFunction("configureBackgroundSyncAsync") { apiBaseUrl: String, accessToken: String, refreshToken: String, username: String ->
-      FinanceSmsStore.configureSyncSession(
-        requireContext(),
-        apiBaseUrl,
-        accessToken,
-        refreshToken,
-        username
-      )
+      FinanceSmsAuth.sessions(requireContext()).configure(SmsSession(apiBaseUrl.trimEnd('/'), accessToken, refreshToken, username))
       FinanceSmsSyncWorker.enqueue(requireContext(), SmsSyncTrigger.RECOVERY).get(15, TimeUnit.SECONDS)
+    }.runOnQueue(ioQueue)
+
+    AsyncFunction("initializeBackgroundSyncSessionAsync") { apiBaseUrl: String, accessToken: String, refreshToken: String, username: String ->
+      FinanceSmsAuth.sessions(requireContext()).configure(SmsSession(apiBaseUrl.trimEnd('/'), accessToken, refreshToken, username), explicitLogin = true)
     }
 
+    AsyncFunction("refreshBackgroundSyncSessionAsync") { username: String, rejectedAccess: String ->
+      try {
+        val session = FinanceSmsAuth.sessions(requireContext()).refresh(username, rejectedAccess).get(30, TimeUnit.SECONDS)
+        mapOf("status" to "ok", "access" to session.accessToken, "refresh" to session.refreshToken)
+      } catch (error: Exception) {
+        val cause = (error as? java.util.concurrent.ExecutionException)?.cause as? Exception ?: error
+        val failure = smsSyncFailure(cause)
+        mapOf("status" to if (failure.kind == "auth") "auth" else "error", "message" to failure.message)
+      }
+    }.runOnQueue(ioQueue)
+
     AsyncFunction("clearBackgroundSyncSessionAsync") {
-      FinanceSmsStore.clearSyncSession(requireContext())
+      FinanceSmsAuth.sessions(requireContext()).clear()
+      FinanceSmsSyncWorker.cancel(requireContext())
     }
 
     AsyncFunction("enqueueBackgroundSyncAsync") {
       FinanceSmsStore.retryRejected(requireContext())
       FinanceSmsSyncWorker.enqueue(requireContext(), SmsSyncTrigger.MANUAL).get(15, TimeUnit.SECONDS)
-    }
+    }.runOnQueue(ioQueue)
 
     AsyncFunction("resumeBackgroundSyncAsync") {
       recoverConnectedSync(requireContext())?.get(15, TimeUnit.SECONDS)
       Unit
-    }
+    }.runOnQueue(ioQueue)
 
     AsyncFunction("getBackgroundSyncStatusAsync") {
       FinanceSmsSyncWorker.status(requireContext())
