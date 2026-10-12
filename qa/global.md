@@ -333,3 +333,11 @@ bank can provide its SMS and balance even though the money came from the other
 account. Each side can have an optional reported balance; those observations do
 not move money or change overall income/spending. Direction corrections preserve
 balance ownership, while original source evidence remains available for review.
+
+### Are different reported balances proof that transfers cannot match?
+
+Sender and receiver balances usually differ and are kept separately. Two
+reports for the same account can signal separate movements, so the user must
+review a warning and choose a balance or keep the entries separate. The API
+never silently decides a conflicting balance, and accepting a match still
+creates one money movement with attached evidence.

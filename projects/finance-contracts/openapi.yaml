@@ -4299,8 +4299,11 @@ components:
           type: string
     TransferMatch:
       type: object
-      required: [id, kind, account, account_name, transfer_account, transfer_account_name, amount, date, time, reference, reason]
+      required: [id, kind, account, account_name, transfer_account, transfer_account_name, amount, date, time, reference, reason, reported_balances]
       properties:
+        reported_balances:
+          type: array
+          items: {$ref: '#/components/schemas/AccountReportedBalance'}
         id:
           type: string
           format: uuid
@@ -4350,6 +4353,10 @@ components:
         - $ref: '#/components/schemas/TransferMatchRequest'
         - type: object
           properties:
+            balance_choices:
+              type: array
+              maxItems: 2
+              items: {$ref: '#/components/schemas/TransferBalanceChoice'}
             match_transaction:
               type: string
               format: uuid
@@ -4361,10 +4368,23 @@ components:
       type: object
       required: [transaction]
       properties:
+        balance_choices:
+          type: array
+          maxItems: 2
+          items: {$ref: '#/components/schemas/TransferBalanceChoice'}
         transaction:
           type: string
           format: uuid
           description: The duplicate posted transfer to merge into the transfer in the URL.
+    TransferBalanceChoice:
+      type: object
+      required: [account, keep, existing_balance_after, incoming_balance_after]
+      description: Required for each same-account balance disagreement. Values must still match the reviewed reports; stale or missing choices return a readable 400 without merging. Unknown balances do not overwrite known balances.
+      properties:
+        account: {type: string, format: uuid}
+        keep: {type: string, enum: [existing, incoming]}
+        existing_balance_after: {type: string}
+        incoming_balance_after: {type: string}
     AccountReportedBalance:
       type: object
       required: [account, balance_after]

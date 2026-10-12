@@ -10,7 +10,7 @@ const { responseError, fetchWithConnectionError } = require(join(output, 'financ
 const { LatestRequest } = require(join(output, 'finance-web/lib/latest-request.js'));
 const { editableReportedBalance, balanceAfterAccountChange, balanceReportingAccount, accountBoundBalances, transferBalancePayload } = require(join(output, 'finance-web/lib/transaction-balances.js'));
 const { categoryTypeProposal, directionForType } = require(join(output, 'finance-web/lib/category-type.js'));
-const { transferComparison } = require(join(output, 'finance-contracts/transfer-comparison.js'));
+const { transferComparison, transferBalanceConflicts } = require(join(output, 'finance-contracts/transfer-comparison.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
 const error = (body, status = 400) => responseError(new Response(JSON.stringify(body), { status }));
 const category = kind => ({ id: 'demo', name: 'Demo category', kind });
@@ -173,4 +173,14 @@ test('new navigation aborts active work before its debounce fires', async (t) =>
   complete(); await pending;
   t.mock.timers.tick(1);
   assert.deepEqual(calls, ['new month']);
+});
+
+
+test('matching compares balances per account, including zero, and preserves receiver ownership', () => {
+  const existing = [{ account: 'A', balance_after: '0.00' }, { account: 'B', balance_after: '5000.00' }];
+  const incoming = [{ account: 'A', balance_after: '1000.00' }, { account: 'B', balance_after: '5,000' }];
+  assert.deepEqual(transferBalanceConflicts(existing, incoming), [{ account: 'A', existing_balance_after: '0.00', incoming_balance_after: '1000.00' }]);
+  assert.deepEqual(transferBalanceConflicts(existing, [{ account: 'B', balance_after: null }]), []);
+  assert.deepEqual(transferBalanceConflicts([{ account: 'A', balance_after: '9000' }], [{ account: 'B', balance_after: '3000' }]), []);
+  assert.deepEqual(transferComparison({ account: 'B', transfer_account: 'A', direction: 'credit', balance_after: '0.00' }, id => id).reported_balances, [{ account: 'B', account_name: 'B', balance_after: '0.00' }]);
 });

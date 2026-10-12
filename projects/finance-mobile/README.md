@@ -471,3 +471,14 @@ updates only the existing candidate direction draft, retaining edited values,
 selected accounts and classification; it does not confirm the message. The
 44px button has a textual state and is disabled during confirmation. This source
 UI change requires the next installed app build.
+
+### Transfer matching balance conflicts
+
+The matching modal displays account-labelled reported balances for both
+entries. Same-account disagreements require a separate, explicit choice of
+the matching entry or the entry being reviewed before linking. Unknown or
+other-account balances are not conflicts. Choices include the reviewed values
+so the API can reject stale decisions atomically. Original messages remain
+available and the transfer still counts once. Deploy the updated API before
+clients relying on `reported_balances` and `balance_choices`. Device rendering
+of this matching flow still requires Android validation.

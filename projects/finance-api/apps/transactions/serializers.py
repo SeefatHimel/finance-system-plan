@@ -529,7 +529,17 @@ class TransferMatchRequestSerializer(serializers.Serializer):
     exclude_transaction = serializers.UUIDField(required=False)
 
 
+class TransferBalanceChoiceSerializer(serializers.Serializer):
+    account = serializers.UUIDField()
+    keep = serializers.ChoiceField(choices=("existing", "incoming"))
+    existing_balance_after = serializers.DecimalField(max_digits=14, decimal_places=2)
+    incoming_balance_after = serializers.DecimalField(max_digits=14, decimal_places=2)
+
+
 class TransferLinkRequestSerializer(TransferMatchRequestSerializer):
+    balance_choices = TransferBalanceChoiceSerializer(
+        many=True, required=False, max_length=2
+    )
     match_transaction = serializers.UUIDField(required=False)
     match_candidate = serializers.UUIDField(required=False)
 
@@ -542,10 +552,14 @@ class TransferLinkRequestSerializer(TransferMatchRequestSerializer):
 
 
 class TransferMergeRequestSerializer(serializers.Serializer):
+    balance_choices = TransferBalanceChoiceSerializer(
+        many=True, required=False, max_length=2
+    )
     transaction = serializers.UUIDField()
 
 
 class TransferMatchSerializer(serializers.Serializer):
+    reported_balances = AccountReportedBalanceSerializer(many=True, read_only=True)
     id = serializers.UUIDField()
     kind = serializers.ChoiceField(choices=("transaction", "candidate"))
     account = serializers.UUIDField()

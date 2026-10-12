@@ -494,16 +494,16 @@ export function TransactionWorkspace() {
     }
   }
 
-  async function handleTransferDecision(match?: TransferMatch) {
+  async function handleTransferDecision(match?: TransferMatch, balanceChoices: import("@/lib/api").TransferBalanceChoice[] = []) {
     const accessToken = getAccessToken();
     if (!accessToken || !transferDecision) return;
     setIsSubmitting(true);
     setMatchError(null);
     try {
       if (transferDecision.mergeId) {
-        if (match) await mergeTransfers(accessToken, match.id, transferDecision.mergeId);
+        if (match) await mergeTransfers(accessToken, match.id, transferDecision.mergeId, balanceChoices);
       } else if (match) {
-        await linkTransfer(accessToken, { draft: transferDecision.input }, match);
+        await linkTransfer(accessToken, { draft: transferDecision.input }, match, balanceChoices);
       } else {
         await createTransaction(accessToken, transferDecision.input);
       }
@@ -526,6 +526,7 @@ export function TransactionWorkspace() {
     try {
       const input: CreateTransactionInput = { account: record.account, transfer_account: record.transfer_account || undefined,
         amount: record.amount, date: record.date, time: record.time, reference: record.reference,
+        reported_balances: transferBalancePayload(record.account, record.transfer_account ?? "", accountBoundBalances(record)),
         counterparty_text: record.counterparty_text, note: record.note, direction: "debit", type: "transfer" };
       const matches = (await findTransferMatches(accessToken, { draft: input, exclude_transaction: record.id })).filter((match) => match.kind === "transaction");
       if (matches.length) {
@@ -1348,7 +1349,7 @@ export function TransactionWorkspace() {
           )}
         </div>
       </section>
-      {transferDecision ? <TransferMatchDialog original={transferComparison(transferDecision.input, id => accountNames.get(id))} originalSource={transferDecision.mergeId ? "Recorded transfer selected" : "New manual transfer"} matches={transferDecision.matches} busy={isSubmitting} error={matchError} merging={Boolean(transferDecision.mergeId)} onAccept={(match) => void handleTransferDecision(match)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
+      {transferDecision ? <TransferMatchDialog original={transferComparison(transferDecision.input, id => accountNames.get(id))} originalSource={transferDecision.mergeId ? "Recorded transfer selected" : "New manual transfer"} matches={transferDecision.matches} busy={isSubmitting} error={matchError} merging={Boolean(transferDecision.mergeId)} onAccept={(match, choices) => void handleTransferDecision(match, choices)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
     </div>
   );
 }

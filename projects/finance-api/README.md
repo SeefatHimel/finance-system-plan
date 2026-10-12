@@ -851,3 +851,20 @@ Targeted checks (from this project):
 ```sh
 DATABASE_URL= .venv/bin/python manage.py test apps.transactions.test_account_reports apps.transactions.test_reported_balances apps.transactions.test_corrections apps.transactions.test_transfers --noinput
 ```
+
+### Reported-balance conflicts when linking transfers
+
+Transfer suggestions include `reported_balances` for both endpoint accounts.
+Different accounts naturally have different balances; only two non-null,
+unequal balances for the same account require a decision. Linking or merging
+requires a `balance_choices` item for every disagreement, with `account`,
+`keep` (`existing` or `incoming`), and the reviewed `existing_balance_after`
+and `incoming_balance_after`. Missing, extra, duplicate or stale choices return
+400 with a readable field error and roll back the whole operation. Unknown
+incoming balances never erase known balances.
+
+Both SMS link and posted-transfer merge paths enforce this under the existing
+user transaction lock. Original SMS/PDF evidence remains available; the chosen
+value becomes the effective account report. Account balance summaries use the
+same effective reports as the editor and matching API. No additional ledger
+movement or database migration is introduced.

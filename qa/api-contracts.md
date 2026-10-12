@@ -439,3 +439,11 @@ position. Swapping endpoints preserves account-bound balances. A second report i
 an observation of the same transfer, not another ledger record. Unknown values are
 null, and negative reported balances are valid. Non-transfer/unrelated/duplicate
 account reports return validation errors; legacy scalar inputs remain supported.
+
+### What must clients send when transfer balances disagree?
+
+Match responses carry `reported_balances`. Link and merge requests send
+`balance_choices` for each same-account disagreement, naming the account,
+which entry to keep, and both reviewed balances. A readable 400 means choices
+are missing, invalid or stale; no merge is performed. Do not compare balances
+between different accounts or treat null as zero. Deploy the API first.

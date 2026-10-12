@@ -7,6 +7,7 @@ from django.db.models import Q
 
 from apps.accounts.models import Account
 
+from .balance_reports import account_reports
 from .models import Transaction, TransferEvidence
 
 INCREASE_TYPES = {
@@ -63,12 +64,15 @@ def calculate_account_balance_summaries(
         "direction",
         "transfer_account_id",
         "type",
+        "raw_message_id",
+        "external_key",
     ).order_by("date", "time", "created_at")
 
     evidence = TransferEvidence.objects.filter(
         user_id__in=user_ids,
         account_id__in=account_ids,
         transaction__type=Transaction.Type.TRANSFER,
+        transaction__in=transactions,
     )
     if as_of_date is not None:
         evidence = evidence.filter(
@@ -119,10 +123,22 @@ def calculate_account_balance_summaries(
         ):
             balances[transaction.transfer_account_id] += transaction.amount
 
+    # Use the same effective account report as the editor/matching API. Retained
+    # source evidence can disagree after an explicit merge resolution.
+    records_by_id = {record.pk: record for record in transactions}
+    grouped_evidence = {}
     for item in evidence:
-        record_reported(
-            item.account_id, item.balance_after, item.date, item.time, item.created_at
-        )
+        grouped_evidence.setdefault(item.transaction_id, []).append(item)
+    for record_id, items in grouped_evidence.items():
+        chosen, _ = account_reports(records_by_id[record_id], items)
+        for item in chosen.values():
+            record_reported(
+                item.account_id,
+                item.balance_after,
+                item.date,
+                item.time,
+                item.created_at,
+            )
 
     return {
         account.id: AccountBalanceSummary(

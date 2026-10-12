@@ -505,3 +505,10 @@ into or out of the selected account. It replaces the separate two-choice row
 on the primary review screen. Tapping patches only that candidate's direction,
 preserving account choices and other edits, with no automatic confirmation or
 reclassification. The target is at least 44px and disabled while confirming.
+
+### Can SMS transfer matching silently overwrite a balance on mobile?
+
+The modal shows both entries' account-labelled reported balances. Same-account
+disagreements have explicit balance choices and a disabled link button until
+each conflict is resolved. The server validates the reviewed values again;
+a stale choice does not post. Keeping entries separate is always available.

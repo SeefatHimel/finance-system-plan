@@ -739,3 +739,12 @@ unchanged account keeps its balance. Incoming SMS reclassification retains the
 receiving bank's balance. Original SMS/PDF evidence is unchanged, while corrections
 are captured in existing audit snapshots and user-locked atomic writes. Legacy
 single-balance inputs remain supported. No database migration is necessary.
+
+### How do transfer merges handle disagreeing reported balances?
+
+Balances are compared by account, not sender against receiver. Every pair of
+unequal non-null balances for the same account requires an explicit existing
+or incoming choice with the reviewed values. The API rechecks those values
+under the transaction lock and rolls back missing, extra, duplicate or stale
+choices. Unknown never overwrites known. Original evidence remains available;
+account summaries and the editor use the same effective reported balance.

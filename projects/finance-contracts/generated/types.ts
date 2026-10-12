@@ -698,6 +698,7 @@ export interface TransferEvidence {
 }
 
 export interface TransferMatch {
+  reported_balances: AccountReportedBalance[];
   id: string;
   kind: "transaction" | "candidate";
   account: string;
@@ -718,12 +719,21 @@ export interface TransferMatchRequest {
 }
 
 export type TransferLinkRequest = TransferMatchRequest & {
+  balance_choices?: TransferBalanceChoice[];
   match_transaction?: string;
   match_candidate?: string;
 };
 
 export interface TransferMergeRequest {
+  balance_choices?: TransferBalanceChoice[];
   transaction: string;
+}
+
+export interface TransferBalanceChoice {
+  account: string;
+  keep: "existing" | "incoming";
+  existing_balance_after: string;
+  incoming_balance_after: string;
 }
 
 export interface AccountReportedBalance {

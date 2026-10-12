@@ -36,7 +36,6 @@ from .transfers import (
     prepare_transfer_input,
 )
 
-
 transaction_date_parameters = [
     OpenApiParameter("search", str, description=SEARCH_DESCRIPTION),
     OpenApiParameter("date_field", str, enum=["date", "created_at", "updated_at"], description="Period date basis; timestamp days use Asia/Dhaka."),
@@ -207,6 +206,7 @@ class TransactionViewSet(ModelViewSet):
             user=request.user,
             record_id=pk,
             other_id=serializer.validated_data["transaction"],
+            balance_choices=serializer.validated_data.get("balance_choices", []),
         )
         return Response(self.get_serializer(record).data)
 

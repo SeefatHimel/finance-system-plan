@@ -994,9 +994,10 @@ export async function findTransferMatches(accessToken: string, input: TransferMa
   });
   return await response.json() as TransferMatch[];
 }
-export async function linkTransfer(accessToken: string, input: TransferMatchInput, match: TransferMatch): Promise<Transaction> {
+export type TransferBalanceChoice = { account: string; keep: "existing" | "incoming"; existing_balance_after: string; incoming_balance_after: string };
+export async function linkTransfer(accessToken: string, input: TransferMatchInput, match: TransferMatch, balanceChoices: TransferBalanceChoice[] = []): Promise<Transaction> {
   const response = await authenticatedFetch("/api/transactions/link-transfer/", accessToken, {
-    method: "POST", body: JSON.stringify({ ...transferMatchBody(input), [match.kind === "transaction" ? "match_transaction" : "match_candidate"]: match.id }), headers: { "Content-Type": "application/json" }
+    method: "POST", body: JSON.stringify({ ...transferMatchBody(input), balance_choices: balanceChoices, [match.kind === "transaction" ? "match_transaction" : "match_candidate"]: match.id }), headers: { "Content-Type": "application/json" }
   });
   return await response.json() as Transaction;
 }

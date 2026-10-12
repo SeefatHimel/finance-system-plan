@@ -17,6 +17,11 @@ from apps.messages.models import (
     SmsCapturePreference,
 )
 
+from .balance_reports import (
+    reported_values,
+    resolve_reported_values,
+    write_account_reports,
+)
 from .models import Transaction, TransferEvidence
 
 MATCH_DAYS = 3  # A suggestion window, never proof that two movements are identical.
@@ -34,9 +39,13 @@ def manual_transfer_data(data):
     observation = dict(data)
     if reports is not None:
         observation["reported_balances"] = reports
-        own_report = next((item for item in reports if item["account"] == data["account"]), None)
+        own_report = next(
+            (item for item in reports if item["account"] == data["account"]), None
+        )
         if own_report:
-            observation["balance_after"] = data["balance_after"] = own_report["balance_after"]
+            observation["balance_after"] = data["balance_after"] = own_report[
+                "balance_after"
+            ]
     if data.get("type") != Transaction.Type.TRANSFER:
         raise ValidationError({"type": "Only transfers can be matched."})
     if data.get("direction") == Transaction.Direction.CREDIT:
@@ -206,7 +215,7 @@ def compatible(data, target):
     )
 
 
-def match_summary(record, kind, reference=""):
+def match_summary(record, kind, reference="", observation=None):
     reason = "Same currency, compatible accounts and amount within three days. Verify this is the same movement."
     normalized_reference = reference.strip().casefold()
     references = [record.reference]
@@ -216,7 +225,21 @@ def match_summary(record, kind, reference=""):
         value.strip().casefold() == normalized_reference for value in references
     ):
         reason += " Reference also matches; references can be reused."
+    values = (
+        reported_values(record)
+        if kind == "transaction"
+        else {observation["account"].pk: observation.get("balance_after")}
+    )
     return {
+        "reported_balances": [
+            {
+                "account": str(account.pk),
+                "balance_after": f"{values[account.pk]:.2f}"
+                if values.get(account.pk) is not None
+                else None,
+            }
+            for account in (record.account, record.transfer_account)
+        ],
         "id": str(record.id),
         "kind": kind,
         "account": str(record.account_id),
@@ -305,7 +328,9 @@ def find_transfer_matches(
         )
         if compatible(data, synthetic):
             matches.append(
-                match_summary(synthetic, "candidate", data.get("reference", ""))
+                match_summary(
+                    synthetic, "candidate", data.get("reference", ""), other_observation
+                )
             )
     return matches
 
@@ -394,7 +419,6 @@ def add_transfer_evidence(record, observation, candidate=None):
     # New evidence changes the ledger record; retries that reuse evidence do not.
     record.save(update_fields=("updated_at",))
     if "reported_balances" in observation:
-        from .balance_reports import write_account_reports
         write_account_reports(record, observation["reported_balances"])
     return evidence
 
@@ -553,12 +577,26 @@ def link_transfer(*, user, payload, context):
             raise ValidationError(
                 {"match_candidate": "This message is no longer pending."}
             )
+    ensure_transfer_evidence(record)
+    incoming = {observation["account"].pk: observation.get("balance_after")}
+    incoming.update(
+        {
+            item["account"].pk: item["balance_after"]
+            for item in observation.get("reported_balances", [])
+        }
+    )
+    reports = resolve_reported_values(
+        record, incoming, payload.get("balance_choices", [])
+    )
+    # Attach original evidence before applying the explicitly selected effective balances.
+    observation.pop("reported_balances", None)
     if candidate:
         attach_candidate(
             candidate, record, observation, corrections.get("remember_mapping", False)
         )
     else:
         add_transfer_evidence(record, observation)
+    write_account_reports(record, reports)
     create_audit_log(
         user=user,
         action=AuditLogEntry.Action.UPDATED if before else AuditLogEntry.Action.CREATED,
@@ -568,13 +606,17 @@ def link_transfer(*, user, payload, context):
         metadata={
             "transfer_link": True,
             "candidate": str(candidate.id) if candidate else None,
+            "balance_choices": [
+                {"account": str(item["account"]), "keep": item["keep"]}
+                for item in payload.get("balance_choices", [])
+            ],
         },
     )
     return record
 
 
 @transaction.atomic
-def merge_transfers(*, user, record_id, other_id):
+def merge_transfers(*, user, record_id, other_id, balance_choices=()):
     lock_transfer_user(user)
     record = get_object_or_404(
         Transaction.objects.select_for_update(), user=user, pk=record_id
@@ -603,6 +645,7 @@ def merge_transfers(*, user, record_id, other_id):
     before = transaction_snapshot(record)
     ensure_transfer_evidence(record)
     ensure_transfer_evidence(other)
+    reports = resolve_reported_values(record, reported_values(other), balance_choices)
     shared_batches = record.statement_rows.values_list("batch_id", flat=True)
     if other.statement_rows.filter(batch_id__in=shared_batches).exists():
         raise ValidationError(
@@ -625,6 +668,7 @@ def merge_transfers(*, user, record_id, other_id):
         metadata={"merged_into": str(record.id)},
     )
     other.delete()
+    write_account_reports(record, reports)
     record.save(update_fields=("updated_at",))
     create_audit_log(
         user=user,
@@ -632,6 +676,12 @@ def merge_transfers(*, user, record_id, other_id):
         entity=record,
         before=before,
         after=transaction_snapshot(record),
-        metadata={"merged_transfer": str(other_id)},
+        metadata={
+            "merged_transfer": str(other_id),
+            "balance_choices": [
+                {"account": str(item["account"]), "keep": item["keep"]}
+                for item in balance_choices
+            ],
+        },
     )
     return record

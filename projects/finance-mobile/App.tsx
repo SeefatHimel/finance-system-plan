@@ -1,6 +1,6 @@
 import { QuickAddHub, type QuickAddHandle } from "./src/quick-add-hub";
 import { quickSessionScope } from "./src/secure-document";
-import { transferComparison } from "../finance-contracts/transfer-comparison";
+import { transferComparison, transferBalanceConflicts } from "../finance-contracts/transfer-comparison";
 import { NativeTimeField } from "./src/native-time-field";
 import { smsSyncPresentation, smsSyncDiagnostics } from "./src/sms-sync-presentation";
 import { localDay, localTime, type QuickPreset, type QuickDraft } from "../finance-contracts/quick-add";
@@ -2567,12 +2567,12 @@ function FinanceApp() {
     }
   };
 
-  const handleTransferDecision = async (match?: TransferMatch) => {
+  const handleTransferDecision = async (match?: TransferMatch, balanceChoices: import("./src/api").TransferBalanceChoice[] = []) => {
     if (!transferDecision || !accessToken.trim()) return;
     setTransferBusy(true);
     setTransferError("");
     try {
-      if (match) await linkTransfer(accessToken.trim(), transferDecision.input, match);
+      if (match) await linkTransfer(accessToken.trim(), transferDecision.input, match, balanceChoices);
       else if (transferDecision.input.candidate) {
         await confirmMessageCandidate(accessToken.trim(), transferDecision.input.candidate, transferDecision.input.draft as ConfirmMessageCandidateInput);
       } else await createTransaction(accessToken.trim(), transferDecision.input.draft as CreateTransactionInput);
@@ -5668,18 +5668,12 @@ function FinanceApp() {
                   <Text style={styles.mobileRowTitle}>{original.account_name} → {original.transfer_account_name}</Text>
                   <Text style={styles.mobileRowMeta}>BDT {original.amount} · {original.date} · {original.time ? original.time.slice(0, 5) : "Time not provided"}</Text>
                   {original.counterparty_text || original.note ? <Text numberOfLines={1} style={styles.mobileRowMeta}>{[original.counterparty_text, original.note].filter(Boolean).join(" · ")}</Text> : null}
+                  {original.reported_balances.map(report => <Text key={report.account} style={styles.mobileRowMeta}>Reported balance after · {report.account_name}: {report.balance_after == null ? "Not reported" : `BDT ${report.balance_after}`}</Text>)}
                   <Text style={styles.mobileRowMeta}>{transferDecision.input.candidate ? "SMS awaiting confirmation" : transferDecision.queueId ? "Queued manual transfer" : "New manual transfer"}</Text>
                 </View>;
               })() : null}
             <ScrollView style={{ flex: 1, minHeight: 0 }}>
-              {transferDecision?.matches.map((match) => <View key={`${match.kind}:${match.id}`} style={styles.transferMatchCard}>
-                <Text accessibilityRole="header" style={styles.mobileRowTitle}>Possible match</Text>
-                <Text style={styles.mobileRowTitle}>{match.account_name} → {match.transfer_account_name}</Text>
-                <Text style={styles.mobileRowMeta}>BDT {match.amount} · {match.date} · {match.time ? match.time.slice(0, 5) : "Time not provided"}</Text>
-                <Text style={styles.mobileRowMeta}>{match.kind === "candidate" ? "Other account’s pending SMS" : "Already recorded transfer"}</Text>
-                <Text style={styles.mobileRowMeta}>{match.reason}</Text>
-                <Pressable disabled={transferBusy} accessibilityRole="button" onPress={() => void handleTransferDecision(match)} style={styles.mobilePrimaryButton}><Text style={styles.mobilePrimaryButtonText}>{transferBusy ? "Linking…" : match.kind === "candidate" ? "Confirm as one transfer" : "Link to existing transfer"}</Text></Pressable>
-              </View>)}
+              {transferDecision?.matches.map(match => <TransferBalanceMatchCard key={`${match.kind}:${match.id}`} match={match} original={transferComparison(transferDecision.input.draft ?? {}, id => accounts.find(account => account.id === id)?.name)} busy={transferBusy} onAccept={(choices) => void handleTransferDecision(match, choices)} />)}
             </ScrollView>
             <Pressable disabled={transferBusy} accessibilityRole="button" onPress={() => void handleTransferDecision()} style={styles.mobileTextButton}><Text style={styles.mobileTextButtonText}>Keep separate</Text></Pressable>
             <Pressable disabled={transferBusy} accessibilityRole="button" onPress={() => setTransferDecision(null)} style={styles.mobileTextButton}><Text style={styles.mobileTextButtonText}>Cancel</Text></Pressable>
@@ -5688,6 +5682,32 @@ function FinanceApp() {
       </Modal>
     </SafeAreaView>
   );
+}
+
+function TransferBalanceMatchCard({ match, original, busy, onAccept }: {
+  match: TransferMatch; original: ReturnType<typeof transferComparison>; busy: boolean;
+  onAccept: (choices: import("./src/api").TransferBalanceChoice[]) => void;
+}) {
+  const [choices, setChoices] = useState<Record<string, "existing" | "incoming">>({});
+  const conflicts = transferBalanceConflicts(match.reported_balances ?? [], original.reported_balances);
+  const name = (account: string) => account === match.account ? match.account_name : match.transfer_account_name;
+  const ready = !busy && conflicts.every(conflict => choices[conflict.account]);
+  return <View style={styles.transferMatchCard}>
+    <Text accessibilityRole="header" style={styles.mobileRowTitle}>Possible match</Text>
+    <Text style={styles.mobileRowTitle}>{match.account_name} → {match.transfer_account_name}</Text>
+    <Text style={styles.mobileRowMeta}>BDT {match.amount} · {match.date} · {match.time ? match.time.slice(0, 5) : "Time not provided"}</Text>
+    <Text style={styles.mobileRowMeta}>{match.kind === "candidate" ? "Other account’s pending SMS" : "Already recorded transfer"}</Text>
+    {(match.reported_balances ?? []).map(report => <Text key={report.account} style={styles.mobileRowMeta}>Reported balance after · {name(report.account)}: {report.balance_after == null ? "Not reported" : `BDT ${report.balance_after}`}</Text>)}
+    <Text style={styles.mobileRowMeta}>{match.reason}</Text>
+    {conflicts.length ? <Text accessibilityRole="alert" style={styles.transferMatchWarning}>Balances disagree for the same account. Verify this is one movement and choose which report to keep, or keep the entries separate. Original messages stay available.</Text> : null}
+    {conflicts.map(conflict => <View key={conflict.account}>
+      <Text style={styles.mobileRowTitle}>Balance to keep for {name(conflict.account)}</Text>
+      {(["existing", "incoming"] as const).map(keep => <Pressable key={keep} disabled={busy} accessibilityRole="radio" accessibilityState={{ checked: choices[conflict.account] === keep }} onPress={() => setChoices(current => ({ ...current, [conflict.account]: keep }))} style={styles.mobileTextButton}>
+        <Text style={styles.mobileTextButtonText}>{choices[conflict.account] === keep ? "✓ " : ""}{keep === "existing" ? "Keep matching entry" : "Keep entry being reviewed"} · BDT {keep === "existing" ? conflict.existing_balance_after : conflict.incoming_balance_after}</Text>
+      </Pressable>)}
+    </View>)}
+    <Pressable disabled={!ready} accessibilityRole="button" accessibilityState={{ disabled: !ready }} onPress={() => onAccept(conflicts.map(conflict => ({ ...conflict, keep: choices[conflict.account] })))} style={[styles.mobilePrimaryButton, !ready ? { opacity: 0.5 } : null]}><Text style={styles.mobilePrimaryButtonText}>{busy ? "Linking…" : match.kind === "candidate" ? "Confirm as one transfer" : "Link to existing transfer"}</Text></Pressable>
+  </View>;
 }
 
 const styles = StyleSheet.create({

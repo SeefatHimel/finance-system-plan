@@ -471,3 +471,16 @@ reported the SMS. Reversal preserves report ownership, and adding/editing a seco
 report never creates a second transaction. Existing fields and manual Credit-create
 normalization remain compatible. No database migration is required. Regenerate
 TypeScript interfaces with `python scripts/generate_ts_client.py`.
+
+### Explicit transfer balance conflict choices
+
+`TransferMatch.reported_balances` returns account-bound balances for both
+endpoints. `TransferLinkRequest` and `TransferMergeRequest` accept up to two
+`TransferBalanceChoice` items: `account`, `keep` (`existing` or `incoming`),
+`existing_balance_after`, `incoming_balance_after`. Include exactly the
+same-account disagreements, with the values shown during review. Missing,
+extra, duplicate and stale choices fail with a readable 400 and no mutation.
+Null does not conflict with or overwrite a known balance; values for different
+accounts are not compared. Original evidence stays attached while the chosen
+balance becomes the effective account report. Deploy API changes before new
+clients; no model migration is needed. Regenerate via the existing generator.
