@@ -79,10 +79,10 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.6**, Android version code **7**. It fixes delayed
-SMS retry requests, resumes eligible uploads on app/network recovery and
-distinguishes connectivity waits from messages needing correction. It includes
-the Quick Add presets and native date/time picker added in 0.1.5.
+The current release is **0.1.7**, Android version code **8**. It coordinates
+foreground/background token rotation, isolates temporary per-message failures,
+bounds complete upload requests and adds privacy-safe sync diagnostics. It keeps
+the Quick Add and scheduling improvements from earlier releases.
 
 ## 5. Build the signed APK
 
@@ -105,7 +105,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.6.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.7.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -201,3 +201,10 @@ Use Retry during backoff and verify it requests fresh work instead of queuing
 behind the delayed chain. Running uploads must not be cancelled. Check the amber
 Waiting state, retry timing, correction counts and recovery after app resume.
 Do not uninstall or clear app data to fix a retained queue.
+
+For 0.1.7, exercise foreground API calls during a large SMS sync and after access
+token expiry. Verify uploads resume without invalidating the active session.
+Check Show sync diagnostics for stage, HTTP/error code, worker state and counts;
+Share diagnostics must contain no message body, sender, user or credential.
+Test slow responses, rejected records and a temporarily failing first record
+with synthetic data. A failing record must not block valid later records.
