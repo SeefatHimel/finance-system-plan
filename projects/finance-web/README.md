@@ -778,3 +778,23 @@ for incoming conversion, reverse/reload, both balances, manual Add and mobile fi
 
 Deploy the updated API before this web workflow; both editable balances require
 the account-bound report API. No database migration is needed for this change.
+
+### Optional transfer fields and reported-balance comparison
+
+The other-account selector appears only for transfers. The original reporting
+account's balance stays visible even when it is the receiver or the transfer
+is reversed. Expand “Other account’s reported balance (optional)” to edit a
+second balance. Collapsing it preserves its value; saved evidence is also
+collapsed by default.
+
+Match dialogs show account-labelled balances for both entries. If the same
+account has different reported balances, choose which entry's balance to keep
+for each conflict before linking or merging. Nothing is preselected; “Keep
+separate” remains available. Different sender/receiver balances and unknown
+balances do not trigger this warning. The API rechecks reviewed values before
+writing and rejects stale choices; cancel and search again if reports changed.
+
+Payment methods remain optional account-linked instruments (for example a
+bank account identifier, debit/credit card, cash, or wallet). Their provider,
+masked identifiers and aliases assist SMS/PDF account recognition. They do
+not replace the ledger account or add another transaction.

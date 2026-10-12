@@ -725,3 +725,13 @@ source evidence. Both fields belong to one canonical transfer; matching/linking 
 still explicit. All-account lists show a neutral transfer amount and internal
 movement label; an account filter shows its debit or credit. Transfers do not count
 as income or expense. Linked correction confirmation still applies where required.
+
+### How does the transfer editor keep optional fields out of the way?
+
+Non-transfers hide the other-account selector. Transfers keep the original
+reporting account's balance visible and collapse the optional other balance;
+closing it never clears a saved value. Matching compares labelled account
+balances and blocks acceptance until every same-account conflict has an
+explicit choice. Different sender/receiver balances are normal. Optional
+payment methods identify account-linked instruments and their recognition
+aliases, while the ledger account controls the money movement.

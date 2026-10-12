@@ -37,6 +37,7 @@ import {
   updateTransaction
 } from "@/lib/api";
 import { ModalDialog } from "@/components/modal-dialog";
+import { TransferBalanceFields } from "@/components/transfer-balance-fields";
 import { TransferMatchDialog } from "@/components/transfer-match-dialog";
 import { transferComparison } from "../../finance-contracts/transfer-comparison";
 import { getAccessToken } from "@/lib/auth-storage";
@@ -777,7 +778,7 @@ export function TransactionWorkspace() {
               </select>
             </label>
 
-            <label className="field">
+            {createType === "transfer" ? <label className="field">
               <span className="field__label">Other transfer account</span>
               <select className="field__control" name="transfer_account" disabled={createType !== "transfer"} value={createOtherAccountId} onChange={event => setCreateOtherAccountId(event.target.value)}>
                 <option value="">Only for transfers</option>
@@ -787,7 +788,7 @@ export function TransactionWorkspace() {
                   </option>
                 ))}
               </select>
-            </label>
+            </label> : null}
 
             <label className="field">
               <span className="field__label">Category</span>
@@ -814,11 +815,7 @@ export function TransactionWorkspace() {
               />
             </label>
 
-            {createType === "transfer" ? [createAccountId, createOtherAccountId].map((accountId, index) => <label className="field" key={index}>
-              <span className="field__label">Reported balance after — {accountNames.get(accountId) ?? (index ? "Other account" : "Selected account")} (optional)</span>
-              <input className="field__control" aria-label={`Reported balance after — ${accountNames.get(accountId) ?? (index ? "Other account" : "Selected account")}`} inputMode="decimal" type="text" disabled={!accountId} value={createReportedBalances[accountId] ?? ""} onChange={event => setCreateReportedBalances(current => ({ ...current, [accountId]: event.target.value }))} />
-              <small className="field__hint">{(index === 0 ? createDirection : createDirection === "credit" ? "debit" : "credit") === "credit" ? "Receiving account · Credit" : "Sending account · Debit"}. Leave blank if no balance was reported. Transfers do not count as income or expense.</small>
-            </label>) : <label className="field">
+            {createType === "transfer" ? <TransferBalanceFields accounts={[createAccountId, createOtherAccountId]} primaryAccount={createAccountId} names={accountNames} values={createReportedBalances} onChange={(account, value) => setCreateReportedBalances(current => ({ ...current, [account]: value }))} /> : <label className="field">
               <span className="field__label">Reported balance after (optional)</span>
               <input className="field__control" inputMode="decimal" name="balance_after" defaultValue={createReportedBalances[createAccountId] ?? ""} placeholder="72,308.00" type="text" />
               {createBalanceNotice ? <small className="field__hint" role="status">{createBalanceNotice}</small> : null}
@@ -924,7 +921,7 @@ export function TransactionWorkspace() {
               </select>
             </label>
 
-            <label className="field">
+            {editingType === "transfer" ? <label className="field">
               <span className="field__label">{editingType === "transfer" ? "To account" : "Transfer to"}</span>
               <select
                 className="field__control"
@@ -942,7 +939,7 @@ export function TransactionWorkspace() {
                   </option>
                 ))}
               </select>
-            </label>
+            </label> : null}
 
             <label className="field">
               <span className="field__label">Category</span>
@@ -974,11 +971,7 @@ export function TransactionWorkspace() {
               />
             </label>
 
-            {editingType === "transfer" ? [editingAccountId, editingTransferAccountId].map((accountId, index) => <label className="field" key={index}>
-              <span className="field__label">Reported balance after — {accountNames.get(accountId) ?? (index ? "To account" : "From account")} (optional)</span>
-              <input className="field__control" aria-label={`Reported balance after — ${accountNames.get(accountId) ?? (index ? "To account" : "From account")}`} inputMode="decimal" type="text" disabled={!accountId} value={editingReportedBalances[accountId] ?? ""} onChange={event => setEditingReportedBalances(current => ({ ...current, [accountId]: event.target.value }))} />
-              <small className="field__hint">{index ? "Receiving account · Credit" : "Sending account · Debit"}. This report stays with this account when transfer direction changes. Leave blank if unknown.</small>
-            </label>) : <>            <label className="field">
+            {editingType === "transfer" ? <TransferBalanceFields accounts={[editingAccountId, editingTransferAccountId]} primaryAccount={editingTransaction?.balance_reporting_account ?? editingTransaction?.account ?? editingAccountId} names={accountNames} values={editingReportedBalances} onChange={(account, value) => setEditingReportedBalances(current => ({ ...current, [account]: value }))} /> : <>            <label className="field">
               <span className="field__label">Reported balance after (optional)</span>
               <input
                 className="field__control"
@@ -991,7 +984,7 @@ export function TransactionWorkspace() {
               {editingBalanceNotice ? <small className="field__hint" role="status">{editingBalanceNotice}</small> : null}
             </label></>}
 
-            {editingTransaction?.type === "transfer" && editingTransaction.transfer_evidence.length ? <details className="raw-message field--wide" open>
+            {editingTransaction?.type === "transfer" && editingTransaction.transfer_evidence.length ? <details className="raw-message field--wide">
               <summary>Saved transfer reported balances</summary>
               {editingTransaction.transfer_evidence.map((item) => <p key={item.id}><strong>{loadState.accounts.find((account) => account.id === item.account)?.name ?? "Unknown account"}</strong>: {item.balance_after === null ? "No reported balance" : moneyFormatter.format(Number(item.balance_after))}{item.is_primary ? " · Primary report" : " · Linked report"}</p>)}
               <p>Original account reports stay attached to their accounts. Use the two balance fields above to correct a report or add a missing account balance. Neither field creates another money movement.</p>
