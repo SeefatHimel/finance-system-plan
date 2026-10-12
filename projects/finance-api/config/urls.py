@@ -31,9 +31,11 @@ from apps.recurring_bills.views import (
 )
 from apps.statements.review_views import StatementImportViewSet, StatementRowViewSet
 from apps.statements.views import StatementIdentifyView, StatementPreviewView
+from apps.quick_add.views import QuickAddPresetViewSet, QuickEntryView
 from apps.transactions.views import TransactionViewSet
 
 router = DefaultRouter()
+router.register("quick-add/presets", QuickAddPresetViewSet, basename="quick-add-preset")
 router.register("accounts", AccountViewSet, basename="account")
 router.register("audit-logs", AuditLogEntryViewSet, basename="audit-log")
 router.register("categories", CategoryViewSet, basename="category")
@@ -52,6 +54,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("apps.users.urls")),
     path("api/", include(router.urls)),
+    path("api/quick-add/entries/", QuickEntryView.as_view(), name="quick-add-entry"),
     path("api/health/", include("apps.health.urls")),
     path("api/statements/preview/", StatementPreviewView.as_view(), name="statement-preview"),
     path("api/statements/identify/", StatementIdentifyView.as_view(), name="statement-identify"),

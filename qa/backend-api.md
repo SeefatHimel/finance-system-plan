@@ -81,6 +81,7 @@ Implemented:
 - `payment_methods`
 - `messages` for sender rule management
 - `transactions`
+- `quick_add` for shared presets and retry receipts
 - `reports`
 - `debts`
 - `reconciliation`
@@ -704,3 +705,14 @@ are supported but credit-card PDF layouts still need separate extraction support
 
 Masked identifiers exposing more than ten digits also reduce to a last-four
 suffix, so adding a mask character cannot preserve a nearly complete card number.
+
+## How does Quick Add prevent duplicate cash entries during retry?
+
+A Save supplies a client UUID and immutable values. The API creates a normal
+transaction, audit event and receipt atomically under a per-user row lock, with
+a unique user/request constraint. An identical replay returns the original ID;
+changed values or a deleted original return 409. Receipts preserve retry identity
+after edits or deletion, without reverting corrections. Reference ownership is
+checked for new writes; a replay remains recognizable after defaults change.
+Distinct UUIDs allow two genuinely separate equal purchases. Presets are owned
+CRUD records with active compatible defaults and shared ordering/favorite state.

@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     "apps.statements",
     "apps.transactions",
     "apps.users",
+    "apps.quick_add",
 ]
 
 MIDDLEWARE = [

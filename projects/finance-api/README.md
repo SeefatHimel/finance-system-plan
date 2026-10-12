@@ -765,3 +765,42 @@ DATABASE_URL= .venv/bin/python manage.py test apps.accounts apps.payment_methods
 
 Masked identifiers exposing more than ten digits also reduce to a last-four
 suffix, so adding a mask character cannot preserve a nearly complete card number.
+
+## Quick Add presets and manual entries
+
+The `quick_add` app stores user-owned named presets shared by web and mobile.
+Presets support expense/income, optional account/category/amount/merchant/note,
+favorite visibility, enable/disable, and ordering. Defaults must belong to the
+caller and be active; category kind must match the entry type or be system.
+Missing defaults are allowed so users can choose them while recording an entry.
+Inactive defaults produce `available: false` instead of silently selecting a
+replacement. Preset changes never modify existing transactions.
+
+- `GET/POST /api/quick-add/presets/` and normal detail GET/PUT/PATCH/DELETE.
+- `POST /api/quick-add/presets/reorder/` takes every owned ID exactly once,
+  including disabled presets. Membership changes and ordering share a user lock.
+- `POST /api/quick-add/entries/` creates an ordinary audited ledger transaction.
+  Account is required; category and time may be null. Expense maps to debit and
+  income to credit. Source is `web` or `mobile`; amount remains a positive decimal.
+
+A client generates one `client_request_id` per Save and retains the original
+payload until acknowledged. An identical retry returns 200 and the original
+transaction ID; a new Save returns 201. Reusing an ID with different values, or
+retrying a transaction later deleted, returns 409. Receipts survive ledger edits
+and deletion. Replay is checked before reference ownership resolution so a
+later removed category cannot make a committed request appear unsaved. New
+entries still require owned active references. A per-user database row lock,
+unique request constraint and atomic transaction protect simultaneous retries.
+Equal purchases with different request IDs remain separate entries.
+
+Apply `quick_add.0001_initial` before deploying either client:
+
+```bash
+python manage.py migrate
+python manage.py test apps.quick_add apps.transactions
+python manage.py makemigrations --check --dry-run
+```
+
+Use a disposable test database. SQLite checks the request behavior; PostgreSQL
+is required to exercise row-lock concurrency. Quick Add is a manual-entry
+shortcut, not a recurring bill or an automatic posting rule.
