@@ -129,11 +129,11 @@ class AccountIdentityApiTests(APITestCase):
 
         for identity in (
             {"provider": "ebl"},
-            {"provider": "ebl", "identifier": "123"},
+            {"provider": "not_a_provider", "identifier": "123"},
             {"provider": "ebl", "aliases": ["12345678"]},
             {
                 "provider": "ebl",
-                "additional_identifiers": [{"kind": "card", "value": "123"}],
+                "additional_identifiers": [{"kind": "not_a_kind", "value": "123"}],
             },
         ):
             response = self.client.post(
