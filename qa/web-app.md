@@ -669,3 +669,14 @@ sessionStorage before posting. Uncertain saves lock fields and retry the same
 request after close/reload; known rejections permit correction. This recovery
 lasts within the browser tab, not a durable web offline queue. Successful saves
 refresh mounted ledger and summary screens without resetting selected filters.
+
+## How can users compare a possible duplicate without remembering the original?
+
+Transfer match dialogs show the entry being reviewed beside suggested entries
+on desktop and above them on narrow screens. The current card reflects edited
+draft values, not the initial parser output. Both show the money-flow account
+path, amount, date, time and reference, with explicit missing-value labels and
+pending/recorded context. Credit drafts normalize to sender-to-receiver order.
+Saved-transfer Find match preserves time and reference. Linking still requires
+an explicit action; an error retains both sides for comparison. Compact SMS queue
+rows also retain visible local received time beside their received day.

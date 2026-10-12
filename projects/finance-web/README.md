@@ -290,6 +290,14 @@ sends to it. Incoming SMS preselects the receiving account and Credit. The API
 normalizes both flows to canonical source/destination order. Matching never
 automatically changes the ledger.
 
+The match dialog keeps an Entry being reviewed card alongside suggested matches
+on desktop and above them on phones. It uses the submitted draft, including
+edited values, and shows the same account path, amount, date, time and reference
+as match cards. Missing times/references are explicit. Credit drafts are displayed
+in sender-to-receiver order; saved-transfer Find match retains its time and
+reference. Match reasons and whether the suggestion is pending or recorded stay
+visible before the user links or keeps entries separate.
+
 Linked account references remain searchable without returning duplicate rows.
 CSV exports append contextual `account_direction` and structured
 `transfer_evidence` JSON. Audit snapshots include the normalized evidence
@@ -340,10 +348,11 @@ focus to the trigger. Removable filter chips and a filtered/total count show the
 current scope. Clear filters resets these four choices, retaining search and dates.
 Filters use parsed/remembered candidate values, not unsaved detail-form choices.
 
-Each queue row has three lines: amount/received day, counterparty/provider, and
-its first required correction or ready status. The full received timestamp and
-confidence remain in the selected message details; the date also has a timestamp
-tooltip. Desktop queue and detail panes scroll independently within the viewport.
+Each queue row shows amount alongside the received day and local time,
+counterparty/provider, and its first required correction or ready status. Date
+and time stack in the right-hand column to preserve compact rows. The full
+received timestamp and confidence remain in the selected message details; the
+date/time also has a timestamp tooltip. Desktop queue and detail panes scroll independently within the viewport.
 The editor footer keeps Previous/Next, position, Reject and Confirm & add visible;
 navigation also scrolls the selected queue row into view without moving the page.
 On phones, the queue is a bounded vertical list above the full-height editor;

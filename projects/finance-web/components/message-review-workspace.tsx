@@ -37,6 +37,7 @@ import { getAccessToken } from "@/lib/auth-storage";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
 import { balanceAfterAccountChange } from "@/lib/transaction-balances";
+import { transferComparison } from "../../finance-contracts/transfer-comparison";
 
 type ReviewState =
   | { status: "loading" }
@@ -68,6 +69,9 @@ function formatLabel(value: string) {
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-BD", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
+
+const queueDayFormatter = new Intl.DateTimeFormat("en-BD", { month: "short", day: "numeric" });
+const queueTimeFormatter = new Intl.DateTimeFormat("en-BD", { hour: "numeric", minute: "2-digit" });
 
 function dateInputFromTimestamp(value: string) {
   const date = new Date(value);
@@ -434,7 +438,7 @@ export function MessageReviewWorkspace() {
                 const issues = candidateIssues(candidate);
                 const selected = candidate.id === activeCandidate?.id;
                 return <button aria-current={selected ? "true" : undefined} className={`review-queue-item${selected ? " review-queue-item--active" : ""}`} key={candidate.id} onClick={() => setActiveCandidateId(candidate.id)} type="button">
-                  <span className="review-queue-item__top"><strong>{candidate.amount ? `BDT ${candidate.amount}` : "Amount needed"}</strong><small><time dateTime={candidate.raw_message.received_at} title={formatDateTime(candidate.raw_message.received_at)}>{new Intl.DateTimeFormat("en-BD", { month: "short", day: "numeric" }).format(new Date(candidate.raw_message.received_at))}</time></small></span>
+                  <span className="review-queue-item__top"><strong>{candidate.amount ? `BDT ${candidate.amount}` : "Amount needed"}</strong><small><time dateTime={candidate.raw_message.received_at} title={formatDateTime(candidate.raw_message.received_at)}><span>{queueDayFormatter.format(new Date(candidate.raw_message.received_at))}</span><span>{queueTimeFormatter.format(new Date(candidate.raw_message.received_at))}</span></time></small></span>
                   <span className="review-queue-item__description"><span title={candidate.counterparty_text || formatLabel(candidate.message_kind)}>{candidate.counterparty_text || formatLabel(candidate.message_kind)}</span><small>· {formatLabel(candidate.provider)}</small></span>
                   <span className={issues.length ? "review-queue-item__issue" : "review-queue-item__ready"}>{issues[0] ?? "Ready to confirm"}</span>
                 </button>;
@@ -494,7 +498,7 @@ export function MessageReviewWorkspace() {
         <div className="decision-modal__actions"><button className="button button--ghost" onClick={clearFilters} type="button">Clear filters</button><button className="button button--primary" onClick={() => setFiltersOpen(false)} type="button">Done</button></div>
       </ModalDialog> : null}
       {rejectDraft ? <ModalDialog labelledBy="reject-title" busy={workingCandidateId === rejectDraft.candidate.id} onCancel={() => setRejectDraft(null)}><button aria-label="Close rejection options" className="decision-modal__close" disabled={workingCandidateId === rejectDraft.candidate.id} onClick={() => setRejectDraft(null)} type="button"><X size={20} /></button><h2 id="reject-title">Reject this message</h2><p>Choose whether to reject only this message or remember a skip rule. Skipping a recognized promotional, OTP/security or balance-notice type applies across your trusted senders and keeps transaction messages enabled. Undo the rule in SMS settings.</p><form onSubmit={(event) => void handleReject(event)}><label className="field"><span className="field__label">Reason</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, reason: event.target.value })} value={rejectDraft.reason}>{[["not_transaction", "Not a transaction"], ["otp_security", "OTP or security"], ["duplicate", "Duplicate"], ["wrong_provider_account", "Wrong provider or account"], ["personal", "Personal or non-financial"], ["unsupported_format", "Unsupported format"], ["other", "Other"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field"><span className="field__label">Apply to</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, scope: event.target.value as RejectDraft["scope"] })} value={rejectDraft.scope}><option value="message">Only this message</option><option value="kind">This message and skip its non-transaction type</option><option value="sender">This message and disable {rejectDraft.candidate.raw_message.sender}</option><option value="provider">This message and exclude all {formatLabel(rejectDraft.candidate.provider)} messages</option></select></label><label className="field"><span className="field__label">Note (optional)</span><input className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, note: event.target.value })} value={rejectDraft.note} /></label><label className="review-remember"><input checked={rejectDraft.redact} onChange={(event) => setRejectDraft({ ...rejectDraft, redact: event.target.checked })} type="checkbox" /><span><strong>Redact original SMS now</strong><small>Parsed metadata remains for audit and duplicate protection.</small></span></label><div className="decision-modal__actions"><button className="button button--ghost" disabled={workingCandidateId === rejectDraft.candidate.id} onClick={() => setRejectDraft(null)} type="button">Cancel</button><button className="button button--danger" disabled={workingCandidateId === rejectDraft.candidate.id} type="submit">{workingCandidateId === rejectDraft.candidate.id ? <ButtonBusy label="Rejecting" /> : "Reject message"}</button></div></form></ModalDialog> : null}
-      {transferDecision ? <TransferMatchDialog matches={transferDecision.matches} busy={workingCandidateId !== null} error={matchError} onAccept={(match) => void handleTransferDecision(match)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
+      {transferDecision ? <TransferMatchDialog original={transferComparison(transferDecision.input, id => accountNameById.get(id))} originalSource="SMS awaiting confirmation" matches={transferDecision.matches} busy={workingCandidateId !== null} error={matchError} onAccept={(match) => void handleTransferDecision(match)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
     </div>
   );
 }

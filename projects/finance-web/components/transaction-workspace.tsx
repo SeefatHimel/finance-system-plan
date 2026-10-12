@@ -38,6 +38,7 @@ import {
 } from "@/lib/api";
 import { ModalDialog } from "@/components/modal-dialog";
 import { TransferMatchDialog } from "@/components/transfer-match-dialog";
+import { transferComparison } from "../../finance-contracts/transfer-comparison";
 import { getAccessToken } from "@/lib/auth-storage";
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
 import { TransactionSourceMessages } from "@/components/transaction-source-messages";
@@ -515,7 +516,8 @@ export function TransactionWorkspace() {
     setIsSubmitting(true);
     try {
       const input: CreateTransactionInput = { account: record.account, transfer_account: record.transfer_account || undefined,
-        amount: record.amount, date: record.date, direction: "debit", type: "transfer" };
+        amount: record.amount, date: record.date, time: record.time, reference: record.reference,
+        counterparty_text: record.counterparty_text, note: record.note, direction: "debit", type: "transfer" };
       const matches = (await findTransferMatches(accessToken, { draft: input, exclude_transaction: record.id })).filter((match) => match.kind === "transaction");
       if (matches.length) {
         setMatchError(null);
@@ -1325,7 +1327,7 @@ export function TransactionWorkspace() {
           )}
         </div>
       </section>
-      {transferDecision ? <TransferMatchDialog matches={transferDecision.matches} busy={isSubmitting} error={matchError} merging={Boolean(transferDecision.mergeId)} onAccept={(match) => void handleTransferDecision(match)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
+      {transferDecision ? <TransferMatchDialog original={transferComparison(transferDecision.input, id => accountNames.get(id))} originalSource={transferDecision.mergeId ? "Recorded transfer selected" : "New manual transfer"} matches={transferDecision.matches} busy={isSubmitting} error={matchError} merging={Boolean(transferDecision.mergeId)} onAccept={(match) => void handleTransferDecision(match)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
     </div>
   );
 }

@@ -436,3 +436,9 @@ are enforced by the backend for new entries.
 React and React Native. These are client conveniences, not the backend's source
 of truth. Date helpers use the device's local calendar; no UTC slicing or minute
 rounding is used. Generated types/client remain sourced from `openapi.yaml`.
+
+`transfer-comparison.ts` is a portable client presentation helper for reviewed
+transfer drafts. It resolves account names and displays credit drafts in the
+same sender-to-receiver order as API match summaries, preserving edited amount,
+date/time, reference and descriptive fields. It does not change payloads, match
+eligibility or ledger behavior; no API schema change is required.

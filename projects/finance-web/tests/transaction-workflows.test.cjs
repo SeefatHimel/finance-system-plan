@@ -5,14 +5,32 @@ const { mkdtempSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const output = mkdtempSync(join(tmpdir(), 'finance-workflows-test-'));
-execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--rootDir', '..', '--outDir', output, 'lib/api-errors.ts', 'lib/category-type.ts', 'lib/transaction-balances.ts', 'lib/latest-request.ts'], { cwd: resolve(__dirname, '..') });
+execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--rootDir', '..', '--outDir', output, 'lib/api-errors.ts', 'lib/category-type.ts', 'lib/transaction-balances.ts', 'lib/latest-request.ts', '../finance-contracts/transfer-comparison.ts'], { cwd: resolve(__dirname, '..') });
 const { responseError, fetchWithConnectionError } = require(join(output, 'finance-web/lib/api-errors.js'));
 const { LatestRequest } = require(join(output, 'finance-web/lib/latest-request.js'));
 const { editableReportedBalance, balanceAfterAccountChange, balanceReportingAccount } = require(join(output, 'finance-web/lib/transaction-balances.js'));
 const { categoryTypeProposal, directionForType } = require(join(output, 'finance-web/lib/category-type.js'));
+const { transferComparison } = require(join(output, 'finance-contracts/transfer-comparison.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
 const error = (body, status = 400) => responseError(new Response(JSON.stringify(body), { status }));
 const category = kind => ({ id: 'demo', name: 'Demo category', kind });
+
+test('transfer comparison preserves edited details and aligns receiving drafts with canonical matches', () => {
+  const names = id => ({ A: 'Demo bank', B: 'Demo wallet' })[id];
+  const draft = { account: 'A', transfer_account: 'B', direction: 'debit', amount: '125.50', date: '2026-10-12', time: '13:45:00', reference: 'DEMO-REF', counterparty_text: 'Demo top-up', note: 'Edited note' };
+  const outgoing = transferComparison(draft, names);
+  const incoming = transferComparison({ ...draft, account: 'B', transfer_account: 'A', direction: 'credit' }, names);
+  assert.deepEqual(incoming, outgoing);
+  assert.equal(incoming.account_name, 'Demo bank');
+  assert.equal(incoming.transfer_account_name, 'Demo wallet');
+  assert.equal(incoming.time, draft.time);
+  assert.equal(incoming.reference, draft.reference);
+  assert.equal(incoming.note, draft.note);
+  const unknown = transferComparison({ account: 'B', direction: 'credit', time: null }, names);
+  assert.equal(unknown.account_name, 'Unknown sender');
+  assert.equal(unknown.transfer_account_name, 'Demo wallet');
+  assert.equal(unknown.time, null);
+});
 
 test('validation fields and detail become readable messages', async () => {
   assert.equal((await error({ amount: ['Enter a valid number.'], non_field_errors: ['Choose different accounts.'] })).message, 'Amount: Enter a valid number. Choose different accounts.');
