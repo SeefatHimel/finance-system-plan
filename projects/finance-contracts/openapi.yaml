@@ -2892,6 +2892,20 @@ components:
           nullable: true
           description: Transaction date associated with the latest provider-reported balance.
           readOnly: true
+        ledger_balance_at_latest_report:
+          type: string
+          nullable: true
+          readOnly: true
+          description: Ledger balance at the latest report's cutoff, including its linked movement once. Null for ambiguous timing or credit-card reference balances.
+        latest_reported_balance_difference:
+          type: string
+          nullable: true
+          readOnly: true
+          description: Latest reported balance minus the ledger at that report's cutoff, to two decimal places. A review hint only; later ledger activity is excluded.
+        reported_balance_comparison:
+          type: string
+          readOnly: true
+          enum: [unavailable, matched, mismatch, credit_card_reference, timing_unknown, report_precedes_movement]
         is_active:
           type: boolean
         display_order:

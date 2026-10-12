@@ -467,3 +467,13 @@ opaque action UUID to `/api/transactions/undo/`. Never send restoration snapshot
 Ownership violations return 404; superseded, expired or changed state returns 409.
 A retry of completed undo has no additional effect. Deploy the recovery migration
 before clients. Unknown additive fields do not break older mobile/web clients.
+
+### What do account report comparison fields mean?
+
+The optional decimal strings `ledger_balance_at_latest_report` and
+`latest_reported_balance_difference` represent the ledger at the report's cutoff
+and report minus that ledger. `reported_balance_comparison` distinguishes
+matched/mismatch from unavailable, card references, unknown timing and reports
+preceding a movement. Missing fields default to null/unavailable in web; clients
+must not manufacture a mismatch using today's balance. The additive response
+needs an API deployment but no database migration.

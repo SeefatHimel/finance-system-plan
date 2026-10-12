@@ -516,3 +516,16 @@ Completed undo retries are idempotent. Original SMS redaction is irreversible.
 Only the latest unchanged action is recoverable for 24 hours. Migration
 `transactions.0007_transaction_action_recovery` must precede clients. Existing
 clients can ignore these additive response fields.
+
+### Account report comparison
+
+`Account` optionally adds read-only `ledger_balance_at_latest_report` and
+`latest_reported_balance_difference` (nullable decimal strings), plus
+`reported_balance_comparison`. The difference is report minus ledger at the
+report's cutoff, excluding later activity. `matched`/`mismatch` are comparable;
+`unavailable`, `credit_card_reference`, `timing_unknown` and
+`report_precedes_movement` explain why no numeric comparison is returned.
+Clients default missing fields to null/unavailable and never infer a historical
+mismatch by subtracting today's ledger. Existing fields and mobile clients stay
+compatible. Deploy the updated API before expecting comparison hints; no database
+migration is needed.

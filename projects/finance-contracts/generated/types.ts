@@ -147,6 +147,9 @@ export interface Account {
   ledger_balance: string;
   latest_reported_balance: string | null;
   latest_reported_balance_date: string | null;
+  ledger_balance_at_latest_report?: string | null;
+  latest_reported_balance_difference?: string | null;
+  reported_balance_comparison?: "unavailable" | "matched" | "mismatch" | "credit_card_reference" | "timing_unknown" | "report_precedes_movement";
   is_active: boolean;
   display_order: number;
   created_at: string;
