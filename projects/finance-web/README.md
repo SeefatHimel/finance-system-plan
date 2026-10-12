@@ -356,6 +356,15 @@ context; repeating the same action produces a fresh notification.
 
 ## SMS Review Queue
 
+The selected message header places a compact Debit/Credit button with a change
+icon beside the amount. Its caption names the selected reporting account and
+whether money moves into or out of it. A click, Enter or Space switches direction
+without submitting or changing Type/Category, account choices or edited fields.
+The existing type/category default rules still apply when classification changes.
+A hidden direction input preserves the confirmation and transfer-match payload.
+The large direction dropdown is removed; the button uses text as well as color,
+a visible keyboard focus ring and a 44px target, and is disabled during confirmation.
+
 A compact Received dates toolbar sits above both panes, with All dates, Daily,
 Monthly and Custom range views. Day/month arrows and Today/Current month retain
 shared date semantics; custom dates apply together after validation. The date

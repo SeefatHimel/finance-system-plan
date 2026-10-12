@@ -5,7 +5,7 @@ import { allDates, dateInPeriod, type DatePeriod } from "@/lib/date-period";
 
 import { useFeedbackMessage } from "@/components/toast-provider";
 
-import { ArrowClockwise, ArrowLeft, ArrowRight, CheckCircle, FunnelSimple, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowLeft, ArrowRight, ArrowsLeftRight, CheckCircle, FunnelSimple, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -452,7 +452,21 @@ export function MessageReviewWorkspace() {
               <form onSubmit={(event) => void handleConfirm(activeCandidate, event)}>
                 <div className="review-detail__content">
                 <div className="review-detail__header">
-                  <div><span className="review-card__eyebrow">{formatLabel(activeCandidate.provider)} / {formatLabel(activeCandidate.message_kind)}</span><h2 className="review-card__amount">{activeCandidate.amount ? `BDT ${activeCandidate.amount}` : "Complete the amount"}</h2><p className="review-card__confidence">{confidenceLabel(activeCandidate.confidence)} ({confidencePercent(activeCandidate.confidence)})</p></div>
+                  <div className="review-detail__summary">
+                    <span className="review-card__eyebrow">{formatLabel(activeCandidate.provider)} / {formatLabel(activeCandidate.message_kind)}</span>
+                    <div className="review-amount-row">
+                      <h2 className="review-card__amount">{activeCandidate.amount ? `BDT ${activeCandidate.amount}` : "Complete the amount"}</h2>
+                      <button type="button" className={`review-direction-toggle review-direction-toggle--${accountDraft?.direction ?? "debit"}`}
+                        aria-label={`Switch to ${accountDraft?.direction === "credit" ? "debit / money sent" : "credit / money received"}`}
+                        aria-describedby="review-direction-context"
+                        title={`Change direction for ${accountNameById.get(accountDraft?.account ?? "") ?? "the selected account"}`}
+                        disabled={workingCandidateId === activeCandidate.id}
+                        onClick={() => updateAccountDraft({ direction: accountDraft?.direction === "credit" ? "debit" : "credit" })}>
+                        <span>{accountDraft?.direction === "credit" ? "Credit" : "Debit"}</span><ArrowsLeftRight aria-hidden="true" size={18} />
+                      </button>
+                    </div>
+                    <p className="review-card__confidence review-summary-meta"><span>{confidenceLabel(activeCandidate.confidence)} ({confidencePercent(activeCandidate.confidence)})</span><span id="review-direction-context">{accountDraft?.direction === "credit" ? "Money into" : "Money out of"} {accountNameById.get(accountDraft?.account ?? "") ?? "the selected account"}</span></p>
+                  </div>
 
                 </div>
 
@@ -463,7 +477,7 @@ export function MessageReviewWorkspace() {
                   <label className="field"><span className="field__label">Account</span><select className="field__control" value={accountDraft?.account ?? ""} onChange={(event) => { updateAccountDraft({ account: event.target.value, other: event.target.value === accountDraft?.other ? "" : accountDraft?.other ?? "" }); const method = event.target.form?.elements.namedItem("payment_method") as HTMLSelectElement | null; if (method) method.value = ""; }} name="account" required><option value="">Select account</option>{reviewState.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
                   <label className="field"><span className="field__label">Amount</span><input className="field__control" defaultValue={activeCandidate.amount ?? ""} inputMode="decimal" name="amount" required /></label>
                   <label className="field"><span className="field__label">Type</span><select className="field__control" value={classification?.type ?? activeCandidate.transaction_type} onChange={(event) => applyClassification(classification?.category ?? "", event.target.value as TransactionType)} name="type">{transactionTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select></label>
-                  <label className="field"><span className="field__label">Debit / credit</span><select className="field__control" value={accountDraft?.direction ?? "debit"} onChange={(event) => updateAccountDraft({ direction: event.target.value as "debit" | "credit" })} name="direction"><option value="debit">Debit / money sent</option><option value="credit">Credit / money received</option></select><span className="field__hint">Direction is for the selected account.</span></label>
+                  <input name="direction" type="hidden" value={accountDraft?.direction ?? "debit"} />
                   <label className="field"><span className="field__label">Category</span><select className="field__control" value={classification?.category ?? ""} disabled={workingCandidateId === activeCandidate.id} onChange={(event) => categoryChoice.choose(event.target.value, classification?.type ?? activeCandidate.transaction_type as TransactionType, applyClassification)} name="category"><option value="">No category</option>{reviewState.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
                   <label className="field"><span className="field__label">Payment method</span><select className="field__control" defaultValue={reviewState.paymentMethods.find((method) => method.account === accountDraft?.account && [activeCandidate.payment_method, activeCandidate.destination_payment_method].includes(method.id))?.id ?? ""} name="payment_method"><option value="">No payment method</option>{reviewState.paymentMethods.filter((method) => method.account === accountDraft?.account).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}</select></label>
                   <label className="field"><span className="field__label">Other transfer account</span><select className="field__control" value={accountDraft?.other ?? ""} onChange={(event) => updateAccountDraft({ other: event.target.value })} name="transfer_account"><option value="">No other account</option>{reviewState.accounts.filter((account) => account.id !== accountDraft?.account).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select><span className="field__hint">Credit: money came from this account. Debit: money went to this account.</span>{activeCandidate.transfer_suggestion_reason && accountDraft?.account === accountReviewDefaults(activeCandidate).account && accountDraft?.other === accountReviewDefaults(activeCandidate).other && accountDraft?.direction === accountReviewDefaults(activeCandidate).direction ? <span className="field__hint" role="status">{accountDraft?.other ? `Suggested: ${reviewState.accounts.find((account) => account.id === accountDraft.other)?.name ?? "saved account"}. ` : ""}{activeCandidate.transfer_suggestion_reason}</span> : null}</label>

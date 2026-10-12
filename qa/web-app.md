@@ -699,3 +699,14 @@ and linked transfer evidence. It is not restricted to reference/person/note.
 Apply filters, URL restoration and CSV export retain the same search and other
 filters. Formatted amounts are supported; query limits use existing error/toast
 feedback. Each transfer remains one result even with multiple matching reports.
+
+## Why is SMS direction a compact button near the amount?
+
+The review header shows Debit or Credit with a change icon and a caption naming
+the reporting account. It replaces the full direction dropdown, keeps direction
+visible near the amount and works with click, Enter and Space. The next action
+is named for assistive technology; color is supplementary. Switching updates
+the per-candidate direction draft and hidden form input without submitting or
+resetting other edits, accounts, Type or Category. Incoming SMS still defaults
+to Credit for the receiving account. Existing classification defaults and explicit
+confirmation/match decisions remain unchanged; busy confirmation disables the button.
