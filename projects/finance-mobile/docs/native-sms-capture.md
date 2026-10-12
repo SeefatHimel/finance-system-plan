@@ -198,3 +198,52 @@ Android connectivity and power-management behavior end to end.
 
 References: [WorkManager request/backoff configuration](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work)
 and [unique work policies](https://developer.android.com/develop/background-work/background-tasks/persistent/how-to/manage-work).
+
+## Upload investigation and release 0.1.7
+
+The source investigation found failure paths independent of any Wi-Fi diagnosis:
+
+- The worker held one credential snapshot for a run while foreground APIs could
+  rotate and blacklist its refresh token. A local Django experiment reproduced
+  successful foreground rotation followed by HTTP 401 for the old worker token.
+- A retryable error on the first message exited the run before later messages.
+  Every new run selected that same message first. A real HTTP fault fixture
+  with 552 records now verifies that one HTTP 500 leaves that record retained
+  while the other 551 upload.
+- HttpURLConnection bounded idle reads but not a complete response. A trickling
+  body could keep the worker waiting. The new OkHttp transport has a 25-second
+  whole-call deadline, including a bounded wait for DNS/response completion;
+  worker cancellation interrupts the wait and cancels the call.
+- Expo's default AsyncFunction queue is a single HandlerThread. Historical scans
+  and blocking waits could delay status reads. Those operations now use an IO
+  scope, while local progress reads remain independent.
+
+`SmsUploadEngine` is the production loop, tested with MockWebServer and synthetic
+queue/session stores. Acknowledgement occurs only after a successful response
+and a same-user check. HTTP 408/500/502-type per-record failures get a 30-second
+hold so later eligible records proceed. Three consecutive transient server
+failures stop the run; HTTP 429/503 and transport failures stop immediately to
+avoid hammering an unavailable service. Rejected 4xx records stay held. Delayed
+records remain counted and keep retry work scheduled. Capture/worker budgets
+still limit each run; the budget uses a monotonic clock.
+
+`SmsSessionCoordinator` owns native credentials after explicit login. Foreground
+API recovery and the worker share one refresh flight, use current credentials
+before refreshing and cannot overwrite a newer rotation with an old React
+snapshot. A new login wins over an older in-flight refresh. User changes cannot
+acknowledge another user's queue; the API still verifies JWT authentication.
+The JavaScript SecureStore session is a foreground snapshot, not an independent
+refresh owner in the installed Android app. Expo Go retains the existing
+JavaScript refresh path.
+
+Encrypted read failures now retain ciphertext and report a storage error instead
+of deleting the key's value and returning an empty queue. Storage diagnostics
+use the last known count, or Count unavailable when no count can be established.
+
+Show sync diagnostics includes an explicit allowlist: app version, foreground
+and native API hostnames, stage, HTTP/error class, counts, worker/retry metadata
+and activity timestamp. It excludes SMS bodies, sender names, record identifiers,
+users and tokens. The user can copy or share it; diagnostics are not uploaded
+in the background. A DNS exception records a request failure, not a diagnosis
+of Wi-Fi/router settings. Exact phone behavior still requires that device's
+operational diagnostics or logs; simulated HTTP tests do not prove its cause.

@@ -439,3 +439,14 @@ validated network transition resumes eligible SMS. Background retries use a
 unauthorized records require Attention. Counts stay tied to actual encrypted
 pending messages and change only after acknowledgements. See the native SMS
 capture guide for diagnostics and `npm run test:sms-sync` for presentation checks.
+
+### Upload investigation release 0.1.7
+
+Version 0.1.7 (Android code 8) uses a shared native token-refresh owner for
+foreground APIs and SMS work, a bounded OkHttp upload client, and a tested
+upload engine that prevents a temporarily failing record blocking later records.
+Long native operations use IO rather than Expo's shared status-read queue.
+The capture screen offers Show/Share sync diagnostics using operational metadata
+only, including stage, HTTP/error codes, counts and API host comparison. Encrypted
+read failures preserve stored data and do not report a falsely empty queue.
+See the native SMS guide for reproduced failures, test coverage and limits.

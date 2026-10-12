@@ -489,3 +489,11 @@ TypeScript checks, and the native unit/compile commands in the SMS capture guide
 Network monitoring uses the normal `ACCESS_NETWORK_STATE` permission already
 provided by WorkManager; no new runtime permission prompt is needed. Rebuild the
 signed APK to install the native scheduling fix.
+
+SMS investigation release 0.1.7 uses Android code 8. Native tests now include
+MockWebServer fault tests against the production upload engine and transport;
+Gradle resolves the pinned OkHttp/MockWebServer 4.9.2 libraries already aligned
+with React Native's HTTP stack. Run the native unit and Kotlin compile checks,
+mobile typecheck and `test:sms-sync` before signed assembly. Phone-specific
+root-cause evidence comes from Show sync diagnostics in Capture; its operational
+metadata can be shared without SMS bodies or credentials.

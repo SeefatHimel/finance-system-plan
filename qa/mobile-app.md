@@ -471,3 +471,17 @@ from Attention, displays correction/retry details and reads the native count eve
 when the legacy queue read fails. Actual execution still depends on Android and
 a usable network. Native unit tests verify policy and classification; device
 connectivity/power behavior remains a physical-phone smoke check.
+
+## What did the deeper SMS queue investigation prove?
+
+It found app-side failure paths: foreground token rotation could invalidate the
+worker's cached refresh token; the first retryable server failure could stop all
+later messages; idle-read timeouts did not bound an entire trickling response;
+and Expo's single default native-function queue could delay progress reads.
+The revised production engine and transport are tested against a local HTTP
+server: 552 accepted messages drain to zero, a first-record HTTP 500 leaves one
+and uploads 551, concurrent refresh is shared, slow responses time out without
+acknowledging records, and changed users/storage failures retain unacknowledged
+messages. These tests demonstrate the app defects and fixes, not the exact cause
+on a user's phone. Operational diagnostics identify that cause without copying
+SMS content, user identifiers or login tokens.

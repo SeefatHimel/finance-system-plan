@@ -182,3 +182,14 @@ Deployment/security requirements:
 - Refresh tokens rotate or are revocable.
 - Logout invalidates client-held credentials.
 - Auth failure states are clear and do not silently drop financial actions.
+
+## Android shared refresh owner (0.1.7)
+
+Installed Android builds coordinate foreground and SMS-worker refresh through
+one native session owner. Explicit login initializes it; ordinary React updates
+cannot downgrade a rotated token pair. Concurrent recovery shares one refresh
+flight and checks current tokens first. An in-flight refresh cannot replace a
+new login or restore another user's session. Foreground SecureStore is a snapshot
+hydrated from native credentials; Expo Go keeps the JavaScript recovery path.
+JWT expiry decoding only avoids unnecessary refresh calls. The API still verifies
+signatures, expiry and user access. Token rotation/blacklisting remains enabled.
