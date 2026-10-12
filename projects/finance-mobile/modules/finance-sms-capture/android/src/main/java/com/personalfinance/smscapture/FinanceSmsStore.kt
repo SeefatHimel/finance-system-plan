@@ -363,17 +363,20 @@ object FinanceSmsStore {
     state: String,
     message: String,
     importedCount: Int = 0,
-    rejectedCount: Int = 0
+    rejectedCount: Int = 0,
+    failureKind: String = ""
   ) {
     val payload = JSONObject()
       .put("state", state)
       .put("message", message)
       .put("importedCount", importedCount)
       .put("rejectedCount", rejectedCount)
+      .put("failureKind", failureKind)
       .put("updatedAt", isoFromMillis(System.currentTimeMillis()))
     prefs(context).edit().putString(KEY_SYNC_STATUS, payload.toString()).apply()
   }
 
+  @Synchronized
   fun getSyncStatus(context: Context): Map<String, Any> {
     val payload = runCatching {
       JSONObject(prefs(context).getString(KEY_SYNC_STATUS, "{}") ?: "{}")
@@ -392,6 +395,7 @@ object FinanceSmsStore {
         else payload.optString("message", "No background sync has run yet."),
       "importedCount" to payload.optInt("importedCount", 0),
       "rejectedCount" to rejected,
+      "failureKind" to if (waiting && rejected > 0) "rejected" else payload.optString("failureKind", ""),
       "updatedAt" to payload.optString("updatedAt", "")
     )
   }

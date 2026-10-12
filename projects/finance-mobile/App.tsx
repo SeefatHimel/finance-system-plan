@@ -1,6 +1,7 @@
 import { QuickAddHub, type QuickAddHandle } from "./src/quick-add-hub";
 import { quickSessionScope } from "./src/secure-document";
 import { NativeTimeField } from "./src/native-time-field";
+import { smsSyncPresentation } from "./src/sms-sync-presentation";
 import { localDay, localTime, type QuickPreset, type QuickDraft } from "../finance-contracts/quick-add";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
@@ -91,6 +92,7 @@ import {
   isNativeSmsCaptureAvailable,
   listNativeSmsInboxSenders,
   resetNativeSmsTrackingState,
+  resumeNativeSmsBackgroundSync,
   scanHistoricalSmsMessages,
   type CapturedSmsMessage,
   type NativeSmsSenderRule,
@@ -884,6 +886,8 @@ function FinanceApp() {
   const [smsDevResetState, setSmsDevResetState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [smsDevResetMessage, setSmsDevResetMessage] = useState("");
   const [smsBackgroundStatus, setSmsBackgroundStatus] = useState<NativeSmsBackgroundSyncStatus | null>(null);
+  const [smsRetryRequested, setSmsRetryRequested] = useState(false);
+  const smsRetryInFlight = useRef(false);
   const [reviewState, setReviewState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewCandidates, setReviewCandidates] = useState<ParsedMessageCandidate[]>([]);
@@ -1469,6 +1473,7 @@ function FinanceApp() {
   const pendingSmsCount = isNativeSmsCaptureAvailable()
     ? smsBackgroundStatus?.pendingCount ?? rawQueue.length
     : rawQueue.length;
+  const smsSync = smsSyncPresentation(smsBackgroundStatus, pendingSmsCount);
 
   const refreshSmsPermissionState = async () => {
     if (Platform.OS !== "android" || !isNativeSmsCaptureAvailable()) {
@@ -1488,7 +1493,7 @@ function FinanceApp() {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.5",
+          app_version: "0.1.6",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1510,7 +1515,7 @@ function FinanceApp() {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.5",
+        app_version: "0.1.6",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1523,6 +1528,7 @@ function FinanceApp() {
   };
 
   const handleRetrySmsBackgroundSync = async () => {
+    if (smsRetryInFlight.current) return;
     if (!isNativeSmsCaptureAvailable()) {
       setSmsBackgroundStatus({
         importedCount: 0,
@@ -1533,24 +1539,25 @@ function FinanceApp() {
       });
       return;
     }
-    setSmsBackgroundStatus((current) => ({
-      importedCount: current?.importedCount ?? 0,
-      message: "Background SMS sync is queued…",
-      rejectedCount: current?.rejectedCount ?? 0,
-      state: "running",
-      updatedAt: new Date().toISOString()
-    }));
+    smsRetryInFlight.current = true;
+    setSmsRetryRequested(true);
     try {
       await enqueueNativeSmsBackgroundSync();
       await refreshSmsBackgroundStatus();
     } catch (error) {
-      setSmsBackgroundStatus({
-        importedCount: 0,
+      setSmsBackgroundStatus((current) => ({
+        ...current,
+        pendingCount: current?.pendingCount ?? pendingSmsCount,
+        importedCount: current?.importedCount ?? 0,
         message: error instanceof Error ? error.message : "Could not queue background SMS sync.",
-        rejectedCount: 0,
+        rejectedCount: current?.rejectedCount ?? 0,
+        failureKind: "other",
         state: "error",
         updatedAt: new Date().toISOString()
-      });
+      }));
+    } finally {
+      smsRetryInFlight.current = false;
+      setSmsRetryRequested(false);
     }
   };
 
@@ -1585,7 +1592,7 @@ function FinanceApp() {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.5",
+            app_version: "0.1.6",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1600,7 +1607,7 @@ function FinanceApp() {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.5",
+          app_version: "0.1.6",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -2845,13 +2852,13 @@ function FinanceApp() {
       if (!active || disposed || reading) return;
       reading = true;
       try {
-        const [status, storedQueue] = await Promise.all([
-          getNativeSmsBackgroundSyncStatus(), loadSecureSmsQueue()
-        ]);
+        const status = await getNativeSmsBackgroundSyncStatus();
         if (!status || disposed || !active) return;
         setSmsBackgroundStatus(status);
         // The native worker now owns migrated app queue records.
-        setRawQueue(normalizeRawQueue(storedQueue));
+        const storedQueue = await loadSecureSmsQueue().catch(() => null);
+        if (disposed || !active) return;
+        if (storedQueue !== null) setRawQueue(normalizeRawQueue(storedQueue));
         const finished = previous?.state === "running" && status.state !== "running";
         const completedSinceLastRead = previous !== null && status.state !== "running" && status.importedCount > 0 &&
           status.updatedAt !== previous?.updatedAt;
@@ -2865,11 +2872,12 @@ function FinanceApp() {
         reading = false;
       }
     };
-    void readStatus();
+    const resume = () => { void resumeNativeSmsBackgroundSync().catch(() => {}).finally(() => void readStatus()); };
+    resume();
     const timer = setInterval(() => void readStatus(), 1500);
     const subscription = AppState.addEventListener("change", (state) => {
       active = state === "active";
-      if (active) void readStatus();
+      if (active) resume();
     });
     return () => { disposed = true; clearInterval(timer); subscription.remove(); };
   }, [accessToken]);
@@ -2939,13 +2947,16 @@ function FinanceApp() {
     )
       .then(() => refreshSmsBackgroundStatus())
       .catch((error) => {
-        setSmsBackgroundStatus({
-          importedCount: 0,
+        setSmsBackgroundStatus((current) => ({
+          ...current,
+          importedCount: current?.importedCount ?? 0,
+          pendingCount: current?.pendingCount ?? pendingSmsCount,
           message: error instanceof Error ? error.message : "Could not configure background SMS sync.",
-          rejectedCount: 0,
+          rejectedCount: current?.rejectedCount ?? 0,
+          failureKind: "other",
           state: "error",
           updatedAt: new Date().toISOString()
-        });
+        }));
       });
   }, [accessToken, refreshToken, username]);
 
@@ -4698,22 +4709,29 @@ function FinanceApp() {
         <View style={styles.mobileSection}>
           <View style={styles.mobileSectionHeader}>
             <Text style={styles.mobileSectionTitle}>Automatic sync</Text>
-            <Text style={styles.mobileSectionMeta}>{smsBackgroundStatus?.state ?? "idle"}</Text>
+            <Text style={styles.mobileSectionMeta}>{smsSync.label}</Text>
           </View>
           <Text style={styles.mobileStateText}>
-            {smsBackgroundStatus?.message ?? "New trusted SMS messages will upload when a network is available."}
+            {smsSync.message}
           </Text>
+          <Text style={styles.mobileRowMeta}>
+            {pendingSmsCount} saved on device · {Math.max(0, pendingSmsCount - (smsBackgroundStatus?.rejectedCount ?? 0))} waiting to upload
+            {smsBackgroundStatus?.rejectedCount ? ` · ${smsBackgroundStatus.rejectedCount} need correction` : ""}
+          </Text>
+          {smsBackgroundStatus?.nextAttemptAt && new Date(smsBackgroundStatus.nextAttemptAt).getTime() > Date.now() ? (
+            <Text style={styles.mobileRowMeta}>Retry no earlier than {new Date(smsBackgroundStatus.nextAttemptAt).toLocaleTimeString()} · requires connectivity</Text>
+          ) : null}
           {smsBackgroundStatus?.updatedAt ? (
             <Text style={styles.mobileRowMeta}>Last update {formatMobileDate(smsBackgroundStatus.updatedAt)}</Text>
           ) : null}
           <Pressable
-            disabled={smsBackgroundStatus?.state === "running"}
+            disabled={smsSync.running || smsRetryRequested}
             onPress={() => void handleRetrySmsBackgroundSync()}
             style={({ pressed }) => [styles.mobileSecondaryAction, pressed ? styles.mobilePressed : null]}
           >
             <MaterialCommunityIcons color="#32d8f2" name="cloud-sync-outline" size={21} />
             <Text style={styles.mobileSecondaryActionText}>
-              {smsBackgroundStatus?.state === "running" ? "Sync queued…" : "Retry background sync"}
+              {smsRetryRequested ? "Requesting retry…" : smsSync.running ? "Uploading SMS…" : "Retry background sync"}
             </Text>
           </Pressable>
         </View>
@@ -5497,19 +5515,13 @@ function FinanceApp() {
           {state === "loading" ? (
             <ActivityIndicator color="#55e6a5" size="small" />
           ) : (
-            <View style={[styles.mobileSyncDot, state === "error" ? styles.mobileSyncDotError : null]} />
+            <View style={[styles.mobileSyncDot, smsSync.tone === "waiting" ? styles.mobileSyncDotWaiting : null, state === "error" || smsSync.tone === "error" ? styles.mobileSyncDotError : null]} />
           )}
           <View style={{ flexShrink: 1 }}>
             <Text style={styles.mobileSyncTitle}>
               {smsPermissionState !== "granted"
                 ? "Setup"
-                : smsBackgroundStatus?.state === "error"
-                  ? "Attention"
-                  : smsBackgroundStatus?.state === "running"
-                    ? "Syncing"
-                    : state === "error"
-                      ? "Offline"
-                      : pendingSmsCount > 0 ? "Pending" : "Ready"}
+                : state === "error" && !smsSync.running ? "Offline" : smsSync.label}
             </Text>
             <Text style={styles.mobileSyncMeta}>
               {pendingSmsCount
@@ -6697,6 +6709,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ff7d84",
     shadowColor: "#ff7d84"
   },
+  mobileSyncDotWaiting: { backgroundColor: "#ffc15a", shadowColor: "#ffc15a" },
   mobileSyncMeta: {
     color: "#7890ad",
     fontSize: 9,

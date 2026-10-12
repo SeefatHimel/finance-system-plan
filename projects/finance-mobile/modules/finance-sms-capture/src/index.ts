@@ -10,6 +10,11 @@ export type NativeSmsSenderRule = {
 
 export type NativeSmsBackgroundSyncStatus = {
   pendingCount?: number;
+  failureKind?: string;
+  workerRunning?: boolean;
+  retryScheduled?: boolean;
+  retryAttempt?: number;
+  nextAttemptAt?: string;
   importedCount: number;
   message: string;
   rejectedCount: number;
@@ -58,6 +63,7 @@ type FinanceSmsCaptureModule = {
   getSecureRawQueueAsync(): Promise<string>;
   setSecureRawQueueAsync(value: string): Promise<void>;
   enqueueBackgroundSyncAsync(): Promise<void>;
+  resumeBackgroundSyncAsync?(): Promise<void>;
   resetTrackingStateAsync(): Promise<void>;
   scanHistoricalMessagesAsync(options?: NativeSmsScanOptions): Promise<{
     capturedCount: number;
@@ -195,6 +201,10 @@ export async function enqueueNativeSmsBackgroundSync() {
     return;
   }
   await module.enqueueBackgroundSyncAsync();
+}
+
+export async function resumeNativeSmsBackgroundSync() {
+  await getNativeModule()?.resumeBackgroundSyncAsync?.();
 }
 
 export async function getNativeSmsBackgroundSyncStatus() {

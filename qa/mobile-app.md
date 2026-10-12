@@ -457,3 +457,17 @@ TypeScript can resolve that import while Metro's default mobile-root file map
 cannot. The explicit watch folder includes those helpers without copying them or
 expanding the watch scope to backend data. Native release bundling verifies this
 boundary. Release 0.1.5 uses Android version code 6 and the existing signing key.
+
+## Why can the SMS count stay unchanged, and what changed in 0.1.6?
+
+The count means saved messages awaiting acknowledgement, including rejected
+records. DNS/connection failures do not upload anything, so lowering the count
+would falsely imply success or lose messages. Previously Retry appended a job
+behind the delayed WorkManager chain. It now replaces waiting work, while
+preserving an active upload and at most one successor. Routine requests coalesce;
+app resume or a validated default-network transition restarts eligible work.
+Automatic recovery does not release rejected records. The UI separates Waiting
+from Attention, displays correction/retry details and reads the native count even
+when the legacy queue read fails. Actual execution still depends on Android and
+a usable network. Native unit tests verify policy and classification; device
+connectivity/power behavior remains a physical-phone smoke check.

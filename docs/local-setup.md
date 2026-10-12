@@ -483,3 +483,9 @@ Mobile release 0.1.5 uses Android version code 6. Keep the committed
 `projects/finance-mobile/metro.config.js`: its contracts watch folder is required
 for bundling the shared runtime helpers in a native release. The signed build
 includes the autolinked datetime picker without a clean Expo prebuild.
+
+SMS recovery release 0.1.6 uses Android code 7. Run `npm run test:sms-sync`, mobile
+TypeScript checks, and the native unit/compile commands in the SMS capture guide.
+Network monitoring uses the normal `ACCESS_NETWORK_STATE` permission already
+provided by WorkManager; no new runtime permission prompt is needed. Rebuild the
+signed APK to install the native scheduling fix.

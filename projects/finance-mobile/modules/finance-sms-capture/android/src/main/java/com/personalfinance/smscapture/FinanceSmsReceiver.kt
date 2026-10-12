@@ -25,7 +25,8 @@ class FinanceSmsReceiver : BroadcastReceiver() {
 
     val result = FinanceSmsStore.appendIfTracked(context.applicationContext, sender, body, receivedAt)
     if (result == FinanceSmsStore.AppendStatus.CAPTURED) {
-      FinanceSmsSyncWorker.enqueue(context.applicationContext)
+      val pendingResult = goAsync()
+      FinanceSmsSyncWorker.enqueue(context.applicationContext, onComplete = { pendingResult.finish() })
     }
   }
 }

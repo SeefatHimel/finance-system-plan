@@ -429,3 +429,13 @@ version fields in Expo config, Gradle, package metadata and SMS status aligned.
 runtime helpers are bundled into the installed app; TypeScript checks alone do
 not validate Metro's file visibility. Follow the signed-release guide to build
 and verify the APK with the existing signing key.
+
+### SMS recovery release 0.1.6
+
+Version 0.1.6 (Android code 7) fixes Retry requests waiting behind old backoff
+chains. Capture triggers coalesce, active uploads continue, and app resume or a
+validated network transition resumes eligible SMS. Background retries use a
+30-second linear base. Network/server errors display amber Waiting; rejected or
+unauthorized records require Attention. Counts stay tied to actual encrypted
+pending messages and change only after acknowledgements. See the native SMS
+capture guide for diagnostics and `npm run test:sms-sync` for presentation checks.

@@ -1,6 +1,6 @@
 # Native Android SMS Capture
 
-Last updated: 2026-10-09
+Last updated: 2026-10-12
 
 ## Scope
 
@@ -165,3 +165,36 @@ closed-app SMS upload validation.
   exactly as it appears on the phone or use a conservative `contains` rule.
 - If the API is unreachable on a physical phone, use your computer's LAN IP in
   `EXPO_PUBLIC_API_BASE_URL`, not `localhost`.
+
+## Recovering a stalled SMS queue (0.1.6)
+
+A DNS failure such as Unable to resolve host means the request never reached the
+API. The queue count therefore remains unchanged; only acknowledged successful
+imports remove saved SMS. An API health check from another device cannot prove
+the phone's DNS/network is working. Try another connection and check Private DNS
+or VPN settings if resolution failures persist. Keep queued data intact.
+
+Ordinary triggers now coalesce unfinished work instead of accumulating jobs
+behind backoff. One successor covers new captures and the four-minute limit.
+Manual Retry replaces a waiting/backoff chain, but never cancels an active
+upload. Automatic recovery does the same on app resume and a transition to a
+validated default network, without releasing rejected records. Manual Retry
+continues to release their hold. Background WorkManager retries use an explicit
+30-second linear base; Android constraints and power management still determine
+when work can start. The native receiver holds its asynchronous broadcast result
+until scheduling completes; scheduler lookups do not block its main thread.
+
+The native status includes the actual worker-running flag, scheduled retry
+metadata and a failure kind. The UI shows amber Waiting for network/server errors
+and reserves Attention for authentication, rejected records or other failures.
+The capture screen distinguishes saved, uploadable and correction counts, and
+shows the earliest retry time when known. The local 1.5-second status reader
+applies native counts even if a legacy queue read fails. It does not poll APIs.
+
+Run `npm run test:sms-sync` and the native checks above. Unit tests cover delayed
+chain replacement, repeated capture coalescing, active-worker preservation and
+DNS/timeout/server presentation; a physical phone is still required to verify
+Android connectivity and power-management behavior end to end.
+
+References: [WorkManager request/backoff configuration](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work)
+and [unique work policies](https://developer.android.com/develop/background-work/background-tasks/persistent/how-to/manage-work).
