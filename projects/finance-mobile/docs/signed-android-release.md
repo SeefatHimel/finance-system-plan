@@ -79,10 +79,15 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.7**, Android version code **8**. It coordinates
-foreground/background token rotation, isolates temporary per-message failures,
-bounds complete upload requests and adds privacy-safe sync diagnostics. It keeps
-the Quick Add and scheduling improvements from earlier releases.
+The current release is **0.1.9**, Android version code **10**. It fixes the
+0.1.8 sign-in failure caused by returning a native `SmsSession` through Expo.
+Command-only session/scheduling methods now resolve without a result. It includes
+the recent transfer comparison layout, review date/time and Debit/Credit controls,
+account-labelled balance conflict choices, compact explanation icons and
+review-only short account/card suffix suggestions. It retains the SMS sync,
+Quick Add and scheduling improvements from earlier releases. The shared Add/Edit
+editor and latest-action Undo controls are web features and are not native
+controls in this APK.
 
 ## 5. Build the signed APK
 
@@ -105,7 +110,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.7.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.9.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -208,3 +213,31 @@ Check Show sync diagnostics for stage, HTTP/error code, worker state and counts;
 Share diagnostics must contain no message body, sender, user or credential.
 Test slow responses, rejected records and a temporarily failing first record
 with synthetic data. A failing record must not block valid later records.
+
+Release 0.1.8 is superseded because its sign-in bridge failed. Use 0.1.9 with
+the same signing key. Verify transfer comparison
+scrolling and fixed actions, local review date/time, direction changes retaining
+edited fields, required same-account balance choices, tap-to-open help, and
+explicit short-suffix account/card selections. Selecting a suggestion or reading
+help must not save a transaction. Physical-device checks remain necessary.
+
+For 0.1.9, upgrade directly over 0.1.8 using the same signing key. Sign-in must
+complete without an unknown native type error. Verify logout, sign-in again,
+foreground/background token refresh and retained queued SMS. Command-only native
+functions must return Unit; session getters/refresh return explicit maps. Native
+bridge regression tests exercise the installed Expo converter and retain storage
+errors. Signature/build verification does not replace a device sign-in check.
+
+The 0.1.9 release was built and verified with:
+
+```bash
+# From projects/finance-mobile
+npm run typecheck
+cd android
+NODE_ENV=production ./gradlew :finance-sms-capture:testReleaseUnitTest assembleRelease
+```
+
+All 23 native tests passed, including the three bridge conversion regressions.
+The release signature matches the previous APK, Android code is 10, and the
+embedded JavaScript and MaterialCommunityIcons font are present. Physical-device
+sign-in and SMS smoke tests remain unverified.

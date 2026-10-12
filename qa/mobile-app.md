@@ -525,3 +525,22 @@ current Debit/Credit direction and preserve other edits. Confirmation/linking is
 still explicit. Older APIs omit the optional list safely; longer saved identifiers
 remain useful without separate short mappings. A new mobile release is needed for
 the buttons; no APK was built during implementation.
+
+### Which release includes the recent native review improvements?
+
+Release 0.1.9 (Android code 10) includes the review improvements first packaged
+in 0.1.8 (code 9), which is superseded because sign-in failed. These include
+transfer comparison and review time/direction changes,
+account-labelled balance conflicts, native help dialogs and explicit short-suffix
+account/card suggestions. It keeps the existing signing identity for upgrades.
+Web Add/Edit and Undo remain web workflows; Android device smoke tests cover the
+native interactions separately. Version metadata and SMS diagnostics stay aligned.
+
+### Why did a compiled release fail during native session initialization?
+
+A Kotlin lambda implicitly returned its last expression: an internal SmsSession
+object that Expo cannot serialize. The JavaScript API expected a void command.
+Release 0.1.9 discards native command results and returns Unit; tests cover Expo
+conversion, stored session state and error propagation. Maps remain the explicit
+contract for getters and refresh. Compilation and signing alone cannot validate
+the installed JavaScript/native boundary, so sign-in is a release smoke check.

@@ -498,6 +498,15 @@ mobile typecheck and `test:sms-sync` before signed assembly. Phone-specific
 root-cause evidence comes from Show sync diagnostics in Capture; its operational
 metadata can be shared without SMS bodies or credentials.
 
+Mobile release 0.1.9 uses Android code 10 and fixes Expo rejecting a native
+session object during sign-in. Release 0.1.8 is superseded. From
+`projects/finance-mobile`, run `npm run typecheck`, then from `android` run
+`NODE_ENV=production ./gradlew :finance-sms-capture:testReleaseUnitTest assembleRelease`.
+Keep the existing private signing key and upgrade in place to retain local SMS.
+The versioned output is `projects/finance-mobile/dist/releases/finance-mobile-0.1.9.apk`;
+release binaries remain ignored. Native tests, assembly and signature were
+verified; physical-device sign-in and SMS checks remain separate.
+
 ### Transaction recovery migration
 
 Before running web clients with Edit/Undo, run `python manage.py migrate` from

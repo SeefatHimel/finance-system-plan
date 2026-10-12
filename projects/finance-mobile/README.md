@@ -503,3 +503,29 @@ One/two-digit identities are excluded; ownership/provider/kind scope and visible
 digit conflicts are enforced by the API. Re-run parsing for old pending messages
 whose shorter suffixes were discarded. This change requires a new mobile release
 to display the buttons; no APK was built as part of this implementation.
+
+### Native release 0.1.8 (superseded by 0.1.9)
+
+Use 0.1.9 for installation: the 0.1.8 build failed during sign-in.
+Version 0.1.8 (Android code 9) packages the native review changes above: transfer
+comparison layout, review time/direction, account-bound balance conflict choices,
+compact help and explicit short-suffix suggestions. The signed APK uses the
+existing upload key for in-place upgrades. The web shared Add/Edit editor and
+Undo controls are not native features in this release. Follow
+[the signed-release guide](docs/signed-android-release.md) for installation and
+physical-device checks.
+
+### Sign-in bridge fix in release 0.1.9
+
+Android code 10 fixes `initializeBackgroundSyncSessionAsync` rejecting with an
+unknown `SmsSession` type after successful authentication. Native command methods
+discard internal coordinator/scheduler results and resolve without returning
+credentials or custom JVM objects. Storage/scheduling failures still reject.
+Regression tests exercise session persistence and Expo result conversion; verify
+sign-in and retained SMS on a physical phone after upgrading over 0.1.8.
+
+Verification for 0.1.9: all 23 native tests (including three bridge regressions),
+mobile typecheck and signed release assembly passed. The packaged APK was checked
+for version 0.1.9/code 10, the same certificate as the previous APK, a bundled
+JavaScript runtime and the exact MaterialCommunityIcons font. No connected
+Android device or configured emulator was available for sign-in verification.
