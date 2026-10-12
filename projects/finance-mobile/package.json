@@ -1,6 +1,6 @@
 {
   "name": "finance-mobile",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "main": "expo/AppEntry",
   "scripts": {
@@ -10,7 +10,8 @@
     "test:gestures": "node --test tests/tap-gesture.test.cjs",
     "ios": "expo run:ios",
     "test:network": "node --test tests/bounded-fetch.test.cjs",
-    "test:quick-add": "node --test tests/quick-add.test.cjs"
+    "test:quick-add": "node --test tests/quick-add.test.cjs",
+    "test:sms-sync": "node --test tests/sms-sync.test.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
