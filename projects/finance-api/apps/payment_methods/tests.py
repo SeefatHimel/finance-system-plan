@@ -212,7 +212,7 @@ class PaymentIdentityTests(APITestCase):
         for data in (
             {"aliases": ["12345678"]},
             {"aliases": ["ab"]},
-            {"additional_identifiers": [{"kind": "card", "value": "123"}]},
+            {"additional_identifiers": [{"kind": "card", "value": "12"}]},
             {"additional_identifiers": [{"kind": "card", "value": "1111"}] * 21},
             {"additional_identifiers": [{"kind": "account", "value": "1111"}] * 2},
         ):

@@ -1,6 +1,7 @@
 import re
 from decimal import Decimal
 
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.accounts.models import Account
@@ -160,14 +161,43 @@ class RawMessageImportSerializer(serializers.Serializer):
     reprocess_existing = serializers.BooleanField(required=False, default=False)
 
 
+class IdentityChoiceSerializer(serializers.Serializer):
+    account = serializers.UUIDField()
+    name = serializers.CharField()
+    payment_method = serializers.UUIDField()
+    method_name = serializers.CharField()
+    provider = serializers.CharField()
+
+
+class IdentitySuggestionSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(choices=("sender", "receiver"))
+    reason = serializers.CharField()
+    observed_identifiers = serializers.ListField(child=serializers.CharField())
+    choices = IdentityChoiceSerializer(many=True)
+
+
 class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
     raw_message = RawMessageSerializer(read_only=True)
+    identity_suggestions = serializers.SerializerMethodField()
+
+    @extend_schema_field(IdentitySuggestionSerializer(many=True))
+    def get_identity_suggestions(self, instance):
+        from apps.payment_methods.models import PaymentMethod
+        from .identity_suggestions import short_identity_suggestions
+
+        if not hasattr(self, "_identity_methods"):
+            self._identity_methods = {}
+        if instance.user_id not in self._identity_methods:
+            self._identity_methods[instance.user_id] = list(PaymentMethod.objects.filter(
+                user_id=instance.user_id, is_active=True, account__is_active=True).select_related("account"))
+        return short_identity_suggestions(instance, user=instance.user_id, methods=self._identity_methods[instance.user_id])
 
     class Meta:
         model = ParsedMessageCandidate
         fields = (
             "id",
             "raw_message",
+            "identity_suggestions",
             "sender_rule",
             "account",
             "payment_method",

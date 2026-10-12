@@ -70,7 +70,9 @@ def suggestions(rows):
     batch = rows[0].batch
     from apps.payment_methods.models import PaymentMethod
     from apps.payment_methods.resolution import (
+        identifier_suffix,
         matching_methods,
+        unique_method,
         named_methods,
         text_identifier_evidence,
     )
@@ -105,7 +107,15 @@ def suggestions(rows):
             )
             if len({m.account_id for m in identity_matches}) > 1:
                 continue
-            method = identity_matches[0] if identity_matches else None
+            method = unique_method(
+                user=batch.user_id, methods=methods,
+                evidence=text_identifier_evidence(row.extracted.get("description", "")),
+                excluded_account_id=batch.account_id,
+            )
+            short_evidence = any(len(identifier_suffix(value)) == 3 for _, value in
+                                 text_identifier_evidence(row.extracted.get("description", "")))
+            if not method and (identity_matches or short_evidence):
+                continue  # Weak numeric hints cannot fall back to a learned account.
             if method and method.account.currency == batch.currency:
                 result[row.id] = {
                     "type": "transfer",

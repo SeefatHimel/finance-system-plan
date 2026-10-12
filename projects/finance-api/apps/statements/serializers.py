@@ -83,7 +83,14 @@ class StatementCheckSerializer(serializers.Serializer):
     passed = serializers.BooleanField(allow_null=True)
 
 
+class StatementIdentityChoiceSerializer(serializers.Serializer):
+    account = serializers.UUIDField()
+    name = serializers.CharField()
+
+
 class StatementAccountSuggestionSerializer(serializers.Serializer):
+    requires_review = serializers.BooleanField(default=False)
+    choices = StatementIdentityChoiceSerializer(many=True, default=list)
     account = serializers.UUIDField(allow_null=True)
     name = serializers.CharField(allow_blank=True)
     reason = serializers.CharField()

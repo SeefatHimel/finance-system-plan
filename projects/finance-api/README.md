@@ -868,3 +868,37 @@ user transaction lock. Original SMS/PDF evidence remains available; the chosen
 value becomes the effective account report. Account balance summaries use the
 same effective reports as the editor and matching API. No additional ledger
 movement or database migration is introduced.
+
+### Short account/card suffixes
+
+Recognition accepts masked identifiers or suffixes with at least three ending
+digits. Keep longer saved identifiers: a three-digit SMS ending can suggest a
+compatible saved four-digit or masked number without creating another mapping.
+Unmasked full numbers still reduce to four digits; one/two-digit values and masks
+with fewer than three ending digits are rejected.
+
+Three-digit overlap always remains weak, including a unique match or a matching
+visible prefix. Provider, identifier kind, ownership and active-account scope
+limit suggestions; contradictory visible prefixes/four-digit endings do not match.
+Independent longer evidence can corroborate the same account. Otherwise SMS
+parsing clears inferred account/method choices, caps confidence at 60%, and returns
+read-only `identity_suggestions` grouped by sender/receiver with owned account and
+payment-method choices. Sender defaults and learned transfer rules cannot bypass
+this review. Confirmation and transfer matching require explicit account choices
+and `account_perspective: true` for weak transfer identities. Choosing an account
+is still required when no saved candidate matches; suggestions never add a ledger
+entry or change a saved identifier/balance.
+
+Statement header suggestions return `account: null`, `requires_review: true` and
+`choices` for weak/colliding evidence. Preview stays `account_identity: verify`,
+even if the user selected a suggested account. Statement-row weak numeric hints
+cannot silently select a transfer account through a learned mapping. Existing
+rows/SMS bodies are unchanged. Pending SMS parsed before this release may need
+**Re-run parser** if their short identifiers were previously discarded. No database
+migration is needed.
+
+Targeted checks:
+
+```sh
+DATABASE_URL= .venv/bin/python manage.py test apps.payment_methods apps.messages apps.statements apps.transactions.test_transfers apps.transactions.test_corrections --noinput
+```

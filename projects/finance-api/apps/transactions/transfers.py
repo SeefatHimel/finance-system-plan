@@ -191,6 +191,9 @@ def prepare_transfer_input(*, user, payload, context):
             data=payload.get("draft", {}), context=context
         )
         serializer.is_valid(raise_exception=True)
+        from apps.messages.identity_suggestions import validate_short_identity_choices
+
+        validate_short_identity_choices(candidate, {"type": "transfer", **serializer.validated_data})
         data, observation = sms_transfer_data(candidate, serializer.validated_data)
         return data, observation, candidate, serializer.validated_data
     serializer = TransactionSerializer(data=payload.get("draft", {}), context=context)

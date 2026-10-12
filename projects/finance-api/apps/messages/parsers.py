@@ -41,12 +41,12 @@ _BANGLA_TRANSACTION_WORDS = ("ডেবিট", "ক্রেডিট", "লে
 _CARD_ACTIVITY_PATTERN = re.compile(r"\b(?:used\s+(?:for|at)|spent|purchased|pos|atm)\b", re.IGNORECASE)
 _ACCOUNT_IDENTIFIER_PATTERN = re.compile(
     r"\b(?:a\s*/?\s*c|acct|account)(?:\s*(?:no|number))?\s*[:#-]?\s*"
-    r"([0-9x*][0-9x* -]{2,}[0-9x*])",
+    r"([0-9x*•…][0-9x*•… -]{1,}[0-9x*•…])",
     re.IGNORECASE,
 )
 _CARD_IDENTIFIER_PATTERN = re.compile(
     r"\bcard(?:\s*(?:no|number|ending(?:\s+in)?))?\s*[:#-]?\s*"
-    r"([0-9x*][0-9x* -]{2,}[0-9x*])",
+    r"([0-9x*•…][0-9x*•… -]{1,}[0-9x*•…])",
     re.IGNORECASE,
 )
 
@@ -183,6 +183,9 @@ def parse_raw_message(raw_message):
     from .transfer_suggestions import apply_transfer_suggestion
 
     apply_transfer_suggestion(parsed, raw_message.user, reporting_account, evidence_accounts)
+    from .identity_suggestions import require_short_identity_review
+
+    require_short_identity_review(parsed, raw_message.user)
     return parsed
 
 

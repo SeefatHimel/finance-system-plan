@@ -111,7 +111,7 @@ class StatementPreviewView(APIView):
         suffix_matches = bool(
             account and suggestion and suggestion["account"] == str(account.id)
         )
-        if suggestion and suggestion["ambiguous"]:
+        if suggestion and (suggestion["ambiguous"] or suggestion.get("requires_review")):
             preview["warnings"].append(suggestion["reason"])
         preview["account_identity"] = "matched_suffix" if suffix_matches else "verify"
         preview["warnings"].append(

@@ -17,7 +17,7 @@ class AdditionalIdentifierSerializer(serializers.Serializer):
         safe = sanitize_financial_identifier(value)
         if not safe:
             raise serializers.ValidationError(
-                "Enter a masked identifier or at least four digits."
+                "Enter a masked identifier with at least three ending digits, or a suffix of at least three digits."
             )
         return safe
 
@@ -57,7 +57,10 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
         return account
 
     def validate_identifier(self, identifier):
-        return sanitize_financial_identifier(identifier)
+        safe = sanitize_financial_identifier(identifier)
+        if identifier.strip() and not safe:
+            raise serializers.ValidationError("Enter a masked account/card number with at least three ending digits.")
+        return safe
 
     def validate_additional_identifiers(self, values):
         if len(values) > 20:
@@ -113,6 +116,6 @@ class AccountIdentitySerializer(PaymentMethodSerializer):
         safe = super().validate_identifier(value)
         if value and not safe:
             raise serializers.ValidationError(
-                "Enter a masked identifier or at least four digits."
+                "Enter a masked identifier with at least three ending digits, or a suffix of at least three digits."
             )
         return safe

@@ -15,14 +15,20 @@ def identifiers(method):
     yield from method.additional_identifiers
 
 
+def identifier_suffix(value):
+    value = re.sub(r"\s+", "", value).lower().replace("x", "*")
+    match = re.search(r"\d+$", value)
+    return match[0][-4:] if match else ""
+
+
 def identifier_score(saved, observed):
     """Compare safe suffixes; reject contradictory visible prefixes."""
     a, b = (re.sub(r"\s+", "", v).lower().replace("x", "*") for v in (saved, observed))
     ad, bd = (re.sub(r"\D", "", v) for v in (a, b))
-    if len(ad) < 4 or len(bd) < 4 or ad[-4:] != bd[-4:]:
+    at, bt = identifier_suffix(a), identifier_suffix(b)
+    length = min(len(at), len(bt))
+    if length < 3 or at[-length:] != bt[-length:]:
         return 0
-    if a == b and len(ad) > 4:
-        return 100
 
     def prefix(value, digits):
         masked = re.match(r"^\d+(?=[*•…])", value)
@@ -37,6 +43,10 @@ def identifier_score(saved, observed):
     ap, bp = prefix(a, ad), prefix(b, bd)
     if ap and bp and not (ap.startswith(bp) or bp.startswith(ap)):
         return 0
+    if length == 3:
+        return 10  # Always review-only, even with a matching visible prefix.
+    if a == b and len(ad) > 4:
+        return 100
     return 60 if ap and bp else 30
 
 
@@ -52,7 +62,10 @@ def matching_methods(
     methods = [
         method
         for method in methods
-        if (
+        if method.user_id == getattr(user, "pk", user)
+        and method.is_active
+        and method.account.is_active
+        and (
             not provider
             or method.provider in {provider, "bank", "card", "manual", "other"}
         )
@@ -102,7 +115,18 @@ def matching_methods(
 
 def unique_method(**kwargs):
     matches = matching_methods(**kwargs)
-    return matches[0] if len({m.account_id for m in matches}) == 1 else None
+    if len({m.account_id for m in matches}) != 1:
+        return None
+    # A unique short suffix is not proof. Independent longer evidence can
+    # corroborate the same account, but conflicting observations remain unresolved.
+    strong = any(
+        identifier_score(saved["value"], value) >= 30
+        for method in matches
+        for saved in identifiers(method)
+        for kind, value in kwargs["evidence"]
+        if saved["kind"] == "any" or kind == "any" or saved["kind"] == kind
+    )
+    return matches[0] if strong else None
 
 
 def text_identifier_evidence(text):
@@ -110,13 +134,13 @@ def text_identifier_evidence(text):
     result = []
     covered = []
     for match in re.finditer(
-        r"\b(account|a/c|acc|card|wallet|phone|mobile)\s*(?:no\.?|number)?\s*[:#-]?\s*([\d*Xx•…-]{4,})",
+        r"\b(account|a/c|acc|card|wallet|phone|mobile)\s*(?:no\.?|number|ending(?:\s+in)?)?\s*[:#-]?\s*([\d*Xx•…-]{3,})",
         text,
         re.IGNORECASE,
     ):
         result.append(("card" if match[1].lower() == "card" else "account", match[2]))
         covered.append(match.span())
-    for match in re.finditer(r"(?<!\w)(?:\d+)?[*Xx•…]+\d{4,}(?!\w)", text):
+    for match in re.finditer(r"(?<!\w)(?:\d+)?[*Xx•…]+\d{3,}(?!\w)", text):
         if not any(start <= match.start() < end for start, end in covered):
             result.append(("any", match[0]))
     return result
@@ -147,12 +171,27 @@ def statement_account_suggestion(*, user, profile, hint, methods=None):
     accounts = {m.account_id for m in matches}
     if not accounts:
         return None
-    if len(accounts) > 1:
+    choices = [
+        {"account": str(m.account_id), "name": m.account.name}
+        for m in {m.account_id: m for m in matches}.values()
+    ]
+    if not unique_method(
+        user=user,
+        evidence=[("account", hint)],
+        provider="ebl" if profile == "ebl_bank" else profile,
+        methods=methods,
+    ):
         return {
             "account": None,
             "name": "",
-            "reason": "Several saved accounts share this identifier. Choose manually.",
-            "ambiguous": True,
+            "choices": choices,
+            "requires_review": True,
+            "reason": (
+                "Only three ending digits overlap. Check the statement header and choose an account."
+                if len(accounts) == 1
+                else "Several saved accounts share this identifier. Check the statement header and choose manually."
+            ),
+            "ambiguous": len(accounts) > 1,
         }
     method = matches[0]
     return {

@@ -20,7 +20,7 @@ from apps.transactions.models import Transaction
 from .parser import MAX_BYTES, StatementParseError, extract_statement
 
 
-def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_count=1):
+def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_count=1, account_identifier="9876543210123"):
     stream = io.BytesIO()
     c = canvas.Canvas(
         stream,
@@ -39,7 +39,7 @@ def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_cou
         if profile == "ebl_bank":
             text(21, 800, "EBL Bank")
             text(21, 780, "Currency Name : BANGLADESH TAKA")
-            text(21, 765, "Account No : 9876543210123")
+            text(21, 765, f"Account No : {account_identifier}")
             text(21, 750, "Period From : 01-JAN-2026 - 05-JAN-2026")
             text(21, 610, "TRN. DATE")
             text(81, 610, "DESCRIPTION")

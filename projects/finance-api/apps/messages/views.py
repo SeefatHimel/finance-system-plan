@@ -595,6 +595,9 @@ class MessageCandidateConfirmView(APIView):
         serializer = ParsedMessageConfirmSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
+        from .identity_suggestions import validate_short_identity_choices
+
+        validate_short_identity_choices(candidate, payload)
 
         account = payload.get("account") or candidate.account
         transfer_account = payload.get("transfer_account", candidate.destination_account)

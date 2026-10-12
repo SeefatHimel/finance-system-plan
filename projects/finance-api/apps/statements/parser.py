@@ -185,11 +185,15 @@ def extract_statement(data: bytes, password=""):
         (parse_date(period[1]), parse_date(period[2])) if period else (None, None)
     )
     identifier = re.search(
-        r"(?:bKash Account Number|Account Number|Account No)\s*:\s*(\d+)",
+        r"(?:bKash Account Number|Account Number|Account No)\s*:\s*([0-9*Xx•…]{3,})",
         full_text,
         re.IGNORECASE,
     )
-    account_hint = "***" + identifier[1][-4:] if identifier else ""
+    from apps.messages.identifiers import sanitize_financial_identifier
+
+    account_hint = sanitize_financial_identifier(identifier[1]) if identifier else ""
+    if account_hint.isdigit():
+        account_hint = "***" + account_hint
     rows, warnings, checks = [], [], []
     if not period_start or not period_end:
         warnings.append(

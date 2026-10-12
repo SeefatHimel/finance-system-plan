@@ -748,3 +748,14 @@ or incoming choice with the reviewed values. The API rechecks those values
 under the transaction lock and rolls back missing, extra, duplicate or stale
 choices. Unknown never overwrites known. Original evidence remains available;
 account summaries and the editor use the same effective reported balance.
+
+### Can a three-digit card suffix automatically select an account?
+
+No. The shared resolver accepts three ending digits but treats their overlap as
+weak, even for a unique account or matching prefix. Longer independent evidence
+may corroborate it. Provider/kind/ownership/active-account filters and visible
+digit conflicts still apply. SMS returns sender/receiver choices and clears weak
+defaults; confirmation/matching require explicit account choices. Learned mappings
+cannot override unresolved weak numeric evidence. Longer saved identifiers remain
+unchanged; no migration or extra ledger movement is involved. Statement weak
+headers return choices with a null suggested account and retain verification.
