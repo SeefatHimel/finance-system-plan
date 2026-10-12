@@ -768,3 +768,13 @@ viewport or larger text needs it. Only transfers can submit a second ledger
 account. SMS selectors say From/To according to the reporting perspective; type
 switches retain draft transfer choices and account-bound reported balances.
 Hiding a field alone neither changes a balance nor saves a transaction.
+
+### Why does Accounts show a red reported-balance difference?
+
+It means the report differs from the ledger at the report's cutoff, not from
+today's ledger. The red line states higher/lower and the amount; green text
+identifies a match. Later activity is excluded, ambiguous timing asks for review,
+and card balances stay references because available credit and ledger balances
+can have different meanings. Header help explains this without adding actions
+that change money. Active/Inactive badges are quiet, readable status text. Browser
+and Apple icons reuse the existing four-diamond Finance logo.

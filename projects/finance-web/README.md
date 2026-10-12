@@ -859,3 +859,20 @@ send no transfer account. Switching types preserves the other-account draft and
 account-bound balances; returning to a transfer restores its prior direction
 and account pair where the currently selected account still belongs to it.
 Existing linked-transfer correction acknowledgement remains required.
+
+### Account balance differences, status badges and browser icons
+
+Accounts show each latest reported amount and date on separate lines. The API's
+comparison at that report's cutoff appears beneath it: a red amount says how much
+higher/lower the report is than the ledger, while a matching report is labelled
+in green. Later activity does not create a mismatch. Missing/equal same-day times
+show **Check report timing**; credit-card balances remain **Card balance
+reference**, since providers may report available credit. The table-header help
+explains this on hover/focus/tap. These hints never adjust balances. Older APIs
+show **Comparison unavailable** rather than guessing from current balances.
+
+Status badges use restrained dark-theme backgrounds, borders and readable text;
+account Active/Inactive labels include a small decorative dot and remain plain
+status text. The app's four-diamond SVG logo also supplies `app/favicon.ico` at
+16/32/48/64 pixels and an opaque 180-pixel `app/apple-icon.png`. Next.js file-based
+metadata serves all icon routes publicly, including the login page.

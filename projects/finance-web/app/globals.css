@@ -902,26 +902,45 @@ textarea {
 }
 
 .status-badge {
-  border-radius: 999px;
-  padding: 5px 10px;
-  font-size: 13px;
-  font-weight: 700;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .status-badge--ok {
-  background: #dff5eb;
-  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border-color: #28614e;
+  color: var(--accent);
 }
 
 .status-badge--error {
-  background: #ffebe8;
+  background: #351d29;
+  border-color: #6b333b;
   color: var(--danger);
 }
 
 .status-badge--idle {
-  background: #f3eee4;
+  background: #2b2414;
+  border-color: #4a3b1d;
   color: var(--warning);
 }
+
+.status-badge--inactive { background: #142235; border-color: var(--panel-border); color: var(--muted); }
+.status-badge__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.account-table-heading { display: inline-flex; align-items: center; gap: 4px; }
+.account-reported-balance { display: grid; gap: 4px; font-variant-numeric: tabular-nums; }
+.account-reported-balance .meta { color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.45; }
+.account-reported-balance time { white-space: nowrap; }
+.account-balance-gap, .account-balance-match { font-size: 12px; line-height: 1.4; white-space: normal; }
+.account-balance-gap { color: var(--danger); font-weight: 650; }
+.account-balance-match { color: var(--accent); font-weight: 500; }
 
 .metric-row {
   display: grid;

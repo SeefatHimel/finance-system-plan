@@ -9,6 +9,7 @@ import { BackendHeartbeat } from "@/components/backend-heartbeat";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  applicationName: "Finance",
   title: "Finance System",
   description: "Personal finance dashboard for transactions, balances, and SMS review."
 };
