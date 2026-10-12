@@ -447,3 +447,14 @@ Match responses carry `reported_balances`. Link and merge requests send
 which entry to keep, and both reviewed balances. A readable 400 means choices
 are missing, invalid or stale; no merge is performed. Do not compare balances
 between different accounts or treat null as zero. Deploy the API first.
+
+### How do clients handle shorter account/card suffixes?
+
+Three ending digits are the minimum; three-digit overlap is review-only. Optional
+SMS `identity_suggestions` contains role, masked observations, reason and owned
+account/method choices; older responses default to `[]`. Clients clear weak
+defaults, preserve other draft edits and require explicit confirmation. Transfer
+drafts use the selected account's `account_perspective` and direction. Statement
+suggestions add optional `requires_review`/`choices` while keeping weak/colliding
+`account` null and preview identity `verify`. Full-number last-four privacy and
+existing ownership checks are unchanged.

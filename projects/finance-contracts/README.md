@@ -484,3 +484,21 @@ Null does not conflict with or overwrite a known balance; values for different
 accounts are not compared. Original evidence stays attached while the chosen
 balance becomes the effective account report. Deploy API changes before new
 clients; no model migration is needed. Regenerate via the existing generator.
+
+### Three-digit identity suggestions
+
+Identifiers require at least three ending digits. Full-number masking remains
+last-four; longer saved masked numbers are preserved. Three-digit overlap is a
+review-only hint, never an automatic account selection. SMS responses optionally
+add `identity_suggestions`: sender/receiver role, masked observations, explanation,
+and owned account/payment-method choices. Clients default missing suggestions to
+`[]`, clear weak initial account/method defaults, and let the user choose. Confirm
+and transfer-match drafts must explicitly supply the affected account; transfers
+use `account_perspective: true` and debit/credit for the reporting account.
+
+Statement suggestions optionally add `requires_review` and `choices`. A weak or
+colliding header keeps `account: null`; preview remains `verify` until the user
+checks it. Existing identifiers, ownership rules and ledger counts are unchanged.
+Deploy API before clients; no database migration or APK rebuild is needed for API
+behavior. Regenerate the checked-in TypeScript interfaces using the existing
+`python scripts/generate_ts_client.py` command.

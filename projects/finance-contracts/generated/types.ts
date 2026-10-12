@@ -333,7 +333,23 @@ export interface RawMessageRedactResponse {
   message: RawMessage;
 }
 
+export interface IdentityChoice {
+  account: string;
+  name: string;
+  payment_method: string;
+  method_name: string;
+  provider: string;
+}
+
+export interface IdentitySuggestion {
+  role: "sender" | "receiver";
+  reason: string;
+  observed_identifiers: string[];
+  choices: IdentityChoice[];
+}
+
 export interface ParsedMessageCandidate {
+  identity_suggestions?: IdentitySuggestion[];
   id: string;
   raw_message: RawMessage;
   sender_rule: string | null;
@@ -865,6 +881,11 @@ export interface MonthlyReport {
 }
 
 export interface StatementAccountSuggestion {
+  requires_review?: boolean;
+  choices?: {
+  account: string;
+  name: string;
+}[];
   account: string | null;
   name: string;
   reason: string;

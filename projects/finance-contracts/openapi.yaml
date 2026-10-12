@@ -2920,7 +2920,7 @@ components:
     AccountIdentityInput:
       type: object
       required: [provider]
-      description: Account-owned recognition profile in the shared payment-method registry. Omit to preserve it; null disables it. At least one identifier or alias is required. Unmasked numbers and masked values exposing more than ten digits are stored as last-four suffixes.
+      description: Account-owned recognition profile in the shared payment-method registry. Omit to preserve it; null disables it. At least one identifier or alias is required. Identifiers need at least three ending digits; three-digit overlaps are review-only hints even for a unique account. Longer saved identifiers also match shorter observed endings. Unmasked numbers and masked values exposing more than ten digits are stored as last-four suffixes.
       properties:
         provider: {$ref: '#/components/schemas/PaymentProvider'}
         identifier: {type: string, maxLength: 120, default: ""}
@@ -2987,7 +2987,7 @@ components:
         identifier:
           type: string
           maxLength: 120
-          description: Optional masked numeric account/card identifier or safe suffix. Text names belong in aliases.
+          description: Optional masked numeric account/card identifier or safe suffix with at least three ending digits. Three-digit overlap requires explicit review. Text names belong in aliases.
         identifier_kind:
           type: string
           enum: [any, account, card]
@@ -3014,6 +3014,7 @@ components:
           format: date-time
     PaymentIdentifierInput:
       type: object
+      description: At least three ending digits. Three-digit overlap is review-only; prefer longer masked identifiers.
       required: [kind, value]
       properties:
         kind: {type: string, enum: [account, card]}
@@ -3316,11 +3317,33 @@ components:
           nullable: true
         message:
           $ref: '#/components/schemas/RawMessage'
+    IdentityChoice:
+      type: object
+      required: [account, name, payment_method, method_name, provider]
+      properties:
+        account: {type: string, format: uuid}
+        name: {type: string}
+        payment_method: {type: string, format: uuid}
+        method_name: {type: string}
+        provider: {type: string}
+    IdentitySuggestion:
+      type: object
+      required: [role, reason, observed_identifiers, choices]
+      properties:
+        role: {type: string, enum: [sender, receiver]}
+        reason: {type: string}
+        observed_identifiers: {type: array, items: {type: string}}
+        choices: {type: array, items: {$ref: '#/components/schemas/IdentityChoice'}}
     ParsedMessageCandidate:
       type: object
       required:
         [id, raw_message, sender_rule, account, payment_method, category, destination_account, destination_payment_method, transaction, possible_related_candidate, provider, message_kind, transaction_type, amount, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, related_match_reason, confidence, status, parser_name, parser_notes, rejection_reason, rejection_note, rejected_at, created_at, updated_at]
       properties:
+        identity_suggestions:
+          type: array
+          readOnly: true
+          description: Review-only choices for three-digit suffix overlap. Never automatically selects an account; clients must send explicit owned account choices with account_perspective true for transfers. Longer saved identifiers remain unchanged.
+          items: {$ref: '#/components/schemas/IdentitySuggestion'}
         id:
           type: string
           format: uuid
@@ -4739,6 +4762,15 @@ components:
       nullable: true
       required: [account, name, reason, ambiguous]
       properties:
+        requires_review: {type: boolean, default: false}
+        choices:
+          type: array
+          items:
+            type: object
+            required: [account, name]
+            properties:
+              account: {type: string, format: uuid}
+              name: {type: string}
         account: {type: string, format: uuid, nullable: true}
         name: {type: string}
         reason: {type: string}
