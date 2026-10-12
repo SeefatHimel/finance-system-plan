@@ -413,3 +413,26 @@ shares preview extraction bounds and has a separate 10/hour throttle. Existing p
 selected eligible account; recognition does not authorize ledger posting. The
 additive account migration must precede API deployment; regenerate clients with
 `python scripts/generate_ts_client.py`.
+
+## Quick Add boundary
+
+`/api/quick-add/presets/` is authenticated user-owned CRUD. Preset defaults,
+enabled/favorite flags and `display_order` are shared by both clients. Read-only
+`available` reports whether linked defaults are active and compatible. Reorder
+accepts `{ "ids": [...] }` containing the complete owned set, including disabled
+presets, and returns the ordered list.
+
+`POST /api/quick-add/entries/` accepts `QuickEntry` with a client UUID, account,
+positive decimal amount, local calendar date, expense/income and web/mobile
+source. Optional category and time use null; merchant and note use empty strings.
+The response is `{ "transaction": UUID, "replayed": boolean }`: 201 for a new
+record, 200 for an identical replay, 409 for changed payload or a deleted original.
+Retries retain the UUID and all values, including the first Save's timestamp.
+A new UUID means a distinct purchase even when all financial values are equal.
+A replay never reverts a later ledger edit. Reference ownership and compatibility
+are enforced by the backend for new entries.
+
+`quick-add.ts` contains portable draft/default/validation helpers shared by
+React and React Native. These are client conveniences, not the backend's source
+of truth. Date helpers use the device's local calendar; no UTC slicing or minute
+rounding is used. Generated types/client remain sourced from `openapi.yaml`.

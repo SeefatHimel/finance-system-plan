@@ -410,3 +410,14 @@ nothing. It shares preview extraction limits and no-store behavior, with a
 separate 10/hour throttle that preserves the import allowance. Only owned,
 active compatible BDT accounts can be suggested. Preview/import still require the
 chosen account, and suggestions never authorize posting or linking.
+
+## What is the Quick Add contract shared by web and mobile?
+
+Presets live at `/api/quick-add/presets/`; reorder takes the complete owned ID
+list. `/api/quick-add/entries/` accepts a UUID, account, positive decimal amount,
+local date, nullable time/category, expense/income and web/mobile source. It
+returns a transaction ID and replay flag (201 new, 200 replay, 409 conflict).
+Clients freeze retries rather than recomputing Now or assigning a new ID after
+an uncertain response. Generated types describe the API; portable `quick-add.ts`
+helpers share client validation and preset-copy behavior. The API remains the
+validation and ledger authority.

@@ -477,7 +477,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/StatementIdentification'}
-        '400': {description: Invalid file or password, or unsupported layout.}
+        '400': {description: "Invalid file or password, or unsupported layout."}
         '401': {$ref: '#/components/responses/UnauthorizedError'}
         '422': {description: PDF worker timeout.}
         '429': {description: Preview request rate exceeded.}
@@ -2192,6 +2192,229 @@ paths:
         statement_only, skipped counts and paginated ledger_only entries. Suggested ledger matches are excluded
         from ledger_only. complete=false marks limited or incomplete extraction/matching; absence is provisional
         and never authorizes deletion.
+  /api/quick-add/entries/:
+    post:
+      operationId: quick_add_entries_create
+      description: Save a manual expense/income. Reuse the same client_request_id
+        and values after an uncertain response; a replay never reverts later ledger
+        edits.
+      tags:
+      - quick-add
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuickEntry'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/QuickEntry'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/QuickEntry'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuickEntryResult'
+          description: New ledger entry saved.
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuickEntryResult'
+          description: Identical request already saved; original transaction returned.
+        '400':
+          description: Invalid values or account/category ownership, activity or compatibility.
+        '401':
+          description: Authentication required.
+        '409':
+          description: Request ID reused with different values, or original transaction
+            later deleted.
+  /api/quick-add/presets/:
+    get:
+      operationId: quick_add_presets_list
+      tags:
+      - quick-add
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QuickAddPreset'
+          description: ''
+    post:
+      operationId: quick_add_presets_create
+      tags:
+      - quick-add
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuickAddPreset'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/QuickAddPreset'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/QuickAddPreset'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuickAddPreset'
+          description: ''
+  /api/quick-add/presets/{id}/:
+    get:
+      operationId: quick_add_presets_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this quick add preset.
+        required: true
+      tags:
+      - quick-add
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuickAddPreset'
+          description: ''
+    put:
+      operationId: quick_add_presets_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this quick add preset.
+        required: true
+      tags:
+      - quick-add
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuickAddPreset'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/QuickAddPreset'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/QuickAddPreset'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuickAddPreset'
+          description: ''
+    patch:
+      operationId: quick_add_presets_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this quick add preset.
+        required: true
+      tags:
+      - quick-add
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedQuickAddPreset'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedQuickAddPreset'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedQuickAddPreset'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuickAddPreset'
+          description: ''
+    delete:
+      operationId: quick_add_presets_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this quick add preset.
+        required: true
+      tags:
+      - quick-add
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/quick-add/presets/reorder/:
+    post:
+      operationId: quick_add_presets_reorder_create
+      tags:
+      - quick-add
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresetOrder'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PresetOrder'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PresetOrder'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QuickAddPreset'
+          description: ''
 components:
   securitySchemes:
     bearerAuth:
@@ -2234,6 +2457,179 @@ components:
                       items:
                         type: string
   schemas:
+    PatchedQuickAddPreset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 120
+        type:
+          $ref: '#/components/schemas/Type005Enum'
+        account:
+          type: string
+          format: uuid
+          nullable: true
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          nullable: true
+        counterparty_text:
+          type: string
+          maxLength: 255
+        note:
+          type: string
+          default: ''
+          maxLength: 2000
+        is_enabled:
+          type: boolean
+        is_favorite:
+          type: boolean
+        display_order:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        available:
+          type: boolean
+          readOnly: true
+    PresetOrder:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+      - ids
+    QuickAddPreset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 120
+        type:
+          $ref: '#/components/schemas/Type005Enum'
+        account:
+          type: string
+          format: uuid
+          nullable: true
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          nullable: true
+        counterparty_text:
+          type: string
+          maxLength: 255
+        note:
+          type: string
+          default: ''
+          maxLength: 2000
+        is_enabled:
+          type: boolean
+        is_favorite:
+          type: boolean
+        display_order:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        available:
+          type: boolean
+          readOnly: true
+      required:
+      - available
+      - id
+      - name
+    QuickEntry:
+      type: object
+      properties:
+        client_request_id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        type:
+          allOf:
+          - $ref: '#/components/schemas/Type005Enum'
+          default: expense
+        source:
+          $ref: '#/components/schemas/QuickEntrySourceEnum'
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          format: time
+          nullable: true
+        counterparty_text:
+          type: string
+          default: ''
+          maxLength: 255
+        note:
+          type: string
+          default: ''
+          maxLength: 2000
+      required:
+      - account
+      - amount
+      - client_request_id
+      - date
+      - source
+    QuickEntryResult:
+      type: object
+      properties:
+        transaction:
+          type: string
+          format: uuid
+        replayed:
+          type: boolean
+      required:
+      - replayed
+      - transaction
+    QuickEntrySourceEnum:
+      enum:
+      - web
+      - mobile
+      type: string
+      description: '* `web` - web
+
+        * `mobile` - mobile'
+    Type005Enum:
+      enum:
+      - expense
+      - income
+      type: string
+      description: '* `expense` - Expense
+
+        * `income` - Income'
     HealthResponse:
       type: object
       required: [status]
