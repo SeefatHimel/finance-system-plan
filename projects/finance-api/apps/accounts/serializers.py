@@ -15,6 +15,9 @@ class AccountSerializer(serializers.ModelSerializer):
     ledger_balance = serializers.SerializerMethodField()
     latest_reported_balance = serializers.SerializerMethodField()
     latest_reported_balance_date = serializers.SerializerMethodField()
+    ledger_balance_at_latest_report = serializers.SerializerMethodField()
+    latest_reported_balance_difference = serializers.SerializerMethodField()
+    reported_balance_comparison = serializers.SerializerMethodField()
 
     class Meta:
         model = Account
@@ -28,6 +31,9 @@ class AccountSerializer(serializers.ModelSerializer):
             "ledger_balance",
             "latest_reported_balance",
             "latest_reported_balance_date",
+            "ledger_balance_at_latest_report",
+            "latest_reported_balance_difference",
+            "reported_balance_comparison",
             "is_active",
             "display_order",
             "created_at",
@@ -38,6 +44,9 @@ class AccountSerializer(serializers.ModelSerializer):
             "ledger_balance",
             "latest_reported_balance",
             "latest_reported_balance_date",
+            "ledger_balance_at_latest_report",
+            "latest_reported_balance_difference",
+            "reported_balance_comparison",
             "created_at",
             "updated_at",
         )
@@ -126,3 +135,14 @@ class AccountSerializer(serializers.ModelSerializer):
     def get_latest_reported_balance_date(self, account):
         reported_date = self._balance_summary(account).latest_reported_balance_date
         return reported_date.isoformat() if reported_date is not None else None
+
+    def get_ledger_balance_at_latest_report(self, account):
+        balance = self._balance_summary(account).ledger_balance_at_latest_report
+        return f"{balance:.2f}" if balance is not None else None
+
+    def get_latest_reported_balance_difference(self, account):
+        difference = self._balance_summary(account).latest_reported_balance_difference
+        return f"{difference:.2f}" if difference is not None else None
+
+    def get_reported_balance_comparison(self, account):
+        return self._balance_summary(account).reported_balance_comparison

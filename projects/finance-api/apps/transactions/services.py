@@ -1,3 +1,4 @@
+from bisect import bisect_right
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, time
@@ -30,6 +31,9 @@ class AccountBalanceSummary:
     ledger_balance: Decimal
     latest_reported_balance: Decimal | None = None
     latest_reported_balance_date: date | None = None
+    ledger_balance_at_latest_report: Decimal | None = None
+    latest_reported_balance_difference: Decimal | None = None
+    reported_balance_comparison: str = "unavailable"
 
 
 def calculate_account_balance_summaries(
@@ -83,13 +87,29 @@ def calculate_account_balance_summaries(
             transaction__in=transactions, transaction__type=Transaction.Type.TRANSFER
         ).values_list("transaction_id", flat=True)
     )
+    # Normalize absent times consistently on PostgreSQL and SQLite, then retain
+    # cumulative account balances for comparisons at the report's cutoff.
+    transactions = sorted(
+        transactions,
+        key=lambda item: (
+            item.date,
+            item.time or time.min,
+            item.created_at,
+            str(item.pk),
+        ),
+    )
+    history = {account.id: [] for account in account_list}
     reported_order = {}
+    reported_source = {}
 
-    def record_reported(account_id, value, record_date, record_time, created_at):
+    def record_reported(
+        account_id, value, record_date, record_time, created_at, source
+    ):
         order = (record_date, record_time or time.min, created_at)
         if value is not None and order >= reported_order.get(account_id, order):
             reported_order[account_id] = order
             latest_reported[account_id] = (value, record_date)
+            reported_source[account_id] = (source, record_time)
 
     for transaction in transactions:
         if transaction.account_id in balances:
@@ -115,6 +135,7 @@ def calculate_account_balance_summaries(
                     transaction.date,
                     transaction.time,
                     transaction.created_at,
+                    transaction,
                 )
 
         if (
@@ -122,6 +143,23 @@ def calculate_account_balance_summaries(
             and transaction.transfer_account_id in balances
         ):
             balances[transaction.transfer_account_id] += transaction.amount
+
+        for account_id in {transaction.account_id, transaction.transfer_account_id}:
+            if account_id in history and (
+                account_id == transaction.account_id
+                or transaction.type == Transaction.Type.TRANSFER
+            ):
+                history[account_id].append(
+                    (
+                        (
+                            transaction.date,
+                            transaction.time or time.min,
+                            transaction.created_at,
+                        ),
+                        balances[account_id],
+                        transaction,
+                    )
+                )
 
     # Use the same effective account report as the editor/matching API. Retained
     # source evidence can disagree after an explicit merge resolution.
@@ -138,16 +176,62 @@ def calculate_account_balance_summaries(
                 item.date,
                 item.time,
                 item.created_at,
+                records_by_id[record_id],
             )
 
-    return {
-        account.id: AccountBalanceSummary(
+    summaries = {}
+    for account in account_list:
+        value, record_date = latest_reported[account.id]
+        expected = difference = None
+        comparison = "unavailable"
+        if value is not None:
+            source, record_time = reported_source[account.id]
+            cutoff = reported_order[account.id]
+            same_day = [
+                item
+                for item in history[account.id]
+                if item[2].date == record_date and item[2].pk != source.pk
+            ]
+            source_order = (source.date, source.time or time.min, source.created_at)
+            if record_time is None and source.date == record_date and not same_day:
+                # With exactly one movement on that day, its after-balance is
+                # unambiguous even when the provider omits the report time.
+                cutoff = (
+                    record_date,
+                    source.time or time.min,
+                    max(source.created_at, cutoff[2]),
+                )
+            if account.type == Account.Type.CREDIT_CARD:
+                comparison = "credit_card_reference"
+            elif source_order > cutoff:
+                comparison = "report_precedes_movement"
+            elif any(
+                item[2].time is None
+                or record_time is None
+                or item[2].time == record_time
+                for item in same_day
+            ):
+                comparison = "timing_unknown"
+            else:
+                index = (
+                    bisect_right([item[0] for item in history[account.id]], cutoff) - 1
+                )
+                expected = (
+                    history[account.id][index][1]
+                    if index >= 0
+                    else Decimal(account.starting_balance)
+                ).quantize(Decimal("0.01"))
+                difference = (value - expected).quantize(Decimal("0.01"))
+                comparison = "matched" if difference == 0 else "mismatch"
+        summaries[account.id] = AccountBalanceSummary(
             ledger_balance=balances[account.id].quantize(Decimal("0.01")),
-            latest_reported_balance=latest_reported[account.id][0],
-            latest_reported_balance_date=latest_reported[account.id][1],
+            latest_reported_balance=value,
+            latest_reported_balance_date=record_date,
+            ledger_balance_at_latest_report=expected,
+            latest_reported_balance_difference=difference,
+            reported_balance_comparison=comparison,
         )
-        for account in account_list
-    }
+    return summaries
 
 
 def calculate_expected_balance(*, account: Account, as_of_date=None) -> Decimal:

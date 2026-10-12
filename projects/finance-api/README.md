@@ -933,3 +933,23 @@ idempotent as well. Deletion and bulk statement posting are not undoable here.
 
 Deploy migration `transactions.0007_transaction_action_recovery` before the new
 clients (`python manage.py migrate`). Undo does not accept client snapshots.
+
+### Ledger comparison at the latest report
+
+Account responses add read-only `ledger_balance_at_latest_report`,
+`latest_reported_balance_difference`, and `reported_balance_comparison`. The
+difference is the provider-reported balance minus the ledger at the report's
+cutoff, rounded to cents using Decimal. Transactions after that cutoff do not
+create false differences. Linked transfer evidence uses the reporting account's
+observation time and the effective retained report; the ledger movement still
+counts once for each endpoint. The existing current ledger balance is unchanged.
+
+Comparison values are null when no report exists, a credit-card balance may
+represent available credit, a report precedes its linked movement, or same-day
+ordering is ambiguous (missing/equal times). A date-only report is comparable
+when it has a single movement that day. Reasons are `unavailable`, `matched`,
+`mismatch`, `credit_card_reference`, `timing_unknown`, and
+`report_precedes_movement`. Differences are review hints, never automatic balance
+adjustments. Opening-balance and earlier transaction edits recompute the result.
+All accounts are processed in the existing batched summary, with no per-account
+query additions. No model migration is required.

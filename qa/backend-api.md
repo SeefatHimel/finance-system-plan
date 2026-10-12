@@ -768,3 +768,13 @@ state before reversing it atomically. This restores edits and SMS review, unlink
 only new evidence, or restores merged entries. A blind delete could remove an
 existing transfer or destroy later corrections. Redacted SMS is never restored;
 superseded snapshot payloads are cleared and Quick Add retry receipts remain.
+
+### How is a reported balance mismatch calculated without false alerts from later activity?
+
+The batched summary retains cumulative ledger history and compares the latest
+effective account report at its date/time cutoff using Decimal. Later movements
+are excluded. Transfer observations identify the reporting account and cutoff,
+while the canonical movement counts once. Credit-card reference balances and
+ambiguous same-day timing return null comparisons with a reason. The result is a
+read-only review hint; opening-balance or earlier ledger edits recompute it, and
+no automatic adjustment or new query per account is introduced.
