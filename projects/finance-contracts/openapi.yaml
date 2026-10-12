@@ -1793,7 +1793,16 @@ paths:
           name: search
           schema:
             type: string
-          description: Search reference, counterparty text, note, and external duplicate key.
+          description: >-
+            Search all ledger fields including account/category/payment-method names,
+            currency, type, direction, source, amount, reported balance, ISO dates/times,
+            review status, identifiers, reference, counterparty, note, IDs and external
+            keys, including linked transfer evidence. Case-insensitive partial matches;
+            every space-separated term must match somewhere. Quote phrases to keep
+            them together. Formatted amounts accept thousands separators. Existing
+            filters still apply. IDs accept full values or hexadecimal fragments of at
+            least 8 characters. Maximum 256 characters and 12 terms. Raw SMS bodies
+            are not searched.
       responses:
         '200':
           description: CSV export of matching transactions
@@ -1945,7 +1954,16 @@ paths:
           name: search
           schema:
             type: string
-          description: Search reference, counterparty text, note, and external duplicate key.
+          description: >-
+            Search all ledger fields including account/category/payment-method names,
+            currency, type, direction, source, amount, reported balance, ISO dates/times,
+            review status, identifiers, reference, counterparty, note, IDs and external
+            keys, including linked transfer evidence. Case-insensitive partial matches;
+            every space-separated term must match somewhere. Quote phrases to keep
+            them together. Formatted amounts accept thousands separators. Existing
+            filters still apply. IDs accept full values or hexadecimal fragments of at
+            least 8 characters. Maximum 256 characters and 12 terms. Raw SMS bodies
+            are not searched.
       responses:
         '200':
           description: Transaction list

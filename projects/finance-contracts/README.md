@@ -414,6 +414,19 @@ selected eligible account; recognition does not authorize ledger posting. The
 additive account migration must precede API deployment; regenerate clients with
 `python scripts/generate_ts_client.py`.
 
+## Transaction search boundary
+
+Transaction list and export `search` parameters share the same expanded ledger
+scope: related account/category/payment-method names, textual metadata,
+amount/balance, ISO dates/times, review status, identifiers/IDs and linked transfer
+observations. All space-separated terms must match somewhere; quotes preserve
+phrases and amounts may contain thousands separators. Case-insensitive search
+combines with existing filters and keeps each transfer once. Activity timestamps
+use Asia/Dhaka. UUID fragments require eight hexadecimal characters; shorter
+number terms do not search internal IDs. Limits are 256 characters and 12 terms; validation returns 400.
+Raw SMS bodies are excluded. Response shapes and TypeScript query types are
+unchanged; OpenAPI parameter descriptions document the behavior.
+
 ## Quick Add boundary
 
 `/api/quick-add/presets/` is authenticated user-owned CRUD. Preset defaults,

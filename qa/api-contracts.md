@@ -71,6 +71,14 @@ covering current phase-1 backend endpoints:
 - Balance snapshot and account reconciliation endpoints
 - Read-only audit log endpoints for transaction mutation history
 
+Transaction `search` covers ledger fields, related names and linked observations
+for both list and export. Matching is case-insensitive, AND across whitespace
+terms (which may match different fields), with quoted phrases and comma-formatted
+amounts supported. Activity timestamps use Asia/Dhaka. Queries over 256 characters
+or 12 terms return a `search` field error; whitespace-only input adds no restriction.
+UUID fragments require at least eight hexadecimal characters.
+Raw SMS bodies are excluded and response shapes remain unchanged.
+
 Phase 3 contract work now includes parser fields for provider, message kind,
 reference, balance, fee, and possible internal transfer/source-destination
 hints. Parsed candidates can also expose a `possible_related_candidate` and
