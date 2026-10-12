@@ -799,6 +799,10 @@ bank account identifier, debit/credit card, cash, or wallet). Their provider,
 masked identifiers and aliases assist SMS/PDF account recognition. They do
 not replace the ledger account or add another transaction.
 
+### Compact transfer help
+
+Transfer matching and balance forms show concise labels. Info icons hold optional explanations (direction, reported balances, references, recognition instruments and match reasons); conflicts retain a visible “Balances differ” warning and explicit balance choices. Web help works on hover, keyboard focus or tap, remains hoverable, and closes on Escape, blur or outside tap. Help is rendered in the active dialog and positioned within the viewport so scroll containers cannot clip it. Matching dialogs initially focus their heading so help stays closed until interaction. Hidden help does not change stored values or merge validation.
+
 ### Short identifier review choices
 
 Account recognition and payment-method identifiers accept at least three ending

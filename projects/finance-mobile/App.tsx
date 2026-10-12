@@ -5683,17 +5683,16 @@ function FinanceApp() {
       <Modal animationType="fade" transparent visible={transferDecision !== null} onRequestClose={() => { if (!transferBusy) setTransferDecision(null); }}>
         <SafeAreaView style={styles.transferMatchOverlay}>
           <View accessibilityViewIsModal style={styles.transferMatchPanel}>
-            <Text accessibilityRole="header" style={styles.mobileSectionTitle}>Possible matching transfer found</Text>
-            <Text style={styles.transferMatchWarning}>Verify this is the same movement. Linking shows it in both accounts and counts it once.</Text>
+            <View style={styles.mobileHelpRow}><Text accessibilityRole="header" style={styles.mobileSectionTitle}>Match transfer</Text><TransferHelpIcon label="About matching transfers" message="Verify this is the same money movement. Linking shows it in both accounts and counts it once. You can keep separate entries instead." /></View>
             {transferError ? <Text accessibilityRole="alert" style={styles.mobileErrorText}>{transferError}</Text> : null}
               {transferDecision?.input.draft ? (() => {
                 const original = transferComparison(transferDecision.input.draft, id => accounts.find(account => account.id === id)?.name);
                 return <View accessibilityLabel="Entry being reviewed" style={[styles.transferMatchCard, { borderColor: "#49e0a4" }]}>
-                  <Text accessibilityRole="header" style={styles.mobileRowTitle}>Entry being reviewed</Text>
+                  <Text accessibilityRole="header" style={styles.mobileRowTitle}>This entry</Text>
                   <Text style={styles.mobileRowTitle}>{original.account_name} → {original.transfer_account_name}</Text>
                   <Text style={styles.mobileRowMeta}>BDT {original.amount} · {original.date} · {original.time ? original.time.slice(0, 5) : "Time not provided"}</Text>
                   {original.counterparty_text || original.note ? <Text numberOfLines={1} style={styles.mobileRowMeta}>{[original.counterparty_text, original.note].filter(Boolean).join(" · ")}</Text> : null}
-                  {original.reported_balances.map(report => <Text key={report.account} style={styles.mobileRowMeta}>Reported balance after · {report.account_name}: {report.balance_after == null ? "Not reported" : `BDT ${report.balance_after}`}</Text>)}
+                  {original.reported_balances.map(report => <Text key={report.account} style={styles.mobileRowMeta}>Balance after · {report.account_name}: {report.balance_after == null ? "Not reported" : `BDT ${report.balance_after}`}</Text>)}
                   <Text style={styles.mobileRowMeta}>{transferDecision.input.candidate ? "SMS awaiting confirmation" : transferDecision.queueId ? "Queued manual transfer" : "New manual transfer"}</Text>
                 </View>;
               })() : null}
@@ -5709,6 +5708,12 @@ function FinanceApp() {
   );
 }
 
+function TransferHelpIcon({ label, message, warning = false }: { label: string; message: string; warning?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityHint="Opens an explanation" onPress={() => Alert.alert(label, message)} style={styles.mobileHelpIcon}>
+    <MaterialCommunityIcons name={warning ? "alert-circle-outline" : "information-outline"} color={warning ? "#ffbf4d" : "#91a7c2"} size={20} />
+  </Pressable>;
+}
+
 function TransferBalanceMatchCard({ match, original, busy, onAccept }: {
   match: TransferMatch; original: ReturnType<typeof transferComparison>; busy: boolean;
   onAccept: (choices: import("./src/api").TransferBalanceChoice[]) => void;
@@ -5718,17 +5723,16 @@ function TransferBalanceMatchCard({ match, original, busy, onAccept }: {
   const name = (account: string) => account === match.account ? match.account_name : match.transfer_account_name;
   const ready = !busy && conflicts.every(conflict => choices[conflict.account]);
   return <View style={styles.transferMatchCard}>
-    <Text accessibilityRole="header" style={styles.mobileRowTitle}>Possible match</Text>
+    <View style={styles.mobileHelpRow}><Text accessibilityRole="header" style={styles.mobileRowTitle}>Suggested match</Text><TransferHelpIcon label="Why this match was suggested" message={match.reason} /></View>
     <Text style={styles.mobileRowTitle}>{match.account_name} → {match.transfer_account_name}</Text>
     <Text style={styles.mobileRowMeta}>BDT {match.amount} · {match.date} · {match.time ? match.time.slice(0, 5) : "Time not provided"}</Text>
     <Text style={styles.mobileRowMeta}>{match.kind === "candidate" ? "Other account’s pending SMS" : "Already recorded transfer"}</Text>
-    {(match.reported_balances ?? []).map(report => <Text key={report.account} style={styles.mobileRowMeta}>Reported balance after · {name(report.account)}: {report.balance_after == null ? "Not reported" : `BDT ${report.balance_after}`}</Text>)}
-    <Text style={styles.mobileRowMeta}>{match.reason}</Text>
-    {conflicts.length ? <Text accessibilityRole="alert" style={styles.transferMatchWarning}>Balances disagree for the same account. Verify this is one movement and choose which report to keep, or keep the entries separate. Original messages stay available.</Text> : null}
+    {(match.reported_balances ?? []).map(report => <Text key={report.account} style={styles.mobileRowMeta}>Balance after · {name(report.account)}: {report.balance_after == null ? "Not reported" : `BDT ${report.balance_after}`}</Text>)}
+    {conflicts.length ? <View style={styles.mobileHelpRow}><Text accessibilityRole="alert" style={styles.transferMatchWarning}>Balances differ</Text><TransferHelpIcon warning label="About conflicting balances" message="Two reports disagree for the same account. They could be different movements. Choose the balance to keep or keep the entries separate. Original messages stay available." /></View> : null}
     {conflicts.map(conflict => <View key={conflict.account}>
-      <Text style={styles.mobileRowTitle}>Balance to keep for {name(conflict.account)}</Text>
+      <Text style={styles.mobileRowTitle}>Keep balance for {name(conflict.account)}</Text>
       {(["existing", "incoming"] as const).map(keep => <Pressable key={keep} disabled={busy} accessibilityRole="radio" accessibilityState={{ checked: choices[conflict.account] === keep }} onPress={() => setChoices(current => ({ ...current, [conflict.account]: keep }))} style={styles.mobileTextButton}>
-        <Text style={styles.mobileTextButtonText}>{choices[conflict.account] === keep ? "✓ " : ""}{keep === "existing" ? "Keep matching entry" : "Keep entry being reviewed"} · BDT {keep === "existing" ? conflict.existing_balance_after : conflict.incoming_balance_after}</Text>
+        <Text style={styles.mobileTextButtonText}>{choices[conflict.account] === keep ? "✓ " : ""}{keep === "existing" ? "Matching entry" : "This entry"} · BDT {keep === "existing" ? conflict.existing_balance_after : conflict.incoming_balance_after}</Text>
       </Pressable>)}
     </View>)}
     <Pressable disabled={!ready} accessibilityRole="button" accessibilityState={{ disabled: !ready }} onPress={() => onAccept(conflicts.map(conflict => ({ ...conflict, keep: choices[conflict.account] })))} style={[styles.mobilePrimaryButton, !ready ? { opacity: 0.5 } : null]}><Text style={styles.mobilePrimaryButtonText}>{busy ? "Linking…" : match.kind === "candidate" ? "Confirm as one transfer" : "Link to existing transfer"}</Text></Pressable>
@@ -5736,6 +5740,8 @@ function TransferBalanceMatchCard({ match, original, busy, onAccept }: {
 }
 
 const styles = StyleSheet.create({
+  mobileHelpRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  mobileHelpIcon: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   mobileReviewAmountRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, marginTop: 12, marginBottom: 8 },
   mobileReviewDirectionToggle: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 8, minHeight: 44, paddingHorizontal: 12, backgroundColor: "#102238" },
   transferMatchOverlay: { flex: 1, justifyContent: "center", padding: 12, backgroundColor: "rgba(0,0,0,0.65)" },

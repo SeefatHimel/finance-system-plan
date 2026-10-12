@@ -37,6 +37,7 @@ import {
   updateTransaction
 } from "@/lib/api";
 import { ModalDialog } from "@/components/modal-dialog";
+import { HelpTooltip } from "@/components/help-tooltip";
 import { TransferBalanceFields } from "@/components/transfer-balance-fields";
 import { TransferMatchDialog } from "@/components/transfer-match-dialog";
 import { transferComparison } from "../../finance-contracts/transfer-comparison";
@@ -750,14 +751,13 @@ export function TransactionWorkspace() {
               </select>
             </label>
 
-            <label className="field">
-              <span className="field__label">Debit / credit</span>
-              <span className="field__hint">For transfers: debit means this account sends; credit means this account receives. Select the other account below.</span>
-              <select className="field__control" value={createDirection} onChange={(event) => setCreateDirection(event.target.value as TransactionDirection)} name="direction" required>
+            <div className="field">
+              <div className="inline-help"><label className="field__label" htmlFor="create-transaction-direction">Debit / credit</label> <HelpTooltip label="About debit and credit">For transfers, debit means this account sends and credit means it receives. Select the other account to complete the transfer.</HelpTooltip></div>
+              <select id="create-transaction-direction" className="field__control" value={createDirection} onChange={(event) => setCreateDirection(event.target.value as TransactionDirection)} name="direction" required>
                 <option value="debit">Debit</option>
                 <option value="credit">Credit</option>
               </select>
-            </label>
+            </div>
 
             <label className="field">
               <span className="field__label">Account</span>
@@ -815,17 +815,16 @@ export function TransactionWorkspace() {
               />
             </label>
 
-            {createType === "transfer" ? <TransferBalanceFields accounts={[createAccountId, createOtherAccountId]} primaryAccount={createAccountId} names={accountNames} values={createReportedBalances} onChange={(account, value) => setCreateReportedBalances(current => ({ ...current, [account]: value }))} /> : <label className="field">
-              <span className="field__label">Reported balance after (optional)</span>
-              <input className="field__control" inputMode="decimal" name="balance_after" defaultValue={createReportedBalances[createAccountId] ?? ""} placeholder="72,308.00" type="text" />
-              {createBalanceNotice ? <small className="field__hint" role="status">{createBalanceNotice}</small> : null}
-            </label>}
+            {createType === "transfer" ? <TransferBalanceFields accounts={[createAccountId, createOtherAccountId]} primaryAccount={createAccountId} names={accountNames} values={createReportedBalances} onChange={(account, value) => setCreateReportedBalances(current => ({ ...current, [account]: value }))} /> : <div className="field">
+              <div className="inline-help"><label className="field__label" htmlFor="create-reported-balance">Reported balance after</label> <HelpTooltip label="About reported balance">Optional balance from this account’s report, rather than its calculated ledger balance. Leave blank if unknown.</HelpTooltip></div>
+              <input id="create-reported-balance" className="field__control" inputMode="decimal" name="balance_after" defaultValue={createReportedBalances[createAccountId] ?? ""} placeholder="72,308.00" type="text" />
+              {createBalanceNotice ? <small className="field__hint inline-help" role="status">Balance cleared <HelpTooltip warning label="Why the balance was cleared">{createBalanceNotice}</HelpTooltip></small> : null}
+            </div>}
 
-            <label className="field">
-              <span className="field__label">Reference</span>
-              <input aria-label="Reference" aria-describedby="transaction-create-reference-help" className="field__control" name="reference" placeholder="e.g. DEMO-TRF-1042" type="text" />
-              <small className="field__hint" id="transaction-create-reference-help">Optional bank or wallet reference. References may repeat.</small>
-            </label>
+            <div className="field">
+              <div className="inline-help"><label className="field__label" htmlFor="create-transaction-reference">Reference</label> <HelpTooltip label="About references">Optional bank or wallet reference. References may repeat.</HelpTooltip></div>
+              <input id="create-transaction-reference" aria-label="Reference" className="field__control" name="reference" placeholder="e.g. DEMO-TRF-1042" type="text" />
+            </div>
 
             <label className="field">
               <span className="field__label">Sent to / received from</span>
@@ -879,14 +878,13 @@ export function TransactionWorkspace() {
             </label>
 
             {editingType === "transfer" ? <div className="field">
-              <span className="field__label">Direction</span>
+              <span className="field__label inline-help">Direction <HelpTooltip label="About transfer direction">Money moves from From (debit) to To (credit). Transfers between tracked accounts count as neither income nor expense.</HelpTooltip></span>
               <button className="button button--ghost" onClick={() => {
                 changeEditingContext({ account: editingTransferAccountId, transfer_account: editingAccountId });
                 setEditingDirection("debit");
                 setEditingPaymentMethodId("");
                 setAllowLinkedCorrection(false);
               }} type="button">Reverse transfer direction</button>
-              <small>Money moves from From (debit) to To (credit). Transfers between tracked accounts count as neither income nor expense.</small>
             </div> : <label className="field">
               <span className="field__label">Debit / credit</span>
               <select
@@ -971,38 +969,36 @@ export function TransactionWorkspace() {
               />
             </label>
 
-            {editingType === "transfer" ? <TransferBalanceFields accounts={[editingAccountId, editingTransferAccountId]} primaryAccount={editingTransaction?.balance_reporting_account ?? editingTransaction?.account ?? editingAccountId} names={accountNames} values={editingReportedBalances} onChange={(account, value) => setEditingReportedBalances(current => ({ ...current, [account]: value }))} /> : <>            <label className="field">
-              <span className="field__label">Reported balance after (optional)</span>
-              <input
+            {editingType === "transfer" ? <TransferBalanceFields accounts={[editingAccountId, editingTransferAccountId]} primaryAccount={editingTransaction?.balance_reporting_account ?? editingTransaction?.account ?? editingAccountId} names={accountNames} values={editingReportedBalances} onChange={(account, value) => setEditingReportedBalances(current => ({ ...current, [account]: value }))} /> : <>            <div className="field">
+              <div className="inline-help"><label className="field__label" htmlFor="edit-reported-balance">Reported balance after</label> <HelpTooltip label="About reported balance">Optional balance from this account’s report, rather than its calculated ledger balance. Leave blank if unknown.</HelpTooltip></div>
+              <input id="edit-reported-balance"
                 className="field__control"
                 inputMode="decimal"
                 onChange={(event) => { setEditingBalanceAfter(event.target.value); setEditingReportedBalances(current => ({ ...current, [editingAccountId]: event.target.value })); setEditingBalanceNotice(""); }}
                 type="text"
                 value={editingBalanceAfter}
               />
-              {balanceAccountId ? <small className="field__hint">Reported for {loadState.accounts.find((account) => account.id === balanceAccountId)?.name ?? "this account"}. This is the balance from the report, rather than the calculated ledger balance.</small> : <small className="field__hint">Optional balance from the original report. Linked account balances are shown below.</small>}
-              {editingBalanceNotice ? <small className="field__hint" role="status">{editingBalanceNotice}</small> : null}
-            </label></>}
+              {balanceAccountId ? <small className="field__hint">{loadState.accounts.find((account) => account.id === balanceAccountId)?.name ?? "This account"}</small> : null}
+              {editingBalanceNotice ? <small className="field__hint inline-help" role="status">Balance cleared <HelpTooltip warning label="Why the balance was cleared">{editingBalanceNotice}</HelpTooltip></small> : null}
+            </div></>}
 
             {editingTransaction?.type === "transfer" && editingTransaction.transfer_evidence.length ? <details className="raw-message field--wide">
               <summary>Saved transfer reported balances</summary>
               {editingTransaction.transfer_evidence.map((item) => <p key={item.id}><strong>{loadState.accounts.find((account) => account.id === item.account)?.name ?? "Unknown account"}</strong>: {item.balance_after === null ? "No reported balance" : moneyFormatter.format(Number(item.balance_after))}{item.is_primary ? " · Primary report" : " · Linked report"}</p>)}
-              <p>Original account reports stay attached to their accounts. Use the two balance fields above to correct a report or add a missing account balance. Neither field creates another money movement.</p>
+              <HelpTooltip label="About saved account reports">Original account reports remain attached to their accounts. Edit a balance or expand the other account balance to add a missing report. Neither creates another money movement.</HelpTooltip>
             </details> : null}
 
-            <label className="field">
-              <span className="field__label">Reference</span>
-              <input
+            <div className="field">
+              <div className="inline-help"><label className="field__label" htmlFor="edit-transaction-reference">Reference</label> <HelpTooltip label="About references">Optional bank or wallet reference. References may repeat.</HelpTooltip></div>
+              <input id="edit-transaction-reference"
                 aria-label="Reference"
-                aria-describedby="transaction-edit-reference-help"
                 className="field__control"
                 onChange={(event) => setEditingReference(event.target.value)}
                 placeholder="e.g. DEMO-TRF-1042"
                 type="text"
                 value={editingReference}
               />
-              <small className="field__hint" id="transaction-edit-reference-help">Optional bank or wallet reference. References may repeat.</small>
-            </label>
+            </div>
 
             <label className="field">
               <span className="field__label">Sent to / received from</span>
@@ -1024,13 +1020,13 @@ export function TransactionWorkspace() {
               />
             </label>
 
-            <label className="field">
-              <span className="field__label">Payment method</span>
-              <select className="field__control" onChange={(event) => setEditingPaymentMethodId(event.target.value)} value={editingPaymentMethodId}>
+            <div className="field">
+              <div className="inline-help"><label className="field__label" htmlFor="edit-payment-method">Payment method</label> <HelpTooltip label="About payment methods">Optional account-linked instrument, such as a debit card, credit card, wallet or cash. Saved identifiers and aliases help recognize SMS and statement accounts.</HelpTooltip></div>
+              <select id="edit-payment-method" className="field__control" onChange={(event) => setEditingPaymentMethodId(event.target.value)} value={editingPaymentMethodId}>
                 <option value="">No payment method</option>
                 {loadState.paymentMethods.filter((method) => method.account === editingAccountId).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
               </select>
-            </label>
+            </div>
             <label className="field">
               <span className="field__label">Source</span>
               <select className="field__control" onChange={(event) => setEditingSource(event.target.value as TransactionSource)} value={editingSource}>
@@ -1038,8 +1034,7 @@ export function TransactionWorkspace() {
               </select>
             </label>
             <fieldset className="transaction-identifier-fields field--wide">
-              <legend>Masked sender and receiver identifiers</legend>
-              <p>Use masked values or a safe suffix. Full account and card numbers are reduced to their last four digits before saving.</p>
+              <legend>Masked identifiers <HelpTooltip label="About masked identifiers">Use masked values or a safe suffix. Full account and card numbers are reduced to their last four digits before saving.</HelpTooltip></legend>
               <div className="transaction-identifier-grid">
                 <label className="field"><span className="field__label">Sender account</span><input className="field__control" maxLength={120} onChange={(event) => setEditingSenderAccountIdentifier(event.target.value)} value={editingSenderAccountIdentifier} /></label>
                 <label className="field"><span className="field__label">Sender card</span><input className="field__control" maxLength={120} onChange={(event) => setEditingSenderCardIdentifier(event.target.value)} value={editingSenderCardIdentifier} /></label>

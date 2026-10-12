@@ -483,6 +483,10 @@ available and the transfer still counts once. Deploy the updated API before
 clients relying on `reported_balances` and `balance_choices`. Device rendering
 of this matching flow still requires Android validation.
 
+### Compact matching explanations
+
+Transfer matching uses short labels and info/warning icons. Tap an icon to open a native explanation dialog. Same-account conflicts still show “Balances differ” and require an explicit balance choice; reading help never accepts a match. Each help target is at least 44 points with an accessibility label.
+
 ### Short account/card suffix suggestions
 
 SMS review displays review-only sender/receiver suggestions for three-digit

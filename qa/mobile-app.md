@@ -513,6 +513,10 @@ disagreements have explicit balance choices and a disabled link button until
 each conflict is resolved. The server validates the reviewed values again;
 a stale choice does not post. Keeping entries separate is always available.
 
+### How does compact transfer help work on phones?
+
+Accessible info/warning buttons open native explanation dialogs on tap. Conflict status and balance choices stay visible; no merge decision depends on hover or is accepted just by opening help.
+
 ### How does mobile review handle three-digit account/card suffixes?
 
 It displays API-provided sender/receiver account and card/method choices, with no

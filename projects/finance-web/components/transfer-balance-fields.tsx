@@ -1,5 +1,8 @@
 "use client";
 
+import { useId } from "react";
+import { HelpTooltip } from "@/components/help-tooltip";
+
 /** Keep the original reporting account visible; a second report is optional. */
 export function TransferBalanceFields({ accounts, primaryAccount, names, values, onChange }: {
   accounts: string[];
@@ -8,17 +11,19 @@ export function TransferBalanceFields({ accounts, primaryAccount, names, values,
   values: Record<string, string>;
   onChange: (account: string, value: string) => void;
 }) {
+  const id = useId();
   const ordered = primaryAccount === accounts[1] ? [...accounts].reverse() : accounts;
-  const field = (account: string) => <label className="field">
-    <span className="field__label">Reported balance after — {names.get(account) ?? "Select account"} (optional)</span>
-    <input className="field__control" aria-label={`Reported balance after — ${names.get(account) ?? "Select account"}`} inputMode="decimal" type="text" disabled={!account} value={values[account] ?? ""} onChange={event => onChange(account, event.target.value)} />
-    <small className="field__hint">This balance stays with this account when direction changes. Leave blank if unknown.</small>
-  </label>;
+  const field = (account: string, index: number) => <div className="field">
+    <div className="inline-help"><label className="field__label" htmlFor={`${id}-${index}`}>Balance after · {names.get(account) ?? "Select account"}</label>
+      <HelpTooltip label={`About reported balance for ${names.get(account) ?? "this account"}`}>Optional balance reported by this account, rather than the calculated ledger balance. It stays with this account when direction changes. Leave blank if unknown.</HelpTooltip>
+    </div>
+    <input id={`${id}-${index}`} className="field__control" aria-label={`Reported balance after — ${names.get(account) ?? "Select account"}`} inputMode="decimal" type="text" disabled={!account} value={values[account] ?? ""} onChange={event => onChange(account, event.target.value)} />
+  </div>;
   return <>
-    {field(ordered[0])}
+    {field(ordered[0], 0)}
     <details className="raw-message" key={ordered[1] || "other-account"}>
-      <summary>Other account’s reported balance (optional){values[ordered[1]] ? " · Saved" : ""}</summary>
-      {field(ordered[1])}
+      <summary>Other account balance{values[ordered[1]] ? " · Saved" : ""}</summary>
+      {field(ordered[1], 1)}
     </details>
   </>;
 }

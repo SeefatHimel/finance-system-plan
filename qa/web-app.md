@@ -736,6 +736,10 @@ explicit choice. Different sender/receiver balances are normal. Optional
 payment methods identify account-linked instruments and their recognition
 aliases, while the ledger account controls the money movement.
 
+### Why use help icons in transfer forms?
+
+Keep optional explanations out of the default layout while retaining visible account names, amounts and required conflict choices. Help must work with hover, keyboard and touch, avoid clipping inside dialogs, and dismiss before the parent dialog on Escape. Important conflict and balance-clear statuses remain visible in short form.
+
 ### What happens when an SMS exposes only three card digits?
 
 SMS review shows compatible saved accounts/cards as choices, including collisions,
