@@ -20,6 +20,7 @@ test('full numeric values are reduced before transmission; masked evidence remai
   assert.equal(safeAccountIdentifier('****123'), '****123');
   assert.throws(() => safeAccountIdentifier('12'), /three ending digits/);
   assert.throws(() => safeAccountIdentifier('1234**12'), /three ending digits/);
+  assert.throws(() => safeAccountIdentifier('1234567890**12'), /three ending digits/);
 });
 
 test('every primary and additional number is masked in submitted payloads', () => {

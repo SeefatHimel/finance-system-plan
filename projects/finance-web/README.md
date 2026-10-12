@@ -819,3 +819,6 @@ Statement upload offers explicit account-choice buttons for weak/colliding heade
 identifiers and keeps the verification warning. Older APIs remain readable through
 empty/default optional suggestion fields. Re-run the parser for older pending SMS
 whose three-digit identifiers were previously discarded.
+
+Visible prefix digits never satisfy the three-ending-digit minimum, even when a
+masked value exposes more than ten digits. The form rejects those incomplete endings.
