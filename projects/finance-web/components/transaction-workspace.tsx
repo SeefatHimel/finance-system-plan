@@ -1147,15 +1147,19 @@ export function TransactionWorkspace() {
             </label>
 
             <label className="field">
-              <span className="field__label">Search</span>
+              <span className="field__label" id="transaction-search-label">Search</span>
               <input
                 className="field__control"
                 name="search"
                 onChange={(event) => setFilters({ ...filters, search: event.target.value })}
-                placeholder="Reference, person, note"
+                aria-describedby="transaction-search-hint"
+                aria-labelledby="transaction-search-label"
+                maxLength={256}
+                placeholder="Search all transaction fields"
                 type="search"
                 value={filters.search}
               />
+              <small className="field__hint" id="transaction-search-hint">Accounts, categories, amounts, dates, notes and linked details. Use quotes for a phrase.</small>
             </label>
 
             <label className="field">

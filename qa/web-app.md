@@ -689,3 +689,13 @@ Users close them with an explicit control or Escape, except while an action is
 busy. The enlarged transaction editor scrolls its form independently, keeping
 the account summary, linked-correction warning and validation errors in its
 fixed header. These changes preserve edited fields during incidental side clicks.
+
+## Does transaction search cover all the fields users can review?
+
+Search runs on the backend across ledger metadata, related account/category/
+payment-method names, amounts/balances, ISO dates/times, identifiers, review status
+and linked transfer evidence. It is not restricted to reference/person/note.
+`Food 500` can match a category plus an amount, while quotes preserve a phrase.
+Apply filters, URL restoration and CSV export retain the same search and other
+filters. Formatted amounts are supported; query limits use existing error/toast
+feedback. Each transfer remains one result even with multiple matching reports.

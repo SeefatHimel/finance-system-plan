@@ -275,6 +275,18 @@ The user can enter the real-life balance for an account. The UI shows:
 11. Credit card bill tracking. Done.
 12. Recurring bill tracking. Done.
 
+## Transaction Search
+
+Transaction search uses the backend across all ledger fields, including account
+and category names, payment methods, amounts, balances, ISO dates/times, type,
+direction, source, identifiers, references, notes and linked transfer evidence.
+The hint and placeholder describe the expanded scope. Space-separated terms
+can match different fields (for example `Food 500`); quotes keep a phrase together.
+Formatted amounts such as `1,234.50` are accepted. Apply filters preserves the
+date/account/category scope, URL search restoration and CSV parity. Search is
+case-insensitive and limited to 256 characters/12 terms; an overlong term list
+uses the existing validation/toast feedback.
+
 ## Suggested Transfer Matches
 
 Manual transfer creation and SMS confirmation check for matching existing

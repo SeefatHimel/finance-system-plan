@@ -570,6 +570,8 @@ textarea {
   grid-template-columns: repeat(4, minmax(160px, 1fr));
 }
 
+.transaction-filter-form > .field { align-self: start; }
+
 .audit-filter-form {
   grid-template-columns: repeat(3, minmax(0, 1fr)) auto auto;
 }
