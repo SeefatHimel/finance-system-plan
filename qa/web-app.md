@@ -749,3 +749,13 @@ role. Amount, note, time and category edits survive; saving still requires an
 explicit action. Account settings accept three digits but recommend longer masked
 values, whose endings can match shorter SMS without duplicate mappings. Statement
 header choices similarly remain manual and require verification.
+
+### How do Add, Edit and Undo avoid accidental or confusing saves?
+
+One controlled form serves Add and Edit, with the same fields and validation.
+Synchronous in-flight guards and a stable create key handle repeated Enter/clicks.
+Successful actions offer Edit/Undo in a 15-second toast and a persistent latest
+action bar. Edit directly fetches the saved UUID independently of list filters.
+Undo uses the server descriptor, refreshes lists/review, and refuses later changes.
+User/session changes clear recovery state; no financial snapshots are stored in
+the browser. Only the latest unchanged action is undoable for 24 hours.

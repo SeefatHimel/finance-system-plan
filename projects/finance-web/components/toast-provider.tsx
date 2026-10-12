@@ -4,10 +4,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from "react-dom";
 
 type Tone = "success" | "error";
-type Notice = { id: number; message: string; tone: Tone };
+type NoticeAction = { label: string; onClick: () => void };
+type NoticeOptions = { actions?: NoticeAction[]; durationMs?: number };
+type Notice = { id: number; message: string; tone: Tone } & NoticeOptions;
 type ToastContextValue = {
   dismiss: () => void;
-  notify: (message: string, tone?: Tone) => void;
+  notify: (message: string, tone?: Tone, options?: NoticeOptions) => void;
   registerModal: (element: HTMLDialogElement) => () => void;
 };
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -34,15 +36,15 @@ function ToastNotice({ notice, onDismiss }: { notice: Notice; onDismiss: () => v
   const [focused, setFocused] = useState(false);
   useEffect(() => {
     if (notice.tone === "error" || hovered || focused) return;
-    const timeout = window.setTimeout(onDismiss, 6000);
+    const timeout = window.setTimeout(onDismiss, notice.durationMs ?? (notice.actions?.length ? 15000 : 6000));
     return () => window.clearTimeout(timeout);
-  }, [notice.tone, hovered, focused, onDismiss]);
+  }, [notice.tone, notice.durationMs, notice.actions?.length, hovered, focused, onDismiss]);
   return (
     <div className={`toast action-toast action-toast--${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"} aria-atomic="true"
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}>
       <span aria-hidden="true" className="toast__icon">{notice.tone === "error" ? "!" : "✓"}</span>
-      <span>{notice.message}</span>
+      <span className="toast__content"><span>{notice.message}</span>{notice.actions?.length ? <span className="toast__actions">{notice.actions.map(action => <button key={action.label} type="button" onClick={action.onClick}>{action.label}</button>)}</span> : null}</span>
       <button aria-label="Dismiss notification" onClick={onDismiss} type="button">×</button>
     </div>
   );
@@ -54,8 +56,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [modals, setModals] = useState<HTMLDialogElement[]>([]);
   const nextId = useRef(0);
   useEffect(() => setMounted(true), []);
-  const notify = useCallback((message: string, tone: Tone = "success") => {
-    setNotice({ id: ++nextId.current, message, tone });
+  const notify = useCallback((message: string, tone: Tone = "success", options: NoticeOptions = {}) => {
+    setNotice({ id: ++nextId.current, message, tone, ...options });
   }, []);
   const registerModal = useCallback((element: HTMLDialogElement) => {
     setModals((current) => [...current, element]);

@@ -1,5 +1,7 @@
 "use client";
 
+import { RecentTransactionAction, useTransactionRecovery } from "@/components/transaction-recovery";
+
 import { DatePeriodControls } from "@/components/date-period-controls";
 import { allDates, dateInPeriod, type DatePeriod } from "@/lib/date-period";
 
@@ -123,6 +125,8 @@ function normalizedNote(candidate: ParsedMessageCandidate) {
 }
 
 export function MessageReviewWorkspace() {
+  const recovery = useTransactionRecovery();
+  const confirmInFlight = useRef(false);
   const [transferDecision, setTransferDecision] = useState<{ candidate: ParsedMessageCandidate; input: ConfirmMessageCandidateInput; matches: TransferMatch[] } | null>(null);
   const [paymentMethodDrafts, setPaymentMethodDrafts] = useState<Record<string, string>>({});
   const [accountDrafts, setAccountDrafts] = useState<Record<string, ReturnType<typeof accountReviewDefaults>>>({});
@@ -172,7 +176,11 @@ export function MessageReviewWorkspace() {
     }
   }
 
-  useEffect(() => { void loadData(); }, []);
+  useEffect(() => { void loadData();
+    const refresh = () => { void loadData(false); };
+    window.addEventListener("finance:transactions-changed", refresh);
+    return () => window.removeEventListener("finance:transactions-changed", refresh);
+  }, []);
 
   useEffect(() => {
     if (reviewState.status !== "ready") return;
@@ -248,6 +256,8 @@ export function MessageReviewWorkspace() {
     const formData = new FormData(event.currentTarget);
     setActionError(null);
     setActionMessage(null);
+    if (confirmInFlight.current) return;
+    confirmInFlight.current = true;
     setWorkingCandidateId(candidate.id);
     try {
       const input: ConfirmMessageCandidateInput = {
@@ -279,30 +289,33 @@ export function MessageReviewWorkspace() {
           return;
         }
       }
-      await confirmMessageCandidate(accessToken, candidate.id, input);
-      setActionMessage("Message confirmed and added to the ledger.");
+      const saved = await confirmMessageCandidate(accessToken, candidate.id, input);
+      recovery.announce(saved.undo_action);
       await loadData(false);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Could not confirm candidate.");
     } finally {
+      confirmInFlight.current = false;
       setWorkingCandidateId(null);
     }
   }
 
   async function handleTransferDecision(match?: TransferMatch, balanceChoices: import("@/lib/api").TransferBalanceChoice[] = []) {
     const accessToken = getAccessToken();
-    if (!accessToken || !transferDecision) return;
+    if (!accessToken || !transferDecision || confirmInFlight.current) return;
+    confirmInFlight.current = true;
     setWorkingCandidateId(transferDecision.candidate.id);
     setMatchError(null);
     try {
-      if (match) await linkTransfer(accessToken, { candidate: transferDecision.candidate.id, draft: transferDecision.input }, match, balanceChoices);
-      else await confirmMessageCandidate(accessToken, transferDecision.candidate.id, transferDecision.input);
+      const saved = match ? await linkTransfer(accessToken, { candidate: transferDecision.candidate.id, draft: transferDecision.input }, match, balanceChoices)
+        : await confirmMessageCandidate(accessToken, transferDecision.candidate.id, transferDecision.input);
+      recovery.announce(saved.undo_action);
       setTransferDecision(null);
       await loadData(false);
-      setActionMessage(match ? "Transfer linked. Both accounts show one movement." : "Transaction kept separate.");
+
     } catch (error) {
       setMatchError(error instanceof Error ? error.message : "Could not link transfer.");
-    } finally { setWorkingCandidateId(null); }
+    } finally { confirmInFlight.current = false; setWorkingCandidateId(null); }
   }
 
   async function handleReject(event: React.FormEvent<HTMLFormElement>) {
@@ -421,6 +434,7 @@ export function MessageReviewWorkspace() {
         </div>
       </section>
 
+      <RecentTransactionAction />
       {actionError ? <p className="form-error">{actionError}</p> : null}
       {actionMessage ? <p className="form-success"><CheckCircle aria-hidden="true" size={18} weight="fill" />{actionMessage}</p> : null}
 

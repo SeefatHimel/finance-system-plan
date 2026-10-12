@@ -826,3 +826,24 @@ whose three-digit identifiers were previously discarded.
 
 Visible prefix digits never satisfy the three-ending-digit minimum, even when a
 masked value exposes more than ten digits. The form rejects those incomplete endings.
+
+### Shared transaction editor and Edit/Undo recovery
+
+Add and Edit use one controlled form, field order, validation and submit path.
+Payment method, masked identifiers, source and review flag are available in both;
+only original-source evidence and the linked-correction acknowledgement are edit
+specific. The create request keeps one retry key for the opened form. Synchronous
+submission guards prevent repeated Enter/click events from creating duplicates.
+
+Successful additions, edits, SMS approvals and transfer resolutions show a
+15-second toast with Edit and Undo (paused while hovered/focused). A compact
+Last action bar on Transactions and SMS review remains after toast dismissal and
+reload. It uses the server's latest user-owned descriptor, not browser-stored
+financial snapshots. Edit opens the exact saved record through `?edit=<UUID>`
+and fetches it directly even when current date/account filters exclude it. Undo
+refreshes the transaction list/review queue and respects server stale-state
+checks. The latest unchanged action can be undone for 24 hours; reading help or
+pressing Edit never accepts or undoes a transaction. Auth changes clear recovery
+state; late responses cannot carry it across users. Deletions and bulk PDF posting
+are outside this recovery flow. Apply the API migration before deploying the web
+client. Native recovery buttons are not part of this web editor change.

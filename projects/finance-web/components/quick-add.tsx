@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, X } from "@phosphor-icons/react";
 import { useAuth } from "./auth-provider";
+import { useTransactionRecovery } from "./transaction-recovery";
 import { useToast } from "./toast-provider";
 import { ModalDialog } from "./modal-dialog";
 import { QuickTimePicker } from "./quick-time-picker";
@@ -107,6 +108,7 @@ function QuickAddSession({
   const loadRevision = useRef(0);
   const router = useRouter();
   const { notify } = useToast();
+  const recovery = useTransactionRecovery();
   const retryKey = `finance.quick.pending.${getApiBaseUrl()}.${owner}`;
   const [invalidRetry, setInvalidRetry] = useState(false);
   useEffect(() => {
@@ -233,13 +235,14 @@ function QuickAddSession({
       pending.current = request;
       inFlight.current = true;
       setBusy(true);
-      await postQuickEntry(token, request);
+      const saved = await postQuickEntry(token, request);
       if (!alive.current) return;
       window.sessionStorage.removeItem(retryKey);
       pending.current = null;
       setSurface(null);
       setDraft(newQuickDraft());
-      notify("Transaction saved.", "success");
+      if (saved.undo_action) recovery.announce(saved.undo_action);
+      else notify("Transaction saved.", "success");
       window.dispatchEvent(new Event("finance:transactions-changed"));
       router.refresh();
     } catch (err) {

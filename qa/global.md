@@ -341,3 +341,13 @@ reports for the same account can signal separate movements, so the user must
 review a warning and choose a balance or keep the entries separate. The API
 never silently decides a conflicting balance, and accepting a match still
 creates one money movement with attached evidence.
+
+### What can the user recover after an accidental save?
+
+The latest unchanged manual/Quick Add save, edit, SMS approval or transfer
+link/merge can be undone within 24 hours. Undo reverses the action: it removes a
+new entry, restores an edit, reopens SMS review, detaches newly linked evidence,
+or restores merged records. It never blindly deletes an existing transfer,
+overwrites newer work, or restores redacted originals. Add and Edit share a form;
+Edit/Undo stay available after the success toast disappears. Deletions and bulk
+statement posting are not included in this recovery flow.

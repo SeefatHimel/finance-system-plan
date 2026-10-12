@@ -148,7 +148,14 @@ const transactionSourceMessageSchema = z.object({
   redacted_at: z.string().nullable()
 });
 
+const transactionActionSchema = z.object({
+  id: z.string(), kind: z.string(), label: z.string(), transaction: z.string().nullable(),
+  created_at: z.string(), expires_at: z.string(), can_undo: z.boolean(), undone: z.boolean()
+});
+export type TransactionAction = z.infer<typeof transactionActionSchema>;
+
 const parsedMessageCandidateSchema = z.object({
+  undo_action: transactionActionSchema.nullable().optional(),
   identity_suggestions: z.array(z.object({
     role: z.enum(["sender", "receiver"]), reason: z.string(), observed_identifiers: z.array(z.string()),
     choices: z.array(z.object({ account: z.string(), name: z.string(), payment_method: z.string(), method_name: z.string(), provider: z.string() }))
@@ -231,6 +238,7 @@ const transferMatchSchema = z.object({
 export type { TransferMatch } from "../../finance-contracts/generated/types";
 
 const transactionSchema = z.object({
+  undo_action: transactionActionSchema.nullable().optional(),
   balance_reporting_account: z.string().nullable().optional(),
   reported_balances: z.array(z.object({ account: z.string(), balance_after: z.string().nullable() })).optional(),
   created_at: z.string(),
@@ -450,6 +458,7 @@ export type AccountReconciliation = z.infer<typeof accountReconciliationSchema>;
 export type AuditLogEntry = z.infer<typeof auditLogEntrySchema>;
 
 export type CreateTransactionInput = {
+  needs_review?: boolean;
   reported_balances?: { account: string; balance_after: string | null }[];
   account: string;
   amount: string;
@@ -1598,12 +1607,28 @@ export async function saveQuickPreset(accessToken: string, input: PresetInput | 
   const response = await authenticatedFetch(`/api/quick-add/presets/${id ? `${id}/` : ""}`, accessToken, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
   return await response.json() as QuickPreset;
 }
-export async function postQuickEntry(accessToken: string, input: QuickEntryInput): Promise<{ transaction: string; replayed: boolean }> {
+export async function postQuickEntry(accessToken: string, input: QuickEntryInput): Promise<{ transaction: string; replayed: boolean; undo_action?: TransactionAction | null }> {
   const response = await authenticatedFetch("/api/quick-add/entries/", accessToken, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-  return await response.json() as { transaction: string; replayed: boolean };
+  return z.object({ transaction: z.string(), replayed: z.boolean(), undo_action: transactionActionSchema.nullable().optional() }).parse(await response.json());
 }
 
 export async function reorderQuickPresets(accessToken: string, ids: string[]): Promise<QuickPreset[]> {
   const response = await authenticatedFetch("/api/quick-add/presets/reorder/", accessToken, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
   return await response.json() as QuickPreset[];
+}
+
+
+export async function recentTransactionAction(token: string, signal?: AbortSignal): Promise<TransactionAction | null> {
+  const response = await authenticatedFetch("/api/transactions/recent-action/", token, { signal });
+  return transactionActionSchema.nullable().parse(await response.json());
+}
+export async function undoTransactionAction(token: string, action: string): Promise<TransactionAction> {
+  const response = await authenticatedFetch("/api/transactions/undo/", token, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action })
+  });
+  return transactionActionSchema.parse(await response.json());
+}
+export async function getTransaction(token: string, id: string, signal?: AbortSignal): Promise<Transaction> {
+  const response = await authenticatedFetch(`/api/transactions/${id}/`, token, { signal });
+  return transactionSchema.parse(await response.json());
 }

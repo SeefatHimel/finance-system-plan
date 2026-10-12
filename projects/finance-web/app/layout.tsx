@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 
+import { TransactionRecoveryProvider } from "@/components/transaction-recovery";
 import { ToastProvider } from "@/components/toast-provider";
 import { AppShell } from "@/components/app-shell";
 import { AuthProvider } from "@/components/auth-provider";
@@ -25,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body><BackendHeartbeat /><ToastProvider><AuthProvider><AppShell>{children}</AppShell></AuthProvider></ToastProvider></body>
+      <body><BackendHeartbeat /><ToastProvider><AuthProvider><TransactionRecoveryProvider><AppShell>{children}</AppShell></TransactionRecoveryProvider></AuthProvider></ToastProvider></body>
     </html>
   );
 }

@@ -6,6 +6,8 @@ import { localDay, localTime } from "../../finance-contracts/quick-add";
 
 import { identifierLabel, useIdentifierView } from "@/components/identifier-view";
 
+import { RecentTransactionAction, useTransactionRecovery } from "@/components/transaction-recovery";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useFeedbackMessage } from "@/components/toast-provider";
 
 import { Plus, SlidersHorizontal, X } from "@phosphor-icons/react";
@@ -31,6 +33,7 @@ import {
   listPaymentMethods,
   type PaymentMethod,
   listTransactions,
+  getTransaction,
   type TransactionFilters,
   type TransactionSource,
   type TransactionType,
@@ -47,7 +50,7 @@ import { TransactionSourceMessages } from "@/components/transaction-source-messa
 import { TransactionStatementEvidence } from "@/components/transaction-statement-evidence";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
-import { accountBoundBalances, balanceAfterAccountChange, editableReportedBalance, transferBalancePayload } from "@/lib/transaction-balances";
+import { accountBoundBalances, editableReportedBalance, transferBalancePayload } from "@/lib/transaction-balances";
 import { DatePeriodControls } from "@/components/date-period-controls";
 import { periodFromFilters, periodLabel, type DatePeriod } from "@/lib/date-period";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
@@ -130,6 +133,14 @@ const moneyFormatter = new Intl.NumberFormat("en-BD", {
 const activityTimeFormatter = new Intl.DateTimeFormat("en-BD", { dateStyle: "medium", timeStyle: "short" });
 
 export function TransactionWorkspace() {
+  const recovery = useTransactionRecovery();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const saveInFlight = useRef(false);
+  const saveKey = useRef("");
+  const editLoad = useRef<AbortController>();
+  const [editingRecord, setEditingRecord] = useState<Transaction | null>(null);
+  const [reportingAccount, setReportingAccount] = useState("");
   const quickAdd = useQuickAdd();
   const { fullDraft, consumeFullDraft } = quickAdd;
   const [filters, setFilterState] = useState<TransactionFilterState>({
@@ -161,16 +172,9 @@ export function TransactionWorkspace() {
   const [matchError, setMatchError] = useFeedbackMessage("error");
   const [formError, setFormError] = useFeedbackMessage("error");
   const [formMessage, setFormMessage] = useFeedbackMessage("success");
-  const [clockEdit, setClockEdit] = useState<{ mode: "create" | "edit"; value: string } | null>(null);
+  const [clockEdit, setClockEdit] = useState<{ value: string } | null>(null);
   const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
-  const [createType, setCreateType] = useState<TransactionType>("expense");
-  const [createDirection, setCreateDirection] = useState<TransactionDirection>("debit");
-  const [createOtherAccountId, setCreateOtherAccountId] = useState("");
-  const [createReportedBalances, setCreateReportedBalances] = useState<Record<string, string>>({});
   const [editingReportedBalances, setEditingReportedBalances] = useState<Record<string, string>>({});
-  const [createCategoryId, setCreateCategoryId] = useState("");
-  const createForm = useRef<HTMLFormElement>(null);
-  const [createDefaults, setCreateDefaults] = useState<{ amount: string; note: string; counterparty_text: string; date: string; time: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -187,8 +191,6 @@ export function TransactionWorkspace() {
   const [editingAmount, setEditingAmount] = useState("");
   const [editingBalanceAfter, setEditingBalanceAfter] = useState("");
   const [editingBalanceNotice, setEditingBalanceNotice] = useState("");
-  const [createAccountId, setCreateAccountId] = useState("");
-  const [createBalanceNotice, setCreateBalanceNotice] = useState("");
   const [editingReference, setEditingReference] = useState("");
   const [editingCounterpartyText, setEditingCounterpartyText] = useState("");
   const [editingNote, setEditingNote] = useState("");
@@ -205,25 +207,13 @@ export function TransactionWorkspace() {
   const [visibleColumns, setVisibleColumns] = useState<TransactionColumn[]>(defaultTransactionColumns);
   const categoryChoice = useCategoryTypeChoice(loadState.status === "ready" ? loadState.categories : []);
 
-  useEffect(() => { if (editorMode === "create") { setCreateReportedBalances({}); setCreateOtherAccountId(""); } }, [editorMode]);
-
-  function changeCreateType(type: TransactionType) {
-    const field = createForm.current?.elements.namedItem("balance_after");
-    if (field instanceof HTMLInputElement && createAccountId) setCreateReportedBalances(current => ({ ...current, [createAccountId]: field.value }));
-    setCreateType(type);
-    setCreateDirection(type === "transfer" ? createDirection : directionForType(type));
-    if (type !== "transfer") setCreateOtherAccountId("");
-    for (const name of type !== "transfer" ? ["transfer_account"] : []) {
-      const field = createForm.current?.elements.namedItem(name);
-      if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement) field.value = "";
-    }
-  }
-
   function changeEditingContext(patch: Partial<{ type: TransactionType; account: string; transfer_account: string }>) {
     const before = { type: editingType, account: editingAccountId, transfer_account: editingTransferAccountId };
     const after = { ...before, ...patch };
+    if (after.account !== before.account) setEditingPaymentMethodId("");
     setEditingBalanceAfter(editingReportedBalances[after.account] ?? "");
-    setEditingBalanceNotice("");
+    setEditingBalanceNotice(after.type !== "transfer" && after.account !== before.account && editingBalanceAfter && !editingReportedBalances[after.account] ? "The reporting account changed. Enter its reported balance if available." : "");
+    if (editorMode === "create" && after.type !== "transfer") setReportingAccount(after.account);
     setEditingType(after.type);
     setEditingAccountId(after.account);
     setEditingTransferAccountId(after.transfer_account);
@@ -231,6 +221,7 @@ export function TransactionWorkspace() {
   }
 
   function changeEditingType(type: TransactionType) {
+    if (type === "transfer" && editingType !== "transfer") setReportingAccount(editingAccountId);
     if (type === "transfer" && editingType !== "transfer" && editingDirection === "credit") {
       changeEditingContext({ type, account: "", transfer_account: editingAccountId });
     } else if (editingType === "transfer" && type !== "transfer") {
@@ -329,14 +320,34 @@ export function TransactionWorkspace() {
     window.addEventListener("finance:transactions-changed", refresh);
     return () => window.removeEventListener("finance:transactions-changed", refresh);
   }, [loadData]);
+  const openNewTransaction = useCallback((defaults?: { type: TransactionType; account: string; category: string; amount: string; note: string; counterparty_text: string; date: string; time: string }) => {
+    editLoad.current?.abort();
+    saveKey.current = `manual-entry:${crypto.randomUUID()}`;
+    setEditingRecord(null); setEditingTransactionId("");
+    setEditingDate(defaults?.date ?? currentDate()); setEditingTime(defaults?.time ?? currentTime());
+    setEditingType(defaults?.type ?? "expense"); setEditingDirection(directionForType(defaults?.type ?? "expense"));
+    setEditingAccountId(defaults?.account ?? ""); setReportingAccount(defaults?.account ?? ""); setEditingTransferAccountId("");
+    setEditingCategoryId(defaults?.category ?? ""); setEditingAmount(defaults?.amount ?? "");
+    setEditingBalanceAfter(""); setEditingReportedBalances({}); setEditingBalanceNotice("");
+    setEditingReference(""); setEditingCounterpartyText(defaults?.counterparty_text ?? ""); setEditingNote(defaults?.note ?? "");
+    setEditingPaymentMethodId(""); setEditingSource("web"); setEditingNeedsReview(false); setAllowLinkedCorrection(false);
+    setEditingSenderAccountIdentifier(""); setEditingSenderCardIdentifier(""); setEditingReceiverAccountIdentifier(""); setEditingReceiverCardIdentifier("");
+    setFormError(null); setFormMessage(null); setEditorMode("create");
+  }, [setFormError, setFormMessage]);
   useEffect(() => {
     if (!fullDraft) return;
-    const draft = fullDraft;
-    setCreateType(draft.type); setCreateDirection(draft.type === "income" ? "credit" : "debit");
-    setCreateAccountId(draft.account); setCreateCategoryId(draft.category); setEditorMode("create");
-    setCreateDefaults({ amount: draft.amount, note: draft.note, counterparty_text: draft.counterparty_text, date: draft.dateMode === "today" ? localDay() : draft.date, time: draft.timeMode === "now" ? localTime() : draft.timeMode === "none" ? "" : draft.time });
+    openNewTransaction({ ...fullDraft, date: fullDraft.dateMode === "today" ? localDay() : fullDraft.date,
+      time: fullDraft.timeMode === "now" ? localTime() : fullDraft.timeMode === "none" ? "" : fullDraft.time });
     consumeFullDraft();
-  }, [fullDraft, consumeFullDraft]);
+  }, [fullDraft, consumeFullDraft, openNewTransaction]);
+  function closeEditor() {
+    editLoad.current?.abort();
+    setEditorMode(null);
+    if (searchParams.has("edit")) {
+      const params = new URLSearchParams(searchParams); params.delete("edit");
+      router.replace(`/transactions${params.size ? `?${params}` : ""}`, { scroll: false });
+    }
+  }
 
   function handleFilterSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -436,86 +447,27 @@ export function TransactionWorkspace() {
     }
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const accessToken = getAccessToken();
-
-    if (!accessToken) {
-      setFormError("Sign in before adding a transaction.");
-      return;
-    }
-
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const type = String(formData.get("type") ?? "expense") as TransactionType;
-    const direction = String(formData.get("direction") ?? "debit") as TransactionDirection;
-    const transferAccount = String(formData.get("transfer_account") ?? "");
-    const category = String(formData.get("category") ?? "");
-
-    if (type === "transfer" && !transferAccount) return setFormError("Choose the other account before saving a transfer.");
-    if (type === "transfer" && transferAccount === String(formData.get("account"))) return setFormError("Choose different From and To accounts for a transfer.");
-
-    setFormError(null);
-    setFormMessage(null);
-    setIsSubmitting(true);
-
-    try {
-      const input: CreateTransactionInput = {
-        external_key: `manual-transfer:${crypto.randomUUID()}`,
-        account: String(formData.get("account") ?? ""),
-        amount: String(formData.get("amount") ?? ""),
-        ...(type === "transfer" ? { reported_balances: transferBalancePayload(createAccountId, createOtherAccountId, createReportedBalances) } : { balance_after: String(formData.get("balance_after") ?? "") || null }),
-        category: category || undefined,
-        counterparty_text: String(formData.get("counterparty_text") ?? ""),
-        date: String(formData.get("date") ?? ""),
-        direction,
-        note: String(formData.get("note") ?? ""),
-        reference: String(formData.get("reference") ?? ""),
-        time: String(formData.get("time") ?? "") || null,
-        transfer_account: type === "transfer" ? transferAccount : undefined,
-        type
-      };
-      if (type === "transfer") {
-        const matches = await findTransferMatches(accessToken, { draft: input });
-        if (matches.length) {
-          setMatchError(null);
-          setTransferDecision({ input, matches });
-          return;
-        }
-      }
-      await createTransaction(accessToken, input);
-      form.reset();
-      setCreateReportedBalances({}); setCreateOtherAccountId("");
-      await loadData(filters);
-      setEditorMode(null);
-      setFormMessage("Transaction saved.");
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Could not create transaction.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
   async function handleTransferDecision(match?: TransferMatch, balanceChoices: import("@/lib/api").TransferBalanceChoice[] = []) {
     const accessToken = getAccessToken();
-    if (!accessToken || !transferDecision) return;
+    if (!accessToken || !transferDecision || saveInFlight.current) return;
+    saveInFlight.current = true;
     setIsSubmitting(true);
     setMatchError(null);
     try {
       if (transferDecision.mergeId) {
-        if (match) await mergeTransfers(accessToken, match.id, transferDecision.mergeId, balanceChoices);
+        if (match) { const saved = await mergeTransfers(accessToken, match.id, transferDecision.mergeId, balanceChoices); recovery.announce(saved.undo_action); }
       } else if (match) {
-        await linkTransfer(accessToken, { draft: transferDecision.input }, match, balanceChoices);
+        const saved = await linkTransfer(accessToken, { draft: transferDecision.input }, match, balanceChoices); recovery.announce(saved.undo_action);
       } else {
-        await createTransaction(accessToken, transferDecision.input);
+        const saved = await createTransaction(accessToken, transferDecision.input); recovery.announce(saved.undo_action);
       }
       setTransferDecision(null);
-      setEditorMode(null);
+      closeEditor();
       await loadData(filters);
-      setFormMessage(match ? "Transfer linked. Both accounts show one movement." : "Transfer kept separate.");
     } catch (error) {
       setMatchError(error instanceof Error ? error.message : "Could not link transfer.");
     } finally {
+      saveInFlight.current = false;
       setIsSubmitting(false);
     }
   }
@@ -566,17 +518,17 @@ export function TransactionWorkspace() {
     }
   }
 
-  function selectTransactionForEdit(transactionId: string) {
+  const selectTransactionForEdit = useCallback(async (transactionId: string) => {
+    const token = getAccessToken(); if (!token) return;
+    editLoad.current?.abort();
+    const controller = new AbortController(); editLoad.current = controller;
+    try {
+    const transaction = await getTransaction(token, transactionId, controller.signal);
+    if (controller.signal.aborted) return;
+    setEditingRecord(transaction);
     setEditingTransactionId(transactionId);
-    if (loadState.status !== "ready") {
-      return;
-    }
-    const transaction = loadState.transactions.find((item) => item.id === transactionId);
-    if (!transaction) {
-      return;
-    }
     setEditingDate(transaction.date);
-    setEditingTime(transaction.time?.slice(0, 5) ?? "");
+    setEditingTime(transaction.time ?? "");
     setEditingType(transaction.type as TransactionType);
     setEditingDirection(transaction.direction as TransactionDirection);
     setEditingAccountId(transaction.account);
@@ -600,57 +552,48 @@ export function TransactionWorkspace() {
     setFormError(null);
     setFormMessage(null);
     setEditorMode("edit");
-  }
+    } catch (error) { if (!controller.signal.aborted) setFormError(error instanceof Error ? error.message : "Could not load this transaction."); }
+  }, [setFormError, setFormMessage]);
+  useEffect(() => () => editLoad.current?.abort(), []);
+  const editId = searchParams.get("edit");
+  useEffect(() => { if (editId) void selectTransactionForEdit(editId); }, [editId, selectTransactionForEdit]);
 
-  async function handleUpdate(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const accessToken = getAccessToken();
-    if (!accessToken) {
-      setFormError("Sign in before updating a transaction.");
-      return;
-    }
-    if (!editingTransactionId) {
-      setFormError("Select a transaction to edit.");
-      return;
-    }
-    if (editingType === "transfer" && !editingAccountId) return setFormError("Choose the From account before saving a transfer.");
+    if (saveInFlight.current) return;
+    const token = getAccessToken();
+    if (!token) return setFormError("Sign in before saving a transaction.");
+    if (!editingAccountId) return setFormError("Choose an account before saving.");
     if (editingType === "transfer" && !editingTransferAccountId) return setFormError("Choose the To account before saving a transfer.");
     if (editingType === "transfer" && editingAccountId === editingTransferAccountId) return setFormError("Choose different From and To accounts for a transfer.");
-
-    setFormError(null);
-    setFormMessage(null);
-    setIsUpdating(true);
+    saveInFlight.current = true; setIsUpdating(true); setFormError(null); setFormMessage(null);
+    const input = {
+      account: editingAccountId, amount: editingAmount,
+      ...(editingType === "transfer" ? { reported_balances: transferBalancePayload(editingAccountId, editingTransferAccountId, editingReportedBalances) } : { balance_after: editingBalanceAfter || null }),
+      counterparty_text: editingCounterpartyText, date: editingDate, time: editingTime || null,
+      direction: editingDirection, note: editingNote, payment_method: editingPaymentMethodId || null,
+      sender_account_identifier: editingSenderAccountIdentifier, sender_card_identifier: editingSenderCardIdentifier,
+      receiver_account_identifier: editingReceiverAccountIdentifier, receiver_card_identifier: editingReceiverCardIdentifier,
+      source: editingSource, needs_review: editingNeedsReview, reference: editingReference, type: editingType
+    };
     try {
-      await updateTransaction(accessToken, editingTransactionId, {
-        allow_linked_correction: allowLinkedCorrection,
-        account: editingAccountId,
-        amount: editingAmount,
-        ...(editingType === "transfer" ? { reported_balances: transferBalancePayload(editingAccountId, editingTransferAccountId, editingReportedBalances) } : { balance_after: editingBalanceAfter || null }),
-        category: editingCategoryId || null,
-        counterparty_text: editingCounterpartyText,
-        date: editingDate,
-        time: editingTime || null,
-        direction: editingDirection,
-        note: editingNote,
-        payment_method: editingPaymentMethodId || null,
-        sender_account_identifier: editingSenderAccountIdentifier,
-        sender_card_identifier: editingSenderCardIdentifier,
-        receiver_account_identifier: editingReceiverAccountIdentifier,
-        receiver_card_identifier: editingReceiverCardIdentifier,
-        source: editingSource,
-        needs_review: editingNeedsReview,
-        reference: editingReference,
-        transfer_account: editingType === "transfer" ? editingTransferAccountId || null : null,
-        type: editingType
-      });
-      await loadData(filters);
-      setEditorMode(null);
-      setFormMessage("Transaction updated.");
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Could not update transaction.");
-    } finally {
-      setIsUpdating(false);
-    }
+      let saved: Transaction;
+      if (editorMode === "create") {
+        const draft: CreateTransactionInput = { ...input, external_key: saveKey.current,
+          category: editingCategoryId || undefined, transfer_account: editingType === "transfer" ? editingTransferAccountId : undefined };
+        if (editingType === "transfer") {
+          const matches = await findTransferMatches(token, { draft });
+          if (matches.length) { setMatchError(null); setTransferDecision({ input: draft, matches }); return; }
+        }
+        saved = await createTransaction(token, draft);
+      } else {
+        saved = await updateTransaction(token, editingTransactionId, { ...input,
+          allow_linked_correction: allowLinkedCorrection, category: editingCategoryId || null,
+          transfer_account: editingType === "transfer" ? editingTransferAccountId : null });
+      }
+      closeEditor(); recovery.announce(saved.undo_action); await loadData(filtersRef.current);
+    } catch (error) { setFormError(error instanceof Error ? error.message : "Could not save transaction."); }
+    finally { saveInFlight.current = false; setIsUpdating(false); }
   }
 
   const accountNames = useMemo(() => {
@@ -685,7 +628,7 @@ export function TransactionWorkspace() {
     );
   }
 
-  const editingTransaction = loadState.transactions.find((item) => item.id === editingTransactionId);
+  const editingTransaction = editingRecord ?? undefined;
   const balanceAccountId = editingAccountId;
   const requiresLinkedCorrection = Boolean(editingTransaction && (
     editingTransaction.statement_evidence_count > 0 || (editingTransaction.transfer_evidence.length > 1 &&
@@ -699,9 +642,9 @@ export function TransactionWorkspace() {
   return (
     <div className="workspace-grid">
       {categoryChoice.confirmation}
-      {clockEdit ? <QuickTimePicker value={clockEdit.value} onCancel={() => setClockEdit(null)} onApply={time => { if (clockEdit.mode === "edit") setEditingTime(time); else { const field = createForm.current?.elements.namedItem("time"); if (field instanceof HTMLInputElement) field.value = time; } setClockEdit(null); }} /> : null}
+      {clockEdit ? <QuickTimePicker value={clockEdit.value} onCancel={() => setClockEdit(null)} onApply={time => { setEditingTime(time); setClockEdit(null); }} /> : null}
       {editorMode ? (
-        <ModalDialog labelledBy="transaction-editor-title" className="form-drawer transaction-editor-drawer" busy={isSubmitting || isUpdating} onCancel={() => setEditorMode(null)}>
+        <ModalDialog labelledBy="transaction-editor-title" className="form-drawer transaction-editor-drawer" busy={isSubmitting || isUpdating} onCancel={closeEditor}>
             <div className="form-drawer__header">
               <div>
                 <h2 id="transaction-editor-title">
@@ -721,128 +664,15 @@ export function TransactionWorkspace() {
                 autoFocus
                 className="icon-button"
                 disabled={isSubmitting || isUpdating}
-                onClick={() => setEditorMode(null)}
+                onClick={closeEditor}
                 type="button"
               >
                 <X aria-hidden="true" size={20} />
               </button>
             </div>
 
-          {editorMode === "create" ? <form className="transaction-form drawer-form" onSubmit={handleSubmit} ref={createForm}>
-            <label className="field">
-              <span className="field__label">Date</span>
-              <input className="field__control" defaultValue={createDefaults?.date ?? currentDate()} name="date" required type="date" />
-            </label>
-
-            <div className="field">
-              <label className="field__label" htmlFor="create-transaction-time">Time</label>
-              <input id="create-transaction-time" className="field__control" defaultValue={createDefaults?.time ?? currentTime()} name="time" type="time" />
-              <button className="quick-see-all" type="button" onClick={() => { const field = createForm.current?.elements.namedItem("time"); setClockEdit({ mode: "create", value: field instanceof HTMLInputElement ? field.value || currentTime() : currentTime() }); }}>Choose time on clock</button>
-            </div>
-
-            <label className="field">
-              <span className="field__label">Type</span>
-              <select className="field__control" name="type" required value={createType} onChange={(event) => changeCreateType(event.target.value as TransactionType)}>
-                {transactionTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type.replaceAll("_", " ")}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="field">
-              <div className="inline-help"><label className="field__label" htmlFor="create-transaction-direction">Debit / credit</label> <HelpTooltip label="About debit and credit">For transfers, debit means this account sends and credit means it receives. Select the other account to complete the transfer.</HelpTooltip></div>
-              <select id="create-transaction-direction" className="field__control" value={createDirection} onChange={(event) => setCreateDirection(event.target.value as TransactionDirection)} name="direction" required>
-                <option value="debit">Debit</option>
-                <option value="credit">Credit</option>
-              </select>
-            </div>
-
-            <label className="field">
-              <span className="field__label">Account</span>
-              <select className="field__control" name="account" required value={createAccountId} onChange={(event) => {
-                const field = createForm.current?.elements.namedItem("balance_after");
-                if (field instanceof HTMLInputElement && balanceAfterAccountChange(field.value, createAccountId, event.target.value) !== field.value) {
-                  field.value = "";
-                  setCreateBalanceNotice("Reported balance cleared because its reporting account changed. Enter the balance for the new account if available.");
-                }
-                setCreateAccountId(event.target.value);
-              }}>
-                <option value="">Select account</option>
-                {loadState.accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {createType === "transfer" ? <label className="field">
-              <span className="field__label">Other transfer account</span>
-              <select className="field__control" name="transfer_account" disabled={createType !== "transfer"} value={createOtherAccountId} onChange={event => setCreateOtherAccountId(event.target.value)}>
-                <option value="">Only for transfers</option>
-                {loadState.accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </label> : null}
-
-            <label className="field">
-              <span className="field__label">Category</span>
-              <select className="field__control" name="category" value={createCategoryId} disabled={isSubmitting} onChange={(event) => categoryChoice.choose(event.target.value, createType, (categoryId, type) => { setCreateCategoryId(categoryId); if (type !== createType) changeCreateType(type); })}>
-                <option value="">No category</option>
-                {loadState.categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span className="field__label">Amount</span>
-              <input
-                className="field__control"
-                min="0.01"
-                name="amount"
-                defaultValue={createDefaults?.amount ?? ""}
-                inputMode="decimal"
-                required
-                type="text"
-              />
-            </label>
-
-            {createType === "transfer" ? <TransferBalanceFields accounts={[createAccountId, createOtherAccountId]} primaryAccount={createAccountId} names={accountNames} values={createReportedBalances} onChange={(account, value) => setCreateReportedBalances(current => ({ ...current, [account]: value }))} /> : <div className="field">
-              <div className="inline-help"><label className="field__label" htmlFor="create-reported-balance">Reported balance after</label> <HelpTooltip label="About reported balance">Optional balance from this account’s report, rather than its calculated ledger balance. Leave blank if unknown.</HelpTooltip></div>
-              <input id="create-reported-balance" className="field__control" inputMode="decimal" name="balance_after" defaultValue={createReportedBalances[createAccountId] ?? ""} placeholder="72,308.00" type="text" />
-              {createBalanceNotice ? <small className="field__hint inline-help" role="status">Balance cleared <HelpTooltip warning label="Why the balance was cleared">{createBalanceNotice}</HelpTooltip></small> : null}
-            </div>}
-
-            <div className="field">
-              <div className="inline-help"><label className="field__label" htmlFor="create-transaction-reference">Reference</label> <HelpTooltip label="About references">Optional bank or wallet reference. References may repeat.</HelpTooltip></div>
-              <input id="create-transaction-reference" aria-label="Reference" className="field__control" name="reference" placeholder="e.g. DEMO-TRF-1042" type="text" />
-            </div>
-
-            <label className="field">
-              <span className="field__label">Sent to / received from</span>
-              <input className="field__control" name="counterparty_text" defaultValue={createDefaults?.counterparty_text ?? ""} type="text" />
-            </label>
-
-            <label className="field field--wide">
-              <span className="field__label">Note</span>
-              <input className="field__control" name="note" defaultValue={createDefaults?.note ?? ""} type="text" />
-            </label>
-
-            <button className="button button--primary field--wide" disabled={isSubmitting} type="submit">
-              {isSubmitting ? <ButtonBusy label="Saving" /> : "Save transaction"}
-            </button>
-          </form> : null}
-
-          {editorMode === "edit" ? <form className="transaction-form drawer-form" onSubmit={handleUpdate}>
-            <TransactionSourceMessages key={editingTransactionId} transactionId={editingTransactionId} />
+          <form className="transaction-form drawer-form" onSubmit={handleSave}>
+            {editorMode === "edit" ? <TransactionSourceMessages key={editingTransactionId} transactionId={editingTransactionId} /> : null}
             {editingTransaction?.statement_evidence_count ? <TransactionStatementEvidence key={`statement-${editingTransactionId}`} transactionId={editingTransactionId} /> : null}
             <label className="field">
               <span className="field__label">Date</span>
@@ -857,8 +687,8 @@ export function TransactionWorkspace() {
 
             <div className="field">
               <label className="field__label" htmlFor="edit-transaction-time">Time</label>
-              <input id="edit-transaction-time" className="field__control" onChange={event => setEditingTime(event.target.value)} type="time" value={editingTime} />
-              <button className="quick-see-all" type="button" onClick={() => setClockEdit({ mode: "edit", value: editingTime || currentTime() })}>Choose time on clock</button>
+              <input id="edit-transaction-time" step="1" className="field__control" onChange={event => setEditingTime(event.target.value)} type="time" value={editingTime} />
+              <button className="quick-see-all" type="button" onClick={() => setClockEdit({ value: editingTime || currentTime() })}>Choose time on clock</button>
             </div>
 
             <label className="field">
@@ -969,7 +799,7 @@ export function TransactionWorkspace() {
               />
             </label>
 
-            {editingType === "transfer" ? <TransferBalanceFields accounts={[editingAccountId, editingTransferAccountId]} primaryAccount={editingTransaction?.balance_reporting_account ?? editingTransaction?.account ?? editingAccountId} names={accountNames} values={editingReportedBalances} onChange={(account, value) => setEditingReportedBalances(current => ({ ...current, [account]: value }))} /> : <>            <div className="field">
+            {editingType === "transfer" ? <TransferBalanceFields accounts={[editingAccountId, editingTransferAccountId]} primaryAccount={editingTransaction?.balance_reporting_account ?? (reportingAccount || editingAccountId)} names={accountNames} values={editingReportedBalances} onChange={(account, value) => setEditingReportedBalances(current => ({ ...current, [account]: value }))} /> : <>            <div className="field">
               <div className="inline-help"><label className="field__label" htmlFor="edit-reported-balance">Reported balance after</label> <HelpTooltip label="About reported balance">Optional balance from this account’s report, rather than its calculated ledger balance. Leave blank if unknown.</HelpTooltip></div>
               <input id="edit-reported-balance"
                 className="field__control"
@@ -1044,10 +874,10 @@ export function TransactionWorkspace() {
             </fieldset>
             <label className="review-remember field--wide"><input checked={editingNeedsReview} onChange={(event) => setEditingNeedsReview(event.target.checked)} type="checkbox" /><span><strong>Needs review</strong><small>Keep this ledger entry marked for further checking.</small></span></label>
             {requiresLinkedCorrection ? <label className="review-remember field--wide"><input checked={allowLinkedCorrection} onChange={(event) => setAllowLinkedCorrection(event.target.checked)} required type="checkbox" /><span><strong>I reviewed the linked evidence and confirm this ledger correction</strong><small>Reversing direction keeps reports on the same accounts. Replacing an account clears the replaced account’s report before reassignment. Original SMS and statement snapshots stay unchanged as history.</small></span></label> : null}
-            <button className="button button--ghost field--wide" disabled={isUpdating || (requiresLinkedCorrection && !allowLinkedCorrection)} type="submit">
-              {isUpdating ? <ButtonBusy label="Updating" /> : "Update transaction"}
+            <button className="button button--primary field--wide" disabled={isUpdating || (requiresLinkedCorrection && !allowLinkedCorrection)} type="submit">
+              {isUpdating ? <ButtonBusy label="Saving" /> : editorMode === "create" ? "Save transaction" : "Update transaction"}
             </button>
-          </form> : null}
+          </form>
         </ModalDialog>
       ) : null}
 
@@ -1062,17 +892,7 @@ export function TransactionWorkspace() {
             </div>
             <button
               className="button button--primary"
-              onClick={() => {
-                setFormError(null);
-                setFormMessage(null);
-                setCreateType("expense");
-                setCreateAccountId("");
-                setCreateBalanceNotice("");
-                setCreateDirection("debit");
-                setCreateCategoryId("");
-                setCreateDefaults(null);
-                setEditorMode("create");
-              }}
+              onClick={() => openNewTransaction()}
               type="button"
             >
               <Plus aria-hidden="true" size={17} />
@@ -1080,6 +900,7 @@ export function TransactionWorkspace() {
             </button>
           </div>
 
+          <RecentTransactionAction />
           {formMessage ? <p className="form-success">{formMessage}</p> : null}
 
           <div className="transaction-view-switch" aria-label="Transaction ordering">

@@ -3114,3 +3114,11 @@ textarea {
 .review-identity-choices { display: flex; flex-wrap: wrap; gap: 8px; }
 .review-identity-choices .button { min-height: 44px; white-space: normal; text-align: left; max-width: 100%; }
 .review-identity-choices .button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+.toast__content { display: grid; gap: 8px; min-width: 0; }
+.toast__actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.toast__actions button { background: transparent; border: 0; border-radius: 4px; color: #49e0a4; cursor: pointer; font-weight: 750; min-height: 32px; padding: 4px 8px; }
+.toast__actions button:hover, .toast__actions button:focus-visible { background: rgb(73 224 164 / 12%); outline: 2px solid #49e0a4; outline-offset: 2px; }
+@media (pointer: coarse) { .action-toast button { min-height: 44px; min-width: 44px; } }
+.recent-action { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px; margin: 12px 0; border: 1px solid var(--panel-border); border-radius: 8px; }
+.recent-action__buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }

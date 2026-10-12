@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { LoadingState } from "@/components/loading-state";
 
 import { TransactionWorkspace } from "@/components/transaction-workspace";
 
@@ -48,7 +50,7 @@ export default function TransactionsPage() {
       </header>
 
       <main className="main">
-        <TransactionWorkspace />
+        <Suspense fallback={<LoadingState label="Loading transactions" />}><TransactionWorkspace /></Suspense>
       </main>
     </div>
   );
