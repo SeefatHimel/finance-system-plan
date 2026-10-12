@@ -1,5 +1,6 @@
 import { QuickAddHub, type QuickAddHandle } from "./src/quick-add-hub";
 import { quickSessionScope } from "./src/secure-document";
+import { transferComparison } from "../finance-contracts/transfer-comparison";
 import { NativeTimeField } from "./src/native-time-field";
 import { smsSyncPresentation, smsSyncDiagnostics } from "./src/sms-sync-presentation";
 import { localDay, localTime, type QuickPreset, type QuickDraft } from "../finance-contracts/quick-add";
@@ -4385,7 +4386,7 @@ function FinanceApp() {
               </View>
               <View style={styles.mobileRowBody}>
                 <Text style={styles.mobileRowTitle}>{candidate.provider || candidate.raw_message.sender}</Text>
-                <Text style={styles.mobileRowMeta}>{formatMobileDate(candidate.raw_message.received_at)}</Text>
+                <Text style={styles.mobileRowMeta}>{formatMobileDate(candidate.raw_message.received_at)} · {inputTimeFromTimestamp(candidate.raw_message.received_at)}</Text>
               </View>
               <Text style={styles.mobileConfidence}>{confidencePercent(candidate.confidence)}</Text>
             </View>
@@ -5653,10 +5654,25 @@ function FinanceApp() {
             <Text style={styles.mobileStateText}>Verify this is the same movement. Linking shows it in both accounts and counts it once.</Text>
             {transferError ? <Text accessibilityRole="alert" style={styles.mobileErrorText}>{transferError}</Text> : null}
             <ScrollView>
+              {transferDecision?.input.draft ? (() => {
+                const original = transferComparison(transferDecision.input.draft, id => accounts.find(account => account.id === id)?.name);
+                return <View accessibilityLabel="Entry being reviewed" style={[styles.transferMatchCard, { borderColor: "#49e0a4" }]}>
+                  <Text accessibilityRole="header" style={styles.mobileRowTitle}>Entry being reviewed</Text>
+                  <Text style={styles.mobileRowTitle}>{original.account_name} → {original.transfer_account_name}</Text>
+                  <Text style={styles.mobileRowMeta}>BDT {original.amount} · {original.date} · {original.time ? original.time.slice(0, 5) : "Time not provided"}</Text>
+                  <Text style={styles.mobileRowMeta}>Reference: {original.reference || "Not provided"}</Text>
+                  {original.counterparty_text ? <Text style={styles.mobileRowMeta}>{original.counterparty_text}</Text> : null}
+                  {original.note ? <Text style={styles.mobileRowMeta}>{original.note}</Text> : null}
+                  <Text style={styles.mobileRowMeta}>{transferDecision.input.candidate ? "SMS awaiting confirmation" : transferDecision.queueId ? "Queued manual transfer" : "New manual transfer"}</Text>
+                </View>;
+              })() : null}
               {transferDecision?.matches.map((match) => <View key={`${match.kind}:${match.id}`} style={styles.transferMatchCard}>
+                <Text accessibilityRole="header" style={styles.mobileRowTitle}>Possible match</Text>
                 <Text style={styles.mobileRowTitle}>{match.account_name} → {match.transfer_account_name}</Text>
-                <Text style={styles.mobileRowMeta}>BDT {match.amount} · {match.date}{match.time ? ` · ${match.time.slice(0, 5)}` : ""}</Text>
-                {match.reference ? <Text style={styles.mobileRowMeta}>Reference: {match.reference}</Text> : null}
+                <Text style={styles.mobileRowMeta}>BDT {match.amount} · {match.date} · {match.time ? match.time.slice(0, 5) : "Time not provided"}</Text>
+                <Text style={styles.mobileRowMeta}>Reference: {match.reference || "Not provided"}</Text>
+                <Text style={styles.mobileRowMeta}>{match.kind === "candidate" ? "Other account’s pending SMS" : "Already recorded transfer"}</Text>
+                <Text style={styles.mobileRowMeta}>{match.reason}</Text>
                 <Pressable disabled={transferBusy} accessibilityRole="button" onPress={() => void handleTransferDecision(match)} style={styles.mobilePrimaryButton}><Text style={styles.mobilePrimaryButtonText}>{transferBusy ? "Linking…" : match.kind === "candidate" ? "Confirm as one transfer" : "Link to existing transfer"}</Text></Pressable>
               </View>)}
             </ScrollView>

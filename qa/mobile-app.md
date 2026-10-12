@@ -485,3 +485,13 @@ acknowledging records, and changed users/storage failures retain unacknowledged
 messages. These tests demonstrate the app defects and fixes, not the exact cause
 on a user's phone. Operational diagnostics identify that cause without copying
 SMS content, user identifiers or login tokens.
+
+## What context remains visible when deciding whether to link transfers?
+
+The modal presents the edited entry being reviewed before the possible match
+cards. Both show account path, amount, date, time and reference; missing values
+are explicit and matches identify pending SMS or recorded transfers. The shared
+client helper aligns credit drafts to canonical sender-to-receiver order without
+altering the request or linking automatically. The review header also shows
+local received time, not just the day. The modal remains available after a link
+error so the user can compare again.

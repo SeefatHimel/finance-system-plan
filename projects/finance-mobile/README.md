@@ -450,3 +450,14 @@ The capture screen offers Show/Share sync diagnostics using operational metadata
 only, including stage, HTTP/error codes, counts and API host comparison. Encrypted
 read failures preserve stored data and do not report a falsely empty queue.
 See the native SMS guide for reproduced failures, test coverage and limits.
+
+### Transfer comparison and review time
+
+Possible matching transfers show an Entry being reviewed card above the match
+cards. It reflects submitted edits and includes the account path, amount, date,
+time, reference and optional merchant/note. Both sides label missing times and
+references and distinguish pending SMS from recorded transfers. Receiving drafts
+use sender-to-receiver order via the shared comparison helper. The selected SMS
+review header shows its local received time alongside the date. This JavaScript
+UI change requires a new installed app build; it is not included in the already
+produced 0.1.7 APK.
