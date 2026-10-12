@@ -447,5 +447,13 @@ backoff is 15 seconds to 15 minutes and empty queues cause no retry requests.
 Validation errors stay visible for correction; uncertain requests and conflicts
 are retained for review. Activity combines both manual queue counts, while the
 header counts native SMS only. The existing detailed-form AsyncStorage queue and
-native SMS WorkManager remain separate. Native UI/device checks await a future
-build; no APK was built for this implementation.
+native SMS WorkManager remain separate. Source checks preceded the signed 0.1.5 build, which verifies bundling and
+module packaging. Physical-device UI/storage checks remain pending.
+
+## Why does mobile need a Metro watch folder for shared Quick Add helpers?
+
+The helper module is runtime code in the sibling `finance-contracts` project.
+TypeScript can resolve that import while Metro's default mobile-root file map
+cannot. The explicit watch folder includes those helpers without copying them or
+expanding the watch scope to backend data. Native release bundling verifies this
+boundary. Release 0.1.5 uses Android version code 6 and the existing signing key.

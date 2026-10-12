@@ -478,3 +478,8 @@ The locked native time picker is `@react-native-community/datetimepicker` 8.4.1
 for Expo SDK 53. The Expo config plugin is committed. When a native release is
 requested, follow the existing signed-release guide to include the new native
 module; this feature's implementation/checks do not build or distribute an APK.
+
+Mobile release 0.1.5 uses Android version code 6. Keep the committed
+`projects/finance-mobile/metro.config.js`: its contracts watch folder is required
+for bundling the shared runtime helpers in a native release. The signed build
+includes the autolinked datetime picker without a clean Expo prebuild.

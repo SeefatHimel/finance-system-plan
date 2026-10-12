@@ -418,5 +418,14 @@ manual queue is retained, not silently migrated into the new queue.
 
 Run `npm run typecheck`, `npm run test:quick-add`, `npm run test:network` and
 `npm run test:gestures`. Secure document tests use an injectable store; native
-picker, keyboard, modal and device storage behavior still need a device check
-with the next native build.
+picker, keyboard, modal and device storage behavior still need a physical-device
+check. The 0.1.5 signed build verifies bundling, signature and native module packaging.
+
+### Release 0.1.5
+
+The Quick Add native release is version 0.1.5, Android version code 6. Keep the
+version fields in Expo config, Gradle, package metadata and SMS status aligned.
+`metro.config.js` includes the sibling `finance-contracts` folder so the shared
+runtime helpers are bundled into the installed app; TypeScript checks alone do
+not validate Metro's file visibility. Follow the signed-release guide to build
+and verify the APK with the existing signing key.
