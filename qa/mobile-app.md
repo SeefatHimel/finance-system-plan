@@ -488,9 +488,10 @@ SMS content, user identifiers or login tokens.
 
 ## What context remains visible when deciding whether to link transfers?
 
-The modal presents the edited entry being reviewed before the possible match
-cards. Both show account path, amount, date, time and reference; missing values
-are explicit and matches identify pending SMS or recorded transfers. The shared
+The enlarged modal pins the warning and edited entry being reviewed above the
+scrolling match cards, with explicit actions below. Outside touches do not close
+it. Both show account path, amount, date and time; references are hidden, missing
+times are explicit and matches identify pending SMS or recorded transfers. The shared
 client helper aligns credit drafts to canonical sender-to-receiver order without
 altering the request or linking automatically. The review header also shows
 local received time, not just the day. The modal remains available after a link
