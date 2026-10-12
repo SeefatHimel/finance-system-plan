@@ -463,3 +463,11 @@ use sender-to-receiver order via the shared comparison helper. The selected SMS
 review header shows its local received time alongside the date. This JavaScript
 UI change requires a new installed app build; it is not included in the already
 produced 0.1.7 APK.
+
+The primary SMS review screen places a compact Debit/Credit button and change
+icon beside the amount, replacing its two direction choices further down.
+The reporting-account caption and accessibility hint explain the scope. A tap
+updates only the existing candidate direction draft, retaining edited values,
+selected accounts and classification; it does not confirm the message. The
+44px button has a textual state and is disabled during confirmation. This source
+UI change requires the next installed app build.

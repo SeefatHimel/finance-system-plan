@@ -496,3 +496,12 @@ client helper aligns credit drafts to canonical sender-to-receiver order without
 altering the request or linking automatically. The review header also shows
 local received time, not just the day. The modal remains available after a link
 error so the user can compare again.
+
+## How does the compact SMS direction control work?
+
+Debit/Credit appears as a button with a change icon beside the review amount.
+A reporting-account caption and accessibility hint clarify whether money moves
+into or out of the selected account. It replaces the separate two-choice row
+on the primary review screen. Tapping patches only that candidate's direction,
+preserving account choices and other edits, with no automatic confirmation or
+reclassification. The target is at least 44px and disabled while confirming.

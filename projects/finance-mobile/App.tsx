@@ -4390,7 +4390,18 @@ function FinanceApp() {
               </View>
               <Text style={styles.mobileConfidence}>{confidencePercent(candidate.confidence)}</Text>
             </View>
-            <Text style={styles.mobileReviewAmount}>{formatMoney(parseMoney(candidate.amount))}</Text>
+            <View style={styles.mobileReviewAmountRow}>
+              <Text style={styles.mobileReviewAmount}>{formatMoney(parseMoney(candidate.amount))}</Text>
+              <Pressable accessibilityRole="button" accessibilityState={{ disabled: isWorking }}
+                accessibilityLabel={`Switch to ${draft.direction === "credit" ? "debit / money sent" : "credit / money received"}`}
+                accessibilityHint={`Changes direction for ${accounts.find(account => account.id === draft.accountId)?.name ?? "the selected account"}.`}
+                disabled={isWorking} onPress={() => updateReviewDraft(candidate, { direction: draft.direction === "credit" ? "debit" : "credit" })}
+                style={[styles.mobileReviewDirectionToggle, { borderColor: draft.direction === "credit" ? "#49e0a4" : "#ff7c82", opacity: isWorking ? 0.55 : 1 }]}>
+                <Text style={{ color: draft.direction === "credit" ? "#49e0a4" : "#ff7c82", fontWeight: "700" }}>{draft.direction === "credit" ? "Credit" : "Debit"}</Text>
+                <MaterialCommunityIcons color={draft.direction === "credit" ? "#49e0a4" : "#ff7c82"} name="swap-horizontal" size={19} />
+              </Pressable>
+            </View>
+            <Text style={styles.mobileRowMeta}>{draft.direction === "credit" ? "Money into" : "Money out of"} {accounts.find(account => account.id === draft.accountId)?.name ?? "the selected account"}</Text>
             <Text numberOfLines={3} style={styles.mobileSmsQuoteText}>{candidate.raw_message.body}</Text>
 
             <View style={styles.mobileRangeRow}>
@@ -4460,9 +4471,6 @@ function FinanceApp() {
               ))}
             </View>
 
-            <Text style={styles.mobileFieldLabel}>Direction for selected account</Text>
-            <View style={styles.mobileChoiceRow}>{["debit", "credit"].map((direction) => <Pressable accessibilityRole="radio" accessibilityState={{ selected: draft.direction === direction }} key={direction} onPress={() => updateReviewDraft(candidate, { direction })} style={[styles.mobileChoice, draft.direction === direction ? styles.mobileChoiceActive : null]}><Text style={[styles.mobileChoiceText, draft.direction === direction ? styles.mobileChoiceTextActive : null]}>{direction === "credit" ? "Credit / money received" : "Debit / money sent"}</Text></Pressable>)}</View>
-            <Text style={styles.mobileRowMeta}>For transfers, credit receives from the other account; debit sends to it.</Text>
             <Text style={styles.mobileFieldLabel}>Account</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.mobileChoiceRow}>
@@ -5683,6 +5691,8 @@ function FinanceApp() {
 }
 
 const styles = StyleSheet.create({
+  mobileReviewAmountRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, marginTop: 12, marginBottom: 8 },
+  mobileReviewDirectionToggle: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 8, minHeight: 44, paddingHorizontal: 12, backgroundColor: "#102238" },
   transferMatchOverlay: { flex: 1, justifyContent: "center", padding: 12, backgroundColor: "rgba(0,0,0,0.65)" },
   transferMatchPanel: { height: "96%", maxWidth: 1100, width: "100%", alignSelf: "center", borderRadius: 18, padding: 16, backgroundColor: "#081421", gap: 10 },
   transferMatchWarning: { backgroundColor: "#2b2414", borderRadius: 8, color: "#ffbf4d", padding: 10, fontSize: 13 },
@@ -6473,9 +6483,7 @@ const styles = StyleSheet.create({
   mobileReviewAmount: {
     color: "#f6f8fc",
     fontSize: 26,
-    fontWeight: "800",
-    marginBottom: 12,
-    marginTop: 18
+    fontWeight: "800"
   },
   mobileReviewCard: {
     backgroundColor: "#0e1c2c",
