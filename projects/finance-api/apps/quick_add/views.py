@@ -3,21 +3,29 @@ import json
 
 from django.db import transaction as db_transaction
 from drf_spectacular.utils import OpenApiResponse, extend_schema
+from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
-from rest_framework.decorators import action
 from rest_framework.viewsets import ModelViewSet
 
-from apps.audit_logs.models import AuditLogEntry
 from apps.accounts.models import Account
-from apps.categories.models import Category
+from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
-from apps.transactions.models import Transaction
+from apps.categories.models import Category
+from apps.transactions.models import Transaction, TransactionAction
+from apps.transactions.recovery import ActionRecorder, describe
 from apps.transactions.transfers import lock_transfer_user
+
 from .models import QuickAddPreset, QuickEntryReceipt
-from .serializers import QuickAddPresetSerializer, QuickEntrySerializer, QuickEntryResultSerializer, PresetOrderSerializer, compatible
+from .serializers import (
+    PresetOrderSerializer,
+    QuickAddPresetSerializer,
+    QuickEntryResultSerializer,
+    QuickEntrySerializer,
+    compatible,
+)
 
 
 class QuickAddPresetViewSet(ModelViewSet):
@@ -89,7 +97,9 @@ class QuickEntryView(APIView):
                 return Response({"detail": "This entry ID was already used with different values. Retry the original entry or start a new one."}, status=409)
             if receipt.transaction_id is None:
                 return Response({"detail": "This entry was saved and later deleted. Start a new entry instead of retrying it."}, status=409)
-            return Response({"transaction": receipt.transaction_id, "replayed": True})
+            latest = TransactionAction.objects.filter(user=request.user).first()
+            recovery = describe(latest, check=True) if latest and latest.kind == "create" and latest.transaction_id == receipt.transaction_id else None
+            return Response({"transaction": receipt.transaction_id, "replayed": True, "undo_action": recovery})
         account = Account.objects.filter(user=request.user, pk=data["account"]).first()
         if account is None:
             raise ValidationError({"account": "Choose one of your accounts."})
@@ -102,7 +112,9 @@ class QuickEntryView(APIView):
             raise ValidationError({"account": "Choose an active account."})
         if data["category"] and (not data["category"].is_active or not compatible(data["category"], data["type"])):
             raise ValidationError({"category": "Choose an active category compatible with this entry."})
+        recorder = ActionRecorder(request.user)
         record = Transaction.objects.create(user=request.user, direction=Transaction.default_direction_for_type(data["type"]), **data)
         QuickEntryReceipt.objects.create(user=request.user, client_request_id=request_id, fingerprint=fingerprint, transaction=record)
         create_audit_log(user=request.user, action=AuditLogEntry.Action.CREATED, entity=record, after=transaction_snapshot(record))
-        return Response({"transaction": record.id, "replayed": False}, status=201)
+        recorder.finish(record, "create")
+        return Response({"transaction": record.id, "replayed": False, "undo_action": record.undo_action}, status=201)

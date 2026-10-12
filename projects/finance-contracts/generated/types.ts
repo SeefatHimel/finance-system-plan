@@ -49,6 +49,7 @@ export interface QuickEntry {
 }
 
 export interface QuickEntryResult {
+  undo_action?: TransactionAction | null;
   transaction: string;
   replayed: boolean;
 }
@@ -349,6 +350,7 @@ export interface IdentitySuggestion {
 }
 
 export interface ParsedMessageCandidate {
+  undo_action?: TransactionAction | null;
   identity_suggestions?: IdentitySuggestion[];
   id: string;
   raw_message: RawMessage;
@@ -757,7 +759,23 @@ export interface AccountReportedBalance {
   balance_after: string | null;
 }
 
+export interface TransactionAction {
+  id: string;
+  kind: "create" | "update" | "confirm" | "link" | "merge";
+  label: string;
+  transaction: string | null;
+  created_at: string;
+  expires_at: string;
+  can_undo: boolean;
+  undone: boolean;
+}
+
+export interface UndoTransactionRequest {
+  action: string;
+}
+
 export interface Transaction {
+  undo_action?: TransactionAction | null;
   reported_balances?: AccountReportedBalance[];
   balance_reporting_account?: string;
   statement_evidence_count?: number;

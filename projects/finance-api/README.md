@@ -906,3 +906,30 @@ DATABASE_URL= .venv/bin/python manage.py test apps.payment_methods apps.messages
 Numeric suffixes containing separators remain compatible with earlier saved
 recognition mappings. Only ending digits after a mask count as suffix evidence;
 a visible prefix never turns two ending digits into a supported suffix.
+
+### Latest transaction action recovery
+
+Manual/Quick Add saves, transaction edits, SMS approvals and transfer link/merge
+responses include an optional `undo_action` descriptor. `GET
+/api/transactions/recent-action/` returns the latest descriptor for the signed-in
+user; `POST /api/transactions/undo/` accepts only `{ "action": "<action UUID>" }`.
+Recovery is limited to the latest action, within 24 hours, while its transaction,
+related observations, review candidates and affected learned mappings remain
+unchanged. Foreign actions return 404; stale, expired or superseded actions return
+409 without mutation. Retrying an already-completed undo is harmless.
+
+Server-owned before/after deltas restore account-bound balances and edit fields.
+SMS undo reopens review and rolls back affected learned choices; link undo removes
+only the new observation; merge undo restores both original entries and statement
+links. Statement row versions increase on restoration. Raw SMS text is never
+copied into recovery snapshots or restored after redaction. New evidence also
+blocks undo, even when the parent timestamp did not change. Payment and receipt
+relations are fingerprinted too, so Undo cannot unlink newer financial activity. Recovery writes use
+the existing user lock plus row locks and one atomic database transaction, with
+an audit entry. Superseded recovery payloads are cleared; action metadata remains.
+Quick Add receipts remain after undo, preventing a retry/resync from recreating
+an undone entry. Full-form requests use a stable key and non-transfer retries are
+idempotent as well. Deletion and bulk statement posting are not undoable here.
+
+Deploy migration `transactions.0007_transaction_action_recovery` before the new
+clients (`python manage.py migrate`). Undo does not accept client snapshots.

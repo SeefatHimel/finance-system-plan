@@ -759,3 +759,12 @@ defaults; confirmation/matching require explicit account choices. Learned mappin
 cannot override unresolved weak numeric evidence. Longer saved identifiers remain
 unchanged; no migration or extra ledger movement is involved. Statement weak
 headers return choices with a null suggested account and retain verification.
+
+### Why is Undo a server action instead of another DELETE request?
+
+An action records private before/after deltas under the user transaction lock.
+Undo rechecks the latest action, ownership, expiry and current transaction/linked
+state before reversing it atomically. This restores edits and SMS review, unlinks
+only new evidence, or restores merged entries. A blind delete could remove an
+existing transfer or destroy later corrections. Redacted SMS is never restored;
+superseded snapshot payloads are cleared and Quick Add retry receipts remain.

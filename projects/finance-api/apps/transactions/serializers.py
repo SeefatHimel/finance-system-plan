@@ -116,7 +116,23 @@ class TransferEvidenceSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class TransactionActionSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    kind = serializers.CharField()
+    label = serializers.CharField()
+    transaction = serializers.UUIDField(allow_null=True)
+    created_at = serializers.DateTimeField()
+    expires_at = serializers.DateTimeField()
+    can_undo = serializers.BooleanField()
+    undone = serializers.BooleanField()
+
+
+class UndoRequestSerializer(serializers.Serializer):
+    action = serializers.UUIDField()
+
+
 class TransactionSerializer(serializers.ModelSerializer):
+    undo_action = TransactionActionSerializer(read_only=True, default=None, allow_null=True)
     reported_balances = AccountReportedBalancesField(required=False)
     balance_reporting_account = serializers.SerializerMethodField()
     allow_linked_correction = serializers.BooleanField(required=False, write_only=True)
@@ -151,6 +167,14 @@ class TransactionSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop("allow_linked_correction", None)
         if validated_data["type"] != Transaction.Type.TRANSFER:
+            key = validated_data.get("external_key")
+            if key:
+                existing = Transaction.objects.filter(user=validated_data["user"], external_key=key).first()
+                if existing:
+                    if any(getattr(existing, field) != value for field, value in validated_data.items()):
+                        raise serializers.ValidationError({"detail": "This entry was already saved with different details. Use Edit to correct it."})
+                    self.reused_transfer = True
+                    return existing
             return super().create(validated_data)
         from .transfers import add_transfer_evidence, manual_transfer_data
 
@@ -354,6 +378,7 @@ class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transaction
         fields = (
+            "undo_action",
             "id",
             "allow_linked_correction",
             "transfer_evidence",

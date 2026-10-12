@@ -2,6 +2,7 @@ import uuid
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.serializers.json import DjangoJSONEncoder
 from django.core.validators import MinValueValidator
 from django.db import models
 
@@ -167,3 +168,21 @@ class TransferEvidence(models.Model):
                 name="unique_transfer_evidence_key_per_user",
             ),
         ]
+
+
+class TransactionAction(models.Model):
+    """Private, server-authored recovery state for the latest ledger action."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    kind = models.CharField(max_length=16)
+    transaction_id = models.UUIDField()
+    before = models.JSONField(encoder=DjangoJSONEncoder)
+    after = models.JSONField(encoder=DjangoJSONEncoder)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    undone_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+        indexes = [models.Index(fields=("user", "-created_at"))]

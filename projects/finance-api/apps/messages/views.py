@@ -18,8 +18,8 @@ from apps.transactions.transfers import (
     lock_transfer_user,
     sms_external_key,
     sms_recorded_elsewhere,
-    sms_transfer_data,
     sms_reporting_account,
+    sms_transfer_data,
 )
 
 from .models import (
@@ -31,7 +31,12 @@ from .models import (
     SmsDeviceStatus,
     default_excluded_message_kinds,
 )
-from .parsers import classify_message_kind_for_capture, find_sender_rule, has_numeric_content, parse_raw_message
+from .parsers import (
+    classify_message_kind_for_capture,
+    find_sender_rule,
+    has_numeric_content,
+    parse_raw_message,
+)
 from .serializers import (
     MessageCandidateRejectSerializer,
     ParsedMessageCandidateSerializer,
@@ -696,6 +701,8 @@ class MessageCandidateConfirmView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        from apps.transactions.recovery import ActionRecorder
+        recorder = ActionRecorder(request.user, candidate_ids=(candidate.pk,), remember=payload["remember_mapping"])
         transaction_record = Transaction.objects.create(
             user=request.user,
             account=account,
@@ -775,6 +782,8 @@ class MessageCandidateConfirmView(APIView):
         if retention_days == 0:
             candidate.raw_message.redact()
 
+        recorder.finish(transaction_record, "confirm")
+        candidate.undo_action = transaction_record.undo_action
         return Response(ParsedMessageCandidateSerializer(candidate).data)
 
     def _build_transaction_note(self, candidate):

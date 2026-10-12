@@ -497,3 +497,10 @@ with React Native's HTTP stack. Run the native unit and Kotlin compile checks,
 mobile typecheck and `test:sms-sync` before signed assembly. Phone-specific
 root-cause evidence comes from Show sync diagnostics in Capture; its operational
 metadata can be shared without SMS bodies or credentials.
+
+### Transaction recovery migration
+
+Before running web clients with Edit/Undo, run `python manage.py migrate` from
+`projects/finance-api` using the configured environment. This applies
+`transactions.0007_transaction_action_recovery`; no production data backfill or
+SMS/PDF re-import is required.

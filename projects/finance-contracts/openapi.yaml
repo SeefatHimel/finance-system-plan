@@ -432,6 +432,39 @@ paths:
       description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store. Link attaches
         evidence without changing existing ledger details. Create requires allow_separate when suggestions
         exist; unlink keeps the ledger entry. Resolved identical retries are idempotent.'
+  /api/transactions/recent-action/:
+    get:
+      tags: [Transactions]
+      operationId: transactions_recent_action_retrieve
+      security: [{bearerAuth: []}]
+      description: Latest user-owned create, update, SMS confirmation, transfer link or merge. Recovery state persists after toast dismissal and navigation. Only the latest unchanged action can be undone, within 24 hours. Internal snapshots are never returned.
+      responses:
+        '200':
+          description: Latest action, or null when none exists.
+          content:
+            application/json:
+              schema:
+                allOf: [{$ref: '#/components/schemas/TransactionAction'}]
+                nullable: true
+  /api/transactions/undo/:
+    post:
+      tags: [Transactions]
+      operationId: transactions_undo_create
+      security: [{bearerAuth: []}]
+      description: Atomically reverse the latest unchanged action. Returns 409 for superseded, expired or changed actions, 404 for another user's action. A retry of an already-undone action is harmless. Redacted original SMS is not restored; client snapshots are never accepted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UndoTransactionRequest'}
+      responses:
+        '200':
+          description: Action marked undone.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TransactionAction'}
+        '409': {description: Action changed, expired or no longer latest; nothing was reversed.}
+        '404': {description: Action not found for this user.}
   /api/transactions/{id}/statement-evidence/:
     get:
       operationId: transactions_statement_evidence_list
@@ -2624,6 +2657,10 @@ components:
     QuickEntryResult:
       type: object
       properties:
+        undo_action:
+          allOf: [{$ref: '#/components/schemas/TransactionAction'}]
+          nullable: true
+          readOnly: true
         transaction:
           type: string
           format: uuid
@@ -3339,6 +3376,10 @@ components:
       required:
         [id, raw_message, sender_rule, account, payment_method, category, destination_account, destination_payment_method, transaction, possible_related_candidate, provider, message_kind, transaction_type, amount, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, related_match_reason, confidence, status, parser_name, parser_notes, rejection_reason, rejection_note, rejected_at, created_at, updated_at]
       properties:
+        undo_action:
+          allOf: [{$ref: '#/components/schemas/TransactionAction'}]
+          nullable: true
+          readOnly: true
         identity_suggestions:
           type: array
           readOnly: true
@@ -4414,11 +4455,32 @@ components:
       properties:
         account: {type: string, format: uuid}
         balance_after: {type: string, nullable: true, description: Provider/manual reported balance for this account; negative balances are allowed.}
+    TransactionAction:
+      type: object
+      required: [id, kind, label, transaction, created_at, expires_at, can_undo, undone]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [create, update, confirm, link, merge]}
+        label: {type: string}
+        transaction: {type: string, format: uuid, nullable: true}
+        created_at: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time}
+        can_undo: {type: boolean}
+        undone: {type: boolean}
+    UndoTransactionRequest:
+      type: object
+      required: [action]
+      properties:
+        action: {type: string, format: uuid}
     Transaction:
       type: object
       required:
         [id, account, transfer_account, category, payment_method, raw_message, date, time, type, direction, amount, balance_after, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, reference, counterparty_text, external_key, note, source, needs_review, created_at, updated_at, transfer_evidence, account_direction]
       properties:
+        undo_action:
+          allOf: [{$ref: '#/components/schemas/TransactionAction'}]
+          nullable: true
+          readOnly: true
         reported_balances:
           type: array
           maxItems: 2

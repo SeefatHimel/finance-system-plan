@@ -458,3 +458,12 @@ drafts use the selected account's `account_perspective` and direction. Statement
 suggestions add optional `requires_review`/`choices` while keeping weak/colliding
 `account` null and preview identity `verify`. Full-number last-four privacy and
 existing ownership checks are unchanged.
+
+### What is the Edit/Undo API contract?
+
+Optional `undo_action` metadata accompanies supported mutations. Clients fetch
+`/api/transactions/recent-action/` for durable latest-action controls and POST an
+opaque action UUID to `/api/transactions/undo/`. Never send restoration snapshots.
+Ownership violations return 404; superseded, expired or changed state returns 409.
+A retry of completed undo has no additional effect. Deploy the recovery migration
+before clients. Unknown additive fields do not break older mobile/web clients.

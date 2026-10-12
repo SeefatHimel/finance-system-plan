@@ -8,6 +8,7 @@ from apps.accounts.models import Account
 from apps.categories.models import Category
 from apps.payment_methods.models import PaymentMethod
 from apps.transactions.models import Transaction
+from apps.transactions.serializers import TransactionActionSerializer
 
 from .identifiers import sanitize_financial_identifier
 from .models import (
@@ -177,12 +178,14 @@ class IdentitySuggestionSerializer(serializers.Serializer):
 
 
 class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
+    undo_action = TransactionActionSerializer(read_only=True, default=None, allow_null=True)
     raw_message = RawMessageSerializer(read_only=True)
     identity_suggestions = serializers.SerializerMethodField()
 
     @extend_schema_field(IdentitySuggestionSerializer(many=True))
     def get_identity_suggestions(self, instance):
         from apps.payment_methods.models import PaymentMethod
+
         from .identity_suggestions import short_identity_suggestions
 
         if not hasattr(self, "_identity_methods"):
@@ -195,6 +198,7 @@ class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ParsedMessageCandidate
         fields = (
+            "undo_action",
             "id",
             "raw_message",
             "identity_suggestions",

@@ -1,8 +1,11 @@
 from decimal import Decimal
+
 from rest_framework import serializers
 
 from apps.accounts.models import Account
 from apps.categories.models import Category
+from apps.transactions.serializers import TransactionActionSerializer
+
 from .models import QuickAddPreset
 
 
@@ -59,6 +62,7 @@ class QuickEntrySerializer(serializers.Serializer):
 
 
 class QuickEntryResultSerializer(serializers.Serializer):
+    undo_action = TransactionActionSerializer(read_only=True, required=False, allow_null=True)
     transaction = serializers.UUIDField()
     replayed = serializers.BooleanField()
 

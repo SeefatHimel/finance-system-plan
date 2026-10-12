@@ -14,12 +14,14 @@ from rest_framework.viewsets import ModelViewSet
 
 from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
-from apps.messages.models import RawMessage
+from apps.messages.models import ParsedMessageCandidate, RawMessage
 from apps.statements.serializers import SavedStatementRowSerializer
 
-from .models import Transaction
+from .models import Transaction, TransactionAction
+from .recovery import ActionRecorder, describe, undo_action
 from .search import SEARCH_DESCRIPTION, filter_transaction_search
 from .serializers import (
+    TransactionActionSerializer,
     TransactionSerializer,
     TransactionSourceMessageSerializer,
     TransferEvidenceSerializer,
@@ -27,6 +29,7 @@ from .serializers import (
     TransferMatchRequestSerializer,
     TransferMatchSerializer,
     TransferMergeRequestSerializer,
+    UndoRequestSerializer,
 )
 from .transfers import (
     find_transfer_matches,
@@ -65,6 +68,21 @@ class TransactionViewSet(ModelViewSet):
             SavedStatementRowSerializer(rows, many=True).data,
             headers={"Cache-Control": "private, no-store"},
         )
+
+    @extend_schema(responses=TransactionActionSerializer)
+    @action(detail=False, methods=("get",), url_path="recent-action")
+    def recent_action(self, request):
+        latest = TransactionAction.objects.filter(user=request.user).first()
+        return Response(describe(latest, check=True) if latest else None,
+                        headers={"Cache-Control": "private, no-store"})
+
+    @extend_schema(request=UndoRequestSerializer, responses=TransactionActionSerializer)
+    @action(detail=False, methods=("post",), url_path="undo")
+    def undo(self, request):
+        serializer = UndoRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = undo_action(user=request.user, action_id=serializer.validated_data["action"])
+        return Response(describe(result), headers={"Cache-Control": "private, no-store"})
 
     def get_queryset(self):
         queryset = (
@@ -185,37 +203,54 @@ class TransactionViewSet(ModelViewSet):
         request=TransferLinkRequestSerializer, responses=TransactionSerializer
     )
     @action(detail=False, methods=("post",), url_path="link-transfer")
+    @db_transaction.atomic
     def link_transfer(self, request):
         serializer = TransferLinkRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        lock_transfer_user(request.user)
+        target_id = serializer.validated_data.get("match_transaction")
+        target_candidate = serializer.validated_data.get("match_candidate")
+        if target_candidate:
+            target_id = ParsedMessageCandidate.objects.filter(user=request.user, pk=target_candidate).values_list("transaction_id", flat=True).first()
+        recorder = ActionRecorder(request.user, transaction_ids=(target_id,),
+            candidate_ids=(serializer.validated_data.get("candidate"), target_candidate),
+            remember=serializer.validated_data.get("draft", {}).get("remember_mapping", False))
         record = link_transfer(
             user=request.user,
             payload=serializer.validated_data,
             context={"request": request},
         )
+        recorder.finish(record, "link")
         return Response(self.get_serializer(record).data)
 
     @extend_schema(
         request=TransferMergeRequestSerializer, responses=TransactionSerializer
     )
     @action(detail=True, methods=("post",), url_path="merge-transfer")
+    @db_transaction.atomic
     def merge_transfer(self, request, pk=None):
         serializer = TransferMergeRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        lock_transfer_user(request.user)
+        recorder = ActionRecorder(request.user, transaction_ids=(pk, serializer.validated_data["transaction"]))
         record = merge_transfers(
             user=request.user,
             record_id=pk,
             other_id=serializer.validated_data["transaction"],
             balance_choices=serializer.validated_data.get("balance_choices", []),
         )
+        recorder.finish(record, "merge")
         return Response(self.get_serializer(record).data)
 
     @db_transaction.atomic
     def perform_create(self, serializer):
         lock_transfer_user(self.request.user)
+        existing_ids = Transaction.objects.filter(user=self.request.user, external_key=serializer.validated_data.get("external_key", "")).values_list("id", flat=True) if serializer.validated_data.get("external_key") else ()
+        recorder = ActionRecorder(self.request.user, transaction_ids=existing_ids)
         transaction = serializer.save(user=self.request.user)
         if getattr(serializer, "reused_transfer", False):
             return
+        recorder.finish(transaction, "create")
         create_audit_log(
             user=self.request.user,
             action=AuditLogEntry.Action.CREATED,
@@ -235,7 +270,9 @@ class TransactionViewSet(ModelViewSet):
 
     def perform_update(self, serializer):
         before = transaction_snapshot(serializer.instance)
+        recorder = ActionRecorder(self.request.user, transaction_ids=(serializer.instance.pk,))
         transaction = serializer.save()
+        recorder.finish(transaction, "update")
         create_audit_log(
             user=self.request.user,
             action=AuditLogEntry.Action.UPDATED,

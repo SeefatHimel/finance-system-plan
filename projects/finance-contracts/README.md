@@ -502,3 +502,17 @@ checks it. Existing identifiers, ownership rules and ledger counts are unchanged
 Deploy API before clients; no database migration or APK rebuild is needed for API
 behavior. Regenerate the checked-in TypeScript interfaces using the existing
 `python scripts/generate_ts_client.py` command.
+
+### Transaction action recovery
+
+Mutation responses may include `undo_action: TransactionAction | null` for manual
+and Quick Add saves, edits, SMS approvals and transfer resolutions. Public
+descriptors contain an opaque action UUID, kind/label, saved transaction UUID,
+timestamps, `can_undo` and `undone`; private restoration payloads are never sent.
+`GET /api/transactions/recent-action/` returns the latest descriptor or null.
+`POST /api/transactions/undo/` accepts an action UUID and returns its undone
+state. 409 means expired, superseded or changed state; 404 protects ownership.
+Completed undo retries are idempotent. Original SMS redaction is irreversible.
+Only the latest unchanged action is recoverable for 24 hours. Migration
+`transactions.0007_transaction_action_recovery` must precede clients. Existing
+clients can ignore these additive response fields.
