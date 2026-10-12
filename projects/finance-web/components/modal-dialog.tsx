@@ -3,10 +3,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "@/components/toast-provider";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = { initialFocus?: string; children: ReactNode; labelledBy: string; className?: string; busy?: boolean; onCancel: () => void };
-let openDialogs = 0;
-let previousOverflow = "";
 
 function DialogSurface({ children, labelledBy, className = "decision-modal", busy = false, onCancel, returnFocus, initialFocus }: Props & { returnFocus: HTMLElement | null }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -16,14 +15,11 @@ function DialogSurface({ children, labelledBy, className = "decision-modal", bus
     if (!element) return;
     element.showModal();
     const unregister = registerModal(element);
-    if (openDialogs++ === 0) {
-      previousOverflow = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-    }
+    const releaseScroll = lockBodyScroll();
     return () => {
       unregister();
       element.close();
-      if (--openDialogs === 0) document.body.style.overflow = previousOverflow;
+      releaseScroll();
       queueMicrotask(() => {
         if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
       });

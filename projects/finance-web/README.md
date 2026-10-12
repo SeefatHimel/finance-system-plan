@@ -886,3 +886,35 @@ initially; Show all restores that view. Preferences are saved only in this brows
 under `finance.accounts.columns.v1`, separately from Transactions. Hiding columns
 does not change balances, records, or search/filter results. The table narrows as
 columns are hidden, with horizontal scrolling available on smaller screens.
+
+### SMS review Focus mode
+
+The expand button beside Previous/Next enters Focus mode for the current review.
+It fills the browser viewport, hides the queue and app chrome, and keeps an
+amount/account/message-position header plus navigation, Reject and Confirm
+actions visible. Exit focus or Escape returns to the same queue and outer-page
+position. Matching, rejection and category dialogs handle Escape first. Focus
+continues when approval/rejection advances to another message and exits when
+there is no active review left.
+
+Focus changes layout in place: the article and current form are not moved to a
+portal, cloned or remounted. Browser-managed text/date/time values, controlled
+account/category/balance choices, checkboxes and open evidence sections survive
+entering/exiting. The existing candidate-keyed form still resets when moving to
+a different message. Toggling Focus never saves, fetches or re-runs parsing.
+Queue filters remain intact; this temporary mode is not persisted across reloads.
+
+Background controls become inert while focused, keyboard navigation stays within
+the review, and exiting restores focus to its trigger. Toasts appear inside the
+focused surface; nested native dialogs remain above it. The shared body scroll
+lock prevents closing one layer from unlocking another or leaving the page stuck.
+Small screens use a single column and safe-area spacing; visual-viewport updates
+keep the editor above a mobile keyboard without disabling pinch zoom. Browser
+Fullscreen API permissions and browser-UI removal are not used.
+
+Run `npm run test:focus`, `npm run test:workflows`, `npm run typecheck`,
+`npm run lint` and `npm run build`. Synthetic browser checks cover full field and
+DOM preservation, no implicit saves, nested Escape behavior, message navigation,
+confirmation/queue completion, contextual Undo, and desktop/phone/short viewport
+layouts. Real-device virtual keyboard and assistive-technology checks remain
+separate from Chromium viewport simulation.

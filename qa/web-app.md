@@ -788,3 +788,19 @@ All columns start visible and Show all resets the selection. The table narrows
 when columns are hidden. These preferences do not modify account data or filters
 and remain separate from transaction column preferences. Unavailable or malformed
 browser storage falls back to the default view.
+
+### How does SMS review Focus mode avoid losing unsaved edits?
+
+It expands the same mounted review article and form; changing Focus never moves
+fields into a new modal/portal or changes their keys. Native input values,
+controlled choices, checkboxes and evidence disclosure state therefore survive
+entering/exiting. Candidate keys reset the form only when changing messages,
+matching normal review behavior. Focus itself performs no API mutation.
+
+The queue and app chrome are hidden/inert, with a persistent Exit control,
+header and action footer. Tab stays within review; Escape closes a nested dialog
+first, then Focus, restoring the trigger and queue/page position. Native modal
+and Focus scroll locks share ownership, so cleanup order cannot leave scrolling
+stuck. Contextual Edit/Undo toasts stay accessible. Focus persists across reviewed
+messages, exits on an empty queue, and respects mobile safe areas/visual viewport
+without requesting browser fullscreen or preventing zoom.

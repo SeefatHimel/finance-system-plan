@@ -7,7 +7,7 @@ import { allDates, dateInPeriod, type DatePeriod } from "@/lib/date-period";
 
 import { useFeedbackMessage } from "@/components/toast-provider";
 
-import { ArrowClockwise, ArrowLeft, ArrowRight, ArrowsLeftRight, CheckCircle, FunnelSimple, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowLeft, ArrowRight, ArrowsLeftRight, CheckCircle, CornersIn, CornersOut, FunnelSimple, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -33,6 +33,7 @@ import {
   reprocessMessageCandidate,
   rejectMessageCandidate
 } from "@/lib/api";
+import { useReviewFocus } from "@/components/use-review-focus";
 import { ModalDialog } from "@/components/modal-dialog";
 import { TransferMatchDialog } from "@/components/transfer-match-dialog";
 import { getAccessToken } from "@/lib/auth-storage";
@@ -142,6 +143,9 @@ export function MessageReviewWorkspace() {
   const [period, setPeriod] = useState<DatePeriod>(allDates);
   const [query, setQuery] = useState("");
   const queueList = useRef<HTMLDivElement>(null);
+  const reviewSurface = useRef<HTMLElement>(null);
+  const [focusMode, setFocusMode] = useState(false);
+  const [amountPreview, setAmountPreview] = useState<{ candidate: string; value: string } | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [providerFilter, setProviderFilter] = useState("all");
   const [issueFilter, setIssueFilter] = useState("all");
@@ -210,6 +214,16 @@ export function MessageReviewWorkspace() {
   }, [categoryFilter, issueFilter, providerFilter, query, reviewState, typeFilter, period]);
 
   const activeCandidate = filteredCandidates.find((candidate) => candidate.id === activeCandidateId) ?? filteredCandidates[0] ?? null;
+  const isFocused = focusMode && Boolean(activeCandidate);
+  const prepareFocus = useReviewFocus(isFocused, reviewSurface, queueList, () => setFocusMode(false));
+  const selectedReviewId = activeCandidate?.id;
+  useEffect(() => {
+    if (!selectedReviewId) setFocusMode(false);
+    setAmountPreview(null);
+  }, [selectedReviewId]);
+  useEffect(() => {
+    if (isFocused) reviewSurface.current?.querySelector<HTMLElement>(".review-focus-title")?.focus({ preventScroll: true });
+  }, [isFocused, selectedReviewId]);
   const accountDraft = activeCandidate ? accountDrafts[activeCandidate.id] ?? accountReviewDefaults(activeCandidate) : null;
   function updateAccountDraft(patch: Partial<ReturnType<typeof accountReviewDefaults>>) {
     if (!activeCandidate || !accountDraft) return;
@@ -426,7 +440,7 @@ export function MessageReviewWorkspace() {
   if (reviewState.status === "error") return <section className="panel"><div className="panel__body"><h2 className="section-title">SMS review inbox</h2><p className="section-subtitle">{reviewState.message}</p></div></section>;
 
   return (
-    <div className="workspace-grid review-workspace">
+    <div className={`workspace-grid review-workspace${isFocused ? " review-workspace--focus" : ""}`}>
       {categoryChoice.confirmation}
       <section className="panel">
         <div className="panel__body review-hero">
@@ -469,14 +483,18 @@ export function MessageReviewWorkspace() {
           </aside>
 
           {activeCandidate ? (
-            <article className="panel review-detail" key={activeCandidate.id}>
-              <form onSubmit={(event) => void handleConfirm(activeCandidate, event)}>
+            <article className="panel review-detail" ref={reviewSurface} role={isFocused ? "dialog" : undefined} aria-modal={isFocused || undefined} aria-label={isFocused ? "Focused SMS review" : undefined}>
+              <div className="review-focus-header" hidden={!isFocused}>
+                <div><h2 className="review-focus-title" tabIndex={-1}>SMS review · BDT {amountPreview?.candidate === activeCandidate.id ? amountPreview.value || "—" : activeCandidate.amount ?? "—"}</h2><span>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"} · {activeIndex + 1} / {filteredCandidates.length}</span></div>
+                <button className="button button--ghost" type="button" onClick={() => setFocusMode(false)}><CornersIn size={19} aria-hidden="true" /><span>Exit focus</span></button>
+              </div>
+              <form key={activeCandidate.id} onSubmit={(event) => void handleConfirm(activeCandidate, event)}>
                 <div className="review-detail__content">
                 <div className="review-detail__header">
                   <div className="review-detail__summary">
                     <span className="review-card__eyebrow">{formatLabel(activeCandidate.provider)} / {formatLabel(activeCandidate.message_kind)}</span>
                     <div className="review-amount-row">
-                      <h2 className="review-card__amount">{activeCandidate.amount ? `BDT ${activeCandidate.amount}` : "Complete the amount"}</h2>
+                      <h2 className="review-card__amount">{(amountPreview?.candidate === activeCandidate.id ? amountPreview.value : activeCandidate.amount) ? `BDT ${amountPreview?.candidate === activeCandidate.id ? amountPreview.value : activeCandidate.amount}` : "Complete the amount"}</h2>
                       <button type="button" className={`review-direction-toggle review-direction-toggle--${accountDraft?.direction ?? "debit"}`}
                         aria-label={`Switch to ${accountDraft?.direction === "credit" ? "debit / money sent" : "credit / money received"}`}
                         aria-describedby="review-direction-context"
@@ -511,7 +529,7 @@ export function MessageReviewWorkspace() {
 
                 <div className="review-form review-form--focused">
                   <label className="field"><span className="field__label">{classification?.type === "transfer" ? accountDraft?.direction === "credit" ? "To account" : "From account" : "Account"}</span><select className="field__control" value={accountDraft?.account ?? ""} onChange={(event) => { updateAccountDraft({ account: event.target.value, other: event.target.value === accountDraft?.other ? "" : accountDraft?.other ?? "" }); }} name="account" required><option value="">Select account</option>{reviewState.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-                  <label className="field"><span className="field__label">Amount</span><input className="field__control" defaultValue={activeCandidate.amount ?? ""} inputMode="decimal" name="amount" required /></label>
+                  <label className="field"><span className="field__label">Amount</span><input className="field__control" defaultValue={activeCandidate.amount ?? ""} onChange={event => setAmountPreview({ candidate: activeCandidate.id, value: event.target.value })} inputMode="decimal" name="amount" required /></label>
                   <label className="field"><span className="field__label">Type</span><select className="field__control" value={classification?.type ?? activeCandidate.transaction_type} onChange={(event) => applyClassification(classification?.category ?? "", event.target.value as TransactionType)} name="type">{transactionTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select></label>
                   <input name="direction" type="hidden" value={accountDraft?.direction ?? "debit"} />
                   <label className="field"><span className="field__label">Category</span><select className="field__control" value={classification?.category ?? ""} disabled={workingCandidateId === activeCandidate.id} onChange={(event) => categoryChoice.choose(event.target.value, classification?.type ?? activeCandidate.transaction_type as TransactionType, applyClassification)} name="category"><option value="">No category</option>{reviewState.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
@@ -532,7 +550,7 @@ export function MessageReviewWorkspace() {
                 <details className="raw-message" open={Number(activeCandidate.confidence) < 0.65 || Boolean(activeCandidate.raw_message.duplicate_of)}><summary>Original SMS and parser evidence</summary><p>{activeCandidate.raw_message.body}</p><p>{activeCandidate.parser_notes}</p>{activeCandidate.raw_message.status !== "redacted" ? <div className="raw-message-actions"><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleReprocess(activeCandidate)} type="button">{reprocessingCandidateId === activeCandidate.id ? <ButtonBusy label="Re-running parser" /> : <><ArrowClockwise aria-hidden="true" size={18} />Re-run parser</>}</button><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleRedact(activeCandidate)} type="button">Redact original SMS now</button></div> : <span className="status-badge status-badge--ok">Original SMS redacted</span>}</details>
 
                 </div>
-                <div className="review-sticky-actions"><div className="review-action-status"><strong>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"}</strong><span>{candidateIssues(activeCandidate).length ? `${candidateIssues(activeCandidate).length} item(s) need attention` : "Ready to add to ledger"}</span></div><div className="review-detail__pager" role="group" aria-label="Message navigation"><button aria-label="Previous message" disabled={activeIndex <= 0} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex - 1]?.id ?? activeCandidate.id)} type="button"><ArrowLeft size={18} /></button><span>{activeIndex + 1} / {filteredCandidates.length}</span><button aria-label="Next message" disabled={activeIndex >= filteredCandidates.length - 1} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex + 1]?.id ?? activeCandidate.id)} type="button"><ArrowRight size={18} /></button></div><button className="button button--danger" disabled={workingCandidateId === activeCandidate.id} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })} type="button">Reject</button><button className="button button--primary" disabled={workingCandidateId === activeCandidate.id} type="submit">{workingCandidateId === activeCandidate.id ? <ButtonBusy label="Confirming" /> : "Confirm & add"}</button></div>
+                <div className="review-sticky-actions"><div className="review-action-status"><strong>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"}</strong><span>{candidateIssues(activeCandidate).length ? `${candidateIssues(activeCandidate).length} item(s) need attention` : "Ready to add to ledger"}</span></div><div className="review-detail__pager" role="group" aria-label="Message navigation"><button aria-label="Previous message" disabled={activeIndex <= 0} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex - 1]?.id ?? activeCandidate.id)} type="button"><ArrowLeft size={18} /></button><span>{activeIndex + 1} / {filteredCandidates.length}</span><button aria-label="Next message" disabled={activeIndex >= filteredCandidates.length - 1} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex + 1]?.id ?? activeCandidate.id)} type="button"><ArrowRight size={18} /></button><button className="review-focus-toggle" aria-label={isFocused ? "Exit focus mode" : "Enter focus mode"} aria-pressed={isFocused} title={isFocused ? "Exit focus mode (Escape)" : "Focus on this review"} onClick={event => { if (!isFocused) prepareFocus(event.currentTarget); setFocusMode(current => !current); }} type="button">{isFocused ? <CornersIn size={19} aria-hidden="true" /> : <CornersOut size={19} aria-hidden="true" />}</button></div><button className="button button--danger" disabled={workingCandidateId === activeCandidate.id} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })} type="button">Reject</button><button className="button button--primary" disabled={workingCandidateId === activeCandidate.id} type="submit">{workingCandidateId === activeCandidate.id ? <ButtonBusy label="Confirming" /> : "Confirm & add"}</button></div>
               </form>
             </article>
           ) : null}

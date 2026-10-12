@@ -10,7 +10,7 @@ type Notice = { id: number; message: string; tone: Tone } & NoticeOptions;
 type ToastContextValue = {
   dismiss: () => void;
   notify: (message: string, tone?: Tone, options?: NoticeOptions) => void;
-  registerModal: (element: HTMLDialogElement) => () => void;
+  registerModal: (element: HTMLElement) => () => void;
 };
 const ToastContext = createContext<ToastContextValue | null>(null);
 
@@ -53,13 +53,13 @@ function ToastNotice({ notice, onDismiss }: { notice: Notice; onDismiss: () => v
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [modals, setModals] = useState<HTMLDialogElement[]>([]);
+  const [modals, setModals] = useState<HTMLElement[]>([]);
   const nextId = useRef(0);
   useEffect(() => setMounted(true), []);
   const notify = useCallback((message: string, tone: Tone = "success", options: NoticeOptions = {}) => {
     setNotice({ id: ++nextId.current, message, tone, ...options });
   }, []);
-  const registerModal = useCallback((element: HTMLDialogElement) => {
+  const registerModal = useCallback((element: HTMLElement) => {
     setModals((current) => [...current, element]);
     return () => setModals((current) => current.filter((item) => item !== element));
   }, []);
