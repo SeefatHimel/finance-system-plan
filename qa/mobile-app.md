@@ -67,7 +67,7 @@ versions identify the same release.
   a `401`, and explicit secure-session removal on logout.
 - Account/category fetch flow (`GET /api/accounts/`, `GET /api/categories/`)
   with local cache hydration for offline form choices.
-- Quick add transaction flow (`POST /api/transactions/`) plus a local manual
+- Legacy detailed transaction flow (`POST /api/transactions/`) plus a local manual
   transaction queue for offline saves and later sync. Manual entries can carry
   an optional transaction time and provider-reported balance after the transaction, and that value
   survives local queue hydration and deduplication.
@@ -428,3 +428,24 @@ insets. Horizontal text columns have bounded width, zero flex basis and shrink
 support; long labels wrap and the header title can scale down on narrow screens.
 These native layout changes need validation on a physical phone, including
 larger accessibility fonts; browser previews cannot prove Android inset behavior.
+
+## How do named Quick Add presets work on mobile?
+
+The header plus, Home shortcuts, Activity action and More settings open a compact
+entry/preset manager. Defaults and favorites sync through the same API as web.
+Only Save records an entry; editing a draft does not change a preset. Today/Now,
+Yesterday, native calendar/clock and exact text input make timestamps easy to
+correct. Android's native clock and iOS's spinner require the committed native
+picker dependency to be included in the next installed build.
+
+## Is the new Quick Add offline queue the same as the SMS or legacy manual queue?
+
+No. Quick Add uses encrypted chunked SecureStore documents scoped by backend
+and user, with at most 100 immutable requests. Save persists locally before
+clearing the draft. Foreground/resume retries use the original UUID and timestamps;
+backoff is 15 seconds to 15 minutes and empty queues cause no retry requests.
+Validation errors stay visible for correction; uncertain requests and conflicts
+are retained for review. Activity combines both manual queue counts, while the
+header counts native SMS only. The existing detailed-form AsyncStorage queue and
+native SMS WorkManager remain separate. Native UI/device checks await a future
+build; no APK was built for this implementation.

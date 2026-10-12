@@ -1,3 +1,7 @@
+import { QuickAddHub, type QuickAddHandle } from "./src/quick-add-hub";
+import { quickSessionScope } from "./src/secure-document";
+import { NativeTimeField } from "./src/native-time-field";
+import { localDay, localTime, type QuickPreset, type QuickDraft } from "../finance-contracts/quick-add";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -748,6 +752,10 @@ export default function App() {
 }
 
 function FinanceApp() {
+  const quickHub = useRef<QuickAddHandle>(null);
+  const [quickFavorites, setQuickFavorites] = useState<QuickPreset[]>([]);
+  const [quickPendingCount, setQuickPendingCount] = useState(0);
+  const [txCounterparty, setTxCounterparty] = useState("");
   const [iconsLoaded, iconFontError] = useFonts(MaterialCommunityIcons.font);
   const [result, setResult] = useState<HealthResult | null>(null);
   const [state, setState] = useState<ViewState>("idle");
@@ -2441,6 +2449,7 @@ function FinanceApp() {
       category: txCategoryId.trim() || undefined,
       date: txDate.trim(),
       note: txNote.trim(),
+      counterparty_text: txCounterparty.trim(),
       time: txTime.trim() || undefined,
       type: txType.trim()
     };
@@ -2483,6 +2492,7 @@ function FinanceApp() {
       setTxAmount("");
       setTxBalanceAfter("");
       setTxNote("");
+      setTxCounterparty("");
     } catch (error) {
       setTransactionQueueState("error");
       setTransactionQueueMessage(error instanceof Error ? error.message : "Could not save queued transaction.");
@@ -2524,6 +2534,7 @@ function FinanceApp() {
       setTxAmount("");
       setTxBalanceAfter("");
       setTxNote("");
+      setTxCounterparty("");
     } catch (error) {
       setTxState("error");
       setTxMessage(error instanceof Error ? error.message : "Could not create transaction.");
@@ -2544,6 +2555,7 @@ function FinanceApp() {
         setTransactionQueueMessage("Transfer resolved. Sync again to continue the remaining queue.");
       } else if (!transferDecision.input.candidate) {
         setTxAmount(""); setTxBalanceAfter(""); setTxNote("");
+        setTxCounterparty("");
         setTxMessage(match ? "Transfer linked. One movement in both accounts." : "Transfer kept separate.");
       }
       setTransferDecision(null);
@@ -2955,6 +2967,26 @@ function FinanceApp() {
   const hasReconciliationDifference =
     reconciliation?.latest_snapshot?.difference !== undefined && reconciliation?.latest_snapshot?.difference !== null;
 
+  const quickScope = quickSessionScope(accessToken, getApiBaseUrl());
+  useEffect(() => { setQuickFavorites([]); setQuickPendingCount(0); }, [quickScope]);
+
+  function handleQuickFullEntry(draft: QuickDraft) {
+    setTxAccountId(draft.account);
+    setTxCategoryId(draft.category);
+    setTxType(draft.type);
+    setTxDirection(draft.type === "income" ? "credit" : "debit");
+    setTxTransferAccountId("");
+    setTxBalanceAfter("");
+    setTxAmount(draft.amount);
+    setTxDate(draft.dateMode === "today" ? localDay() : draft.date);
+    setTxTime(draft.timeMode === "now" ? localTime() : draft.timeMode === "none" ? "" : draft.time);
+    setTxNote(draft.note);
+    setTxCounterparty(draft.counterparty_text);
+    setTxState("idle");
+    setTxMessage("");
+    setShowAdvancedTools(true);
+  }
+
   const renderAdvancedTools = () => (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" />
@@ -3099,14 +3131,8 @@ function FinanceApp() {
             style={styles.input}
             value={txDate}
           />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setTxTime}
-            placeholder="Time (HH:MM)"
-            style={styles.input}
-            value={txTime}
-          />
+          <NativeTimeField value={txTime} onChange={setTxTime} />
+          <TextInput placeholder="Merchant / counterparty" value={txCounterparty} onChangeText={setTxCounterparty} style={styles.input} />
           <TextInput
             autoCapitalize="none"
             autoCorrect={false}
@@ -4112,6 +4138,7 @@ function FinanceApp() {
 
   const renderHome = () => (
     <View style={styles.mobileSectionStack}>
+      <View><Text style={styles.mobileFieldLabel}>Quick Add</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>{quickFavorites.map(preset => <Pressable accessibilityRole="button" key={preset.id} onPress={() => quickHub.current?.open(preset.id)} style={styles.mobileChoice}><Text style={styles.mobileChoiceText}>{preset.name}</Text></Pressable>)}<Pressable accessibilityRole="button" onPress={() => quickHub.current?.open()} style={styles.mobileChoice}><Text style={styles.mobileChoiceText}>{quickFavorites.length ? "See all" : "Add manual entry"}</Text></Pressable></ScrollView></View>
       <View style={styles.mobileSegmentedControl}>
         <Pressable
           onPress={() => setHomeFeed("review")}
@@ -4259,7 +4286,7 @@ function FinanceApp() {
         </View>
         <View style={styles.mobileSummaryDivider} />
         <View style={styles.mobileRowBody}>
-          <Text style={styles.mobileSummaryValue}>{transactionQueue.length}</Text>
+          <Text style={styles.mobileSummaryValue}>{transactionQueue.length + quickPendingCount}</Text>
           <Text style={styles.mobileSummaryLabel}>manual pending</Text>
         </View>
         <Pressable onPress={handleLoadTransactions} style={styles.mobileIconAction}>
@@ -4275,9 +4302,9 @@ function FinanceApp() {
           <Text style={styles.mobileEmptyCopy}>Imported SMS transactions will build your timeline automatically.</Text>
         </View>
       )}
-      <Pressable onPress={() => setShowAdvancedTools(true)} style={styles.mobileSecondaryAction}>
+      <Pressable onPress={() => quickHub.current?.open()} style={styles.mobileSecondaryAction}>
         <MaterialCommunityIcons color="#dce8f6" name="plus" size={20} />
-        <Text style={styles.mobileSecondaryActionText}>Add a manual transaction</Text>
+        <Text style={styles.mobileSecondaryActionText}>Quick Add manual entry</Text>
       </Pressable>
     </View>
   );
@@ -5269,6 +5296,7 @@ function FinanceApp() {
 
   const renderMore = () => (
     <View style={styles.mobileSectionStack}>
+      <Pressable accessibilityRole="button" onPress={() => quickHub.current?.manage()} style={styles.mobileSecondaryAction}><MaterialCommunityIcons color="#55e6a5" name="flash-outline" size={20} /><Text style={styles.mobileSecondaryActionText}>Quick Add presets</Text></Pressable>
       <View style={styles.mobilePageIntro}>
         <Text style={styles.mobilePageTitle}>More</Text>
         <Text style={styles.mobilePageSubtitle}>Planning tools, automation settings, and account controls.</Text>
@@ -5456,6 +5484,7 @@ function FinanceApp() {
         >
           <MaterialCommunityIcons color="#dce8f6" name={mobilePanel ? "arrow-left" : "menu"} size={27} />
         </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Quick Add manual entry" onPress={() => quickHub.current?.open()} style={styles.mobileHeaderButton}><MaterialCommunityIcons color="#55e6a5" name="plus" size={24} /></Pressable>
         <View style={styles.mobileHeaderTitleWrap}>
           <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.mobileAppTitle}>Signal <Text style={styles.mobileAppTitleAccent}>Inbox</Text></Text>
           <Text numberOfLines={2} style={styles.mobileAppSubtitle}>Bank & wallet SMS to insights</Text>
@@ -5497,6 +5526,7 @@ function FinanceApp() {
         </Pressable>
       </View>
 
+      <QuickAddHub key={quickScope ?? "signed-out"} ref={quickHub} scope={quickScope} token={accessToken} onFavorites={setQuickFavorites} onPendingCount={setQuickPendingCount} onReferences={(accounts, categories) => { setAccounts(accounts); setCategories(categories); }} onSaved={() => { void handleLoadTransactions(); void handleLoadReferenceData(); }} onFullEntry={handleQuickFullEntry} />
       <Animated.ScrollView
         contentContainerStyle={styles.mobileScrollContent}
         keyboardShouldPersistTaps="handled"

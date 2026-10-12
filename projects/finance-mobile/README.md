@@ -27,9 +27,9 @@ Phase 1 scaffold now includes:
   - `GET /api/accounts/`
   - `GET /api/categories/`
   - caches the latest account/category lists locally for offline form choices
-- Quick add transaction form:
-  - `POST /api/transactions/`
-- Local manual transaction queue:
+- Configurable Quick Add presets and secure pending entries (see below).
+- Legacy detailed transaction form: `POST /api/transactions/`.
+- Legacy local manual transaction queue:
   - stores manual transaction drafts with AsyncStorage
   - syncs queued manual transactions to `POST /api/transactions/`
   - uses retry metadata and capped retry backoff for failed syncs
@@ -372,3 +372,51 @@ native pending count; the activity summary identifies pending manual entries.
 Foreground status refresh reads local native metadata, not a periodic backend API.
 The header and tabs respect Android system insets, and card text wraps within its
 available width. See `docs/native-sms-capture.md` for details and checks.
+
+## Configurable Quick Add and secure pending entries
+
+The header plus button, Home favorite shortcuts, Activity manual-entry action
+and More > Quick Add presets use the same preset API as web. Users can create,
+edit, duplicate, enable/disable and reorder their own expense/income presets.
+At most six favorite enabled shortcuts appear initially; See all reveals others.
+Account/category choices are shortlists derived from favorites with searchable
+See all. A shortcut prefills a draft; only Save records it. Overrides do not edit
+the preset, and applying another preset retains typed amount/note/merchant.
+Full entry carries the draft into the existing detailed tools for advanced types.
+
+Today/Now resolve when saving. Yesterday, native calendar, unknown time and a
+native hour/minute picker support backdated entries. Android uses the system
+clock, including exact-minute text input; iOS uses a spinner with Apply/Cancel.
+Both have an exact input fallback. The picker is the Expo SDK 53-compatible
+`@react-native-community/datetimepicker` 8.4.1, listed in dependencies and Expo
+plugins. An existing signed app needs a new native build to include it; changing
+JavaScript alone cannot add the native module. No APK is built as part of this
+source change.
+
+Quick Add saves the immutable request to a separate encrypted SecureStore queue
+before clearing the draft or showing success. Its reference cache and queue are
+scoped by backend and JWT user ID; decoding is for local isolation only, while
+the API verifies authentication and ownership. Chunk manifests publish last,
+protecting the previous queue if storage fails. Invalid/incomplete queue data is
+retained and blocks new writes instead of being silently discarded.
+
+The queue holds up to 100 entries. Foreground retry checks run every 30 seconds
+only when entries exist, and send only due items. Backoff rises from 15 seconds
+to 15 minutes. App resume refreshes choices and attempts due entries; successful
+sync refreshes Activity/references. This feature does not poll empty queues or
+post while the app is suspended. Background SMS WorkManager remains separate.
+A snackbar distinguishes Saved on device from Synced to ledger. Activity's
+manual pending count includes both this queue and the legacy detailed-form
+AsyncStorage queue; the header SMS count continues to mean native SMS only.
+
+Each Save has a new UUID, so equal purchases are allowed. Retries preserve the
+same UUID and payload to avoid duplicate ledger rows after a lost response.
+Validation errors remain visible and can be corrected; conflicts require ledger
+review. Removing a pending device copy never deletes a ledger record, and a
+request with an uncertain outcome may already have posted. The legacy detailed
+manual queue is retained, not silently migrated into the new queue.
+
+Run `npm run typecheck`, `npm run test:quick-add`, `npm run test:network` and
+`npm run test:gestures`. Secure document tests use an injectable store; native
+picker, keyboard, modal and device storage behavior still need a device check
+with the next native build.

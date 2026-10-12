@@ -9,11 +9,13 @@
     "typecheck": "tsc --noEmit",
     "test:gestures": "node --test tests/tap-gesture.test.cjs",
     "ios": "expo run:ios",
-    "test:network": "node --test tests/bounded-fetch.test.cjs"
+    "test:network": "node --test tests/bounded-fetch.test.cjs",
+    "test:quick-add": "node --test tests/quick-add.test.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
     "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-native-community/datetimepicker": "8.4.1",
     "expo": "~53.0.0",
     "expo-asset": "^11.1.7",
     "expo-file-system": "~18.1.11",
