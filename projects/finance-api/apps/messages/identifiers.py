@@ -1,6 +1,5 @@
 import re
 
-
 _MASK_MARKERS = ("*", "x", "X", "•", "…")
 
 
@@ -10,6 +9,9 @@ def sanitize_financial_identifier(value: str) -> str:
     digits = re.sub(r"[^0-9]", "", compact)
     if len(digits) < 3:
         return ""
+    ending = re.search(r"[0-9]+$", compact)
+    if any(marker in compact for marker in _MASK_MARKERS) and ending and len(ending[0]) < 3:
+        return ""  # Never manufacture a suffix from visible prefix digits.
     # A mask character must not let an almost-complete card number through.
     # Retain up to six prefix and four suffix digits; reduce longer evidence.
     if len(digits) > 10 or (

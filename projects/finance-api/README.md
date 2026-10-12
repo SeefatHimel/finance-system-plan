@@ -902,3 +902,7 @@ Targeted checks:
 ```sh
 DATABASE_URL= .venv/bin/python manage.py test apps.payment_methods apps.messages apps.statements apps.transactions.test_transfers apps.transactions.test_corrections --noinput
 ```
+
+Numeric suffixes containing separators remain compatible with earlier saved
+recognition mappings. Only ending digits after a mask count as suffix evidence;
+a visible prefix never turns two ending digits into a supported suffix.

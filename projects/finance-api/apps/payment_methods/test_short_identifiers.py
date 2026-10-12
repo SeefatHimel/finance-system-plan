@@ -61,7 +61,7 @@ class ShortIdentifierTests(APITestCase):
     def test_masking_accepts_three_ending_digits_but_never_one_or_two(self):
         for value in ("723", "***723", "123456**723"):
             self.assertEqual(sanitize_financial_identifier(value), value)
-        for value in ("72", "**72", "123456**72", "1234xx"):
+        for value in ("72", "**72", "123456**72", "1234xx", "1234567890**72", "1234567890**2"):
             self.assertEqual(sanitize_financial_identifier(value), "")
         self.assertEqual(sanitize_financial_identifier("1234567890123456"), "3456")
         self.assertEqual(sanitize_financial_identifier("1234567890123456x"), "3456")
@@ -381,3 +381,9 @@ class ShortIdentifierTests(APITestCase):
         self.assertEqual(candidate["account"], self.bank.pk)
         self.assertIsNone(candidate["destination_account"])
         self.assertEqual(candidate["identity_suggestions"][0]["role"], "sender")
+
+    def test_older_numeric_suffixes_with_separators_remain_compatible(self):
+        self.assertEqual(identifier_score("17-23", "723"), 10)
+        self.assertEqual(identifier_score("7-2-3", "723"), 10)
+        self.assertEqual(identifier_score("17-23", "1723"), 30)
+        self.assertEqual(identifier_score("17-23", "87-23"), 0)

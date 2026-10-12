@@ -17,6 +17,10 @@ def identifiers(method):
 
 def identifier_suffix(value):
     value = re.sub(r"\s+", "", value).lower().replace("x", "*")
+    if not re.search(r"[*•…]", value):
+        # Older saved numeric suffixes may contain separators. Masks still need
+        # contiguous ending digits so a visible prefix cannot inflate the suffix.
+        return re.sub(r"[^0-9]", "", value)[-4:]
     match = re.search(r"\d+$", value)
     return match[0][-4:] if match else ""
 
