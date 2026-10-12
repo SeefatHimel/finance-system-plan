@@ -133,3 +133,12 @@ Production backup work must still add:
 - Real anonymized SMS fixtures are still needed before trusting parser coverage
   for live provider messages.
 - Production auth hardening is planned but not implemented in web/mobile yet.
+
+## Quick Add rollout
+
+Run `python manage.py migrate` to apply `quick_add.0001_initial` before releasing
+the updated web/mobile clients. Verify the preset and entry endpoints against
+the deployment's PostgreSQL database, including simultaneous identical retries.
+Presets and retry receipts are included in normal database backups. The mobile
+native picker requires a new signed build when a release is requested; this
+source update does not produce or distribute an APK.

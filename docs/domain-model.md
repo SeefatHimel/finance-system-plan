@@ -283,3 +283,17 @@ evidence. Multiple parsed candidates may reference the same transfer. Raw SMS
 redaction leaves structured evidence intact. The existing transaction's
 `raw_message` remains its primary source; `transfer_evidence` contains all linked
 observations. Migration backfills old transfers without changing balances.
+
+## Quick Add Preset and Receipt
+
+`QuickAddPreset` is a user-owned named collection of optional manual-entry
+settings: expense/income, account/category, amount, merchant, note, enabled,
+favorite and display order. It fills a draft and has no balance impact. Account
+and category removal clear the optional defaults rather than deleting a preset.
+Inactive or incompatible defaults make the preset unavailable until corrected.
+
+`QuickEntryReceipt` links a user/client-request UUID and canonical payload hash
+to an ordinary transaction. Its unique user/request constraint and a per-user
+row lock serialize retries. Transaction deletion clears the receipt link while
+retaining identity, so a retry cannot recreate a deleted entry. Editing the
+transaction does not rewrite the request hash or restore the original values.

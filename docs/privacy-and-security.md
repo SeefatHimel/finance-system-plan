@@ -69,3 +69,20 @@ with product-level privacy behavior.
 Current decision: keep Expo Go as the manual-import/testing path and use the
 local native Android SMS module only for custom dev client or personal APK
 builds. See `docs/mobile-sms-permission-decision.md`.
+
+## Quick Add local data
+
+Named presets are authenticated API records scoped by user. New entries cannot
+use another user's account or category. Backend retry receipts retain a payload
+hash and transaction link, without copying merchant/note text into the receipt.
+
+Web recovery keeps one immutable request in per-user/backend tab sessionStorage;
+it is financial data, not an authentication token, and is never placed in a URL.
+Mobile Quick Add caches references and pending requests in encrypted SecureStore
+chunks scoped by backend/user. Publishing the manifest last preserves the prior
+queue on a failed write. Corrupt/incomplete pending data blocks writes rather
+than being discarded. Logout unmounts the active draft; another user cannot
+read or drain it through the app. Existing legacy manual and transaction caches
+remain unchanged; their storage protections must not be confused with this new
+queue. Device-copy removal warns that an uncertain request may already be in
+the ledger and does not delete any server transaction.

@@ -93,3 +93,24 @@ When to split into separate repositories:
   only when the card bill is paid.
 - Keep SMS automation as personal-APK/native-module work until privacy,
   distribution, and policy constraints are settled.
+
+## Configurable Quick Add decisions (2026-10-12)
+
+- Share named presets through the authenticated API on web and mobile. Favorites,
+  ordering and enable/disable choices belong to the user, not hard-coded menus.
+- Show six favorite shortcuts initially, with See all; derive small searchable
+  account/category lists from favorites. Missing defaults can be chosen at entry.
+- Start compact entries with expense/income. Transfers and other advanced types
+  use Full entry, carrying the complete draft into the existing editor.
+- A preset only fills fields. Save is explicit and overrides never rewrite it.
+  Applying another preset retains typed amount/note/merchant.
+- Resolve Today/Now at Save. Support Yesterday, calendar, unknown time and exact
+  hour/minute selection. Use a web clock with drag/type controls and native mobile
+  picker with text fallback; do not round minutes.
+- Give each Save a UUID and freeze its retry payload. Persist backend receipts
+  across edits/deletion. Equal purchases remain distinct when IDs differ.
+- Web retains an uncertain request in tab sessionStorage; mobile persists an
+  encrypted queue and retries in the foreground. Keep the legacy manual queue
+  and native SMS queue separate and label their counts accurately.
+- Apply the backend migration first. Native UI verification will use the next
+  requested signed build; no APK is built in this implementation task.

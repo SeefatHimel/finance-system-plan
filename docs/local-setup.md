@@ -437,3 +437,44 @@ From `projects/finance-web` run `npm run test:identities`, `npm run typecheck`,
 `npm run lint`, and `npm run build`. PDF account recognition is authenticated,
 read-only and has a separate 10/hour recognition throttle; it does not require
 production financial data for testing. Use synthetic statements and identifiers.
+
+## Quick Add rollout and checks
+
+Deploy the API migration before releasing the clients. From
+`projects/finance-api`, using your intended development database:
+
+```bash
+.venv/bin/python manage.py migrate
+.venv/bin/python manage.py test apps.quick_add apps.transactions
+.venv/bin/python manage.py makemigrations --check --dry-run
+```
+
+The new migration is `quick_add.0001_initial` (presets and durable retry receipts).
+Do not point disposable QA at a production database. Backend presets are shared
+across authenticated web/mobile sessions; there is no environment data seed.
+
+From `projects/finance-web`:
+
+```bash
+npm run test:quick-add
+npm run test:auth
+npm run test:workflows
+npm run test:dates
+npm run typecheck
+npm run build
+```
+
+From `projects/finance-mobile`:
+
+```bash
+npm install
+npm run typecheck
+npm run test:quick-add
+npm run test:network
+npm run test:gestures
+```
+
+The locked native time picker is `@react-native-community/datetimepicker` 8.4.1
+for Expo SDK 53. The Expo config plugin is committed. When a native release is
+requested, follow the existing signed-release guide to include the new native
+module; this feature's implementation/checks do not build or distribute an APK.

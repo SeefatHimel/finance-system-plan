@@ -112,3 +112,12 @@ same-origin health proxy every ten minutes, with bounded timeouts and no auth.
 This can keep an active session warm. Browser suspension, closure or offline
 state prevents reliable scheduling; production availability requires hosting
 that meets the desired uptime rather than relying on client activity.
+
+## What deployment steps does Quick Add need?
+
+Deploy the API with `quick_add.0001_initial` applied before either client starts
+using presets or posting entries. Its receipt concurrency test requires
+PostgreSQL; SQLite skips row-lock tests. Web has no new runtime dependency. Mobile
+adds the Expo SDK-compatible native datetime picker and config plugin, so the
+next requested signed build must include that module. Source checks and Expo
+config validation do not build or publish an APK.

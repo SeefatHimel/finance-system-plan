@@ -316,3 +316,12 @@ replace transfer/duplicate matching or explicit financial confirmation.
 
 Masked identifiers exposing more than ten digits also reduce to a last-four
 suffix, so adding a mask character cannot preserve a nearly complete card number.
+
+## How can users record cash spending quickly on either client?
+
+Named Quick Add presets pair an expense/income type with optional account,
+category, amount and text defaults. Both clients share them through the API.
+Users control favorites, ordering and enabled state; selecting a shortcut opens
+an editable draft and Save is always required. Presets are reusable defaults,
+not recurring transactions or automation rules. Compact entries become ordinary
+ledger records, so balances, reports and audit history stay consistent.
