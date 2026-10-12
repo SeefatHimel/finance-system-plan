@@ -13,6 +13,7 @@ export function PaymentIdentityFields({ kind, onKind, identifiers, onIdentifiers
   }
   return <fieldset className="field--wide payment-identity-fields" disabled={disabled}>
     <legend>Identifiers &amp; optional labels</legend>
+    <p className="field__hint">Use at least three ending digits. Three-digit matches require a choice in review, even when only one account matches. Prefer a longer masked identifier when available.</p>
     <label className="field"><span className="field__label">Primary identifier type</span><select className="field__control" value={kind} onChange={event => onKind(event.target.value as IdentifierKind)}><option value="any">Unspecified</option><option value="account">Bank / wallet account</option><option value="card">Card</option></select></label>
     {identifiers.map((entry, index) => <div className="payment-identity-row" key={index}>
       <label className="field"><span className="field__label">Identifier {index + 1} type</span><select className="field__control" value={entry.kind} onChange={event => update(index, { kind: event.target.value as ExtraIdentifier["kind"] })}><option value="account">Account</option><option value="card">Card</option></select></label>

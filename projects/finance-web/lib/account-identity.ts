@@ -17,7 +17,8 @@ export function emptyAccountIdentity(): AccountIdentityDraft {
 export function safeAccountIdentifier(value: string): string {
   const compact = value.replace(/\s+/g, "").replace(/^[-:]+|[-:]+$/g, "");
   const digits = compact.replace(/[^0-9]/g, "");
-  if (digits.length < 4) throw new Error("Enter a masked account/card number or at least four digits.");
+  if (digits.length < 3) throw new Error("Enter a masked account/card number with at least three ending digits.");
+  if (digits.length <= 10 && /[*xX•…]/.test(compact) && !/[0-9]{3,}$/.test(compact)) throw new Error("Enter at least three ending digits after the mask.");
   return digits.length <= 10 && /[*xX•…]/.test(compact) ? compact.slice(0, 120) : digits.slice(-4);
 }
 

@@ -798,3 +798,24 @@ Payment methods remain optional account-linked instruments (for example a
 bank account identifier, debit/credit card, cash, or wallet). Their provider,
 masked identifiers and aliases assist SMS/PDF account recognition. They do
 not replace the ledger account or add another transaction.
+
+### Short identifier review choices
+
+Account recognition and payment-method identifiers accept at least three ending
+digits. Prefer longer masked values; a three-digit SMS ending matches their ending
+without adding another identifier. Full-number masking remains last-four before
+submission. One/two-digit suffixes are rejected.
+
+SMS review shows sender/receiver account suggestions when only three digits
+overlap, with the saved account and card/method name. No account or method is
+preselected from weak evidence, even for one match or a stale parsed default.
+Choosing a reporting-account suggestion also selects its payment method; choosing
+the other transfer account respects the current Debit/Credit direction. Choices
+only update the draft and preserve edited amount, note, time and category; the
+user must still **Confirm & add** or explicitly accept a transfer match. Normal
+account selectors remain available when the suggestion is wrong or absent.
+
+Statement upload offers explicit account-choice buttons for weak/colliding header
+identifiers and keeps the verification warning. Older APIs remain readable through
+empty/default optional suggestion fields. Re-run the parser for older pending SMS
+whose three-digit identifiers were previously discarded.

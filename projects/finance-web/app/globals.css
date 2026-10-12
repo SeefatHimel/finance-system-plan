@@ -3098,3 +3098,9 @@ textarea {
   .quick-entry-scroll { max-height: 58dvh; }
   .quick-entry-footer .button { flex: 1; padding-inline: 10px; }
 }
+
+.review-identity-hint { background: #2b2414; border: 1px solid #4a3b1d; border-radius: 8px; color: var(--warning); margin: 16px 22px 0; padding: 12px; overflow-wrap: anywhere; }
+.review-identity-hint p { font-size: 13px; line-height: 1.5; margin: 8px 0; }
+.review-identity-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.review-identity-choices .button { min-height: 44px; white-space: normal; text-align: left; max-width: 100%; }
+.review-identity-choices .button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }

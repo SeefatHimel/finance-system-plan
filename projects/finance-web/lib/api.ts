@@ -149,6 +149,10 @@ const transactionSourceMessageSchema = z.object({
 });
 
 const parsedMessageCandidateSchema = z.object({
+  identity_suggestions: z.array(z.object({
+    role: z.enum(["sender", "receiver"]), reason: z.string(), observed_identifiers: z.array(z.string()),
+    choices: z.array(z.object({ account: z.string(), name: z.string(), payment_method: z.string(), method_name: z.string(), provider: z.string() }))
+  })).default([]),
   account: z.string().nullable(),
   amount: z.string().nullable(),
   balance_after: z.string().nullable(),
@@ -1488,7 +1492,7 @@ export async function previewStatement(accessToken: string, account: string, fil
 
 const savedStatementSchema = z.object({
   id: z.string(), account: z.string(), account_name: z.string(), profile: z.string(), parser_version: z.string(), currency: z.string(),
-  account_suggestion: z.object({ account: z.string().nullable(), name: z.string(), reason: z.string(), ambiguous: z.boolean() }).nullable().optional(),
+  account_suggestion: z.object({ account: z.string().nullable(), name: z.string(), reason: z.string(), ambiguous: z.boolean(), requires_review: z.boolean().default(false), choices: z.array(z.object({ account: z.string(), name: z.string() })).default([]) }).nullable().optional(),
   account_hint: z.string(), account_identity: z.string(), period_start: z.string().nullable(), period_end: z.string().nullable(), page_count: z.number(),
   opening_balance: z.string().nullable(), closing_balance: z.string().nullable(), checks: statementPreviewSchema.shape.checks, warnings: z.array(z.string()),
   counts: z.object({ total: z.number(), pending: z.number(), posted: z.number(), linked: z.number(), skipped: z.number() }), created_at: z.string(), updated_at: z.string()
@@ -1523,7 +1527,7 @@ export async function createStatementImport(token: string, account: string, file
 }
 const statementIdentificationSchema = z.object({
   profile: z.string(), account_hint: z.string(),
-  account_suggestion: z.object({ account: z.string().nullable(), name: z.string(), reason: z.string(), ambiguous: z.boolean() }).nullable()
+  account_suggestion: z.object({ account: z.string().nullable(), name: z.string(), reason: z.string(), ambiguous: z.boolean(), requires_review: z.boolean().default(false), choices: z.array(z.object({ account: z.string(), name: z.string() })).default([]) }).nullable()
 });
 export type StatementIdentification = z.infer<typeof statementIdentificationSchema>;
 export async function identifyStatementAccount(token: string, file: File, password: string, signal?: AbortSignal): Promise<StatementIdentification> {

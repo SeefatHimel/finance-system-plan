@@ -735,3 +735,13 @@ balances and blocks acceptance until every same-account conflict has an
 explicit choice. Different sender/receiver balances are normal. Optional
 payment methods identify account-linked instruments and their recognition
 aliases, while the ledger account controls the money movement.
+
+### What happens when an SMS exposes only three card digits?
+
+SMS review shows compatible saved accounts/cards as choices, including collisions,
+without automatically selecting even a unique match. Selecting a reporting choice
+updates account/payment method; the other choice follows the draft Debit/Credit
+role. Amount, note, time and category edits survive; saving still requires an
+explicit action. Account settings accept three digits but recommend longer masked
+values, whose endings can match shorter SMS without duplicate mappings. Statement
+header choices similarly remain manual and require verification.

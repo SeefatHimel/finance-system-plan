@@ -55,9 +55,11 @@ type RejectDraft = {
 function accountReviewDefaults(candidate: ParsedMessageCandidate) {
   const incoming = candidate.suggested_transfer_direction ? candidate.suggested_transfer_direction === "credit"
     : ["cash_in", "receive_money", "bank_transfer_in"].includes(candidate.message_kind);
+  const reportingRole = incoming || ["income", "refund"].includes(candidate.transaction_type) ? "receiver" : "sender";
+  const weakRoles = new Set(candidate.identity_suggestions.map(hint => hint.role));
   return {
-    account: (incoming ? candidate.destination_account ?? candidate.account : candidate.account) ?? "",
-    other: (incoming ? candidate.destination_account ? candidate.account : null : candidate.destination_account) ?? "",
+    account: weakRoles.has(reportingRole) ? "" : (incoming ? candidate.destination_account ?? candidate.account : candidate.account) ?? "",
+    other: weakRoles.has(reportingRole === "receiver" ? "sender" : "receiver") ? "" : (incoming ? candidate.destination_account ? candidate.account : null : candidate.destination_account) ?? "",
     direction: candidate.suggested_transfer_direction || (incoming || ["income", "refund"].includes(candidate.transaction_type) ? "credit" : "debit")
   };
 }
@@ -122,6 +124,7 @@ function normalizedNote(candidate: ParsedMessageCandidate) {
 
 export function MessageReviewWorkspace() {
   const [transferDecision, setTransferDecision] = useState<{ candidate: ParsedMessageCandidate; input: ConfirmMessageCandidateInput; matches: TransferMatch[] } | null>(null);
+  const [paymentMethodDrafts, setPaymentMethodDrafts] = useState<Record<string, string>>({});
   const [accountDrafts, setAccountDrafts] = useState<Record<string, ReturnType<typeof accountReviewDefaults>>>({});
   const [matchError, setMatchError] = useFeedbackMessage("error");
   const [reviewState, setReviewState] = useState<ReviewState>({ status: "loading" });
@@ -206,6 +209,9 @@ export function MessageReviewWorkspace() {
       if (balanceAfter !== classification.balanceAfter) {
         setClassificationDrafts((current) => ({ ...current, [activeCandidate.id]: { ...classification, balanceAfter, balanceCleared: true } }));
       }
+    }
+    if (patch.account !== undefined && patch.account !== accountDraft.account) {
+      setPaymentMethodDrafts(current => ({ ...current, [activeCandidate.id]: "" }));
     }
     setAccountDrafts((current) => ({ ...current, [activeCandidate.id]: { ...accountDraft, ...patch } }));
   }
@@ -471,15 +477,30 @@ export function MessageReviewWorkspace() {
                 </div>
 
                 <div className="review-issue-bar"><Warning aria-hidden="true" size={19} weight="fill" /><div><strong>{reviewReason(activeCandidate)}</strong><span>{formatDateTime(activeCandidate.raw_message.received_at)} · {activeCandidate.raw_message.sender}</span></div></div>
+                {activeCandidate.identity_suggestions.map(hint => {
+                  const reporting = hint.role === (accountDraft?.direction === "credit" ? "receiver" : "sender");
+                  const selectedAccount = reporting ? accountDraft?.account : accountDraft?.other;
+                  if (!reporting && classification?.type !== "transfer") return null;
+                  return <div className="review-identity-hint" key={hint.role} role="group" aria-label={`${hint.role} account suggestions`}>
+                    <strong>Check {hint.role} account · {hint.observed_identifiers.join(" / ")}</strong><p>{hint.reason}</p>
+                    <div className="review-identity-choices">{hint.choices.map(choice => <button className="button button--ghost" type="button" key={choice.payment_method} disabled={workingCandidateId === activeCandidate.id || (!reporting && choice.account === accountDraft?.account)}
+                      aria-pressed={selectedAccount === choice.account && (!reporting || paymentMethodDrafts[activeCandidate.id] === choice.payment_method)}
+                      onClick={() => {
+                        if (reporting) { updateAccountDraft({ account: choice.account, other: choice.account === accountDraft?.other ? "" : accountDraft?.other ?? "" }); setPaymentMethodDrafts(current => ({ ...current, [activeCandidate.id]: choice.payment_method })); }
+                        else updateAccountDraft({ other: choice.account });
+                      }}>{selectedAccount === choice.account && (!reporting || paymentMethodDrafts[activeCandidate.id] === choice.payment_method) ? "Selected · " : ""}{choice.name} · {choice.method_name}</button>)}</div>
+                    {!hint.choices.length ? <p>No compatible saved identifier. Choose the account below after checking the SMS.</p> : null}
+                  </div>;
+                })}
                 <div className="review-issue-chips">{candidateIssues(activeCandidate).map((issue) => <span key={issue}>{issue}</span>)}{!candidateIssues(activeCandidate).length ? <span className="review-issue-chip--ready">All required fields detected</span> : null}</div>
 
                 <div className="review-form review-form--focused">
-                  <label className="field"><span className="field__label">Account</span><select className="field__control" value={accountDraft?.account ?? ""} onChange={(event) => { updateAccountDraft({ account: event.target.value, other: event.target.value === accountDraft?.other ? "" : accountDraft?.other ?? "" }); const method = event.target.form?.elements.namedItem("payment_method") as HTMLSelectElement | null; if (method) method.value = ""; }} name="account" required><option value="">Select account</option>{reviewState.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+                  <label className="field"><span className="field__label">Account</span><select className="field__control" value={accountDraft?.account ?? ""} onChange={(event) => { updateAccountDraft({ account: event.target.value, other: event.target.value === accountDraft?.other ? "" : accountDraft?.other ?? "" }); }} name="account" required><option value="">Select account</option>{reviewState.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
                   <label className="field"><span className="field__label">Amount</span><input className="field__control" defaultValue={activeCandidate.amount ?? ""} inputMode="decimal" name="amount" required /></label>
                   <label className="field"><span className="field__label">Type</span><select className="field__control" value={classification?.type ?? activeCandidate.transaction_type} onChange={(event) => applyClassification(classification?.category ?? "", event.target.value as TransactionType)} name="type">{transactionTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select></label>
                   <input name="direction" type="hidden" value={accountDraft?.direction ?? "debit"} />
                   <label className="field"><span className="field__label">Category</span><select className="field__control" value={classification?.category ?? ""} disabled={workingCandidateId === activeCandidate.id} onChange={(event) => categoryChoice.choose(event.target.value, classification?.type ?? activeCandidate.transaction_type as TransactionType, applyClassification)} name="category"><option value="">No category</option>{reviewState.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-                  <label className="field"><span className="field__label">Payment method</span><select className="field__control" defaultValue={reviewState.paymentMethods.find((method) => method.account === accountDraft?.account && [activeCandidate.payment_method, activeCandidate.destination_payment_method].includes(method.id))?.id ?? ""} name="payment_method"><option value="">No payment method</option>{reviewState.paymentMethods.filter((method) => method.account === accountDraft?.account).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}</select></label>
+                  <label className="field"><span className="field__label">Payment method</span><select className="field__control" value={paymentMethodDrafts[activeCandidate.id] ?? reviewState.paymentMethods.find((method) => method.account === accountDraft?.account && [activeCandidate.payment_method, activeCandidate.destination_payment_method].includes(method.id))?.id ?? ""} onChange={event => setPaymentMethodDrafts(current => ({ ...current, [activeCandidate.id]: event.target.value }))} name="payment_method"><option value="">No payment method</option>{reviewState.paymentMethods.filter((method) => method.account === accountDraft?.account).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}</select></label>
                   <label className="field"><span className="field__label">Other transfer account</span><select className="field__control" value={accountDraft?.other ?? ""} onChange={(event) => updateAccountDraft({ other: event.target.value })} name="transfer_account"><option value="">No other account</option>{reviewState.accounts.filter((account) => account.id !== accountDraft?.account).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select><span className="field__hint">Credit: money came from this account. Debit: money went to this account.</span>{activeCandidate.transfer_suggestion_reason && accountDraft?.account === accountReviewDefaults(activeCandidate).account && accountDraft?.other === accountReviewDefaults(activeCandidate).other && accountDraft?.direction === accountReviewDefaults(activeCandidate).direction ? <span className="field__hint" role="status">{accountDraft?.other ? `Suggested: ${reviewState.accounts.find((account) => account.id === accountDraft.other)?.name ?? "saved account"}. ` : ""}{activeCandidate.transfer_suggestion_reason}</span> : null}</label>
                   <label className="field"><span className="field__label">Date</span><input className="field__control" defaultValue={dateInputFromTimestamp(activeCandidate.raw_message.received_at)} name="date" type="date" /></label>
                   <label className="field"><span className="field__label">Time</span><input className="field__control" defaultValue={timeInputFromTimestamp(activeCandidate.raw_message.received_at)} name="time" type="time" /></label>
