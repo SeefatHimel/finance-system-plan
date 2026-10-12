@@ -123,12 +123,16 @@ class FinanceSmsCaptureModule : Module() {
     }.runOnQueue(ioQueue)
 
     AsyncFunction("configureBackgroundSyncAsync") { apiBaseUrl: String, accessToken: String, refreshToken: String, username: String ->
-      FinanceSmsAuth.sessions(requireContext()).configure(SmsSession(apiBaseUrl.trimEnd('/'), accessToken, refreshToken, username))
-      FinanceSmsSyncWorker.enqueue(requireContext(), SmsSyncTrigger.RECOVERY).get(15, TimeUnit.SECONDS)
+      smsBridgeCommand {
+        FinanceSmsAuth.sessions(requireContext()).configure(SmsSession(apiBaseUrl.trimEnd('/'), accessToken, refreshToken, username))
+        FinanceSmsSyncWorker.enqueue(requireContext(), SmsSyncTrigger.RECOVERY).get(15, TimeUnit.SECONDS)
+      }
     }.runOnQueue(ioQueue)
 
     AsyncFunction("initializeBackgroundSyncSessionAsync") { apiBaseUrl: String, accessToken: String, refreshToken: String, username: String ->
-      FinanceSmsAuth.sessions(requireContext()).configure(SmsSession(apiBaseUrl.trimEnd('/'), accessToken, refreshToken, username), explicitLogin = true)
+      smsBridgeCommand {
+        FinanceSmsAuth.sessions(requireContext()).configure(SmsSession(apiBaseUrl.trimEnd('/'), accessToken, refreshToken, username), explicitLogin = true)
+      }
     }
 
     AsyncFunction("refreshBackgroundSyncSessionAsync") { username: String, rejectedAccess: String ->
@@ -148,8 +152,10 @@ class FinanceSmsCaptureModule : Module() {
     }
 
     AsyncFunction("enqueueBackgroundSyncAsync") {
-      FinanceSmsStore.retryRejected(requireContext())
-      FinanceSmsSyncWorker.enqueue(requireContext(), SmsSyncTrigger.MANUAL).get(15, TimeUnit.SECONDS)
+      smsBridgeCommand {
+        FinanceSmsStore.retryRejected(requireContext())
+        FinanceSmsSyncWorker.enqueue(requireContext(), SmsSyncTrigger.MANUAL).get(15, TimeUnit.SECONDS)
+      }
     }.runOnQueue(ioQueue)
 
     AsyncFunction("resumeBackgroundSyncAsync") {

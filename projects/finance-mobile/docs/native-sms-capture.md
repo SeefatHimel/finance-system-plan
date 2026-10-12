@@ -137,6 +137,21 @@ capture, reprocessing choices, malformed migration records and retryable HTTP
 responses. A physical phone is still required for status-bar/text scaling and
 closed-app SMS upload validation.
 
+## Native command results and sign-in
+
+Session initialization, background-sync configuration and enqueue commands use
+`smsBridgeCommand` to discard internal return values and resolve as Unit, matching
+the JavaScript `Promise<void>` contract. Expo converts Unit to null; it cannot
+serialize an arbitrary Kotlin `SmsSession`. Storage and scheduler failures still
+reject the promise. Session getters and token refresh use explicit maps.
+
+Release 0.1.9 (Android code 10) fixes the 0.1.8 sign-in rejection. Upgrade using
+the existing signing key to retain data. Native release tests cover the installed
+Expo converter, session persistence, scheduler result disposal and storage-error
+propagation. Run `:finance-sms-capture:testReleaseUnitTest` before release assembly
+and verify actual sign-in on a phone; a successful build alone cannot validate
+this JavaScript/native boundary.
+
 ## Privacy Guardrails
 
 - Do not enable broad sender patterns unless they are necessary.
@@ -154,6 +169,9 @@ closed-app SMS upload validation.
   permissions from real users.
 
 ## Troubleshooting
+
+- If sign-in reports `Unknown type: class ...SmsSession`, install release 0.1.9
+  or later over the existing app. This is a native command-result bug in 0.1.8.
 
 - If permission says unavailable, rebuild with `npx expo run:android`; Expo Go
   is not enough.
