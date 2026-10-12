@@ -672,11 +672,20 @@ refresh mounted ledger and summary screens without resetting selected filters.
 
 ## How can users compare a possible duplicate without remembering the original?
 
-Transfer match dialogs show the entry being reviewed beside suggested entries
-on desktop and above them on narrow screens. The current card reflects edited
-draft values, not the initial parser output. Both show the money-flow account
-path, amount, date, time and reference, with explicit missing-value labels and
-pending/recorded context. Credit drafts normalize to sender-to-receiver order.
+Transfer match dialogs pin the warning and entry being reviewed above a scrolling
+suggestion list. The enlarged viewport dialog keeps Cancel and Keep separate
+visible. The current card reflects edited draft values, not the initial parser
+output. Both show the money-flow account path, amount, date and time; references
+are hidden and missing times are explicit. Pending/recorded context remains.
+Credit drafts normalize to sender-to-receiver order.
 Saved-transfer Find match preserves time and reference. Linking still requires
 an explicit action; an error retains both sides for comparison. Compact SMS queue
 rows also retain visible local received time beside their received day.
+
+## How do edit dialogs avoid accidental dismissal and lost context?
+
+Shared viewport dialogs ignore backdrop clicks and pointer drags ending outside.
+Users close them with an explicit control or Escape, except while an action is
+busy. The enlarged transaction editor scrolls its form independently, keeping
+the account summary, linked-correction warning and validation errors in its
+fixed header. These changes preserve edited fields during incidental side clicks.

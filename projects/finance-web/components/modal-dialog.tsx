@@ -34,12 +34,7 @@ function DialogSurface({ children, labelledBy, className = "decision-modal", bus
   }, [initialFocus]);
   return (
     <dialog aria-labelledby={labelledBy} className={`${className} viewport-modal`} ref={dialog}
-      onCancel={(event) => { event.preventDefault(); if (!busy) onCancel(); }}
-      onClick={(event) => {
-        if (busy || event.target !== event.currentTarget) return;
-        const bounds = event.currentTarget.getBoundingClientRect();
-        if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onCancel();
-      }}>
+      onCancel={(event) => { event.preventDefault(); if (!busy) onCancel(); }}>
       {children}
     </dialog>
   );

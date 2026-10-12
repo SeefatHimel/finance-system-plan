@@ -699,6 +699,9 @@ export function TransactionWorkspace() {
                     ? "Manual entry is available for activity that did not arrive through mobile sync."
                     : "Correct the selected ledger entry without leaving your transaction list."}
                 </p>
+                {editorMode === "edit" ? <p className="transaction-editor-context"><strong>{accountNames.get(editingAccountId) ?? "Choose account"}</strong> · BDT {editingAmount || "—"} · {editingDate}{editingTime ? ` · ${editingTime.slice(0, 5)}` : ""}</p> : null}
+                {requiresLinkedCorrection ? <p className="transaction-editor-warning">This changes a linked ledger entry. Review its source evidence and confirm the correction before saving.</p> : null}
+                {formError ? <p className="form-error" role="alert">{formError}</p> : null}
               </div>
               <button
                 aria-label="Close transaction editor"
@@ -821,8 +824,6 @@ export function TransactionWorkspace() {
               <span className="field__label">Note</span>
               <input className="field__control" name="note" defaultValue={createDefaults?.note ?? ""} type="text" />
             </label>
-
-            {formError ? <p className="form-error field--wide">{formError}</p> : null}
 
             <button className="button button--primary field--wide" disabled={isSubmitting} type="submit">
               {isSubmitting ? <ButtonBusy label="Saving" /> : "Save transaction"}
@@ -1039,8 +1040,6 @@ export function TransactionWorkspace() {
             <button className="button button--ghost field--wide" disabled={isUpdating || (requiresLinkedCorrection && !allowLinkedCorrection)} type="submit">
               {isUpdating ? <ButtonBusy label="Updating" /> : "Update transaction"}
             </button>
-            {formError ? <p className="form-error field--wide">{formError}</p> : null}
-
           </form> : null}
         </ModalDialog>
       ) : null}

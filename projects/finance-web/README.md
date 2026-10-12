@@ -290,13 +290,21 @@ sends to it. Incoming SMS preselects the receiving account and Credit. The API
 normalizes both flows to canonical source/destination order. Matching never
 automatically changes the ledger.
 
-The match dialog keeps an Entry being reviewed card alongside suggested matches
-on desktop and above them on phones. It uses the submitted draft, including
-edited values, and shows the same account path, amount, date, time and reference
-as match cards. Missing times/references are explicit. Credit drafts are displayed
-in sender-to-receiver order; saved-transfer Find match retains its time and
-reference. Match reasons and whether the suggestion is pending or recorded stay
+The match dialog uses most of the viewport, up to 1100px wide. Its verification
+warning and Entry being reviewed card stay above an independently scrolling
+match list; Cancel and Keep separate remain at the bottom. Matches use two
+columns on desktop and one on phones. The submitted draft, including edited
+values, shows the same account path, amount, date and time as match cards.
+References are hidden in this comparison. Missing times are explicit. Credit
+drafts display sender-to-receiver order; saved-transfer Find match retains its
+time and reference for matching. Match reasons and pending/recorded context stay
 visible before the user links or keeps entries separate.
+
+The transaction Add/Edit dialog uses a viewport-height layout up to 1000px wide.
+Only its form scrolls; the header keeps the edited account/amount/date/time and
+linked-correction warnings or validation errors visible. Shared dialogs ignore
+backdrop clicks, including drags ending outside, to prevent accidental dismissal.
+Explicit close/cancel controls and Escape still dismiss while no action is busy.
 
 Linked account references remain searchable without returning duplicate rows.
 CSV exports append contextual `account_direction` and structured
