@@ -612,7 +612,7 @@ textarea {
 .audit-row {
   align-items: flex-start;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .audit-row__title {
@@ -631,6 +631,29 @@ textarea {
   cursor: pointer;
   font-weight: 750;
 }
+
+.audit-change-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+}
+
+.audit-change {
+  align-items: start;
+  background: var(--background);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(130px, 0.6fr) minmax(0, 1fr) auto minmax(0, 1fr);
+  overflow-wrap: anywhere;
+  padding: 10px 12px;
+}
+
+.audit-change__arrow { color: var(--accent-strong); font-weight: 700; }
+.audit-raw-details { margin-top: 12px; }
 
 .audit-snapshot-grid {
   display: grid;
@@ -1315,6 +1338,9 @@ textarea {
   .audit-metric-row {
     grid-template-columns: 1fr;
   }
+
+  .audit-change { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .audit-change strong { grid-column: 1 / -1; }
 
   .transaction-month-filter { grid-column: auto; }
 

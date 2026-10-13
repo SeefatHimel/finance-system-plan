@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { type AuditLogEntry, type AuditLogFilters, listAuditLogs } from "@/lib/api";
+import { auditFieldChanges } from "@/lib/audit-snapshot";
 import { getAccessToken } from "@/lib/auth-storage";
 import { LoadingState } from "@/components/loading-state";
 
@@ -71,16 +72,6 @@ function snapshotSummary(entry: AuditLogEntry) {
     return snapshotText(entry.before, "note") || snapshotText(entry.before, "counterparty_text") || "Deleted transaction";
   }
   return snapshotText(entry.after, "note") || snapshotText(entry.before, "note") || "Updated transaction";
-}
-
-function changedFields(entry: AuditLogEntry) {
-  if (!entry.before || !entry.after) {
-    return [];
-  }
-
-  return Array.from(new Set([...Object.keys(entry.before), ...Object.keys(entry.after)]))
-    .filter((key) => JSON.stringify(entry.before?.[key]) !== JSON.stringify(entry.after?.[key]))
-    .slice(0, 8);
 }
 
 function SnapshotBlock({ label, value }: { label: string; value: Record<string, unknown> | null }) {
@@ -282,7 +273,7 @@ export function AuditLogWorkspace() {
           {state.status === "ready" && entries.length > 0 ? (
             <div className="list-stack">
               {entries.map((entry) => {
-                const fields = changedFields(entry);
+                const changes = auditFieldChanges(entry.before, entry.after);
 
                 return (
                   <article className="list-row audit-row" key={entry.id}>
@@ -294,17 +285,44 @@ export function AuditLogWorkspace() {
                       <span className="list-row__meta">
                         {formatDateTime(entry.created_at)} · {entry.entity_type} · {entry.entity_id}
                       </span>
-                      {fields.length > 0 ? (
-                        <span className="list-row__meta">Changed: {fields.map(formatLabel).join(", ")}</span>
+                      {changes.length > 0 ? (
+                        <span className="list-row__meta">{changes.length} field{changes.length === 1 ? "" : "s"} changed</span>
                       ) : null}
                     </div>
 
                     <details className="audit-details">
-                      <summary>Snapshots</summary>
-                      <div className="audit-snapshot-grid">
-                        <SnapshotBlock label="Before" value={entry.before} />
-                        <SnapshotBlock label="After" value={entry.after} />
-                      </div>
+                      <summary>{changes.length > 0 ? `View changes (${changes.length})` : "View recorded values"}</summary>
+                      {changes.length > 0 ? (
+                        <>
+                          <ul className="audit-change-list">
+                            {changes.map((change) => (
+                              <li className="audit-change" key={change.key}>
+                                <strong>{change.field}:</strong>
+                                <span>{change.before}</span>
+                                <span aria-label="changed to" className="audit-change__arrow" role="img">→</span>
+                                <span>{change.after}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <details className="audit-raw-details">
+                            <summary>Full before and after snapshots</summary>
+                            <div className="audit-snapshot-grid">
+                              <SnapshotBlock label="Before" value={entry.before} />
+                              <SnapshotBlock label="After" value={entry.after} />
+                            </div>
+                          </details>
+                        </>
+                      ) : (
+                        <>
+                          <p className="list-row__meta">
+                            {entry.action === "created" ? "Transaction created." : entry.action === "deleted" ? "Transaction deleted." : "No field differences recorded."}
+                          </p>
+                          <div className="audit-snapshot-grid">
+                            <SnapshotBlock label="Before" value={entry.before} />
+                            <SnapshotBlock label="After" value={entry.after} />
+                          </div>
+                        </>
+                      )}
                     </details>
                   </article>
                 );

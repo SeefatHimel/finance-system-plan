@@ -20,7 +20,8 @@ The web app is scaffolded with:
 - Transaction filters for month, type, debit/credit direction, source, account, category, and search text
 - Transaction CSV export using the active filters
 - Web API input/filter typing reuses generated OpenAPI request and enum types
-- Per-transaction history links into the audit log viewer
+- Per-transaction history links into the audit log viewer, where updates show
+  changed fields as before → after values and full JSON snapshots remain expandable
 - Accounts page with account and category creation/listing/updating/deletion,
   derived ledger balances, and latest provider-reported balance evidence
 - SMS settings page with payment method and sender rule creation/listing/updating/deletion

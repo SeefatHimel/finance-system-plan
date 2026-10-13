@@ -274,7 +274,8 @@ account than the one they are inspecting.
 
 The audit logs page loads read-only audit entries from the Django API. It can
 filter by action, entity type, and entity id, summarizes create/update/delete
-counts, and shows expandable before/after snapshots for transaction changes. It
+counts, and shows changed transaction fields as before → after values. Full
+before/after JSON snapshots remain available for detail. It
 also reads URL query filters, so transaction rows can deep-link directly to
 their history.
 
