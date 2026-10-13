@@ -978,7 +978,11 @@ Real-device virtual keyboards and screen-reader announcements still need manual 
 
 The SMS inbox heading, pending count, reapply action and received-date controls
 share one wrapping toolbar. Guidance is available through the adjacent info
-control. Edit/Undo remains a separate recovery row below it. On small screens,
+control. Last action uses a compact, borderless line with Edit/Undo beside its
+label, wrapping only when needed. Touch buttons retain 44px targets. On small screens,
 controls wrap within the panel instead of adding another full-width section.
 Focus uses the same mounted date controls while hiding the normal inbox heading,
 bulk actions and recovery row; switching layouts preserves custom-date drafts.
+
+The same compact Last action presentation is shared by SMS review and Transactions.
+Its latest-action eligibility, busy/expired states and help tooltip are unchanged.

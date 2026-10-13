@@ -846,6 +846,7 @@ This changes presentation, not matching, amounts, balances or ledger calculation
 
 They belong to the same inbox controls and can share a wrapping toolbar, reducing
 separate panel padding and gaps. The heading retains guidance through an accessible
-info control; queue count and reapply remain available. Edit/Undo stays a distinct
-row to avoid confusing recovery with filtering. Focus keeps the same date-control
+info control; queue count and reapply remain available. Last action and Edit/Undo
+share a compact borderless line, distinct from filtering, with natural wrapping
+and 44px touch targets. Focus keeps the same date-control
 instance mounted, so an unfinished custom range survives entering/exiting Focus.

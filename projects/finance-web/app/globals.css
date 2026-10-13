@@ -3145,8 +3145,13 @@ textarea {
 .toast__actions button { background: transparent; border: 0; border-radius: 4px; color: #49e0a4; cursor: pointer; font-weight: 750; min-height: 32px; padding: 4px 8px; }
 .toast__actions button:hover, .toast__actions button:focus-visible { background: rgb(73 224 164 / 12%); outline: 2px solid #49e0a4; outline-offset: 2px; }
 @media (pointer: coarse) { .action-toast button { min-height: 44px; min-width: 44px; } }
-.recent-action { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px; margin: 12px 0; border: 1px solid var(--panel-border); border-radius: 8px; }
-.recent-action__buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.recent-action { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 4px 8px; padding: 2px 0; margin: 0; font-size: 13px; color: var(--muted); }
+.recent-action > span { min-width: 0; overflow-wrap: anywhere; }
+.recent-action strong { color: var(--foreground); }
+.recent-action .button { min-height: 32px; padding: 4px 8px; border-color: transparent; background: transparent; font-size: 13px; }
+.recent-action .button:hover:not(:disabled) { background: #20364b; }
+@media (pointer: coarse) { .recent-action .button { min-height: 44px; min-width: 44px; } }
+.recent-action__buttons { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
 
 /* Compact date/time groups wrap according to available space and text size. */
 .transaction-datetime { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px; min-width: 0; max-width: 30rem; }
