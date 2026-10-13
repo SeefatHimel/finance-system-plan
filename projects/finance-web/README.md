@@ -906,9 +906,9 @@ range that returns no matches keeps Focus open so those controls remain availabl
 Focus changes layout in place: the workspace and current form are not moved to a
 portal, cloned or remounted. Browser-managed text/date/time values, controlled
 account/category/balance choices, checkboxes and open evidence sections survive
-entering/exiting. Native fields reset when moving to another message; amount,
-account and classification drafts are retained per candidate until re-parsing or
-leaving the workspace. Toggling Focus never saves, fetches or re-runs parsing.
+entering/exiting. Drafts remain scoped to each candidate, including native text/date/time fields
+and the remember-choice checkbox. They survive changing messages and temporarily
+filtering an entry out, and reset after re-parsing or leaving the workspace. Toggling Focus never saves, fetches or re-runs parsing.
 Queue filters remain intact and usable; this temporary mode is not persisted across reloads.
 Updating search results keeps keyboard focus in the search field. The selected
 message is scrolled into view when the workspace or small-screen queue expands.
@@ -1018,8 +1018,28 @@ uses the current draft and never adds an entry merely by searching or returning
 to review. Accepting a match is an explicit confirmation. Existing confirmation
 and per-account conflicting-balance choices remain unchanged.
 
-Verification: all 45 web tests, lint, typecheck and production build pass. Chrome
-with isolated synthetic data confirmed Focus draft preservation and exposed the
-new status/filter controls. The native Chrome connection became inconsistent
-during responsive interactions; complete small-screen visual QA remains to be
-confirmed. No live financial records were modified.
+Verification: all 47 web tests, typecheck, lint and production build pass. Chrome
+with isolated synthetic data covered 400×740 and 320×568 layouts, percentage bands,
+custom ranges/validation, empty daily results and recovery, queue visibility, and
+draft restoration after date filtering. Native Chrome fullscreen caused delayed
+UI controls; testing outside fullscreen restored reliable interaction. Console
+connection errors were observed at document line 1; no framework error overlay
+appeared, and the application does not call Chrome extension messaging APIs.
+Actual phone keyboards and other browsers remain outside this desktop-emulation
+check. No live financial records were modified.
+
+### Small-screen SMS review behavior
+
+Entering Focus at widths up to 820px starts with the message queue hidden, leaving
+space for the current editor. Show/Hide messages remains available in the header;
+its choice persists during that Focus session. Wider screens start with the queue
+visible. Compact date controls and status/action summaries retain 44px touch
+targets. Filter fields scroll independently of the fixed Clear/Done controls.
+
+Native transaction fields (date/time, counterparty, reference, note and masked
+identifiers) and the remember-choice checkbox now retain page-local drafts per
+candidate. Switching messages or filtering a candidate out restores those values
+when it returns. Drafts are not stored in browser storage or submitted by
+navigation. Re-running the parser resets that message's draft and refreshes its
+form; bulk re-parsing resets all pending drafts. Account-bound balances continue
+to use their existing controlled behavior.

@@ -795,8 +795,10 @@ browser storage falls back to the default view.
 It expands the same mounted workspace (dates, queue and editor); changing Focus never moves
 fields into a new modal/portal or changes their keys. Native input values,
 controlled choices, checkboxes and evidence disclosure state therefore survive
-entering/exiting. Candidate keys reset native fields when changing messages; amount, account and
-classification drafts stay scoped to each candidate until re-parsing or leaving. Focus itself performs no API mutation.
+entering/exiting. Candidate keys switch the rendered form when changing messages, while sparse
+page-local native-field and checkbox drafts restore edits when the message
+returns. Amount, account and classification drafts remain candidate-scoped too;
+re-parsing or leaving resets them. Focus itself performs no API mutation.
 
 App chrome and other background controls are hidden/inert. The queue, search,
 filters and received-date controls stay interactive, with a persistent Exit control,
@@ -871,3 +873,21 @@ notes and related-transfer hints. A nearby disclosure exposes message actions.
 Find transfer match submits a lookup for the current draft, without confirming it
 when no match exists or the user returns to review. Linking still requires an
 explicit acceptance and per-account balance-conflict choices where needed.
+
+### What changed after testing SMS Focus on phones?
+
+Chrome checks at 400×740 and 320×568 found that the visible queue and status
+summary crowded the editor, filter completion buttons required scrolling, and
+empty date results discarded native input edits. Focus now starts with the queue
+hidden up to 820px, uses compact date/status/message-action controls, and keeps
+Clear/Done outside the filter-fields scroll area. The queue toggle preserves the
+mounted editor and is still available at every screen size.
+
+A sparse in-memory draft cache restores native text/date/time fields and the
+remember-choice checkbox per candidate after navigation or temporary filter
+exclusion. It never writes to localStorage or sends edits on navigation. Parser
+re-runs clear the affected drafts and increment the form revision so refreshed
+parser values replace dirty native inputs. Controlled account/amount/category and
+account-bound balance logic remain separate. Tests cover empty strings, unchecked
+choices, message isolation and single/bulk draft reset. Desktop Chrome emulation
+cannot establish actual mobile soft-keyboard behavior or other-browser coverage.

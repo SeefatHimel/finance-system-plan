@@ -5,7 +5,7 @@ const { mkdtempSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const output = mkdtempSync(join(tmpdir(), 'finance-review-feedback-'));
-execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/review-status.ts', 'lib/form-feedback.ts', 'lib/review-filters.ts'], { cwd: resolve(__dirname, '..') });
+execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/review-status.ts', 'lib/form-feedback.ts', 'lib/review-filters.ts', 'lib/review-drafts.ts'], { cwd: resolve(__dirname, '..') });
 const { reviewFieldErrors, reviewNotes, validReviewCount } = require(join(output, 'review-status.js'));
 const { RequestError, responseError } = require(join(output, 'api-errors.js'));
 const { fieldErrorsFrom, focusFieldError, nativeFieldErrors } = require(join(output, 'form-feedback.js'));
@@ -112,4 +112,31 @@ test('match lookup eligibility follows explicit type corrections and source hint
   const incoming = { ...message, transaction_type: 'income', message_kind: 'bank_transfer_in' };
   assert.equal(canFindTransferMatch(incoming, { ...valid, type: 'income' }), true);
   assert.equal(canFindTransferMatch(incoming, { ...valid, type: 'expense' }), false);
+});
+
+const { createReviewDrafts } = require(join(output, 'review-drafts.js'));
+test('temporary filter exclusion and message navigation retain sparse native drafts without cross-message leakage', () => {
+  const drafts = createReviewDrafts();
+  drafts.capture('first', 'reference', 'SYNTHETIC-DRAFT');
+  drafts.capture('first', 'note', '');
+  drafts.capture('first', 'date', '2026-01-02');
+  drafts.capture('first', 'remember_mapping', false);
+  assert.equal(drafts.text('first', 'reference', 'parsed'), 'SYNTHETIC-DRAFT');
+  assert.equal(drafts.text('first', 'note', 'parsed'), '');
+  assert.equal(drafts.text('first', 'date', 'parsed'), '2026-01-02');
+  assert.equal(drafts.remember('first'), false);
+  assert.equal(drafts.text('second', 'reference', 'other parsed'), 'other parsed');
+  assert.equal(drafts.remember('second'), true);
+});
+test('parser resets discard only their own drafts; bulk resets and new workspaces retain no previous edits', () => {
+  const drafts = createReviewDrafts();
+  drafts.capture('first', 'reference', 'first edit'); drafts.capture('second', 'reference', 'second edit');
+  drafts.capture('second', 'amount', '123'); drafts.capture('second', 'balance_after', '999');
+  drafts.reset('first');
+  assert.equal(drafts.text('first', 'reference', 'refreshed'), 'refreshed');
+  assert.equal(drafts.text('second', 'reference', 'parsed'), 'second edit');
+  assert.equal(drafts.text('second', 'balance_after', 'account-bound balance'), 'account-bound balance');
+  assert.equal(drafts.text('second', 'amount', 'controlled amount'), 'controlled amount');
+  drafts.reset(); assert.equal(drafts.text('second', 'reference', 'refreshed'), 'refreshed');
+  assert.equal(createReviewDrafts().text('second', 'reference', 'new session'), 'new session');
 });

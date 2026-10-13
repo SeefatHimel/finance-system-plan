@@ -3326,3 +3326,29 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
   .review-workspace--focus .review-focus-header__actions .button { min-width: 44px; padding: 8px; }
   .review-workspace--focus .review-focus-header__actions .button span { display: none; }
 }
+
+/* Phone QA: preserve field space and keep filter completion controls reachable. */
+.review-filter-dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+.review-filter-dialog > h2, .review-filter-dialog > p, .review-filter-dialog > .decision-modal__actions { flex-shrink: 0; }
+.review-filter-content { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding-right: 4px; }
+.review-filter-dialog > .decision-modal__actions { background: var(--panel); border-top: 1px solid var(--panel-border); margin-top: 12px; padding-top: 12px; }
+.review-message-actions > summary { align-items: center; display: flex; gap: 6px; }
+@media (max-width: 820px) {
+  .review-workspace--focus .date-period-mode { flex-wrap: nowrap; min-width: 0; width: 100%; }
+  .review-workspace--focus .date-period-mode .field__control { flex: 1; min-width: 0; min-height: 44px; }
+  .review-workspace--focus .review-detail__header { padding: 8px 12px; }
+  .review-workspace--focus .review-detail__summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
+  .review-workspace--focus .review-card__eyebrow { font-size: 11px; overflow-wrap: anywhere; }
+  .review-workspace--focus .review-summary-meta { grid-column: 1 / -1; gap: 0 10px; font-size: 12px; align-items: center; }
+  .review-workspace--focus .review-summary-meta .help-trigger { height: 44px; width: 44px; }
+  .review-workspace--focus .review-issue-bar { flex-wrap: nowrap; align-items: center; padding: 8px 12px; }
+  .review-workspace--focus .review-issue-bar > div { gap: 2px; }
+  .review-workspace--focus .review-message-actions { width: auto; max-width: 100%; flex-shrink: 0; }
+  .review-workspace--focus .review-message-actions:not([open]) > summary { width: 44px; height: 44px; justify-content: center; padding: 0; }
+  .review-workspace--focus .review-message-actions:not([open]) > summary span { display: none; }
+  .review-workspace--focus .review-issue-bar:has(.review-message-actions[open]) { flex-wrap: wrap; }
+  .review-workspace--focus .review-message-actions[open] { width: 100%; }
+  .review-filter-dialog { padding: 18px; }
+  .review-filter-dialog > h2 { font-size: 20px; padding-right: 36px; }
+  .review-filter-dialog > p { margin-block: 8px 0; font-size: 13px; }
+}
