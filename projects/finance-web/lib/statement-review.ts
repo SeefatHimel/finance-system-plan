@@ -4,14 +4,14 @@ type LinkReview = {
   requiresAcknowledgement: boolean;
   issuesAcknowledged: boolean;
   conflict: boolean;
-  conflictAcknowledged: boolean;
+  balanceChosen: boolean;
 };
 
 export function statementLinkBlockReason(review: LinkReview): string | null {
   if (review.dirty) return "Save your draft to refresh matches first.";
   if (!review.canLink) return "This entry cannot be linked. Refresh the match suggestions.";
   if (review.requiresAcknowledgement && !review.issuesAcknowledged) return "Review and acknowledge the source discrepancies above.";
-  if (review.conflict && !review.conflictAcknowledged) return "Review and acknowledge this balance difference.";
+  if (review.conflict && !review.balanceChosen) return "Choose which reported balance to keep for this match.";
   return null;
 }
 

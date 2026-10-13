@@ -8,16 +8,16 @@ const output = mkdtempSync(join(tmpdir(), 'finance-statement-review-'));
 execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/statement-review.ts'], { cwd: resolve(__dirname, '..') });
 const { statementLinkBlockReason, statementBalanceDifference } = require(join(output, 'statement-review.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
-const ready = { dirty: false, canLink: true, requiresAcknowledgement: false, issuesAcknowledged: false, conflict: false, conflictAcknowledged: false };
+const ready = { dirty: false, canLink: true, requiresAcknowledgement: false, issuesAcknowledged: false, conflict: false, balanceChosen: false };
 
-test('linking requires fresh saved matches and applicable source/balance acknowledgments', () => {
+test('linking requires fresh saved matches, source acknowledgement and a balance choice', () => {
   assert.equal(statementLinkBlockReason(ready), null);
-  assert.match(statementLinkBlockReason({ ...ready, dirty: true, conflictAcknowledged: true }), /Save your draft/);
-  assert.match(statementLinkBlockReason({ ...ready, canLink: false, conflictAcknowledged: true }), /cannot be linked/);
-  assert.match(statementLinkBlockReason({ ...ready, requiresAcknowledgement: true, conflictAcknowledged: true }), /source discrepancies/);
-  assert.match(statementLinkBlockReason({ ...ready, conflict: true, issuesAcknowledged: true }), /balance difference/);
-  assert.equal(statementLinkBlockReason({ ...ready, requiresAcknowledgement: true, issuesAcknowledged: true, conflict: true, conflictAcknowledged: true }), null);
-  // A non-conflicting alternative needs no balance acknowledgment.
+  assert.match(statementLinkBlockReason({ ...ready, dirty: true, balanceChosen: true }), /Save your draft/);
+  assert.match(statementLinkBlockReason({ ...ready, canLink: false, balanceChosen: true }), /cannot be linked/);
+  assert.match(statementLinkBlockReason({ ...ready, requiresAcknowledgement: true, balanceChosen: true }), /source discrepancies/);
+  assert.match(statementLinkBlockReason({ ...ready, conflict: true, issuesAcknowledged: true }), /Choose which reported balance/);
+  assert.equal(statementLinkBlockReason({ ...ready, requiresAcknowledgement: true, issuesAcknowledged: true, conflict: true, balanceChosen: true }), null);
+  // A non-conflicting alternative needs no balance choice.
   assert.equal(statementLinkBlockReason({ ...ready, issuesAcknowledged: true }), null);
 });
 

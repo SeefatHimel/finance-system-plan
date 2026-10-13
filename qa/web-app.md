@@ -902,3 +902,23 @@ parser values replace dirty native inputs. Controlled account/amount/category an
 account-bound balance logic remain separate. Tests cover empty strings, unchecked
 choices, message isolation and single/bulk draft reset. Desktop Chrome emulation
 cannot establish actual mobile soft-keyboard behavior or other-browser coverage.
+
+### How does statement review resolve conflicting reported balances?
+
+Each possible match compares the statement draft with the existing transaction.
+When balances differ, the user must choose the current ledger report or the
+statement report; Accept remains disabled until the choice and any required
+source acknowledgment are complete. Choices belong to one match and exact
+reviewed values/version, and reset after saving. The modal uses desktop space for
+a side-by-side comparison, stacks on phones, and keeps its decision footer visible.
+The choice changes a reported balance, never the movement amount or money count.
+
+
+### How can users fill or improve transaction details when accepting a statement match?
+
+Each match has an expandable metadata comparison with editable proposed values.
+The fill-missing shortcut selects only empty fields with statement evidence.
+Nonempty replacements must be explicitly selected; acceptance applies only those
+fields. Clean merchant suggestions remove anchored card-purchase labels while
+preserving source text, merchant names and user edits. Date/time and financial
+identity stay unchanged, and full identifiers are masked before transmission.

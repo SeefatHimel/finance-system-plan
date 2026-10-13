@@ -1510,10 +1510,13 @@ const savedStatementSchema = z.object({
   opening_balance: z.string().nullable(), closing_balance: z.string().nullable(), checks: statementPreviewSchema.shape.checks, warnings: z.array(z.string()),
   counts: z.object({ total: z.number(), pending: z.number(), posted: z.number(), linked: z.number(), skipped: z.number() }), created_at: z.string(), updated_at: z.string()
 });
+const statementDetailFieldSchema = z.enum(["counterparty_text", "reference", "note", "sender_account_identifier", "sender_card_identifier", "receiver_account_identifier", "receiver_card_identifier"]);
+const statementDetailSuggestionSchema = z.object({ field: statementDetailFieldSchema, label: z.string(), existing_value: z.string(), suggested_value: z.string() });
 const statementMatchSchema = z.object({
   strength: z.enum(["strong", "possible"]).default("possible"), merchant_similarity: z.number().default(0), time_difference_minutes: z.number().nullable().default(null),
   id: z.string(), date: z.string(), time: z.string().nullable(), type: z.string(), source: z.string(), amount: z.string(), account_name: z.string(),
   transfer_account_name: z.string().nullable(), category_name: z.string().nullable(), reference: z.string(), note: z.string(), balance_after: z.string().nullable(),
+  effective_balance_after: z.string().nullable(), detail_suggestions: z.array(statementDetailSuggestionSchema),
   conflict: z.boolean(), can_link: z.boolean(), reasons: z.array(z.string())
 });
 const savedStatementRowSchema = z.object({
@@ -1529,10 +1532,12 @@ const statementHistorySchema = z.object({ count: z.number(), next: z.string().nu
 export type SavedStatement = z.infer<typeof savedStatementSchema>;
 export type SavedStatementRow = z.infer<typeof savedStatementRowSchema>;
 export type StatementMatch = z.infer<typeof statementMatchSchema>;
+export type StatementDetailSuggestion = z.infer<typeof statementDetailSuggestionSchema>;
+export type StatementDetailChoice = { field: StatementDetailSuggestion["field"]; existing_value: string; value: string };
 export type StatementRowPage = z.infer<typeof statementRowPageSchema>;
 export type StatementHistory = z.infer<typeof statementHistorySchema>;
 export type StatementRowEdit = Pick<SavedStatementRow, "version" | "date" | "time" | "value_date" | "direction" | "amount" | "balance_after" | "type" | "other_account" | "category" | "reference" | "counterparty_text" | "note" | "classification_confirmed">;
-export type StatementDecision = { action: "create" | "link" | "skip" | "unlink" | "reopen"; version: number; transaction?: string; remember_choices?: boolean; allow_separate?: boolean; acknowledge_issues?: boolean; acknowledge_conflict?: boolean };
+export type StatementDecision = { action: "create" | "link" | "skip" | "unlink" | "reopen"; version: number; transaction?: string; remember_choices?: boolean; allow_separate?: boolean; acknowledge_issues?: boolean; acknowledge_conflict?: boolean; balance_choice?: { keep: "existing" | "statement"; existing_balance_after: string | null; statement_balance_after: string | null }; detail_choices?: StatementDetailChoice[] };
 
 export async function createStatementImport(token: string, account: string, file: File, password: string, signal?: AbortSignal): Promise<SavedStatement> {
   const body = new FormData(); body.set("account", account); body.set("file", file); if (password) body.set("password", password);

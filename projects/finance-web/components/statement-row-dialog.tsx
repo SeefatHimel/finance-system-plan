@@ -4,6 +4,8 @@ import { useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { StatementMatchComparison } from "@/components/statement-match-comparison";
 import { statementLinkBlockReason } from "@/lib/statement-review";
+import { currentStatementBalanceChoice, type StatementBalanceSelection } from "@/lib/statement-balance-choice";
+import { selectedStatementDetails, type DetailSelections } from "@/lib/statement-details";
 import { ModalDialog } from "@/components/modal-dialog";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { useToast } from "@/components/toast-provider";
@@ -26,7 +28,8 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ackIssues, setAckIssues] = useState(false);
-  const [acknowledgedMatches, setAcknowledgedMatches] = useState<Record<string, boolean>>({});
+  const [balanceSelections, setBalanceSelections] = useState<Record<string, StatementBalanceSelection>>({});
+  const [detailSelections, setDetailSelections] = useState<Record<string, { version: number; values: DetailSelections }>>({});
   const [confirmSeparate, setConfirmSeparate] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const isResolved = Boolean(row.transaction) || row.state === "skipped";
@@ -41,11 +44,11 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     setError(message); notify(message, "error");
   }
   async function save(next = false) {
-    const token = getAccessToken(); if (!token || busy) return;
+    const token = getAccessToken(); if (!token || busy || !dirty || isResolved) return;
     setBusy(true); setError(null);
     try {
       const result = await updateStatementRow(token, row.id, draft);
-      setDraft(editable(result)); setAckIssues(false); setAcknowledgedMatches({});
+      setDraft(editable(result)); setAckIssues(false); setBalanceSelections({}); setDetailSelections({});
       onChange(result, false); if (next) await onNext(); notify("Draft saved. Match suggestions refreshed; no ledger changes yet.");
     } catch (reason) { showError(reason); } finally { setBusy(false); }
   }
@@ -57,13 +60,16 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
   async function decide(action: StatementDecision["action"], transaction?: string, separate = false) {
     const token = getAccessToken(); if (!token || busy) return;
     const match = row.review.matches.find((item) => item.id === transaction);
+    const balanceChoice = match ? currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version) : undefined;
+    const selections = match && detailSelections[match.id]?.version === row.version ? detailSelections[match.id].values : {};
+    const detailResult = match ? selectedStatementDetails(match.detail_suggestions, selections) : { choices: [], error: null };
     if (action === "link") {
-      const blocked = match ? statementLinkBlockReason({ dirty, canLink: match.can_link, requiresAcknowledgement: row.review.requires_acknowledgement, issuesAcknowledged: ackIssues, conflict: match.conflict, conflictAcknowledged: Boolean(acknowledgedMatches[match.id]) }) : "Refresh the match suggestions.";
+      const blocked = match ? detailResult.error ?? statementLinkBlockReason({ dirty, canLink: match.can_link, requiresAcknowledgement: row.review.requires_acknowledgement, issuesAcknowledged: ackIssues, conflict: match.conflict, balanceChosen: Boolean(balanceChoice) }) : "Refresh the match suggestions.";
       if (blocked) { showError(new Error(blocked)); return; }
     }
     setBusy(true); setError(null);
     try {
-      const result = await decideStatementRow(token, row.id, { action, version: row.version, transaction, remember_choices: rememberChoices, allow_separate: separate, acknowledge_issues: ackIssues, acknowledge_conflict: Boolean(transaction && acknowledgedMatches[transaction]) });
+      const result = await decideStatementRow(token, row.id, { action, version: row.version, transaction, remember_choices: rememberChoices, allow_separate: separate, acknowledge_issues: ackIssues, acknowledge_conflict: Boolean(balanceChoice), balance_choice: action === "link" ? balanceChoice : undefined, detail_choices: action === "link" ? detailResult.choices : undefined });
       onChange(result, true);
       const messages = { create: "Transaction added from the statement.", link: "Statement evidence linked. The transaction is counted once.", skip: "Statement row skipped.", unlink: "Statement evidence unlinked. The ledger transaction was kept.", reopen: "Skipped row reopened for review." };
       notify(messages[action]);
@@ -118,15 +124,17 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         {row.review.requires_acknowledgement && !isResolved ? <label className="review-remember"><input type="checkbox" checked={ackIssues} disabled={busy || dirty} onChange={(e) => setAckIssues(e.target.checked)} /><span>I reviewed the source and saved draft discrepancies and confirm the values being recorded.</span></label> : null}
         {!isResolved && row.review.matches.length ? <section className="statement-matches" aria-labelledby="statement-matches-title">
           <h3 id="statement-matches-title">Possible matches</h3>
-          <p className="inline-note">Compare the same movement. Linking counts it once and keeps the existing ledger details.</p>
+          <p className="inline-note">Compare the same movement. Linking counts it once; selected balance and detail changes are reviewed before acceptance.</p>
           <div className="statement-match-list">{row.review.matches.map((match) => <StatementMatchComparison key={match.id}
             row={row} batch={batch} match={match} accounts={accounts} categories={categories}
             busy={busy} dirty={dirty} issuesAcknowledged={ackIssues}
-            conflictAcknowledged={Boolean(acknowledgedMatches[match.id])}
-            onAcknowledge={(checked) => setAcknowledgedMatches((old) => ({ ...old, [match.id]: checked }))}
+            balanceChoice={currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version)}
+            detailSelections={detailSelections[match.id]?.version === row.version ? detailSelections[match.id].values : {}}
+            onBalanceChoice={(keep) => setBalanceSelections((old) => ({ ...old, [match.id]: { keep, version: row.version, existing_balance_after: match.effective_balance_after, statement_balance_after: row.balance_after } }))}
+            onDetailChange={(values) => setDetailSelections((old) => ({ ...old, [match.id]: { version: row.version, values } }))}
             onAccept={() => void decide("link", match.id)} />)}</div>
         </section> : null}
-        {error ? <div><p role="alert" className="form-error">{error}</p><button className="button" type="button" disabled={busy} onClick={() => { dismiss(); onReload(); }}>Reload row · discard unsaved changes</button></div> : null}
+        {error ? <div><p role="alert" className="form-error">{error}</p><button className="button" type="button" disabled={busy} onClick={() => { dismiss(); setDraft(editable(row)); setBalanceSelections({}); setDetailSelections({}); setAckIssues(false); setError(null); onReload(); }}>Reload row · discard unsaved changes</button></div> : null}
       </div>
       <footer className="statement-row-footer" onKeyDown={handleShortcuts}>
         {dirty ? <p className="inline-note" role="status">Save draft changes before deciding.</p> : null}

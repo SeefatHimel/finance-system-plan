@@ -577,8 +577,10 @@ reuse the existing confirmation flow and preserve reported balance, including
 zero. Save draft changes before accepting a match or adding. Possible matches
 show their evidence; accepting counts one existing movement and preserves its
 corrections. Adding despite suggestions requires a separate-movement confirmation.
-Source discrepancies and balance conflicts require acknowledgement. Inline wallet
-fees have independent review rows.
+Source discrepancies require acknowledgement. A reported-balance conflict
+requires choosing the ledger or statement value for that account. Suggested
+merchant, reference, note, and masked identifiers can be edited and selected
+before accepting. Inline wallet fees have independent review rows.
 
 Resolved rows can be reopened (skipped) or unlinked; unlinking leaves the ledger
 entry. Make ledger corrections in Transactions, where linked original statement
@@ -1055,3 +1057,33 @@ when it returns. Drafts are not stored in browser storage or submitted by
 navigation. Re-running the parser resets that message's draft and refreshes its
 form; bulk re-parsing resets all pending drafts. Account-bound balances continue
 to use their existing controlled behavior.
+
+## Reviewed statement detail enrichment
+
+Possible matches expose `detail_suggestions` for merchant/counterparty, reference,
+note, and masked sender/receiver account/card identifiers. “Fill missing details
+from statement” selects only empty fields with a nonempty suggestion. Existing
+values stay untouched unless the user explicitly selects a replacement; proposed
+values can be edited before accepting the match. No field is selected by default.
+Selections apply atomically with linking via `StatementDecision.detail_choices`,
+which includes each field's exact reviewed `existing_value` and desired `value`.
+Changed ledger values return 409 without partial updates; unsupported financial
+fields and duplicate selections are rejected. Identifier edits are masked before
+transmission and again before persistence. Choices and before/after values are
+audited. Unlinking or rescanning confirmed SMS does not undo these corrections.
+
+New statement drafts strip anchored labels such as “CARD PURCHASE” and “PURCHASE
+CARD” from the merchant field while retaining the original masked description.
+Merchant case/punctuation and manually saved draft corrections are preserved.
+References and explicitly labelled identifier metadata are excluded from merchant
+suggestions. The statement header identifies only the reporting account; transfer
+counterpart identifiers need explicit sender/receiver evidence. Ambiguous values
+remain empty. Payment methods, accounts, classifications, amount, date and time
+are not changed by this metadata shortcut. No new database migration is required;
+deploy web and API together.
+
+Existing pending imports get these suggestions when their rows are reopened after
+deployment; they do not need to be uploaded again. The shortcut never posts or
+changes a ledger entry by itself. A previously saved merchant correction remains
+the proposal, and a nonempty ledger value still needs an explicit replacement
+selection. Rows already linked or added are not retroactively rewritten.
