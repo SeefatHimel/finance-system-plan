@@ -4,7 +4,8 @@ import { HelpTooltip } from "@/components/help-tooltip";
 import { useAuth } from "@/components/auth-provider";
 import { FieldError } from "@/components/field-error";
 import { fieldErrorsFrom, focusFieldError, nativeFieldErrors } from "@/lib/form-feedback";
-import { publishReviewCount, reviewFieldErrors, reviewNotes, type ReviewValues } from "@/lib/review-status";
+import { publishReviewCount, reviewFieldErrors, type ReviewValues } from "@/lib/review-status";
+import { canFindTransferMatch, confidenceBands, confidenceRangeError, confidenceValue, hasOriginalSms, matchesConfidence, matchesReviewCondition, reviewConditions, reviewSummary, type ConfidenceBand, type ReviewCondition } from "@/lib/review-filters";
 import { RecentTransactionAction, useTransactionRecovery } from "@/components/transaction-recovery";
 
 import { DatePeriodControls } from "@/components/date-period-controls";
@@ -12,7 +13,7 @@ import { allDates, dateInPeriod, type DatePeriod } from "@/lib/date-period";
 
 import { useFeedbackMessage } from "@/components/toast-provider";
 
-import { ArrowClockwise, ArrowLeft, ArrowRight, ArrowsLeftRight, CheckCircle, CornersIn, CornersOut, FunnelSimple, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowLeft, ArrowRight, ArrowsLeftRight, CheckCircle, CornersIn, CornersOut, FunnelSimple, Info, List, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -94,23 +95,11 @@ function timeInputFromTimestamp(value: string) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+const confidenceFormatter = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
+
 function confidencePercent(value: string) {
-  const score = Number(value);
-  return Number.isNaN(score) ? "Unknown" : `${Math.round(score * 100)}%`;
-}
-
-function confidenceLabel(value: string) {
-  const score = Number(value);
-  if (Number.isNaN(score)) return "Unknown confidence";
-  if (score >= 0.85) return "High confidence";
-  if (score >= 0.65) return "Medium confidence";
-  return "Low confidence";
-}
-
-function reviewReason(candidate: ParsedMessageCandidate, issues: string[]) {
-  if (candidate.raw_message.duplicate_of) return "Possible duplicate message";
-  if (candidate.related_match_reason) return candidate.related_match_reason;
-  return issues.length ? issues.join(" · ") : "Ready for confirmation";
+  const percent = confidenceValue(value);
+  return percent === null ? "Unknown" : `${confidenceFormatter.format(percent)}%`;
 }
 
 function normalizedNote(candidate: ParsedMessageCandidate) {
@@ -129,7 +118,7 @@ export function MessageReviewWorkspace() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const feedback = (field: string) => ({ "aria-invalid": Boolean(fieldErrors[field]), "aria-describedby": fieldErrors[field] ? `review-error-${field}` : undefined });
   const confirmInFlight = useRef(false);
-  const [transferDecision, setTransferDecision] = useState<{ candidate: ParsedMessageCandidate; input: ConfirmMessageCandidateInput; matches: TransferMatch[] } | null>(null);
+  const [transferDecision, setTransferDecision] = useState<{ candidate: ParsedMessageCandidate; input: ConfirmMessageCandidateInput; matches: TransferMatch[]; lookupOnly?: boolean } | null>(null);
   const [paymentMethodDrafts, setPaymentMethodDrafts] = useState<Record<string, string>>({});
   const [accountDrafts, setAccountDrafts] = useState<Record<string, ReturnType<typeof accountReviewDefaults>>>({});
   const [matchError, setMatchError] = useFeedbackMessage("error");
@@ -137,6 +126,7 @@ export function MessageReviewWorkspace() {
   const [activeCandidateId, setActiveCandidateId] = useState("");
   const [actionError, setActionError] = useFeedbackMessage("error");
   const [actionMessage, setActionMessage] = useFeedbackMessage("success");
+  const [lookupInProgress, setLookupInProgress] = useState(false);
   const [workingCandidateId, setWorkingCandidateId] = useState<string | null>(null);
   const [reprocessingCandidateId, setReprocessingCandidateId] = useState<string | null>(null);
   const [isBulkReprocessing, setIsBulkReprocessing] = useState(false);
@@ -149,7 +139,12 @@ export function MessageReviewWorkspace() {
   const [amountDrafts, setAmountDrafts] = useState<Record<string, string>>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [providerFilter, setProviderFilter] = useState("all");
-  const [issueFilter, setIssueFilter] = useState("all");
+  const [issueFilter, setIssueFilter] = useState<ReviewCondition>("all");
+  const [confidenceFilter, setConfidenceFilter] = useState<ConfidenceBand>("all");
+  const [confidenceMin, setConfidenceMin] = useState("");
+  const [confidenceMax, setConfidenceMax] = useState("");
+  const [accountFilter, setAccountFilter] = useState("all");
+  const [directionFilter, setDirectionFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [rejectDraft, setRejectDraft] = useState<RejectDraft | null>(null);
@@ -206,10 +201,6 @@ export function MessageReviewWorkspace() {
     const classification = classificationDrafts[candidate.id];
     return { account: account.account, other: account.other, amount: amountDrafts[candidate.id] ?? candidate.amount ?? "", type: classification?.type ?? candidate.transaction_type, category: classification?.category ?? candidate.category ?? "" };
   }, [accountDrafts, amountDrafts, classificationDrafts]);
-  function candidateIssues(candidate: ParsedMessageCandidate) {
-    const values = valuesFor(candidate);
-    return [...Object.values(reviewFieldErrors(values)), ...reviewNotes(candidate.confidence, values.category, values.type)];
-  }
   const filteredCandidates = useMemo(() => {
     if (reviewState.status !== "ready") return [];
     const normalizedQuery = query.trim().toLowerCase();
@@ -219,19 +210,24 @@ export function MessageReviewWorkspace() {
       if (typeFilter !== "all" && candidate.transaction_type !== typeFilter) return false;
       if (categoryFilter === "uncategorized" && candidate.category) return false;
       if (categoryFilter !== "all" && categoryFilter !== "uncategorized" && candidate.category !== categoryFilter) return false;
-      const issues = Object.keys(reviewFieldErrors(valuesFor(candidate)));
-      const keepEditedSelection = candidate.id === activeCandidateId && Boolean(accountDrafts[candidate.id] || classificationDrafts[candidate.id] || amountDrafts[candidate.id] !== undefined);
-      if (!keepEditedSelection && issueFilter === "ready" && issues.length) return false;
-      if (!keepEditedSelection && issueFilter === "missing" && !issues.length) return false;
+      const values = valuesFor(candidate);
+      if (!matchesConfidence(candidate.confidence, confidenceFilter, confidenceMin, confidenceMax)) return false;
+      if (accountFilter !== "all" && values.account !== accountFilter && !(values.type === "transfer" && values.other === accountFilter)) return false;
+      if (directionFilter !== "all" && (accountDrafts[candidate.id] ?? accountReviewDefaults(candidate)).direction !== directionFilter) return false;
+      const keepEditedSelection = ["ready", "missing", "amount", "account", "transfer_account", "same_accounts", "uncategorized"].includes(issueFilter) && candidate.id === activeCandidateId && Boolean(accountDrafts[candidate.id] || classificationDrafts[candidate.id] || amountDrafts[candidate.id] !== undefined);
+      if (!keepEditedSelection && !matchesReviewCondition(candidate, values, issueFilter)) return false;
       if (!normalizedQuery) return true;
       return [candidate.provider, candidate.message_kind, candidate.raw_message.sender, candidate.counterparty_text, candidate.reference]
         .some((value) => value.toLowerCase().includes(normalizedQuery));
     });
-  }, [categoryFilter, issueFilter, providerFilter, query, reviewState, typeFilter, period, valuesFor, activeCandidateId, accountDrafts, classificationDrafts, amountDrafts]);
+  }, [categoryFilter, issueFilter, confidenceFilter, confidenceMin, confidenceMax, accountFilter, directionFilter, providerFilter, query, reviewState, typeFilter, period, valuesFor, activeCandidateId, accountDrafts, classificationDrafts, amountDrafts]);
 
   const activeCandidate = filteredCandidates.find((candidate) => candidate.id === activeCandidateId) ?? filteredCandidates[0] ?? null;
+  useEffect(() => {
+    if (activeCandidate && activeCandidateId !== activeCandidate.id) setActiveCandidateId(activeCandidate.id);
+  }, [activeCandidate, activeCandidateId]);
   const activeValues = activeCandidate ? valuesFor(activeCandidate) : null;
-  const activeIssues = activeCandidate ? candidateIssues(activeCandidate) : [];
+  const summary = activeCandidate && activeValues ? reviewSummary(activeCandidate, activeValues) : null;
   const activeCorrections = activeValues ? Object.keys(reviewFieldErrors(activeValues)) : [];
   const isFocused = focusMode && reviewState.status === "ready" && reviewState.candidates.length > 0;
   const prepareFocus = useReviewFocus(isFocused, reviewSurface, queueList, () => setFocusMode(false));
@@ -282,21 +278,24 @@ export function MessageReviewWorkspace() {
     ? Array.from(new Set(reviewState.candidates.map((candidate) => candidate.provider))).sort()
     : [], [reviewState]);
 
-  async function handleConfirm(candidate: ParsedMessageCandidate, event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleConfirm(candidate: ParsedMessageCandidate, event: React.FormEvent<HTMLFormElement> | null, lookupOnly = false) {
+    event?.preventDefault();
+    const form = event?.currentTarget ?? formRef.current;
+    if (!form || reprocessingCandidateId !== null || isBulkReprocessing) return;
     const accessToken = getAccessToken();
     if (!accessToken) return setActionError("Sign in before confirming SMS candidates.");
-    const formData = new FormData(event.currentTarget);
-    const errors = { ...nativeFieldErrors(event.currentTarget), ...reviewFieldErrors(valuesFor(candidate)) };
+    const formData = new FormData(form);
+    const errors = { ...nativeFieldErrors(form), ...reviewFieldErrors(valuesFor(candidate)) };
     // An existing transfer may supply its missing other account during matching.
     if (valuesFor(candidate).type === "transfer" && !valuesFor(candidate).other) delete errors.transfer_account;
-    if (Object.keys(errors).length) { setFieldErrors(errors); setActionError("Check the highlighted fields."); focusFieldError(event.currentTarget, errors); return; }
+    if (Object.keys(errors).length) { setFieldErrors(errors); setActionError("Check the highlighted fields."); focusFieldError(form, errors); return; }
     setFieldErrors({});
     setActionError(null);
     setActionMessage(null);
     if (confirmInFlight.current) return;
     confirmInFlight.current = true;
     setWorkingCandidateId(candidate.id);
+    setLookupInProgress(lookupOnly);
     try {
       const input: ConfirmMessageCandidateInput = {
         account_perspective: true,
@@ -319,14 +318,15 @@ export function MessageReviewWorkspace() {
         transfer_account: formData.get("type") === "transfer" ? String(formData.get("transfer_account") ?? "") || null : null,
         type: String(formData.get("type") ?? candidate.transaction_type) as TransactionType
       };
-      if (input.type === "transfer" || (input.type === candidate.transaction_type && (candidate.possible_internal_transfer || ["receive_money", "bank_transfer_in"].includes(candidate.message_kind)))) {
+      if (canFindTransferMatch(candidate, valuesFor(candidate))) {
         const matches = await findTransferMatches(accessToken, { candidate: candidate.id, draft: input });
         if (matches.length) {
           setMatchError(null);
-          setTransferDecision({ candidate, input, matches });
+          setTransferDecision({ candidate, input, matches, lookupOnly });
           return;
         }
       }
+      if (lookupOnly) { setActionMessage("No matching transfer found. Review the details before adding."); return; }
       if (input.type === "transfer" && !input.transfer_account) {
         const errors = { transfer_account: "Choose the other transfer account." };
         setFieldErrors(errors); setActionError("Choose the other transfer account, or accept an existing match."); focusFieldError(formRef.current, errors); return;
@@ -339,6 +339,7 @@ export function MessageReviewWorkspace() {
       setActionError(error instanceof Error ? error.message : "Could not confirm candidate.");
     } finally {
       confirmInFlight.current = false;
+      setLookupInProgress(false);
       setWorkingCandidateId(null);
     }
   }
@@ -346,6 +347,7 @@ export function MessageReviewWorkspace() {
   async function handleTransferDecision(match?: TransferMatch, balanceChoices: import("@/lib/api").TransferBalanceChoice[] = []) {
     const accessToken = getAccessToken();
     if (!accessToken || !transferDecision || confirmInFlight.current) return;
+    if (!match && transferDecision.lookupOnly) { setTransferDecision(null); return; }
     if (!match && transferDecision.input.type === "transfer" && !transferDecision.input.transfer_account) {
       setTransferDecision(null);
       const errors = { transfer_account: "Choose the other account before adding a separate transfer." };
@@ -465,13 +467,16 @@ export function MessageReviewWorkspace() {
   }
 
   function clearFilters() {
-    setProviderFilter("all"); setIssueFilter("all"); setCategoryFilter("all"); setTypeFilter("all");
+    setProviderFilter("all"); setIssueFilter("all"); setCategoryFilter("all"); setTypeFilter("all"); setConfidenceFilter("all"); setConfidenceMin(""); setConfidenceMax(""); setAccountFilter("all"); setDirectionFilter("all");
   }
   const activeFilters = [
     { key: "provider", value: providerFilter, label: formatLabel(providerFilter), clear: () => setProviderFilter("all") },
-    { key: "state", value: issueFilter, label: issueFilter === "missing" ? "Needs input" : "Ready to confirm", clear: () => setIssueFilter("all") },
+    { key: "state", value: issueFilter, label: reviewConditions.find(condition => condition.value === issueFilter)?.label ?? "Condition", clear: () => setIssueFilter("all") },
     { key: "category", value: categoryFilter, label: categoryFilter === "uncategorized" ? "Uncategorized" : reviewState.status === "ready" ? reviewState.categories.find(category => category.id === categoryFilter)?.name ?? "Category" : "Category", clear: () => setCategoryFilter("all") },
-    { key: "type", value: typeFilter, label: formatLabel(typeFilter), clear: () => setTypeFilter("all") }
+    { key: "type", value: typeFilter, label: formatLabel(typeFilter), clear: () => setTypeFilter("all") },
+    { key: "confidence", value: confidenceFilter, label: confidenceFilter === "custom" ? `Confidence ${confidenceMin || "0"}–${confidenceMax || "100"}%` : `Confidence ${confidenceBands.find(band => band.value === confidenceFilter)?.label}`, clear: () => setConfidenceFilter("all") },
+    { key: "account", value: accountFilter, label: accountNameById.get(accountFilter) ?? "Account", clear: () => setAccountFilter("all") },
+    { key: "direction", value: directionFilter, label: directionFilter === "credit" ? "Money received" : "Money sent", clear: () => setDirectionFilter("all") }
   ].filter(filter => filter.value !== "all");
 
   if (reviewState.status === "loading") return <LoadingState detail="Checking messages and parser confidence" label="Preparing the review inbox" />;
@@ -487,8 +492,9 @@ export function MessageReviewWorkspace() {
         <div className="review-focus-header" hidden={!isFocused}>
           <div><h2 className="review-focus-title" tabIndex={-1}>{activeCandidate ? `SMS review · BDT ${activeValues?.amount || "—"}` : "SMS review"}</h2><span aria-live="polite" aria-atomic="true">{activeCandidate ? `${accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"} · ${activeIndex + 1} / ${filteredCandidates.length}` : "No messages match these filters"}</span></div>
           <div className="review-focus-header__actions">
-            <button className="button button--ghost review-focus-queue-toggle" type="button" aria-expanded={focusQueueOpen} aria-controls="sms-review-queue" onClick={() => setFocusQueueOpen(current => !current)}>{focusQueueOpen ? "Hide messages" : "Show messages"}</button>
-            <button className="button button--ghost" type="button" onClick={() => setFocusMode(false)}><CornersIn size={19} aria-hidden="true" /><span>Exit focus</span></button>
+            <button className="button button--ghost" type="button" aria-haspopup="dialog" onClick={() => setFiltersOpen(true)} aria-label={`Filters, ${activeFilters.length} active`} title="Filter pending messages"><FunnelSimple size={18} aria-hidden="true" /><span>Filters{activeFilters.length ? ` (${activeFilters.length})` : ""}</span></button>
+            <button className="button button--ghost review-focus-queue-toggle" type="button" aria-expanded={focusQueueOpen} aria-controls="sms-review-queue" aria-label={focusQueueOpen ? "Hide messages" : "Show messages"} title={focusQueueOpen ? "Hide messages" : "Show messages"} onClick={() => setFocusQueueOpen(current => !current)}><List size={18} aria-hidden="true" /><span>{focusQueueOpen ? "Hide messages" : "Show messages"}</span></button>
+            <button className="button button--ghost" type="button" aria-label="Exit focus" title="Exit focus (Escape)" onClick={() => setFocusMode(false)}><CornersIn size={19} aria-hidden="true" /><span>Exit focus</span></button>
           </div>
         </div>
         <section className="panel review-date-toolbar review-inbox-toolbar" aria-label="Review inbox controls">
@@ -516,12 +522,12 @@ export function MessageReviewWorkspace() {
             </div>
             <div className="review-queue__list" ref={queueList}>
               {filteredCandidates.map((candidate) => {
-                const issues = candidateIssues(candidate);
+                const status = reviewSummary(candidate, valuesFor(candidate));
                 const selected = candidate.id === activeCandidate?.id;
                 return <button aria-current={selected ? "true" : undefined} className={`review-queue-item${selected ? " review-queue-item--active" : ""}`} key={candidate.id} onClick={() => setActiveCandidateId(candidate.id)} type="button">
-                  <span className="review-queue-item__top"><strong>{candidate.amount ? `BDT ${candidate.amount}` : "Amount needed"}</strong><small><time dateTime={candidate.raw_message.received_at} title={formatDateTime(candidate.raw_message.received_at)}><span>{queueDayFormatter.format(new Date(candidate.raw_message.received_at))}</span><span>{queueTimeFormatter.format(new Date(candidate.raw_message.received_at))}</span></time></small></span>
+                  <span className="review-queue-item__top"><strong>{valuesFor(candidate).amount ? `BDT ${valuesFor(candidate).amount}` : "Amount needed"}</strong><small><time dateTime={candidate.raw_message.received_at} title={formatDateTime(candidate.raw_message.received_at)}><span>{queueDayFormatter.format(new Date(candidate.raw_message.received_at))}</span><span>{queueTimeFormatter.format(new Date(candidate.raw_message.received_at))}</span></time></small></span>
                   <span className="review-queue-item__description"><span title={candidate.counterparty_text || formatLabel(candidate.message_kind)}>{candidate.counterparty_text || formatLabel(candidate.message_kind)}</span><small>· {formatLabel(candidate.provider)}</small></span>
-                  <span className={issues.length ? "review-queue-item__issue" : "review-queue-item__ready"}>{issues[0] ?? "Ready to confirm"}</span>
+                  <span className="review-queue-item__status"><span className={status.tone === "ready" ? "review-queue-item__ready" : status.tone === "warning" ? "review-queue-item__issue" : ""}>{status.title}</span><small title="Parser confidence">{confidencePercent(candidate.confidence)}</small></span>
                 </button>;
               })}
               {!filteredCandidates.length ? <div className="review-queue__empty">No messages match these filters.</div> : null}
@@ -546,12 +552,20 @@ export function MessageReviewWorkspace() {
                         <span>{accountDraft?.direction === "credit" ? "Credit" : "Debit"}</span><ArrowsLeftRight aria-hidden="true" size={18} />
                       </button>
                     </div>
-                    <p className="review-card__confidence review-summary-meta"><span>{confidenceLabel(activeCandidate.confidence)} ({confidencePercent(activeCandidate.confidence)})</span><span id="review-direction-context">{accountDraft?.direction === "credit" ? "Money into" : "Money out of"} {accountNameById.get(accountDraft?.account ?? "") ?? "the selected account"}</span></p>
+                    <p className="review-card__confidence review-summary-meta"><span className="inline-help">Parser confidence {confidencePercent(activeCandidate.confidence)}<HelpTooltip label="About parser confidence">Confidence in parsing this SMS. This is not a transfer-match probability; transfer suggestions explain their matching evidence.</HelpTooltip></span><span id="review-direction-context">{accountDraft?.direction === "credit" ? "Money into" : "Money out of"} {accountNameById.get(accountDraft?.account ?? "") ?? "the selected account"}</span></p>
                   </div>
 
                 </div>
 
-                <div className="review-issue-bar"><Warning aria-hidden="true" size={19} weight="fill" /><div><strong>{reviewReason(activeCandidate, activeIssues)}</strong><span>{formatDateTime(activeCandidate.raw_message.received_at)} · {activeCandidate.raw_message.sender}</span></div></div>
+                <div className={`review-issue-bar review-issue-bar--${summary?.tone}`}>
+                  {summary?.tone === "ready" ? <CheckCircle aria-hidden="true" size={19} weight="fill" /> : summary?.tone === "info" ? <Info aria-hidden="true" size={19} /> : <Warning aria-hidden="true" size={19} weight="fill" />}
+                  <div><strong className="inline-help">{summary?.title}{summary?.details.length ? <HelpTooltip label="Review details" warning={summary.tone === "warning"}>{summary.details.join(" · ")}</HelpTooltip> : null}</strong><span>{formatDateTime(activeCandidate.raw_message.received_at)} · {activeCandidate.raw_message.sender}</span></div>
+                  <details className="review-message-actions"><summary>Message actions</summary><div>
+                    {activeValues && canFindTransferMatch(activeCandidate, activeValues) ? <button className="button button--ghost" type="button" disabled={workingCandidateId !== null || reprocessingCandidateId !== null} onClick={() => void handleConfirm(activeCandidate, null, true)}>Find transfer match</button> : null}
+                    {hasOriginalSms(activeCandidate) ? <><button className="button button--ghost" type="button" disabled={workingCandidateId !== null || reprocessingCandidateId !== null} onClick={() => void handleReprocess(activeCandidate)}>Re-run parser</button><button className="button button--ghost" type="button" disabled={workingCandidateId !== null || reprocessingCandidateId !== null} onClick={() => void handleRedact(activeCandidate)}>Redact original SMS</button></> : null}
+                    <button className="button button--ghost" type="button" disabled={workingCandidateId !== null} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })}>Reject / save skip rule</button>
+                  </div></details>
+                </div>
                 {activeCandidate.identity_suggestions.map(hint => {
                   const reporting = hint.role === (accountDraft?.direction === "credit" ? "receiver" : "sender");
                   const selectedAccount = reporting ? accountDraft?.account : accountDraft?.other;
@@ -567,7 +581,7 @@ export function MessageReviewWorkspace() {
                     {!hint.choices.length ? <p>No compatible saved identifier. Choose the account below after checking the SMS.</p> : null}
                   </div>;
                 })}
-                <div className="review-issue-chips">{activeIssues.map((issue) => <span key={issue}>{issue}</span>)}{!activeIssues.length ? <span className="review-issue-chip--ready">Ready for confirmation</span> : null}</div>
+
 
                 <div className="review-form review-form--focused">
                   <label className="field"><span className="field__label">{classification?.type === "transfer" ? accountDraft?.direction === "credit" ? "To account" : "From account" : "Account"}</span><select className="field__control" value={accountDraft?.account ?? ""} onChange={(event) => { updateAccountDraft({ account: event.target.value, other: event.target.value === accountDraft?.other ? "" : accountDraft?.other ?? "" }); }} name="account" {...feedback("account")} required><option value="">Select account</option>{reviewState.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select><FieldError prefix="review" field="account" errors={fieldErrors} /></label>
@@ -592,7 +606,7 @@ export function MessageReviewWorkspace() {
                 <details className="raw-message" open={Number(activeCandidate.confidence) < 0.65 || Boolean(activeCandidate.raw_message.duplicate_of)}><summary>Original SMS and parser evidence</summary><p>{activeCandidate.raw_message.body}</p><p>{activeCandidate.parser_notes}</p>{activeCandidate.raw_message.status !== "redacted" ? <div className="raw-message-actions"><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleReprocess(activeCandidate)} type="button">{reprocessingCandidateId === activeCandidate.id ? <ButtonBusy label="Re-running parser" /> : <><ArrowClockwise aria-hidden="true" size={18} />Re-run parser</>}</button><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleRedact(activeCandidate)} type="button">Redact original SMS now</button></div> : <span className="status-badge status-badge--ok">Original SMS redacted</span>}</details>
 
                 </div>
-                <div className="review-sticky-actions"><div className="review-action-status"><strong>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"}</strong><span>{activeCorrections.length ? `${activeCorrections.length} correction(s) needed` : activeIssues.length ? "Ready · check review notes" : "Ready to add to ledger"}</span></div><div className="review-detail__pager" role="group" aria-label="Message navigation"><button aria-label="Previous message" disabled={activeIndex <= 0} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex - 1]?.id ?? activeCandidate.id)} type="button"><ArrowLeft size={18} /></button><span>{activeIndex + 1} / {filteredCandidates.length}</span><button aria-label="Next message" disabled={activeIndex >= filteredCandidates.length - 1} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex + 1]?.id ?? activeCandidate.id)} type="button"><ArrowRight size={18} /></button><button className="review-focus-toggle" aria-label={isFocused ? "Exit focus mode" : "Enter focus mode"} aria-pressed={isFocused} title={isFocused ? "Exit focus mode (Escape)" : "Focus on the review workspace"} onClick={event => { if (!isFocused) prepareFocus(event.currentTarget); setFocusMode(current => !current); }} type="button">{isFocused ? <CornersIn size={19} aria-hidden="true" /> : <CornersOut size={19} aria-hidden="true" />}</button></div><button className="button button--danger" disabled={workingCandidateId === activeCandidate.id} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })} type="button">Reject</button><button className="button button--primary" disabled={workingCandidateId === activeCandidate.id} type="submit">{workingCandidateId === activeCandidate.id ? <ButtonBusy label="Confirming" /> : "Confirm & add"}</button></div>
+                <div className="review-sticky-actions"><div className="review-action-status"><strong>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"}</strong><span>{activeCorrections.length ? `${activeCorrections.length} correction(s) needed` : ""}</span></div><div className="review-detail__pager" role="group" aria-label="Message navigation"><button aria-label="Previous message" disabled={activeIndex <= 0} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex - 1]?.id ?? activeCandidate.id)} type="button"><ArrowLeft size={18} /></button><span>{activeIndex + 1} / {filteredCandidates.length}</span><button aria-label="Next message" disabled={activeIndex >= filteredCandidates.length - 1} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex + 1]?.id ?? activeCandidate.id)} type="button"><ArrowRight size={18} /></button><button hidden={isFocused} className="review-focus-toggle" aria-label={isFocused ? "Exit focus mode" : "Enter focus mode"} aria-pressed={isFocused} title={isFocused ? "Exit focus mode (Escape)" : "Focus on the review workspace"} onClick={event => { if (!isFocused) prepareFocus(event.currentTarget); setFocusMode(current => !current); }} type="button">{isFocused ? <CornersIn size={19} aria-hidden="true" /> : <CornersOut size={19} aria-hidden="true" />}</button></div><button className="button button--danger" disabled={workingCandidateId === activeCandidate.id} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })} type="button">Reject</button><button className="button button--primary" disabled={workingCandidateId === activeCandidate.id} type="submit">{workingCandidateId === activeCandidate.id ? <ButtonBusy label={lookupInProgress ? "Finding matches" : "Confirming"} /> : "Confirm & add"}</button></div>
               </form>
             </article>
           ) : null}
@@ -603,15 +617,21 @@ export function MessageReviewWorkspace() {
       {filtersOpen ? <ModalDialog labelledBy="review-filters-title" className="decision-modal review-filter-dialog" onCancel={() => setFiltersOpen(false)}>
         <button className="decision-modal__close" aria-label="Close filters" onClick={() => setFiltersOpen(false)} type="button"><X size={20} /></button>
         <h2 id="review-filters-title">Filter messages</h2><p>Filters apply immediately to the review queue.</p>
-              <div className="review-filter-row"><FunnelSimple aria-hidden="true" size={17} /><select aria-label="Filter by provider" onChange={(event) => setProviderFilter(event.target.value)} value={providerFilter}><option value="all">All providers</option>{providers.map((provider) => <option key={provider} value={provider}>{formatLabel(provider)}</option>)}</select><select aria-label="Filter by issue" onChange={(event) => { setIssueFilter(event.target.value); setActiveCandidateId(""); }} value={issueFilter}><option value="all">All states</option><option value="missing">Needs input</option><option value="ready">Ready to confirm</option></select></div>
-              <div className="review-filter-row review-filter-row--fields">
-                <select aria-label="Filter by category" onChange={(event) => setCategoryFilter(event.target.value)} value={categoryFilter}><option value="all">All categories</option><option value="uncategorized">Uncategorized</option>{reviewState.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
-                <select aria-label="Filter by transaction type" onChange={(event) => setTypeFilter(event.target.value)} value={typeFilter}><option value="all">All types</option>{transactionTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select>
-              </div>
+        <div className="review-filter-grid">
+          <label className="field field--wide"><span className="field__label">Pending condition / available action</span><select className="field__control" onChange={event => { setIssueFilter(event.target.value as ReviewCondition); setActiveCandidateId(""); }} value={issueFilter}><option value="all">All pending conditions</option>{[...new Set(reviewConditions.map(condition => condition.group))].map(group => <optgroup key={group} label={group}>{reviewConditions.filter(condition => condition.group === group).map(condition => <option key={condition.value} value={condition.value}>{condition.label}</option>)}</optgroup>)}</select></label>
+          <label className="field field--wide"><span className="field__label inline-help">Parser confidence<HelpTooltip label="About confidence filters">Percentage describes parser confidence, not transfer-match strength. Other filters combine with this range.</HelpTooltip></span><select className="field__control" aria-label="Parser confidence range" value={confidenceFilter} onChange={event => setConfidenceFilter(event.target.value as ConfidenceBand)}>{confidenceBands.map(band => <option key={band.value} value={band.value}>{band.label}</option>)}</select></label>
+          {confidenceFilter === "custom" ? <><label className="field"><span className="field__label">Minimum %</span><input className="field__control" type="number" min="0" max="100" step="any" value={confidenceMin} onChange={event => setConfidenceMin(event.target.value)} aria-invalid={Boolean(confidenceRangeError(confidenceMin, confidenceMax))} aria-describedby="confidence-range-note" /></label><label className="field"><span className="field__label">Maximum %</span><input className="field__control" type="number" min="0" max="100" step="any" value={confidenceMax} onChange={event => setConfidenceMax(event.target.value)} aria-invalid={Boolean(confidenceRangeError(confidenceMin, confidenceMax))} aria-describedby="confidence-range-note" /></label><p id="confidence-range-note" className={`field--wide ${confidenceRangeError(confidenceMin, confidenceMax) ? "form-error" : "field__hint"}`} role="status">{confidenceRangeError(confidenceMin, confidenceMax) ? `${confidenceRangeError(confidenceMin, confidenceMax)} Confidence range is not applied until valid.` : "Inclusive range. Empty minimum / maximum means 0% / 100%."}</p></> : null}
+          <label className="field"><span className="field__label">Provider</span><select className="field__control" onChange={event => setProviderFilter(event.target.value)} value={providerFilter}><option value="all">All providers</option>{providers.map(provider => <option key={provider} value={provider}>{formatLabel(provider)}</option>)}</select></label>
+          <label className="field"><span className="field__label">Account involved</span><select className="field__control" onChange={event => setAccountFilter(event.target.value)} value={accountFilter}><option value="all">All accounts</option>{reviewState.accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+          <label className="field"><span className="field__label">Category</span><select className="field__control" onChange={event => setCategoryFilter(event.target.value)} value={categoryFilter}><option value="all">All categories</option><option value="uncategorized">Uncategorized</option>{reviewState.categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+          <label className="field"><span className="field__label">Transaction type</span><select className="field__control" onChange={event => setTypeFilter(event.target.value)} value={typeFilter}><option value="all">All types</option>{transactionTypes.map(type => <option key={type} value={type}>{formatLabel(type)}</option>)}</select></label>
+          <label className="field field--wide"><span className="field__label">Reporting account direction</span><select className="field__control" onChange={event => setDirectionFilter(event.target.value)} value={directionFilter}><option value="all">All directions</option><option value="debit">Debit · money sent</option><option value="credit">Credit · money received</option></select></label>
+        </div>
+        <p role="status">{filteredCandidates.length} of {reviewState.candidates.length} pending messages</p>
         <div className="decision-modal__actions"><button className="button button--ghost" onClick={clearFilters} type="button">Clear filters</button><button className="button button--primary" onClick={() => setFiltersOpen(false)} type="button">Done</button></div>
       </ModalDialog> : null}
       {rejectDraft ? <ModalDialog labelledBy="reject-title" busy={workingCandidateId === rejectDraft.candidate.id} onCancel={() => setRejectDraft(null)}><button aria-label="Close rejection options" className="decision-modal__close" disabled={workingCandidateId === rejectDraft.candidate.id} onClick={() => setRejectDraft(null)} type="button"><X size={20} /></button><h2 id="reject-title">Reject this message</h2><p>Choose whether to reject only this message or remember a skip rule. Skipping a recognized promotional, OTP/security or balance-notice type applies across your trusted senders and keeps transaction messages enabled. Undo the rule in SMS settings.</p><form onSubmit={(event) => void handleReject(event)}><label className="field"><span className="field__label">Reason</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, reason: event.target.value })} value={rejectDraft.reason}>{[["not_transaction", "Not a transaction"], ["otp_security", "OTP or security"], ["duplicate", "Duplicate"], ["wrong_provider_account", "Wrong provider or account"], ["personal", "Personal or non-financial"], ["unsupported_format", "Unsupported format"], ["other", "Other"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field"><span className="field__label">Apply to</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, scope: event.target.value as RejectDraft["scope"] })} value={rejectDraft.scope}><option value="message">Only this message</option><option value="kind">This message and skip its non-transaction type</option><option value="sender">This message and disable {rejectDraft.candidate.raw_message.sender}</option><option value="provider">This message and exclude all {formatLabel(rejectDraft.candidate.provider)} messages</option></select></label><label className="field"><span className="field__label">Note (optional)</span><input className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, note: event.target.value })} value={rejectDraft.note} /></label><label className="review-remember"><input checked={rejectDraft.redact} onChange={(event) => setRejectDraft({ ...rejectDraft, redact: event.target.checked })} type="checkbox" /><span><strong>Redact original SMS now</strong><small>Parsed metadata remains for audit and duplicate protection.</small></span></label><div className="decision-modal__actions"><button className="button button--ghost" disabled={workingCandidateId === rejectDraft.candidate.id} onClick={() => setRejectDraft(null)} type="button">Cancel</button><button className="button button--danger" disabled={workingCandidateId === rejectDraft.candidate.id} type="submit">{workingCandidateId === rejectDraft.candidate.id ? <ButtonBusy label="Rejecting" /> : "Reject message"}</button></div></form></ModalDialog> : null}
-      {transferDecision ? <TransferMatchDialog original={transferComparison(transferDecision.input, id => accountNameById.get(id))} originalSource="SMS awaiting confirmation" matches={transferDecision.matches} busy={workingCandidateId !== null} error={matchError} onAccept={(match, choices) => void handleTransferDecision(match, choices)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
+      {transferDecision ? <TransferMatchDialog original={transferComparison(transferDecision.input, id => accountNameById.get(id))} originalSource="SMS awaiting confirmation" matches={transferDecision.matches} busy={workingCandidateId !== null} error={matchError} onAccept={(match, choices) => void handleTransferDecision(match, choices)} separateLabel={transferDecision.lookupOnly ? "Back to review" : undefined} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
     </div>
   );
 }

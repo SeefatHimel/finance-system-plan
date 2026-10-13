@@ -370,17 +370,19 @@ Monthly and Custom range views. Day/month arrows and Today/Current month retain
 shared date semantics; custom dates apply together after validation. The date
 basis is the SMS received date in the browser's local timezone.
 
-The queue keeps search and a Filters button visible. Provider, review-state,
-category (including Uncategorized), and transaction-type controls open in a
+The queue keeps search and a Filters button visible. Provider, pending condition,
+confidence, account involved, direction, category (including Uncategorized) and
+transaction-type controls open in a
 viewport-centered dialog and apply immediately. Escape closes it and restores
 focus to the trigger. Removable filter chips and a filtered/total count show the
-current scope. Clear filters resets these four choices, retaining search and dates.
-Filters use parsed/remembered candidate values, not unsaved detail-form choices.
+current scope. Clear filters resets message filter choices, retaining search and dates.
+Type/category filters use parsed/remembered candidate values; correction, involved-account
+and direction filters use the current draft. Confidence uses the parser score.
 
 Each queue row shows amount alongside the received day and local time,
-counterparty/provider, and its first required correction or ready status. Date
+counterparty/provider, a correction/review/ready status and parser confidence. Date
 and time stack in the right-hand column to preserve compact rows. The full
-received timestamp and confidence remain in the selected message details; the
+received timestamp and confidence also remain in the selected message details; the
 date/time also has a timestamp tooltip. Desktop queue and detail panes scroll independently within the viewport.
 The editor footer keeps Previous/Next, position, Reject and Confirm & add visible;
 navigation also scrolls the selected queue row into view without moving the page.
@@ -894,7 +896,7 @@ workspace: received-date controls, searchable/filterable message queue and edito
 It fills the browser viewport, hides app chrome, and keeps an
 amount/account/message-position header plus navigation, Reject and Confirm
 actions visible. Desktop retains the side-by-side queue/editor; small screens
-stack them and offer Hide/Show messages to give the editor more space without
+stack them. Hide/Show messages works on every screen size to give the editor more space without
 remounting it. Exit focus or Escape returns to the same queue and outer-page
 position. Matching, rejection and category dialogs handle Escape first. Focus
 continues when approval/rejection advances to another message and exits when
@@ -986,3 +988,38 @@ bulk actions and recovery row; switching layouts preserves custom-date drafts.
 
 The same compact Last action presentation is shared by SMS review and Transactions.
 Its latest-action eligibility, busy/expired states and help tooltip are unchanged.
+
+### Focus header and pending-review filters
+
+Focus combines entry context, received-date controls and Filters/queue/exit actions
+in one top bar on wide screens. Smaller screens wrap dates below the context and
+use labelled icon buttons for header actions. Queue visibility can be toggled on
+all screen sizes without unmounting the editor or dates. Ready entries have a
+single green status; corrections/duplicates and review notes use amber, while
+related-transfer hints use an informational status. Details remain in tooltips.
+
+Filters cover pending messages only. Parser confidence supports exact bands
+(90–100%, 85–<90%, 65–<85%, below 65%), unknown values, or an inclusive custom
+0–100% range. An invalid custom range shows an error and is not applied until
+valid. Confidence describes SMS parsing, not a calibrated transfer-match
+probability. Transfer suggestions retain their matching reasons.
+
+Conditions include required corrections, category/account verification, duplicate
+and related-SMS hints, unknown/non-transaction formats, and eligibility for match
+lookup, re-parsing or redaction. Provider, account involved, reporting direction,
+original parsed category/type, search and received dates combine with these
+filters. Edited entries remain visible through changing correction conditions;
+explicit condition selection honors the new filter. Action-eligibility filters
+indicate an available action, not proof that a matching entry exists.
+
+Message actions near the status expose Find transfer match when eligible, parser
+re-run, source redaction and rejection/skip-rule options. A direct match lookup
+uses the current draft and never adds an entry merely by searching or returning
+to review. Accepting a match is an explicit confirmation. Existing confirmation
+and per-account conflicting-balance choices remain unchanged.
+
+Verification: all 45 web tests, lint, typecheck and production build pass. Chrome
+with isolated synthetic data confirmed Focus draft preservation and exposed the
+new status/filter controls. The native Chrome connection became inconsistent
+during responsive interactions; complete small-screen visual QA remains to be
+confirmed. No live financial records were modified.

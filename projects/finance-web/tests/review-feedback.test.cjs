@@ -5,7 +5,7 @@ const { mkdtempSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const output = mkdtempSync(join(tmpdir(), 'finance-review-feedback-'));
-execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/review-status.ts', 'lib/form-feedback.ts'], { cwd: resolve(__dirname, '..') });
+execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/review-status.ts', 'lib/form-feedback.ts', 'lib/review-filters.ts'], { cwd: resolve(__dirname, '..') });
 const { reviewFieldErrors, reviewNotes, validReviewCount } = require(join(output, 'review-status.js'));
 const { RequestError, responseError } = require(join(output, 'api-errors.js'));
 const { fieldErrorsFrom, focusFieldError, nativeFieldErrors } = require(join(output, 'form-feedback.js'));
@@ -63,4 +63,53 @@ test('validation reveals a collapsed detail before focusing its invalid control'
     focusFieldError(form, errors); assert.equal(focused, true); assert.equal(scrolled, true);
     focusFieldError(null, errors); // Closing the editor during a failed request is safe.
   } finally { for (const [key, value] of Object.entries(saved)) value === undefined ? delete global[key] : global[key] = value; }
+});
+
+const { confidenceValue, confidenceRangeError, matchesConfidence, matchesReviewCondition, reviewSummary, canFindTransferMatch, reviewConditions } = require(join(output, 'review-filters.js'));
+const message = { confidence: '0.9', transaction_type: 'expense', message_kind: 'card_purchase', possible_internal_transfer: false, possible_related_candidate: null, related_match_reason: '', identity_suggestions: [], raw_message: { duplicate_of: null, status: 'received', body: 'Synthetic test notification' } };
+test('confidence bands have exact boundaries, inclusive custom limits and explicit unknown scores', () => {
+  for (const value of ['', 'NaN', 'Infinity', '-0.1', '1.1']) assert.equal(confidenceValue(value), null);
+  for (const [score, band] of [['0', 'low'], ['0.6499', 'low'], ['0.65', '65'], ['0.8499', '65'], ['0.85', '85'], ['0.8999', '85'], ['0.9', '90'], ['1', '90']]) {
+    assert.equal(matchesConfidence(score, band), true);
+    for (const other of ['low', '65', '85', '90'].filter(value => value !== band)) assert.equal(matchesConfidence(score, other), false);
+  }
+  assert.equal(matchesConfidence('', 'unknown'), true);
+  assert.equal(matchesConfidence('', 'custom'), false);
+  assert.equal(matchesConfidence('0.85', 'custom', '85', '90'), true);
+  assert.equal(matchesConfidence('0.9', 'custom', '85', '90'), true);
+  assert.equal(matchesConfidence('0.9001', 'custom', '85', '90'), false);
+  assert.equal(confidenceRangeError('', ''), '');
+  assert.ok(confidenceRangeError('91', '90')); assert.ok(confidenceRangeError('-1', '100'));
+  assert.equal(matchesConfidence('0.3', 'custom', '91', '90'), true, 'invalid custom filter does not silently hide rows');
+});
+test('pending conditions distinguish corrections, evidence and available actions', () => {
+  const cases = {
+    ready: [message, valid], missing: [message, { ...valid, amount: '' }], amount: [message, { ...valid, amount: '0' }], account: [message, { ...valid, account: '' }],
+    transfer_account: [message, { ...valid, type: 'transfer' }], same_accounts: [message, { ...valid, type: 'transfer', other: valid.account }], uncategorized: [message, { ...valid, category: '' }],
+    verify_account: [{ ...message, identity_suggestions: [{ role: 'sender' }] }, valid], duplicate: [{ ...message, raw_message: { ...message.raw_message, duplicate_of: 'synthetic-id' } }, valid],
+    related: [{ ...message, possible_related_candidate: 'synthetic-id' }, valid], notes: [{ ...message, confidence: '0.4' }, valid], unknown: [{ ...message, message_kind: 'unknown' }, valid],
+    non_transaction: [{ ...message, message_kind: 'promotional' }, valid], match: [message, { ...valid, type: 'transfer' }], reparse: [message, valid], redact: [message, valid],
+    unavailable: [{ ...message, raw_message: { ...message.raw_message, status: 'redacted' } }, valid]
+  };
+  for (const { value } of reviewConditions) assert.equal(matchesReviewCondition(...cases[value], value), true, value);
+  assert.equal(matchesReviewCondition(message, valid, 'duplicate'), false);
+  assert.equal(matchesReviewCondition(message, valid, 'related'), false);
+  assert.equal(matchesReviewCondition(message, valid, 'missing'), false);
+  assert.equal(matchesReviewCondition(message, { ...valid, type: 'expense', other: valid.account }, 'same_accounts'), false);
+  assert.equal(matchesReviewCondition({ ...message, raw_message: { ...message.raw_message, body: null } }, valid, 'reparse'), false);
+});
+test('status uses correction precedence and never displays a ready warning', () => {
+  assert.equal(reviewSummary(message, valid).tone, 'ready');
+  const duplicate = { ...message, raw_message: { ...message.raw_message, duplicate_of: 'synthetic-id' } };
+  assert.equal(reviewSummary(duplicate, valid).title, 'Verify possible duplicate');
+  assert.equal(reviewSummary(duplicate, { ...valid, amount: '' }).title, '1 correction needed');
+  assert.equal(reviewSummary({ ...message, possible_related_candidate: 'synthetic-id' }, valid).tone, 'info');
+  assert.equal(reviewSummary({ ...message, confidence: '0.4' }, valid).tone, 'warning');
+});
+test('match lookup eligibility follows explicit type corrections and source hints', () => {
+  assert.equal(canFindTransferMatch(message, valid), false);
+  assert.equal(canFindTransferMatch(message, { ...valid, type: 'transfer' }), true);
+  const incoming = { ...message, transaction_type: 'income', message_kind: 'bank_transfer_in' };
+  assert.equal(canFindTransferMatch(incoming, { ...valid, type: 'income' }), true);
+  assert.equal(canFindTransferMatch(incoming, { ...valid, type: 'expense' }), false);
 });

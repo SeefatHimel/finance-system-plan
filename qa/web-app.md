@@ -208,7 +208,7 @@ Dashboard attention rows deep-link to the exact candidate, and the review page
 keeps the selected candidate id in the URL so the state can be shared or
 revisited.
 A compact Received dates toolbar spans both panes; search and a Filters button
-stay above the queue. Provider, state, category and type filters apply immediately
+stay above the queue. Provider, condition, confidence, involved-account, direction, category and type filters apply immediately
 in a viewport-centered dialog, with removable chips and a filtered/total count.
 Escape restores focus to the trigger. Clear filters retains search and dates.
 Three-line rows show amount/received day, counterparty/provider and the first
@@ -801,7 +801,7 @@ classification drafts stay scoped to each candidate until re-parsing or leaving.
 App chrome and other background controls are hidden/inert. The queue, search,
 filters and received-date controls stay interactive, with a persistent Exit control,
 header and action footer. Desktop uses two columns; small screens stack the queue
-above the editor and offer Hide/Show messages while keeping the form mounted.
+above the editor. All screen sizes offer Hide/Show messages while keeping the form mounted.
 Changing search results does not move keyboard focus away from the search field.
 An empty filter result keeps Focus open so the filter can be corrected; completing
 the actual review queue exits it. Tab stays within the workspace; Escape closes a nested dialog
@@ -850,3 +850,24 @@ info control; queue count and reapply remain available. Last action and Edit/Und
 share a compact borderless line, distinct from filtering, with natural wrapping
 and 44px touch targets. Focus keeps the same date-control
 instance mounted, so an unfinished custom range survives entering/exiting Focus.
+
+### How do confidence and action filters work in SMS Focus mode?
+
+They filter pending review candidates in the browser. Parser confidence has exact
+bands and an inclusive custom percentage range; malformed/reversed ranges display
+an error and remain unapplied. This percentage is confidence in parsing an SMS,
+not a transfer-match probability. Transfer suggestions explain their evidence.
+Conditions cover required inputs, duplicate/related SMS, identifier suggestions,
+unknown/non-transaction formats and actions supported by the retained evidence.
+Account involved includes the other account only for transfer drafts. Other
+filters combine using AND. Correction filters keep the currently edited draft
+mounted while its errors clear; explicitly selecting another condition resets
+that exception. Completed-message history remains outside this inbox.
+
+The Focus top bar shares the already-mounted date controls with entry context,
+Filters, queue visibility and exit. On small screens actions become accessible
+icon buttons and dates wrap. One status distinguishes ready, corrections/review
+notes and related-transfer hints. A nearby disclosure exposes message actions.
+Find transfer match submits a lookup for the current draft, without confirming it
+when no match exists or the user returns to review. Linking still requires an
+explicit acceptance and per-account balance-conflict choices where needed.
