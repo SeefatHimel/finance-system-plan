@@ -588,8 +588,12 @@ and posting/value dates within three days. Reference and reported balance are
 supporting evidence; no suggestion is automatically accepted. Known linked
 source fingerprints also surface user-corrected ledger records outside that
 window. A fingerprint is not unique: genuine repeats remain distinct rows.
-Linking preserves ledger type/category/note/source/balance and existing SMS;
-owned transfers keep canonical From → To and add reporting-side evidence.
+Linking preserves ledger type/category/source/amount and existing SMS. A conflict
+in the effective reported balance requires an explicit choice between the current
+ledger report and the statement report. Optional reviewed metadata selections
+can fill or replace merchant, reference, note, and masked identifiers. Owned
+transfers keep canonical From → To and add reporting-side evidence. Both source
+and previous ledger values remain available in audit history.
 
 Opening/closing/summary rows are excluded. Wallet inline charges become separate
 fee/refund review rows. For newly posted principal-plus-fee events, the final
@@ -953,3 +957,31 @@ when it has a single movement that day. Reasons are `unavailable`, `matched`,
 adjustments. Opening-balance and earlier transaction edits recompute the result.
 All accounts are processed in the existing batched summary, with no per-account
 query additions. No model migration is required.
+
+## Reviewed statement detail enrichment
+
+Possible matches expose `detail_suggestions` for merchant/counterparty, reference,
+note, and masked sender/receiver account/card identifiers. “Fill missing details
+from statement” selects only empty fields with a nonempty suggestion. Existing
+values stay untouched unless the user explicitly selects a replacement; proposed
+values can be edited before accepting the match. No field is selected by default.
+Selections apply atomically with linking via `StatementDecision.detail_choices`,
+which includes each field's exact reviewed `existing_value` and desired `value`.
+Changed ledger values return 409 without partial updates; unsupported financial
+fields and duplicate selections are rejected. Identifier edits are masked before
+transmission and again before persistence. Choices and before/after values are
+audited. Unlinking or rescanning confirmed SMS does not undo these corrections.
+
+New statement drafts strip anchored labels such as “CARD PURCHASE” and “PURCHASE
+CARD” from the merchant field while retaining the original masked description.
+Merchant case/punctuation and manually saved draft corrections are preserved.
+References and explicitly labelled identifier metadata are excluded from merchant
+suggestions. The statement header identifies only the reporting account; transfer
+counterpart identifiers need explicit sender/receiver evidence. Ambiguous values
+remain empty. Payment methods, accounts, classifications, amount, date and time
+are not changed by this metadata shortcut. No new database migration is required;
+deploy web and API together.
+
+Suggestions are computed for existing pending rows at review time from their saved
+masked extraction and draft fields; no re-import or data migration is needed.
+Read requests do not mutate them. Rows already resolved are not rewritten.

@@ -778,3 +778,24 @@ while the canonical movement counts once. Credit-card reference balances and
 ambiguous same-day timing return null comparisons with a reason. The result is a
 read-only review hint; opening-balance or earlier ledger edits recompute it, and
 no automatic adjustment or new query per account is introduced.
+
+### Can accepting a statement match replace the reported balance?
+
+Yes, through an explicit versioned balance choice. The API locks the existing
+transaction, recomputes matches, requires a choice for conflicts, and verifies both
+reviewed values. Stale choices return 409 without ledger or evidence changes.
+Transfers use the statement account's effective report, preserving the opposite
+account. Transaction before/after snapshots and decision metadata preserve the
+previous values; the PDF extraction stays immutable. Linking counts once, and
+unlinking or rescanning confirmed SMS does not undo the chosen balance.
+
+
+### How does statement metadata enrichment avoid overwriting user corrections?
+
+Suggestions never write on reads. Link decisions accept a bounded whitelist of
+metadata fields with exact existing-value snapshots. The locked transaction is
+checked for stale details and invalid selections, and writes/ linking/ audit logs
+share one atomic operation. Ledger before/after values are retained, SMS evidence
+is unchanged, and confirmed-message rescans cannot replay parser defaults.
+Identifier roles are suggested only from explicit labels or the reporting-account
+header; ambiguous counterpart numbers are not guessed.

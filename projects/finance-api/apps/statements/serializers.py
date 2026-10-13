@@ -8,6 +8,7 @@ from apps.accounts.models import Account
 from apps.categories.models import Category
 from apps.transactions.models import Transaction
 
+from .details import DETAIL_FIELDS
 from .models import StatementImport, StatementRow
 from .parser import MAX_BYTES
 
@@ -207,6 +208,13 @@ class StatementSuggestionSerializer(serializers.Serializer):
     reason = serializers.CharField()
 
 
+class StatementDetailSuggestionSerializer(serializers.Serializer):
+    field = serializers.CharField()
+    label = serializers.CharField()
+    existing_value = serializers.CharField(allow_blank=True)
+    suggested_value = serializers.CharField(allow_blank=True)
+
+
 class StatementMatchSerializer(serializers.Serializer):
     strength = serializers.ChoiceField(choices=["strong", "possible"])
     merchant_similarity = serializers.FloatField()
@@ -223,6 +231,8 @@ class StatementMatchSerializer(serializers.Serializer):
     reference = serializers.CharField()
     note = serializers.CharField()
     balance_after = serializers.CharField(allow_null=True)
+    effective_balance_after = serializers.CharField(allow_null=True)
+    detail_suggestions = StatementDetailSuggestionSerializer(many=True)
     conflict = serializers.BooleanField()
     can_link = serializers.BooleanField()
     reasons = serializers.ListField(child=serializers.CharField())
@@ -343,6 +353,22 @@ class StatementRowEditSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class StatementBalanceChoiceSerializer(serializers.Serializer):
+    keep = serializers.ChoiceField(choices=("existing", "statement"))
+    existing_balance_after = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
+    )
+    statement_balance_after = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
+    )
+
+
+class StatementDetailChoiceSerializer(serializers.Serializer):
+    field = serializers.ChoiceField(choices=tuple(DETAIL_FIELDS))
+    existing_value = serializers.CharField(allow_blank=True, trim_whitespace=False)
+    value = serializers.CharField(max_length=4000, allow_blank=False)
+
+
 class StatementDecisionSerializer(serializers.Serializer):
     action = serializers.ChoiceField(
         choices=("create", "link", "skip", "unlink", "reopen")
@@ -355,6 +381,10 @@ class StatementDecisionSerializer(serializers.Serializer):
     allow_separate = serializers.BooleanField(default=False)
     acknowledge_issues = serializers.BooleanField(default=False)
     acknowledge_conflict = serializers.BooleanField(default=False)
+    balance_choice = StatementBalanceChoiceSerializer(required=False)
+    detail_choices = StatementDetailChoiceSerializer(
+        many=True, required=False, max_length=7
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -368,6 +398,23 @@ class StatementDecisionSerializer(serializers.Serializer):
         if attrs["action"] == "link" and "transaction" not in attrs:
             raise serializers.ValidationError(
                 {"transaction": "Choose a matching transaction."}
+            )
+        if "balance_choice" in attrs and attrs["action"] != "link":
+            raise serializers.ValidationError(
+                {
+                    "balance_choice": "Balance choices are only available when linking a match."
+                }
+            )
+        details = attrs.get("detail_choices", [])
+        if details and attrs["action"] != "link":
+            raise serializers.ValidationError(
+                {
+                    "detail_choices": "Detail choices are only available when linking a match."
+                }
+            )
+        if len({item["field"] for item in details}) != len(details):
+            raise serializers.ValidationError(
+                {"detail_choices": "Select each detail only once."}
             )
         return attrs
 

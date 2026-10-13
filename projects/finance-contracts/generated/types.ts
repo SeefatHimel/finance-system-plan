@@ -1061,6 +1061,27 @@ export interface StatementCounts {
   skipped: number;
 }
 
+export interface StatementBalanceChoice {
+  keep: "existing" | "statement";
+  existing_balance_after: string | null;
+  statement_balance_after: string | null;
+}
+
+export type StatementDetailField = "counterparty_text" | "reference" | "note" | "sender_account_identifier" | "sender_card_identifier" | "receiver_account_identifier" | "receiver_card_identifier";
+
+export interface StatementDetailSuggestion {
+  field: StatementDetailField;
+  label: string;
+  existing_value: string;
+  suggested_value: string;
+}
+
+export interface StatementDetailChoice {
+  field: StatementDetailField;
+  existing_value: string;
+  value: string;
+}
+
 export interface StatementDecision {
   action: StatementAction;
   version: number;
@@ -1069,6 +1090,8 @@ export interface StatementDecision {
   acknowledge_issues?: boolean;
   acknowledge_conflict?: boolean;
   remember_choices?: boolean;
+  balance_choice?: StatementBalanceChoice;
+  detail_choices?: StatementDetailChoice[];
 }
 
 export interface StatementImport {
@@ -1106,6 +1129,8 @@ export interface StatementMatch {
   reference: string;
   note: string;
   balance_after: string | null;
+  effective_balance_after: string | null;
+  detail_suggestions: StatementDetailSuggestion[];
   conflict: boolean;
   can_link: boolean;
   reasons: string[];

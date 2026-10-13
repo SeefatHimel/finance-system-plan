@@ -331,10 +331,13 @@ class SavedStatementTests(APITestCase):
         row = batch.rows.first()
         response = self.decide(row, "link", transaction=str(target.id))
         self.assertEqual(response.status_code, 400)
-        self.assertIn("acknowledge_conflict", response.data)
+        self.assertIn("balance_choice", response.data)
         self.assertEqual(
             self.decide(
-                row, "link", transaction=str(target.id), acknowledge_conflict=True
+                row, "link", transaction=str(target.id), balance_choice={
+                    "keep": "existing", "existing_balance_after": "949.00",
+                    "statement_balance_after": "950.00",
+                }
             ).status_code,
             200,
         )

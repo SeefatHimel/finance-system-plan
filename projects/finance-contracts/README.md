@@ -319,8 +319,12 @@ enums retain boolean literals. JSON operations retain JSON encoding.
 
 Saved imports add multipart create, paginated history/detail, globally filtered
 rows, versioned draft PATCH, explicit decide, and bulk approve_new operations.
-Linking preserves existing ledger details; source fingerprints/references are not
-unique keys. `SavedStatementRow` separates immutable extraction from draft edits
+Linking preserves existing ledger details except explicitly selected reported
+balance and metadata choices; source fingerprints/references are not unique keys.
+`StatementMatch` returns the effective reported balance for the statement account,
+separately from the matched historical observation. Conflicts require a reviewed
+`balance_choice`; optional `detail_choices` carry selected metadata values and
+their current ledger snapshots. `SavedStatementRow` separates immutable extraction from draft edits
 and review metadata. Stale edits/decisions return 409. Bulk approval accepts 50
 IDs/versions and returns added/unchanged/unresolved counts.
 `Transaction.statement_evidence_count` is read-only; full masked observations load
@@ -529,3 +533,27 @@ Clients default missing fields to null/unavailable and never infer a historical
 mismatch by subtracting today's ledger. Existing fields and mobile clients stay
 compatible. Deploy the updated API before expecting comparison hints; no database
 migration is needed.
+
+## Reviewed statement detail enrichment
+
+Possible matches expose `detail_suggestions` for merchant/counterparty, reference,
+note, and masked sender/receiver account/card identifiers. “Fill missing details
+from statement” selects only empty fields with a nonempty suggestion. Existing
+values stay untouched unless the user explicitly selects a replacement; proposed
+values can be edited before accepting the match. No field is selected by default.
+Selections apply atomically with linking via `StatementDecision.detail_choices`,
+which includes each field's exact reviewed `existing_value` and desired `value`.
+Changed ledger values return 409 without partial updates; unsupported financial
+fields and duplicate selections are rejected. Identifier edits are masked before
+transmission and again before persistence. Choices and before/after values are
+audited. Unlinking or rescanning confirmed SMS does not undo these corrections.
+
+New statement drafts strip anchored labels such as “CARD PURCHASE” and “PURCHASE
+CARD” from the merchant field while retaining the original masked description.
+Merchant case/punctuation and manually saved draft corrections are preserved.
+References and explicitly labelled identifier metadata are excluded from merchant
+suggestions. The statement header identifies only the reporting account; transfer
+counterpart identifiers need explicit sender/receiver evidence. Ambiguous values
+remain empty. Payment methods, accounts, classifications, amount, date and time
+are not changed by this metadata shortcut. No new database migration is required;
+deploy web and API together.

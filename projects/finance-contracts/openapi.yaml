@@ -5317,6 +5317,69 @@ components:
       - posted
       - skipped
       - total
+    StatementBalanceChoice:
+      type: object
+      properties:
+        keep:
+          type: string
+          enum: [existing, statement]
+        existing_balance_after:
+          type: string
+          format: decimal
+          pattern: '^-?[0-9]{1,12}(?:\.[0-9]{1,2})?$'
+          nullable: true
+        statement_balance_after:
+          type: string
+          format: decimal
+          pattern: '^-?[0-9]{1,12}(?:\.[0-9]{1,2})?$'
+          nullable: true
+      required:
+      - existing_balance_after
+      - keep
+      - statement_balance_after
+    StatementDetailField:
+      type: string
+      enum:
+      - counterparty_text
+      - reference
+      - note
+      - sender_account_identifier
+      - sender_card_identifier
+      - receiver_account_identifier
+      - receiver_card_identifier
+    StatementDetailSuggestion:
+      type: object
+      properties:
+        field:
+          $ref: '#/components/schemas/StatementDetailField'
+        label:
+          type: string
+        existing_value:
+          type: string
+        suggested_value:
+          type: string
+      required:
+      - field
+      - label
+      - existing_value
+      - suggested_value
+    StatementDetailChoice:
+      type: object
+      properties:
+        field:
+          $ref: '#/components/schemas/StatementDetailField'
+        existing_value:
+          type: string
+          description: Exact current ledger value shown during review; identifiers are masked.
+        value:
+          type: string
+          maxLength: 4000
+          minLength: 1
+          description: Reviewed value, editable before accepting. Field-specific lengths and identifier masking are enforced by the API.
+      required:
+      - field
+      - existing_value
+      - value
     StatementDecision:
       type: object
       properties:
@@ -5341,6 +5404,14 @@ components:
           type: boolean
           default: false
           description: Explicitly remember classification choices only after create/link.
+        balance_choice:
+          $ref: '#/components/schemas/StatementBalanceChoice'
+        detail_choices:
+          type: array
+          maxItems: 7
+          items:
+            $ref: '#/components/schemas/StatementDetailChoice'
+          description: Only selected fields change on link. Missing values are not automatically filled; nonempty replacements are explicit.
       required:
       - action
       - version
@@ -5473,6 +5544,14 @@ components:
         balance_after:
           type: string
           nullable: true
+        effective_balance_after:
+          type: string
+          nullable: true
+          description: Current effective reported balance for the statement account; may differ from the matched historical observation.
+        detail_suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementDetailSuggestion'
         conflict:
           type: boolean
         can_link:
@@ -5495,9 +5574,11 @@ components:
       - account_name
       - amount
       - balance_after
+      - effective_balance_after
       - can_link
       - category_name
       - conflict
+      - detail_suggestions
       - date
       - id
       - note

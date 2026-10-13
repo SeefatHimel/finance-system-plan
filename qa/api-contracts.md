@@ -477,3 +477,22 @@ matched/mismatch from unavailable, card references, unknown timing and reports
 preceding a movement. Missing fields default to null/unavailable in web; clients
 must not manufacture a mismatch using today's balance. The additive response
 needs an API deployment but no database migration.
+
+### What must clients submit for a statement balance conflict?
+
+`StatementDecision.balance_choice` contains `keep` (`existing` or `statement`),
+`existing_balance_after`, and `statement_balance_after` as decimal strings or null.
+Clients display the current `StatementMatch.effective_balance_after`, rather than
+assuming an historical observation is the effective report. Conflict links require
+a choice even if `acknowledge_conflict=true`; changed reviewed values return 409.
+Deploy the web and API changes together. No model or migration changes are needed.
+
+
+### What is the contract for filling missing statement details?
+
+`StatementMatch.detail_suggestions` returns field, label, existing_value and
+suggested_value. `StatementDecision.detail_choices` optionally submits selected
+field/existing_value/value triples for a link, up to seven unique metadata fields.
+Stale snapshots return 409; unsupported fields, invalid masks, blank selected
+values and duplicate selections return readable 400 errors. No date/time, money,
+classification or account-path changes are accepted through this list.
