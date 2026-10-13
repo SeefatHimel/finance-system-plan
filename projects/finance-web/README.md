@@ -889,20 +889,26 @@ columns are hidden, with horizontal scrolling available on smaller screens.
 
 ### SMS review Focus mode
 
-The expand button beside Previous/Next enters Focus mode for the current review.
-It fills the browser viewport, hides the queue and app chrome, and keeps an
+The expand button beside Previous/Next enters Focus mode for the whole review
+workspace: received-date controls, searchable/filterable message queue and editor.
+It fills the browser viewport, hides app chrome, and keeps an
 amount/account/message-position header plus navigation, Reject and Confirm
-actions visible. Exit focus or Escape returns to the same queue and outer-page
+actions visible. Desktop retains the side-by-side queue/editor; small screens
+stack them and offer Hide/Show messages to give the editor more space without
+remounting it. Exit focus or Escape returns to the same queue and outer-page
 position. Matching, rejection and category dialogs handle Escape first. Focus
 continues when approval/rejection advances to another message and exits when
-there is no active review left.
+the review queue is empty. A search, type/category/provider filter or received-date
+range that returns no matches keeps Focus open so those controls remain available.
 
-Focus changes layout in place: the article and current form are not moved to a
+Focus changes layout in place: the workspace and current form are not moved to a
 portal, cloned or remounted. Browser-managed text/date/time values, controlled
 account/category/balance choices, checkboxes and open evidence sections survive
 entering/exiting. The existing candidate-keyed form still resets when moving to
 a different message. Toggling Focus never saves, fetches or re-runs parsing.
-Queue filters remain intact; this temporary mode is not persisted across reloads.
+Queue filters remain intact and usable; this temporary mode is not persisted across reloads.
+Updating search results keeps keyboard focus in the search field. The selected
+message is scrolled into view when the workspace or small-screen queue expands.
 
 Background controls become inert while focused, keyboard navigation stays within
 the review, and exiting restores focus to its trigger. Toasts appear inside the
@@ -914,7 +920,8 @@ Fullscreen API permissions and browser-UI removal are not used.
 
 Run `npm run test:focus`, `npm run test:workflows`, `npm run typecheck`,
 `npm run lint` and `npm run build`. Synthetic browser checks cover full field and
-DOM preservation, no implicit saves, nested Escape behavior, message navigation,
+DOM preservation, no implicit saves, live queue/date filters including no matches,
+nested Escape behavior, message navigation,
 confirmation/queue completion, contextual Undo, and desktop/phone/short viewport
 layouts. Real-device virtual keyboard and assistive-technology checks remain
 separate from Chromium viewport simulation.

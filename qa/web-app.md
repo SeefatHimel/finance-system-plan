@@ -791,16 +791,21 @@ browser storage falls back to the default view.
 
 ### How does SMS review Focus mode avoid losing unsaved edits?
 
-It expands the same mounted review article and form; changing Focus never moves
+It expands the same mounted workspace (dates, queue and editor); changing Focus never moves
 fields into a new modal/portal or changes their keys. Native input values,
 controlled choices, checkboxes and evidence disclosure state therefore survive
 entering/exiting. Candidate keys reset the form only when changing messages,
 matching normal review behavior. Focus itself performs no API mutation.
 
-The queue and app chrome are hidden/inert, with a persistent Exit control,
-header and action footer. Tab stays within review; Escape closes a nested dialog
+App chrome and other background controls are hidden/inert. The queue, search,
+filters and received-date controls stay interactive, with a persistent Exit control,
+header and action footer. Desktop uses two columns; small screens stack the queue
+above the editor and offer Hide/Show messages while keeping the form mounted.
+Changing search results does not move keyboard focus away from the search field.
+An empty filter result keeps Focus open so the filter can be corrected; completing
+the actual review queue exits it. Tab stays within the workspace; Escape closes a nested dialog
 first, then Focus, restoring the trigger and queue/page position. Native modal
 and Focus scroll locks share ownership, so cleanup order cannot leave scrolling
 stuck. Contextual Edit/Undo toasts stay accessible. Focus persists across reviewed
-messages, exits on an empty queue, and respects mobile safe areas/visual viewport
+messages and respects mobile safe areas/visual viewport
 without requesting browser fullscreen or preventing zoom.

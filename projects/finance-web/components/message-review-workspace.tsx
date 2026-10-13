@@ -143,8 +143,9 @@ export function MessageReviewWorkspace() {
   const [period, setPeriod] = useState<DatePeriod>(allDates);
   const [query, setQuery] = useState("");
   const queueList = useRef<HTMLDivElement>(null);
-  const reviewSurface = useRef<HTMLElement>(null);
+  const reviewSurface = useRef<HTMLDivElement>(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [focusQueueOpen, setFocusQueueOpen] = useState(true);
   const [amountPreview, setAmountPreview] = useState<{ candidate: string; value: string } | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [providerFilter, setProviderFilter] = useState("all");
@@ -214,16 +215,15 @@ export function MessageReviewWorkspace() {
   }, [categoryFilter, issueFilter, providerFilter, query, reviewState, typeFilter, period]);
 
   const activeCandidate = filteredCandidates.find((candidate) => candidate.id === activeCandidateId) ?? filteredCandidates[0] ?? null;
-  const isFocused = focusMode && Boolean(activeCandidate);
+  const isFocused = focusMode && reviewState.status === "ready" && reviewState.candidates.length > 0;
   const prepareFocus = useReviewFocus(isFocused, reviewSurface, queueList, () => setFocusMode(false));
   const selectedReviewId = activeCandidate?.id;
   useEffect(() => {
-    if (!selectedReviewId) setFocusMode(false);
     setAmountPreview(null);
   }, [selectedReviewId]);
   useEffect(() => {
-    if (isFocused) reviewSurface.current?.querySelector<HTMLElement>(".review-focus-title")?.focus({ preventScroll: true });
-  }, [isFocused, selectedReviewId]);
+    if (reviewState.status === "ready" && !reviewState.candidates.length) setFocusMode(false);
+  }, [reviewState]);
   const accountDraft = activeCandidate ? accountDrafts[activeCandidate.id] ?? accountReviewDefaults(activeCandidate) : null;
   function updateAccountDraft(patch: Partial<ReturnType<typeof accountReviewDefaults>>) {
     if (!activeCandidate || !accountDraft) return;
@@ -255,7 +255,7 @@ export function MessageReviewWorkspace() {
     const listBounds = list.getBoundingClientRect();
     if (itemBounds.top < listBounds.top) list.scrollTop += itemBounds.top - listBounds.top;
     else if (itemBounds.bottom > listBounds.bottom) list.scrollTop += itemBounds.bottom - listBounds.bottom;
-  }, [activeCandidate?.id]);
+  }, [activeCandidate?.id, isFocused, focusQueueOpen]);
 
   const accountNameById = useMemo(() => reviewState.status === "ready"
     ? new Map(reviewState.accounts.map((account) => [account.id, account.name]))
@@ -453,13 +453,21 @@ export function MessageReviewWorkspace() {
       {actionError ? <p className="form-error">{actionError}</p> : null}
       {actionMessage ? <p className="form-success"><CheckCircle aria-hidden="true" size={18} weight="fill" />{actionMessage}</p> : null}
 
-      {reviewState.candidates.length > 0 ? <section className="panel review-date-toolbar"><DatePeriodControls compact label="Received dates" description="SMS received date · Local timezone" value={period} onChange={setPeriod} /></section> : null}
+      <div className={`review-canvas${isFocused && !focusQueueOpen ? " review-canvas--queue-collapsed" : ""}`} ref={reviewSurface} role={isFocused ? "dialog" : undefined} aria-modal={isFocused || undefined} aria-label={isFocused ? "Focused SMS review" : undefined}>
+        <div className="review-focus-header" hidden={!isFocused}>
+          <div><h2 className="review-focus-title" tabIndex={-1}>{activeCandidate ? `SMS review · BDT ${amountPreview?.candidate === activeCandidate.id ? amountPreview.value || "—" : activeCandidate.amount ?? "—"}` : "SMS review"}</h2><span aria-live="polite" aria-atomic="true">{activeCandidate ? `${accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"} · ${activeIndex + 1} / ${filteredCandidates.length}` : "No messages match these filters"}</span></div>
+          <div className="review-focus-header__actions">
+            <button className="button button--ghost review-focus-queue-toggle" type="button" aria-expanded={focusQueueOpen} aria-controls="sms-review-queue" onClick={() => setFocusQueueOpen(current => !current)}>{focusQueueOpen ? "Hide messages" : "Show messages"}</button>
+            <button className="button button--ghost" type="button" onClick={() => setFocusMode(false)}><CornersIn size={19} aria-hidden="true" /><span>Exit focus</span></button>
+          </div>
+        </div>
+        {reviewState.candidates.length > 0 ? <section className="panel review-date-toolbar"><DatePeriodControls compact label="Received dates" description="SMS received date · Local timezone" value={period} onChange={setPeriod} /></section> : null}
 
       {reviewState.candidates.length === 0 ? (
         <section className="panel"><div className="panel__body empty-state"><CheckCircle aria-hidden="true" size={34} weight="fill" /><h2 className="section-title">Review queue is clear</h2><p className="section-subtitle">No captured messages currently require a decision.</p></div></section>
       ) : (
         <section className="review-split">
-          <aside className="panel review-queue" aria-label="Pending messages">
+          <aside className="panel review-queue" id="sms-review-queue" aria-label="Pending messages">
             <div className="review-queue__filters">
               <div className="review-queue__search-row">
                 <label className="review-search"><MagnifyingGlass aria-hidden="true" size={18} /><input aria-label="Search review queue" onChange={event => setQuery(event.target.value)} placeholder="Search messages" type="search" value={query} /></label>
@@ -483,11 +491,7 @@ export function MessageReviewWorkspace() {
           </aside>
 
           {activeCandidate ? (
-            <article className="panel review-detail" ref={reviewSurface} role={isFocused ? "dialog" : undefined} aria-modal={isFocused || undefined} aria-label={isFocused ? "Focused SMS review" : undefined}>
-              <div className="review-focus-header" hidden={!isFocused}>
-                <div><h2 className="review-focus-title" tabIndex={-1}>SMS review · BDT {amountPreview?.candidate === activeCandidate.id ? amountPreview.value || "—" : activeCandidate.amount ?? "—"}</h2><span>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"} · {activeIndex + 1} / {filteredCandidates.length}</span></div>
-                <button className="button button--ghost" type="button" onClick={() => setFocusMode(false)}><CornersIn size={19} aria-hidden="true" /><span>Exit focus</span></button>
-              </div>
+            <article className="panel review-detail">
               <form key={activeCandidate.id} onSubmit={(event) => void handleConfirm(activeCandidate, event)}>
                 <div className="review-detail__content">
                 <div className="review-detail__header">
@@ -550,12 +554,13 @@ export function MessageReviewWorkspace() {
                 <details className="raw-message" open={Number(activeCandidate.confidence) < 0.65 || Boolean(activeCandidate.raw_message.duplicate_of)}><summary>Original SMS and parser evidence</summary><p>{activeCandidate.raw_message.body}</p><p>{activeCandidate.parser_notes}</p>{activeCandidate.raw_message.status !== "redacted" ? <div className="raw-message-actions"><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleReprocess(activeCandidate)} type="button">{reprocessingCandidateId === activeCandidate.id ? <ButtonBusy label="Re-running parser" /> : <><ArrowClockwise aria-hidden="true" size={18} />Re-run parser</>}</button><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleRedact(activeCandidate)} type="button">Redact original SMS now</button></div> : <span className="status-badge status-badge--ok">Original SMS redacted</span>}</details>
 
                 </div>
-                <div className="review-sticky-actions"><div className="review-action-status"><strong>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"}</strong><span>{candidateIssues(activeCandidate).length ? `${candidateIssues(activeCandidate).length} item(s) need attention` : "Ready to add to ledger"}</span></div><div className="review-detail__pager" role="group" aria-label="Message navigation"><button aria-label="Previous message" disabled={activeIndex <= 0} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex - 1]?.id ?? activeCandidate.id)} type="button"><ArrowLeft size={18} /></button><span>{activeIndex + 1} / {filteredCandidates.length}</span><button aria-label="Next message" disabled={activeIndex >= filteredCandidates.length - 1} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex + 1]?.id ?? activeCandidate.id)} type="button"><ArrowRight size={18} /></button><button className="review-focus-toggle" aria-label={isFocused ? "Exit focus mode" : "Enter focus mode"} aria-pressed={isFocused} title={isFocused ? "Exit focus mode (Escape)" : "Focus on this review"} onClick={event => { if (!isFocused) prepareFocus(event.currentTarget); setFocusMode(current => !current); }} type="button">{isFocused ? <CornersIn size={19} aria-hidden="true" /> : <CornersOut size={19} aria-hidden="true" />}</button></div><button className="button button--danger" disabled={workingCandidateId === activeCandidate.id} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })} type="button">Reject</button><button className="button button--primary" disabled={workingCandidateId === activeCandidate.id} type="submit">{workingCandidateId === activeCandidate.id ? <ButtonBusy label="Confirming" /> : "Confirm & add"}</button></div>
+                <div className="review-sticky-actions"><div className="review-action-status"><strong>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"}</strong><span>{candidateIssues(activeCandidate).length ? `${candidateIssues(activeCandidate).length} item(s) need attention` : "Ready to add to ledger"}</span></div><div className="review-detail__pager" role="group" aria-label="Message navigation"><button aria-label="Previous message" disabled={activeIndex <= 0} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex - 1]?.id ?? activeCandidate.id)} type="button"><ArrowLeft size={18} /></button><span>{activeIndex + 1} / {filteredCandidates.length}</span><button aria-label="Next message" disabled={activeIndex >= filteredCandidates.length - 1} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex + 1]?.id ?? activeCandidate.id)} type="button"><ArrowRight size={18} /></button><button className="review-focus-toggle" aria-label={isFocused ? "Exit focus mode" : "Enter focus mode"} aria-pressed={isFocused} title={isFocused ? "Exit focus mode (Escape)" : "Focus on the review workspace"} onClick={event => { if (!isFocused) prepareFocus(event.currentTarget); setFocusMode(current => !current); }} type="button">{isFocused ? <CornersIn size={19} aria-hidden="true" /> : <CornersOut size={19} aria-hidden="true" />}</button></div><button className="button button--danger" disabled={workingCandidateId === activeCandidate.id} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })} type="button">Reject</button><button className="button button--primary" disabled={workingCandidateId === activeCandidate.id} type="submit">{workingCandidateId === activeCandidate.id ? <ButtonBusy label="Confirming" /> : "Confirm & add"}</button></div>
               </form>
             </article>
           ) : null}
         </section>
       )}
+      </div>
 
       {filtersOpen ? <ModalDialog labelledBy="review-filters-title" className="decision-modal review-filter-dialog" onCancel={() => setFiltersOpen(false)}>
         <button className="decision-modal__close" aria-label="Close filters" onClick={() => setFiltersOpen(false)} type="button"><X size={20} /></button>
