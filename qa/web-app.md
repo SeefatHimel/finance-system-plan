@@ -922,3 +922,11 @@ Nonempty replacements must be explicitly selected; acceptance applies only those
 fields. Clean merchant suggestions remove anchored card-purchase labels while
 preserving source text, merchant names and user edits. Date/time and financial
 identity stay unchanged, and full identifiers are masked before transmission.
+
+### Why can an older statement row show raw card-purchase wording?
+
+Older saved drafts kept the statement description in Counterparty. After the API
+runs migration `statements.0003_reapply_pending_merchants`, refresh the row to
+see the cleaned merchant if that draft was untouched and is still pending. The
+original extracted description and Note remain available for review. A manual
+merchant correction and any resolved row are not rewritten.

@@ -409,9 +409,12 @@ environment; the deployment must permit starting that process. It creates no
 ledger entries on upload; masked rows and drafts are saved for review.
 
 Statement review assistance requires the latest API migrations, including
-`statements.0002_statementmapping`. Run `python manage.py migrate` from
+`statements.0003_reapply_pending_merchants`. Run `python manage.py migrate` from
 `projects/finance-api` before restarting API/web. The remembered-choice table stores
-scoped classifications; PDF/password retention remains unchanged (neither is saved).
+scoped classifications. Migration 0003 cleans untouched Counterparty drafts on
+pending statement rows; it preserves saved corrections, original extraction,
+notes, resolved rows, and ledger entries. PDF/password retention remains unchanged
+(neither is saved).
 
 The payment-method identity metadata update adds one migration. Run the existing
 API `python manage.py migrate` command before testing identifiers and aliases.

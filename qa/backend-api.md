@@ -799,3 +799,11 @@ share one atomic operation. Ledger before/after values are retained, SMS evidenc
 is unchanged, and confirmed-message rescans cannot replay parser defaults.
 Identifier roles are suggested only from explicit labels or the reporting-account
 header; ambiguous counterpart numbers are not guessed.
+
+### Can older pending statement rows use the newer merchant cleanup?
+
+Yes. Migration `statements.0003_reapply_pending_merchants` updates the draft
+Counterparty only when it still exactly matches the saved extracted description
+and a recognized card-purchase prefix can be removed. It bumps the row version
+to reject stale editor saves. User corrections, resolved rows, original evidence,
+notes, balances, and ledger records are unchanged; no PDF re-upload is needed.

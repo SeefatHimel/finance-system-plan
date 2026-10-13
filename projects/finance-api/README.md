@@ -979,9 +979,16 @@ References and explicitly labelled identifier metadata are excluded from merchan
 suggestions. The statement header identifies only the reporting account; transfer
 counterpart identifiers need explicit sender/receiver evidence. Ambiguous values
 remain empty. Payment methods, accounts, classifications, amount, date and time
-are not changed by this metadata shortcut. No new database migration is required;
-deploy web and API together.
+are not changed by this metadata shortcut. Deploy web and API together.
 
 Suggestions are computed for existing pending rows at review time from their saved
-masked extraction and draft fields; no re-import or data migration is needed.
-Read requests do not mutate them. Rows already resolved are not rewritten.
+masked extraction and draft fields; no re-import is needed. Read requests do not
+mutate them. Rows already resolved are not rewritten.
+
+Run `python manage.py migrate` before restarting the API. Migration
+`statements.0003_reapply_pending_merchants` updates only still-pending statement
+drafts whose Counterparty exactly equals their saved extracted description. It
+removes a recognized card-purchase prefix from that draft field and increments the
+row version so an open stale editor must reload. Manually corrected, skipped,
+linked, and added rows are left alone. The extracted description, note, balances,
+matches, and ledger transactions are not changed; existing PDFs need no re-upload.

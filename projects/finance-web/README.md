@@ -1079,8 +1079,11 @@ References and explicitly labelled identifier metadata are excluded from merchan
 suggestions. The statement header identifies only the reporting account; transfer
 counterpart identifiers need explicit sender/receiver evidence. Ambiguous values
 remain empty. Payment methods, accounts, classifications, amount, date and time
-are not changed by this metadata shortcut. No new database migration is required;
-deploy web and API together.
+are not changed by this metadata shortcut. Deploy web and API together. API
+migration `statements.0003_reapply_pending_merchants` also refreshes the saved
+Counterparty field of older, untouched pending statement drafts. Refresh an open
+review row after deployment to see it; manually edited or resolved rows remain
+unchanged. The original extracted description and full Note remain available.
 
 Existing pending imports get these suggestions when their rows are reopened after
 deployment; they do not need to be uploaded again. The shortcut never posts or
