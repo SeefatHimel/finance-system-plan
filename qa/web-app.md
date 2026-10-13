@@ -588,6 +588,17 @@ ledger-only list highlights recorded entries with no statement suggestion within
 that account's printed period. Warnings explain provisional absence; no automatic
 deletion occurs. PDF evidence remains separate from edited ledger details.
 
+The row dialog fills most of the viewport, keeps decision buttons visible, and
+uses a full-width comparison for every suggested match. Statement and ledger
+details appear side by side on desktop and stack on phones. Each balance conflict
+has its own acknowledgment; acknowledging one match does not authorize another.
+Accept is disabled while the draft is unsaved or required acknowledgments are
+missing. Saving clears acknowledgments for the refreshed suggestions. Exact
+decimal differences remain reviewable even at one cent. Linking preserves the
+existing ledger balance and both observations instead of silently reconciling
+them. Source-discrepancy acknowledgment still applies to all posting/linking
+decisions, and the API repeats validation at decision time.
+
 ### How does statement review show a ledger edit that breaks an accepted match?
 
 The table derives confirmation from review state as well as the attached ledger

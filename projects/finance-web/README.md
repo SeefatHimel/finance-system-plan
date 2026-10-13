@@ -611,6 +611,18 @@ under the current filters. Save changes before moving next. Shortcuts within the
 editor: Alt+S saves, Alt+Shift+S saves and moves next, Alt+Right opens the next row.
 These controls never approve transactions implicitly.
 
+The row dialog uses most of the viewport, with a scrolling review body and a
+fixed decision footer. Every match fills the available width and compares the
+saved statement draft with the existing ledger entry side by side; phones stack
+the comparison. Match reasons expand on demand. Differing reported balances are
+highlighted with an exact decimal difference, and acknowledgment belongs to that
+specific match. Accept stays disabled until draft changes are saved and any
+required source/balance acknowledgments are checked. Saving refreshes matches
+and clears acknowledgments. Linking keeps the existing ledger balance and both
+observations; it never replaces a ledger balance with the statement value.
+The other-owned-account field appears only for transfers. The classification
+review checkbox confirms review and does not change the transaction type.
+
 Remember my choices is explicit on individual add/link decisions. A later matching
 source pattern offers Apply suggested choices for type/category/other owned account;
 applying it creates an unsaved draft change and preserves reported financial fields.
