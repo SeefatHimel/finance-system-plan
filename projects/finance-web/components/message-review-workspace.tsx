@@ -1,5 +1,6 @@
 "use client";
 
+import { HelpTooltip } from "@/components/help-tooltip";
 import { useAuth } from "@/components/auth-provider";
 import { FieldError } from "@/components/field-error";
 import { fieldErrorsFrom, focusFieldError, nativeFieldErrors } from "@/lib/form-feedback";
@@ -479,14 +480,6 @@ export function MessageReviewWorkspace() {
   return (
     <div className={`workspace-grid review-workspace${isFocused ? " review-workspace--focus" : ""}`}>
       {categoryChoice.confirmation}
-      <section className="panel">
-        <div className="panel__body review-hero">
-          <div><h2 className="section-title">SMS review inbox</h2><p className="section-subtitle">Resolve one message at a time. Required corrections are highlighted before confirmation.</p></div>
-          <div className="review-hero__actions"><span className="status-badge status-badge--idle">{reviewState.candidates.length} pending</span><button className="button button--ghost" disabled={isBulkReprocessing || reviewState.candidates.length === 0} onClick={() => void handleBulkReprocess()} type="button">{isBulkReprocessing ? <ButtonBusy label="Reapplying rules" /> : <><ArrowClockwise aria-hidden="true" size={17} />Reapply rules to pending</>}</button></div>
-        </div>
-      </section>
-
-      <RecentTransactionAction />
       {actionError ? <p className="form-error" role="alert">{actionError}</p> : null}
       {actionMessage ? <p className="form-success"><CheckCircle aria-hidden="true" size={18} weight="fill" />{actionMessage}</p> : null}
 
@@ -498,7 +491,15 @@ export function MessageReviewWorkspace() {
             <button className="button button--ghost" type="button" onClick={() => setFocusMode(false)}><CornersIn size={19} aria-hidden="true" /><span>Exit focus</span></button>
           </div>
         </div>
-        {reviewState.candidates.length > 0 ? <section className="panel review-date-toolbar"><DatePeriodControls compact label="Received dates" description="SMS received date · Local timezone" value={period} onChange={setPeriod} /></section> : null}
+        <section className="panel review-date-toolbar review-inbox-toolbar" aria-label="Review inbox controls">
+          <div className="review-toolbar__title">
+            <h2 className="section-title">SMS review inbox</h2>
+            <HelpTooltip label="About SMS review">Resolve one message at a time. Required corrections are highlighted before confirmation.</HelpTooltip>
+          </div>
+          {reviewState.candidates.length > 0 ? <div className="review-toolbar__dates"><DatePeriodControls compact label="Received dates" description="Local timezone" value={period} onChange={setPeriod} /></div> : null}
+          <div className="review-hero__actions"><span className="status-badge status-badge--idle">{reviewState.candidates.length} pending</span><button className="button button--ghost" disabled={isBulkReprocessing || reviewState.candidates.length === 0} onClick={() => void handleBulkReprocess()} type="button">{isBulkReprocessing ? <ButtonBusy label="Reapplying rules" /> : <><ArrowClockwise aria-hidden="true" size={17} />Reapply rules to pending</>}</button></div>
+        </section>
+        <div className="review-recovery"><RecentTransactionAction /></div>
 
       {reviewState.candidates.length === 0 ? (
         <section className="panel"><div className="panel__body empty-state"><CheckCircle aria-hidden="true" size={34} weight="fill" /><h2 className="section-title">Review queue is clear</h2><p className="section-subtitle">No captured messages currently require a decision.</p></div></section>

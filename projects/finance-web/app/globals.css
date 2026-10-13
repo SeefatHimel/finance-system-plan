@@ -3252,3 +3252,17 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
   .transaction-card .list-row__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .transaction-card .button { min-height: 44px; flex: 1 1 70px; }
 }
+
+/* Inbox identity, queue actions and date filtering share a wrapping toolbar. */
+.review-inbox-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; flex-shrink: 0; }
+.review-toolbar__title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.review-toolbar__title .section-title { font-size: 18px; }
+.review-toolbar__dates { flex: 1 1 320px; min-width: 0; }
+.review-recovery:empty { display: none; }
+.review-workspace--focus .review-toolbar__title,
+.review-workspace--focus .review-inbox-toolbar > .review-hero__actions,
+.review-workspace--focus .review-recovery { display: none; }
+@media (max-width: 820px) {
+  .review-inbox-toolbar > .review-hero__actions { flex-wrap: wrap; align-items: center; gap: 8px; }
+  .review-inbox-toolbar .date-period-caption { flex-basis: auto; margin-left: auto; }
+}

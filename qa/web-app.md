@@ -841,3 +841,11 @@ At phone widths cards use the same formatting/actions and column preferences as
 the table. Extra selected metadata expands within each card. Internal transfers
 remain neutral in the all-account view, while account filters show debit/credit.
 This changes presentation, not matching, amounts, balances or ledger calculations.
+
+### Why combine the SMS heading and received-date filters?
+
+They belong to the same inbox controls and can share a wrapping toolbar, reducing
+separate panel padding and gaps. The heading retains guidance through an accessible
+info control; queue count and reapply remain available. Edit/Undo stays a distinct
+row to avoid confusing recovery with filtering. Focus keeps the same date-control
+instance mounted, so an unfinished custom range survives entering/exiting Focus.

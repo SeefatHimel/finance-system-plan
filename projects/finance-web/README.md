@@ -975,3 +975,10 @@ Synthetic Chrome checks covered the six-column desktop view, inline error focus,
 manual save, draft readiness, approval/queue badge updates, 400×740 transaction
 cards, navigation Tab/Escape focus restoration, and both saved transfer balances.
 Real-device virtual keyboards and screen-reader announcements still need manual QA.
+
+The SMS inbox heading, pending count, reapply action and received-date controls
+share one wrapping toolbar. Guidance is available through the adjacent info
+control. Edit/Undo remains a separate recovery row below it. On small screens,
+controls wrap within the panel instead of adding another full-width section.
+Focus uses the same mounted date controls while hiding the normal inbox heading,
+bulk actions and recovery row; switching layouts preserves custom-date drafts.
