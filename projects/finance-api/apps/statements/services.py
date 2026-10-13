@@ -865,6 +865,8 @@ def decide_locked(*, row, user, payload, request):
                 else None
             )
         elif action == "create":
+            from .pending_sms import pending_sms_matches
+
             if Transaction.objects.filter(
                 user=user, external_key=f"statement-row:{row.id}"
             ).exists():
@@ -877,10 +879,10 @@ def decide_locked(*, row, user, payload, request):
             issues = [issue for issue in issues if "previously linked" not in issue]
             if issues:
                 raise ValidationError({"row": issues})
-            if matches[row.id] and not payload.get("allow_separate"):
+            if (matches[row.id] or pending_sms_matches(row)) and not payload.get("allow_separate"):
                 raise ValidationError(
                     {
-                        "allow_separate": "Possible matches exist. Accept a match or explicitly confirm that this is a separate movement."
+                        "allow_separate": "Possible ledger or pending SMS matches exist. Review them or explicitly confirm a separate movement."
                     }
                 )
             has_inline_fee = (

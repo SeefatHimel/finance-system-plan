@@ -977,7 +977,7 @@ export interface StatementPreview {
   warnings: string[];
 }
 
-export type StatementAction = "create" | "link" | "skip" | "unlink" | "reopen";
+export type StatementAction = "create" | "link" | "combine_sms" | "skip" | "unlink" | "reopen";
 
 export type StatementComponent = "principal" | "fee";
 
@@ -1086,6 +1086,7 @@ export interface StatementDecision {
   action: StatementAction;
   version: number;
   transaction?: string;
+  candidate?: string;
   allow_separate?: boolean;
   acknowledge_issues?: boolean;
   acknowledge_conflict?: boolean;
@@ -1139,10 +1140,26 @@ export interface StatementMatch {
   time_difference_minutes: number | null;
 }
 
+export interface PendingSmsStatementMatch {
+  id: string;
+  date: string;
+  time: string;
+  sender: string;
+  sms_text: string | null;
+  amount: string;
+  type: string;
+  counterparty_text: string;
+  balance_after: string | null;
+  reference: string;
+  confidence: string;
+  detail_suggestions: StatementDetailSuggestion[];
+}
+
 export interface StatementReview {
   issues: string[];
   review_state: "new" | "possible_match" | "needs_correction" | "posted" | "linked" | "skipped";
   matches: StatementMatch[];
+  pending_sms_matches: PendingSmsStatementMatch[];
   matching_truncated: boolean;
   requires_acknowledgement: boolean;
   draft_issues: string[];

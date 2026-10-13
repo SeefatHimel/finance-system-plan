@@ -22,6 +22,11 @@ ledger movement and preserves its edits. New rows require explicit individual or
 bulk approval; upload never posts. Same-file retries resume decisions, overlapping
 files suggest existing movements, and source fingerprints are never unique keys.
 Opening/summary balances are excluded; wallet fees are independent review rows.
+When both an SMS and a PDF row are still pending, an eligible statement row can
+show the pending SMS. One explicit combined approval creates one SMS-sourced
+ledger movement and links the statement. This is optional; either review queue
+still works on its own. Amount/date/account/type agreement is a suggestion, not
+automatic proof of identity, so the user verifies the pair before approval.
 Reversals and genuine repeats remain separate. Scans/card billing layouts and
 automatic posting remain future work. See [the import plan](../docs/statement-pdf-import-plan.md).
 

@@ -807,3 +807,19 @@ Counterparty only when it still exactly matches the saved extracted description
 and a recognized card-purchase prefix can be removed. It bumps the row version
 to reject stale editor saves. User corrections, resolved rows, original evidence,
 notes, balances, and ledger records are unchanged; no PDF re-upload is needed.
+
+### Can two pending sources be approved as one movement?
+
+Yes. A statement row detail response offers eligible pending SMS candidates with
+the same owner, reporting account, type, direction, amount and a date within the
+three-day match window. `combine_sms` is an explicit, versioned decision. Under
+the user lock and one database transaction it rechecks both pending states,
+duplicate SMS identity, existing ledger suggestions and source discrepancies,
+then creates an SMS-dated entry and links the statement using the existing link
+engine. An existing ledger suggestion blocks the combined action so it cannot
+silently create a second movement. Differing non-null reported balances require
+an exact-value choice; source evidence and the audit trail retain both values.
+Inline-fee principal rows are excluded because their printed final balance
+belongs to the separate fee row. Independent SMS and statement decisions remain
+available. This combined decision does not create an ordinary SMS undo action;
+unlink statement evidence and correct the ledger through Transactions instead.

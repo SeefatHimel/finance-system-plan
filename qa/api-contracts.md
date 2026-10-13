@@ -496,3 +496,12 @@ field/existing_value/value triples for a link, up to seven unique metadata field
 Stale snapshots return 409; unsupported fields, invalid masks, blank selected
 values and duplicate selections return readable 400 errors. No date/time, money,
 classification or account-path changes are accepted through this list.
+
+### How does combined pending SMS and statement review work at the API boundary?
+
+Statement row detail `review.pending_sms_matches` is a bounded advisory list;
+paginated row lists return an empty array to avoid a query per row. A `combine_sms`
+decision requires the pending candidate UUID and statement row version. A reported
+balance conflict requires `balance_choice` with exact reviewed SMS and statement
+values. The API revalidates both sources atomically and returns 409 for stale
+review. SMS-only and statement-only endpoints keep their existing behavior.

@@ -20,6 +20,7 @@ from apps.transactions.transfers import lock_transfer_user
 
 from .insights import analyze, prepare
 from .models import StatementImport, StatementRow
+from .pending_sms import pending_sms_matches
 from .serializers import (
     SavedStatementRowSerializer,
     StatementBulkResultSerializer,
@@ -315,8 +316,9 @@ class StatementImportViewSet(
     )
     @action(detail=True, methods=("get",))
     def comparison(self, request, pk=None):
-        from .comparison import compare
         from apps.reports.periods import custom_bounds
+
+        from .comparison import compare
 
         batch = self.get_object()
         bounds = custom_bounds(request.query_params)
@@ -413,6 +415,7 @@ class StatementImportViewSet(
             if (
                 entry["version"] != row.version
                 or matches[row.id]
+                or pending_sms_matches(row)
                 or truncated
                 or issues
                 or review["requires_acknowledgement"]
@@ -465,7 +468,8 @@ class StatementRowViewSet(NoStoreMixin, viewsets.GenericViewSet):
         row._suggestion = suggestions([row]).get(row.id)
         matches, truncated = find_matches([row])
         return SavedStatementRowSerializer(
-            row, context={"matches": matches, "matching_truncated": truncated}
+            row, context={"matches": matches, "matching_truncated": truncated,
+                          "pending_sms_matches": pending_sms_matches(row)}
         ).data
 
     def retrieve(self, request, pk=None):
@@ -514,10 +518,18 @@ class StatementRowViewSet(NoStoreMixin, viewsets.GenericViewSet):
             data=request.data, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
-        row, _ = decide_locked(
-            row=row,
-            user=request.user,
-            payload=serializer.validated_data,
-            request=request,
-        )
+        if serializer.validated_data["action"] == "combine_sms":
+            from .pending_sms import combine_pending_sms
+
+            row = combine_pending_sms(
+                row=row, user=request.user,
+                payload=serializer.validated_data, request=request,
+            )
+        else:
+            row, _ = decide_locked(
+                row=row,
+                user=request.user,
+                payload=serializer.validated_data,
+                request=request,
+            )
         return Response(self.representation(row))

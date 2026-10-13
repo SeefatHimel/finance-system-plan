@@ -1,11 +1,12 @@
 """Synthetic-only end-to-end review, ledger, and duplicate protection tests."""
 
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from threading import Barrier
 from unittest import skipUnless
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -18,6 +19,7 @@ from rest_framework.test import APIClient, APITestCase
 from apps.accounts.models import Account
 from apps.audit_logs.models import AuditLogEntry
 from apps.categories.models import Category
+from apps.messages.models import ParsedMessageCandidate, RawMessage
 from apps.transactions.models import Transaction, TransferEvidence
 from apps.transactions.services import calculate_expected_balance
 
@@ -89,6 +91,154 @@ class SavedStatementTests(APITestCase):
             "reference": "REUSED",
         }
         return Transaction.objects.create(**{**data, **fields})
+
+    def pending_sms(self, row, *, balance_after="950.00", transfer=False):
+        received = datetime(2026, 1, 2, 12, 30, tzinfo=ZoneInfo("Asia/Dhaka"))
+        body = f"Synthetic purchase {row.id}"
+        raw = RawMessage.objects.create(
+            user=self.user, sender="SYNTH", body=body, received_at=received,
+            body_hash=RawMessage.build_body_hash(sender="SYNTH", body=body, received_at=received),
+        )
+        return ParsedMessageCandidate.objects.create(
+            user=self.user, raw_message=raw, account=self.bank, category=self.category,
+            destination_account=self.wallet if transfer else None,
+            transaction_type="transfer" if transfer else "expense",
+            message_kind="bank_transfer_out" if transfer else "card_purchase", amount=row.amount,
+            balance_after=balance_after, counterparty_text="Synthetic shop",
+        )
+
+    def test_pending_sms_and_statement_can_be_reviewed_once(self):
+        batch = self.upload()
+        row = batch.rows.filter(component="principal", direction="debit").first()
+        candidate = self.pending_sms(row)
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id]))
+        self.assertEqual(detail.status_code, 200, detail.data)
+        self.assertEqual(detail.data["review"]["pending_sms_matches"][0]["id"], str(candidate.id))
+        self.assertIn("Synthetic purchase", detail.data["review"]["pending_sms_matches"][0]["sms_text"])
+        result = self.decide(row, "combine_sms", candidate=str(candidate.id), detail_choices=[{
+            "field": "counterparty_text", "existing_value": "Synthetic shop",
+            "value": "North End Coffee",
+        }])
+        self.assertEqual(result.status_code, 200, result.data)
+        row.refresh_from_db()
+        candidate.refresh_from_db()
+        self.assertEqual(Transaction.objects.count(), 1)
+        self.assertEqual(candidate.status, ParsedMessageCandidate.Status.CONFIRMED)
+        self.assertEqual(candidate.transaction_id, row.transaction_id)
+        self.assertEqual(row.state, "linked")
+        self.assertEqual(row.transaction.raw_message_id, candidate.raw_message_id)
+        self.assertEqual(row.transaction.date, date(2026, 1, 2))
+        self.assertEqual(row.transaction.source, "sms")
+        self.assertEqual(row.transaction.counterparty_text, "North End Coffee")
+        self.assertEqual(self.decide(row, "combine_sms", candidate=str(candidate.id)).status_code, 409)
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_pending_sms_balance_conflict_requires_explicit_choice(self):
+        batch = self.upload()
+        row = batch.rows.filter(component="principal", direction="debit").first()
+        candidate = self.pending_sms(row, balance_after="949.93")
+        denied = self.decide(row, "combine_sms", candidate=str(candidate.id))
+        self.assertEqual(denied.status_code, 400, denied.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        chosen = self.decide(row, "combine_sms", candidate=str(candidate.id), balance_choice={
+            "keep": "statement", "existing_balance_after": "949.93",
+            "statement_balance_after": str(row.balance_after),
+        })
+        self.assertEqual(chosen.status_code, 200, chosen.data)
+        row.refresh_from_db()
+        self.assertEqual(row.transaction.balance_after, row.balance_after)
+
+    def test_combined_review_fills_missing_sms_balance_from_statement(self):
+        batch = self.upload()
+        row = batch.rows.filter(component="principal", direction="debit").first()
+        candidate = self.pending_sms(row, balance_after=None)
+        result = self.decide(row, "combine_sms", candidate=str(candidate.id))
+        self.assertEqual(result.status_code, 200, result.data)
+        row.refresh_from_db()
+        self.assertEqual(row.transaction.balance_after, row.balance_after)
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_existing_ledger_match_blocks_combining_pending_sms(self):
+        batch = self.upload()
+        row = batch.rows.filter(component="principal", direction="debit").first()
+        candidate = self.pending_sms(row)
+        self.ledger_purchase()
+        result = self.decide(row, "combine_sms", candidate=str(candidate.id))
+        self.assertEqual(result.status_code, 400, result.data)
+        self.assertEqual(Transaction.objects.count(), 1)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, ParsedMessageCandidate.Status.NEEDS_REVIEW)
+
+    def test_combined_review_rechecks_pending_sms_and_account(self):
+        batch = self.upload()
+        row = batch.rows.filter(component="principal", direction="debit").first()
+        candidate = self.pending_sms(row)
+        candidate.account = self.wallet
+        candidate.save(update_fields=("account",))
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id]))
+        self.assertEqual(detail.data["review"]["pending_sms_matches"], [])
+        denied = self.decide(row, "combine_sms", candidate=str(candidate.id))
+        self.assertEqual(denied.status_code, 409, denied.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        candidate.account = self.bank
+        candidate.status = ParsedMessageCandidate.Status.CONFIRMED
+        candidate.save(update_fields=("account", "status"))
+        self.assertEqual(self.decide(row, "combine_sms", candidate=str(candidate.id)).status_code, 409)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_combined_review_rolls_back_when_statement_acknowledgement_is_missing(self):
+        batch = self.upload()
+        row = batch.rows.filter(component="principal", direction="debit").first()
+        candidate = self.pending_sms(row)
+        row.extracted = {**row.extracted, "issues": ["Synthetic source discrepancy"]}
+        row.save(update_fields=("extracted",))
+        denied = self.decide(row, "combine_sms", candidate=str(candidate.id))
+        self.assertEqual(denied.status_code, 400, denied.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, ParsedMessageCandidate.Status.NEEDS_REVIEW)
+
+    def test_combined_transfer_keeps_both_account_observations(self):
+        batch = self.upload()
+        row = batch.rows.filter(component="principal", direction="debit").first()
+        row.type = "transfer"
+        row.category = None
+        row.other_account = self.wallet
+        row.classification_confirmed = True
+        row.save()
+        candidate = self.pending_sms(row, transfer=True)
+        result = self.decide(row, "combine_sms", candidate=str(candidate.id))
+        self.assertEqual(result.status_code, 200, result.data)
+        row.refresh_from_db()
+        self.assertEqual(row.transaction.type, "transfer")
+        self.assertEqual(row.transaction.account_id, self.bank.id)
+        self.assertEqual(row.transaction.transfer_account_id, self.wallet.id)
+        self.assertEqual(row.transaction.transfer_evidence.count(), 2)
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_combined_incoming_transfer_keeps_sms_receiving_date(self):
+        batch = self.upload()
+        row = batch.rows.filter(component="principal", direction="credit").first()
+        row.type = "transfer"
+        row.category = None
+        row.other_account = self.wallet
+        row.classification_confirmed = True
+        row.save()
+        candidate = self.pending_sms(row, transfer=True, balance_after=str(row.balance_after))
+        candidate.account = self.wallet
+        candidate.destination_account = self.bank
+        candidate.message_kind = "bank_transfer_in"
+        candidate.suggested_transfer_direction = "credit"
+        candidate.save(update_fields=("account", "destination_account", "message_kind", "suggested_transfer_direction"))
+        result = self.decide(row, "combine_sms", candidate=str(candidate.id))
+        self.assertEqual(result.status_code, 200, result.data)
+        row.refresh_from_db()
+        self.assertEqual(row.transaction.account_id, self.wallet.id)
+        self.assertEqual(row.transaction.transfer_account_id, self.bank.id)
+        sms_evidence = row.transaction.transfer_evidence.get(raw_message_id=candidate.raw_message_id)
+        self.assertEqual(sms_evidence.direction, "credit")
+        self.assertEqual(sms_evidence.date, date(2026, 1, 2))
+        self.assertEqual(Transaction.objects.count(), 1)
 
     def test_saved_draft_retry_preserves_edits_and_never_posts(self):
         batch = self.upload()

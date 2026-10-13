@@ -1519,13 +1519,19 @@ const statementMatchSchema = z.object({
   effective_balance_after: z.string().nullable(), detail_suggestions: z.array(statementDetailSuggestionSchema),
   conflict: z.boolean(), can_link: z.boolean(), reasons: z.array(z.string())
 });
+const pendingStatementSmsMatchSchema = z.object({
+  id: z.string(), date: z.string(), time: z.string(), sender: z.string(), sms_text: z.string().nullable(),
+  amount: z.string(), type: z.string(), counterparty_text: z.string(),
+  balance_after: z.string().nullable(), reference: z.string(), confidence: z.string(),
+  detail_suggestions: z.array(statementDetailSuggestionSchema),
+});
 const savedStatementRowSchema = z.object({
   id: z.string(), batch: z.string(), position: z.number(), component: z.enum(["principal", "fee"]), extracted: statementRowSchema,
   date: z.string().nullable(), time: z.string().nullable(), value_date: z.string().nullable(), direction: z.enum(["debit", "credit"]), amount: z.string().nullable(), balance_after: z.string().nullable(),
   type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]),
   other_account: z.string().nullable(), category: z.string().nullable(), reference: z.string(), counterparty_text: z.string(), note: z.string(), classification_confirmed: z.boolean(),
   state: z.enum(["pending", "posted", "linked", "skipped"]), transaction: z.string().nullable(), version: z.number(), created_at: z.string(), updated_at: z.string(),
-  review: z.object({ draft_issues: z.array(z.string()).default([]), suggestion: z.object({ type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]), category: z.string().nullable(), other_account: z.string().nullable(), reason: z.string() }).nullable().default(null), issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
+  review: z.object({ draft_issues: z.array(z.string()).default([]), suggestion: z.object({ type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]), category: z.string().nullable(), other_account: z.string().nullable(), reason: z.string() }).nullable().default(null), issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), pending_sms_matches: z.array(pendingStatementSmsMatchSchema).default([]), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
 });
 const statementRowPageSchema = z.object({ count: z.number(), offset: z.number(), limit: z.number(), results: z.array(savedStatementRowSchema) });
 const statementHistorySchema = z.object({ count: z.number(), next: z.string().nullable(), previous: z.string().nullable(), results: z.array(savedStatementSchema) });
@@ -1537,7 +1543,7 @@ export type StatementDetailChoice = { field: StatementDetailSuggestion["field"];
 export type StatementRowPage = z.infer<typeof statementRowPageSchema>;
 export type StatementHistory = z.infer<typeof statementHistorySchema>;
 export type StatementRowEdit = Pick<SavedStatementRow, "version" | "date" | "time" | "value_date" | "direction" | "amount" | "balance_after" | "type" | "other_account" | "category" | "reference" | "counterparty_text" | "note" | "classification_confirmed">;
-export type StatementDecision = { action: "create" | "link" | "skip" | "unlink" | "reopen"; version: number; transaction?: string; remember_choices?: boolean; allow_separate?: boolean; acknowledge_issues?: boolean; acknowledge_conflict?: boolean; balance_choice?: { keep: "existing" | "statement"; existing_balance_after: string | null; statement_balance_after: string | null }; detail_choices?: StatementDetailChoice[] };
+export type StatementDecision = { action: "create" | "link" | "combine_sms" | "skip" | "unlink" | "reopen"; version: number; transaction?: string; candidate?: string; remember_choices?: boolean; allow_separate?: boolean; acknowledge_issues?: boolean; acknowledge_conflict?: boolean; balance_choice?: { keep: "existing" | "statement"; existing_balance_after: string | null; statement_balance_after: string | null }; detail_choices?: StatementDetailChoice[] };
 
 export async function createStatementImport(token: string, account: string, file: File, password: string, signal?: AbortSignal): Promise<SavedStatement> {
   const body = new FormData(); body.set("account", account); body.set("file", file); if (password) body.set("password", password);

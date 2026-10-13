@@ -992,3 +992,13 @@ removes a recognized card-purchase prefix from that draft field and increments t
 row version so an open stale editor must reload. Manually corrected, skipped,
 linked, and added rows are left alone. The extracted description, note, balances,
 matches, and ledger transactions are not changed; existing PDFs need no re-upload.
+
+### Combined pending SMS and statement review
+
+`review.pending_sms_matches` on a statement row detail response suggests still
+pending SMS observations for the same account perspective, type, amount and date
+window. `POST /api/statements/rows/{id}/decide/` with `action=combine_sms`, row
+`version`, and `candidate` confirms one SMS and links that row atomically. A
+conflicting reported balance requires an exact-value `balance_choice`; a ledger
+suggestion or stale candidate blocks the action. The SMS source and date/time are
+kept. Independent review routes remain supported. No schema migration is needed.

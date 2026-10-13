@@ -5011,6 +5011,7 @@ components:
       enum:
       - create
       - link
+      - combine_sms
       - skip
       - unlink
       - reopen
@@ -5018,6 +5019,8 @@ components:
       description: '* `create` - create
 
         * `link` - link
+
+        * `combine_sms` - confirm a pending SMS and link this statement row atomically
 
         * `skip` - skip
 
@@ -5391,6 +5394,10 @@ components:
         transaction:
           type: string
           format: uuid
+        candidate:
+          type: string
+          format: uuid
+          description: Pending SMS candidate required for combine_sms.
         allow_separate:
           type: boolean
           default: false
@@ -5411,7 +5418,7 @@ components:
           maxItems: 7
           items:
             $ref: '#/components/schemas/StatementDetailChoice'
-          description: Only selected fields change on link. Missing values are not automatically filled; nonempty replacements are explicit.
+          description: Only selected fields change on link or combine_sms. Missing values are not automatically filled; nonempty replacements are explicit.
       required:
       - action
       - version
@@ -5591,6 +5598,56 @@ components:
       - strength
       - merchant_similarity
       - time_difference_minutes
+    PendingSmsStatementMatch:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          format: time
+        sender:
+          type: string
+        sms_text:
+          type: string
+          nullable: true
+        amount:
+          type: string
+          format: decimal
+        type:
+          type: string
+        counterparty_text:
+          type: string
+        balance_after:
+          type: string
+          format: decimal
+          nullable: true
+        reference:
+          type: string
+        confidence:
+          type: string
+          format: decimal
+        detail_suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementDetailSuggestion'
+      required:
+      - id
+      - date
+      - time
+      - sender
+      - sms_text
+      - amount
+      - type
+      - counterparty_text
+      - balance_after
+      - reference
+      - confidence
+      - detail_suggestions
     StatementReview:
       type: object
       properties:
@@ -5611,6 +5668,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StatementMatch'
+        pending_sms_matches:
+          type: array
+          description: Advisory pending SMS candidates. Populated on row detail; empty in paginated row lists.
+          items:
+            $ref: '#/components/schemas/PendingSmsStatementMatch'
         matching_truncated:
           type: boolean
         requires_acknowledgement:
@@ -5626,6 +5688,7 @@ components:
       required:
       - issues
       - matches
+      - pending_sms_matches
       - matching_truncated
       - requires_acknowledgement
       - review_state

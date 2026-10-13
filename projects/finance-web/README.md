@@ -1091,3 +1091,14 @@ deployment; they do not need to be uploaded again. The shortcut never posts or
 changes a ledger entry by itself. A previously saved merchant correction remains
 the proposal, and a nonempty ledger value still needs an explicit replacement
 selection. Rows already linked or added are not retroactively rewritten.
+
+### Reviewing pending SMS and statement evidence together
+
+Eligible pending SMS candidates appear in an unresolved statement row editor.
+The user verifies the pair, resolves any reported-balance conflict and approves
+both in one action. The ledger keeps the SMS date/time and source, while statement
+evidence is linked and counted once. This is optional; independent review actions
+still work. Editable metadata suggestions let the user fill or replace merchant,
+note, reference and masked identifiers before approval. Existing ledger suggestions
+must be handled first. Already pending rows gain suggestions on refresh without
+a PDF re-upload or migration.

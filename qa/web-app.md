@@ -931,3 +931,17 @@ runs migration `statements.0003_reapply_pending_merchants`, refresh the row to
 see the cleaned merchant if that draft was untouched and is still pending. The
 original extracted description and Note remain available for review. A manual
 merchant correction and any resolved row are not rewritten.
+
+### What if the SMS and PDF are both still pending?
+
+Open the statement row. Eligible pending SMS appear beside the statement values,
+with separate dates, descriptions and balances. The original SMS is available
+while retained by the user's SMS policy. Verify the same movement and
+choose a reported balance if both sources disagree, then use “Review both · count
+once.” The SMS time/date and SMS source are retained; missing merchant/reference
+details can come from the corrected statement draft. The existing SMS-only and
+statement-only review actions still work. Optional merchant, note, reference and
+masked identifier suggestions can be edited and selected before combined approval;
+unselected nonempty SMS values remain unchanged. If a ledger suggestion already
+exists, review it first rather than making another transaction. A separate
+statement movement requires explicit separate confirmation.

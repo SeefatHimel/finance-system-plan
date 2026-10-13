@@ -238,12 +238,28 @@ class StatementMatchSerializer(serializers.Serializer):
     reasons = serializers.ListField(child=serializers.CharField())
 
 
+class PendingSmsStatementMatchSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    date = serializers.DateField()
+    time = serializers.TimeField()
+    sender = serializers.CharField()
+    sms_text = serializers.CharField(allow_null=True)
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2)
+    type = serializers.CharField()
+    counterparty_text = serializers.CharField(allow_blank=True)
+    balance_after = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True)
+    reference = serializers.CharField(allow_blank=True)
+    confidence = serializers.DecimalField(max_digits=4, decimal_places=2)
+    detail_suggestions = StatementDetailSuggestionSerializer(many=True)
+
+
 class StatementReviewSerializer(serializers.Serializer):
     draft_issues = serializers.ListField(child=serializers.CharField())
     suggestion = StatementSuggestionSerializer(allow_null=True)
     issues = serializers.ListField(child=serializers.CharField())
     review_state = serializers.CharField()
     matches = StatementMatchSerializer(many=True)
+    pending_sms_matches = PendingSmsStatementMatchSerializer(many=True, required=False)
     matching_truncated = serializers.BooleanField()
     requires_acknowledgement = serializers.BooleanField()
 
@@ -256,11 +272,13 @@ class SavedStatementRowSerializer(serializers.ModelSerializer):
     def get_review(self, instance):
         from .services import review_context
 
-        return review_context(
+        result = review_context(
             instance,
             self.context.get("matches", {}).get(instance.id, []),
             self.context.get("matching_truncated", False),
         )
+        result["pending_sms_matches"] = self.context.get("pending_sms_matches", [])
+        return result
 
     class Meta:
         model = StatementRow
@@ -371,12 +389,13 @@ class StatementDetailChoiceSerializer(serializers.Serializer):
 
 class StatementDecisionSerializer(serializers.Serializer):
     action = serializers.ChoiceField(
-        choices=("create", "link", "skip", "unlink", "reopen")
+        choices=("create", "link", "combine_sms", "skip", "unlink", "reopen")
     )
     version = serializers.IntegerField(min_value=1)
     transaction = serializers.PrimaryKeyRelatedField(
         queryset=Transaction.objects.none(), required=False
     )
+    candidate = serializers.UUIDField(required=False)
     remember_choices = serializers.BooleanField(default=False)
     allow_separate = serializers.BooleanField(default=False)
     acknowledge_issues = serializers.BooleanField(default=False)
@@ -399,14 +418,16 @@ class StatementDecisionSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"transaction": "Choose a matching transaction."}
             )
-        if "balance_choice" in attrs and attrs["action"] != "link":
+        if attrs["action"] == "combine_sms" and "candidate" not in attrs:
+            raise serializers.ValidationError({"candidate": "Choose a pending SMS."})
+        if "balance_choice" in attrs and attrs["action"] not in {"link", "combine_sms"}:
             raise serializers.ValidationError(
                 {
                     "balance_choice": "Balance choices are only available when linking a match."
                 }
             )
         details = attrs.get("detail_choices", [])
-        if details and attrs["action"] != "link":
+        if details and attrs["action"] not in {"link", "combine_sms"}:
             raise serializers.ValidationError(
                 {
                     "detail_choices": "Detail choices are only available when linking a match."

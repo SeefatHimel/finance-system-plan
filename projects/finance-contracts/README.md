@@ -548,6 +548,19 @@ fields and duplicate selections are rejected. Identifier edits are masked before
 transmission and again before persistence. Choices and before/after values are
 audited. Unlinking or rescanning confirmed SMS does not undo these corrections.
 
+## Combined pending SMS and statement review
+
+Statement row detail adds `review.pending_sms_matches`: bounded pending SMS
+suggestions with date/time, account-side evidence, optional retained SMS text,
+reported balance and editable metadata proposals. Paginated row lists return an
+empty list to avoid per-row matching queries. `StatementDecision.action=combine_sms`
+requires row `version` and a pending `candidate` UUID. Differing non-null balances
+require an exact-value `balance_choice`; optional `detail_choices` use the same
+reviewed-value contract as linking. The API locks and revalidates both sources,
+creates one SMS-sourced ledger entry and links the statement atomically. Existing
+ledger matches take priority. The original independent decision routes remain
+available, and no migration is needed.
+
 New statement drafts strip anchored labels such as “CARD PURCHASE” and “PURCHASE
 CARD” from the merchant field while retaining the original masked description.
 Merchant case/punctuation and manually saved draft corrections are preserved.

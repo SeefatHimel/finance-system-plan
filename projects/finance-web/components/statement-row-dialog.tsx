@@ -3,6 +3,7 @@
 import { useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { StatementMatchComparison } from "@/components/statement-match-comparison";
+import { StatementDetailChoices } from "@/components/statement-detail-choices";
 import { statementLinkBlockReason } from "@/lib/statement-review";
 import { currentStatementBalanceChoice, type StatementBalanceSelection } from "@/lib/statement-balance-choice";
 import { selectedStatementDetails, type DetailSelections } from "@/lib/statement-details";
@@ -32,6 +33,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
   const [detailSelections, setDetailSelections] = useState<Record<string, { version: number; values: DetailSelections }>>({});
   const [confirmSeparate, setConfirmSeparate] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
+  const [verifiedSms, setVerifiedSms] = useState<string | null>(null);
   const isResolved = Boolean(row.transaction) || row.state === "skipped";
   const dirty = JSON.stringify(draft) !== JSON.stringify(editable(row));
   const source = row.extracted;
@@ -58,6 +60,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     try { await onNext(); } finally { setBusy(false); }
   }
   async function decide(action: StatementDecision["action"], transaction?: string, separate = false) {
+    if (action === "combine_sms") return;
     const token = getAccessToken(); if (!token || busy) return;
     const match = row.review.matches.find((item) => item.id === transaction);
     const balanceChoice = match ? currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version) : undefined;
@@ -74,6 +77,35 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
       const messages = { create: "Transaction added from the statement.", link: "Statement evidence linked. The transaction is counted once.", skip: "Statement row skipped.", unlink: "Statement evidence unlinked. The ledger transaction was kept.", reopen: "Skipped row reopened for review." };
       notify(messages[action]);
     } catch (reason) { showError(reason); } finally { setBusy(false); setConfirmSeparate(false); setConfirmUnlink(false); }
+  }
+  async function combineSms(candidateId: string) {
+    const token = getAccessToken(); if (!token || busy || dirty) return;
+    const match = row.review.pending_sms_matches.find((item) => item.id === candidateId);
+    if (!match || verifiedSms !== candidateId) return;
+    if (row.review.matches.length) { showError(new Error("Review the existing ledger matches first.")); return; }
+    if (row.review.issues.length || (row.review.requires_acknowledgement && !ackIssues)) {
+      showError(new Error("Resolve the statement issues and acknowledge source discrepancies first.")); return;
+    }
+    const balanceChoice = currentStatementBalanceChoice(
+      balanceSelections[candidateId], { effective_balance_after: match.balance_after }, row.balance_after, row.version,
+    );
+    const selections = detailSelections[candidateId]?.version === row.version ? detailSelections[candidateId].values : {};
+    const details = selectedStatementDetails(match.detail_suggestions, selections);
+    if (details.error) { showError(new Error(details.error)); return; }
+    if (match.balance_after !== null && row.balance_after !== null && match.balance_after !== row.balance_after && !balanceChoice) {
+      showError(new Error("Choose which reported balance to keep.")); return;
+    }
+    setBusy(true); setError(null);
+    try {
+      const result = await decideStatementRow(token, row.id, {
+        action: "combine_sms", version: row.version, candidate: candidateId,
+        acknowledge_issues: ackIssues, remember_choices: rememberChoices,
+        balance_choice: balanceChoice,
+        detail_choices: details.choices,
+      });
+      onChange(result, true);
+      notify("SMS and statement reviewed together. One transaction was added.");
+    } catch (reason) { showError(reason); } finally { setBusy(false); }
   }
   function handleShortcuts(event: KeyboardEvent<HTMLElement>) {
     if (!event.altKey || busy || confirmSeparate || confirmUnlink) return;
@@ -122,6 +154,32 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         {dirty ? <p className="inline-note">Save your draft changes before accepting a match or adding the transaction.</p> : null}
         {row.review.issues.length ? <ul className="statement-error">{row.review.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : null}
         {row.review.requires_acknowledgement && !isResolved ? <label className="review-remember"><input type="checkbox" checked={ackIssues} disabled={busy || dirty} onChange={(e) => setAckIssues(e.target.checked)} /><span>I reviewed the source and saved draft discrepancies and confirm the values being recorded.</span></label> : null}
+        {!isResolved && row.review.pending_sms_matches.length ? <section className="statement-matches" aria-labelledby="pending-sms-matches-title">
+          <h3 id="pending-sms-matches-title">Pending SMS for this statement row</h3>
+          <p className="inline-note">Review the same movement across both sources. This creates one SMS-dated transaction and links the statement; either queue can still be reviewed separately.</p>
+          <div className="statement-match-list">{row.review.pending_sms_matches.map((match) => {
+            const conflict = match.balance_after !== null && row.balance_after !== null && match.balance_after !== row.balance_after;
+            const choice = currentStatementBalanceChoice(balanceSelections[match.id], { effective_balance_after: match.balance_after }, row.balance_after, row.version);
+            return <article className="statement-match-card" key={match.id}>
+              <header className="statement-match-heading"><h4>Pending SMS · {match.sender}</h4><span>{batch.currency} {match.amount}</span></header>
+              <div className="statement-match-comparison">
+                <section><h5>Statement</h5><p>{row.date}{row.time ? ` · ${row.time}` : ""}</p><p>{row.counterparty_text || source.description}</p><p>Balance after: {row.balance_after ?? "Not reported"}</p></section>
+                <section><h5>SMS</h5><p>{match.date} · {match.time}</p><p>{match.counterparty_text || "No counterparty parsed"}</p><p>Balance after: {match.balance_after ?? "Not reported"}</p><p>Parser confidence: {Math.round(Number(match.confidence) * 100)}%</p></section>
+              </div>
+              {match.sms_text ? <details className="raw-message"><summary>Original SMS</summary><p className="statement-evidence-text">{match.sms_text}</p></details> : null}
+              {conflict ? <fieldset className="statement-match-conflict" disabled={busy || dirty}>
+                <legend>Which reported balance should this transaction use?</legend>
+                <div className="statement-balance-options">
+                  <label><input type="radio" name={`pending-sms-balance-${match.id}`} checked={choice?.keep === "existing"} onChange={() => setBalanceSelections((old) => ({ ...old, [match.id]: { keep: "existing", version: row.version, existing_balance_after: match.balance_after, statement_balance_after: row.balance_after } }))} /><span>Keep SMS balance<strong>{match.balance_after}</strong></span></label>
+                  <label><input type="radio" name={`pending-sms-balance-${match.id}`} checked={choice?.keep === "statement"} onChange={() => setBalanceSelections((old) => ({ ...old, [match.id]: { keep: "statement", version: row.version, existing_balance_after: match.balance_after, statement_balance_after: row.balance_after } }))} /><span>Use statement balance<strong>{row.balance_after}</strong></span></label>
+                </div>
+              </fieldset> : null}
+              <StatementDetailChoices matchId={match.id} suggestions={match.detail_suggestions} selections={detailSelections[match.id]?.version === row.version ? detailSelections[match.id].values : {}} disabled={busy || dirty || Boolean(row.review.matches.length)} onChange={(values) => setDetailSelections((old) => ({ ...old, [match.id]: { version: row.version, values } }))} />
+              <label className="review-remember"><input type="checkbox" checked={verifiedSms === match.id} disabled={busy || dirty} onChange={(event) => setVerifiedSms(event.target.checked ? match.id : null)} /><span>I verified these are the same movement.</span></label>
+              <button className="button button--primary" type="button" disabled={busy || dirty || verifiedSms !== match.id || row.review.matches.length > 0 || row.review.issues.length > 0 || (row.review.requires_acknowledgement && !ackIssues) || (conflict && !choice)} onClick={() => void combineSms(match.id)}>Review both · count once</button>
+            </article>;
+          })}</div>
+        </section> : null}
         {!isResolved && row.review.matches.length ? <section className="statement-matches" aria-labelledby="statement-matches-title">
           <h3 id="statement-matches-title">Possible matches</h3>
           <p className="inline-note">Compare the same movement. Linking counts it once; selected balance and detail changes are reviewed before acceptance.</p>
@@ -140,7 +198,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         {dirty ? <p className="inline-note" role="status">Save draft changes before deciding.</p> : null}
         <div className="statement-actions">
           <button className="button button--ghost" type="button" disabled={busy} onClick={onCancel}>Close</button><button className="button" type="button" disabled={busy || dirty} onClick={() => void advance()}>Next unresolved row</button>
-          {!isResolved ? <><button className="button" type="button" disabled={busy || dirty} onClick={() => void decide("skip")}>Skip this row</button><button className="button button--primary" type="button" disabled={busy || dirty || row.review.issues.length > 0 || (row.review.requires_acknowledgement && !ackIssues)} onClick={() => row.review.matches.length ? setConfirmSeparate(true) : void decide("create")}>Add {row.component === "fee" ? "fee" : "transaction"}{row.review.matches.length ? " as separate" : ""}</button></> : row.transaction ? <button className="button" type="button" disabled={busy} onClick={() => setConfirmUnlink(true)}>Unlink statement evidence</button> : <button className="button" type="button" disabled={busy} onClick={() => void decide("reopen")}>Reopen skipped row</button>}
+          {!isResolved ? <><button className="button" type="button" disabled={busy || dirty} onClick={() => void decide("skip")}>Skip this row</button><button className="button button--primary" type="button" disabled={busy || dirty || row.review.issues.length > 0 || (row.review.requires_acknowledgement && !ackIssues)} onClick={() => row.review.matches.length || row.review.pending_sms_matches.length ? setConfirmSeparate(true) : void decide("create")}>Add {row.component === "fee" ? "fee" : "transaction"}{row.review.matches.length || row.review.pending_sms_matches.length ? " as separate" : ""}</button></> : row.transaction ? <button className="button" type="button" disabled={busy} onClick={() => setConfirmUnlink(true)}>Unlink statement evidence</button> : <button className="button" type="button" disabled={busy} onClick={() => void decide("reopen")}>Reopen skipped row</button>}
         </div>
       </footer>
     </ModalDialog>
