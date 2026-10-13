@@ -289,7 +289,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
 
   const periodLabel = state.report.start_date === state.report.end_date ? formatDate(state.report.start_date) : `${formatDate(state.report.start_date)} – ${formatDate(state.report.end_date)}`;
   const pendingCount = state.candidates.length;
-  const autoPostedCount = dashboardData.automatedTransactions.length;
+  const recordedSmsCount = dashboardData.automatedTransactions.length;
   const netMovement = Number(state.report.net_total);
   const syncHealthy = state.deviceStatus.health_state === "healthy";
   const syncNeedsAttention = ["background_disabled", "error", "offline", "permission_required"].includes(state.deviceStatus.health_state);
@@ -332,7 +332,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
           </div>
           <div className="automation-stats">
             <div><FileText aria-hidden="true" className="automation-stat-icon automation-stat-icon--info" size={27} /><strong>{dashboardData.captureCount}</strong><span>Captured</span></div>
-            <div><CheckCircle aria-hidden="true" className="automation-stat-icon automation-stat-icon--success" size={27} /><strong>{autoPostedCount}</strong><span>Auto-posted</span></div>
+            <div><CheckCircle aria-hidden="true" className="automation-stat-icon automation-stat-icon--success" size={27} /><strong>{recordedSmsCount}</strong><span>Recorded from SMS/mobile</span></div>
             <div><Warning aria-hidden="true" className="automation-stat-icon automation-stat-icon--warning" size={27} /><strong>{pendingCount}</strong><span>Need review</span></div>
             <div><XCircle aria-hidden="true" className="automation-stat-icon automation-stat-icon--danger" size={27} /><strong>{state.deviceStatus.failed_upload_count}</strong><span>Failed</span></div>
           </div>

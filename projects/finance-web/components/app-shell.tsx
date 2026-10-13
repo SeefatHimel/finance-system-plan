@@ -16,7 +16,8 @@ import {
   ListBullets,
   MagnifyingGlass,
   PlusCircle,
-  SidebarSimple
+  SidebarSimple,
+  X
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -28,6 +29,9 @@ import { getAccessToken } from "@/lib/auth-storage";
 import { QuickAddProvider, QuickAddButton } from "./quick-add";
 import { useAuth } from "@/components/auth-provider";
 import { ButtonBusy } from "@/components/loading-state";
+
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { REVIEW_QUEUE_CHANGED, validReviewCount } from "@/lib/review-status";
 
 type NavItem = {
   href: string;
@@ -74,10 +78,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const accountMenu = useRef<HTMLDivElement>(null);
   const accountButton = useRef<HTMLButtonElement>(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
-  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const sidebar = useRef<HTMLElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const navTrigger = useRef<HTMLButtonElement>(null);
+  const countVersion = useRef(0);
+  const owner = session.status === "signed-in" ? session.user.id : null;
+  const [queueCount, setQueueCount] = useState<{ owner: number; count: number } | null>(null);
+  const pendingCount = queueCount?.owner === owner ? queueCount.count : null;
   const [syncLabel, setSyncLabel] = useState("Mobile sync ready");
 
   useEffect(() => {
@@ -88,8 +99,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     const mobileViewport = window.matchMedia("(max-width: 820px)");
     const closeMobileNavigation = () => {
+      setIsMobileViewport(mobileViewport.matches);
       if (!mobileViewport.matches) setIsMobileNavOpen(false);
     };
+    closeMobileNavigation();
     mobileViewport.addEventListener("change", closeMobileNavigation);
     return () => mobileViewport.removeEventListener("change", closeMobileNavigation);
   }, []);
@@ -120,19 +133,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [isAccountMenuOpen]);
 
   useEffect(() => {
+    if (sidebar.current) sidebar.current.inert = isMobileViewport && !isMobileNavOpen;
+  }, [isMobileViewport, isMobileNavOpen]);
+
+  useEffect(() => {
     if (!isMobileNavOpen) return;
+    setIsAccountMenuOpen(false);
 
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsMobileNavOpen(false);
+    const drawer = sidebar.current;
+    const background = content.current;
+    if (!drawer || !background) return;
+    const trigger = navTrigger.current;
+    const previousInert = background.inert;
+    background.inert = true;
+    const releaseScroll = lockBodyScroll();
+    const controls = () => Array.from(drawer.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), [tabindex="0"]')).filter(element => element.getClientRects().length > 0);
+    controls()[0]?.focus({ preventScroll: true });
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); setIsMobileNavOpen(false); }
+      if (event.key !== "Tab") return;
+      const items = controls();
+      const first = items[0], last = items[items.length - 1];
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && (document.activeElement === first || !drawer.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !drawer.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
     };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-
+    window.addEventListener("keydown", handleKey);
     return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
+      background.inert = previousInert;
+      releaseScroll();
+      window.removeEventListener("keydown", handleKey);
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
     };
   }, [isMobileNavOpen]);
 
@@ -143,31 +177,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [isNavigating]);
 
   useEffect(() => {
-    if (pathname === "/login") return;
-    const accessToken = getAccessToken();
-    if (!accessToken) return;
-
-    let isActiveRequest = true;
-    void Promise.allSettled([
-      listMessageCandidates(accessToken),
-      getSmsDeviceStatus(accessToken)
-    ])
-      .then(([candidatesResult, deviceStatusResult]) => {
-        if (!isActiveRequest) return;
-        if (candidatesResult.status === "fulfilled") {
-          setPendingCount(candidatesResult.value.length);
-        } else {
-          setPendingCount(null);
-        }
-        if (deviceStatusResult.status === "fulfilled") {
-          setSyncLabel(deviceStatusResult.value.health_label);
-        }
-      });
-
-    return () => {
-      isActiveRequest = false;
+    setQueueCount(null);
+    setSyncLabel("Mobile sync ready");
+    if (pathname === "/login" || owner === null) return;
+    let active = true;
+    const generation = countVersion;
+    const refresh = async () => {
+      const token = getAccessToken();
+      if (!token) return;
+      const version = ++countVersion.current;
+      const [candidates, device] = await Promise.allSettled([listMessageCandidates(token), getSmsDeviceStatus(token)]);
+      if (!active || version !== countVersion.current) return;
+      setQueueCount(candidates.status === "fulfilled" ? { owner, count: candidates.value.length } : null);
+      if (device.status === "fulfilled") setSyncLabel(device.value.health_label);
     };
-  }, [pathname]);
+    const queueChanged = (event: Event) => {
+      const detail: unknown = (event as CustomEvent).detail;
+      if (!validReviewCount(detail, owner)) return;
+      countVersion.current++; // A freshly loaded queue supersedes earlier count requests.
+      setQueueCount(detail);
+    };
+    window.addEventListener(REVIEW_QUEUE_CHANGED, queueChanged);
+    window.addEventListener("finance:transactions-changed", refresh);
+    window.addEventListener("focus", refresh);
+    void refresh();
+    return () => {
+      active = false; generation.current++;
+      window.removeEventListener(REVIEW_QUEUE_CHANGED, queueChanged);
+      window.removeEventListener("finance:transactions-changed", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [pathname, owner]);
 
   if (pathname === "/login") return children;
 
@@ -205,7 +245,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <QuickAddProvider><div className={`app-frame${isSidebarCollapsed ? " app-frame--sidebar-collapsed" : ""}`}>
-      <aside className={`app-sidebar${isMobileNavOpen ? " app-sidebar--open" : ""}`} id="primary-navigation">
+      <aside aria-hidden={isMobileViewport && !isMobileNavOpen ? true : undefined} ref={sidebar} role={isMobileNavOpen ? "dialog" : undefined} aria-modal={isMobileNavOpen ? true : undefined} aria-label={isMobileNavOpen ? "Navigation" : undefined} className={`app-sidebar${isMobileNavOpen ? " app-sidebar--open" : ""}`} id="primary-navigation">
+        <button className="mobile-nav-close icon-button" aria-label="Close navigation" onClick={() => setIsMobileNavOpen(false)} type="button"><X aria-hidden="true" size={22} /></button>
         <Link className="app-logo" href="/" aria-label="Finance dashboard" onClick={(event) => handleNavigation(event, "/")}>
           <DiamondsFour aria-hidden="true" className="app-logo__mark" size={31} weight="fill" />
           <span>Finance</span>
@@ -242,10 +283,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {isMobileNavOpen ? (
-        <button aria-label="Close navigation" className="nav-scrim" onClick={() => setIsMobileNavOpen(false)} type="button" />
+        <button aria-label="Close navigation backdrop" tabIndex={-1} className="nav-scrim" onClick={() => setIsMobileNavOpen(false)} type="button" />
       ) : null}
 
-      <div className="app-content">
+      <div className="app-content" ref={content}>
         <div aria-hidden="true" className={`navigation-progress${isNavigating ? " navigation-progress--active" : ""}`}>
           <span />
         </div>
@@ -264,6 +305,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button
             aria-controls="primary-navigation"
             aria-expanded={isMobileNavOpen}
+            ref={navTrigger}
             aria-label="Open navigation"
             className="mobile-menu-button"
             onClick={() => setIsMobileNavOpen(true)}

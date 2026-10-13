@@ -1,5 +1,9 @@
 "use client";
 
+import { useAuth } from "@/components/auth-provider";
+import { FieldError } from "@/components/field-error";
+import { fieldErrorsFrom, focusFieldError, nativeFieldErrors } from "@/lib/form-feedback";
+import { publishReviewCount, reviewFieldErrors, reviewNotes, type ReviewValues } from "@/lib/review-status";
 import { RecentTransactionAction, useTransactionRecovery } from "@/components/transaction-recovery";
 
 import { DatePeriodControls } from "@/components/date-period-controls";
@@ -9,7 +13,7 @@ import { useFeedbackMessage } from "@/components/toast-provider";
 
 import { ArrowClockwise, ArrowLeft, ArrowRight, ArrowsLeftRight, CheckCircle, CornersIn, CornersOut, FunnelSimple, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
 import type React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
 import {
@@ -102,22 +106,10 @@ function confidenceLabel(value: string) {
   return "Low confidence";
 }
 
-function candidateIssues(candidate: ParsedMessageCandidate) {
-  const issues: string[] = [];
-  if (!candidate.account) issues.push("Choose account");
-  if (!candidate.amount) issues.push("Enter amount");
-  if (!candidate.category && candidate.transaction_type !== "transfer") issues.push("Choose category");
-  if (candidate.possible_internal_transfer && !candidate.destination_account) issues.push("Verify destination");
-  if (Number(candidate.confidence) < 0.65) issues.push("Check source SMS");
-  return issues;
-}
-
-function reviewReason(candidate: ParsedMessageCandidate) {
-  const issues = candidateIssues(candidate);
+function reviewReason(candidate: ParsedMessageCandidate, issues: string[]) {
   if (candidate.raw_message.duplicate_of) return "Possible duplicate message";
   if (candidate.related_match_reason) return candidate.related_match_reason;
-  if (issues.length) return issues.join(" · ");
-  return "Ready for a quick verification";
+  return issues.length ? issues.join(" · ") : "Ready for confirmation";
 }
 
 function normalizedNote(candidate: ParsedMessageCandidate) {
@@ -128,6 +120,13 @@ function normalizedNote(candidate: ParsedMessageCandidate) {
 
 export function MessageReviewWorkspace() {
   const recovery = useTransactionRecovery();
+  const { session } = useAuth();
+  const owner = session.status === "signed-in" ? session.user.id : null;
+  const ownerRef = useRef(owner); ownerRef.current = owner;
+  const loadVersion = useRef(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const feedback = (field: string) => ({ "aria-invalid": Boolean(fieldErrors[field]), "aria-describedby": fieldErrors[field] ? `review-error-${field}` : undefined });
   const confirmInFlight = useRef(false);
   const [transferDecision, setTransferDecision] = useState<{ candidate: ParsedMessageCandidate; input: ConfirmMessageCandidateInput; matches: TransferMatch[] } | null>(null);
   const [paymentMethodDrafts, setPaymentMethodDrafts] = useState<Record<string, string>>({});
@@ -146,7 +145,7 @@ export function MessageReviewWorkspace() {
   const reviewSurface = useRef<HTMLDivElement>(null);
   const [focusMode, setFocusMode] = useState(false);
   const [focusQueueOpen, setFocusQueueOpen] = useState(true);
-  const [amountPreview, setAmountPreview] = useState<{ candidate: string; value: string } | null>(null);
+  const [amountDrafts, setAmountDrafts] = useState<Record<string, string>>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [providerFilter, setProviderFilter] = useState("all");
   const [issueFilter, setIssueFilter] = useState("all");
@@ -158,6 +157,8 @@ export function MessageReviewWorkspace() {
 
   async function loadData(showLoading = true) {
     const accessToken = getAccessToken();
+    const ticket = ++loadVersion.current;
+    const requestOwner = ownerRef.current;
     if (!accessToken) {
       setReviewState({ message: "Sign in before reviewing SMS candidates.", status: "error" });
       return;
@@ -170,7 +171,9 @@ export function MessageReviewWorkspace() {
         listMessageCandidates(accessToken),
         listPaymentMethods(accessToken)
       ]);
+      if (ticket !== loadVersion.current || requestOwner !== ownerRef.current) return;
       setReviewState({ accounts, candidates, categories, paymentMethods, status: "ready" });
+      publishReviewCount(candidates.length, requestOwner);
       const requestedCandidateId = new URLSearchParams(window.location.search).get("candidate") ?? "";
       setActiveCandidateId((current) => {
         if (candidates.some((candidate) => candidate.id === current)) return current;
@@ -178,14 +181,15 @@ export function MessageReviewWorkspace() {
         return candidates[0]?.id ?? "";
       });
     } catch (error) {
+      if (ticket !== loadVersion.current || requestOwner !== ownerRef.current) return;
       setReviewState({ message: error instanceof Error ? error.message : "Could not load SMS review inbox.", status: "error" });
     }
   }
 
-  useEffect(() => { void loadData();
+  useEffect(() => { const version = loadVersion; void loadData();
     const refresh = () => { void loadData(false); };
     window.addEventListener("finance:transactions-changed", refresh);
-    return () => window.removeEventListener("finance:transactions-changed", refresh);
+    return () => { version.current++; window.removeEventListener("finance:transactions-changed", refresh); };
   }, []);
 
   useEffect(() => {
@@ -196,6 +200,15 @@ export function MessageReviewWorkspace() {
     window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params.toString()}` : ""}`);
   }, [activeCandidateId, reviewState.status]);
 
+  const valuesFor = useCallback((candidate: ParsedMessageCandidate): ReviewValues => {
+    const account = accountDrafts[candidate.id] ?? accountReviewDefaults(candidate);
+    const classification = classificationDrafts[candidate.id];
+    return { account: account.account, other: account.other, amount: amountDrafts[candidate.id] ?? candidate.amount ?? "", type: classification?.type ?? candidate.transaction_type, category: classification?.category ?? candidate.category ?? "" };
+  }, [accountDrafts, amountDrafts, classificationDrafts]);
+  function candidateIssues(candidate: ParsedMessageCandidate) {
+    const values = valuesFor(candidate);
+    return [...Object.values(reviewFieldErrors(values)), ...reviewNotes(candidate.confidence, values.category, values.type)];
+  }
   const filteredCandidates = useMemo(() => {
     if (reviewState.status !== "ready") return [];
     const normalizedQuery = query.trim().toLowerCase();
@@ -205,21 +218,25 @@ export function MessageReviewWorkspace() {
       if (typeFilter !== "all" && candidate.transaction_type !== typeFilter) return false;
       if (categoryFilter === "uncategorized" && candidate.category) return false;
       if (categoryFilter !== "all" && categoryFilter !== "uncategorized" && candidate.category !== categoryFilter) return false;
-      const issues = candidateIssues(candidate);
-      if (issueFilter === "ready" && issues.length) return false;
-      if (issueFilter === "missing" && !issues.length) return false;
+      const issues = Object.keys(reviewFieldErrors(valuesFor(candidate)));
+      const keepEditedSelection = candidate.id === activeCandidateId && Boolean(accountDrafts[candidate.id] || classificationDrafts[candidate.id] || amountDrafts[candidate.id] !== undefined);
+      if (!keepEditedSelection && issueFilter === "ready" && issues.length) return false;
+      if (!keepEditedSelection && issueFilter === "missing" && !issues.length) return false;
       if (!normalizedQuery) return true;
       return [candidate.provider, candidate.message_kind, candidate.raw_message.sender, candidate.counterparty_text, candidate.reference]
         .some((value) => value.toLowerCase().includes(normalizedQuery));
     });
-  }, [categoryFilter, issueFilter, providerFilter, query, reviewState, typeFilter, period]);
+  }, [categoryFilter, issueFilter, providerFilter, query, reviewState, typeFilter, period, valuesFor, activeCandidateId, accountDrafts, classificationDrafts, amountDrafts]);
 
   const activeCandidate = filteredCandidates.find((candidate) => candidate.id === activeCandidateId) ?? filteredCandidates[0] ?? null;
+  const activeValues = activeCandidate ? valuesFor(activeCandidate) : null;
+  const activeIssues = activeCandidate ? candidateIssues(activeCandidate) : [];
+  const activeCorrections = activeValues ? Object.keys(reviewFieldErrors(activeValues)) : [];
   const isFocused = focusMode && reviewState.status === "ready" && reviewState.candidates.length > 0;
   const prepareFocus = useReviewFocus(isFocused, reviewSurface, queueList, () => setFocusMode(false));
   const selectedReviewId = activeCandidate?.id;
   useEffect(() => {
-    setAmountPreview(null);
+    setFieldErrors({});
   }, [selectedReviewId]);
   useEffect(() => {
     if (reviewState.status === "ready" && !reviewState.candidates.length) setFocusMode(false);
@@ -269,6 +286,11 @@ export function MessageReviewWorkspace() {
     const accessToken = getAccessToken();
     if (!accessToken) return setActionError("Sign in before confirming SMS candidates.");
     const formData = new FormData(event.currentTarget);
+    const errors = { ...nativeFieldErrors(event.currentTarget), ...reviewFieldErrors(valuesFor(candidate)) };
+    // An existing transfer may supply its missing other account during matching.
+    if (valuesFor(candidate).type === "transfer" && !valuesFor(candidate).other) delete errors.transfer_account;
+    if (Object.keys(errors).length) { setFieldErrors(errors); setActionError("Check the highlighted fields."); focusFieldError(event.currentTarget, errors); return; }
+    setFieldErrors({});
     setActionError(null);
     setActionMessage(null);
     if (confirmInFlight.current) return;
@@ -304,10 +326,15 @@ export function MessageReviewWorkspace() {
           return;
         }
       }
+      if (input.type === "transfer" && !input.transfer_account) {
+        const errors = { transfer_account: "Choose the other transfer account." };
+        setFieldErrors(errors); setActionError("Choose the other transfer account, or accept an existing match."); focusFieldError(formRef.current, errors); return;
+      }
       const saved = await confirmMessageCandidate(accessToken, candidate.id, input);
       recovery.announce(saved.undo_action);
       await loadData(false);
     } catch (error) {
+      const errors = fieldErrorsFrom(error); setFieldErrors(errors); focusFieldError(formRef.current, errors);
       setActionError(error instanceof Error ? error.message : "Could not confirm candidate.");
     } finally {
       confirmInFlight.current = false;
@@ -318,6 +345,12 @@ export function MessageReviewWorkspace() {
   async function handleTransferDecision(match?: TransferMatch, balanceChoices: import("@/lib/api").TransferBalanceChoice[] = []) {
     const accessToken = getAccessToken();
     if (!accessToken || !transferDecision || confirmInFlight.current) return;
+    if (!match && transferDecision.input.type === "transfer" && !transferDecision.input.transfer_account) {
+      setTransferDecision(null);
+      const errors = { transfer_account: "Choose the other account before adding a separate transfer." };
+      setFieldErrors(errors); setActionError(errors.transfer_account);
+      requestAnimationFrame(() => focusFieldError(formRef.current, errors)); return;
+    }
     confirmInFlight.current = true;
     setWorkingCandidateId(transferDecision.candidate.id);
     setMatchError(null);
@@ -392,6 +425,9 @@ export function MessageReviewWorkspace() {
         return;
       }
       setClassificationDrafts((current) => { const next = { ...current }; delete next[candidate.id]; return next; });
+      setAccountDrafts(current => { const next = { ...current }; delete next[candidate.id]; return next; });
+      setAmountDrafts(current => { const next = { ...current }; delete next[candidate.id]; return next; });
+      setPaymentMethodDrafts(current => { const next = { ...current }; delete next[candidate.id]; return next; });
       setReviewState((current) => current.status === "ready"
         ? { ...current, candidates: current.candidates.map((item) => item.id === updated.id ? updated : item) }
         : current);
@@ -415,6 +451,7 @@ export function MessageReviewWorkspace() {
     setActionMessage(null);
     try {
       const result = await reprocessPendingMessageCandidates(accessToken);
+      setAccountDrafts({}); setAmountDrafts({}); setClassificationDrafts({}); setPaymentMethodDrafts({});
       await loadData(false);
       setActionMessage(
         `Reprocessed ${result.reprocessed} of ${result.requested} pending messages. ${result.remaining_for_review} remain for review.`
@@ -450,12 +487,12 @@ export function MessageReviewWorkspace() {
       </section>
 
       <RecentTransactionAction />
-      {actionError ? <p className="form-error">{actionError}</p> : null}
+      {actionError ? <p className="form-error" role="alert">{actionError}</p> : null}
       {actionMessage ? <p className="form-success"><CheckCircle aria-hidden="true" size={18} weight="fill" />{actionMessage}</p> : null}
 
       <div className={`review-canvas${isFocused && !focusQueueOpen ? " review-canvas--queue-collapsed" : ""}`} ref={reviewSurface} role={isFocused ? "dialog" : undefined} aria-modal={isFocused || undefined} aria-label={isFocused ? "Focused SMS review" : undefined}>
         <div className="review-focus-header" hidden={!isFocused}>
-          <div><h2 className="review-focus-title" tabIndex={-1}>{activeCandidate ? `SMS review · BDT ${amountPreview?.candidate === activeCandidate.id ? amountPreview.value || "—" : activeCandidate.amount ?? "—"}` : "SMS review"}</h2><span aria-live="polite" aria-atomic="true">{activeCandidate ? `${accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"} · ${activeIndex + 1} / ${filteredCandidates.length}` : "No messages match these filters"}</span></div>
+          <div><h2 className="review-focus-title" tabIndex={-1}>{activeCandidate ? `SMS review · BDT ${activeValues?.amount || "—"}` : "SMS review"}</h2><span aria-live="polite" aria-atomic="true">{activeCandidate ? `${accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"} · ${activeIndex + 1} / ${filteredCandidates.length}` : "No messages match these filters"}</span></div>
           <div className="review-focus-header__actions">
             <button className="button button--ghost review-focus-queue-toggle" type="button" aria-expanded={focusQueueOpen} aria-controls="sms-review-queue" onClick={() => setFocusQueueOpen(current => !current)}>{focusQueueOpen ? "Hide messages" : "Show messages"}</button>
             <button className="button button--ghost" type="button" onClick={() => setFocusMode(false)}><CornersIn size={19} aria-hidden="true" /><span>Exit focus</span></button>
@@ -492,13 +529,13 @@ export function MessageReviewWorkspace() {
 
           {activeCandidate ? (
             <article className="panel review-detail">
-              <form key={activeCandidate.id} onSubmit={(event) => void handleConfirm(activeCandidate, event)}>
+              <form noValidate ref={formRef} key={activeCandidate.id} onChangeCapture={event => { const name = (event.target as HTMLInputElement).name; setFieldErrors(current => { const next = { ...current }; delete next[name]; return next; }); }} onSubmit={(event) => void handleConfirm(activeCandidate, event)}>
                 <div className="review-detail__content">
                 <div className="review-detail__header">
                   <div className="review-detail__summary">
                     <span className="review-card__eyebrow">{formatLabel(activeCandidate.provider)} / {formatLabel(activeCandidate.message_kind)}</span>
                     <div className="review-amount-row">
-                      <h2 className="review-card__amount">{(amountPreview?.candidate === activeCandidate.id ? amountPreview.value : activeCandidate.amount) ? `BDT ${amountPreview?.candidate === activeCandidate.id ? amountPreview.value : activeCandidate.amount}` : "Complete the amount"}</h2>
+                      <h2 className="review-card__amount">{(activeValues?.amount) ? `BDT ${activeValues?.amount}` : "Complete the amount"}</h2>
                       <button type="button" className={`review-direction-toggle review-direction-toggle--${accountDraft?.direction ?? "debit"}`}
                         aria-label={`Switch to ${accountDraft?.direction === "credit" ? "debit / money sent" : "credit / money received"}`}
                         aria-describedby="review-direction-context"
@@ -513,7 +550,7 @@ export function MessageReviewWorkspace() {
 
                 </div>
 
-                <div className="review-issue-bar"><Warning aria-hidden="true" size={19} weight="fill" /><div><strong>{reviewReason(activeCandidate)}</strong><span>{formatDateTime(activeCandidate.raw_message.received_at)} · {activeCandidate.raw_message.sender}</span></div></div>
+                <div className="review-issue-bar"><Warning aria-hidden="true" size={19} weight="fill" /><div><strong>{reviewReason(activeCandidate, activeIssues)}</strong><span>{formatDateTime(activeCandidate.raw_message.received_at)} · {activeCandidate.raw_message.sender}</span></div></div>
                 {activeCandidate.identity_suggestions.map(hint => {
                   const reporting = hint.role === (accountDraft?.direction === "credit" ? "receiver" : "sender");
                   const selectedAccount = reporting ? accountDraft?.account : accountDraft?.other;
@@ -529,32 +566,32 @@ export function MessageReviewWorkspace() {
                     {!hint.choices.length ? <p>No compatible saved identifier. Choose the account below after checking the SMS.</p> : null}
                   </div>;
                 })}
-                <div className="review-issue-chips">{candidateIssues(activeCandidate).map((issue) => <span key={issue}>{issue}</span>)}{!candidateIssues(activeCandidate).length ? <span className="review-issue-chip--ready">All required fields detected</span> : null}</div>
+                <div className="review-issue-chips">{activeIssues.map((issue) => <span key={issue}>{issue}</span>)}{!activeIssues.length ? <span className="review-issue-chip--ready">Ready for confirmation</span> : null}</div>
 
                 <div className="review-form review-form--focused">
-                  <label className="field"><span className="field__label">{classification?.type === "transfer" ? accountDraft?.direction === "credit" ? "To account" : "From account" : "Account"}</span><select className="field__control" value={accountDraft?.account ?? ""} onChange={(event) => { updateAccountDraft({ account: event.target.value, other: event.target.value === accountDraft?.other ? "" : accountDraft?.other ?? "" }); }} name="account" required><option value="">Select account</option>{reviewState.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-                  <label className="field"><span className="field__label">Amount</span><input className="field__control" defaultValue={activeCandidate.amount ?? ""} onChange={event => setAmountPreview({ candidate: activeCandidate.id, value: event.target.value })} inputMode="decimal" name="amount" required /></label>
-                  <label className="field"><span className="field__label">Type</span><select className="field__control" value={classification?.type ?? activeCandidate.transaction_type} onChange={(event) => applyClassification(classification?.category ?? "", event.target.value as TransactionType)} name="type">{transactionTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select></label>
+                  <label className="field"><span className="field__label">{classification?.type === "transfer" ? accountDraft?.direction === "credit" ? "To account" : "From account" : "Account"}</span><select className="field__control" value={accountDraft?.account ?? ""} onChange={(event) => { updateAccountDraft({ account: event.target.value, other: event.target.value === accountDraft?.other ? "" : accountDraft?.other ?? "" }); }} name="account" {...feedback("account")} required><option value="">Select account</option>{reviewState.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select><FieldError prefix="review" field="account" errors={fieldErrors} /></label>
+                  <label className="field"><span className="field__label">Amount</span><input className="field__control" value={activeValues?.amount ?? ""} onChange={event => setAmountDrafts(current => ({ ...current, [activeCandidate.id]: event.target.value }))} inputMode="decimal" name="amount" {...feedback("amount")} required /><FieldError prefix="review" field="amount" errors={fieldErrors} /></label>
+                  <label className="field"><span className="field__label">Type</span><select className="field__control" value={classification?.type ?? activeCandidate.transaction_type} onChange={(event) => applyClassification(classification?.category ?? "", event.target.value as TransactionType)} name="type" {...feedback("type")}>{transactionTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select><FieldError prefix="review" field="type" errors={fieldErrors} /></label>
                   <input name="direction" type="hidden" value={accountDraft?.direction ?? "debit"} />
-                  <label className="field"><span className="field__label">Category</span><select className="field__control" value={classification?.category ?? ""} disabled={workingCandidateId === activeCandidate.id} onChange={(event) => categoryChoice.choose(event.target.value, classification?.type ?? activeCandidate.transaction_type as TransactionType, applyClassification)} name="category"><option value="">No category</option>{reviewState.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-                  <label className="field"><span className="field__label">Payment method</span><select className="field__control" value={paymentMethodDrafts[activeCandidate.id] ?? reviewState.paymentMethods.find((method) => method.account === accountDraft?.account && [activeCandidate.payment_method, activeCandidate.destination_payment_method].includes(method.id))?.id ?? ""} onChange={event => setPaymentMethodDrafts(current => ({ ...current, [activeCandidate.id]: event.target.value }))} name="payment_method"><option value="">No payment method</option>{reviewState.paymentMethods.filter((method) => method.account === accountDraft?.account).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}</select></label>
-                  {classification?.type === "transfer" ? <label className="field"><span className="field__label">{accountDraft?.direction === "credit" ? "From account" : "To account"}</span><select className="field__control" value={accountDraft?.other ?? ""} onChange={(event) => updateAccountDraft({ other: event.target.value })} name="transfer_account"><option value="">Select account</option>{reviewState.accounts.filter((account) => account.id !== accountDraft?.account).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select>{activeCandidate.transfer_suggestion_reason && accountDraft?.account === accountReviewDefaults(activeCandidate).account && accountDraft?.other === accountReviewDefaults(activeCandidate).other && accountDraft?.direction === accountReviewDefaults(activeCandidate).direction ? <span className="field__hint" role="status">{accountDraft?.other ? `Suggested: ${reviewState.accounts.find((account) => account.id === accountDraft.other)?.name ?? "saved account"}. ` : ""}{activeCandidate.transfer_suggestion_reason}</span> : null}</label> : null}
+                  <label className="field"><span className="field__label">Category</span><select className="field__control" value={classification?.category ?? ""} disabled={workingCandidateId === activeCandidate.id} onChange={(event) => categoryChoice.choose(event.target.value, classification?.type ?? activeCandidate.transaction_type as TransactionType, applyClassification)} name="category" {...feedback("category")}><option value="">No category</option>{reviewState.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><FieldError prefix="review" field="category" errors={fieldErrors} /></label>
+                  <label className="field"><span className="field__label">Payment method</span><select className="field__control" value={paymentMethodDrafts[activeCandidate.id] ?? reviewState.paymentMethods.find((method) => method.account === accountDraft?.account && [activeCandidate.payment_method, activeCandidate.destination_payment_method].includes(method.id))?.id ?? ""} onChange={event => setPaymentMethodDrafts(current => ({ ...current, [activeCandidate.id]: event.target.value }))} name="payment_method" {...feedback("payment_method")}><option value="">No payment method</option>{reviewState.paymentMethods.filter((method) => method.account === accountDraft?.account).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}</select><FieldError prefix="review" field="payment_method" errors={fieldErrors} /></label>
+                  {classification?.type === "transfer" ? <label className="field"><span className="field__label">{accountDraft?.direction === "credit" ? "From account" : "To account"}</span><select className="field__control" value={accountDraft?.other ?? ""} onChange={(event) => updateAccountDraft({ other: event.target.value })} name="transfer_account" {...feedback("transfer_account")}><option value="">Select account</option>{reviewState.accounts.filter((account) => account.id !== accountDraft?.account).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select>{activeCandidate.transfer_suggestion_reason && accountDraft?.account === accountReviewDefaults(activeCandidate).account && accountDraft?.other === accountReviewDefaults(activeCandidate).other && accountDraft?.direction === accountReviewDefaults(activeCandidate).direction ? <span className="field__hint" role="status">{accountDraft?.other ? `Suggested: ${reviewState.accounts.find((account) => account.id === accountDraft.other)?.name ?? "saved account"}. ` : ""}{activeCandidate.transfer_suggestion_reason}</span> : null}<FieldError prefix="review" field="transfer_account" errors={fieldErrors} /></label> : null}
                   <div className="transaction-datetime" role="group" aria-label="Date and time">
-                    <label className="field"><span className="field__label">Date</span><input className="field__control" defaultValue={dateInputFromTimestamp(activeCandidate.raw_message.received_at)} name="date" type="date" /></label>
-                    <label className="field"><span className="field__label">Time</span><input className="field__control" defaultValue={timeInputFromTimestamp(activeCandidate.raw_message.received_at)} name="time" type="time" /></label>
+                    <label className="field"><span className="field__label">Date</span><input className="field__control" defaultValue={dateInputFromTimestamp(activeCandidate.raw_message.received_at)} name="date" {...feedback("date")} type="date" /><FieldError prefix="review" field="date" errors={fieldErrors} /></label>
+                    <label className="field"><span className="field__label">Time</span><input className="field__control" defaultValue={timeInputFromTimestamp(activeCandidate.raw_message.received_at)} name="time" {...feedback("time")} type="time" /><FieldError prefix="review" field="time" errors={fieldErrors} /></label>
                   </div>
-                  <label className="field"><span className="field__label">Balance after</span><input className="field__control" value={classification?.balanceAfter ?? ""} onChange={(event) => setClassificationDrafts((current) => ({ ...current, [activeCandidate.id]: { type: classification?.type ?? activeCandidate.transaction_type as TransactionType, category: classification?.category ?? "", balanceAfter: event.target.value } }))} inputMode="decimal" name="balance_after" /><span className="field__hint">Reported for the selected account; kept when type changes.</span>{classification && "balanceCleared" in classification && classification.balanceCleared ? <span className="field__hint" role="status">Reported balance cleared because its reporting account changed. Enter the balance for the new account if available.</span> : null}</label>
-                  <label className="field"><span className="field__label">Merchant / counterparty</span><input className="field__control" defaultValue={activeCandidate.counterparty_text} name="counterparty_text" /></label>
-                  <label className="field"><span className="field__label">Reference</span><input className="field__control" defaultValue={activeCandidate.reference} name="reference" /></label>
-                  <details className="review-identifiers field--wide" open={!accountDraft?.account || Number(activeCandidate.confidence) < 0.65}><summary>Masked sender and receiver identifiers</summary><fieldset className="review-identifier-grid field--wide"><legend>Masked sender and receiver identifiers</legend><p>These values help match a saved payment method. Store only masked values or a safe suffix, never a full card number. Choose ledger accounts using the account selectors above.</p><label className="field"><span className="field__label">Sender account</span><input className="field__control" defaultValue={activeCandidate.sender_account_identifier} name="sender_account_identifier" /></label><label className="field"><span className="field__label">Sender card</span><input className="field__control" defaultValue={activeCandidate.sender_card_identifier} name="sender_card_identifier" /></label><label className="field"><span className="field__label">Receiver account</span><input className="field__control" defaultValue={activeCandidate.receiver_account_identifier} name="receiver_account_identifier" /></label><label className="field"><span className="field__label">Receiver card</span><input className="field__control" defaultValue={activeCandidate.receiver_card_identifier} name="receiver_card_identifier" /></label></fieldset></details>
-                  <label className="field field--wide"><span className="field__label">Ledger note</span><input className="field__control" defaultValue={normalizedNote(activeCandidate)} name="note" /><span className="field__hint">The full SMS is not copied into your transaction note.</span></label>
+                  <label className="field"><span className="field__label">Balance after</span><input className="field__control" value={classification?.balanceAfter ?? ""} onChange={(event) => setClassificationDrafts((current) => ({ ...current, [activeCandidate.id]: { type: classification?.type ?? activeCandidate.transaction_type as TransactionType, category: classification?.category ?? "", balanceAfter: event.target.value } }))} inputMode="decimal" name="balance_after" {...feedback("balance_after")} /><span className="field__hint">Reported for the selected account; kept when type changes.</span>{classification && "balanceCleared" in classification && classification.balanceCleared ? <span className="field__hint" role="status">Reported balance cleared because its reporting account changed. Enter the balance for the new account if available.</span> : null}<FieldError prefix="review" field="balance_after" errors={fieldErrors} /></label>
+                  <label className="field"><span className="field__label">Merchant / counterparty</span><input className="field__control" defaultValue={activeCandidate.counterparty_text} name="counterparty_text" {...feedback("counterparty_text")} /><FieldError prefix="review" field="counterparty_text" errors={fieldErrors} /></label>
+                  <label className="field"><span className="field__label">Reference</span><input className="field__control" defaultValue={activeCandidate.reference} name="reference" {...feedback("reference")} /><FieldError prefix="review" field="reference" errors={fieldErrors} /></label>
+                  <details className="review-identifiers field--wide" open={!accountDraft?.account || Number(activeCandidate.confidence) < 0.65}><summary>Masked sender and receiver identifiers</summary><fieldset className="review-identifier-grid field--wide"><legend>Masked sender and receiver identifiers</legend><p>These values help match a saved payment method. Store only masked values or a safe suffix, never a full card number. Choose ledger accounts using the account selectors above.</p><label className="field"><span className="field__label">Sender account</span><input className="field__control" defaultValue={activeCandidate.sender_account_identifier} name="sender_account_identifier" {...feedback("sender_account_identifier")} /><FieldError prefix="review" field="sender_account_identifier" errors={fieldErrors} /></label><label className="field"><span className="field__label">Sender card</span><input className="field__control" defaultValue={activeCandidate.sender_card_identifier} name="sender_card_identifier" {...feedback("sender_card_identifier")} /><FieldError prefix="review" field="sender_card_identifier" errors={fieldErrors} /></label><label className="field"><span className="field__label">Receiver account</span><input className="field__control" defaultValue={activeCandidate.receiver_account_identifier} name="receiver_account_identifier" {...feedback("receiver_account_identifier")} /><FieldError prefix="review" field="receiver_account_identifier" errors={fieldErrors} /></label><label className="field"><span className="field__label">Receiver card</span><input className="field__control" defaultValue={activeCandidate.receiver_card_identifier} name="receiver_card_identifier" {...feedback("receiver_card_identifier")} /><FieldError prefix="review" field="receiver_card_identifier" errors={fieldErrors} /></label></fieldset></details>
+                  <label className="field field--wide"><span className="field__label">Ledger note</span><input className="field__control" defaultValue={normalizedNote(activeCandidate)} name="note" {...feedback("note")} /><span className="field__hint">The full SMS is not copied into your transaction note.</span><FieldError prefix="review" field="note" errors={fieldErrors} /></label>
                   <label className="field field--wide review-remember"><input defaultChecked name="remember_mapping" type="checkbox" /><span><strong>Use these choices for similar messages</strong><small>Saved after confirmation. Transfer choices are scoped to this reporting account and counterparty; other messages keep their own choices.</small></span></label>
                 </div>
 
                 <details className="raw-message" open={Number(activeCandidate.confidence) < 0.65 || Boolean(activeCandidate.raw_message.duplicate_of)}><summary>Original SMS and parser evidence</summary><p>{activeCandidate.raw_message.body}</p><p>{activeCandidate.parser_notes}</p>{activeCandidate.raw_message.status !== "redacted" ? <div className="raw-message-actions"><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleReprocess(activeCandidate)} type="button">{reprocessingCandidateId === activeCandidate.id ? <ButtonBusy label="Re-running parser" /> : <><ArrowClockwise aria-hidden="true" size={18} />Re-run parser</>}</button><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleRedact(activeCandidate)} type="button">Redact original SMS now</button></div> : <span className="status-badge status-badge--ok">Original SMS redacted</span>}</details>
 
                 </div>
-                <div className="review-sticky-actions"><div className="review-action-status"><strong>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"}</strong><span>{candidateIssues(activeCandidate).length ? `${candidateIssues(activeCandidate).length} item(s) need attention` : "Ready to add to ledger"}</span></div><div className="review-detail__pager" role="group" aria-label="Message navigation"><button aria-label="Previous message" disabled={activeIndex <= 0} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex - 1]?.id ?? activeCandidate.id)} type="button"><ArrowLeft size={18} /></button><span>{activeIndex + 1} / {filteredCandidates.length}</span><button aria-label="Next message" disabled={activeIndex >= filteredCandidates.length - 1} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex + 1]?.id ?? activeCandidate.id)} type="button"><ArrowRight size={18} /></button><button className="review-focus-toggle" aria-label={isFocused ? "Exit focus mode" : "Enter focus mode"} aria-pressed={isFocused} title={isFocused ? "Exit focus mode (Escape)" : "Focus on the review workspace"} onClick={event => { if (!isFocused) prepareFocus(event.currentTarget); setFocusMode(current => !current); }} type="button">{isFocused ? <CornersIn size={19} aria-hidden="true" /> : <CornersOut size={19} aria-hidden="true" />}</button></div><button className="button button--danger" disabled={workingCandidateId === activeCandidate.id} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })} type="button">Reject</button><button className="button button--primary" disabled={workingCandidateId === activeCandidate.id} type="submit">{workingCandidateId === activeCandidate.id ? <ButtonBusy label="Confirming" /> : "Confirm & add"}</button></div>
+                <div className="review-sticky-actions"><div className="review-action-status"><strong>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"}</strong><span>{activeCorrections.length ? `${activeCorrections.length} correction(s) needed` : activeIssues.length ? "Ready · check review notes" : "Ready to add to ledger"}</span></div><div className="review-detail__pager" role="group" aria-label="Message navigation"><button aria-label="Previous message" disabled={activeIndex <= 0} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex - 1]?.id ?? activeCandidate.id)} type="button"><ArrowLeft size={18} /></button><span>{activeIndex + 1} / {filteredCandidates.length}</span><button aria-label="Next message" disabled={activeIndex >= filteredCandidates.length - 1} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex + 1]?.id ?? activeCandidate.id)} type="button"><ArrowRight size={18} /></button><button className="review-focus-toggle" aria-label={isFocused ? "Exit focus mode" : "Enter focus mode"} aria-pressed={isFocused} title={isFocused ? "Exit focus mode (Escape)" : "Focus on the review workspace"} onClick={event => { if (!isFocused) prepareFocus(event.currentTarget); setFocusMode(current => !current); }} type="button">{isFocused ? <CornersIn size={19} aria-hidden="true" /> : <CornersOut size={19} aria-hidden="true" />}</button></div><button className="button button--danger" disabled={workingCandidateId === activeCandidate.id} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })} type="button">Reject</button><button className="button button--primary" disabled={workingCandidateId === activeCandidate.id} type="submit">{workingCandidateId === activeCandidate.id ? <ButtonBusy label="Confirming" /> : "Confirm & add"}</button></div>
               </form>
             </article>
           ) : null}
@@ -565,7 +602,7 @@ export function MessageReviewWorkspace() {
       {filtersOpen ? <ModalDialog labelledBy="review-filters-title" className="decision-modal review-filter-dialog" onCancel={() => setFiltersOpen(false)}>
         <button className="decision-modal__close" aria-label="Close filters" onClick={() => setFiltersOpen(false)} type="button"><X size={20} /></button>
         <h2 id="review-filters-title">Filter messages</h2><p>Filters apply immediately to the review queue.</p>
-              <div className="review-filter-row"><FunnelSimple aria-hidden="true" size={17} /><select aria-label="Filter by provider" onChange={(event) => setProviderFilter(event.target.value)} value={providerFilter}><option value="all">All providers</option>{providers.map((provider) => <option key={provider} value={provider}>{formatLabel(provider)}</option>)}</select><select aria-label="Filter by issue" onChange={(event) => setIssueFilter(event.target.value)} value={issueFilter}><option value="all">All states</option><option value="missing">Needs input</option><option value="ready">Ready to confirm</option></select></div>
+              <div className="review-filter-row"><FunnelSimple aria-hidden="true" size={17} /><select aria-label="Filter by provider" onChange={(event) => setProviderFilter(event.target.value)} value={providerFilter}><option value="all">All providers</option>{providers.map((provider) => <option key={provider} value={provider}>{formatLabel(provider)}</option>)}</select><select aria-label="Filter by issue" onChange={(event) => { setIssueFilter(event.target.value); setActiveCandidateId(""); }} value={issueFilter}><option value="all">All states</option><option value="missing">Needs input</option><option value="ready">Ready to confirm</option></select></div>
               <div className="review-filter-row review-filter-row--fields">
                 <select aria-label="Filter by category" onChange={(event) => setCategoryFilter(event.target.value)} value={categoryFilter}><option value="all">All categories</option><option value="uncategorized">Uncategorized</option>{reviewState.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
                 <select aria-label="Filter by transaction type" onChange={(event) => setTypeFilter(event.target.value)} value={typeFilter}><option value="all">All types</option>{transactionTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select>

@@ -482,10 +482,11 @@ than treated as a blanket skip category, and financial senders remain active.
 
 ## Can users see the original message while correcting a transaction?
 
-Yes. The edit dialog loads an expanded Original SMS section with full plain text,
+Yes. When linked SMS exists, the edit dialog loads an expanded Original SMS section with full plain text,
 sender and received time. It preserves line breaks, wraps long text and shows
 all linked transfer messages once. Users can collapse it while editing.
-Redacted/excluded SMS and entries without SMS have explicit explanations.
+Redacted/excluded SMS have explicit explanations. Entries without linked SMS hide
+the empty section.
 Loading failures have a retry control and do not block the form. Component state
 is discarded on closing or switching entries, stale responses are ignored, and
 bodies are not persisted to browser storage or transaction notes. The cookie
@@ -794,8 +795,8 @@ browser storage falls back to the default view.
 It expands the same mounted workspace (dates, queue and editor); changing Focus never moves
 fields into a new modal/portal or changes their keys. Native input values,
 controlled choices, checkboxes and evidence disclosure state therefore survive
-entering/exiting. Candidate keys reset the form only when changing messages,
-matching normal review behavior. Focus itself performs no API mutation.
+entering/exiting. Candidate keys reset native fields when changing messages; amount, account and
+classification drafts stay scoped to each candidate until re-parsing or leaving. Focus itself performs no API mutation.
 
 App chrome and other background controls are hidden/inert. The queue, search,
 filters and received-date controls stay interactive, with a persistent Exit control,
@@ -809,3 +810,34 @@ and Focus scroll locks share ownership, so cleanup order cannot leave scrolling
 stuck. Contextual Edit/Undo toasts stay accessible. Focus persists across reviewed
 messages and respects mobile safe areas/visual viewport
 without requesting browser fullscreen or preventing zoom.
+
+### How does review readiness follow corrections without pretending to be automation?
+
+Readiness evaluates the edited amount/account/type and transfer counterpart.
+Optional category and low-confidence notes are advisory. An existing transfer
+match may supply a missing other account; adding separately still requires it.
+The selected edited draft stays visible while a readiness filter would otherwise
+remove it. Queue count events carry only a count and owner ID, are accepted only
+for the current session, and supersede older count requests. Review mutations,
+Undo/transaction changes and returning to the window refresh the badge. Dashboard
+wording describes SMS/mobile origin rather than claiming every entry was auto-posted.
+
+### How do compact forms remain complete and accessible?
+
+Add/Edit use a scrollable field area with persistent Save/Cancel. More details
+contains source, masked identifiers and review flags, without removing fields
+from submission. Empty SMS evidence sections disappear; retained/redacted sources
+remain inspectable. Field validation preserves backend messages, highlights the
+control, opens collapsed details and focuses the first problem. A linked-evidence
+acknowledgement cannot be bypassed by the new footer. Overall feedback still uses
+the toast. Mobile navigation has a labelled dialog, Tab containment, inert
+background/closed drawer, Escape and trigger-focus restoration.
+
+### Why offer transaction cards and fewer default columns?
+
+Six useful columns start visible, with source/balances/identifiers still selectable.
+Saved selections survive the update; Show all and Reset default are separate.
+At phone widths cards use the same formatting/actions and column preferences as
+the table. Extra selected metadata expands within each card. Internal transfers
+remain neutral in the all-account view, while account filters show debit/credit.
+This changes presentation, not matching, amounts, balances or ledger calculations.

@@ -263,6 +263,7 @@ npm run typecheck
 npm run lint
 npm run test:auth
 npm run test:workflows
+npm run test:review-feedback
 npm run test:dates
 ```
 
@@ -459,6 +460,7 @@ From `projects/finance-web`:
 npm run test:quick-add
 npm run test:auth
 npm run test:workflows
+npm run test:review-feedback
 npm run test:dates
 npm run typecheck
 npm run build

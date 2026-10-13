@@ -14,6 +14,10 @@ function messages(value: unknown): string[] {
   return [];
 }
 
+export class RequestError extends Error {
+  constructor(message: string, public readonly fieldErrors: Record<string, string> = {}) { super(message); this.name = "RequestError"; }
+}
+
 export async function responseError(response: Response): Promise<Error> {
   const fallback = response.status === 403 ? "You do not have permission to perform this action."
     : response.status === 404 ? "This item is no longer available. Refresh the page and try again."
@@ -31,7 +35,10 @@ export async function responseError(response: Response): Promise<Error> {
           return messages(value).map((message) => label ? `${label}: ${message}` : message);
         })
       : messages(payload);
-    return new Error(lines.length ? [...new Set(lines)].slice(0, 4).join(" ").slice(0, 600) : fallback);
+    const fieldErrors = payload && typeof payload === "object" && !Array.isArray(payload)
+      ? Object.fromEntries(Object.entries(payload).filter(([field]) => !["detail", "error", "message", "non_field_errors"].includes(field))
+        .map(([field, value]) => [field, messages(value).slice(0, 3).join(" ").slice(0, 300)]).filter(([, message]) => message)) : {};
+    return new RequestError(lines.length ? [...new Set(lines)].slice(0, 4).join(" ").slice(0, 600) : fallback, fieldErrors);
   } catch {
     return new Error(fallback);
   }

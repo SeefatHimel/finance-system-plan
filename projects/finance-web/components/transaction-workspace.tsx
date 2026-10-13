@@ -55,6 +55,10 @@ import { DatePeriodControls } from "@/components/date-period-controls";
 import { periodFromFilters, periodLabel, type DatePeriod } from "@/lib/date-period";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
 
+import { FieldError } from "@/components/field-error";
+import { fieldErrorsFrom, focusFieldError, nativeFieldErrors } from "@/lib/form-feedback";
+import { reviewFieldErrors } from "@/lib/review-status";
+
 type LoadState =
   | { status: "loading" }
   | { message: string; status: "error" }
@@ -83,7 +87,8 @@ const transactionColumns: { id: TransactionColumn; label: string }[] = [
   { id: "amount", label: "Amount" }
 ];
 
-const defaultTransactionColumns = transactionColumns.map((column) => column.id);
+const allTransactionColumns = transactionColumns.map((column) => column.id);
+const defaultTransactionColumns: TransactionColumn[] = ["date", "time", "description", "account", "category", "amount"];
 const transactionColumnsStorageKey = "finance.transactions.columns.v1";
 
 type TransactionFilterState = Required<Pick<TransactionFilters, "direction" | "source" | "type">> & {
@@ -136,6 +141,9 @@ export function TransactionWorkspace() {
   const recovery = useTransactionRecovery();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const editorForm = useRef<HTMLFormElement>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const feedback = (field: string) => ({ "aria-invalid": Boolean(fieldErrors[field]), "aria-describedby": fieldErrors[field] ? `transaction-error-${field}` : undefined });
   const saveInFlight = useRef(false);
   const saveKey = useRef("");
   const editLoad = useRef<AbortController>();
@@ -317,13 +325,13 @@ export function TransactionWorkspace() {
       if (!stored) return;
       const parsed = JSON.parse(stored) as unknown;
       if (!Array.isArray(parsed)) return;
-      const allowed = new Set<TransactionColumn>(defaultTransactionColumns);
+      const allowed = new Set<TransactionColumn>(allTransactionColumns);
       const restored = parsed.filter((value): value is TransactionColumn =>
         typeof value === "string" && allowed.has(value as TransactionColumn)
       );
       if (restored.length > 0) setVisibleColumns(restored);
     } catch {
-      // Fall back to the complete default table when storage is unavailable.
+      // Fall back to the compact default table when storage is unavailable.
     }
   }, []);
 
@@ -345,7 +353,7 @@ export function TransactionWorkspace() {
     setEditingReference(""); setEditingCounterpartyText(defaults?.counterparty_text ?? ""); setEditingNote(defaults?.note ?? "");
     setEditingPaymentMethodId(""); setEditingSource("web"); setEditingNeedsReview(false); setAllowLinkedCorrection(false);
     setEditingSenderAccountIdentifier(""); setEditingSenderCardIdentifier(""); setEditingReceiverAccountIdentifier(""); setEditingReceiverCardIdentifier("");
-    setFormError(null); setFormMessage(null); setEditorMode("create");
+    setFieldErrors({}); setFormError(null); setFormMessage(null); setEditorMode("create");
   }, [setFormError, setFormMessage]);
   useEffect(() => {
     if (!fullDraft) return;
@@ -565,7 +573,7 @@ export function TransactionWorkspace() {
     setAllowLinkedCorrection(false);
     setFormError(null);
     setFormMessage(null);
-    setEditorMode("edit");
+    setFieldErrors({}); setEditorMode("edit");
     } catch (error) { if (!controller.signal.aborted) setFormError(error instanceof Error ? error.message : "Could not load this transaction."); }
   }, [setFormError, setFormMessage]);
   useEffect(() => () => editLoad.current?.abort(), []);
@@ -577,9 +585,11 @@ export function TransactionWorkspace() {
     if (saveInFlight.current) return;
     const token = getAccessToken();
     if (!token) return setFormError("Sign in before saving a transaction.");
-    if (!editingAccountId) return setFormError("Choose an account before saving.");
-    if (editingType === "transfer" && !editingTransferAccountId) return setFormError("Choose the To account before saving a transfer.");
-    if (editingType === "transfer" && editingAccountId === editingTransferAccountId) return setFormError("Choose different From and To accounts for a transfer.");
+    const errors = { ...nativeFieldErrors(event.currentTarget), ...reviewFieldErrors({ account: editingAccountId, other: editingTransferAccountId, amount: editingAmount, type: editingType, category: editingCategoryId }) };
+    if (Object.keys(errors).length) {
+      setFieldErrors(errors); setFormError("Check the highlighted fields."); focusFieldError(event.currentTarget, errors); return;
+    }
+    setFieldErrors({});
     saveInFlight.current = true; setIsUpdating(true); setFormError(null); setFormMessage(null);
     const input = {
       account: editingAccountId, amount: editingAmount,
@@ -606,7 +616,10 @@ export function TransactionWorkspace() {
           transfer_account: editingType === "transfer" ? editingTransferAccountId : null });
       }
       closeEditor(); recovery.announce(saved.undo_action); await loadData(filtersRef.current);
-    } catch (error) { setFormError(error instanceof Error ? error.message : "Could not save transaction."); }
+    } catch (error) {
+      const errors = fieldErrorsFrom(error); setFieldErrors(errors); focusFieldError(editorForm.current, errors);
+      setFormError(error instanceof Error ? error.message : "Could not save transaction.");
+    }
     finally { saveInFlight.current = false; setIsUpdating(false); }
   }
 
@@ -653,6 +666,40 @@ export function TransactionWorkspace() {
       (editingTransaction.statement_evidence_count > 0 && editingTransaction.direction !== editingDirection)
     ));
 
+  function columnContent(column: TransactionColumn, transaction: Transaction) {
+    const methods = loadState.status === "ready" ? loadState.paymentMethods : [];
+    switch (column) {
+      case "date": return <time dateTime={transaction.date}>{transaction.date}</time>;
+      case "time": return formatTransactionTime(transaction.time);
+      case "description": return <><span className="transaction-ledger-primary">{transaction.counterparty_text || transaction.reference || transaction.note || transaction.type.replaceAll("_", " ")}</span><span className="transaction-ledger-secondary">{transaction.type.replaceAll("_", " ")} · {transaction.type === "transfer" && !displayedFilters.account ? "Internal movement" : transaction.account_direction}{transaction.reference ? ` · ${transaction.reference}` : ""}</span>{transaction.needs_review ? <span className="status-badge status-badge--idle">Needs review</span> : null}</>;
+      case "account": return <>{accountNames.get(transaction.account) ?? "Unknown"}{transaction.type === "transfer" ? ` → ${accountNames.get(transaction.transfer_account ?? "") ?? "Unknown"}` : ""}</>;
+      case "category": return transaction.category ? categoryNames.get(transaction.category) ?? "Unknown" : "None";
+      case "source": return transaction.source;
+      case "balance": return transaction.type === "transfer" && transaction.transfer_evidence.length ? transaction.transfer_evidence.map(item => <span className="transaction-ledger-secondary" key={item.id}>{accountNames.get(item.account)}: {item.balance_after === null ? "No reported balance" : moneyFormatter.format(Number(item.balance_after))}{item.reference ? ` · ${item.reference}` : ""}</span>) : transaction.balance_after !== null ? moneyFormatter.format(Number(transaction.balance_after)) : "—";
+      case "senderIdentifiers": return <><span>{identifierView.format(transaction.sender_account_identifier, identifierLabel(transaction.sender_account_identifier, "account", methods, accountNames, transaction.direction === "debit" ? transaction.account : undefined))}</span><span className="transaction-ledger-secondary">{transaction.sender_card_identifier ? `Card ${identifierView.format(transaction.sender_card_identifier, identifierLabel(transaction.sender_card_identifier, "card", methods, accountNames, transaction.direction === "debit" ? transaction.account : undefined))}` : "No card identifier"}</span></>;
+      case "receiverIdentifiers": {
+        const account = transaction.type === "transfer" ? transaction.transfer_account ?? undefined : transaction.direction === "credit" ? transaction.account : undefined;
+        return <><span>{identifierView.format(transaction.receiver_account_identifier, identifierLabel(transaction.receiver_account_identifier, "account", methods, accountNames, account))}</span><span className="transaction-ledger-secondary">{transaction.receiver_card_identifier ? `Card ${identifierView.format(transaction.receiver_card_identifier, identifierLabel(transaction.receiver_card_identifier, "card", methods, accountNames, account))}` : "No card identifier"}</span></>;
+      }
+      case "amount": return <>{transaction.type === "transfer" && !displayedFilters.account ? "" : transaction.account_direction === "credit" ? "+" : "−"}{moneyFormatter.format(Number(transaction.amount))}</>;
+    }
+  }
+  function amountClass(transaction: Transaction) {
+    return `transaction-ledger-amount${transaction.type === "transfer" && !displayedFilters.account ? " transaction-ledger-amount--transfer" : transaction.account_direction === "credit" ? " transaction-ledger-amount--credit" : ""}`;
+  }
+  function activityTime(transaction: Transaction) {
+    const stamp = displayedFilters.ordering === "-updated_at" ? transaction.updated_at : transaction.created_at;
+    return <time dateTime={stamp}>{activityTimeFormatter.format(new Date(stamp))}</time>;
+  }
+  function transactionActions(transaction: Transaction) {
+    return <div className="list-row__actions">
+      {transaction.type === "transfer" ? <button className="button button--ghost" disabled={isSubmitting} onClick={() => void handleFindPostedMatch(transaction)} type="button">Find match</button> : null}
+      <button className="button button--ghost" onClick={() => void selectTransactionForEdit(transaction.id)} type="button">Edit</button>
+      <Link className="button button--ghost" href={`/audit-logs?entity_type=transactions.transaction&entity_id=${transaction.id}`}>History</Link>
+      <button className="button button--danger" disabled={deletingTransactionId === transaction.id} onClick={() => void handleDeleteTransaction(transaction)} type="button">{deletingTransactionId === transaction.id ? <ButtonBusy label="Deleting" /> : "Delete"}</button>
+    </div>;
+  }
+
   return (
     <div className="workspace-grid">
       {categoryChoice.confirmation}
@@ -685,24 +732,29 @@ export function TransactionWorkspace() {
               </button>
             </div>
 
-          <form className="transaction-form drawer-form" onSubmit={handleSave}>
+          <form className="transaction-form drawer-form" noValidate ref={editorForm} onSubmit={handleSave}
+            onChangeCapture={event => {
+              const target = event.target as HTMLInputElement;
+              if (target.name) setFieldErrors(current => { const next = { ...current }; delete next[target.name]; return next; });
+            }}>
+            <div className="transaction-editor-fields">
             {editorMode === "edit" ? <TransactionSourceMessages key={editingTransactionId} transactionId={editingTransactionId} /> : null}
             {editingTransaction?.statement_evidence_count ? <TransactionStatementEvidence key={`statement-${editingTransactionId}`} transactionId={editingTransactionId} /> : null}
             <div className="transaction-datetime" role="group" aria-label="Date and time">
               <label className="field">
                 <span className="field__label">Date</span>
-                <input
+                <input name="date" {...feedback("date")}
                   className="field__control"
                   onChange={(event) => setEditingDate(event.target.value)}
                   required
                   type="date"
                   value={editingDate}
-                />
+                /><FieldError field="date" errors={fieldErrors} />
               </label>
 
               <div className="field">
                 <label className="field__label" htmlFor="edit-transaction-time">Time</label>
-                <input id="edit-transaction-time" step="1" className="field__control" onChange={event => setEditingTime(event.target.value)} type="time" value={editingTime} />
+                <input name="time" {...feedback("time")} id="edit-transaction-time" step="1" className="field__control" onChange={event => setEditingTime(event.target.value)} type="time" value={editingTime} /><FieldError field="time" errors={fieldErrors} />
                 <button className="quick-see-all" type="button" onClick={() => setClockEdit({ value: editingTime || currentTime() })}>Choose time on clock</button>
               </div>
             </div>
@@ -710,6 +762,7 @@ export function TransactionWorkspace() {
             <label className="field">
               <span className="field__label">Type</span>
               <select
+                name="type" {...feedback("type")}
                 className="field__control"
                 onChange={(event) => changeEditingType(event.target.value as TransactionType)}
                 required
@@ -720,7 +773,7 @@ export function TransactionWorkspace() {
                     {type.replaceAll("_", " ")}
                   </option>
                 ))}
-              </select>
+              </select><FieldError field="type" errors={fieldErrors} />
             </label>
 
             {editingType === "transfer" ? <div className="field">
@@ -734,6 +787,7 @@ export function TransactionWorkspace() {
             </div> : <label className="field">
               <span className="field__label">Debit / credit</span>
               <select
+                name="direction" {...feedback("direction")}
                 className="field__control"
                 onChange={(event) => setEditingDirection(event.target.value as TransactionDirection)}
                 required
@@ -741,12 +795,13 @@ export function TransactionWorkspace() {
               >
                 <option value="debit">Debit</option>
                 <option value="credit">Credit</option>
-              </select>
+              </select><FieldError field="direction" errors={fieldErrors} />
             </label>}
 
             <label className="field">
               <span className="field__label">{editingType === "transfer" ? "From account" : "Account"}</span>
               <select
+                name="account" {...feedback("account")}
                 className="field__control"
                 onChange={(event) => {
                   changeEditingContext({ account: event.target.value });
@@ -762,12 +817,13 @@ export function TransactionWorkspace() {
                     {account.name}
                   </option>
                 ))}
-              </select>
+              </select><FieldError field="account" errors={fieldErrors} />
             </label>
 
             {editingType === "transfer" ? <label className="field">
               <span className="field__label">{editingType === "transfer" ? "To account" : "Transfer to"}</span>
               <select
+                name="transfer_account" {...feedback("transfer_account")}
                 className="field__control"
                 disabled={editingType !== "transfer"}
                 onChange={(event) => {
@@ -782,12 +838,13 @@ export function TransactionWorkspace() {
                     {account.name}
                   </option>
                 ))}
-              </select>
+              </select><FieldError field="transfer_account" errors={fieldErrors} />
             </label> : null}
 
             <label className="field">
               <span className="field__label">Category</span>
               <select
+                name="category" {...feedback("category")}
                 className="field__control"
                 disabled={isUpdating}
                 onChange={(event) => categoryChoice.choose(event.target.value, editingType, (categoryId, type) => { setEditingCategoryId(categoryId); if (type !== editingType) changeEditingType(type); })}
@@ -799,12 +856,12 @@ export function TransactionWorkspace() {
                     {category.name}
                   </option>
                 ))}
-              </select>
+              </select><FieldError field="category" errors={fieldErrors} />
             </label>
 
             <label className="field">
               <span className="field__label">Amount</span>
-              <input
+              <input name="amount" {...feedback("amount")}
                 className="field__control"
                 min="0.01"
                 inputMode="decimal"
@@ -812,18 +869,18 @@ export function TransactionWorkspace() {
                 required
                 type="text"
                 value={editingAmount}
-              />
+              /><FieldError field="amount" errors={fieldErrors} />
             </label>
 
-            {editingType === "transfer" ? <TransferBalanceFields accounts={[editingAccountId, editingTransferAccountId]} primaryAccount={editingTransaction?.balance_reporting_account ?? (reportingAccount || editingAccountId)} names={accountNames} values={editingReportedBalances} onChange={(account, value) => setEditingReportedBalances(current => ({ ...current, [account]: value }))} /> : <>            <div className="field">
+            {editingType === "transfer" ? <TransferBalanceFields error={fieldErrors.reported_balances} accounts={[editingAccountId, editingTransferAccountId]} primaryAccount={editingTransaction?.balance_reporting_account ?? (reportingAccount || editingAccountId)} names={accountNames} values={editingReportedBalances} onChange={(account, value) => setEditingReportedBalances(current => ({ ...current, [account]: value }))} /> : <>            <div className="field">
               <div className="inline-help"><label className="field__label" htmlFor="edit-reported-balance">Reported balance after</label> <HelpTooltip label="About reported balance">Optional balance from this account’s report, rather than its calculated ledger balance. Leave blank if unknown.</HelpTooltip></div>
-              <input id="edit-reported-balance"
+              <input name="balance_after" {...feedback("balance_after")} id="edit-reported-balance"
                 className="field__control"
                 inputMode="decimal"
                 onChange={(event) => { setEditingBalanceAfter(event.target.value); setEditingReportedBalances(current => ({ ...current, [editingAccountId]: event.target.value })); setEditingBalanceNotice(""); }}
                 type="text"
                 value={editingBalanceAfter}
-              />
+              /><FieldError field="balance_after" errors={fieldErrors} />
               {balanceAccountId ? <small className="field__hint">{loadState.accounts.find((account) => account.id === balanceAccountId)?.name ?? "This account"}</small> : null}
               {editingBalanceNotice ? <small className="field__hint inline-help" role="status">Balance cleared <HelpTooltip warning label="Why the balance was cleared">{editingBalanceNotice}</HelpTooltip></small> : null}
             </div></>}
@@ -836,63 +893,70 @@ export function TransactionWorkspace() {
 
             <div className="field">
               <div className="inline-help"><label className="field__label" htmlFor="edit-transaction-reference">Reference</label> <HelpTooltip label="About references">Optional bank or wallet reference. References may repeat.</HelpTooltip></div>
-              <input id="edit-transaction-reference"
+              <input name="reference" {...feedback("reference")} id="edit-transaction-reference"
                 aria-label="Reference"
                 className="field__control"
                 onChange={(event) => setEditingReference(event.target.value)}
                 placeholder="e.g. DEMO-TRF-1042"
                 type="text"
                 value={editingReference}
-              />
+              /><FieldError field="reference" errors={fieldErrors} />
             </div>
 
             <label className="field">
               <span className="field__label">Sent to / received from</span>
-              <input
+              <input name="counterparty_text" {...feedback("counterparty_text")}
                 className="field__control"
                 onChange={(event) => setEditingCounterpartyText(event.target.value)}
                 type="text"
                 value={editingCounterpartyText}
-              />
+              /><FieldError field="counterparty_text" errors={fieldErrors} />
             </label>
 
             <label className="field field--wide">
               <span className="field__label">Note</span>
-              <input
+              <input name="note" {...feedback("note")}
                 className="field__control"
                 onChange={(event) => setEditingNote(event.target.value)}
                 type="text"
                 value={editingNote}
-              />
+              /><FieldError field="note" errors={fieldErrors} />
             </label>
 
             <div className="field">
               <div className="inline-help"><label className="field__label" htmlFor="edit-payment-method">Payment method</label> <HelpTooltip label="About payment methods">Optional account-linked instrument, such as a debit card, credit card, wallet or cash. Saved identifiers and aliases help recognize SMS and statement accounts.</HelpTooltip></div>
-              <select id="edit-payment-method" className="field__control" onChange={(event) => setEditingPaymentMethodId(event.target.value)} value={editingPaymentMethodId}>
+              <select name="payment_method" {...feedback("payment_method")} id="edit-payment-method" className="field__control" onChange={(event) => setEditingPaymentMethodId(event.target.value)} value={editingPaymentMethodId}>
                 <option value="">No payment method</option>
                 {loadState.paymentMethods.filter((method) => method.account === editingAccountId).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
-              </select>
+              </select><FieldError field="payment_method" errors={fieldErrors} />
             </div>
+            <details className="raw-message field--wide transaction-more-details"><summary>More details</summary><div className="transaction-more-details__fields">
             <label className="field">
               <span className="field__label">Source</span>
-              <select className="field__control" onChange={(event) => setEditingSource(event.target.value as TransactionSource)} value={editingSource}>
+              <select name="source" {...feedback("source")} className="field__control" onChange={(event) => setEditingSource(event.target.value as TransactionSource)} value={editingSource}>
                 {transactionSources.map((source) => <option key={source} value={source}>{source}</option>)}
-              </select>
+              </select><FieldError field="source" errors={fieldErrors} />
             </label>
             <fieldset className="transaction-identifier-fields field--wide">
               <legend>Masked identifiers <HelpTooltip label="About masked identifiers">Use masked values or a safe suffix. Full account and card numbers are reduced to their last four digits before saving.</HelpTooltip></legend>
               <div className="transaction-identifier-grid">
-                <label className="field"><span className="field__label">Sender account</span><input className="field__control" maxLength={120} onChange={(event) => setEditingSenderAccountIdentifier(event.target.value)} value={editingSenderAccountIdentifier} /></label>
-                <label className="field"><span className="field__label">Sender card</span><input className="field__control" maxLength={120} onChange={(event) => setEditingSenderCardIdentifier(event.target.value)} value={editingSenderCardIdentifier} /></label>
-                <label className="field"><span className="field__label">Receiver account</span><input className="field__control" maxLength={120} onChange={(event) => setEditingReceiverAccountIdentifier(event.target.value)} value={editingReceiverAccountIdentifier} /></label>
-                <label className="field"><span className="field__label">Receiver card</span><input className="field__control" maxLength={120} onChange={(event) => setEditingReceiverCardIdentifier(event.target.value)} value={editingReceiverCardIdentifier} /></label>
+                <label className="field"><span className="field__label">Sender account</span><input name="sender_account_identifier" {...feedback("sender_account_identifier")} className="field__control" maxLength={120} onChange={(event) => setEditingSenderAccountIdentifier(event.target.value)} value={editingSenderAccountIdentifier} /><FieldError field="sender_account_identifier" errors={fieldErrors} /></label>
+                <label className="field"><span className="field__label">Sender card</span><input name="sender_card_identifier" {...feedback("sender_card_identifier")} className="field__control" maxLength={120} onChange={(event) => setEditingSenderCardIdentifier(event.target.value)} value={editingSenderCardIdentifier} /><FieldError field="sender_card_identifier" errors={fieldErrors} /></label>
+                <label className="field"><span className="field__label">Receiver account</span><input name="receiver_account_identifier" {...feedback("receiver_account_identifier")} className="field__control" maxLength={120} onChange={(event) => setEditingReceiverAccountIdentifier(event.target.value)} value={editingReceiverAccountIdentifier} /><FieldError field="receiver_account_identifier" errors={fieldErrors} /></label>
+                <label className="field"><span className="field__label">Receiver card</span><input name="receiver_card_identifier" {...feedback("receiver_card_identifier")} className="field__control" maxLength={120} onChange={(event) => setEditingReceiverCardIdentifier(event.target.value)} value={editingReceiverCardIdentifier} /><FieldError field="receiver_card_identifier" errors={fieldErrors} /></label>
               </div>
             </fieldset>
-            <label className="review-remember field--wide"><input checked={editingNeedsReview} onChange={(event) => setEditingNeedsReview(event.target.checked)} type="checkbox" /><span><strong>Needs review</strong><small>Keep this ledger entry marked for further checking.</small></span></label>
-            {requiresLinkedCorrection ? <label className="review-remember field--wide"><input checked={allowLinkedCorrection} onChange={(event) => setAllowLinkedCorrection(event.target.checked)} required type="checkbox" /><span><strong>I reviewed the linked evidence and confirm this ledger correction</strong><small>Reversing direction keeps reports on the same accounts. Replacing an account clears the replaced account’s report before reassignment. Original SMS and statement snapshots stay unchanged as history.</small></span></label> : null}
-            <button className="button button--primary field--wide" disabled={isUpdating || (requiresLinkedCorrection && !allowLinkedCorrection)} type="submit">
-              {isUpdating ? <ButtonBusy label="Saving" /> : editorMode === "create" ? "Save transaction" : "Update transaction"}
-            </button>
+            <label className="review-remember field--wide"><input name="needs_review" {...feedback("needs_review")} checked={editingNeedsReview} onChange={(event) => setEditingNeedsReview(event.target.checked)} type="checkbox" /><FieldError field="needs_review" errors={fieldErrors} /><span><strong>Needs review</strong><small>Keep this ledger entry marked for further checking.</small></span></label>
+            </div></details>
+            {requiresLinkedCorrection ? <label className="review-remember field--wide"><input name="allow_linked_correction" {...feedback("allow_linked_correction")} checked={allowLinkedCorrection} onChange={(event) => setAllowLinkedCorrection(event.target.checked)} required type="checkbox" /><FieldError field="allow_linked_correction" errors={fieldErrors} /><span><strong>I reviewed the linked evidence and confirm this ledger correction</strong><small>Reversing direction keeps reports on the same accounts. Replacing an account clears the replaced account’s report before reassignment. Original SMS and statement snapshots stay unchanged as history.</small></span></label> : null}
+            </div>
+            <div className="transaction-editor-actions">
+              <span role="status">{Object.keys(fieldErrors).length ? "Check the highlighted fields." : ""}</span>
+              <button className="button button--ghost" disabled={isUpdating || isSubmitting} onClick={closeEditor} type="button">Cancel</button>
+              <button className="button button--primary" disabled={isUpdating || isSubmitting} type="submit">
+                {isUpdating ? <ButtonBusy label="Saving" /> : editorMode === "create" ? "Save transaction" : "Update transaction"}
+              </button>
+            </div>
           </form>
         </ModalDialog>
       ) : null}
@@ -1076,19 +1140,36 @@ export function TransactionWorkspace() {
                   </label>
                 ))}
                 <button className="button button--ghost button--small" onClick={() => {
-                  setVisibleColumns(defaultTransactionColumns);
-                  persistVisibleColumns(defaultTransactionColumns);
+                  setVisibleColumns(allTransactionColumns);
+                  persistVisibleColumns(allTransactionColumns);
                 }} type="button">Show all</button>
+                <button className="button button--ghost button--small" type="button" onClick={() => { setVisibleColumns(defaultTransactionColumns); persistVisibleColumns(defaultTransactionColumns); }}>Reset default</button>
               </div>
             </details>
           </div>
 
           {loadState.transactions.length === 0 ? (
             <div className="empty-state">
-              <p>No transactions yet.</p>
+              <p>No transactions match these filters.</p><button className="button button--ghost" onClick={clearFilters} type="button">Clear filters</button>
             </div>
-          ) : (
-            <div className="table-wrap" aria-busy={isRefreshing}>
+          ) : (<>
+            <div className="transaction-mobile-list" aria-busy={isRefreshing}>
+              {loadState.transactions.map(transaction => <article className="transaction-card" key={transaction.id} aria-label={`Transaction on ${transaction.date}`}>
+                <div className="transaction-card__heading">
+                  {visibleColumns.includes("description") ? <div>{columnContent("description", transaction)}</div> : null}
+                  {visibleColumns.includes("amount") ? <strong className={amountClass(transaction)}>{columnContent("amount", transaction)}</strong> : null}
+                </div>
+                <dl className="transaction-card__details">
+                  {displayedFilters.ordering !== "-date" ? <div><dt>{displayedFilters.ordering === "-updated_at" ? "Updated" : "Added"}</dt><dd>{activityTime(transaction)}</dd></div> : null}
+                  {transactionColumns.filter(column => visibleColumns.includes(column.id) && ["date", "time", "account", "category"].includes(column.id)).map(column => <div key={column.id}><dt>{column.label}</dt><dd>{columnContent(column.id, transaction)}</dd></div>)}
+                </dl>
+                {visibleColumns.some(column => ["source", "balance", "senderIdentifiers", "receiverIdentifiers"].includes(column)) ? <details><summary>More details</summary><dl className="transaction-card__details">
+                  {transactionColumns.filter(column => visibleColumns.includes(column.id) && ["source", "balance", "senderIdentifiers", "receiverIdentifiers"].includes(column.id)).map(column => <div key={column.id}><dt>{column.label}</dt><dd>{columnContent(column.id, transaction)}</dd></div>)}
+                </dl></details> : null}
+                {transactionActions(transaction)}
+              </article>)}
+            </div>
+            <div className="table-wrap transaction-desktop-list" aria-busy={isRefreshing}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -1108,70 +1189,15 @@ export function TransactionWorkspace() {
                   </tr>
                 </thead>
                 <tbody>
-                  {loadState.transactions.map((transaction) => (
-                    <tr key={transaction.id}>
-                      {displayedFilters.ordering !== "-date" ? <td><time dateTime={displayedFilters.ordering === "-updated_at" ? transaction.updated_at : transaction.created_at}>{activityTimeFormatter.format(new Date(displayedFilters.ordering === "-updated_at" ? transaction.updated_at : transaction.created_at))}</time></td> : null}
-                      {visibleColumns.includes("date") ? <td>{transaction.date}</td> : null}
-                      {visibleColumns.includes("time") ? <td>{formatTransactionTime(transaction.time)}</td> : null}
-                      {visibleColumns.includes("description") ? <td>
-                        <span className="transaction-ledger-primary">
-                          {transaction.counterparty_text || transaction.reference || transaction.note || transaction.type.replaceAll("_", " ")}
-                        </span>
-                        <span className="transaction-ledger-secondary">
-                          {transaction.type.replaceAll("_", " ")} · {transaction.type === "transfer" && !displayedFilters.account ? "Internal movement" : transaction.account_direction}
-                          {transaction.reference ? ` · ${transaction.reference}` : ""}
-                        </span>
-                        {transaction.needs_review ? <span className="status-badge status-badge--idle">Needs review</span> : null}
-                      </td> : null}
-                      {visibleColumns.includes("account") ? <td>{accountNames.get(transaction.account) ?? "Unknown"}{transaction.type === "transfer" ? ` → ${accountNames.get(transaction.transfer_account ?? "") ?? "Unknown"}` : ""}</td> : null}
-                      {visibleColumns.includes("category") ? <td>
-                        {transaction.category
-                          ? categoryNames.get(transaction.category) ?? "Unknown"
-                          : "None"}
-                      </td> : null}
-                      {visibleColumns.includes("source") ? <td>{transaction.source}</td> : null}
-                      {visibleColumns.includes("balance") ? <td>
-                        {transaction.type === "transfer" && transaction.transfer_evidence.length ? transaction.transfer_evidence.map((item) => <span className="transaction-ledger-secondary" key={item.id}>{accountNames.get(item.account)}: {item.balance_after === null ? "No reported balance" : moneyFormatter.format(Number(item.balance_after))}{item.reference ? ` · ${item.reference}` : ""}</span>) : transaction.balance_after
-                          ? moneyFormatter.format(Number(transaction.balance_after))
-                          : "-"}
-                      </td> : null}
-                      {visibleColumns.includes("senderIdentifiers") ? <td><span className="transaction-ledger-primary">{identifierView.format(transaction.sender_account_identifier, identifierLabel(transaction.sender_account_identifier, "account", loadState.paymentMethods, accountNames, transaction.direction === "debit" ? transaction.account : undefined))}</span><span className="transaction-ledger-secondary">{transaction.sender_card_identifier ? `Card ${identifierView.format(transaction.sender_card_identifier, identifierLabel(transaction.sender_card_identifier, "card", loadState.paymentMethods, accountNames, transaction.direction === "debit" ? transaction.account : undefined))}` : "No card identifier"}</span></td> : null}
-                      {visibleColumns.includes("receiverIdentifiers") ? <td><span className="transaction-ledger-primary">{identifierView.format(transaction.receiver_account_identifier, identifierLabel(transaction.receiver_account_identifier, "account", loadState.paymentMethods, accountNames, (transaction.type === "transfer" ? transaction.transfer_account ?? undefined : transaction.direction === "credit" ? transaction.account : undefined)))}</span><span className="transaction-ledger-secondary">{transaction.receiver_card_identifier ? `Card ${identifierView.format(transaction.receiver_card_identifier, identifierLabel(transaction.receiver_card_identifier, "card", loadState.paymentMethods, accountNames, (transaction.type === "transfer" ? transaction.transfer_account ?? undefined : transaction.direction === "credit" ? transaction.account : undefined)))}` : "No card identifier"}</span></td> : null}
-                      {visibleColumns.includes("amount") ? <td className={transaction.account_direction === "credit" ? "transaction-ledger-amount transaction-ledger-amount--credit" : "transaction-ledger-amount"}>
-                        {transaction.type === "transfer" && !displayedFilters.account ? "" : transaction.account_direction === "credit" ? "+" : "-"}{moneyFormatter.format(Number(transaction.amount))}
-                      </td> : null}
-                      <td>
-                        <div className="list-row__actions">
-                          {transaction.type === "transfer" ? <button className="button button--ghost" disabled={isSubmitting} onClick={() => void handleFindPostedMatch(transaction)} type="button">Find match</button> : null}
-                          <button
-                            className="button button--ghost"
-                            onClick={() => selectTransactionForEdit(transaction.id)}
-                            type="button"
-                          >
-                            Edit
-                          </button>
-                          <Link
-                            className="button button--ghost"
-                            href={`/audit-logs?entity_type=transactions.transaction&entity_id=${transaction.id}`}
-                          >
-                            History
-                          </Link>
-                          <button
-                            className="button button--danger"
-                            disabled={deletingTransactionId === transaction.id}
-                            onClick={() => void handleDeleteTransaction(transaction)}
-                            type="button"
-                          >
-                            {deletingTransactionId === transaction.id ? <ButtonBusy label="Deleting" /> : "Delete"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {loadState.transactions.map(transaction => <tr key={transaction.id}>
+                    {displayedFilters.ordering !== "-date" ? <td>{activityTime(transaction)}</td> : null}
+                    {transactionColumns.filter(column => visibleColumns.includes(column.id)).map(column => <td key={column.id} className={column.id === "amount" ? amountClass(transaction) : undefined}>{columnContent(column.id, transaction)}</td>)}
+                    <td>{transactionActions(transaction)}</td>
+                  </tr>)}
                 </tbody>
               </table>
             </div>
-          )}
+          </>)}
         </div>
       </section>
       {transferDecision ? <TransferMatchDialog original={transferComparison(transferDecision.input, id => accountNames.get(id))} originalSource={transferDecision.mergeId ? "Recorded transfer selected" : "New manual transfer"} matches={transferDecision.matches} busy={isSubmitting} error={matchError} merging={Boolean(transferDecision.mergeId)} onAccept={(match, choices) => void handleTransferDecision(match, choices)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}

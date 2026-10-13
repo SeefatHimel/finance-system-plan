@@ -33,7 +33,7 @@ import {
 } from "./auth-storage";
 import { AuthRequestError, isAuthenticationFailure } from "./auth-errors";
 import { notifySessionExpired } from "./auth-navigation";
-import { fetchWithConnectionError, responseError } from "./api-errors";
+import { fetchWithConnectionError, RequestError, responseError } from "./api-errors";
 
 export type {
   AccountType,
@@ -536,13 +536,14 @@ export type UpdateTransactionInput = {
 };
 
 function financialNumber(value: string | number, label: string): number {
+  const field = label === "reported balance" ? "reported_balances" : label.replaceAll(" ", "_");
   const normalized = String(value).trim().replaceAll(",", "");
   if (!/^-?\d+(?:\.\d{1,2})?$/.test(normalized)) {
-    throw new Error(`Enter a valid ${label} with no more than two decimal places.`);
+    throw new RequestError(`Enter a valid ${label} with no more than two decimal places.`, { [field]: "Use a number with no more than two decimal places." });
   }
   const parsed = Number(normalized);
   if (!Number.isFinite(parsed)) {
-    throw new Error(`Enter a valid ${label}.`);
+    throw new RequestError(`Enter a valid ${label}.`, { [field]: "Enter a valid number." });
   }
   return parsed;
 }

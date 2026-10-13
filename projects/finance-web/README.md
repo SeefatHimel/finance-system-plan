@@ -452,7 +452,7 @@ It loads source messages on demand and shows the full plain text, sender and
 received date/time in the browser's timezone. Matched transfers show all linked
 SMS once each. Line breaks are preserved and long text wraps at phone widths.
 The section can be collapsed. Redacted/excluded messages display an unavailable
-notice, and entries without SMS display an empty explanation. Loading failures
+notice. Entries without linked SMS hide the empty section. Loading failures
 offer Retry loading SMS while the form remains usable. Closing or changing the
 editor discards its component state; delayed responses cannot populate another
 entry. SMS bodies are not saved to browser storage or copied into transaction
@@ -904,8 +904,9 @@ range that returns no matches keeps Focus open so those controls remain availabl
 Focus changes layout in place: the workspace and current form are not moved to a
 portal, cloned or remounted. Browser-managed text/date/time values, controlled
 account/category/balance choices, checkboxes and open evidence sections survive
-entering/exiting. The existing candidate-keyed form still resets when moving to
-a different message. Toggling Focus never saves, fetches or re-runs parsing.
+entering/exiting. Native fields reset when moving to another message; amount,
+account and classification drafts are retained per candidate until re-parsing or
+leaving the workspace. Toggling Focus never saves, fetches or re-runs parsing.
 Queue filters remain intact and usable; this temporary mode is not persisted across reloads.
 Updating search results keeps keyboard focus in the search field. The selected
 message is scrolled into view when the workspace or small-screen queue expands.
@@ -925,3 +926,52 @@ nested Escape behavior, message navigation,
 confirmation/queue completion, contextual Undo, and desktop/phone/short viewport
 layouts. Real-device virtual keyboard and assistive-technology checks remain
 separate from Chromium viewport simulation.
+
+## Review and transaction usability
+
+SMS readiness uses the current account, amount, type, category and other-account
+draft rather than stale parser values. Required corrections and advisory notes
+are separate: an uncategorized or low-confidence message can still be confirmed
+after verification. Transfers need distinct accounts; a missing other account
+can first be resolved by accepting an existing transfer match. Choosing to add a
+separate transfer returns to that field if it is still missing. Editing the
+selected message keeps it visible through readiness-filter changes until a new
+selection/filter is chosen. Re-parsing resets that candidate's learned drafts.
+
+The sidebar receives a user-scoped queue count after review loads, approvals,
+rejections and re-parsing. Transaction/Undo changes and window focus refresh it.
+Request generations prevent older responses from overwriting a newer count;
+account/session changes discard earlier requests and counts. Only the count and
+user ID are broadcast in memory, with no SMS or transaction snapshots in storage.
+
+Add and Edit keep Save/Cancel outside the scrolling field area. Source, masked
+identifiers and Needs review remain editable under **More details**. Date/time
+remain compact and second-account fields appear only for transfers. Empty Original
+SMS panels are hidden; linked and redacted SMS still show their evidence.
+Required/native checks and server validation identify fields with a readable
+message and `aria-invalid`/`aria-describedby`. The first affected control receives
+focus; a collapsed detail section opens automatically. Overall outcomes retain
+the contextual toast. Linked-evidence correction acknowledgement remains required.
+
+New transaction column preferences start with Date, Time, Description, Account,
+Category and Amount. Existing stored selections are preserved. **Show all** reveals
+all ten columns; **Reset default** restores the six-column view. At 640px and below,
+transaction cards replace the desktop table, retain Edit/History/Delete/Find match,
+and respect the same display preferences. Additional selected metadata expands
+under More details. Both layouts share display logic, including neutral internal
+transfers, account-filtered debit/credit and zero reported balances.
+
+The dashboard says **Recorded from SMS/mobile**: a source indicates origin and
+does not prove unattended approval. On phones, the navigation drawer traps Tab,
+closes with Escape or its close control, makes the background inert and restores
+focus to its trigger. Closed off-screen navigation is inert as well. Shared
+scroll locks preserve other active dialogs/Focus mode.
+
+Verification: `npm run test:review-feedback`, the existing web test scripts,
+`npm run typecheck`, `npm run lint`, and `npm run build`. Browser QA uses an isolated
+synthetic database; real financial data is never required for UI tests.
+
+Synthetic Chrome checks covered the six-column desktop view, inline error focus,
+manual save, draft readiness, approval/queue badge updates, 400×740 transaction
+cards, navigation Tab/Escape focus restoration, and both saved transfer balances.
+Real-device virtual keyboards and screen-reader announcements still need manual QA.
