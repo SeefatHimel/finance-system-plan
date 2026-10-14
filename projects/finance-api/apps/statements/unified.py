@@ -1,19 +1,26 @@
 """Pending-source suggestions and an atomic, explicit SMS/PDF decision."""
 
 from collections import defaultdict
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
 from apps.messages.models import ParsedMessageCandidate, SmsCapturePreference
+from apps.transactions.balance_reports import (
+    account_reports,
+    select_effective_account_report,
+)
 from apps.transactions.models import Transaction
 from apps.transactions.transfers import (
     INCOMING_KINDS,
     add_transfer_evidence,
+    ensure_transfer_evidence,
     lock_transfer_user,
     sms_recorded_elsewhere,
     sms_reporting_account,
@@ -134,9 +141,43 @@ def pair_signals(row, candidate):
     }
 
 
-def pending_sources(user, account_id=None):
+def has_competing_sources(row, candidate):
+    """Check a selected pair without loading the user's entire pending queue."""
     from .models import StatementRow
 
+    days = dates_for(row)
+    low, high = min(days) - timedelta(days=3), max(days) + timedelta(days=3)
+    candidates = ParsedMessageCandidate.objects.filter(
+        user_id=row.batch.user_id,
+        status="needs_review",
+        transaction__isnull=True,
+        amount=row.amount,
+        raw_message__received_at__date__range=(low, high),
+    ).exclude(pk=candidate.pk).select_related(
+        "account", "destination_account", "raw_message"
+    )
+    if any(pair_signals(row, item) for item in candidates.iterator()):
+        return True
+    received = timezone.localtime(candidate.raw_message.received_at).date()
+    low, high = received - timedelta(days=3), received + timedelta(days=3)
+    rows = StatementRow.objects.filter(
+        batch__user_id=row.batch.user_id,
+        batch__account_id=row.batch.account_id,
+        state="pending",
+        transaction__isnull=True,
+        amount=row.amount,
+    ).filter(
+        Q(date__range=(low, high)) | Q(value_date__range=(low, high))
+    ).exclude(pk=row.pk).select_related("batch__account", "other_account")
+    return any(pair_signals(item, candidate) for item in rows.iterator())
+
+
+def pending_sources(user, account_id=None, filters=None):
+    from .models import StatementRow
+
+    filters = filters or {}
+    start, end = filters.get("start_date"), filters.get("end_date")
+    source = filters.get("source", "all")
     rows = StatementRow.objects.filter(
         batch__user=user, state="pending", transaction__isnull=True
     ).select_related("batch__account", "other_account", "category")
@@ -146,19 +187,54 @@ def pending_sources(user, account_id=None):
     if account_id:
         rows = rows.filter(batch__account_id=account_id)
         # Incoming SMS can name its receiving account in either relation.
-        from django.db.models import Q
-
         candidates = candidates.filter(
             Q(account_id=account_id) | Q(destination_account_id=account_id)
         )
-    rows, candidates = (
-        list(rows.order_by("id")[: MAX_PENDING + 1]),
-        list(candidates.order_by("id")[: MAX_PENDING + 1]),
-    )
+    if start and end:
+        # Keep nearby sources for matching while the final list uses the exact
+        # requested dates. A narrow date filter must work on a large backlog.
+        near_start, near_end = start - timedelta(days=3), end + timedelta(days=3)
+        rows = rows.filter(
+            Q(date__range=(near_start, near_end))
+            | Q(value_date__range=(near_start, near_end))
+        )
+        candidates = candidates.filter(
+            raw_message__received_at__date__range=(near_start, near_end)
+        )
+    if source == "statement":
+        rows = list(rows.order_by("id")[: MAX_PENDING + 1])
+        amounts = {row.amount for row in rows if row.amount is not None}
+        days = [day for row in rows for day in dates_for(row)]
+        candidates = candidates.filter(amount__in=amounts) if amounts else candidates.none()
+        if days:
+            candidates = candidates.filter(
+                raw_message__received_at__date__range=(
+                    min(days) - timedelta(days=3), max(days) + timedelta(days=3)
+                )
+            )
+        else:
+            candidates = candidates.none()
+        candidates = list(candidates.order_by("id")[: MAX_PENDING + 1])
+    elif source == "sms":
+        candidates = list(candidates.order_by("id")[: MAX_PENDING + 1])
+        amounts = {candidate.amount for candidate in candidates if candidate.amount is not None}
+        days = [timezone.localtime(candidate.raw_message.received_at).date() for candidate in candidates]
+        rows = rows.filter(amount__in=amounts) if amounts else rows.none()
+        if days:
+            low, high = min(days) - timedelta(days=3), max(days) + timedelta(days=3)
+            rows = rows.filter(Q(date__range=(low, high)) | Q(value_date__range=(low, high)))
+        else:
+            rows = rows.none()
+        rows = list(rows.order_by("id")[: MAX_PENDING + 1])
+    else:
+        rows, candidates = (
+            list(rows.order_by("id")[: MAX_PENDING + 1]),
+            list(candidates.order_by("id")[: MAX_PENDING + 1]),
+        )
     if len(rows) > MAX_PENDING or len(candidates) > MAX_PENDING:
         raise ValidationError(
             {
-                "queue": "Too many pending sources to compare safely. Choose an account or resolve some items first."
+                "queue": "Too many pending sources to compare safely. Choose an account or shorter date range, or resolve some items first."
             }
         )
     return rows, candidates
@@ -216,7 +292,7 @@ def summary(source):
 
 
 def queue(user, filters):
-    rows, candidates = pending_sources(user, filters.get("account"))
+    rows, candidates = pending_sources(user, filters.get("account"), filters)
     buckets = defaultdict(list)
     for candidate in candidates:
         account, direction, _ = sms_observation(candidate)
@@ -380,6 +456,23 @@ def confirm_pair(*, user, row, candidate, payload, request):
         raise ValidationError(
             {"balance_source": "Choose SMS or statement for a new transaction."}
         )
+    selected_balance = (
+        candidate.balance_after
+        if payload["balance_source"] == "sms"
+        else row.balance_after
+    )
+    if (
+        not target
+        and selected_balance is None
+        and (candidate.balance_after is not None or row.balance_after is not None)
+    ):
+        raise ValidationError(
+            {"balance_source": "That source has no reported balance. Choose the source that reports one."}
+        )
+    existing_report = None
+    if target and target.type == "transfer":
+        ensure_transfer_evidence(target)
+        existing_report = account_reports(target)[0].get(row.batch.account_id)
     balance_choice = None
     if target:
         matches, _ = find_matches([row])
@@ -429,11 +522,6 @@ def confirm_pair(*, user, row, candidate, payload, request):
         combining_pending_sms=not target,
     )
     record = row.transaction
-    selected_balance = (
-        candidate.balance_after
-        if payload["balance_source"] == "sms"
-        else row.balance_after
-    )
     has_fee = row.batch.rows.filter(position=row.position, component="fee").exists()
     if has_fee and payload["balance_source"] == "statement" and not target:
         raise ValidationError(
@@ -459,7 +547,7 @@ def confirm_pair(*, user, row, candidate, payload, request):
     record.save()
     if record.type == "transfer":
         _, direction, received = sms_observation(candidate)
-        add_transfer_evidence(
+        sms_evidence = add_transfer_evidence(
             record,
             {
                 "account": row.batch.account,
@@ -473,6 +561,15 @@ def confirm_pair(*, user, row, candidate, payload, request):
             },
             candidate,
         )
+        selected_evidence = (
+            existing_report
+            if target
+            else sms_evidence
+            if payload["balance_source"] == "sms"
+            else record.transfer_evidence.get(external_key=f"statement-row:{row.pk}")
+        )
+        if selected_evidence and selected_evidence.account_id == row.batch.account_id:
+            select_effective_account_report(record, selected_evidence)
     candidate.transaction = record
     candidate.status = "confirmed"
     candidate.save(update_fields=("transaction", "status", "updated_at"))

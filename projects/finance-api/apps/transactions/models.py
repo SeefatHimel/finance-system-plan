@@ -149,6 +149,7 @@ class TransferEvidence(models.Model):
     balance_after = models.DecimalField(
         max_digits=14, decimal_places=2, blank=True, null=True
     )
+    is_effective_balance = models.BooleanField(default=False)
     fee_amount = models.DecimalField(
         max_digits=14, decimal_places=2, blank=True, null=True
     )
@@ -166,6 +167,11 @@ class TransferEvidence(models.Model):
                 fields=("user", "external_key"),
                 condition=~models.Q(external_key=""),
                 name="unique_transfer_evidence_key_per_user",
+            ),
+            models.UniqueConstraint(
+                fields=("transaction", "account"),
+                condition=models.Q(is_effective_balance=True),
+                name="unique_effective_transfer_report_per_account",
             ),
         ]
 

@@ -12,7 +12,7 @@ from apps.messages.serializers import ParsedMessageCandidateSerializer
 from .models import StatementRow
 from .review_views import NoStoreMixin, StatementRowViewSet
 from .serializers import SavedStatementRowSerializer, StatementImportSerializer
-from .unified import confirm_pair, pair_signals, pending_sources, queue
+from .unified import confirm_pair, has_competing_sources, pair_signals, queue
 
 
 class PendingReviewFilters(serializers.Serializer):
@@ -157,11 +157,7 @@ class UnifiedPairView(NoStoreMixin, APIView):
                     "match": "These sources are no longer pending matches. Refresh the queue."
                 }
             )
-        rows, candidates = pending_sources(request.user, row.batch.account_id)
-        if (
-            sum(pair_signals(row, item) is not None for item in candidates) > 1
-            or sum(pair_signals(item, candidate) is not None for item in rows) > 1
-        ):
+        if has_competing_sources(row, candidate):
             signals = {
                 **signals,
                 "strength": "possible",

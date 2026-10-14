@@ -561,7 +561,8 @@ audited. Unlinking or rescanning confirmed SMS does not undo these corrections.
 Statement row detail adds `review.pending_sms_matches`: bounded pending SMS
 suggestions with date/time, account-side evidence, optional retained SMS text,
 reported balance and editable metadata proposals. Paginated row lists expose
-`pending_sms_match_count` through a bounded batched lookup; detail fetches return
+`pending_sms_match_count` through a bounded batched lookup; null means the list
+could not check the full candidate window, rather than zero matches. Detail fetches return
 the actual candidate list. `StatementDecision.action=combine_sms`
 requires row `version` and a pending `candidate` UUID. Differing non-null balances
 require an exact-value `balance_choice`; optional `detail_choices` use the same
@@ -570,7 +571,7 @@ creates one SMS-sourced ledger entry and links the statement atomically. When
 ledger suggestions exist, the decision must include their exact current UUIDs in
 `dismissed_ledger_matches` and set `acknowledge_distinct_ledger_matches=true` after
 review. A changed list returns 409. The original independent decision routes remain
-available, and no migration is needed.
+available. The unified transfer-balance choice below requires a migration.
 
 New statement drafts strip anchored labels such as “CARD PURCHASE” and “PURCHASE
 CARD” from the merchant field while retaining the original masked description.
@@ -597,12 +598,18 @@ deploy web and API together.
   `remember_choices`. Returns `{transaction, statement, sms, unchanged}`.
 
 New pairs use one statement-draft movement and the chosen balance; both source
-reports remain. Existing ledger suggestions must be selected explicitly, with
+reports remain. A missing report cannot replace an available one. Transfer
+evidence marks the reviewed effective balance per account without changing the
+original source reports. Existing ledger suggestions must be selected explicitly, with
 `balance_source=existing`; their ledger balance stays unchanged. HTTP 409 reports
 stale/resolved/nonmatching sources. HTTP 400 reports missing acknowledgments or
 invalid drafts. Ownership failures return 404. Retries for the same resolved pair
 are idempotent, and every failure rolls back all decisions. All responses are
-private/no-store. Statement fees remain separate. Deploy API before web; no migration.
+private/no-store. Statement fees remain separate. The pending queue applies date
+and source filters before its safety cap; broad queues are still bounded.
+`GET /api/messages/review/{id}/` reads a single owned pending SMS candidate for
+deep links. Apply `transactions.0008_transferevidence_effective_balance` and
+deploy API before web.
 
 Transaction source-message responses optionally add `parsed` (nullable): saved
 SMS amount, balance_after, reference and type. These fields remain available after

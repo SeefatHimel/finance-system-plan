@@ -1597,6 +1597,17 @@ class MessageReviewApiTests(APITestCase):
         self.assertEqual(response.data["results"][0]["id"], candidate["id"])
         self.assertEqual(self.client.get(reverse("message-review-list"), {"limit": 201}).status_code, 400)
 
+    def test_pending_candidate_can_be_opened_directly_without_loading_its_page(self):
+        candidate = self.import_message()
+        url = reverse("message-review-detail", kwargs={"candidate_id": candidate["id"]})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], candidate["id"])
+        self.assertEqual(response["Cache-Control"], "no-store")
+        other = get_user_model().objects.create_user(username="other-reviewer", password="password")
+        self.client.force_authenticate(other)
+        self.assertEqual(self.client.get(url).status_code, 404)
+
     def test_user_can_confirm_candidate_as_transaction(self):
         candidate = self.import_message()
 

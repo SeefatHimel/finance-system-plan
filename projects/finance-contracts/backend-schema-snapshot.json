@@ -1500,6 +1500,40 @@
         ]
       }
     },
+    "/api/messages/review/{candidate_id}/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParsedMessageCandidate"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/messages/review/{candidate_id}/confirm/": {
       "post": {
         "parameters": [
@@ -8950,6 +8984,7 @@
         },
         "pending_sms_match_count": {
           "minimum": 0,
+          "nullable": true,
           "type": "integer"
         },
         "pending_sms_matches": {

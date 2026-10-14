@@ -269,6 +269,10 @@ export class FinanceApiClient {
     return this.request<ParsedMessageCandidate[] | ReviewCandidatePage>("/api/messages/review/", { method: "GET", query });
   }
 
+  async readOnePendingSMSCandidateDirectly(pathParams: {id: string }): Promise<ParsedMessageCandidate> {
+    return this.request<ParsedMessageCandidate>("/api/messages/review/{id}/".replace('{id}', encodeURIComponent(pathParams.id)), { method: "GET" });
+  }
+
   async reRunCurrentParserAndLearnedMappingsForEveryPendingSMSCandidate(): Promise<MessageCandidateBulkReprocessResponse> {
     return this.request<MessageCandidateBulkReprocessResponse>("/api/messages/review/reprocess/", { method: "POST" });
   }

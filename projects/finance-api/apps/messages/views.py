@@ -528,6 +528,29 @@ class MessageReviewListView(APIView):
         })
 
 
+class MessageReviewDetailView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(
+        operation_id="messages_review_candidate_retrieve",
+        responses=ParsedMessageCandidateSerializer,
+    )
+    def get(self, request, candidate_id):
+        candidate = get_object_or_404(
+            ParsedMessageCandidate.objects.select_related(
+                "raw_message", "sender_rule", "account", "payment_method",
+                "category", "destination_account", "destination_payment_method",
+                "possible_related_candidate", "transaction",
+            ),
+            pk=candidate_id,
+            user=request.user,
+            status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
+        )
+        response = Response(ParsedMessageCandidateSerializer(candidate).data)
+        response["Cache-Control"] = "no-store"
+        return response
+
+
 @extend_schema(request=None, responses=ParsedMessageCandidateSerializer)
 class MessageCandidateReprocessView(RawMessageImportView):
     def post(self, request, candidate_id):

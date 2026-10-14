@@ -1179,7 +1179,7 @@ export interface StatementReview {
   issues: string[];
   review_state: "new" | "possible_match" | "needs_correction" | "posted" | "linked" | "skipped";
   matches: StatementMatch[];
-  pending_sms_match_count: number;
+  pending_sms_match_count: number | null;
   pending_sms_matches: PendingSmsStatementMatch[];
   matching_truncated: boolean;
   requires_acknowledgement: boolean;

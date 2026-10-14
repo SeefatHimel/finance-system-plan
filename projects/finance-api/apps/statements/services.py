@@ -640,7 +640,7 @@ def review_context(row, matches, truncated=False, pending_sms_count=0):
         "suggestion": getattr(row, "_suggestion", None),
         "review_state": state,
         "matches": matches,
-        "pending_sms_match_count": pending_sms_count or 0,
+        "pending_sms_match_count": pending_sms_count,
         "matching_truncated": truncated,
         "requires_acknowledgement": bool(draft_issues)
         or orphaned

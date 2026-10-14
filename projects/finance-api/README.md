@@ -1017,11 +1017,13 @@ pending SMS observations for the same account perspective, type, amount and date
 window. `POST /api/statements/rows/{id}/decide/` with `action=combine_sms`, row
 `version`, and `candidate` confirms one SMS and links that row atomically. Row
 lists show a batched `pending_sms_match_count`, so pending pairs appear in the
-possible-match filter. A conflicting reported balance requires an exact-value
-`balance_choice`. If ledger suggestions exist, the request must acknowledge
+possible-match filter. A null count means the bounded list check was inconclusive,
+not that there are zero matches; open the row before adding it. A conflicting
+reported balance requires an exact-value `balance_choice`. If ledger suggestions exist, the request must acknowledge
 their exact current IDs as different movements; stale suggestions return 409.
 The SMS source and date/time are kept. Independent review routes remain supported.
-No schema migration is needed.
+That earlier combine decision uses existing tables; the unified transfer-balance
+selection described below requires the new transactions migration.
 
 ### Unified pending-source review
 
@@ -1032,6 +1034,13 @@ direction, calendar date/value date and reference/balance evidence. They remain
 review-only, including same-day repeats and balance conflicts. The read-only
 `GET /api/review/pair/?statement=<uuid>&sms=<uuid>` returns original sources,
 statement draft validation and current ledger suggestions.
+Date filters narrow the source query before its safety cap; source-only views
+query counterpart candidates by relevant amount and date. Pair detail checks
+the selected pair's nearby competitors without loading the full backlog. Broad
+unfiltered queues are still capped at 2,000 sources per side; use account or date
+filters when that limit is reached. `GET /api/messages/review/{id}/` reads one
+owned pending candidate directly, so links to older SMS do not depend on the
+first paginated inbox page.
 
 `POST /api/review/pair/` requires both IDs, statement version, SMS `updated_at`,
 explicit same-movement confirmation, balance source and applicable acknowledgments.
@@ -1042,10 +1051,15 @@ are idempotent; changed ledger financial identity is rejected. Existing suggesti
 must be linked rather than bypassed with another entry in this workflow.
 
 A new pair uses statement draft classification/date/time, the selected scalar
-balance, masked SMS identifiers and one raw-message link. An incoming transfer keeps
-reports on the receiving account through separate transfer observations. Candidate
+balance, masked SMS identifiers and one raw-message link. A source with no reported
+balance cannot replace the other source's available report. Transfer evidence
+marks the reviewed effective report per account without overwriting either
+original observation; linking an existing transfer keeps its effective report.
+An incoming transfer keeps reports on the receiving account through separate
+transfer observations. Candidate
 and statement relations retain their distinct dates/times/balances; the original
 PDF extraction remains immutable. Source-message retrieval includes all attached
 confirmed candidates, preserving additional SMS sources on existing entries. SMS
 raw-text retention is honored. Unified review does not learn SMS mappings implicitly,
-never runs a data backfill, and requires no model migration.
+and never runs a data backfill. Apply `transactions.0008_transferevidence_effective_balance`
+before deploying the updated API.

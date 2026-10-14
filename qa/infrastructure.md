@@ -139,3 +139,8 @@ start`, require explicit secrets and HTTPS origins, keep PostgreSQL internal,
 and bind API/web ports to loopback for a TLS proxy. Migrations are a deliberate
 release command, not an application boot side effect. CI's API job uses a real
 PostgreSQL service so concurrency tests run instead of being skipped on SQLite.
+
+The unified transfer-balance fix adds
+`transactions.0008_transferevidence_effective_balance`. Run migrations before
+deploying the API; it adds a selection flag and per-account uniqueness constraint
+without changing existing observations.

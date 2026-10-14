@@ -6,19 +6,31 @@ from .models import Transaction, TransferEvidence
 
 
 def primary_transfer_evidence(record, items):
+    primary = None
     if record.raw_message_id:
-        return next(
+        primary = next(
             (item for item in items if item.raw_message_id == record.raw_message_id),
             None,
         )
-    if record.external_key:
+    if not primary and record.external_key:
         primary = next(
             (item for item in items if item.external_key == record.external_key), None
         )
-        if primary:
-            return primary
+    if not primary:
+        primary = next(
+            (item for item in items if not item.external_key.startswith("balance:")),
+            None,
+        )
+    # The captured sources keep their original balances. A reviewed choice can
+    # select which observation supplies the effective report for this account.
     return next(
-        (item for item in items if not item.external_key.startswith("balance:")), None
+        (
+            item
+            for item in items
+            if item.is_effective_balance
+            and (not primary or item.account_id == primary.account_id)
+        ),
+        primary,
     )
 
 
@@ -28,7 +40,25 @@ def account_reports(record, items=None):
     chosen = {item.account_id: item for item in items}
     if primary:
         chosen[primary.account_id] = primary
+    for item in items:
+        if item.is_effective_balance:
+            chosen[item.account_id] = item
     return chosen, primary
+
+
+def select_effective_account_report(record, item):
+    """Choose one preserved observation for an account without changing its value."""
+    if item.transaction_id != record.pk or item.account_id not in {
+        record.account_id, record.transfer_account_id
+    }:
+        raise ValidationError({"balance_after": "Choose evidence from this transfer account."})
+    record.transfer_evidence.filter(
+        account_id=item.account_id, is_effective_balance=True
+    ).exclude(pk=item.pk).update(is_effective_balance=False)
+    if not item.is_effective_balance:
+        item.is_effective_balance = True
+        item.save(update_fields=("is_effective_balance",))
+    getattr(record, "_prefetched_objects_cache", {}).pop("transfer_evidence", None)
 
 
 def write_account_reports(record, reports):

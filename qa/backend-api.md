@@ -858,3 +858,22 @@ window. Decisions still revalidate the candidate under a transaction lock.
 rules support a short subset without repeats, groups, alternatives or
 backreferences. Validation rejects unsafe new patterns, and matching skips
 unsafe old patterns as well.
+
+### How is the chosen balance applied to a unified transfer?
+
+SMS and statement observations keep their original reported values. The pair
+decision marks one account-bound transfer observation as the effective report,
+so account balance views use the reviewed choice. Linking to an existing
+transfer keeps its prior effective report. Merging transfers carries the chosen
+account reports forward while preserving each source's original value. Choosing a source with no balance
+when the other reports one returns 400. Migration
+`transactions.0008_transferevidence_effective_balance` adds this selection flag
+without rewriting existing reports.
+
+### How do large unified queues remain reviewable?
+
+Date and source filters narrow pending source queries before the 2,000-per-side
+safety cap. Selected pair detail checks nearby same-amount competitors directly,
+independent of the global backlog. Broad queues may still need an account or
+date filter. An inconclusive batched pending-SMS count is returned as null and
+requires individual review rather than being labelled zero.

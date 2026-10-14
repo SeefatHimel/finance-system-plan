@@ -360,6 +360,7 @@ class TransactionSerializer(serializers.ModelSerializer):
                     evidence.account_id = new_account_id
                     evidence.balance_after = None
                     evidence.fee_amount = None
+                    evidence.is_effective_balance = False
                 evidence.direction = (
                     "credit"
                     if new_account_id == instance.transfer_account_id

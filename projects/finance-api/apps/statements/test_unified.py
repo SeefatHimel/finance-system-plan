@@ -16,9 +16,11 @@ from apps.messages.models import (
     RawMessage,
     SmsCapturePreference,
 )
+from apps.transactions.balance_reports import reported_values
 from apps.transactions.models import Transaction, TransferEvidence
 
 from .models import StatementImport, StatementRow
+from .services import review_context
 from .unified import pair_signals
 
 
@@ -203,6 +205,58 @@ class UnifiedReviewTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(Transaction.objects.get().balance_after, Decimal("900.07"))
 
+    def test_missing_balance_cannot_replace_reported_value(self):
+        self.sms.balance_after = None
+        self.sms.save()
+        response = self.confirm(balance_source="sms", acknowledge_conflict=False)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("balance_source", response.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        self.assertEqual(
+            self.confirm(balance_source="statement", acknowledge_conflict=False).status_code,
+            200,
+        )
+        self.assertEqual(Transaction.objects.get().balance_after, Decimal("900.07"))
+
+    def test_transfer_balance_choice_preserves_both_source_reports(self):
+        self.row.type = "transfer"
+        self.row.other_account = self.wallet
+        self.row.save()
+        self.sms.transaction_type = "transfer"
+        self.sms.message_kind = "bank_transfer_out"
+        self.sms.suggested_transfer_direction = "debit"
+        self.sms.destination_account = self.wallet
+        self.sms.save()
+        response = self.confirm(balance_source="statement")
+        self.assertEqual(response.status_code, 200, response.data)
+        record = Transaction.objects.get()
+        self.assertEqual(record.balance_after, Decimal("900.07"))
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("900.07"))
+        self.assertEqual(
+            set(record.transfer_evidence.values_list("balance_after", flat=True)),
+            {Decimal("900.00"), Decimal("900.07")},
+        )
+
+    def test_linking_existing_transfer_keeps_its_effective_report(self):
+        self.row.type = "transfer"
+        self.row.other_account = self.wallet
+        self.row.save()
+        self.sms.transaction_type = "transfer"
+        self.sms.message_kind = "bank_transfer_out"
+        self.sms.suggested_transfer_direction = "debit"
+        self.sms.destination_account = self.wallet
+        self.sms.save()
+        record = Transaction.objects.create(
+            user=self.user, account=self.account, transfer_account=self.wallet,
+            type="transfer", direction="debit", amount="100.00",
+            date=self.row.date, balance_after="900.05",
+        )
+        response = self.confirm(transaction=str(record.pk), balance_source="existing")
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertEqual(record.balance_after, Decimal("900.05"))
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("900.05"))
+
     def test_stale_changed_resolved_sources_and_ownership(self):
         self.assertEqual(
             self.confirm(statement_version=self.row.version + 1).status_code, 409
@@ -317,6 +371,7 @@ class UnifiedReviewTests(APITestCase):
             {item.balance_after for item in evidence},
             {Decimal("900.00"), Decimal("900.07")},
         )
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("900.00"))
 
     def test_sms_ledger_balance_conflict_is_reviewed_when_statement_has_no_balance(
         self,
@@ -395,3 +450,46 @@ class UnifiedReviewTests(APITestCase):
             response = self.client.get(reverse("unified-pending"))
             self.assertEqual(response.status_code, 400)
             self.assertIn("queue", response.data)
+
+    def test_date_filter_reduces_queue_before_safety_limit(self):
+        self.candidate(amount="99.00", day=6)
+        with patch("apps.statements.unified.MAX_PENDING", 1):
+            response = self.client.get(
+                reverse("unified-pending"),
+                {"start_date": "2026-01-02", "end_date": "2026-01-02"},
+            )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 2)
+
+    def test_source_filter_bounds_unrelated_comparison_sources(self):
+        extra = self.candidate(amount="99.00")
+        with patch("apps.statements.unified.MAX_PENDING", 1):
+            response = self.client.get(reverse("unified-pending"), {"source": "statement"})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 1)
+        extra.status = "ignored"
+        extra.save()
+        StatementRow.objects.create(
+            batch=self.batch, position=2, component="principal",
+            source_fingerprint="synthetic-other-row", extracted=self.row.extracted,
+            date=self.row.date, direction="debit", type="expense", amount="99.00",
+        )
+        with patch("apps.statements.unified.MAX_PENDING", 1):
+            response = self.client.get(reverse("unified-pending"), {"source": "sms"})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 1)
+
+    def test_pair_detail_ignores_unrelated_backlog_limit(self):
+        self.candidate(amount="99.00")
+        with patch("apps.statements.unified.MAX_PENDING", 1):
+            response = self.client.get(
+                reverse("unified-pair"),
+                {"statement": self.row.pk, "sms": self.sms.pk},
+            )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["match"]["strength"], "possible")
+
+    def test_truncated_sms_match_count_is_not_presented_as_zero(self):
+        review = review_context(self.row, [], pending_sms_count=None)
+        self.assertIsNone(review["pending_sms_match_count"])
+        self.assertNotEqual(review["review_state"], "new")

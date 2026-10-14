@@ -18,8 +18,10 @@ from apps.messages.models import (
 )
 
 from .balance_reports import (
+    account_reports,
     reported_values,
     resolve_reported_values,
+    select_effective_account_report,
     write_account_reports,
 )
 from .models import Transaction, TransferEvidence
@@ -648,7 +650,22 @@ def merge_transfers(*, user, record_id, other_id, balance_choices=()):
     before = transaction_snapshot(record)
     ensure_transfer_evidence(record)
     ensure_transfer_evidence(other)
+    retained_reports = account_reports(record)[0]
+    incoming_reports = account_reports(other)[0]
     reports = resolve_reported_values(record, reported_values(other), balance_choices)
+    decisions = {choice["account"]: choice["keep"] for choice in balance_choices}
+    incoming_evidence_ids = {item.pk for item in incoming_reports.values()}
+    selected_evidence = {}
+    for report in reports:
+        account_id, value = report["account"].pk, report["balance_after"]
+        options = (
+            (incoming_reports.get(account_id), retained_reports.get(account_id))
+            if decisions.get(account_id) == "incoming"
+            else (retained_reports.get(account_id), incoming_reports.get(account_id))
+        )
+        selected_evidence[account_id] = next(
+            (item for item in options if item and item.balance_after == value), None
+        )
     shared_batches = record.statement_rows.values_list("batch_id", flat=True)
     if other.statement_rows.filter(batch_id__in=shared_batches).exists():
         raise ValidationError(
@@ -658,6 +675,7 @@ def merge_transfers(*, user, record_id, other_id, balance_choices=()):
         )
     other_before = transaction_snapshot(other)
     # Backfilled evidence carries both original references and balances after the merge.
+    other.transfer_evidence.filter(is_effective_balance=True).update(is_effective_balance=False)
     other.transfer_evidence.update(transaction=record)
     other.parsed_message_candidates.update(transaction=record)
     other.statement_rows.update(
@@ -671,6 +689,12 @@ def merge_transfers(*, user, record_id, other_id, balance_choices=()):
         metadata={"merged_into": str(record.id)},
     )
     other.delete()
+    for item in selected_evidence.values():
+        if item:
+            item.transaction_id = record.pk
+            if item.pk in incoming_evidence_ids:
+                item.is_effective_balance = False
+            select_effective_account_report(record, item)
     write_account_reports(record, reports)
     record.save(update_fields=("updated_at",))
     create_audit_log(

@@ -119,6 +119,68 @@ class TransferBalanceConflictTests(APITestCase):
             self.assertEqual(response.status_code, 400, response.data)
             self.assertEqual(Transaction.objects.count(), 2)
 
+    def test_merge_preserves_selected_observations_from_both_transfers(self):
+        retained = self.record("900.00", "300.00")
+        incoming = self.record("899.00", "301.00")
+        retained_a = retained.transfer_evidence.get(account=self.a)
+        incoming_b = incoming.transfer_evidence.get(account=self.b)
+        retained_a.is_effective_balance = True
+        retained_a.save(update_fields=("is_effective_balance",))
+        incoming_b.is_effective_balance = True
+        incoming_b.save(update_fields=("is_effective_balance",))
+
+        response = self.merge(
+            retained,
+            incoming,
+            [
+                self.choice(self.a, "900.00", "899.00", "existing"),
+                self.choice(self.b, "300.00", "301.00", "incoming"),
+            ],
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            self.values(response), {str(self.a.pk): "900.00", str(self.b.pk): "301.00"}
+        )
+        self.assertEqual(retained.transfer_evidence.count(), 4)
+        self.assertEqual(
+            set(
+                retained.transfer_evidence.filter(is_effective_balance=True).values_list(
+                    "pk", flat=True
+                )
+            ),
+            {retained_a.pk, incoming_b.pk},
+        )
+        self.assertEqual(
+            set(retained.transfer_evidence.values_list("balance_after", flat=True)),
+            {Decimal("900.00"), Decimal("899.00"), Decimal("300.00"), Decimal("301.00")},
+        )
+
+    def test_merge_updates_primary_balance_without_rewriting_source_reports(self):
+        retained, incoming = self.record("900.00"), self.record("899.00")
+        retained_evidence = retained.transfer_evidence.get(account=self.a)
+        incoming_evidence = incoming.transfer_evidence.get(account=self.a)
+        retained_evidence.is_effective_balance = True
+        retained_evidence.save(update_fields=("is_effective_balance",))
+        incoming_evidence.is_effective_balance = True
+        incoming_evidence.save(update_fields=("is_effective_balance",))
+
+        response = self.merge(
+            retained,
+            incoming,
+            [self.choice(self.a, "900.00", "899.00", "incoming")],
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        retained.refresh_from_db()
+        self.assertEqual(retained.balance_after, Decimal("899.00"))
+        retained_evidence.refresh_from_db()
+        incoming_evidence.refresh_from_db()
+        self.assertEqual(retained_evidence.balance_after, Decimal("900.00"))
+        self.assertEqual(incoming_evidence.balance_after, Decimal("899.00"))
+        self.assertFalse(retained_evidence.is_effective_balance)
+        self.assertTrue(incoming_evidence.is_effective_balance)
+
     def test_known_balance_survives_unknown_and_other_account_is_not_a_conflict(self):
         retained, incoming = self.record("900.00"), self.record(None, "300.00")
         response = self.merge(retained, incoming)

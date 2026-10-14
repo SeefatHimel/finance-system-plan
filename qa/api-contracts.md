@@ -520,7 +520,8 @@ and explicit acknowledgments; it returns one transaction ID shared by both sourc
 sources, and 404 covers unavailable/foreign sources. Pair retries return unchanged
 without another movement. Existing ledger suggestions cannot be silently bypassed.
 Source-message retrieval includes attached confirmed candidates as well as primary
-and transfer raw-message links. API-first rollout requires no model migration.
+and transfer raw-message links. Deploy the API and run the transfer-evidence
+migration described below before rolling out the updated web review.
 
 ## Schema drift gate
 
@@ -531,3 +532,11 @@ health endpoint) still exists. A backend API change requires reviewing and
 updating the snapshot and, when relevant, `openapi.yaml` and generated TypeScript
 types. The bounded SMS review response and dashboard summary are documented
 in the shared contract.
+
+`GET /api/messages/review/{id}/` returns one owned, still-pending SMS candidate
+for direct inbox navigation. `review.pending_sms_match_count` is nullable: null
+means the bounded list check was inconclusive, while zero means a completed
+check found no match. The pair endpoint rejects selecting a missing balance
+when the other source reports one; the chosen transfer balance becomes the
+effective account report. Apply the new transfer-evidence migration before API
+rollout.

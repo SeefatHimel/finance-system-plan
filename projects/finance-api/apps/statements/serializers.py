@@ -259,7 +259,7 @@ class StatementReviewSerializer(serializers.Serializer):
     issues = serializers.ListField(child=serializers.CharField())
     review_state = serializers.CharField()
     matches = StatementMatchSerializer(many=True)
-    pending_sms_match_count = serializers.IntegerField(min_value=0)
+    pending_sms_match_count = serializers.IntegerField(min_value=0, allow_null=True)
     pending_sms_matches = PendingSmsStatementMatchSerializer(many=True, required=False)
     matching_truncated = serializers.BooleanField()
     requires_acknowledgement = serializers.BooleanField()

@@ -15,6 +15,7 @@ from apps.messages.views import (
     MessageCandidateConfirmView,
     MessageCandidateRejectView,
     MessageCandidateReprocessView,
+    MessageReviewDetailView,
     MessageReviewListView,
     RawMessageImportView,
     RawMessageRedactView,
@@ -24,15 +25,15 @@ from apps.messages.views import (
     SmsDeviceStatusView,
 )
 from apps.payment_methods.views import PaymentMethodViewSet
+from apps.quick_add.views import QuickAddPresetViewSet, QuickEntryView
 from apps.reconciliation.views import AccountReconciliationView, BalanceSnapshotViewSet
 from apps.recurring_bills.views import (
     RecurringBillPaymentCreateView,
     RecurringBillViewSet,
 )
 from apps.statements.review_views import StatementImportViewSet, StatementRowViewSet
-from apps.statements.unified_views import UnifiedPendingView, UnifiedPairView
+from apps.statements.unified_views import UnifiedPairView, UnifiedPendingView
 from apps.statements.views import StatementIdentifyView, StatementPreviewView
-from apps.quick_add.views import QuickAddPresetViewSet, QuickEntryView
 from apps.transactions.views import TransactionViewSet
 
 router = DefaultRouter()
@@ -78,6 +79,11 @@ urlpatterns = [
         name="raw-message-redact",
     ),
     path("api/messages/review/", MessageReviewListView.as_view(), name="message-review-list"),
+    path(
+        "api/messages/review/<uuid:candidate_id>/",
+        MessageReviewDetailView.as_view(),
+        name="message-review-detail",
+    ),
     path(
         "api/messages/review/reprocess/",
         MessageCandidateBulkReprocessView.as_view(),

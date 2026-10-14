@@ -1173,6 +1173,26 @@ paths:
                   - $ref: '#/components/schemas/ReviewCandidatePage'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/messages/review/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Messages]
+      summary: Read one pending SMS candidate directly
+      description: Returns 404 when the candidate is resolved or belongs to another user.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pending SMS candidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParsedMessageCandidate'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /api/messages/review/reprocess/:
     post:
       tags: [Messages]
@@ -5883,7 +5903,8 @@ components:
         pending_sms_match_count:
           type: integer
           minimum: 0
-          description: Bounded list-level count. A pending SMS makes the row a possible match without exposing SMS text in the list.
+          nullable: true
+          description: Bounded list-level count. Null means the comparison window was too busy to check safely; never treat it as zero.
         pending_sms_matches:
           type: array
           description: Advisory pending SMS candidates. Populated on row detail; empty in paginated row lists.
