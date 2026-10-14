@@ -535,16 +535,17 @@ class TransactionSerializer(serializers.ModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        user = self.context["request"].user
-        fields["account"].queryset = Account.objects.filter(user=user, is_active=True)
+        request = self.context.get("request")
+        user_id = request.user.pk if request and request.user.is_authenticated else None
+        fields["account"].queryset = Account.objects.filter(user_id=user_id, is_active=True)
         fields["transfer_account"].queryset = Account.objects.filter(
-            user=user, is_active=True
+            user_id=user_id, is_active=True
         )
-        fields["category"].queryset = Category.objects.filter(user=user, is_active=True)
+        fields["category"].queryset = Category.objects.filter(user_id=user_id, is_active=True)
         fields["payment_method"].queryset = PaymentMethod.objects.filter(
-            user=user, is_active=True
+            user_id=user_id, is_active=True
         )
-        fields["raw_message"].queryset = RawMessage.objects.filter(user=user)
+        fields["raw_message"].queryset = RawMessage.objects.filter(user_id=user_id)
         return fields
 
 

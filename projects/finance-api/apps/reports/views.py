@@ -4,6 +4,8 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -55,6 +57,7 @@ def month_bounds(month: str | None) -> tuple[date, date, str]:
     return start, end, month
 
 
+@extend_schema(responses=OpenApiTypes.OBJECT)
 class MonthlyReportView(APIView):
     permission_classes = (IsAuthenticated,)
 

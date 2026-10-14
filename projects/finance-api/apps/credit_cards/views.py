@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -26,6 +27,7 @@ class CreditCardBillViewSet(ModelViewSet):
         return queryset
 
 
+@extend_schema(request=CreditCardPaymentSerializer, responses={201: CreditCardPaymentSerializer})
 class CreditCardPaymentCreateView(APIView):
     permission_classes = (IsAuthenticated,)
 

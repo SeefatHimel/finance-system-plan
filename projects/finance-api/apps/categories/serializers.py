@@ -25,8 +25,10 @@ class CategorySerializer(serializers.ModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        fields["parent"].queryset = Category.objects.filter(
-            user=self.context["request"].user,
-            is_active=True,
+        request = self.context.get("request")
+        fields["parent"].queryset = (
+            Category.objects.filter(user=request.user, is_active=True)
+            if request and request.user.is_authenticated
+            else Category.objects.none()
         )
         return fields

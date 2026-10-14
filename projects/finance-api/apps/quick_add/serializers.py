@@ -16,9 +16,10 @@ def compatible(category, transaction_type):
 class OwnedChoicesMixin:
     def get_fields(self):
         fields = super().get_fields()
-        user = self.context["request"].user
-        fields["account"].queryset = Account.objects.filter(user=user)
-        fields["category"].queryset = Category.objects.filter(user=user)
+        request = self.context.get("request")
+        user_id = request.user.pk if request and request.user.is_authenticated else None
+        fields["account"].queryset = Account.objects.filter(user_id=user_id)
+        fields["category"].queryset = Category.objects.filter(user_id=user_id)
         return fields
 
 
