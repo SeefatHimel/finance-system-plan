@@ -1,6 +1,6 @@
 # Production Deployment Plan
 
-Last updated: 2026-05-31
+Last updated: 2026-10-14
 
 ## Goal
 
@@ -132,7 +132,9 @@ Production backup work must still add:
   Compose validation and stack smoke tests must run on a machine with Docker.
 - Real anonymized SMS fixtures are still needed before trusting parser coverage
   for live provider messages.
-- Production auth hardening is planned but not implemented in web/mobile yet.
+- Confirm the deployed web uses its same-origin HTTP-only cookie session and the
+  mobile build uses OS-backed secure storage; both paths exist in source but
+  need an end-to-end deployment smoke test after each auth/configuration change.
 
 ## Quick Add rollout
 

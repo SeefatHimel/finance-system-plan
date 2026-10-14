@@ -5,6 +5,23 @@ web, mobile, infra, and contracts projects.
 
 Execution tracker: see `docs/next-steps-checklist.md` for current done/pending status.
 
+## Project checks
+
+The same baseline runs in `.github/workflows/checks.yml` for pull requests and
+pushes to `main`. From the repository root, after installing each project's
+documented dependencies, run:
+
+```bash
+(cd projects/finance-api && python manage.py test && python manage.py makemigrations --check --dry-run && python manage.py spectacular --validate --file /tmp/finance-schema.yaml)
+(cd projects/finance-web && npm run typecheck && npm run lint && node --test tests/*.test.cjs && npm run build)
+(cd projects/finance-contracts && python scripts/generate_ts_client.py && git diff --exit-code -- generated/types.ts generated/client.ts && ../finance-web/node_modules/.bin/tsc -p tsconfig.generated.json)
+(cd projects/finance-mobile && npm run typecheck && node --test tests/*.test.cjs)
+```
+
+Schema generation may report known warnings; it must finish without errors and
+produce a nonempty file. Use only synthetic data for these checks. Database
+dumps (`*.dump`) are ignored by Git; store backups outside the repository.
+
 ## Required Tools
 
 - Git

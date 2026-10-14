@@ -39,6 +39,8 @@ React Native Metro: 8081
   `projects/finance-infra/scripts/`
 - Backup manifests, retention pruning, and a backup automation runbook in
   `docs/backup-automation.md`
+- A GitHub Actions workflow for API, web, mobile, contract generation, and
+  migration/schema checks on pull requests and pushes to `main`
 
 ## Why not decide production hosting now?
 
@@ -71,6 +73,14 @@ The backend currently uses Django 5.1, which officially supports Python through
 3.13 but not Python 3.14. Render defaults newer services to Python 3.14, which
 breaks Django admin template rendering. The repository-level `.python-version`
 keeps hosted native Python builds on the compatible 3.13 series.
+
+## What does CI check before a change reaches main?
+
+Pull requests and main-branch pushes run the API test suite, migration drift
+check and OpenAPI generation with zero errors. They also typecheck, lint, test
+and build the web app, regenerate and typecheck the shared contract, and run
+mobile typechecks and unit tests. This catches integration drift before a
+deployment; it does not replace staging smoke tests or backup restore drills.
 
 ## How should backups work?
 

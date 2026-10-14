@@ -741,10 +741,11 @@ Filtering does not change matching scope, evidence or financial records.
 Verify with `python manage.py test apps.reports apps.transactions.tests
 apps.statements.test_imports`.
 
-Schema verification note: authenticated runtime schema generation exposes the
-new date parameters. Anonymous automatic generation currently fails in the
-existing `CategorySerializer.get_fields` user lookup; the checked-in shared
-OpenAPI and generated TypeScript client remain the integration contract.
+Schema verification note: automatic schema generation now handles an anonymous
+introspection request without user-scoped queryset errors or omitted endpoints.
+CI runs `manage.py spectacular --validate` and fails on schema errors. The
+checked-in shared OpenAPI and generated TypeScript client remain the integration
+contract; legacy schema warnings are tracked separately.
 
 ## Account recognition profiles
 
@@ -998,7 +999,10 @@ matches, and ledger transactions are not changed; existing PDFs need no re-uploa
 `review.pending_sms_matches` on a statement row detail response suggests still
 pending SMS observations for the same account perspective, type, amount and date
 window. `POST /api/statements/rows/{id}/decide/` with `action=combine_sms`, row
-`version`, and `candidate` confirms one SMS and links that row atomically. A
-conflicting reported balance requires an exact-value `balance_choice`; a ledger
-suggestion or stale candidate blocks the action. The SMS source and date/time are
-kept. Independent review routes remain supported. No schema migration is needed.
+`version`, and `candidate` confirms one SMS and links that row atomically. Row
+lists show a batched `pending_sms_match_count`, so pending pairs appear in the
+possible-match filter. A conflicting reported balance requires an exact-value
+`balance_choice`. If ledger suggestions exist, the request must acknowledge
+their exact current IDs as different movements; stale suggestions return 409.
+The SMS source and date/time are kept. Independent review routes remain supported.
+No schema migration is needed.
