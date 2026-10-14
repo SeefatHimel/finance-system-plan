@@ -508,3 +508,16 @@ values. If ledger suggestions coexist, submit their exact UUIDs in
 `dismissed_ledger_matches` with `acknowledge_distinct_ledger_matches=true`; the
 server returns 409 if the current suggestion IDs differ. The API revalidates both sources atomically and returns 409 for stale
 review. SMS-only and statement-only endpoints keep their existing behavior.
+
+### What is the unified pending-review contract?
+
+`/api/review/pending/` returns paginated source observations and review-only
+opposite-source suggestions, with filters applied before pagination.
+`GET /api/review/pair/` returns owned pending-source evidence and ledger suggestions.
+The POST takes both IDs, statement version, SMS updated timestamp, balance choice
+and explicit acknowledgments; it returns one transaction ID shared by both sources.
+400 means invalid values/missing review, 409 means stale/resolved/nonmatching
+sources, and 404 covers unavailable/foreign sources. Pair retries return unchanged
+without another movement. Existing ledger suggestions cannot be silently bypassed.
+Source-message retrieval includes attached confirmed candidates as well as primary
+and transfer raw-message links. API-first rollout requires no model migration.

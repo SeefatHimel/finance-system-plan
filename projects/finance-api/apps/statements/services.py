@@ -688,7 +688,7 @@ def touch(row, user, before, metadata=None):
     )
 
 
-def decide_locked(*, row, user, payload, request):
+def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
     action = payload["action"]
     target = payload.get("transaction")
     if resolved(row) and action not in {"unlink", "reopen"}:
@@ -882,7 +882,10 @@ def decide_locked(*, row, user, payload, request):
             issues = [issue for issue in issues if "previously linked" not in issue]
             if issues:
                 raise ValidationError({"row": issues})
-            if (matches[row.id] or pending_sms_matches(row)) and not payload.get("allow_separate"):
+            if (
+                matches[row.id]
+                or (not combining_pending_sms and pending_sms_matches(row))
+            ) and not payload.get("allow_separate"):
                 raise ValidationError(
                     {
                         "allow_separate": "Possible ledger or pending SMS matches exist. Review them or explicitly confirm a separate movement."

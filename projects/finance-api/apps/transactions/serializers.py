@@ -17,6 +17,7 @@ from .models import Transaction, TransferEvidence
 
 class TransactionSourceMessageSerializer(serializers.ModelSerializer):
     body = serializers.SerializerMethodField()
+    parsed = serializers.SerializerMethodField()
 
     def get_body(self, instance):
         if (
@@ -27,9 +28,30 @@ class TransactionSourceMessageSerializer(serializers.ModelSerializer):
             return None
         return instance.body
 
+    @extend_schema_field(serializers.JSONField(allow_null=True))
+    def get_parsed(self, instance):
+        candidate = getattr(instance, "candidate", None)
+        record = self.context.get("transaction")
+        if (
+            not candidate
+            or not record
+            or candidate.user_id != instance.user_id
+            or candidate.status != "confirmed"
+            or candidate.transaction_id != record.pk
+        ):
+            return None
+        return {
+            "amount": str(candidate.amount) if candidate.amount is not None else None,
+            "balance_after": str(candidate.balance_after)
+            if candidate.balance_after is not None
+            else None,
+            "reference": candidate.reference,
+            "type": candidate.transaction_type,
+        }
+
     class Meta:
         model = RawMessage
-        fields = ("id", "sender", "body", "received_at", "status", "redacted_at")
+        fields = ("id", "sender", "body", "received_at", "status", "redacted_at", "parsed")
         read_only_fields = fields
 
 

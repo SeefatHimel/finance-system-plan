@@ -356,3 +356,11 @@ or restores merged records. It never blindly deletes an existing transfer,
 overwrites newer work, or restores redacted originals. Add and Edit share a form;
 Edit/Undo stay available after the success toast disappears. Deletions and bulk
 statement posting are not included in this recovery flow.
+
+### Do matching pending SMS and PDF rows count as two transactions?
+
+No. Unified review keeps them as separate source observations until the user
+confirms their correspondence, then attaches both to one ledger movement. Source
+counts may be two while the ledger count is one. Original source dates/times and
+reported balances remain independently inspectable. Suggestions are reviewable
+and never themselves authorize posting or erase ambiguous repeat movements.

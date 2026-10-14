@@ -573,3 +573,30 @@ counterpart identifiers need explicit sender/receiver evidence. Ambiguous values
 remain empty. Payment methods, accounts, classifications, amount, date and time
 are not changed by this metadata shortcut. No new database migration is required;
 deploy web and API together.
+
+### Unified pending review
+
+- `GET /api/review/pending/`: source (`all/sms/statement`), condition
+  (`all/matched/unmatched/corrections`), account UUID, search, inclusive
+  `start_date/end_date` (maximum 366 days), offset and limit (1–100, default 50).
+  Returns `{count, offset, limit, results}`; each source includes opposite-source
+  suggestions and ambiguity flags. Counts are source observations, not movements.
+- `GET /api/review/pair/?statement=<uuid>&sms=<uuid>`: owned, still-pending pair
+  details with the saved statement draft, batch, parsed SMS/original text and reasons.
+- `POST /api/review/pair/`: `statement`, `sms`, `statement_version`, `sms_updated_at`,
+  `balance_source` (`sms/statement/existing`), `acknowledge_match`,
+  `acknowledge_conflict`, `acknowledge_issues`, optional `transaction` and
+  `remember_choices`. Returns `{transaction, statement, sms, unchanged}`.
+
+New pairs use one statement-draft movement and the chosen balance; both source
+reports remain. Existing ledger suggestions must be selected explicitly, with
+`balance_source=existing`; their ledger balance stays unchanged. HTTP 409 reports
+stale/resolved/nonmatching sources. HTTP 400 reports missing acknowledgments or
+invalid drafts. Ownership failures return 404. Retries for the same resolved pair
+are idempotent, and every failure rolls back all decisions. All responses are
+private/no-store. Statement fees remain separate. Deploy API before web; no migration.
+
+Transaction source-message responses optionally add `parsed` (nullable): saved
+SMS amount, balance_after, reference and type. These fields remain available after
+raw-text redaction, only for confirmed candidates attached to that owned ledger
+entry. Existing clients can ignore the optional field.

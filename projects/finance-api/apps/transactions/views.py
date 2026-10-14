@@ -163,14 +163,21 @@ class TransactionViewSet(ModelViewSet):
                 raw_message__isnull=False,
             ).values_list("raw_message_id", flat=True)
         )
+        message_ids.extend(
+            record.parsed_message_candidates.filter(
+                user=request.user, status="confirmed"
+            ).values_list("raw_message_id", flat=True)
+        )
         if record.raw_message_id:
             message_ids.append(record.raw_message_id)
         messages = RawMessage.objects.filter(
             user=request.user,
             pk__in=message_ids,
-        ).order_by("received_at", "id")
+        ).select_related("candidate").order_by("received_at", "id")
         return Response(
-            TransactionSourceMessageSerializer(messages, many=True).data,
+            TransactionSourceMessageSerializer(
+                messages, many=True, context={"transaction": record}
+            ).data,
             headers={"Cache-Control": "private, no-store"},
         )
 

@@ -811,6 +811,12 @@ export interface Transaction {
 }
 
 export interface TransactionSourceMessage {
+  parsed?: {
+  amount: string | null;
+  balance_after: string | null;
+  reference: string;
+  type: string;
+} | null;
   id: string;
   sender: string;
   body: string | null;
@@ -1230,3 +1236,88 @@ export interface StatementComparison {
   limit: number;
   results: StatementLedgerOnly[];
 }
+
+export type UnifiedBalanceSourceEnum = "sms" | "statement" | "existing";
+
+export interface UnifiedPairDecision {
+  statement: string;
+  sms: string;
+  statement_version: number;
+  sms_updated_at: string;
+  transaction?: string | null;
+  balance_source: UnifiedBalanceSourceEnum;
+  acknowledge_match?: boolean;
+  acknowledge_conflict?: boolean;
+  acknowledge_issues?: boolean;
+  remember_choices?: boolean;
+}
+
+export interface UnifiedPairDetail {
+  row: SavedStatementRow;
+  batch: StatementImport;
+  sms: ParsedMessageCandidate;
+  match: unknown;
+}
+
+export interface UnifiedPairResult {
+  transaction: string;
+  statement: string;
+  sms: string;
+  unchanged: boolean;
+}
+
+export interface UnifiedPendingItem {
+  source: UnifiedSourceEnum;
+  id: string;
+  account: string | null;
+  account_name: string;
+  currency: string;
+  date: string | null;
+  time: string | null;
+  amount: string | null;
+  balance_after: string | null;
+  direction: string;
+  type: string;
+  description: string;
+  reference: string;
+  updated_at: string;
+  version: number | null;
+  batch: string | null;
+  needs_correction: boolean;
+  matches: UnifiedPendingMatch[];
+  ambiguous: boolean;
+}
+
+export interface UnifiedPendingMatch {
+  source: UnifiedSourceEnum;
+  id: string;
+  account: string | null;
+  account_name: string;
+  currency: string;
+  date: string | null;
+  time: string | null;
+  amount: string | null;
+  balance_after: string | null;
+  direction: string;
+  type: string;
+  description: string;
+  reference: string;
+  updated_at: string;
+  version: number | null;
+  batch: string | null;
+  needs_correction: boolean;
+  strength: UnifiedStrengthEnum;
+  conflict: boolean;
+  reasons: string[];
+}
+
+export interface UnifiedPendingPage {
+  count: number;
+  offset: number;
+  limit: number;
+  results: UnifiedPendingItem[];
+}
+
+export type UnifiedSourceEnum = "sms" | "statement";
+
+export type UnifiedStrengthEnum = "strong" | "possible";

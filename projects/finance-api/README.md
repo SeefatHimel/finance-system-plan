@@ -1006,3 +1006,30 @@ possible-match filter. A conflicting reported balance requires an exact-value
 their exact current IDs as different movements; stale suggestions return 409.
 The SMS source and date/time are kept. Independent review routes remain supported.
 No schema migration is needed.
+
+### Unified pending-source review
+
+Authenticated, private/no-store `/api/review/pending/` combines pending SMS and
+statement sources with account/source/date/condition/search filters and offset
+pagination. Suggestions use reporting-account perspective, amount, currency,
+direction, calendar date/value date and reference/balance evidence. They remain
+review-only, including same-day repeats and balance conflicts. The read-only
+`GET /api/review/pair/?statement=<uuid>&sms=<uuid>` returns original sources,
+statement draft validation and current ledger suggestions.
+
+`POST /api/review/pair/` requires both IDs, statement version, SMS `updated_at`,
+explicit same-movement confirmation, balance source and applicable acknowledgments.
+It serializes writers through the shared user lock, locks both sources, rechecks
+pending state and matches, and reuses statement posting/link validation. Any failure
+rolls back the new ledger entry and both source decisions. Completed-pair retries
+are idempotent; changed ledger financial identity is rejected. Existing suggestions
+must be linked rather than bypassed with another entry in this workflow.
+
+A new pair uses statement draft classification/date/time, the selected scalar
+balance, masked SMS identifiers and one raw-message link. An incoming transfer keeps
+reports on the receiving account through separate transfer observations. Candidate
+and statement relations retain their distinct dates/times/balances; the original
+PDF extraction remains immutable. Source-message retrieval includes all attached
+confirmed candidates, preserving additional SMS sources on existing entries. SMS
+raw-text retention is honored. Unified review does not learn SMS mappings implicitly,
+never runs a data backfill, and requires no model migration.

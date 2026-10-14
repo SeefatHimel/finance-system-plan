@@ -824,3 +824,19 @@ Inline-fee principal rows are excluded because their printed final balance
 belongs to the separate fee row. Independent SMS and statement decisions remain
 available. This combined decision does not create an ordinary SMS undo action;
 unlink statement evidence and correct the ledger through Transactions instead.
+
+### How does combined pending review avoid two ledger entries?
+
+The pair decision holds the same user lock as SMS/statement writers, then locks
+and rechecks both pending sources and their version/timestamp. It reuses statement
+validation and records one entry or links a current ledger suggestion. The SMS
+candidate and PDF row point to the same transaction, with account-bound transfer
+observations when needed. Exceptions roll back all writes, and completed-pair
+retries are idempotent. Conflicting balances require acknowledgment and an explicit
+balance choice for new entries; existing ledger balances stay intact. Raw SMS text
+follows retention settings while parsed fields and links remain. Ownership scopes
+apply to both sources and any existing ledger target. No migration/backfill occurs.
+
+Attached confirmed SMS sources expose their saved parsed amount/balance separately
+from ledger values, including after raw text redaction. User and transaction scopes
+are rechecked before returning that optional parsed observation.
