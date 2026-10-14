@@ -3430,3 +3430,17 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
   .review-filter-dialog > h2 { font-size: 20px; padding-right: 36px; }
   .review-filter-dialog > p { margin-block: 8px 0; font-size: 13px; }
 }
+
+/* Unified pending-source review reuses the viewport-centered statement dialog. */
+.unified-review-heading, .unified-review-item header { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+.unified-review-filters { align-items: end; display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 2fr); margin: 18px 0; }
+.unified-review-search { align-items: flex-end; display: flex; gap: 8px; min-width: 0; }
+.unified-review-search .field { flex: 1; min-width: 0; }
+.unified-review-list { display: grid; gap: 14px; margin-bottom: 20px; }
+.unified-review-item { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px; min-width: 0; overflow-wrap: anywhere; padding: 18px; }
+.unified-review-item p { margin: 10px 0; }
+.unified-review-matches { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.unified-review-item .button { max-width: 100%; white-space: normal; }
+.statement-match-comparison section > .button { margin-top: 14px; max-width: 100%; white-space: normal; }
+@media (max-width: 900px) { .unified-review-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .unified-review-filters { grid-template-columns: minmax(0, 1fr); } .unified-review-item { padding: 14px; } }

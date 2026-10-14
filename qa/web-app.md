@@ -948,3 +948,15 @@ statement movement requires explicit separate confirmation. Pending-SMS counts
 also appear in the statement row list and Possible matches filter. If a ledger
 suggestion remains, compare every suggestion and affirm that each is distinct
 before combining; a changed suggestion list requires a fresh review.
+### Where can users review pending SMS and PDF rows together?
+
+Unified review (`/review`) lists both sources with account, date, source, condition
+and search filters. Each suggested pair opens a source comparison with original
+SMS/PDF evidence. Explicit confirmation resolves both sources into one transaction;
+a new entry uses the saved statement classification/date/time and chosen balance.
+Existing ledger suggestions must be selected and retain their existing balance.
+Ambiguous suggestions and balance/source discrepancies need review; nothing posts
+automatically. The statement editor opens in save-only mode inside this workflow,
+and unmatched items retain links to their individual editors. Source counts describe
+observations, not money movements. SMS dates are received dates; statement dates
+are transaction/value dates. Both evidence sets are available from Transactions.

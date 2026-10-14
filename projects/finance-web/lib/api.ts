@@ -143,6 +143,7 @@ const rawMessageSchema = z.object({
 });
 
 const transactionSourceMessageSchema = z.object({
+  parsed: z.object({ amount: z.string().nullable(), balance_after: z.string().nullable(), reference: z.string(), type: z.string() }).nullable().optional(),
   id: z.string(),
   sender: z.string(),
   body: z.string().nullable(),
@@ -1646,4 +1647,29 @@ export async function undoTransactionAction(token: string, action: string): Prom
 export async function getTransaction(token: string, id: string, signal?: AbortSignal): Promise<Transaction> {
   const response = await authenticatedFetch(`/api/transactions/${id}/`, token, { signal });
   return transactionSchema.parse(await response.json());
+}
+
+const pendingSourceSchema = z.object({
+  source: z.enum(["sms", "statement"]), id: z.string(), account: z.string().nullable(), account_name: z.string(), currency: z.string(),
+  date: z.string().nullable(), time: z.string().nullable(), amount: z.string().nullable(), balance_after: z.string().nullable(), direction: z.enum(["debit", "credit"]),
+  type: z.string(), description: z.string(), reference: z.string(), updated_at: z.string(), version: z.number().nullable(), batch: z.string().nullable(), needs_correction: z.boolean()
+});
+const pendingSignalsSchema = z.object({ strength: z.enum(["strong", "possible"]), conflict: z.boolean(), reasons: z.array(z.string()) });
+const pendingItemSchema = pendingSourceSchema.extend({ matches: z.array(pendingSourceSchema.merge(pendingSignalsSchema)), ambiguous: z.boolean() });
+const unifiedPendingSchema = z.object({ count: z.number(), offset: z.number(), limit: z.number(), results: z.array(pendingItemSchema) });
+const unifiedPairSchema = z.object({ row: savedStatementRowSchema, batch: savedStatementSchema, sms: parsedMessageCandidateSchema, match: pendingSignalsSchema });
+export type UnifiedPendingItem = z.infer<typeof pendingItemSchema>;
+export type UnifiedPendingPage = z.infer<typeof unifiedPendingSchema>;
+export type UnifiedPair = z.infer<typeof unifiedPairSchema>;
+export type UnifiedPairDecision = { statement: string; sms: string; statement_version: number; sms_updated_at: string; transaction?: string | null; balance_source: "sms" | "statement" | "existing"; acknowledge_match: boolean; acknowledge_conflict: boolean; acknowledge_issues: boolean; remember_choices: boolean };
+export async function listUnifiedPending(token: string, filters: Record<string, string>, signal?: AbortSignal): Promise<UnifiedPendingPage> {
+  const query = new URLSearchParams(filters);
+  return unifiedPendingSchema.parse(await (await authenticatedFetch(`/api/review/pending/?${query}`, token, { signal })).json());
+}
+export async function getUnifiedPair(token: string, statement: string, sms: string, signal?: AbortSignal): Promise<UnifiedPair> {
+  const query = new URLSearchParams({ statement, sms });
+  return unifiedPairSchema.parse(await (await authenticatedFetch(`/api/review/pair/?${query}`, token, { signal })).json());
+}
+export async function confirmUnifiedPair(token: string, input: UnifiedPairDecision) {
+  return z.object({ transaction: z.string(), statement: z.string(), sms: z.string(), unchanged: z.boolean() }).parse(await (await authenticatedFetch("/api/review/pair/", token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })).json());
 }

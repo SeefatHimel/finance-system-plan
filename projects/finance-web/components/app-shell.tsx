@@ -46,6 +46,7 @@ const navItems: NavItem[] = [
   { href: "/transactions", icon: ListBullets, label: "Transactions", subtitle: "Record, review, and export money movement", title: "Transactions" },
   { href: "/quick-add", icon: PlusCircle, label: "Quick Add presets", subtitle: "Configure your manual-entry shortcuts", title: "Quick Add presets" },
   { href: "/accounts", icon: CreditCard, label: "Accounts", subtitle: "Manage accounts and transaction categories", title: "Accounts & categories" },
+  { href: "/review", icon: CheckCircle, label: "Unified review", subtitle: "Compare pending SMS and statement sources", title: "Unified review" },
   { href: "/messages/review", icon: ChatCenteredText, label: "SMS review", subtitle: "Review parsed messages before they enter your ledger", title: "SMS review" },
   { href: "/statements", icon: FileText, label: "Statements", subtitle: "Review statement imports, matches, and ledger evidence", title: "Statement PDFs" },
   { href: "/sms-settings", icon: GearSix, label: "SMS settings", subtitle: "Configure payment methods and sender rules", title: "SMS settings" },

@@ -44,6 +44,7 @@ export function TransactionSourceMessages({ transactionId }: { transactionId: st
       {state.status === "ready" ? state.messages.map((message) => (
         <article key={message.id}>
           <p><strong>{message.sender}</strong> · Received <time dateTime={message.received_at}>{receivedTimeFormatter.format(new Date(message.received_at))}</time></p>
+          {message.parsed ? <p className="inline-note">SMS parsed amount: {message.parsed.amount ?? "Unknown"} · Reported balance after: {message.parsed.balance_after ?? "Not reported"}{message.parsed.reference ? ` · Reference: ${message.parsed.reference}` : ""}</p> : null}
           <p className="transaction-source-messages__body">{message.body ?? (message.status === "redacted" ? "Original SMS was redacted and is no longer available." : "Original SMS was removed or excluded and is no longer available.")}</p>
         </article>
       )) : null}

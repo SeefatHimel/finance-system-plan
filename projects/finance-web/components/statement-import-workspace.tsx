@@ -3,7 +3,7 @@
 import { DatePeriodControls } from "@/components/date-period-controls";
 import { allDates, periodBounds, type DatePeriod } from "@/lib/date-period";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { identifyStatementAccount, type StatementIdentification, createStatementImport, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
@@ -18,8 +18,9 @@ import { useToast } from "@/components/toast-provider";
 const labels: Record<string, string> = { ebl_bank: "EBL bank", city_bank: "City Bank", bkash: "bKash", new: "Statement only", possible_match: "Possible match", needs_correction: "Needs review", posted: "Added", linked: "Linked", skipped: "Skipped", pending: "Pending" };
 const emptyFilters = { state: "", direction: "", type: "", category: "", search: "", date_from: "", date_to: "" };
 
-export function StatementImportWorkspace({ initialImportId }: { initialImportId?: string }) {
+export function StatementImportWorkspace({ initialImportId, initialRowId }: { initialImportId?: string; initialRowId?: string }) {
   const router = useRouter();
+  const initialRowOpened = useRef(false);
   const { notify } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -140,13 +141,19 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
     } catch (reason) { if (!controller.signal.aborted) setUploadError(fail(reason, "Could not read the statement.")); }
     finally { if (uploadRequest.current === controller) { uploadRequest.current = null; setUploading(false); } }
   }
-  async function reviewRow(id: string) {
+  const reviewRow = useCallback(async (id: string) => {
     const token = getAccessToken(); if (!token) return;
     rowRequest.current?.abort(); const controller = new AbortController(); rowRequest.current = controller; setRowLoading(true); setSelectedRow(null);
-    try { const result = await getStatementRow(token, id, controller.signal); if (!controller.signal.aborted) setSelectedRow(result); }
-    catch (reason) { if (!controller.signal.aborted) fail(reason, "Could not load this row."); }
+    try { const result = await getStatementRow(token, id, controller.signal); if (!controller.signal.aborted) { if (result.batch !== batchId) throw new Error("This row belongs to another statement import."); setSelectedRow(result); } }
+    catch (reason) { if (!controller.signal.aborted) notify(reason instanceof Error ? reason.message : "Could not load this row.", "error"); }
     finally { if (rowRequest.current === controller) { rowRequest.current = null; setRowLoading(false); } }
-  }
+  }, [batchId, notify]);
+  useEffect(() => {
+    if (batch?.id === initialImportId && initialRowId && !initialRowOpened.current) {
+      initialRowOpened.current = true;
+      void reviewRow(initialRowId);
+    }
+  }, [batch, initialImportId, initialRowId, reviewRow]);
   const eligible = rows?.results.filter((row) => row.review.review_state === "new" && !row.review.issues.length && !row.review.requires_acknowledgement) ?? [];
   async function approveBulk() {
     const token = getAccessToken(); if (!token || !batch || !confirmBulk || bulkBusy) return;

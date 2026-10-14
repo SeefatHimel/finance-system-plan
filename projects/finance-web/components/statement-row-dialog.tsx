@@ -18,8 +18,8 @@ function editable(row: SavedStatementRow): StatementRowEdit {
   return { version: row.version, date: row.date, time: row.time, value_date: row.value_date, direction: row.direction, amount: row.amount, balance_after: row.balance_after, type: row.type, other_account: row.other_account, category: row.category, reference: row.reference, counterparty_text: row.counterparty_text, note: row.note, classification_confirmed: row.classification_confirmed };
 }
 
-export function StatementRowDialog({ row, batch, accounts, categories, onChange, onCancel, onReload, onNext }: {
-  row: SavedStatementRow; batch: SavedStatement; accounts: Account[]; categories: Category[];
+export function StatementRowDialog({ row, batch, accounts, categories, onChange, onCancel, onReload, onNext, editOnly = false }: {
+  editOnly?: boolean; row: SavedStatementRow; batch: SavedStatement; accounts: Account[]; categories: Category[];
   onChange: (row: SavedStatementRow, close: boolean) => void; onCancel: () => void; onReload: () => void; onNext: () => Promise<void>;
 }) {
   const { notify, dismiss } = useToast();
@@ -157,7 +157,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         {dirty ? <p className="inline-note">Save your draft changes before accepting a match or adding the transaction.</p> : null}
         {row.review.issues.length ? <ul className="statement-error">{row.review.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : null}
         {row.review.requires_acknowledgement && !isResolved ? <label className="review-remember"><input type="checkbox" checked={ackIssues} disabled={busy || dirty} onChange={(e) => setAckIssues(e.target.checked)} /><span>I reviewed the source and saved draft discrepancies and confirm the values being recorded.</span></label> : null}
-        {!isResolved && row.review.pending_sms_matches.length ? <section className="statement-matches" aria-labelledby="pending-sms-matches-title">
+        {!editOnly && !isResolved && row.review.pending_sms_matches.length ? <section className="statement-matches" aria-labelledby="pending-sms-matches-title">
           <h3 id="pending-sms-matches-title">Pending SMS for this statement row</h3>
           <p className="inline-note">Review the same movement across both sources. This creates one SMS-dated transaction and links the statement; either queue can still be reviewed separately.</p>
           {row.review.matches.length ? <div className="raw-message"><strong>Existing ledger suggestions also need a decision</strong><p>Compare each ledger entry in the Possible matches section below before combining the SMS and statement.</p><ul>{row.review.matches.map((item) => <li key={item.id}>{item.date} · {item.amount} · {item.note || item.reference || item.source}</li>)}</ul><label className="review-remember"><input type="checkbox" checked={distinctLedgerMatches} disabled={busy || dirty} onChange={(event) => setDistinctLedgerMatches(event.target.checked)} /><span>I compared every listed ledger entry and confirmed each is a different movement.</span></label></div> : null}
@@ -184,7 +184,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
             </article>;
           })}</div>
         </section> : null}
-        {!isResolved && row.review.matches.length ? <section className="statement-matches" aria-labelledby="statement-matches-title">
+        {!editOnly && !isResolved && row.review.matches.length ? <section className="statement-matches" aria-labelledby="statement-matches-title">
           <h3 id="statement-matches-title">Possible matches</h3>
           <p className="inline-note">Compare the same movement. Linking counts it once; selected balance and detail changes are reviewed before acceptance.</p>
           <div className="statement-match-list">{row.review.matches.map((match) => <StatementMatchComparison key={match.id}
@@ -202,7 +202,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         {dirty ? <p className="inline-note" role="status">Save draft changes before deciding.</p> : null}
         <div className="statement-actions">
           <button className="button button--ghost" type="button" disabled={busy} onClick={onCancel}>Close</button><button className="button" type="button" disabled={busy || dirty} onClick={() => void advance()}>Next unresolved row</button>
-          {!isResolved ? <><button className="button" type="button" disabled={busy || dirty} onClick={() => void decide("skip")}>Skip this row</button><button className="button button--primary" type="button" disabled={busy || dirty || row.review.issues.length > 0 || (row.review.requires_acknowledgement && !ackIssues)} onClick={() => row.review.matches.length || row.review.pending_sms_matches.length ? setConfirmSeparate(true) : void decide("create")}>Add {row.component === "fee" ? "fee" : "transaction"}{row.review.matches.length || row.review.pending_sms_matches.length ? " as separate" : ""}</button></> : row.transaction ? <button className="button" type="button" disabled={busy} onClick={() => setConfirmUnlink(true)}>Unlink statement evidence</button> : <button className="button" type="button" disabled={busy} onClick={() => void decide("reopen")}>Reopen skipped row</button>}
+          {!editOnly && !isResolved ? <><button className="button" type="button" disabled={busy || dirty} onClick={() => void decide("skip")}>Skip this row</button><button className="button button--primary" type="button" disabled={busy || dirty || row.review.issues.length > 0 || (row.review.requires_acknowledgement && !ackIssues)} onClick={() => row.review.matches.length || row.review.pending_sms_matches.length ? setConfirmSeparate(true) : void decide("create")}>Add {row.component === "fee" ? "fee" : "transaction"}{row.review.matches.length || row.review.pending_sms_matches.length ? " as separate" : ""}</button></> : !editOnly && row.transaction ? <button className="button" type="button" disabled={busy} onClick={() => setConfirmUnlink(true)}>Unlink statement evidence</button> : !editOnly && isResolved ? <button className="button" type="button" disabled={busy} onClick={() => void decide("reopen")}>Reopen skipped row</button> : null}
         </div>
       </footer>
     </ModalDialog>

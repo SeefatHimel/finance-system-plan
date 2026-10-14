@@ -1104,3 +1104,43 @@ pending SMS match count and includes such rows in Possible matches. If existing
 ledger suggestions also appear, compare them and acknowledge that each is a
 different movement before combining; a changed suggestion list requires reload.
 Already pending rows gain suggestions on refresh without a PDF re-upload or migration.
+
+### Unified pending SMS and statement review
+
+Open **Unified review** (`/review`) from the sidebar to compare all pending SMS
+candidates with saved pending statement rows. Source, account, daily/monthly/custom
+dates, condition and search filters apply before pagination. Each source has its
+own row until explicitly resolved; possible pairs show Compare buttons in either
+direction. Unknown dates/account/amounts and non-financial SMS need their existing
+source editor first. SMS dates are received timestamps, labeled separately from
+statement transaction dates. Statement fee rows remain independently reviewable.
+
+Compare opens both original sources, parsed details, reasons and reported balances.
+Edit statement draft uses the existing editor in save-only mode and refreshes the
+queue; SMS corrections use the existing SMS review deep link. Confirm both requires
+an explicit same-movement acknowledgment and any source/balance acknowledgments.
+For a new entry, statement classification/date/time form the ledger movement and
+users choose which reported balance to use. Both original reported balances remain
+in their source records. If ledger suggestions already exist, choose a verified
+existing entry; the combined flow cannot create a duplicate over those suggestions
+and retains that entry's existing balance. Separate movements can still be reviewed
+in their source workflows after checking all possible matches.
+
+One server transaction confirms the SMS candidate and links the statement row to
+one ledger entry. Both leave the pending queue together. SMS evidence is available
+in Transactions alongside the retained PDF evidence, subject to SMS-text retention.
+No sources are automatically posted, inferred matches do not prove identity, and
+multiple overlapping suggestions remain explicitly ambiguous. Different accounts,
+amounts or directions never pair; up to three calendar days are allowed, with
+matching reference or balance required beyond one day. Conflicting nonempty
+references are excluded. Stale versions/timestamps fail without partial writes;
+retries of the same confirmed pair do not create another movement.
+
+The queue compares up to 2,000 pending sources of each kind in the selected account
+scope and refuses excessive overlapping comparisons explicitly. Narrow by account
+or resolve items when limits are reached. Deploy the API before the new web client;
+no database migration or mobile APK rebuild is needed.
+
+Transactions' Original SMS section also displays saved parsed amounts and reported
+balances for attached confirmed SMS candidates, even after text retention redacts
+an original message. It distinguishes those values from the editable ledger balance.
