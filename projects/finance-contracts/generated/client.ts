@@ -547,6 +547,7 @@ export class FinanceApiClient {
   limit?: number;
   offset?: number;
   search?: string;
+  source?: "all" | "statement" | "sms";
   start_date?: string;
 }): Promise<UnifiedPendingPage> {
     return this.request<UnifiedPendingPage>("/api/review/pending/", { method: "GET", query });

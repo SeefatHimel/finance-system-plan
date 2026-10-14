@@ -266,8 +266,10 @@ linked observations. True acknowledges review, while ownership and other
 validation still apply. Transfers stay canonical From=`account`,
 To=`transfer_account`, direction=debit; reversing swaps the two accounts.
 
-Account corrections remap debit/credit observations and clear obsolete reported
-balances/fees. Reclassification preserves `transfer_evidence` as history and
+Account corrections remap manual observations and clear obsolete manual reported
+balances/fees. Captured SMS/PDF observations keep their original account,
+direction and source values but no longer supply reports if outside the current
+transfer path. Reclassification preserves `transfer_evidence` as history and
 source-message access. Clients must gate active evidence balance display on
 `type=transfer`. The API audits the correction and does not change original SMS.
 Generated types expose the request flag; existing response timestamps stay
@@ -441,6 +443,16 @@ position. Swapping endpoints preserves account-bound balances. A second report i
 an observation of the same transfer, not another ledger record. Unknown values are
 null, and negative reported balances are valid. Non-transfer/unrelated/duplicate
 account reports return validation errors; legacy scalar inputs remain supported.
+After an endpoint correction, `transfer_evidence` still includes original SMS/PDF
+observations, even if their account or direction no longer matches the ledger
+transfer. `reported_balances` and statement reconciliation use only observations
+applicable to the current path; clients should show historical source evidence
+separately from current effective reports. CSV text cells are escaped against
+spreadsheet formulas, and a zero reported balance is exported as `0.00`.
+Reversing a captured transfer without reviewed replacement balances returns a
+null legacy `balance_after`; the original captured values remain in
+`transfer_evidence`. Older unmatched scalar values are suppressed in responses
+and statement reconciliation until a current account-bound report is provided.
 
 ### What must clients send when transfer balances disagree?
 
@@ -525,6 +537,8 @@ counts. Unmatched sources and one-to-many ambiguities remain in their individual
 workflows. Legacy offset remains accepted.
 `GET /api/review/pair/` returns owned pending-source evidence, normalized SMS
 account perspective and ledger suggestions.
+An optional pending-queue `source` filter bounds comparison work, while results
+remain matched pairs rather than separate source rows.
 The POST takes both IDs, statement version, SMS updated timestamp, balance choice
 and explicit acknowledgments; it returns one transaction ID shared by both sources.
 400 means invalid values/missing review, 409 means stale/resolved/nonmatching

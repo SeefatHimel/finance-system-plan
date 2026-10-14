@@ -17,6 +17,8 @@ from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
 from apps.transactions.balance_reports import (
     account_reports,
+    applies_to_transfer,
+    has_unattributed_legacy_balance,
     primary_transfer_evidence,
     reported_values,
     reviewed_account_report,
@@ -240,11 +242,25 @@ def reporting_observations(record, account_id):
     if record.type != "transfer":
         return [record]
     observations = [
-        e for e in record.transfer_evidence.all() if e.account_id == account_id
+        e
+        for e in record.transfer_evidence.all()
+        if e.account_id == account_id and applies_to_transfer(record, e)
     ]
     if observations:
         return observations
     if record.account_id == account_id:
+        if has_unattributed_legacy_balance(record):
+            return [
+                SimpleNamespace(
+                    id=record.id,
+                    date=record.date,
+                    time=record.time,
+                    balance_after=None,
+                    reference=record.reference,
+                    note=record.note,
+                    source=record.source,
+                )
+            ]
         return [record]  # Legacy source-account report.
     # Without receiving-account evidence, the source date is only a search hint.
     return [

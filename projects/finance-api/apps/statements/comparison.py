@@ -7,6 +7,10 @@ from decimal import Decimal
 
 from django.db.models import Q
 
+from apps.transactions.balance_reports import (
+    applies_to_transfer,
+    has_unattributed_legacy_balance,
+)
 from apps.transactions.models import Transaction
 
 from .insights import analyze
@@ -218,7 +222,7 @@ def compare(batch, rows, offset=0, limit=50, bounds=None):
             [
                 e
                 for e in record.transfer_evidence.all()
-                if e.account_id == batch.account_id
+                if e.account_id == batch.account_id and applies_to_transfer(record, e)
             ]
             if record.type == "transfer"
             else []
@@ -247,6 +251,7 @@ def compare(batch, rows, offset=0, limit=50, bounds=None):
                 if not observations
                 and record.account_id == batch.account_id
                 and record.balance_after is not None
+                and not has_unattributed_legacy_balance(record)
                 else None,
                 "description": record.counterparty_text or record.note[:500],
                 "source": record.source,

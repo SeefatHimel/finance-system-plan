@@ -2611,6 +2611,17 @@ paths:
           type: string
           maxLength: 255
       - in: query
+        name: source
+        schema:
+          enum:
+          - all
+          - statement
+          - sms
+          type: string
+          default: all
+          minLength: 1
+        description: Select the pending source used to bound comparisons.
+      - in: query
         name: start_date
         schema:
           type: string

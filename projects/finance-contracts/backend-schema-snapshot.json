@@ -3185,16 +3185,9 @@
           },
           {
             "in": "query",
-            "name": "condition",
+            "name": "cursor",
             "schema": {
-              "default": "all",
-              "enum": [
-                "all",
-                "matched",
-                "unmatched",
-                "corrections"
-              ],
-              "minLength": 1,
+              "maxLength": 512,
               "type": "string"
             }
           },
@@ -3240,8 +3233,8 @@
               "default": "all",
               "enum": [
                 "all",
-                "sms",
-                "statement"
+                "statement",
+                "sms"
               ],
               "minLength": 1,
               "type": "string"
@@ -3261,7 +3254,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PendingPage"
+                  "$ref": "#/components/schemas/UnifiedPendingPage"
                 }
               }
             }
@@ -5714,13 +5707,17 @@
         },
         "sms": {
           "$ref": "#/components/schemas/ParsedMessageCandidate"
+        },
+        "sms_summary": {
+          "$ref": "#/components/schemas/UnifiedPendingSource"
         }
       },
       "required": [
         "batch",
         "match",
         "row",
-        "sms"
+        "sms",
+        "sms_summary"
       ],
       "type": "object"
     },
@@ -6978,228 +6975,6 @@
       ],
       "type": "object"
     },
-    "PendingItem": {
-      "properties": {
-        "account": {
-          "format": "uuid",
-          "nullable": true,
-          "type": "string"
-        },
-        "account_name": {
-          "type": "string"
-        },
-        "ambiguous": {
-          "type": "boolean"
-        },
-        "amount": {
-          "nullable": true,
-          "type": "string"
-        },
-        "balance_after": {
-          "nullable": true,
-          "type": "string"
-        },
-        "batch": {
-          "format": "uuid",
-          "nullable": true,
-          "type": "string"
-        },
-        "currency": {
-          "type": "string"
-        },
-        "date": {
-          "format": "date",
-          "nullable": true,
-          "type": "string"
-        },
-        "direction": {
-          "type": "string"
-        },
-        "id": {
-          "format": "uuid",
-          "type": "string"
-        },
-        "matches": {
-          "items": {
-            "$ref": "#/components/schemas/PendingMatch"
-          },
-          "type": "array"
-        },
-        "needs_correction": {
-          "type": "boolean"
-        },
-        "reference": {
-          "type": "string"
-        },
-        "source": {
-          "$ref": "#/components/schemas/Source90bEnum"
-        },
-        "time": {
-          "format": "time",
-          "nullable": true,
-          "type": "string"
-        },
-        "type": {
-          "type": "string"
-        },
-        "updated_at": {
-          "format": "date-time",
-          "type": "string"
-        },
-        "version": {
-          "nullable": true,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "account",
-        "account_name",
-        "ambiguous",
-        "amount",
-        "balance_after",
-        "batch",
-        "currency",
-        "date",
-        "description",
-        "direction",
-        "id",
-        "matches",
-        "needs_correction",
-        "reference",
-        "source",
-        "time",
-        "type",
-        "updated_at",
-        "version"
-      ],
-      "type": "object"
-    },
-    "PendingMatch": {
-      "properties": {
-        "account": {
-          "format": "uuid",
-          "nullable": true,
-          "type": "string"
-        },
-        "account_name": {
-          "type": "string"
-        },
-        "amount": {
-          "nullable": true,
-          "type": "string"
-        },
-        "balance_after": {
-          "nullable": true,
-          "type": "string"
-        },
-        "batch": {
-          "format": "uuid",
-          "nullable": true,
-          "type": "string"
-        },
-        "conflict": {
-          "type": "boolean"
-        },
-        "currency": {
-          "type": "string"
-        },
-        "date": {
-          "format": "date",
-          "nullable": true,
-          "type": "string"
-        },
-        "direction": {
-          "type": "string"
-        },
-        "id": {
-          "format": "uuid",
-          "type": "string"
-        },
-        "needs_correction": {
-          "type": "boolean"
-        },
-        "reasons": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "reference": {
-          "type": "string"
-        },
-        "source": {
-          "$ref": "#/components/schemas/Source90bEnum"
-        },
-        "strength": {
-          "$ref": "#/components/schemas/StrengthEnum"
-        },
-        "time": {
-          "format": "time",
-          "nullable": true,
-          "type": "string"
-        },
-        "type": {
-          "type": "string"
-        },
-        "updated_at": {
-          "format": "date-time",
-          "type": "string"
-        },
-        "version": {
-          "nullable": true,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "account",
-        "account_name",
-        "amount",
-        "balance_after",
-        "batch",
-        "conflict",
-        "currency",
-        "date",
-        "description",
-        "direction",
-        "id",
-        "needs_correction",
-        "reasons",
-        "reference",
-        "source",
-        "strength",
-        "time",
-        "type",
-        "updated_at",
-        "version"
-      ],
-      "type": "object"
-    },
-    "PendingPage": {
-      "properties": {
-        "count": {
-          "type": "integer"
-        },
-        "limit": {
-          "type": "integer"
-        },
-        "offset": {
-          "type": "integer"
-        },
-        "results": {
-          "items": {
-            "$ref": "#/components/schemas/PendingItem"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "count",
-        "limit",
-        "offset",
-        "results"
-      ],
-      "type": "object"
-    },
     "PendingSmsStatementMatch": {
       "properties": {
         "amount": {
@@ -8140,13 +7915,6 @@
         "sms",
         "import",
         "system"
-      ],
-      "type": "string"
-    },
-    "Source90bEnum": {
-      "enum": [
-        "sms",
-        "statement"
       ],
       "type": "string"
     },
@@ -9849,6 +9617,209 @@
         "action"
       ],
       "type": "object"
+    },
+    "UnifiedPendingItem": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "match": {
+          "$ref": "#/components/schemas/UnifiedPendingMatch"
+        },
+        "needs_correction": {
+          "type": "boolean"
+        },
+        "sms": {
+          "$ref": "#/components/schemas/UnifiedPendingSource"
+        },
+        "statement": {
+          "$ref": "#/components/schemas/UnifiedPendingSource"
+        }
+      },
+      "required": [
+        "id",
+        "match",
+        "needs_correction",
+        "sms",
+        "statement"
+      ],
+      "type": "object"
+    },
+    "UnifiedPendingMatch": {
+      "properties": {
+        "conflict": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "strength": {
+          "$ref": "#/components/schemas/StrengthEnum"
+        }
+      },
+      "required": [
+        "conflict",
+        "reasons",
+        "strength"
+      ],
+      "type": "object"
+    },
+    "UnifiedPendingOverview": {
+      "properties": {
+        "ambiguous": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "matched": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sms_only": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "statement_only": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ambiguous",
+        "matched",
+        "sms_only",
+        "statement_only"
+      ],
+      "type": "object"
+    },
+    "UnifiedPendingPage": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "next_cursor": {
+          "nullable": true,
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "overview": {
+          "$ref": "#/components/schemas/UnifiedPendingOverview"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/components/schemas/UnifiedPendingItem"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "count",
+        "limit",
+        "next_cursor",
+        "offset",
+        "overview",
+        "results"
+      ],
+      "type": "object"
+    },
+    "UnifiedPendingSource": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "account_name": {
+          "type": "string"
+        },
+        "amount": {
+          "nullable": true,
+          "type": "string"
+        },
+        "balance_after": {
+          "nullable": true,
+          "type": "string"
+        },
+        "batch": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "nullable": true,
+          "type": "string"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "needs_correction": {
+          "type": "boolean"
+        },
+        "reference": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/components/schemas/UnifiedPendingSourceSourceEnum"
+        },
+        "time": {
+          "format": "time",
+          "nullable": true,
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "version": {
+          "nullable": true,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "account",
+        "account_name",
+        "amount",
+        "balance_after",
+        "batch",
+        "currency",
+        "date",
+        "description",
+        "direction",
+        "id",
+        "needs_correction",
+        "reference",
+        "source",
+        "time",
+        "type",
+        "updated_at",
+        "version"
+      ],
+      "type": "object"
+    },
+    "UnifiedPendingSourceSourceEnum": {
+      "enum": [
+        "sms",
+        "statement"
+      ],
+      "type": "string"
     },
     "User": {
       "properties": {
