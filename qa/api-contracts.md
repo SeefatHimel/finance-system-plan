@@ -513,9 +513,12 @@ review. SMS-only and statement-only endpoints keep their existing behavior.
 
 `/api/review/pending/` returns paginated unique one-to-one review pairs as
 `{statement, sms, match}` records, with account, statement-date and combined-source
-search filters applied before pair pagination. Unmatched sources and one-to-many
-ambiguities remain in their individual workflows.
-`GET /api/review/pair/` returns owned pending-source evidence and ledger suggestions.
+search filters applied before pair pagination. It accepts an opaque cursor and
+returns `next_cursor` plus matched/ambiguous/statement-only/SMS-only overview
+counts. Unmatched sources and one-to-many ambiguities remain in their individual
+workflows. Legacy offset remains accepted.
+`GET /api/review/pair/` returns owned pending-source evidence, normalized SMS
+account perspective and ledger suggestions.
 The POST takes both IDs, statement version, SMS updated timestamp, balance choice
 and explicit acknowledgments; it returns one transaction ID shared by both sources.
 400 means invalid values/missing review, 409 means stale/resolved/nonmatching
@@ -523,3 +526,7 @@ sources, and 404 covers unavailable/foreign sources. Pair retries return unchang
 without another movement. Existing ledger suggestions cannot be silently bypassed.
 Source-message retrieval includes attached confirmed candidates as well as primary
 and transfer raw-message links. API-first rollout requires no model migration.
+Queue, detail and POST all enforce reciprocal uniqueness. Account, currency,
+direction, amount and date are necessary, while reference, reported balance,
+normalized counterparty or known transfer counterpart supplies independent
+corroboration; amount/date alone does not create a pair.

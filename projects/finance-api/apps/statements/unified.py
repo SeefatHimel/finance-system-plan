@@ -1,6 +1,10 @@
 """Pending-source suggestions and an atomic, explicit SMS/PDF decision."""
 
+import base64
+import binascii
+import json
 from collections import defaultdict
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db import transaction
@@ -98,9 +102,18 @@ def pair_signals(row, candidate):
     merchant = merchant_text(
         row.counterparty_text or row.extracted.get("description", "")
     )
-    same_merchant = bool(
-        merchant and merchant == merchant_text(candidate.counterparty_text)
+    sms_merchant = merchant_text(candidate.counterparty_text)
+    same_merchant = bool(merchant and merchant == sms_merchant)
+    merchant_conflict = bool(merchant and sms_merchant and merchant != sms_merchant)
+    same_counterpart = bool(
+        row.other_account_id
+        and other_account
+        and row.other_account_id == other_account.pk
     )
+    # Exact amount/date alone is common enough to create believable false matches.
+    # Unified review therefore requires an independent source signal as well.
+    if not (same_reference or same_balance or same_merchant or same_counterpart):
+        return None
     if distance > 1 and not (same_reference or same_balance):
         return None
     conflict = (
@@ -118,6 +131,10 @@ def pair_signals(row, candidate):
         reasons.append("Reported balances agree.")
     if same_merchant:
         reasons.append("Counterparty wording agrees.")
+    elif merchant_conflict:
+        reasons.append("Counterparty wording differs.")
+    if same_counterpart:
+        reasons.append("Transfer counterpart account agrees.")
     if conflict:
         reasons.append(
             f"Reported balance difference: {row.balance_after - candidate.balance_after:+.2f}."
@@ -127,14 +144,17 @@ def pair_signals(row, candidate):
     )
     return {
         "strength": "strong"
-        if distance == 0 and (same_reference or same_balance) and not conflict
+        if distance == 0
+        and (same_reference or same_balance or same_merchant or same_counterpart)
+        and not conflict
+        and not merchant_conflict
         else "possible",
         "conflict": conflict,
         "reasons": reasons,
     }
 
 
-def pending_sources(user, account_id=None):
+def pending_sources(user, account_id=None, start_date=None, end_date=None):
     from .models import StatementRow
 
     rows = StatementRow.objects.filter(
@@ -150,6 +170,14 @@ def pending_sources(user, account_id=None):
 
         candidates = candidates.filter(
             Q(account_id=account_id) | Q(destination_account_id=account_id)
+        )
+    if start_date and end_date:
+        rows = rows.filter(date__range=(start_date, end_date))
+        candidates = candidates.filter(
+            raw_message__received_at__date__range=(
+                start_date - timedelta(days=3),
+                end_date + timedelta(days=3),
+            )
         )
     rows, candidates = (
         list(rows.order_by("id")[: MAX_PENDING + 1]),
@@ -215,8 +243,61 @@ def summary(source):
     }
 
 
+def unique_pair_signals(user, row, candidate):
+    """Return signals only when both pending sources claim exactly one another."""
+
+    signals = pair_signals(row, candidate)
+    if not signals:
+        return None
+    rows, candidates = pending_sources(user, row.batch.account_id)
+    if sum(pair_signals(row, item) is not None for item in candidates) != 1:
+        return None
+    if sum(pair_signals(item, candidate) is not None for item in rows) != 1:
+        return None
+    return signals
+
+
+def _item_key(item):
+    return (
+        item["statement"]["date"] or "",
+        item["statement"]["time"] or "",
+        item["id"],
+    )
+
+
+def _encode_cursor(item):
+    value = json.dumps(_item_key(item), separators=(",", ":")).encode()
+    return base64.urlsafe_b64encode(value).decode().rstrip("=")
+
+
+def _decode_cursor(value):
+    try:
+        padded = value + "=" * (-len(value) % 4)
+        decoded = json.loads(base64.urlsafe_b64decode(padded).decode())
+        if (
+            not isinstance(decoded, list)
+            or len(decoded) != 3
+            or not all(isinstance(part, str) for part in decoded)
+        ):
+            raise ValueError
+        return tuple(decoded)
+    except (
+        ValueError,
+        TypeError,
+        UnicodeDecodeError,
+        binascii.Error,
+        json.JSONDecodeError,
+    ):
+        raise ValidationError({"cursor": "Refresh the review queue and try again."})
+
+
 def queue(user, filters):
-    rows, candidates = pending_sources(user, filters.get("account"))
+    rows, candidates = pending_sources(
+        user,
+        filters.get("account"),
+        filters.get("start_date"),
+        filters.get("end_date"),
+    )
     buckets = defaultdict(list)
     for candidate in candidates:
         account, direction, _ = sms_observation(candidate)
@@ -243,15 +324,26 @@ def queue(user, filters):
                 row_matches[row.pk].append((candidate, signals))
                 candidate_matches[candidate.pk].append((row, signals))
     items = []
+    matched_rows = set()
+    matched_candidates = set()
+    ambiguous_rows = set()
+    ambiguous_candidates = set()
     for row in rows:
         matches = row_matches[row.pk]
         if len(matches) != 1:
+            if matches:
+                ambiguous_rows.add(row.pk)
+                ambiguous_candidates.update(candidate.pk for candidate, _ in matches)
             continue
         candidate, signals = matches[0]
         # A pair enters this queue only when both sources claim exactly one another.
         # Repeated equal movements remain in their individual review workflows.
         if len(candidate_matches[candidate.pk]) != 1:
+            ambiguous_rows.add(row.pk)
+            ambiguous_candidates.add(candidate.pk)
             continue
+        matched_rows.add(row.pk)
+        matched_candidates.add(candidate.pk)
         statement, sms = summary(row), summary(candidate)
         item = {
             "id": f"{row.pk}:{candidate.pk}",
@@ -261,13 +353,6 @@ def queue(user, filters):
             "needs_correction": statement["needs_correction"]
             or sms["needs_correction"],
         }
-        if filters.get("start_date") and (
-            not statement["date"]
-            or not filters["start_date"].isoformat()
-            <= statement["date"]
-            <= filters["end_date"].isoformat()
-        ):
-            continue
         search = filters.get("search", "").casefold()
         if (
             search
@@ -279,20 +364,38 @@ def queue(user, filters):
         ):
             continue
         items.append(item)
-    items.sort(
-        key=lambda item: (
-            item["statement"]["date"] or "",
-            item["statement"]["time"] or "",
-            item["id"],
-        ),
-        reverse=True,
-    )
+    items.sort(key=_item_key, reverse=True)
     offset, limit = filters.get("offset", 0), filters.get("limit", 50)
+    cursor = filters.get("cursor", "").strip()
+    if cursor:
+        anchor = _decode_cursor(cursor)
+        remaining = [item for item in items if _item_key(item) < anchor]
+        page_offset = 0
+    else:
+        remaining = items[offset:]
+        page_offset = offset
+    results = remaining[:limit]
+    next_cursor = (
+        _encode_cursor(results[-1]) if results and len(remaining) > limit else None
+    )
+    unmatched_rows = {
+        row.pk for row in rows if not row_matches[row.pk]
+    }
+    unmatched_candidates = {
+        candidate.pk for candidate in candidates if not candidate_matches[candidate.pk]
+    }
     return {
         "count": len(items),
-        "offset": offset,
+        "offset": page_offset,
         "limit": limit,
-        "results": items[offset : offset + limit],
+        "next_cursor": next_cursor,
+        "overview": {
+            "matched": len(matched_rows),
+            "ambiguous": len(ambiguous_rows) + len(ambiguous_candidates),
+            "statement_only": len(unmatched_rows),
+            "sms_only": len(unmatched_candidates),
+        },
+        "results": results,
     }
 
 
@@ -331,7 +434,7 @@ def confirm_pair(*, user, row, candidate, payload, request):
         raise ReviewConflict(
             "One source changed. Reload both sources before confirming."
         )
-    signals = pair_signals(row, candidate)
+    signals = unique_pair_signals(user, row, candidate)
     if not signals or sms_recorded_elsewhere(candidate):
         raise ReviewConflict(
             "These sources are no longer pending matches. Reload the queue."

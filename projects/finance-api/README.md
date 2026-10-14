@@ -1011,8 +1011,15 @@ No schema migration is needed.
 
 Authenticated, private/no-store `/api/review/pending/` returns one queue item for
 each unique one-to-one pending SMS and statement match, with account/date/search
-filters and offset pagination. Matching uses reporting-account perspective, amount,
-currency, direction, calendar date/value date and reference/balance evidence.
+filters and stable cursor pagination; legacy offset remains accepted for clients
+that have not migrated. The response also reports matched, ambiguous,
+statement-only and SMS-only source counts for the selected account/date scope.
+Matching first requires reporting-account perspective, amount, currency, direction
+and a date within three days. It then requires an independent corroborator:
+matching reference, reported balance, normalized counterparty, or a known transfer
+counterpart account. Amount and date alone never produce a unified-review pair.
+Conflicting nonempty references are rejected, and differing counterparty wording
+is exposed as negative evidence rather than presented as a strong match.
 Unmatched sources and overlapping one-to-many candidates are excluded from this
 queue and remain in their individual review workflows. Balance conflicts can still
 form a unique review pair. The read-only
@@ -1026,6 +1033,8 @@ pending state and matches, and reuses statement posting/link validation. Any fai
 rolls back the new ledger entry and both source decisions. Completed-pair retries
 are idempotent; changed ledger financial identity is rejected. Existing suggestions
 must be linked rather than bypassed with another entry in this workflow.
+The detail and confirmation endpoints repeat the reciprocal one-to-one check, so a
+stale or hand-crafted pair URL cannot bypass ambiguity protection.
 
 A new pair uses statement draft classification/date/time, the selected scalar
 balance, masked SMS identifiers and one raw-message link. An incoming transfer keeps

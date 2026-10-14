@@ -113,7 +113,7 @@ class UnifiedReviewTests(APITestCase):
             amount=amount,
             balance_after=balance,
             message_kind=kind,
-            counterparty_text="Synthetic Cafe",
+            counterparty_text=fields.pop("counterparty_text", "Synthetic Cafe"),
             **fields,
         )
         candidate.refresh_from_db()
@@ -144,6 +144,11 @@ class UnifiedReviewTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response["Cache-Control"], "no-store")
         self.assertEqual(response.data["count"], 1)
+        self.assertEqual(
+            response.data["overview"],
+            {"matched": 1, "ambiguous": 0, "statement_only": 0, "sms_only": 1},
+        )
+        self.assertIsNone(response.data["next_cursor"])
         pair = response.data["results"][0]
         self.assertEqual(pair["statement"]["id"], str(self.row.pk))
         self.assertEqual(pair["sms"]["id"], str(self.sms.pk))
@@ -167,6 +172,8 @@ class UnifiedReviewTests(APITestCase):
         self.assertEqual(
             response.data["sms"]["raw_message"]["body"], self.sms.raw_message.body
         )
+        self.assertEqual(response.data["sms_summary"]["account"], str(self.account.pk))
+        self.assertEqual(response.data["sms_summary"]["direction"], "debit")
         self.assertEqual(
             response.data["row"]["extracted"]["description"], "Synthetic Cafe"
         )
@@ -251,6 +258,99 @@ class UnifiedReviewTests(APITestCase):
         self.candidate()
         response = self.client.get(reverse("unified-pending"))
         self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["overview"]["ambiguous"], 3)
+        self.assertEqual(
+            self.client.get(
+                reverse("unified-pair"),
+                {"statement": self.row.pk, "sms": self.sms.pk},
+            ).status_code,
+            400,
+        )
+        self.assertEqual(self.confirm().status_code, 409)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_many_statement_claims_cannot_open_or_confirm_direct_pair(self):
+        StatementRow.objects.create(
+            batch=self.batch,
+            position=2,
+            component="principal",
+            source_fingerprint="synthetic-row-two",
+            date=self.row.date,
+            time=self.row.time,
+            direction=self.row.direction,
+            type=self.row.type,
+            amount=self.row.amount,
+            balance_after=self.row.balance_after,
+            counterparty_text=self.row.counterparty_text,
+            note=self.row.note,
+            classification_confirmed=True,
+            extracted=self.row.extracted,
+        )
+        self.assertEqual(self.client.get(reverse("unified-pending")).data["count"], 0)
+        self.assertEqual(
+            self.client.get(
+                reverse("unified-pair"),
+                {"statement": self.row.pk, "sms": self.sms.pk},
+            ).status_code,
+            400,
+        )
+        self.assertEqual(self.confirm().status_code, 409)
+
+    def test_amount_and_date_without_independent_evidence_are_not_a_match(self):
+        self.row.balance_after = None
+        self.row.counterparty_text = "Synthetic Grocer"
+        self.row.extracted = {**self.row.extracted, "description": "Synthetic Grocer"}
+        self.row.save()
+        self.sms.balance_after = None
+        self.sms.counterparty_text = "Synthetic Pharmacy"
+        self.sms.save()
+        self.assertIsNone(pair_signals(self.row, self.sms))
+        response = self.client.get(reverse("unified-pending"))
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["overview"]["statement_only"], 1)
+        self.assertEqual(response.data["overview"]["sms_only"], 1)
+
+    def test_cursor_pagination_is_stable_when_an_earlier_pair_is_removed(self):
+        second_row = StatementRow.objects.create(
+            batch=self.batch,
+            position=2,
+            component="principal",
+            source_fingerprint="synthetic-later-row",
+            date=date(2026, 1, 3),
+            time=self.row.time,
+            direction="debit",
+            type="expense",
+            amount="200.00",
+            balance_after="700.00",
+            counterparty_text="Synthetic Market",
+            note="Synthetic Market",
+            classification_confirmed=True,
+            extracted={
+                **self.row.extracted,
+                "id": "synthetic-later",
+                "date": "2026-01-03",
+                "amount": "200.00",
+                "balance_after": "700.00",
+                "description": "Synthetic Market",
+            },
+        )
+        second_sms = self.candidate(
+            amount="200.00",
+            balance="700.00",
+            day=3,
+            counterparty_text="Synthetic Market",
+        )
+        first = self.client.get(reverse("unified-pending"), {"limit": 1})
+        self.assertEqual(first.data["results"][0]["statement"]["id"], str(second_row.pk))
+        cursor = first.data["next_cursor"]
+        second_row.state = "skipped"
+        second_row.save()
+        second_sms.status = "ignored"
+        second_sms.save()
+        following = self.client.get(
+            reverse("unified-pending"), {"limit": 1, "cursor": cursor}
+        )
+        self.assertEqual(following.data["results"][0]["statement"]["id"], str(self.row.pk))
 
     def test_existing_ledger_prevents_duplicate_and_keeps_both_sms_sources(self):
         raw = RawMessage.objects.create(
@@ -386,3 +486,8 @@ class UnifiedReviewTests(APITestCase):
             response = self.client.get(reverse("unified-pending"))
             self.assertEqual(response.status_code, 400)
             self.assertIn("queue", response.data)
+        response = self.client.get(
+            reverse("unified-pending"), {"cursor": "not-a-valid-cursor"}
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("cursor", response.data)

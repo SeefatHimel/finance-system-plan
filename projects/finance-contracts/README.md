@@ -577,12 +577,16 @@ deploy web and API together.
 ### Unified matched-pair review
 
 - `GET /api/review/pending/`: account UUID, combined-source search, inclusive
-  `start_date/end_date` (maximum 366 days), offset and limit (1–100, default 50).
-  Returns `{count, offset, limit, results}`; each result contains one unique
-  one-to-one `{statement, sms, match}` pair. Count is the number of review pairs.
-  Unmatched and ambiguous one-to-many sources are excluded.
+  `start_date/end_date` (maximum 366 days), opaque `cursor`, legacy offset and
+  limit (1–100, default 50). Returns
+  `{count, offset, limit, next_cursor, overview, results}`; `overview` contains
+  matched, ambiguous, statement-only and SMS-only source counts for the selected
+  account/date scope. Each result contains one reciprocal one-to-one
+  `{statement, sms, match}` pair. Count is the number of review pairs. Unmatched
+  and ambiguous sources are excluded.
 - `GET /api/review/pair/?statement=<uuid>&sms=<uuid>`: owned, still-pending pair
-  details with the saved statement draft, batch, parsed SMS/original text and reasons.
+  details with the saved statement draft, batch, parsed SMS/original text,
+  normalized `sms_summary` account perspective and reasons.
 - `POST /api/review/pair/`: `statement`, `sms`, `statement_version`, `sms_updated_at`,
   `balance_source` (`sms/statement/existing`), `acknowledge_match`,
   `acknowledge_conflict`, `acknowledge_issues`, optional `transaction` and
@@ -595,6 +599,10 @@ stale/resolved/nonmatching sources. HTTP 400 reports missing acknowledgments or
 invalid drafts. Ownership failures return 404. Retries for the same resolved pair
 are idempotent, and every failure rolls back all decisions. All responses are
 private/no-store. Statement fees remain separate. Deploy API before web; no migration.
+Queue, detail and confirmation all enforce reciprocal uniqueness. A pair also
+requires matching reference, reported balance, normalized counterparty, or known
+transfer counterpart in addition to account/currency/direction/amount/date.
+Amount/date alone is deliberately insufficient.
 
 Transaction source-message responses optionally add `parsed` (nullable): saved
 SMS amount, balance_after, reference and type. These fields remain available after

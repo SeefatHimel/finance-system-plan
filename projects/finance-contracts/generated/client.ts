@@ -528,6 +528,7 @@ export class FinanceApiClient {
 
   async getApiReviewPending(query?: {
   account?: string;
+  cursor?: string;
   end_date?: string;
   limit?: number;
   offset?: number;

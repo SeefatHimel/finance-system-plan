@@ -1256,6 +1256,7 @@ export interface UnifiedPairDetail {
   row: SavedStatementRow;
   batch: StatementImport;
   sms: ParsedMessageCandidate;
+  sms_summary: UnifiedPendingSource;
   match: unknown;
 }
 
@@ -1304,7 +1305,16 @@ export interface UnifiedPendingPage {
   count: number;
   offset: number;
   limit: number;
+  next_cursor: string | null;
+  overview: UnifiedPendingOverview;
   results: UnifiedPendingItem[];
+}
+
+export interface UnifiedPendingOverview {
+  matched: number;
+  ambiguous: number;
+  statement_only: number;
+  sms_only: number;
 }
 
 export type UnifiedSourceEnum = "sms" | "statement";

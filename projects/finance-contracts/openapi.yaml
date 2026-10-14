@@ -2530,6 +2530,11 @@ paths:
           type: string
           format: uuid
       - in: query
+        name: cursor
+        schema:
+          type: string
+          maxLength: 512
+      - in: query
         name: end_date
         schema:
           type: string
@@ -6072,12 +6077,15 @@ components:
           $ref: '#/components/schemas/StatementImport'
         sms:
           $ref: '#/components/schemas/ParsedMessageCandidate'
+        sms_summary:
+          $ref: '#/components/schemas/UnifiedPendingSource'
         match: {}
       required:
       - batch
       - match
       - row
       - sms
+      - sms_summary
     UnifiedPairResult:
       type: object
       properties:
@@ -6208,6 +6216,11 @@ components:
           type: integer
         limit:
           type: integer
+        next_cursor:
+          type: string
+          nullable: true
+        overview:
+          $ref: '#/components/schemas/UnifiedPendingOverview'
         results:
           type: array
           items:
@@ -6215,8 +6228,30 @@ components:
       required:
       - count
       - limit
+      - next_cursor
       - offset
+      - overview
       - results
+    UnifiedPendingOverview:
+      type: object
+      properties:
+        matched:
+          type: integer
+          minimum: 0
+        ambiguous:
+          type: integer
+          minimum: 0
+        statement_only:
+          type: integer
+          minimum: 0
+        sms_only:
+          type: integer
+          minimum: 0
+      required:
+      - ambiguous
+      - matched
+      - sms_only
+      - statement_only
     UnifiedSourceEnum:
       enum:
       - sms
