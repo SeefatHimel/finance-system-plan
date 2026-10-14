@@ -863,6 +863,9 @@ ambiguity is resolved. Pair filtering and pagination therefore operate on review
 pairs rather than duplicated source observations. Exact account, direction, amount
 and date are necessary but insufficient: matching reference, balance, normalized
 counterparty or known transfer counterpart must independently corroborate the pair.
+For BDT, a reported-balance difference below Tk 1 also corroborates matching,
+but still counts as a conflict. Both source reports keep their exact values,
+and posting requires the usual explicit choice of effective balance.
 The queue, pair detail and confirmation endpoint all repeat reciprocal uniqueness
 checks. This prevents a stale or hand-crafted detail request from bypassing an
 ambiguity discovered after the queue loaded. Opaque cursors keep pagination stable

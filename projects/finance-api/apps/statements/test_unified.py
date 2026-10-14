@@ -318,6 +318,7 @@ class UnifiedReviewTests(APITestCase):
         ]:
             self.assertIsNone(pair_signals(self.row, candidate))
         far = self.candidate(day=5)
+        far.balance_after = Decimal("899.07")
         self.assertIsNone(pair_signals(self.row, far))
         far.balance_after = self.row.balance_after
         self.assertIsNotNone(pair_signals(self.row, far))
@@ -336,6 +337,37 @@ class UnifiedReviewTests(APITestCase):
         self.sms.reference = "synth-reference"
         self.sms.save()
         self.assertEqual(pair_signals(self.row, self.sms)["strength"], "strong")
+
+    def test_sub_taka_balance_difference_suggests_pair_without_changing_reports(self):
+        self.sms.counterparty_text = ""
+        self.sms.save()
+        signals = pair_signals(self.row, self.sms)
+        self.assertIsNotNone(signals)
+        self.assertEqual(signals["strength"], "possible")
+        self.assertTrue(signals["conflict"])
+        self.assertIn("Reported balances differ by less than BDT 1.", signals["reasons"])
+        response = self.client.get(reverse("unified-pending"))
+        self.assertEqual(response.data["overview"]["matched"], 1)
+        self.assertEqual(Transaction.objects.count(), 0)
+        self.assertEqual(self.row.balance_after, Decimal("900.07"))
+        self.assertEqual(self.sms.balance_after, Decimal("900.00"))
+
+    def test_balance_difference_threshold_is_strictly_below_one_taka(self):
+        self.sms.counterparty_text = ""
+        self.sms.balance_after = Decimal("899.08")
+        self.assertIsNotNone(pair_signals(self.row, self.sms))
+        self.sms.balance_after = Decimal("899.07")
+        self.assertIsNone(pair_signals(self.row, self.sms))
+
+    def test_subunit_balance_tolerance_is_bdt_only(self):
+        self.sms.counterparty_text = ""
+        self.account.currency = "USD"
+        self.account.save()
+        self.batch.currency = "USD"
+        self.batch.save()
+        self.assertIsNone(pair_signals(self.row, self.sms))
+        self.sms.balance_after = self.row.balance_after
+        self.assertIsNotNone(pair_signals(self.row, self.sms))
 
     def test_shared_claims_stay_out_of_unique_pair_queue(self):
         self.candidate()

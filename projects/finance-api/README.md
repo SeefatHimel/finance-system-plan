@@ -1059,10 +1059,13 @@ Matching first requires reporting-account perspective, amount, currency, directi
 and a date within three days. It then requires an independent corroborator:
 matching reference, reported balance, normalized counterparty, or a known transfer
 counterpart account. Amount and date alone never produce a unified-review pair.
+For matching only, reported balances less than BDT 1 apart count as corroborating
+evidence. Their original values remain distinct: the pair stays a possible match
+with a balance conflict, and confirmation still requires an explicit balance choice.
 Conflicting nonempty references are rejected, and differing counterparty wording
 is exposed as negative evidence rather than presented as a strong match. Exact
 counterparty wording by itself produces a possible match; a strong label requires
-same-day reference, reported-balance, or known counterpart-account evidence.
+same-day reference, exact reported-balance, or known counterpart-account evidence.
 Unmatched sources and overlapping one-to-many candidates are excluded from this
 queue and remain in their individual review workflows. Balance conflicts can still
 form a unique review pair. The read-only

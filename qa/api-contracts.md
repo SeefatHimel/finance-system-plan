@@ -535,6 +535,9 @@ search filters applied before pair pagination. It accepts an opaque cursor and
 returns `next_cursor` plus matched/ambiguous/statement-only/SMS-only overview
 counts. Unmatched sources and one-to-many ambiguities remain in their individual
 workflows. Legacy offset remains accepted.
+Reported balances less than BDT 1 apart may corroborate a pending pair, but
+the API still reports the exact difference as a conflict and requires the usual
+explicit balance choice before confirmation. Neither source report is rounded.
 `GET /api/review/pair/` returns owned pending-source evidence, normalized SMS
 account perspective and ledger suggestions.
 An optional pending-queue `source` filter bounds comparison work, while results

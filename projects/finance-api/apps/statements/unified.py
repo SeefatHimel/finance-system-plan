@@ -105,6 +105,14 @@ def pair_signals(row, candidate):
     same_balance = (
         row.balance_after is not None and row.balance_after == candidate.balance_after
     )
+    near_balance = (
+        row.batch.currency == "BDT"
+        and row.balance_after is not None
+        and candidate.balance_after is not None
+        and Decimal("0.00")
+        < abs(row.balance_after - candidate.balance_after)
+        < Decimal("1.00")
+    )
     merchant = merchant_text(
         row.counterparty_text or row.extracted.get("description", "")
     )
@@ -118,9 +126,11 @@ def pair_signals(row, candidate):
     )
     # Exact amount/date alone is common enough to create believable false matches.
     # Unified review therefore requires an independent source signal as well.
-    if not (same_reference or same_balance or same_merchant or same_counterpart):
+    if not (
+        same_reference or same_balance or near_balance or same_merchant or same_counterpart
+    ):
         return None
-    if distance > 1 and not (same_reference or same_balance):
+    if distance > 1 and not (same_reference or same_balance or near_balance):
         return None
     conflict = (
         row.balance_after is not None
@@ -135,6 +145,8 @@ def pair_signals(row, candidate):
         reasons.append("Reference agrees.")
     if same_balance:
         reasons.append("Reported balances agree.")
+    elif near_balance:
+        reasons.append("Reported balances differ by less than BDT 1.")
     if same_merchant:
         reasons.append("Counterparty wording agrees.")
     elif merchant_conflict:
