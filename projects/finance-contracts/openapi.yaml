@@ -6114,6 +6114,29 @@ components:
         * `statement` - statement
 
         * `existing` - existing'
+    UnifiedTypeChoiceEnum:
+      type: string
+      enum:
+      - statement
+      - sms
+      - custom
+      description: Explicit source or manual correction when statement and SMS types differ.
+    UnifiedPairDraft:
+      allOf:
+      - $ref: '#/components/schemas/PatchedStatementRowEdit'
+      - type: object
+        properties:
+          version:
+            type: integer
+            minimum: 1
+          direction:
+            $ref: '#/components/schemas/TransactionDirection'
+          type:
+            $ref: '#/components/schemas/TransactionType'
+        required:
+        - version
+        - direction
+        - type
     UnifiedPairDecision:
       type: object
       properties:
@@ -6135,6 +6158,10 @@ components:
           nullable: true
         balance_source:
           $ref: '#/components/schemas/UnifiedBalanceSourceEnum'
+        type_choice:
+          $ref: '#/components/schemas/UnifiedTypeChoiceEnum'
+        draft:
+          $ref: '#/components/schemas/UnifiedPairDraft'
         acknowledge_match:
           type: boolean
           default: false

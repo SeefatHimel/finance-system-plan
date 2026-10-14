@@ -356,9 +356,11 @@ class StatementRowEditSerializer(serializers.ModelSerializer):
         return fields
 
     def validate_other_account(self, value):
+        row = self.instance or self.context.get("row")
         if value and (
-            value.id == self.instance.batch.account_id
-            or value.currency != self.instance.batch.currency
+            row is None
+            or value.id == row.batch.account_id
+            or value.currency != row.batch.currency
         ):
             raise serializers.ValidationError(
                 "Choose a different owned account in the statement currency."

@@ -1251,6 +1251,14 @@ export interface StatementComparison {
 
 export type UnifiedBalanceSourceEnum = "sms" | "statement" | "existing";
 
+export type UnifiedTypeChoiceEnum = "statement" | "sms" | "custom";
+
+export type UnifiedPairDraft = PatchedStatementRowEdit & {
+  version: number;
+  direction: TransactionDirection;
+  type: TransactionType;
+};
+
 export interface UnifiedPairDecision {
   statement: string;
   sms: string;
@@ -1258,6 +1266,8 @@ export interface UnifiedPairDecision {
   sms_updated_at: string;
   transaction?: string | null;
   balance_source: UnifiedBalanceSourceEnum;
+  type_choice?: UnifiedTypeChoiceEnum;
+  draft?: UnifiedPairDraft;
   acknowledge_match?: boolean;
   acknowledge_conflict?: boolean;
   acknowledge_issues?: boolean;

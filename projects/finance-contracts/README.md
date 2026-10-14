@@ -604,10 +604,16 @@ deploy web and API together.
 - `POST /api/review/pair/`: `statement`, `sms`, `statement_version`, `sms_updated_at`,
   `balance_source` (`sms/statement/existing`), `acknowledge_match`,
   `acknowledge_conflict`, `acknowledge_issues`, optional `transaction` and
-  `remember_choices`. Returns `{transaction, statement, sms, unchanged}`.
+  `remember_choices`. Optional `draft` contains reviewed statement-row fields
+  with the same version; `type_choice` is required for a parsed type disagreement
+  and must agree with the resulting type. Returns
+  `{transaction, statement, sms, unchanged}`.
 
-New pairs use one statement-draft movement and the chosen balance; both source
+New pairs use one reviewed statement-draft movement and the chosen balance; both source
 reports remain. A missing report cannot replace an available one. Transfer
+Inline draft edits and pair confirmation share one transaction. Date, direction
+and amount corrections must preserve a unique source match; metadata and balance
+corrections retain the original source evidence that established the pair.
 evidence marks the reviewed effective balance per account without changing the
 original source reports. Existing ledger suggestions must be selected explicitly, with
 `balance_source=existing`; their ledger balance stays unchanged. HTTP 409 reports

@@ -544,6 +544,11 @@ An optional pending-queue `source` filter bounds comparison work, while results
 remain matched pairs rather than separate source rows.
 The POST takes both IDs, statement version, SMS updated timestamp, balance choice
 and explicit acknowledgments; it returns one transaction ID shared by both sources.
+An optional `draft` carries reviewed statement-row fields and its matching version.
+`type_choice` identifies `statement`, `sms`, or `custom` when parsed types differ;
+the final draft type must agree with that choice. The server saves edits and the
+pair decision atomically, rechecking a unique match for date, direction or amount
+changes while preserving the two original source observations.
 400 means invalid values/missing review, 409 means stale/resolved/nonmatching
 sources, and 404 covers unavailable/foreign sources. Pair retries return unchanged
 without another movement. Existing ledger suggestions cannot be silently bypassed.

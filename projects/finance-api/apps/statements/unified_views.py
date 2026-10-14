@@ -11,7 +11,11 @@ from apps.messages.serializers import ParsedMessageCandidateSerializer
 
 from .models import StatementRow
 from .review_views import NoStoreMixin, StatementRowViewSet
-from .serializers import SavedStatementRowSerializer, StatementImportSerializer
+from .serializers import (
+    SavedStatementRowSerializer,
+    StatementImportSerializer,
+    StatementRowEditSerializer,
+)
 from .unified import confirm_pair, queue, summary, unique_pair_signals
 
 
@@ -102,6 +106,18 @@ class PairDecision(PairSelection):
     acknowledge_conflict = serializers.BooleanField(default=False)
     acknowledge_issues = serializers.BooleanField(default=False)
     remember_choices = serializers.BooleanField(default=False)
+    type_choice = serializers.ChoiceField(
+        choices=("statement", "sms", "custom"), required=False
+    )
+    draft = StatementRowEditSerializer(required=False)
+
+    def validate(self, attrs):
+        draft = attrs.get("draft")
+        if draft and draft["version"] != attrs["statement_version"]:
+            raise serializers.ValidationError(
+                {"draft": "The draft version must match the selected statement row."}
+            )
+        return attrs
 
 
 class PairDetailSerializer(serializers.Serializer):
@@ -191,10 +207,14 @@ class UnifiedPairView(NoStoreMixin, APIView):
         request=PairDecision, responses=PairResultSerializer, tags=["Unified review"]
     )
     def post(self, request):
-        serializer = PairDecision(data=request.data)
+        selection = PairSelection(data=request.data)
+        selection.is_valid(raise_exception=True)
+        row, candidate = selected_sources(request.user, selection.validated_data)
+        serializer = PairDecision(
+            data=request.data, context={"request": request, "row": row}
+        )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        row, candidate = selected_sources(request.user, data)
         record, unchanged = confirm_pair(
             user=request.user,
             row=row,

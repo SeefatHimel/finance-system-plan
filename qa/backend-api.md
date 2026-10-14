@@ -855,6 +855,14 @@ retries are idempotent. Conflicting balances require acknowledgment and an expli
 balance choice for new entries; existing ledger balances stay intact. Raw SMS text
 follows retention settings while parsed fields and links remain. Ownership scopes
 apply to both sources and any existing ledger target. No migration/backfill occurs.
+The confirmation request may include an edited statement draft, which is saved in
+the same transaction before posting. A parsed type disagreement requires an
+explicit statement/SMS/custom choice consistent with the result. Financial
+identity edits must preserve unique pairing, while merchant/note/category/balance
+corrections keep the original evidence that established the match. Invalid or
+stale edits roll back without partially resolving either source.
+The server requires explicit review acknowledgment for an edited result and
+balance-conflict acknowledgment if the edit creates a new reported-balance difference.
 
 The unified queue emits only reciprocal one-to-one matches and represents each
 pair once. An SMS or statement with zero candidates stays in its source workflow;

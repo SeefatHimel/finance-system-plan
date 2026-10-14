@@ -136,6 +136,25 @@ class UnifiedReviewTests(APITestCase):
             **overrides,
         }
 
+    def draft(self, **overrides):
+        return {
+            "version": self.row.version,
+            "date": self.row.date.isoformat(),
+            "time": self.row.time.isoformat() if self.row.time else None,
+            "value_date": None,
+            "direction": self.row.direction,
+            "amount": str(self.row.amount),
+            "balance_after": str(self.row.balance_after),
+            "type": self.row.type,
+            "other_account": str(self.row.other_account_id) if self.row.other_account_id else None,
+            "category": str(self.row.category_id) if self.row.category_id else None,
+            "reference": self.row.reference,
+            "counterparty_text": self.row.counterparty_text,
+            "note": self.row.note,
+            "classification_confirmed": True,
+            **overrides,
+        }
+
     def confirm(self, **overrides):
         return self.client.post(
             reverse("unified-pair"), self.payload(**overrides), format="json"
@@ -211,6 +230,115 @@ class UnifiedReviewTests(APITestCase):
         response = self.confirm(balance_source="statement")
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(Transaction.objects.get().balance_after, Decimal("900.07"))
+
+    def test_type_disagreement_requires_explicit_choice(self):
+        self.sms.transaction_type = "transfer"
+        self.sms.save()
+        self.sms.refresh_from_db()
+        response = self.confirm()
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("type_choice", response.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        response = self.confirm(type_choice="statement")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(Transaction.objects.get().type, "expense")
+
+    def test_one_step_draft_correction_creates_transfer_and_keeps_originals(self):
+        self.sms.transaction_type = "transfer"
+        self.sms.save()
+        self.sms.refresh_from_db()
+        original = self.row.extracted.copy()
+        response = self.confirm(
+            type_choice="sms",
+            draft=self.draft(
+                type="transfer",
+                other_account=str(self.wallet.pk),
+                counterparty_text="Synthetic wallet",
+                note="Reviewed movement between owned accounts",
+            ),
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.row.refresh_from_db()
+        self.sms.refresh_from_db()
+        record = Transaction.objects.get()
+        self.assertEqual(record.type, "transfer")
+        self.assertEqual(record.account_id, self.account.pk)
+        self.assertEqual(record.transfer_account_id, self.wallet.pk)
+        self.assertEqual(record.note, "Reviewed movement between owned accounts")
+        self.assertEqual(self.row.extracted, original)
+        self.assertEqual(self.sms.balance_after, Decimal("900.00"))
+        self.assertEqual(self.row.balance_after, Decimal("900.07"))
+        self.assertEqual(self.row.transaction_id, record.pk)
+        self.assertEqual(self.sms.transaction_id, record.pk)
+
+    def test_draft_that_breaks_match_rolls_back_without_posting(self):
+        response = self.confirm(draft=self.draft(amount="101.00"))
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("draft", response.data)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.amount, Decimal("100.00"))
+        self.assertEqual(self.row.state, "pending")
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_corrected_merchant_keeps_original_pair_evidence(self):
+        self.row.balance_after = None
+        self.row.save(update_fields=["balance_after"])
+        self.sms.balance_after = None
+        self.sms.save(update_fields=["balance_after"])
+        self.row.refresh_from_db()
+        self.sms.refresh_from_db()
+        self.assertIsNotNone(pair_signals(self.row, self.sms))
+        response = self.confirm(
+            draft=self.draft(
+                balance_after=None,
+                counterparty_text="Corrected merchant",
+                note="Reviewed purchase",
+            )
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(Transaction.objects.get().counterparty_text, "Corrected merchant")
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.extracted["description"], "Synthetic Cafe")
+
+    def test_corrected_statement_balance_is_selected_without_changing_sms_report(self):
+        response = self.confirm(
+            balance_source="statement",
+            draft=self.draft(balance_after="900.44"),
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        record = Transaction.objects.get()
+        self.sms.refresh_from_db()
+        self.assertEqual(record.balance_after, Decimal("900.44"))
+        self.assertEqual(self.sms.balance_after, Decimal("900.00"))
+
+    def test_edited_draft_and_new_balance_difference_need_review_acknowledgments(self):
+        self.row.balance_after = Decimal("900.00")
+        self.row.save(update_fields=["balance_after"])
+        self.row.refresh_from_db()
+        edited = self.draft(balance_after="900.44", note="Reviewed purchase")
+        response = self.confirm(draft=edited, acknowledge_issues=False)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("acknowledge_issues", response.data)
+        response = self.confirm(draft=edited, acknowledge_conflict=False)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("acknowledge_conflict", response.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.balance_after, Decimal("900.00"))
+
+    def test_stale_or_foreign_draft_is_rejected(self):
+        self.assertEqual(
+            self.confirm(draft=self.draft(version=self.row.version + 1)).status_code,
+            400,
+        )
+        foreign = Account.objects.create(
+            user=self.other_user, name="Other user's account", type="bank", currency="BDT"
+        )
+        response = self.confirm(
+            draft=self.draft(type="transfer", other_account=str(foreign.pk))
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertEqual(Transaction.objects.count(), 0)
 
     def test_missing_balance_cannot_replace_reported_value(self):
         self.sms.balance_after = None

@@ -547,13 +547,64 @@ def confirm_pair(*, user, row, candidate, payload, request):
         raise ReviewConflict(
             "These sources are no longer pending matches. Reload the queue."
         )
+    original_type = row.type
+    draft = payload.get("draft")
+    draft_changed = False
+    if draft:
+        if draft["version"] != row.version:
+            raise ReviewConflict("The statement draft changed. Reload the pair.")
+        before_draft = row_snapshot(row)
+        identity_before = (row.date, row.direction, row.amount)
+        for field, value in draft.items():
+            if field != "version":
+                setattr(row, field, value)
+        if row_snapshot(row) != before_draft:
+            draft_changed = True
+            # Merchant, category, balance and note corrections must not erase the
+            # evidence that made the two original sources a unique pair. Changes
+            # to the movement's date, direction or amount do need a fresh match.
+            if (row.date, row.direction, row.amount) != identity_before:
+                signals = unique_pair_signals(user, row, candidate)
+                if not signals:
+                    raise ValidationError(
+                        {"draft": "These edits no longer support a unique SMS and statement match. Correct the sources separately or restore the matching values."}
+                    )
+            touch(row, user, before_draft, {"decision": "unified_draft_edit"})
+    type_choice = payload.get("type_choice")
+    if original_type != candidate.transaction_type and not type_choice:
+        raise ValidationError(
+            {"type_choice": "The statement and SMS classify this movement differently. Choose the transaction type before confirming."}
+        )
+    if (
+        original_type != candidate.transaction_type
+        and type_choice == "custom"
+        and row.type in {original_type, candidate.transaction_type}
+    ):
+        raise ValidationError(
+            {"type_choice": "For one of the suggested types, choose Statement or SMS. Otherwise select a different type."}
+        )
+    if (type_choice == "statement" and row.type != original_type) or (
+        type_choice == "sms" and row.type != candidate.transaction_type
+    ):
+        raise ValidationError(
+            {"type_choice": "The selected type source does not match the edited transaction type."}
+        )
     if not payload["acknowledge_match"]:
         raise ValidationError(
             {
                 "acknowledge_match": "Confirm that these sources describe the same movement."
             }
         )
-    if signals["conflict"] and not payload["acknowledge_conflict"]:
+    if draft_changed and not payload["acknowledge_issues"]:
+        raise ValidationError(
+            {"acknowledge_issues": "Review the edited result against both original sources before confirming."}
+        )
+    edited_balance_conflict = (
+        row.balance_after is not None
+        and candidate.balance_after is not None
+        and row.balance_after != candidate.balance_after
+    )
+    if (signals["conflict"] or edited_balance_conflict) and not payload["acknowledge_conflict"]:
         raise ValidationError(
             {"acknowledge_conflict": "Review both reported balances before matching."}
         )

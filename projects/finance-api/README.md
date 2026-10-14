@@ -1081,6 +1081,15 @@ first paginated inbox page.
 
 `POST /api/review/pair/` requires both IDs, statement version, SMS `updated_at`,
 explicit same-movement confirmation, balance source and applicable acknowledgments.
+It optionally accepts a full edited statement `draft` with the same version and a
+`type_choice` (`statement`, `sms`, or `custom`). When the two parsed types differ,
+the type choice is required and must agree with the edited type. The server
+validates ownership, financial values and transfer account path, then saves the
+draft and confirms the pair in one database transaction. Date, direction and
+amount corrections must still support a unique match; metadata and balance
+corrections retain the original evidence that established the pair.
+An edited draft requires explicit source-review acknowledgment; any new
+statement/SMS balance difference requires conflict acknowledgment as well.
 It serializes writers through the shared user lock, locks both sources, rechecks
 pending state and matches, and reuses statement posting/link validation. Any failure
 rolls back the new ledger entry and both source decisions. Completed-pair retries
@@ -1092,7 +1101,7 @@ Reciprocal uniqueness is calculated across the complete pending account scope
 before the display date range is applied, so filtering cannot hide a competing
 source and make an ambiguous relationship appear confirmable.
 
-A new pair uses statement draft classification/date/time, the selected scalar
+A new pair uses the reviewed draft classification/date/time, the selected scalar
 balance, masked SMS identifiers and one raw-message link. A source with no reported
 balance cannot replace the other source's available report. Transfer evidence
 marks the reviewed effective report per account without overwriting either
