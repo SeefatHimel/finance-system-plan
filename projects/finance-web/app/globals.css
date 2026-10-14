@@ -3457,11 +3457,35 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .unified-review-pagination { justify-content: flex-end; }
 .status-badge--warning { background: #2b2414; border-color: #4a3b1d; color: var(--warning); }
 .viewport-modal.unified-pair-dialog { max-width: min(1400px, calc(100vw - 32px)); }
+.unified-result-editor { background: var(--background); border: 1px solid var(--panel-border); border-radius: 12px; padding: 18px; }
+.unified-result-editor > header { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
+.unified-result-editor h3 { margin: 0; }
+.unified-result-editor header p { color: var(--muted); margin: 6px 0 0; }
+.unified-result-editor .statement-edit-fields { margin-bottom: 0; }
+.unified-result-editor .field { min-width: 0; }
+.unified-result-editor .field__control { max-width: 100%; min-width: 0; }
+.unified-type-choice { background: #2b2414; border: 1px solid #4a3b1d; border-radius: 10px; margin: 18px 0 0; padding: 14px; }
+.unified-type-choice legend { color: var(--warning); font-weight: 750; padding: 0 5px; }
+.unified-type-choice p { margin: 0 0 12px; }
+.unified-type-options { display: flex; flex-wrap: wrap; gap: 10px; }
+.unified-type-options label { align-items: center; background: var(--background); border: 1px solid var(--panel-border); border-radius: 8px; cursor: pointer; display: inline-flex; gap: 9px; min-height: 44px; padding: 9px 12px; }
+.unified-type-options label:has(input:checked) { border-color: var(--accent); }
+.unified-type-options input { accent-color: var(--accent); }
+.unified-suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.unified-suggestion { background: transparent; border: 1px solid var(--panel-border); border-radius: 6px; color: var(--accent); cursor: pointer; font: inherit; font-size: 12px; max-width: 100%; overflow: hidden; padding: 4px 7px; text-overflow: ellipsis; white-space: nowrap; }
+.unified-suggestion:hover, .unified-suggestion:focus-visible { border-color: var(--accent); }
+.unified-path-preview { border-top: 1px solid var(--panel-border); margin: 18px 0 0; padding-top: 14px; }
+.unified-source-evidence { margin-top: 16px; }
+.unified-source-evidence > summary { cursor: pointer; font-weight: 750; padding: 8px 0; }
 .statement-balance-choice { border: 0; margin: 18px 0; padding: 0; }
 .statement-balance-choice > legend { font-weight: 750; margin-bottom: 8px; padding: 0; }
 .unified-confirm-requirements { color: var(--muted); flex: 1; font-size: 13px; line-height: 1.45; min-width: min(100%, 320px); }
 .unified-confirm-requirements strong { color: var(--warning); }
+.unified-confirm-requirements__first { display: block; margin-top: 3px; }
+.unified-confirm-requirements details { margin-top: 4px; }
+.unified-confirm-requirements summary { color: var(--accent); cursor: pointer; }
 .unified-confirm-requirements ul { margin: 5px 0 0; padding-left: 18px; }
+.unified-confirm-requirements details ul { max-height: 130px; overflow-y: auto; }
 .review-return { align-items: center; display: flex; flex-wrap: wrap; gap: .75rem; margin: -.35rem 0 1rem; padding-inline: .25rem; }
 .review-return > span { color: var(--muted); font-size: .875rem; }
 .unified-pair-dialog .statement-row-footer { align-items: center; display: flex; gap: 18px; justify-content: space-between; }
@@ -3475,5 +3499,6 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
   .unified-review-badges { justify-content: flex-start; }
   .unified-review-source-summary span { white-space: normal; }
   .unified-pair-dialog .statement-row-footer { align-items: stretch; display: grid; gap: 10px; }
+  .unified-pair-dialog .statement-row-footer { max-height: none; overflow: visible; }
   .unified-pair-dialog .statement-row-footer .statement-actions { width: 100%; }
 }

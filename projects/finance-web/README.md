@@ -1126,16 +1126,23 @@ dates/account/amounts and non-financial SMS need their source editor first. SMS
 dates are received timestamps and statement dates are transaction dates, but both
 are formatted consistently. Statement fee rows remain independently reviewable.
 
-Compare opens both original sources, parsed details, reasons and reported balances.
-Edit statement draft uses the existing editor in save-only mode and refreshes the
+Compare opens an editable transaction result, prefilled from the saved statement
+draft and missing SMS details. When types differ, the reviewer must choose the
+statement type, SMS type or a different type; date/time, category, merchant,
+reference and note suggestions remain individually editable. Amount stays tied
+to the matched source amounts and must be corrected in source review. The two
+originals, match reasons and reported balances remain expandable for comparison.
+Inactive saved categories are cleared from the proposed result so the reviewer
+can choose an active category or leave it uncategorized.
+Edit statement draft still uses the existing editor in save-only mode and refreshes the
 queue and reopens the same comparison with fresh source versions and acknowledgments
 reset. Its footer offers Back to comparison and Save draft & compare; posting and
 next-row actions remain in the full statement workflow. SMS corrections use the
 existing SMS review deep link, which provides a visible return to matched review.
-Confirm both lists every outstanding requirement beside the disabled action.
+Record one transaction lists every outstanding requirement beside the disabled action.
 Original extraction issues, failed statement checks, and saved draft discrepancies
 are shown alongside the required acknowledgment so users can inspect each reason.
-For a new entry, statement classification/date/time form the ledger movement. When
+For a new entry, the reviewed result's classification/date/time form the ledger movement. When
 reported balances differ, neither source is preselected: the user must choose one.
 Both original reported balances remain in their source records; an unavailable
 balance is disabled when the other source reports one. Transfer account reports
@@ -1144,6 +1151,9 @@ suggestions already exist, choose a verified
 existing entry; the combined flow cannot create a duplicate over those suggestions
 and retains that entry's existing balance. Unavailable ledger suggestions expose a
 direct route to statement review instead of leaving an unexplained disabled action.
+An inline edit does not hide saved ledger suggestions; the API revalidates all
+matching and posting rules atomically before it changes either source. A failed
+review leaves both sources pending and prompts a refresh or source correction.
 Separate movements can still be reviewed in their source workflows after checking
 all possible matches.
 

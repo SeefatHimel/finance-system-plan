@@ -1691,7 +1691,7 @@ const unifiedPairSchema = z.object({ row: savedStatementRowSchema, batch: savedS
 export type UnifiedPendingPair = z.infer<typeof pendingPairSchema>;
 export type UnifiedPendingPage = z.infer<typeof unifiedPendingSchema>;
 export type UnifiedPair = z.infer<typeof unifiedPairSchema>;
-export type UnifiedPairDecision = { statement: string; sms: string; statement_version: number; sms_updated_at: string; transaction?: string | null; balance_source: "sms" | "statement" | "existing"; acknowledge_match: boolean; acknowledge_conflict: boolean; acknowledge_issues: boolean; remember_choices: boolean };
+export type UnifiedPairDecision = { statement: string; sms: string; statement_version: number; sms_updated_at: string; transaction?: string | null; balance_source: "sms" | "statement" | "existing"; type_choice?: "statement" | "sms" | "custom"; draft?: StatementRowEdit; acknowledge_match: boolean; acknowledge_conflict: boolean; acknowledge_issues: boolean; remember_choices: boolean };
 export async function listUnifiedPending(token: string, filters: Record<string, string>, signal?: AbortSignal): Promise<UnifiedPendingPage> {
   const query = new URLSearchParams(filters);
   return unifiedPendingSchema.parse(await (await authenticatedFetch(`/api/review/pending/?${query}`, token, { signal })).json());
