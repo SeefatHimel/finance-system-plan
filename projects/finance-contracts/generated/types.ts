@@ -1268,6 +1268,7 @@ export interface UnifiedPairDetail {
   row: SavedStatementRow;
   batch: StatementImport;
   sms: ParsedMessageCandidate;
+  sms_summary: UnifiedPendingSource;
   match: unknown;
 }
 
@@ -1279,6 +1280,14 @@ export interface UnifiedPairResult {
 }
 
 export interface UnifiedPendingItem {
+  id: string;
+  statement: UnifiedPendingSource;
+  sms: UnifiedPendingSource;
+  match: UnifiedPendingMatch;
+  needs_correction: boolean;
+}
+
+export interface UnifiedPendingSource {
   source: UnifiedSourceEnum;
   id: string;
   account: string | null;
@@ -1296,28 +1305,9 @@ export interface UnifiedPendingItem {
   version: number | null;
   batch: string | null;
   needs_correction: boolean;
-  matches: UnifiedPendingMatch[];
-  ambiguous: boolean;
 }
 
 export interface UnifiedPendingMatch {
-  source: UnifiedSourceEnum;
-  id: string;
-  account: string | null;
-  account_name: string;
-  currency: string;
-  date: string | null;
-  time: string | null;
-  amount: string | null;
-  balance_after: string | null;
-  direction: string;
-  type: string;
-  description: string;
-  reference: string;
-  updated_at: string;
-  version: number | null;
-  batch: string | null;
-  needs_correction: boolean;
   strength: UnifiedStrengthEnum;
   conflict: boolean;
   reasons: string[];
@@ -1327,7 +1317,16 @@ export interface UnifiedPendingPage {
   count: number;
   offset: number;
   limit: number;
+  next_cursor: string | null;
+  overview: UnifiedPendingOverview;
   results: UnifiedPendingItem[];
+}
+
+export interface UnifiedPendingOverview {
+  matched: number;
+  ambiguous: number;
+  statement_only: number;
+  sms_only: number;
 }
 
 export type UnifiedSourceEnum = "sms" | "statement";

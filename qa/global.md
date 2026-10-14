@@ -359,8 +359,12 @@ statement posting are not included in this recovery flow.
 
 ### Do matching pending SMS and PDF rows count as two transactions?
 
-No. Unified review keeps them as separate source observations until the user
-confirms their correspondence, then attaches both to one ledger movement. Source
-counts may be two while the ledger count is one. Original source dates/times and
+No. Unified review displays one queue item for a unique one-to-one SMS + statement
+match that has evidence beyond amount and date. The user reviews that item once,
+then confirmation attaches both sources to one ledger movement. Unmatched and
+ambiguous sources remain in their individual review pages, with overview counts
+linking back to those queues. Original source dates/times and
 reported balances remain independently inspectable. Suggestions are reviewable
 and never themselves authorize posting or erase ambiguous repeat movements.
+Date filters are applied after reciprocal uniqueness is established, so they cannot
+hide a competing source and promote an ambiguous relationship.

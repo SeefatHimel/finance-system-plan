@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { HelpTooltip } from "@/components/help-tooltip";
 import { useAuth } from "@/components/auth-provider";
 import { FieldError } from "@/components/field-error";
@@ -154,9 +155,15 @@ export function MessageReviewWorkspace() {
   const [directionFilter, setDirectionFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [returnPath, setReturnPath] = useState("");
   const [rejectDraft, setRejectDraft] = useState<RejectDraft | null>(null);
   const [classificationDrafts, setClassificationDrafts] = useState<Record<string, { type: TransactionType; category: string; balanceAfter: string; balanceCleared?: boolean }>>({});
   const categoryChoice = useCategoryTypeChoice(reviewState.status === "ready" ? reviewState.categories : []);
+
+  useEffect(() => {
+    const requestedReturn = new URLSearchParams(window.location.search).get("return");
+    if (requestedReturn === "/review") setReturnPath(requestedReturn);
+  }, []);
 
   async function loadData(showLoading = true) {
     const accessToken = getAccessToken();
@@ -548,6 +555,7 @@ export function MessageReviewWorkspace() {
           {reviewState.candidates.length > 0 ? <div className="review-toolbar__dates"><DatePeriodControls compact label="Received dates" description="Local timezone" value={period} onChange={setPeriod} /></div> : null}
           <div className="review-hero__actions"><span className="status-badge status-badge--idle">{reviewState.totalCount} pending</span><button className="button button--ghost" disabled={isBulkReprocessing || reviewState.candidates.length === 0} onClick={() => void handleBulkReprocess()} type="button">{isBulkReprocessing ? <ButtonBusy label="Reapplying rules" /> : <><ArrowClockwise aria-hidden="true" size={17} />Reapply rules to pending</>}</button></div>
         </section>
+        {returnPath ? <div className="review-return"><Link className="button button--ghost" href={returnPath}><ArrowLeft aria-hidden="true" size={17} />Return to matched review</Link><span>Saved SMS corrections will be reconsidered for one-to-one matching.</span></div> : null}
         <div className="review-recovery"><RecentTransactionAction /></div>
 
       {reviewState.candidates.length === 0 ? (

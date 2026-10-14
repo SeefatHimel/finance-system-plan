@@ -1034,13 +1034,24 @@ The SMS source and date/time are kept. Independent review routes remain supporte
 That earlier combine decision uses existing tables; the unified transfer-balance
 selection described below requires the new transactions migration.
 
-### Unified pending-source review
+### Unified matched-pair review
 
-Authenticated, private/no-store `/api/review/pending/` combines pending SMS and
-statement sources with account/source/date/condition/search filters and offset
-pagination. Suggestions use reporting-account perspective, amount, currency,
-direction, calendar date/value date and reference/balance evidence. They remain
-review-only, including same-day repeats and balance conflicts. The read-only
+Authenticated, private/no-store `/api/review/pending/` returns one queue item for
+each unique one-to-one pending SMS and statement match, with account/date/search
+filters and stable cursor pagination; legacy offset remains accepted for clients
+that have not migrated. The response also reports matched, ambiguous,
+statement-only and SMS-only source counts for the selected account/date scope.
+Matching first requires reporting-account perspective, amount, currency, direction
+and a date within three days. It then requires an independent corroborator:
+matching reference, reported balance, normalized counterparty, or a known transfer
+counterpart account. Amount and date alone never produce a unified-review pair.
+Conflicting nonempty references are rejected, and differing counterparty wording
+is exposed as negative evidence rather than presented as a strong match. Exact
+counterparty wording by itself produces a possible match; a strong label requires
+same-day reference, reported-balance, or known counterpart-account evidence.
+Unmatched sources and overlapping one-to-many candidates are excluded from this
+queue and remain in their individual review workflows. Balance conflicts can still
+form a unique review pair. The read-only
 `GET /api/review/pair/?statement=<uuid>&sms=<uuid>` returns original sources,
 statement draft validation and current ledger suggestions.
 Date filters narrow the source query before its safety cap; source-only views
@@ -1058,6 +1069,11 @@ pending state and matches, and reuses statement posting/link validation. Any fai
 rolls back the new ledger entry and both source decisions. Completed-pair retries
 are idempotent; changed ledger financial identity is rejected. Existing suggestions
 must be linked rather than bypassed with another entry in this workflow.
+The detail and confirmation endpoints repeat the reciprocal one-to-one check, so a
+stale or hand-crafted pair URL cannot bypass ambiguity protection.
+Reciprocal uniqueness is calculated across the complete pending account scope
+before the display date range is applied, so filtering cannot hide a competing
+source and make an ambiguous relationship appear confirmable.
 
 A new pair uses statement draft classification/date/time, the selected scalar
 balance, masked SMS identifiers and one raw-message link. A source with no reported

@@ -12,20 +12,20 @@ from apps.messages.serializers import ParsedMessageCandidateSerializer
 from .models import StatementRow
 from .review_views import NoStoreMixin, StatementRowViewSet
 from .serializers import SavedStatementRowSerializer, StatementImportSerializer
-from .unified import confirm_pair, has_competing_sources, pair_signals, queue
+from .unified import confirm_pair, queue, summary, unique_pair_signals
 
 
 class PendingReviewFilters(serializers.Serializer):
-    source = serializers.ChoiceField(choices=("all", "sms", "statement"), default="all")
-    condition = serializers.ChoiceField(
-        choices=("all", "matched", "unmatched", "corrections"), default="all"
-    )
     account = serializers.UUIDField(required=False)
+    source = serializers.ChoiceField(
+        choices=("all", "statement", "sms"), required=False, default="all"
+    )
     search = serializers.CharField(max_length=255, required=False, allow_blank=True)
     start_date = serializers.DateField(required=False)
     end_date = serializers.DateField(required=False)
     limit = serializers.IntegerField(min_value=1, max_value=100, default=50)
     offset = serializers.IntegerField(min_value=0, default=0)
+    cursor = serializers.CharField(required=False, allow_blank=True, max_length=512)
 
     def validate(self, data):
         start, end = data.get("start_date"), data.get("end_date")
@@ -38,7 +38,7 @@ class PendingReviewFilters(serializers.Serializer):
         return data
 
 
-class PendingSourceSerializer(serializers.Serializer):
+class UnifiedPendingSourceSerializer(serializers.Serializer):
     source = serializers.ChoiceField(choices=("sms", "statement"))
     id = serializers.UUIDField()
     account = serializers.UUIDField(allow_null=True)
@@ -58,22 +58,34 @@ class PendingSourceSerializer(serializers.Serializer):
     needs_correction = serializers.BooleanField()
 
 
-class PendingMatchSerializer(PendingSourceSerializer):
+class UnifiedPendingMatchSerializer(serializers.Serializer):
     strength = serializers.ChoiceField(choices=("strong", "possible"))
     conflict = serializers.BooleanField()
     reasons = serializers.ListField(child=serializers.CharField())
 
 
-class PendingItemSerializer(PendingSourceSerializer):
-    matches = PendingMatchSerializer(many=True)
-    ambiguous = serializers.BooleanField()
+class UnifiedPendingItemSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    statement = UnifiedPendingSourceSerializer()
+    sms = UnifiedPendingSourceSerializer()
+    match = UnifiedPendingMatchSerializer()
+    needs_correction = serializers.BooleanField()
 
 
-class PendingPageSerializer(serializers.Serializer):
+class UnifiedPendingOverviewSerializer(serializers.Serializer):
+    matched = serializers.IntegerField(min_value=0)
+    ambiguous = serializers.IntegerField(min_value=0)
+    statement_only = serializers.IntegerField(min_value=0)
+    sms_only = serializers.IntegerField(min_value=0)
+
+
+class UnifiedPendingPageSerializer(serializers.Serializer):
     count = serializers.IntegerField()
     offset = serializers.IntegerField()
     limit = serializers.IntegerField()
-    results = PendingItemSerializer(many=True)
+    next_cursor = serializers.CharField(allow_null=True)
+    overview = UnifiedPendingOverviewSerializer()
+    results = UnifiedPendingItemSerializer(many=True)
 
 
 class PairSelection(serializers.Serializer):
@@ -96,6 +108,7 @@ class PairDetailSerializer(serializers.Serializer):
     row = SavedStatementRowSerializer()
     batch = StatementImportSerializer()
     sms = ParsedMessageCandidateSerializer()
+    sms_summary = UnifiedPendingSourceSerializer()
     match = serializers.JSONField()
 
 
@@ -129,7 +142,7 @@ class UnifiedPendingView(NoStoreMixin, APIView):
 
     @extend_schema(
         parameters=[PendingReviewFilters],
-        responses=PendingPageSerializer,
+        responses=UnifiedPendingPageSerializer,
         tags=["Unified review"],
     )
     def get(self, request):
@@ -150,22 +163,13 @@ class UnifiedPairView(NoStoreMixin, APIView):
         selection = PairSelection(data=request.query_params)
         selection.is_valid(raise_exception=True)
         row, candidate = selected_sources(request.user, selection.validated_data)
-        signals = pair_signals(row, candidate)
+        signals = unique_pair_signals(request.user, row, candidate)
         if not signals:
             raise ValidationError(
                 {
-                    "match": "These sources are no longer pending matches. Refresh the queue."
+                    "match": "These sources are no longer a unique one-to-one match. Refresh the queue."
                 }
             )
-        if has_competing_sources(row, candidate):
-            signals = {
-                **signals,
-                "strength": "possible",
-                "reasons": [
-                    *signals["reasons"],
-                    "Multiple pending sources overlap. Verify one-to-one correspondence.",
-                ],
-            }
         states = list(row.batch.rows.values_list("state", flat=True))
         for name in ("total", "pending", "posted", "linked", "skipped"):
             setattr(
@@ -178,6 +182,7 @@ class UnifiedPairView(NoStoreMixin, APIView):
                 "row": StatementRowViewSet().representation(row),
                 "batch": StatementImportSerializer(row.batch).data,
                 "sms": ParsedMessageCandidateSerializer(candidate).data,
+                "sms_summary": summary(candidate),
                 "match": signals,
             }
         )

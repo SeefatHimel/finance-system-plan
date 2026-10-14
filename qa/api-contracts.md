@@ -517,9 +517,14 @@ a completed check found no eligible pending SMS.
 
 ### What is the unified pending-review contract?
 
-`/api/review/pending/` returns paginated source observations and review-only
-opposite-source suggestions, with filters applied before pagination.
-`GET /api/review/pair/` returns owned pending-source evidence and ledger suggestions.
+`/api/review/pending/` returns paginated unique one-to-one review pairs as
+`{statement, sms, match}` records, with account, statement-date and combined-source
+search filters applied before pair pagination. It accepts an opaque cursor and
+returns `next_cursor` plus matched/ambiguous/statement-only/SMS-only overview
+counts. Unmatched sources and one-to-many ambiguities remain in their individual
+workflows. Legacy offset remains accepted.
+`GET /api/review/pair/` returns owned pending-source evidence, normalized SMS
+account perspective and ledger suggestions.
 The POST takes both IDs, statement version, SMS updated timestamp, balance choice
 and explicit acknowledgments; it returns one transaction ID shared by both sources.
 400 means invalid values/missing review, 409 means stale/resolved/nonmatching
@@ -546,3 +551,8 @@ check found no match. The pair endpoint rejects selecting a missing balance
 when the other source reports one; the chosen transfer balance becomes the
 effective account report. Apply the new transfer-evidence migration before API
 rollout.
+
+Queue, detail and POST all enforce reciprocal uniqueness. Account, currency,
+direction, amount and date are necessary, while reference, reported balance,
+normalized counterparty or known transfer counterpart supplies independent
+corroboration; amount/date alone does not create a pair.

@@ -1114,37 +1114,61 @@ ledger suggestions also appear, compare them and acknowledge that each is a
 different movement before combining; a changed suggestion list requires reload.
 Already pending rows gain suggestions on refresh without a PDF re-upload or migration.
 
-### Unified pending SMS and statement review
+### Unified matched SMS and statement review
 
 Open **Unified review** (`/review`) from the sidebar to compare all pending SMS
-candidates with saved pending statement rows. Source, account, daily/monthly/custom
-dates, condition and search filters apply before pagination. Each source has its
-own row until explicitly resolved; possible pairs show Compare buttons in either
-direction. Unknown dates/account/amounts and non-financial SMS need their existing
-source editor first. SMS dates are received timestamps, labeled separately from
-statement transaction dates. Statement fee rows remain independently reviewable.
+candidates with saved pending statement rows. Account, daily/monthly/custom dates
+and combined-source search apply before pagination. The page shows only reciprocal
+one-to-one pairs backed by evidence beyond amount/date; unmatched and ambiguous
+sources remain in their dedicated review pages. Source totals explain how many are
+matched, ambiguous, statement-only or SMS-only in the selected scope. Unknown
+dates/account/amounts and non-financial SMS need their source editor first. SMS
+dates are received timestamps and statement dates are transaction dates, but both
+are formatted consistently. Statement fee rows remain independently reviewable.
 
 Compare opens both original sources, parsed details, reasons and reported balances.
 Edit statement draft uses the existing editor in save-only mode and refreshes the
-queue; SMS corrections use the existing SMS review deep link. Confirm both requires
-an explicit same-movement acknowledgment and any source/balance acknowledgments.
-For a new entry, statement classification/date/time form the ledger movement and
-users choose which reported balance to use. Both original reported balances remain
-in their source records; an unavailable balance is disabled when the other source
-reports one. Transfer account reports use the reviewed choice. If ledger
+queue and reopens the same comparison with fresh source versions and acknowledgments
+reset. Its footer offers Back to comparison and Save draft & compare; posting and
+next-row actions remain in the full statement workflow. SMS corrections use the
+existing SMS review deep link, which provides a visible return to matched review.
+Confirm both lists every outstanding requirement beside the disabled action.
+Original extraction issues, failed statement checks, and saved draft discrepancies
+are shown alongside the required acknowledgment so users can inspect each reason.
+For a new entry, statement classification/date/time form the ledger movement. When
+reported balances differ, neither source is preselected: the user must choose one.
+Both original reported balances remain in their source records; an unavailable
+balance is disabled when the other source reports one. Transfer account reports
+use the reviewed choice. If ledger
 suggestions already exist, choose a verified
 existing entry; the combined flow cannot create a duplicate over those suggestions
-and retains that entry's existing balance. Separate movements can still be reviewed
-in their source workflows after checking all possible matches.
+and retains that entry's existing balance. Unavailable ledger suggestions expose a
+direct route to statement review instead of leaving an unexplained disabled action.
+Separate movements can still be reviewed in their source workflows after checking
+all possible matches.
+
+The queue shows each unique one-to-one SMS + statement match once, so its count is
+a count of review items rather than source observations. Unmatched sources and
+ambiguous repeated candidates stay in SMS review or Statements until they can be
+resolved safely. Compact rows separate match strength from balance conflicts, and
+stable cursors prevent page drift as earlier pairs are resolved. Account,
+statement-date and combined-source search filters apply before pair pagination.
 
 One server transaction confirms the SMS candidate and links the statement row to
 one ledger entry. Both leave the pending queue together. SMS evidence is available
 in Transactions alongside the retained PDF evidence, subject to SMS-text retention.
-No sources are automatically posted, inferred matches do not prove identity, and
-multiple overlapping suggestions remain explicitly ambiguous. Different accounts,
-amounts or directions never pair; up to three calendar days are allowed, with
-matching reference or balance required beyond one day. Conflicting nonempty
-references are excluded. Stale versions/timestamps fail without partial writes;
+No sources are automatically posted and inferred matches do not prove identity.
+Multiple overlapping suggestions are kept out of this one-review-per-pair queue.
+That ambiguity check uses the complete pending account scope before the statement
+date filter is applied, so a nearby source outside the visible date range cannot
+make a pair look unique. Counterparty wording alone remains a possible match;
+strong matches require same-day reference, balance, or known account-path evidence.
+Different accounts, amounts or directions never pair. Up to three calendar days
+are allowed, with matching reference or balance required beyond one day. Every
+pair also needs matching reference, balance, counterparty wording or known transfer
+counterpart; amount/date by themselves are insufficient. Conflicting nonempty
+references are excluded. Detail and confirmation recheck reciprocal uniqueness.
+Stale versions/timestamps fail without partial writes;
 retries of the same confirmed pair do not create another movement.
 Direct links to pending SMS load that candidate by ID even when it lies beyond
 the first 100 inbox rows. An unavailable, foreign, or already-resolved link

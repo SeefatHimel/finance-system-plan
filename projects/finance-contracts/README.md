@@ -583,15 +583,19 @@ remain empty. Payment methods, accounts, classifications, amount, date and time
 are not changed by this metadata shortcut. No new database migration is required;
 deploy web and API together.
 
-### Unified pending review
+### Unified matched-pair review
 
-- `GET /api/review/pending/`: source (`all/sms/statement`), condition
-  (`all/matched/unmatched/corrections`), account UUID, search, inclusive
-  `start_date/end_date` (maximum 366 days), offset and limit (1–100, default 50).
-  Returns `{count, offset, limit, results}`; each source includes opposite-source
-  suggestions and ambiguity flags. Counts are source observations, not movements.
+- `GET /api/review/pending/`: account UUID, combined-source search, inclusive
+  `start_date/end_date` (maximum 366 days), opaque `cursor`, legacy offset and
+  limit (1–100, default 50). Returns
+  `{count, offset, limit, next_cursor, overview, results}`; `overview` contains
+  matched, ambiguous, statement-only and SMS-only source counts for the selected
+  account/date scope. Each result contains one reciprocal one-to-one
+  `{statement, sms, match}` pair. Count is the number of review pairs. Unmatched
+  and ambiguous sources are excluded.
 - `GET /api/review/pair/?statement=<uuid>&sms=<uuid>`: owned, still-pending pair
-  details with the saved statement draft, batch, parsed SMS/original text and reasons.
+  details with the saved statement draft, batch, parsed SMS/original text,
+  normalized `sms_summary` account perspective and reasons.
 - `POST /api/review/pair/`: `statement`, `sms`, `statement_version`, `sms_updated_at`,
   `balance_source` (`sms/statement/existing`), `acknowledge_match`,
   `acknowledge_conflict`, `acknowledge_issues`, optional `transaction` and
@@ -610,6 +614,10 @@ and source filters before its safety cap; broad queues are still bounded.
 `GET /api/messages/review/{id}/` reads a single owned pending SMS candidate for
 deep links. Apply `transactions.0008_transferevidence_effective_balance` and
 deploy API before web.
+Queue, detail and confirmation all enforce reciprocal uniqueness. A pair also
+requires matching reference, reported balance, normalized counterparty, or known
+transfer counterpart in addition to account/currency/direction/amount/date.
+Amount/date alone is deliberately insufficient.
 
 Transaction source-message responses optionally add `parsed` (nullable): saved
 SMS amount, balance_after, reference and type. These fields remain available after

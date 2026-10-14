@@ -848,6 +848,25 @@ balance choice for new entries; existing ledger balances stay intact. Raw SMS te
 follows retention settings while parsed fields and links remain. Ownership scopes
 apply to both sources and any existing ledger target. No migration/backfill occurs.
 
+The unified queue emits only reciprocal one-to-one matches and represents each
+pair once. An SMS or statement with zero candidates stays in its source workflow;
+any source with multiple overlapping candidates is also withheld until the
+ambiguity is resolved. Pair filtering and pagination therefore operate on review
+pairs rather than duplicated source observations. Exact account, direction, amount
+and date are necessary but insufficient: matching reference, balance, normalized
+counterparty or known transfer counterpart must independently corroborate the pair.
+The queue, pair detail and confirmation endpoint all repeat reciprocal uniqueness
+checks. This prevents a stale or hand-crafted detail request from bypassing an
+ambiguity discovered after the queue loaded. Opaque cursors keep pagination stable
+as earlier pairs leave the queue; overview counts expose unmatched and ambiguous
+source work without mixing it into the matched queue.
+
+The queue builds that reciprocal graph across the full pending account scope before
+applying its display date range. A competing row immediately outside the selected
+dates therefore still keeps the visible source ambiguous. Exact counterparty text
+alone is labelled possible; strong requires same-day reference, balance, or a known
+counterpart account.
+
 Attached confirmed SMS sources expose their saved parsed amount/balance separately
 from ledger values, including after raw text redaction. User and transaction scopes
 are rechecked before returning that optional parsed observation.

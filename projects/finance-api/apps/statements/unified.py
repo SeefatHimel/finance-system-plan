@@ -1,5 +1,8 @@
 """Pending-source suggestions and an atomic, explicit SMS/PDF decision."""
 
+import base64
+import binascii
+import json
 from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal
@@ -105,9 +108,18 @@ def pair_signals(row, candidate):
     merchant = merchant_text(
         row.counterparty_text or row.extracted.get("description", "")
     )
-    same_merchant = bool(
-        merchant and merchant == merchant_text(candidate.counterparty_text)
+    sms_merchant = merchant_text(candidate.counterparty_text)
+    same_merchant = bool(merchant and merchant == sms_merchant)
+    merchant_conflict = bool(merchant and sms_merchant and merchant != sms_merchant)
+    same_counterpart = bool(
+        row.other_account_id
+        and other_account
+        and row.other_account_id == other_account.pk
     )
+    # Exact amount/date alone is common enough to create believable false matches.
+    # Unified review therefore requires an independent source signal as well.
+    if not (same_reference or same_balance or same_merchant or same_counterpart):
+        return None
     if distance > 1 and not (same_reference or same_balance):
         return None
     conflict = (
@@ -125,6 +137,10 @@ def pair_signals(row, candidate):
         reasons.append("Reported balances agree.")
     if same_merchant:
         reasons.append("Counterparty wording agrees.")
+    elif merchant_conflict:
+        reasons.append("Counterparty wording differs.")
+    if same_counterpart:
+        reasons.append("Transfer counterpart account agrees.")
     if conflict:
         reasons.append(
             f"Reported balance difference: {row.balance_after - candidate.balance_after:+.2f}."
@@ -134,7 +150,10 @@ def pair_signals(row, candidate):
     )
     return {
         "strength": "strong"
-        if distance == 0 and (same_reference or same_balance) and not conflict
+        if distance == 0
+        and (same_reference or same_balance or same_counterpart)
+        and not conflict
+        and not merchant_conflict
         else "possible",
         "conflict": conflict,
         "reasons": reasons,
@@ -291,8 +310,65 @@ def summary(source):
     }
 
 
+def unique_pair_signals(user, row, candidate):
+    """Return signals only when both pending sources claim exactly one another."""
+
+    signals = pair_signals(row, candidate)
+    if not signals or has_competing_sources(row, candidate):
+        return None
+    return signals
+
+
+def _item_key(item):
+    return (
+        item["statement"]["date"] or "",
+        item["statement"]["time"] or "",
+        item["id"],
+    )
+
+
+def _encode_cursor(item):
+    value = json.dumps(_item_key(item), separators=(",", ":")).encode()
+    return base64.urlsafe_b64encode(value).decode().rstrip("=")
+
+
+def _decode_cursor(value):
+    try:
+        padded = value + "=" * (-len(value) % 4)
+        decoded = json.loads(base64.urlsafe_b64decode(padded).decode())
+        if (
+            not isinstance(decoded, list)
+            or len(decoded) != 3
+            or not all(isinstance(part, str) for part in decoded)
+        ):
+            raise ValueError
+        return tuple(decoded)
+    except (
+        ValueError,
+        TypeError,
+        UnicodeDecodeError,
+        binascii.Error,
+        json.JSONDecodeError,
+    ):
+        raise ValidationError({"cursor": "Refresh the review queue and try again."})
+
+
+def _row_in_date_scope(row, start_date, end_date):
+    return not start_date or bool(
+        row.date and start_date <= row.date <= end_date
+    )
+
+
+def _candidate_in_date_scope(candidate, start_date, end_date):
+    if not start_date:
+        return True
+    received = timezone.localtime(candidate.raw_message.received_at).date()
+    return start_date <= received <= end_date
+
+
 def queue(user, filters):
     rows, candidates = pending_sources(user, filters.get("account"), filters)
+    start_date, end_date = filters.get("start_date"), filters.get("end_date")
     buckets = defaultdict(list)
     for candidate in candidates:
         account, direction, _ = sms_observation(candidate)
@@ -310,80 +386,112 @@ def queue(user, filters):
                 "queue": "Too many overlapping pending sources. Choose an account or resolve repeated entries before comparing."
             }
         )
-    suggestions = defaultdict(list)
+    row_matches = defaultdict(list)
+    candidate_matches = defaultdict(list)
     for row in rows:
         for candidate in buckets[(row.batch.account_id, row.direction, row.amount)]:
             signals = pair_signals(row, candidate)
             if signals:
-                suggestions[("statement", str(row.pk))].append(
-                    {**summary(candidate), **signals}
-                )
-                suggestions[("sms", str(candidate.pk))].append(
-                    {**summary(row), **signals}
-                )
+                row_matches[row.pk].append((candidate, signals))
+                candidate_matches[candidate.pk].append((row, signals))
     items = []
-    for item in [summary(row) for row in rows] + [
-        summary(candidate) for candidate in candidates
-    ]:
-        matches = suggestions[(item["source"], item["id"])]
-        # Shared claims remain suggestions; never silently collapse repeated purchases.
-        ambiguous = len(matches) > 1 or any(
-            len(suggestions[(match["source"], match["id"])]) > 1 for match in matches
-        )
-        if ambiguous:
-            matches = [
-                {
-                    **match,
-                    "strength": "possible",
-                    "reasons": [
-                        *match["reasons"],
-                        "Multiple pending sources overlap. Verify one-to-one correspondence.",
-                    ],
-                }
-                for match in matches
-            ]
-        item.update(matches=matches, ambiguous=ambiguous)
-        if filters.get("source", "all") not in {"all", item["source"]}:
+    matched_rows = set()
+    ambiguous_rows = set()
+    ambiguous_candidates = set()
+    for row in rows:
+        matches = row_matches[row.pk]
+        if len(matches) != 1:
+            if matches:
+                ambiguous_rows.add(row.pk)
+                ambiguous_candidates.update(candidate.pk for candidate, _ in matches)
             continue
-        if filters.get("account") and item["account"] != str(filters["account"]):
+        candidate, signals = matches[0]
+        # A pair enters this queue only when both sources claim exactly one another.
+        # Repeated equal movements remain in their individual review workflows.
+        if len(candidate_matches[candidate.pk]) != 1:
+            ambiguous_rows.add(row.pk)
+            ambiguous_candidates.add(candidate.pk)
             continue
-        if filters.get("start_date") and (
-            not item["date"]
-            or not filters["start_date"].isoformat()
-            <= item["date"]
-            <= filters["end_date"].isoformat()
+        # The bounded display scope may omit a competing source just outside its
+        # date range or selected source. Verify uniqueness against the database.
+        if (start_date or filters.get("source", "all") != "all") and has_competing_sources(
+            row, candidate
         ):
+            ambiguous_rows.add(row.pk)
+            ambiguous_candidates.add(candidate.pk)
             continue
-        state = filters.get("condition", "all")
-        if (
-            (state == "matched" and not matches)
-            or (state == "unmatched" and matches)
-            or (state == "corrections" and not item["needs_correction"])
-        ):
+        if not _row_in_date_scope(row, start_date, end_date):
             continue
+        matched_rows.add(row.pk)
+        statement, sms = summary(row), summary(candidate)
+        item = {
+            "id": f"{row.pk}:{candidate.pk}",
+            "statement": statement,
+            "sms": sms,
+            "match": signals,
+            "needs_correction": statement["needs_correction"]
+            or sms["needs_correction"],
+        }
         search = filters.get("search", "").casefold()
         if (
             search
             and search
-            not in f"{item['description']} {item['reference']} {item['account_name']}".casefold()
+            not in (
+                f"{statement['description']} {statement['reference']} "
+                f"{sms['description']} {sms['reference']} {statement['account_name']}"
+            ).casefold()
         ):
             continue
         items.append(item)
-    items.sort(
-        key=lambda item: (
-            item["date"] or "",
-            item["time"] or "",
-            item["source"],
-            item["id"],
-        ),
-        reverse=True,
-    )
+    items.sort(key=_item_key, reverse=True)
     offset, limit = filters.get("offset", 0), filters.get("limit", 50)
+    cursor = filters.get("cursor", "").strip()
+    if cursor:
+        anchor = _decode_cursor(cursor)
+        remaining = [item for item in items if _item_key(item) < anchor]
+        page_offset = 0
+    else:
+        remaining = items[offset:]
+        page_offset = offset
+    results = remaining[:limit]
+    next_cursor = (
+        _encode_cursor(results[-1]) if results and len(remaining) > limit else None
+    )
+    unmatched_rows = {
+        row.pk
+        for row in rows
+        if not row_matches[row.pk] and _row_in_date_scope(row, start_date, end_date)
+    }
+    unmatched_candidates = {
+        candidate.pk
+        for candidate in candidates
+        if not candidate_matches[candidate.pk]
+        and _candidate_in_date_scope(candidate, start_date, end_date)
+    }
+    scoped_ambiguous_rows = {
+        row.pk
+        for row in rows
+        if row.pk in ambiguous_rows and _row_in_date_scope(row, start_date, end_date)
+    }
+    scoped_ambiguous_candidates = {
+        candidate.pk
+        for candidate in candidates
+        if candidate.pk in ambiguous_candidates
+        and _candidate_in_date_scope(candidate, start_date, end_date)
+    }
     return {
         "count": len(items),
-        "offset": offset,
+        "offset": page_offset,
         "limit": limit,
-        "results": items[offset : offset + limit],
+        "next_cursor": next_cursor,
+        "overview": {
+            "matched": len(matched_rows),
+            "ambiguous": len(scoped_ambiguous_rows)
+            + len(scoped_ambiguous_candidates),
+            "statement_only": len(unmatched_rows),
+            "sms_only": len(unmatched_candidates),
+        },
+        "results": results,
     }
 
 
@@ -422,7 +530,7 @@ def confirm_pair(*, user, row, candidate, payload, request):
         raise ReviewConflict(
             "One source changed. Reload both sources before confirming."
         )
-    signals = pair_signals(row, candidate)
+    signals = unique_pair_signals(user, row, candidate)
     if not signals or sms_recorded_elsewhere(candidate):
         raise ReviewConflict(
             "These sources are no longer pending matches. Reload the queue."
