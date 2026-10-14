@@ -166,6 +166,35 @@ class SavedStatementTests(APITestCase):
         listed = self.client.get(reverse("statement-import-rows", args=[batch.id])).data["results"]
         self.assertEqual(next(item for item in listed if item["id"] == str(row.id))["review"]["pending_sms_match_count"], 1)
 
+    def test_too_many_pending_sms_never_means_no_match(self):
+        batch = self.upload()
+        row = batch.rows.filter(component="principal", direction="debit").first()
+        received = datetime(2026, 1, 2, 12, 0, tzinfo=ZoneInfo("Asia/Dhaka"))
+        for index in range(201):
+            body = f"Synthetic matching purchase {index}"
+            raw = RawMessage.objects.create(
+                user=self.user, sender="SYNTH", body=body, received_at=received,
+                body_hash=RawMessage.build_body_hash(sender="SYNTH", body=body, received_at=received),
+            )
+            ParsedMessageCandidate.objects.create(
+                user=self.user, raw_message=raw, account=self.bank,
+                transaction_type="expense", message_kind="card_purchase", amount=row.amount,
+            )
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id]))
+        self.assertEqual(detail.status_code, 200, detail.data)
+        self.assertIsNone(detail.data["review"]["pending_sms_match_count"])
+        denied = self.decide(row, allow_separate=True)
+        self.assertEqual(denied.status_code, 400, denied.data)
+        self.assertIn("Too many pending SMS", str(denied.data))
+        bulk = self.client.post(
+            reverse("statement-import-approve-new", args=[batch.id]),
+            {"rows": [{"id": str(row.id), "version": row.version}]}, format="json",
+        )
+        self.assertEqual(bulk.status_code, 200, bulk.data)
+        self.assertEqual(bulk.data["added"], 0)
+        self.assertEqual([item["id"] for item in bulk.data["unresolved"]], [str(row.id)])
+        self.assertEqual(Transaction.objects.count(), 0)
+
     def test_pending_sms_balance_conflict_requires_explicit_choice(self):
         batch = self.upload()
         row = batch.rows.filter(component="principal", direction="debit").first()

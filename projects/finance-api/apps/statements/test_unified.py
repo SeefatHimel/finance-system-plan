@@ -236,6 +236,16 @@ class UnifiedReviewTests(APITestCase):
             set(record.transfer_evidence.values_list("balance_after", flat=True)),
             {Decimal("900.00"), Decimal("900.07")},
         )
+        self.row.refresh_from_db()
+        unlinked = self.client.post(
+            reverse("statement-row-decide", kwargs={"pk": self.row.pk}),
+            {"action": "unlink", "version": self.row.version},
+            format="json",
+        )
+        self.assertEqual(unlinked.status_code, 200, unlinked.data)
+        record.refresh_from_db()
+        self.assertEqual(record.balance_after, Decimal("900.00"))
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("900.00"))
 
     def test_linking_existing_transfer_keeps_its_effective_report(self):
         self.row.type = "transfer"

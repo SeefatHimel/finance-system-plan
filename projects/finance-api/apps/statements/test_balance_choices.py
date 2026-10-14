@@ -203,7 +203,11 @@ class StatementBalanceChoiceTests(APITestCase):
                 record.refresh_from_db()
                 observation.refresh_from_db()
                 self.assertEqual(record.balance_after, Decimal("42.00"))
-                self.assertEqual(observation.balance_after, Decimal(expected))
+                self.assertEqual(observation.balance_after, Decimal("999.93"))
+                statement_evidence = record.transfer_evidence.get(
+                    external_key=f"statement-row:{row.pk}"
+                )
+                self.assertEqual(statement_evidence.balance_after, Decimal("1000.00"))
                 self.assertEqual(
                     reported_values(record)[self.wallet.id], Decimal("42.00")
                 )
@@ -216,6 +220,13 @@ class StatementBalanceChoiceTests(APITestCase):
                 record.refresh_from_db()
                 self.assertEqual(
                     reported_values(record)[self.bank.id], Decimal(expected)
+                )
+                observation.refresh_from_db()
+                self.assertEqual(observation.balance_after, Decimal("999.93"))
+                self.assertFalse(
+                    record.transfer_evidence.filter(
+                        external_key=f"statement-row:{row.pk}"
+                    ).exists()
                 )
                 row.batch.delete()
                 record.delete()
@@ -239,7 +250,7 @@ class StatementBalanceChoiceTests(APITestCase):
             balance_after="42.00",
             external_key="synthetic-sender",
         )
-        TransferEvidence.objects.create(
+        receiver = TransferEvidence.objects.create(
             user=self.user,
             transaction=record,
             account=self.bank,
@@ -258,8 +269,10 @@ class StatementBalanceChoiceTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         record.refresh_from_db()
         sender.refresh_from_db()
+        receiver.refresh_from_db()
         self.assertEqual(record.balance_after, Decimal("1000.00"))
         self.assertEqual(sender.balance_after, Decimal("42.00"))
+        self.assertEqual(receiver.balance_after, Decimal("999.93"))
         self.assertEqual(reported_values(record)[self.wallet.id], Decimal("42.00"))
         row.refresh_from_db()
         self.assertEqual(self.decide(row, "unlink").status_code, 200)

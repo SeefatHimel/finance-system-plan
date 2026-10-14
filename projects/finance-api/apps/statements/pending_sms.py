@@ -104,11 +104,11 @@ def pending_sms_matches(row):
     eligible_candidates = []
     for index, candidate in enumerate(candidates.iterator(chunk_size=200)):
         if index >= 10000:
-            return []
+            return None
         if _eligible(row, candidate):
             eligible_candidates.append(candidate)
             if len(eligible_candidates) > 200:
-                return []
+                return None
     return [
         {
             "id": str(candidate.id),

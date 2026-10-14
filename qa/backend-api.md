@@ -785,9 +785,11 @@ Yes, through an explicit versioned balance choice. The API locks the existing
 transaction, recomputes matches, requires a choice for conflicts, and verifies both
 reviewed values. Stale choices return 409 without ledger or evidence changes.
 Transfers use the statement account's effective report, preserving the opposite
-account. Transaction before/after snapshots and decision metadata preserve the
-previous values; the PDF extraction stays immutable. Linking counts once, and
-unlinking or rescanning confirmed SMS does not undo the chosen balance.
+account. Original SMS and statement observations keep their captured balances;
+an explicit statement choice uses separate reviewed ledger evidence. Transaction
+before/after snapshots and decision metadata preserve the previous values; the
+PDF extraction stays immutable. Linking counts once, and unlinking or rescanning
+confirmed SMS does not undo an explicit reviewed balance choice.
 
 
 ### How does statement metadata enrichment avoid overwriting user corrections?
@@ -853,6 +855,9 @@ and four recent transactions.
 matching narrows to the statement account perspective before evaluating a
 candidate, so unrelated same-amount messages cannot exhaust its suggestion
 window. Decisions still revalidate the candidate under a transaction lock.
+If the same-account check exceeds its safety bound, detail reports an unknown
+match count and individual or bulk statement posting stays unresolved, even
+with `allow_separate`, instead of treating unchecked SMS as absent.
 
 **What prevents a sender regex from stalling parsing?** Saved regex sender
 rules support a short subset without repeats, groups, alternatives or

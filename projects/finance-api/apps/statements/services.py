@@ -16,11 +16,13 @@ from rest_framework.exceptions import APIException, ValidationError
 from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
 from apps.transactions.balance_reports import (
+    account_reports,
+    primary_transfer_evidence,
     reported_values,
-    resolve_reported_values,
-    write_account_reports,
+    reviewed_account_report,
+    select_effective_account_report,
 )
-from apps.transactions.models import Transaction
+from apps.transactions.models import Transaction, TransferEvidence
 from apps.transactions.serializers import TransactionSerializer
 from apps.transactions.transfers import (
     add_transfer_evidence,
@@ -710,7 +712,8 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
     before = row_snapshot(row)
     balance_resolution = None
     ledger_before = None
-    transfer_reports = None
+    transfer_existing_report = None
+    transfer_balance_choice = None
     updated_details = []
     if action == "reopen":
         if row.state != "skipped":
@@ -719,15 +722,28 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
     elif action == "unlink":
         if not row.transaction_id:
             raise ValidationError({"action": "This row has no linked ledger entry."})
+        record = row.transaction
+        original_primary = (
+            primary_transfer_evidence(record, list(record.transfer_evidence.all()))
+            if record.type == "transfer"
+            else None
+        )
         row.transaction = None
         row.state = "pending"
         # Statement transfer observations have their own stable key. Remove only
         # this observation; preserve SMS/manual evidence and the ledger movement.
-        from apps.transactions.models import TransferEvidence
-
-        TransferEvidence.objects.filter(
+        removed = list(TransferEvidence.objects.filter(
             user=user, external_key=f"statement-row:{row.id}"
-        ).delete()
+        ).values_list("pk", flat=True))
+        TransferEvidence.objects.filter(pk__in=removed).delete()
+        if original_primary and original_primary.pk in removed:
+            current_primary = primary_transfer_evidence(
+                record, list(record.transfer_evidence.all())
+            )
+            record.balance_after = (
+                current_primary.balance_after if current_primary else None
+            )
+            record.save(update_fields=("balance_after", "updated_at"))
     elif action == "skip":
         row.state = "skipped"
     else:
@@ -818,40 +834,10 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
                 }
             if target.type == "transfer" and choice:
                 ensure_transfer_evidence(target)
-                effective = reported_values(target).get(row.batch.account_id)
-                choices = []
-                if (
-                    effective is not None
-                    and row.balance_after is not None
-                    and effective != row.balance_after
-                ):
-                    choices = [
-                        {
-                            "account": row.batch.account_id,
-                            "keep": "incoming"
-                            if choice["keep"] == "statement"
-                            else "existing",
-                            "existing_balance_after": effective,
-                            "incoming_balance_after": row.balance_after,
-                        }
-                    ]
-                transfer_reports = resolve_reported_values(
-                    target, {row.batch.account_id: row.balance_after}, choices
+                transfer_existing_report = account_reports(target)[0].get(
+                    row.batch.account_id
                 )
-                if choice["keep"] == "existing":
-                    own_report = next(
-                        (
-                            r
-                            for r in transfer_reports
-                            if r["account"].pk == row.batch.account_id
-                        ),
-                        None,
-                    )
-                    if own_report:
-                        own_report["balance_after"] = existing_balance
-                # Apply the effective report to existing account evidence first,
-                # so unlinking the new statement observation cannot undo this choice.
-                write_account_reports(target, transfer_reports)
+                transfer_balance_choice = choice["keep"]
             elif choice and choice["keep"] == "statement":
                 target.balance_after = row.balance_after
                 target.save(update_fields=("balance_after", "updated_at"))
@@ -882,10 +868,12 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
             issues = [issue for issue in issues if "previously linked" not in issue]
             if issues:
                 raise ValidationError({"row": issues})
-            if (
-                matches[row.id]
-                or (not combining_pending_sms and pending_sms_matches(row))
-            ) and not payload.get("allow_separate"):
+            pending_sms = None if combining_pending_sms else pending_sms_matches(row)
+            if pending_sms is None and not combining_pending_sms:
+                raise ValidationError(
+                    {"row": "Too many pending SMS to check safely. Narrow the review period or resolve other messages before adding this row."}
+                )
+            if (matches[row.id] or pending_sms) and not payload.get("allow_separate"):
                 raise ValidationError(
                     {
                         "allow_separate": "Possible ledger or pending SMS matches exist. Review them or explicitly confirm a separate movement."
@@ -945,8 +933,22 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
                     "external_key": f"statement-row:{row.id}",
                 },
             )
-            if transfer_reports is not None:
-                write_account_reports(row.transaction, transfer_reports)
+            if transfer_balance_choice:
+                if transfer_balance_choice == "existing":
+                    selected = transfer_existing_report or reviewed_account_report(
+                        row.transaction, row.batch.account, existing_balance
+                    )
+                else:
+                    selected = reviewed_account_report(
+                        row.transaction, row.batch.account, row.balance_after
+                    )
+                select_effective_account_report(row.transaction, selected)
+                primary = primary_transfer_evidence(
+                    row.transaction, list(row.transaction.transfer_evidence.all())
+                )
+                if primary and primary.pk == selected.pk:
+                    row.transaction.balance_after = selected.balance_after
+                    row.transaction.save(update_fields=("balance_after", "updated_at"))
         if ledger_before is not None:
             create_audit_log(
                 user=user,

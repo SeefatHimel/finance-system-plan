@@ -508,6 +508,10 @@ values. If ledger suggestions coexist, submit their exact UUIDs in
 `dismissed_ledger_matches` with `acknowledge_distinct_ledger_matches=true`; the
 server returns 409 if the current suggestion IDs differ. The API revalidates both sources atomically and returns 409 for stale
 review. SMS-only and statement-only endpoints keep their existing behavior.
+When detailed pending-SMS matching is inconclusive, the row detail exposes a
+null match count and an empty advisory array; individual posting rejects even
+`allow_separate`, and bulk posting leaves the row unresolved. Zero still means
+a completed check found no eligible pending SMS.
 
 ### What is the unified pending-review contract?
 

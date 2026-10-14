@@ -414,10 +414,12 @@ class StatementImportViewSet(
             matches, truncated = find_matches([row])
             review = review_context(row, matches[row.id], truncated)
             issues = posting_issues(row)
+            pending_matches = pending_sms_matches(row)
             if (
                 entry["version"] != row.version
                 or matches[row.id]
-                or pending_sms_matches(row)
+                or pending_matches is None
+                or pending_matches
                 or truncated
                 or issues
                 or review["requires_acknowledgement"]
@@ -472,8 +474,10 @@ class StatementRowViewSet(NoStoreMixin, viewsets.GenericViewSet):
         pending_matches = pending_sms_matches(row)
         return SavedStatementRowSerializer(
             row, context={"matches": matches, "matching_truncated": truncated,
-                          "pending_sms_matches": pending_matches,
-                          "pending_sms_match_counts": {row.id: len(pending_matches)}}
+                          "pending_sms_matches": pending_matches or [],
+                          "pending_sms_match_counts": {
+                              row.id: len(pending_matches) if pending_matches is not None else None
+                          }}
         ).data
 
     def retrieve(self, request, pk=None):

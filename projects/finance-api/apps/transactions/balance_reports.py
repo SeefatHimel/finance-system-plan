@@ -61,6 +61,33 @@ def select_effective_account_report(record, item):
     getattr(record, "_prefetched_objects_cache", {}).pop("transfer_evidence", None)
 
 
+def reviewed_account_report(record, account, balance_after):
+    """Keep a reviewed ledger choice separate from captured source evidence."""
+    if account.pk not in {record.account_id, record.transfer_account_id}:
+        raise ValidationError({"balance_after": "Choose an account in this transfer."})
+    key = f"balance:{record.pk}:{account.pk}"
+    item, _ = TransferEvidence.objects.get_or_create(
+        user=record.user,
+        external_key=key,
+        defaults={
+            "transaction": record,
+            "account": account,
+            "direction": "credit" if account.pk == record.transfer_account_id else "debit",
+            "date": record.date,
+            "time": record.time,
+            "balance_after": balance_after,
+            "source": Transaction.Source.WEB,
+            "note": "Reviewed reported balance",
+        },
+    )
+    if item.transaction_id != record.pk or item.account_id != account.pk:
+        raise ValidationError({"balance_after": "This report belongs to another transfer."})
+    if item.balance_after != balance_after:
+        item.balance_after = balance_after
+        item.save(update_fields=("balance_after",))
+    return item
+
+
 def write_account_reports(record, reports):
     chosen, primary = account_reports(record)
     for report in reports:

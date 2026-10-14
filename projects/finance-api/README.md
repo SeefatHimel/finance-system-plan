@@ -609,7 +609,9 @@ in the effective reported balance requires an explicit choice between the curren
 ledger report and the statement report. Optional reviewed metadata selections
 can fill or replace merchant, reference, note, and masked identifiers. Owned
 transfers keep canonical From → To and add reporting-side evidence. Both source
-and previous ledger values remain available in audit history.
+observations retain their original reported balances. A reviewed ledger balance
+choice is stored separately, so unlinking the PDF row preserves an explicit
+choice without rewriting SMS or statement evidence.
 
 Opening/closing/summary rows are excluded. Wallet inline charges become separate
 fee/refund review rows. For newly posted principal-plus-fee events, the final
@@ -1018,7 +1020,9 @@ window. `POST /api/statements/rows/{id}/decide/` with `action=combine_sms`, row
 `version`, and `candidate` confirms one SMS and links that row atomically. Row
 lists show a batched `pending_sms_match_count`, so pending pairs appear in the
 possible-match filter. A null count means the bounded list check was inconclusive,
-not that there are zero matches; open the row before adding it. A conflicting
+not that there are zero matches. If the detail check is also inconclusive,
+individual and bulk statement posting stay blocked until the SMS queue is
+narrowed or reviewed; `allow_separate` cannot bypass an unchecked match. A conflicting
 reported balance requires an exact-value `balance_choice`. If ledger suggestions exist, the request must acknowledge
 their exact current IDs as different movements; stale suggestions return 409.
 The SMS source and date/time are kept. Independent review routes remain supported.
