@@ -1,6 +1,8 @@
 """Synthetic account balances for one canonical movement."""
 
+from datetime import date, time
 from decimal import Decimal
+from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -176,6 +178,64 @@ class TransferAccountReportTests(APITestCase):
         self.assertEqual(TransferEvidence.objects.count(), 2)
         self.assertEqual(Transaction.objects.count(), 1)
         self.assertTrue(AuditLogEntry.objects.filter(action="updated").exists())
+
+    def test_transfer_edits_preserve_captured_sms_and_statement_reports(self):
+        raw = RawMessage.objects.create(
+            user=self.user, sender="SYNTH", body="Synthetic transfer notice",
+            body_hash=str(uuid4()), received_at=timezone.now(),
+        )
+        record = Transaction.objects.create(
+            user=self.user, account=self.a, transfer_account=self.b,
+            type="transfer", direction="debit", amount="1000.00",
+            date=date(2026, 10, 12), time=time(9), balance_after="9000.00",
+            source="sms", raw_message=raw, reference="SMS-REF", note="SMS note",
+        )
+        sms = TransferEvidence.objects.create(
+            user=self.user, transaction=record, account=self.a,
+            direction="debit", date=record.date, time=record.time,
+            balance_after="9000.00", source="sms", raw_message=raw,
+            reference="SMS-REF", note="SMS note",
+        )
+        statement = TransferEvidence.objects.create(
+            user=self.user, transaction=record, account=self.b,
+            direction="credit", date=record.date, time=time(9, 5),
+            balance_after="3000.00", source="import",
+            external_key=f"statement-row:{uuid4()}", reference="PDF-REF",
+        )
+        self.patch(
+            record.pk, date="2026-10-13", time="11:30:00",
+            reference="LEDGER-REF", note="Corrected ledger note",
+            reported_balances=self.reports(),
+        )
+        sms.refresh_from_db()
+        statement.refresh_from_db()
+        self.assertEqual(TransferEvidence.objects.count(), 2)
+        self.assertEqual((sms.date, sms.time, sms.reference, sms.note),
+                         (date(2026, 10, 12), time(9), "SMS-REF", "SMS note"))
+        self.assertEqual((statement.time, statement.reference),
+                         (time(9, 5), "PDF-REF"))
+
+        legacy = self.patch(record.pk, balance_after="8995.00")
+        sms.refresh_from_db()
+        self.assertEqual(sms.balance_after, Decimal("9000.00"))
+        self.assertEqual(legacy["balance_after"], "8995.00")
+        self.assertEqual(TransferEvidence.objects.count(), 3)
+
+        changed = self.patch(
+            record.pk, reported_balances=self.reports(a="8990.00", b="3010.00")
+        )
+        sms.refresh_from_db()
+        statement.refresh_from_db()
+        self.assertEqual(sms.balance_after, Decimal("9000.00"))
+        self.assertEqual(statement.balance_after, Decimal("3000.00"))
+        self.assertEqual(changed["balance_after"], "8990.00")
+        self.assertEqual(
+            {item["account"]: item["balance_after"] for item in changed["reported_balances"]},
+            {str(self.a.pk): "8990.00", str(self.b.pk): "3010.00"},
+        )
+        self.assertEqual(TransferEvidence.objects.count(), 4)
+        self.patch(record.pk, reported_balances=self.reports(a="8990.00", b="3010.00"))
+        self.assertEqual(TransferEvidence.objects.count(), 4)
 
     def test_replacing_only_source_does_not_move_receiving_report(self):
         data = self.create(

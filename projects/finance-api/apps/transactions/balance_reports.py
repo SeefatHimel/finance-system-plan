@@ -88,30 +88,31 @@ def reviewed_account_report(record, account, balance_after):
     return item
 
 
+def is_captured_report(item):
+    return (
+        bool(item.raw_message_id)
+        or item.source in {Transaction.Source.SMS, Transaction.Source.IMPORT}
+        or item.external_key.startswith("statement-row:")
+    )
+
+
 def write_account_reports(record, reports):
     chosen, primary = account_reports(record)
     for report in reports:
         account = report["account"]
         item = chosen.get(account.pk)
         if item:
-            item.balance_after = report["balance_after"]
-            item.save(update_fields=("balance_after",))
+            if item.balance_after != report["balance_after"]:
+                if is_captured_report(item):
+                    item = reviewed_account_report(record, account, report["balance_after"])
+                    select_effective_account_report(record, item)
+                else:
+                    item.balance_after = report["balance_after"]
+                    item.save(update_fields=("balance_after",))
         elif report["balance_after"] is not None:
-            item = TransferEvidence.objects.create(
-                user=record.user,
-                transaction=record,
-                account=account,
-                direction="credit"
-                if account.pk == record.transfer_account_id
-                else "debit",
-                date=record.date,
-                time=record.time,
-                balance_after=report["balance_after"],
-                external_key=f"balance:{record.pk}:{account.pk}",
-                source=Transaction.Source.WEB,
-                note="Manually reported balance",
-            )
-        if primary and item and primary.pk == item.pk:
+            item = reviewed_account_report(record, account, report["balance_after"])
+            select_effective_account_report(record, item)
+        if primary and item and primary.account_id == item.account_id:
             record.balance_after = item.balance_after
             record.save(update_fields=("balance_after",))
     getattr(record, "_prefetched_objects_cache", {}).pop("transfer_evidence", None)

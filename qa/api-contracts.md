@@ -306,6 +306,8 @@ after reclassification to another type.
 Type/category/detail corrections preserve a reported balance, including zero,
 while its reporting account stays the same. For transfers that is the primary
 observation's account, so editing the opposite side does not invalidate it.
+Changing a captured SMS or PDF balance through a transfer update selects a
+separate reviewed report; the captured observation keeps its original value.
 Omitted balance retains the report on that account, including primary evidence
 when reclassifying a transfer whose main balance was empty. Explicit null clears
 it and is not restored by later updates. Account remapping clears omitted or

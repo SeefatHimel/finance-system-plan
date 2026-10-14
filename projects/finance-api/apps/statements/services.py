@@ -723,6 +723,7 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
         if not row.transaction_id:
             raise ValidationError({"action": "This row has no linked ledger entry."})
         record = row.transaction
+        transaction_before = transaction_snapshot(record) if record.type == "transfer" else None
         original_primary = (
             primary_transfer_evidence(record, list(record.transfer_evidence.all()))
             if record.type == "transfer"
@@ -744,6 +745,15 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
                 current_primary.balance_after if current_primary else None
             )
             record.save(update_fields=("balance_after", "updated_at"))
+        if removed and transaction_before is not None:
+            create_audit_log(
+                user=user,
+                action=AuditLogEntry.Action.UPDATED,
+                entity=record,
+                before=transaction_before,
+                after=transaction_snapshot(record),
+                metadata={"statement_row": str(row.id), "decision": "unlink"},
+            )
     elif action == "skip":
         row.state = "skipped"
     else:

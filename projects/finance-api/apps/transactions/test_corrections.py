@@ -176,8 +176,10 @@ class TransactionCorrectionTests(APITestCase):
         primary, secondary = list(self.record.transfer_evidence.order_by("created_at"))
         primary.raw_message = None
         primary.external_key = self.record.external_key
+        primary.source = "web"
         primary.save()
         secondary.raw_message = None
+        secondary.source = "web"
         secondary.save()
         response = self.patch(balance_after="8500.00", reference="DEMO-PRIMARY")
         self.assertEqual(response.status_code, 200, response.data)

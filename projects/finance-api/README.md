@@ -625,6 +625,8 @@ keeps the ledger entry. Deleted targets return their source rows to review.
 Financial corrections to statement-linked ledger entries require
 `allow_linked_correction`; immutable source values survive. Transfer merges move
 statement links and reject merging separate observations from one batch.
+Unlinking transfer statement evidence also records a transaction audit snapshot
+when it removes an observation or restores a prior effective balance.
 
 Limits: 4 MiB, 30 pages, 2000 extracted rows (up to 4000 principal/fee review
 components), 10 uploads/hour/user, 20-second isolated extraction worker. History
@@ -858,7 +860,10 @@ The implementation reuses `TransferEvidence`; no migration or second ledger entr
 is needed. Missing secondary manual reports get stable per-transaction/account
 keys, so repeated saves cannot create duplicate observations. Primary and secondary
 report edits are included in the existing transaction audit snapshots. Original SMS
-bodies and PDF extraction snapshots remain unchanged. Incoming non-transfer SMS
+bodies, PDF extraction snapshots, and captured transfer observations remain unchanged
+when editing ledger dates, notes, references, or reported balances. Changed
+provider reports use separate reviewed evidence, including an explicit clear;
+retrying the same edit does not add another observation. Incoming non-transfer SMS
 converted to a transfer retains its report on the receiving account. Restoring a
 previously reclassified transfer restores its original reporting-account context.
 

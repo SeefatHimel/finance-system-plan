@@ -791,6 +791,15 @@ before/after snapshots and decision metadata preserve the previous values; the
 PDF extraction stays immutable. Linking counts once, and unlinking or rescanning
 confirmed SMS does not undo an explicit reviewed balance choice.
 
+### What happens to captured transfer reports when the ledger is edited?
+
+Editing a ledger date, time, reference, note, or account-bound reported balance
+does not rewrite captured SMS or statement observations. A changed balance is
+stored as separate reviewed evidence and selected as the effective account
+report; repeating the same edit reuses it. If unlinking a statement removes a
+transfer observation or restores its prior effective balance, the transaction
+history records before/after snapshots in addition to the statement-row event.
+
 
 ### How does statement metadata enrichment avoid overwriting user corrections?
 

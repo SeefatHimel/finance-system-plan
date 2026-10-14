@@ -11,6 +11,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import Account
+from apps.audit_logs.models import AuditLogEntry
 from apps.messages.models import (
     ParsedMessageCandidate,
     RawMessage,
@@ -246,6 +247,12 @@ class UnifiedReviewTests(APITestCase):
         record.refresh_from_db()
         self.assertEqual(record.balance_after, Decimal("900.00"))
         self.assertEqual(reported_values(record)[self.account.pk], Decimal("900.00"))
+        reversal = AuditLogEntry.objects.get(
+            entity_type="transactions.transaction", entity_id=str(record.pk),
+            metadata__decision="unlink", metadata__statement_row=str(self.row.pk),
+        )
+        self.assertEqual(reversal.before["balance_after"], "900.07")
+        self.assertEqual(reversal.after["balance_after"], "900.00")
 
     def test_linking_existing_transfer_keeps_its_effective_report(self):
         self.row.type = "transfer"

@@ -9,6 +9,7 @@ from apps.payment_methods.models import PaymentMethod
 
 from .balance_reports import (
     account_reports,
+    is_captured_report,
     primary_transfer_evidence,
     write_account_reports,
 )
@@ -224,6 +225,7 @@ class TransactionSerializer(serializers.ModelSerializer):
         return record
 
     def update(self, instance, validated_data):
+        explicit_balance_input = "balance_after" in validated_data
         reports = validated_data.pop("reported_balances", None)
         allow_linked_correction = validated_data.pop("allow_linked_correction", False)
         evidence_items = list(instance.transfer_evidence.all())
@@ -292,18 +294,21 @@ class TransactionSerializer(serializers.ModelSerializer):
         new_from = validated_data.get("account", instance.account)
         new_to = validated_data.get("transfer_account", instance.transfer_account)
         # Swapping From/To changes debit/credit, not ownership of the report.
-        if new_type == Transaction.Type.TRANSFER and old_reporting_account_id in {
-            new_from.pk,
-            new_to.pk,
-        }:
-            if reports is not None or (
-                was_transfer
-                and instance.account_id == new_to.pk
-                and instance.transfer_account_id == new_from.pk
-            ):
-                primary_account = (
-                    new_from if old_reporting_account_id == new_from.pk else new_to
+        if (
+            new_type == Transaction.Type.TRANSFER
+            and old_reporting_account_id in {new_from.pk, new_to.pk}
+            and (
+                reports is not None
+                or (
+                    was_transfer
+                    and instance.account_id == new_to.pk
+                    and instance.transfer_account_id == new_from.pk
                 )
+            )
+        ):
+            primary_account = (
+                new_from if old_reporting_account_id == new_from.pk else new_to
+            )
         reporting_account_changed = old_reporting_account_id != getattr(
             primary_account, "pk", None
         )
@@ -366,7 +371,11 @@ class TransactionSerializer(serializers.ModelSerializer):
                     if new_account_id == instance.transfer_account_id
                     else "debit"
                 )
-                if primary_evidence and evidence.pk == primary_evidence.pk:
+                if (
+                    primary_evidence
+                    and evidence.pk == primary_evidence.pk
+                    and not is_captured_report(evidence)
+                ):
                     for field in ("balance_after", "reference", "date", "time", "note"):
                         if field in validated_data:
                             setattr(evidence, field, getattr(instance, field))
@@ -391,6 +400,11 @@ class TransactionSerializer(serializers.ModelSerializer):
                     "transfer_evidence", None
                 )
                 write_account_reports(instance, reports)
+            elif explicit_balance_input:
+                write_account_reports(
+                    instance,
+                    [{"account": primary_account, "balance_after": instance.balance_after}],
+                )
         # Keep observations as provenance when a transfer is reclassified.
         # Reporting only consumes them while this entry remains a transfer.
         getattr(instance, "_prefetched_objects_cache", {}).pop(
