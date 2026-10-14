@@ -954,13 +954,20 @@ before combining; a changed suggestion list requires a fresh review.
 
 Unified review (`/review`) lists only unique one-to-one pending pairs, one item per
 SMS + statement movement, with account, statement-date and combined-source search
-filters. Compact rows display match strength and balance conflict independently;
+filters. Review condition also filters strong/possible matches, differing balances
+or types, and items needing correction before pagination. Overview totals remain
+for the selected account and date before condition/search filtering. Ambiguous
+sources link to the separate statement and SMS queues. Compact rows display match strength and balance conflict independently;
 the scope summary links unmatched source counts back to their dedicated review
 pages. Each item opens an editable, prefilled result with original SMS/PDF evidence.
 Differing parsed types require an explicit choice; merchant, category, date/time,
 reference and note can be corrected in place before saving. Explicit confirmation
 resolves both sources into one transaction; a new entry uses the reviewed
-classification/date/time and chosen balance.
+classification/date/time and chosen balance. A compact source comparison appears
+before the editable result and receives initial dialog focus. If a statement has
+no time, the aligned SMS received time is suggested with a visible source label;
+reviewers can clear it. A date mismatch leaves time empty, and moving the date
+away from the SMS date clears that suggestion.
 Existing ledger suggestions must be selected and retain their existing balance.
 If none can be linked, the comparison explains the blocker and links directly to
 the statement workflow where the ledger suggestions can be resolved.
@@ -974,7 +981,10 @@ returning to a freshly loaded comparison after saving or going back. The compari
 shows extraction, statement-check and draft discrepancies before requesting an
 acknowledgment. Queue counts describe matched review items, not source observations.
 Saved ledger suggestions stay visible after an inline result edit; the server
-revalidates them and the source match atomically before recording anything.
+revalidates them and the source match atomically before recording anything. If
+an edit clears a selected existing ledger transaction, a notice explains why it
+must be chosen again. The footer is scroll-bounded on small screens so the form
+and confirmation controls remain reachable.
 SMS correction includes a return link to matched review. Stable cursor navigation
 avoids skipping pairs after earlier rows are resolved. SMS dates are received dates;
 statement dates are transaction/value dates. Both evidence sets are available from

@@ -1118,7 +1118,11 @@ Already pending rows gain suggestions on refresh without a PDF re-upload or migr
 
 Open **Unified review** (`/review`) from the sidebar to compare all pending SMS
 candidates with saved pending statement rows. Account, daily/monthly/custom dates
-and combined-source search apply before pagination. The page shows only reciprocal
+and combined-source search apply before pagination. Review-condition filters narrow
+the queue to strong or possible pairs, balance or type differences, or pairs needing
+correction before pagination. Overview totals cover the selected account and dates
+before search and review-condition filtering; ambiguous sources link to their
+individual statement and SMS review pages. The page shows only reciprocal
 one-to-one pairs backed by evidence beyond amount/date; unmatched and ambiguous
 sources remain in their dedicated review pages. Source totals explain how many are
 matched, ambiguous, statement-only or SMS-only in the selected scope. Unknown
@@ -1132,6 +1136,13 @@ statement type, SMS type or a different type; date/time, category, merchant,
 reference and note suggestions remain individually editable. Amount stays tied
 to the matched source amounts and must be corrected in source review. The two
 originals, match reasons and reported balances remain expandable for comparison.
+A compact comparison of source date/time, type and reported balance appears before
+the result form, and focus starts there when the dialog opens. When the statement
+has no time and its date matches the SMS received date, the form suggests the SMS
+received time with its provenance visible; reviewers can clear it. A different
+statement date does not get an inferred time. Changing the date away from the SMS
+date clears that suggested time so it cannot silently become a timestamp on a
+different day.
 Inactive saved categories are cleared from the proposed result so the reviewer
 can choose an active category or leave it uncategorized.
 Edit statement draft still uses the existing editor in save-only mode and refreshes the
@@ -1154,6 +1165,9 @@ direct route to statement review instead of leaving an unexplained disabled acti
 An inline edit does not hide saved ledger suggestions; the API revalidates all
 matching and posting rules atomically before it changes either source. A failed
 review leaves both sources pending and prompts a refresh or source correction.
+Editing after selecting an existing ledger entry clears that selection and shows
+a notice to verify and choose the entry again. On small screens, the dialog footer
+has its own bounded scroll area so the result and action buttons remain reachable.
 Separate movements can still be reviewed in their source workflows after checking
 all possible matches.
 

@@ -3433,12 +3433,13 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 
 /* Unified pending-source review reuses the viewport-centered statement dialog. */
 .unified-review-heading, .unified-review-item header { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
-.unified-review-filters { align-items: end; display: grid; gap: 14px; grid-template-columns: minmax(220px, 1fr) minmax(300px, 2fr); margin: 18px 0; }
+.unified-review-filters { align-items: end; display: grid; gap: 14px; grid-template-columns: minmax(180px, 1fr) minmax(210px, 1fr) minmax(300px, 2fr); margin: 18px 0; }
 .unified-review-search { align-items: flex-end; display: flex; gap: 8px; min-width: 0; }
 .unified-review-search .field { flex: 1; min-width: 0; }
 .unified-review-overview { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .unified-review-overview > * { background: var(--background); border: 1px solid var(--panel-border); border-radius: 999px; color: var(--muted); font-size: 13px; padding: 7px 11px; text-decoration: none; }
 .unified-review-overview a:hover { border-color: var(--accent); color: var(--foreground); }
+.unified-review-overview span a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 .unified-review-overview strong { color: var(--foreground); font-variant-numeric: tabular-nums; }
 .unified-review-list { display: grid; gap: 14px; margin-bottom: 20px; }
 .unified-review-item { align-items: center; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px; content-visibility: auto; display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; overflow-wrap: anywhere; padding: 16px 18px; }
@@ -3457,6 +3458,15 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .unified-review-pagination { justify-content: flex-end; }
 .status-badge--warning { background: #2b2414; border-color: #4a3b1d; color: var(--warning); }
 .viewport-modal.unified-pair-dialog { max-width: min(1400px, calc(100vw - 32px)); }
+.unified-pair-summary { background: var(--background); border: 1px solid var(--panel-border); border-radius: 12px; margin-bottom: 16px; padding: 14px 18px; }
+.unified-pair-summary:focus { outline: none; }
+.unified-pair-summary h3 { margin: 0; }
+.unified-pair-summary p { color: var(--muted); margin: 4px 0 12px; }
+.unified-pair-summary dl { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.unified-pair-summary dl > div { border: 1px solid var(--panel-border); border-radius: 8px; min-width: 0; overflow-wrap: anywhere; padding: 10px; }
+.unified-pair-summary dt { color: var(--muted); font-size: 12px; font-weight: 750; margin-bottom: 6px; }
+.unified-pair-summary dd { margin: 3px 0 0; }
+.unified-pair-summary__difference { border-color: var(--warning) !important; }
 .unified-result-editor { background: var(--background); border: 1px solid var(--panel-border); border-radius: 12px; padding: 18px; }
 .unified-result-editor > header { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
 .unified-result-editor h3 { margin: 0; }
@@ -3492,13 +3502,15 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .unified-pair-dialog .statement-row-footer .statement-actions { flex-shrink: 0; margin: 0; }
 .statement-match-comparison section > .button { margin-top: 14px; max-width: 100%; white-space: normal; }
 @media (max-width: 900px) { .unified-review-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .unified-review-search { grid-column: 1 / -1; } .unified-pair-summary dl { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 720px) {
   .unified-review-filters, .unified-review-item, .unified-review-source-summary { grid-template-columns: minmax(0, 1fr); }
+  .unified-review-search { grid-column: auto; }
   .unified-review-item { align-items: stretch; padding: 14px; }
   .unified-review-item__actions { align-items: stretch; justify-items: stretch; }
   .unified-review-badges { justify-content: flex-start; }
   .unified-review-source-summary span { white-space: normal; }
   .unified-pair-dialog .statement-row-footer { align-items: stretch; display: grid; gap: 10px; }
-  .unified-pair-dialog .statement-row-footer { max-height: none; overflow: visible; }
+  .unified-pair-dialog .statement-row-footer { max-height: 35dvh; overflow-y: auto; overscroll-behavior: contain; }
   .unified-pair-dialog .statement-row-footer .statement-actions { width: 100%; }
 }
