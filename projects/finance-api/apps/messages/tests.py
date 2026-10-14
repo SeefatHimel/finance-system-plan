@@ -138,6 +138,22 @@ class SenderRuleApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("Enter a valid regular expression", response.data["pattern"][0])
 
+    def test_sender_rule_rejects_backtracking_pattern(self):
+        user = get_user_model().objects.create_user(username="safe-pattern-user", password="password")
+        account = Account.objects.create(user=user, name="Bank", type=Account.Type.BANK)
+        self.client.force_authenticate(user)
+        response = self.client.post(reverse("sender-rule-list"), {
+            "account": str(account.id), "name": "Unsafe", "provider": SenderRule.Provider.BANK,
+            "sender": "CITYBANK", "match_type": SenderRule.MatchType.REGEX,
+            "pattern": "(a+)+$",
+        }, format="json")
+        self.assertEqual(response.status_code, 400)
+        from apps.messages.safe_sender_regex import sender_pattern_matches
+        self.assertFalse(sender_pattern_matches("(a+)+$", "a" * 1000 + "!"))
+        self.assertFalse(sender_pattern_matches(r"\\+\\+$", "\\" * 200 + "!"))
+        self.assertTrue(sender_pattern_matches("^CITY[Bb][Aa][Nn][Kk]$", "CITYBANK"))
+        self.assertTrue(sender_pattern_matches(r"^\+880", "+880123"))
+
 
 class RawMessageImportApiTests(APITestCase):
     def test_capture_preferences_default_to_excluding_security_messages(self):
@@ -1572,6 +1588,14 @@ class MessageReviewApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["id"], candidate["id"])
+
+    def test_review_inbox_supports_bounded_pages_and_total_count(self):
+        candidate = self.import_message()
+        response = self.client.get(reverse("message-review-list"), {"limit": 1, "offset": 0})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], candidate["id"])
+        self.assertEqual(self.client.get(reverse("message-review-list"), {"limit": 201}).status_code, 400)
 
     def test_user_can_confirm_candidate_as_transaction(self):
         candidate = self.import_message()

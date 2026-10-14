@@ -146,6 +146,26 @@ class SavedStatementTests(APITestCase):
         self.assertIn(str(row.id), [item["id"] for item in self.client.get(url, {"state": "possible_match"}).data["results"]])
         self.assertNotIn(str(row.id), [item["id"] for item in self.client.get(url, {"state": "new"}).data["results"]])
 
+    def test_unrelated_busy_account_does_not_hide_pending_sms_match(self):
+        batch = self.upload()
+        row = batch.rows.filter(component="principal", direction="debit").first()
+        received = datetime(2026, 1, 2, 12, 0, tzinfo=ZoneInfo("Asia/Dhaka"))
+        for index in range(201):
+            body = f"Synthetic unrelated purchase {index}"
+            raw = RawMessage.objects.create(
+                user=self.user, sender="SYNTH", body=body, received_at=received,
+                body_hash=RawMessage.build_body_hash(sender="SYNTH", body=body, received_at=received),
+            )
+            ParsedMessageCandidate.objects.create(
+                user=self.user, raw_message=raw, account=self.wallet,
+                transaction_type="expense", message_kind="card_purchase", amount=row.amount,
+            )
+        candidate = self.pending_sms(row)
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id]))
+        self.assertEqual([match["id"] for match in detail.data["review"]["pending_sms_matches"]], [str(candidate.id)])
+        listed = self.client.get(reverse("statement-import-rows", args=[batch.id])).data["results"]
+        self.assertEqual(next(item for item in listed if item["id"] == str(row.id))["review"]["pending_sms_match_count"], 1)
+
     def test_pending_sms_balance_conflict_requires_explicit_choice(self):
         batch = self.upload()
         row = batch.rows.filter(component="principal", direction="debit").first()

@@ -11,6 +11,7 @@ from apps.transactions.models import Transaction
 from apps.transactions.serializers import TransactionActionSerializer
 
 from .identifiers import sanitize_financial_identifier
+from .safe_sender_regex import compile_sender_pattern
 from .models import (
     ParsedMessageCandidate,
     RawMessage,
@@ -99,8 +100,8 @@ class SenderRuleSerializer(serializers.ModelSerializer):
             attrs["pattern"] = pattern
         if match_type == SenderRule.MatchType.REGEX:
             try:
-                re.compile(pattern or sender, flags=re.IGNORECASE)
-            except re.error as error:
+                compile_sender_pattern(pattern or sender)
+            except (re.error, ValueError) as error:
                 raise serializers.ValidationError(
                     {"pattern": f"Enter a valid regular expression: {error}."}
                 ) from error

@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from .identifiers import sanitize_financial_identifier
 from .models import ParsedMessageCandidate, SenderRule, SenderRuleMapping
+from .safe_sender_regex import sender_pattern_matches
 
 _AMOUNT_PATTERN = re.compile(
     r"(?:tk|bdt)\.?\s*([0-9][0-9,]*(?:\.\d{1,2})?)|"
@@ -248,10 +249,7 @@ def _matches_rule(*, rule: SenderRule, sender: str) -> bool:
     if rule.match_type == SenderRule.MatchType.CONTAINS:
         return (rule.pattern or rule_sender).strip().lower() in incoming_sender.lower()
     if rule.match_type == SenderRule.MatchType.REGEX:
-        try:
-            return re.search(rule.pattern or rule_sender, incoming_sender, flags=re.IGNORECASE) is not None
-        except re.error:
-            return False
+        return sender_pattern_matches(rule.pattern or rule_sender, incoming_sender)
     return False
 
 

@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import timedelta
 from types import SimpleNamespace
 
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
@@ -80,22 +81,34 @@ def pending_sms_matches(row):
         return []
     start = min(dates_for(row)) - timedelta(days=MATCH_DAYS)
     end = max(dates_for(row)) + timedelta(days=MATCH_DAYS + 1)
-    candidates = list(
+    candidates = (
         ParsedMessageCandidate.objects.filter(
             user_id=row.batch.user_id,
             status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
             transaction__isnull=True,
             amount=row.amount,
             transaction_type=row.type,
+            **({"account_id": row.batch.account_id} if row.type != Transaction.Type.TRANSFER else {}),
             raw_message__received_at__date__gte=start,
             raw_message__received_at__date__lt=end,
         )
         .select_related("raw_message", "account", "destination_account", "payment_method", "category")
-        .order_by("raw_message__received_at", "id")[:201]
+        .order_by("raw_message__received_at", "id")
     )
-    # A busy window is unsafe to suggest from; ordinary review remains available.
-    if len(candidates) > 200:
-        return []
+    if row.type == Transaction.Type.TRANSFER:
+        candidates = candidates.filter(
+            Q(account_id=row.batch.account_id) | Q(destination_account_id=row.batch.account_id)
+        )
+    # Bound matching work, but count only candidates from this account's
+    # perspective. Unrelated messages must not hide a valid suggestion.
+    eligible_candidates = []
+    for index, candidate in enumerate(candidates.iterator(chunk_size=200)):
+        if index >= 10000:
+            return []
+        if _eligible(row, candidate):
+            eligible_candidates.append(candidate)
+            if len(eligible_candidates) > 200:
+                return []
     return [
         {
             "id": str(candidate.id),
@@ -125,7 +138,7 @@ def pending_sms_matches(row):
                 receiver_card_identifier=candidate.receiver_card_identifier,
             )),
         }
-        for candidate in candidates if _eligible(row, candidate)
+        for candidate in eligible_candidates
     ]
 
 
@@ -178,7 +191,8 @@ def pending_sms_match_counts(rows):
             for offset in range(-MATCH_DAYS, MATCH_DAYS + 1):
                 for candidate in by_day[(row.amount, row.type, date + timedelta(days=offset))]:
                     possible[candidate.id] = candidate
-        counts[row.id] = sum(_eligible(row, candidate) for candidate in possible.values())
+        matching_count = sum(_eligible(row, candidate) for candidate in possible.values())
+        counts[row.id] = matching_count if matching_count <= 200 else None
     return counts
 
 
