@@ -973,6 +973,7 @@ The dashboard and sidebar use exact counts without downloading the whole queue.
 
 The inbox loads its first bounded page, then fetches the requested candidate by
 ID if it is not on that page. It selects that exact candidate; an unavailable
-one shows an error rather than silently selecting another message. The pair
+or foreign candidate now shows a notice and the current inbox, while other
+request failures still show an error. The pair
 dialog disables a missing balance choice when the other source has a report,
 and the statement list distinguishes an unavailable match count from zero.

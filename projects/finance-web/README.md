@@ -1145,9 +1145,11 @@ matching reference or balance required beyond one day. Conflicting nonempty
 references are excluded. Stale versions/timestamps fail without partial writes;
 retries of the same confirmed pair do not create another movement.
 Direct links to pending SMS load that candidate by ID even when it lies beyond
-the first 100 inbox rows. An unavailable or already-resolved link shows an error
-instead of opening an unrelated message. Large statement lists distinguish an
-unchecked SMS match count from a verified zero and require individual review.
+the first 100 inbox rows. An unavailable, foreign, or already-resolved link
+shows a notice and the current inbox; other request failures remain visible as
+errors. Large statement lists distinguish an unchecked SMS match count from a
+verified zero; an inconclusive detail check blocks separate posting until the
+pending SMS queue can be reviewed.
 
 The queue compares up to 2,000 pending sources of each kind in the selected account
 scope and refuses excessive overlapping comparisons explicitly. Narrow by account

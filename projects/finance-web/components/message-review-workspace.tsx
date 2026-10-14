@@ -132,6 +132,7 @@ export function MessageReviewWorkspace() {
   const [activeCandidateId, setActiveCandidateId] = useState("");
   const [actionError, setActionError] = useFeedbackMessage("error");
   const [actionMessage, setActionMessage] = useFeedbackMessage("success");
+  const [linkNotice, setLinkNotice] = useState("");
   const [lookupInProgress, setLookupInProgress] = useState(false);
   const [workingCandidateId, setWorkingCandidateId] = useState<string | null>(null);
   const [reprocessingCandidateId, setReprocessingCandidateId] = useState<string | null>(null);
@@ -180,10 +181,24 @@ export function MessageReviewWorkspace() {
         if (!page.results.length) break;
         candidates.push(...page.results);
       }
+      let unavailableLink = false;
       if (requestedCandidateId && !candidates.some(candidate => candidate.id === requestedCandidateId)) {
-        candidates.push(await getPendingMessageCandidate(accessToken, requestedCandidateId));
+        try {
+          candidates.push(await getPendingMessageCandidate(accessToken, requestedCandidateId));
+        } catch (error) {
+          if (!(error instanceof Error && "status" in error && error.status === 404)) throw error;
+          unavailableLink = true;
+        }
       }
       if (ticket !== loadVersion.current || requestOwner !== ownerRef.current) return;
+      setLinkNotice(unavailableLink ? "That message is no longer pending or available to this account. Showing your current inbox." : "");
+      if (unavailableLink) {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("candidate") === requestedCandidateId) {
+          params.delete("candidate");
+          window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params.toString()}` : ""}`);
+        }
+      }
       setReviewState({ accounts, candidates, categories, paymentMethods, status: "ready", totalCount: firstPage.count });
       publishReviewCount(firstPage.count, requestOwner);
       setActiveCandidateId((current) => {
@@ -513,6 +528,7 @@ export function MessageReviewWorkspace() {
       {categoryChoice.confirmation}
       {actionError ? <p className="form-error" role="alert">{actionError}</p> : null}
       {actionMessage ? <p className="form-success"><CheckCircle aria-hidden="true" size={18} weight="fill" />{actionMessage}</p> : null}
+      {linkNotice ? <p className="form-warning" role="status"><Warning aria-hidden="true" size={18} />{linkNotice}</p> : null}
 
       <div className={`review-canvas${isFocused && !focusQueueOpen ? " review-canvas--queue-collapsed" : ""}`} ref={reviewSurface} role={isFocused ? "dialog" : undefined} aria-modal={isFocused || undefined} aria-label={isFocused ? "Focused SMS review" : undefined}>
         <div className="review-focus-header" hidden={!isFocused}>

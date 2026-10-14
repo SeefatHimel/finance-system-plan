@@ -744,7 +744,7 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
     }
 
     if (!proxyResponse.ok) {
-      throw await responseError(proxyResponse);
+      throw Object.assign(await responseError(proxyResponse), { status: proxyResponse.status });
     }
 
     return proxyResponse;
