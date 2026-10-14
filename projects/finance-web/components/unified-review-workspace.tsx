@@ -22,6 +22,12 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts }: { accounts: A
   const [ledger, setLedger] = useState("");
   const [balance, setBalance] = useState<"sms" | "statement">(pair.sms.balance_after !== null ? "sms" : "statement");
   const row = pair.row;
+  const sourceIssues = [
+    ...row.extracted.issues,
+    ...pair.batch.checks.filter(check => check.passed === false).map(check =>
+      `${check.label}: expected ${check.expected ?? "unknown"}, observed ${check.observed ?? "unknown"}.`),
+    ...(!row.transaction && ["posted", "linked"].includes(row.state) ? ["The previous ledger entry was deleted. Verify this source before recording it again."] : []),
+  ];
   const ledgerMatch = row.review.matches.find(match => match.id === ledger);
   const smsLedgerDifference = statementBalanceDifference(pair.sms.balance_after, ledgerMatch?.effective_balance_after ?? null);
   const needsConflict = pair.match.conflict || Boolean(ledgerMatch?.conflict) || (smsLedgerDifference !== null && smsLedgerDifference !== "0.00");
@@ -65,7 +71,11 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts }: { accounts: A
       {row.review.matches.length ? <section className="raw-message"><h3>Already in the ledger?</h3><p>A ledger suggestion exists. Choose it to keep that transaction and attach both sources.</p><label className="field"><span className="field__label">Existing transaction</span><select className="field__control" disabled={busy} value={ledger} onChange={event => { setLedger(event.target.value); setAckConflict(false); }}><option value="">Choose a verified ledger match</option>{row.review.matches.map(match => <option key={match.id} value={match.id} disabled={!match.can_link}>{match.date} · {match.amount} · {match.note || match.type}</option>)}</select></label>{ledgerMatch ? <p>Existing reported balance: {ledgerMatch.effective_balance_after ?? "Not reported"}. Linking keeps this ledger entry unchanged.</p> : null}</section> : <label className="field"><span className="field__label">Balance to use in the ledger</span><select className="field__control" value={balance} disabled={busy} onChange={event => { setBalance(event.target.value as "sms" | "statement"); setAckConflict(false); }}><option value="sms">SMS · {pair.sms.balance_after ?? "Not reported"}</option><option value="statement">Statement · {row.balance_after ?? "Not reported"}</option></select><span className="field__hint">Both reported balances stay in their source records.</span></label>}
       {needsConflict ? <section className="statement-match-conflict"><strong>Review balance differences{pair.match.conflict && difference !== null ? ` · ${pair.batch.currency} ${difference}` : ""}</strong>{smsLedgerDifference !== null && smsLedgerDifference !== "0.00" ? <p>SMS minus existing ledger balance: {pair.batch.currency} {smsLedgerDifference}.</p> : null}{ledgerMatch?.conflict ? <ul>{ledgerMatch.reasons.filter(reason => reason.includes("balance")).map(reason => <li key={reason}>{reason}</li>)}</ul> : null}<label className="review-remember"><input type="checkbox" disabled={busy} checked={ackConflict} onChange={event => setAckConflict(event.target.checked)} /><span>I reviewed the differing balances and the balance choice.</span></label></section> : null}
       {row.review.issues.length ? <ul className="statement-error">{row.review.issues.map(issue => <li key={issue}>{issue}</li>)}</ul> : null}
-      {row.review.requires_acknowledgement ? <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackIssues} onChange={event => setAckIssues(event.target.checked)} /><span>I reviewed the source and draft discrepancies.</span></label> : null}
+      {row.review.requires_acknowledgement ? <section className="raw-message" aria-label="Source and draft discrepancies">
+        <h3>Source and draft discrepancies</h3>
+        {sourceIssues.length ? <><strong>Original statement checks</strong><ul>{sourceIssues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></> : null}
+        {row.review.draft_issues.length ? <><strong>Saved draft checks</strong><ul>{row.review.draft_issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></> : null}
+        <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackIssues} onChange={event => setAckIssues(event.target.checked)} /><span>I reviewed the source and draft discrepancies.</span></label></section> : null}
       <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackMatch} onChange={event => setAckMatch(event.target.checked)} /><span>These sources describe the same money movement.</span></label>
       <label className="review-remember"><input type="checkbox" disabled={busy} checked={remember} onChange={event => setRemember(event.target.checked)} /><span>Remember statement category and transfer choices.</span></label>
       {error ? <p className="form-error" role="alert">{error} Close and refresh the queue if either source changed.</p> : null}
@@ -114,6 +124,12 @@ export function UnifiedReviewWorkspace() {
     setSelection({ statement: item.source === "statement" ? item.id : other.id, sms: item.source === "sms" ? item.id : other.id });
   }
   function refresh() { setSelection(null); setPair(null); setPairLoading(false); setEpoch(value => value + 1); }
+  function returnToPair() {
+    if (!editPair) return;
+    setSelection({ statement: editPair.row.id, sms: editPair.sms.id });
+    setEditPair(null);
+    setEpoch(value => value + 1);
+  }
   return <div className="workspace-grid"><section className="panel"><div className="panel__body">
     <div className="unified-review-heading"><div><h2 className="section-title">Unified pending review</h2><p className="section-subtitle">Compare SMS and statement drafts before recording money. A confirmed pair keeps both sources and counts once.</p></div><button className="button" type="button" onClick={refresh}>Refresh queue</button></div>
     <DatePeriodControls value={period} label="Pending source dates" description="Statement transaction date / SMS received date · local timezone" onChange={value => { setPeriod(value); setOffset(0); }} />
@@ -127,7 +143,7 @@ export function UnifiedReviewWorkspace() {
     {error ? <p className="form-error" role="alert">{error}</p> : null}{pairLoading ? <p role="status">Loading both sources…</p> : null}
     {!loading && !error && page?.count === 0 ? <p>No pending sources match these filters.</p> : null}
     <div className="unified-review-list" aria-busy={loading}>{page?.results.map(item => <article className="unified-review-item" key={`${item.source}:${item.id}`}>
-      <header><strong>{item.source === "sms" ? "SMS" : "Statement"} · {item.account_name}</strong><span>{item.currency} {item.amount ?? "Amount needed"} · {item.direction}</span></header>
+      <header><strong>{item.source === "sms" ? "SMS" : "Statement"} · {item.account_name}</strong><span>{item.amount === null ? "Amount needed" : `${item.currency} ${item.amount}`} · {item.direction}</span></header>
       <p>{item.date ?? "Date needed"}{item.time ? ` · ${item.time}` : ""} · {item.description}</p>
       {item.ambiguous ? <p className="inline-note">Multiple possible pairs. Choose one only after reviewing both sources.</p> : null}
       {item.matches.length ? <div className="unified-review-matches">{item.matches.map(match => <button className="button" type="button" disabled={loading || pairLoading} key={`${match.source}:${match.id}`} onClick={() => select(item, match)}>Compare {match.source === "sms" ? "SMS" : "statement"} · {match.date} · {match.conflict ? "Balance differs" : match.strength === "strong" ? "Strong suggestion" : "Possible match"}</button>)}</div> : <p className="inline-note">No pending source pair found. Review independently; existing ledger matches may still be available.</p>}
@@ -136,6 +152,6 @@ export function UnifiedReviewWorkspace() {
     <div className="statement-actions"><button className="button" type="button" disabled={loading || offset === 0} onClick={() => setOffset(value => Math.max(0, value - 50))}>Previous page</button><button className="button" type="button" disabled={loading || !page || offset + 50 >= page.count} onClick={() => setOffset(value => value + 50)}>Next page</button></div>
   </div></section>
   {pair ? <PairDialog key={`${pair.row.id}:${pair.sms.id}:${pair.row.version}`} pair={pair} accounts={accounts} onCancel={() => { setSelection(null); setPair(null); }} onSaved={refresh} onEdit={() => { setEditPair(pair); setSelection(null); setPair(null); }} /> : null}
-  {editPair ? <StatementRowDialog editOnly key={editPair.row.id} row={editPair.row} batch={editPair.batch} accounts={accounts} categories={categories} onCancel={() => { setEditPair(null); refresh(); }} onReload={() => { setEditPair(null); refresh(); }} onNext={async () => { setEditPair(null); refresh(); }} onChange={() => { setEditPair(null); refresh(); }} /> : null}
+  {editPair ? <StatementRowDialog editOnly key={editPair.row.id} row={editPair.row} batch={editPair.batch} accounts={accounts} categories={categories} onCancel={returnToPair} onReload={returnToPair} onNext={async () => returnToPair()} onChange={returnToPair} /> : null}
   </div>;
 }

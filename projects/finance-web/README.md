@@ -1117,8 +1117,13 @@ statement transaction dates. Statement fee rows remain independently reviewable.
 
 Compare opens both original sources, parsed details, reasons and reported balances.
 Edit statement draft uses the existing editor in save-only mode and refreshes the
-queue; SMS corrections use the existing SMS review deep link. Confirm both requires
-an explicit same-movement acknowledgment and any source/balance acknowledgments.
+queue and reopens the same comparison with fresh source versions and acknowledgments
+reset. Its footer offers Back to comparison and Save draft & compare; posting and
+next-row actions remain in the full statement workflow. SMS corrections use the
+existing SMS review deep link. Confirm both requires an explicit same-movement
+acknowledgment and any source/balance acknowledgments.
+Original extraction issues, failed statement checks, and saved draft discrepancies
+are shown alongside the required acknowledgment so users can inspect each reason.
 For a new entry, statement classification/date/time form the ledger movement and
 users choose which reported balance to use. Both original reported balances remain
 in their source records. If ledger suggestions already exist, choose a verified
