@@ -139,19 +139,18 @@ class UnifiedReviewTests(APITestCase):
         )
 
     def test_queue_filters_and_read_only_detail(self):
+        self.candidate(account=self.wallet, amount="99.00")
         response = self.client.get(reverse("unified-pending"))
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response["Cache-Control"], "no-store")
-        self.assertEqual(response.data["count"], 2)
-        self.assertTrue(
-            all(len(item["matches"]) == 1 for item in response.data["results"])
-        )
-        self.assertTrue(
-            all(item["matches"][0]["conflict"] for item in response.data["results"])
-        )
+        self.assertEqual(response.data["count"], 1)
+        pair = response.data["results"][0]
+        self.assertEqual(pair["statement"]["id"], str(self.row.pk))
+        self.assertEqual(pair["sms"]["id"], str(self.sms.pk))
+        self.assertTrue(pair["match"]["conflict"])
         response = self.client.get(
             reverse("unified-pending"),
-            {"source": "sms", "condition": "matched", "limit": 1},
+            {"search": "Synthetic Cafe", "limit": 1},
         )
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(
@@ -248,18 +247,10 @@ class UnifiedReviewTests(APITestCase):
         self.sms.reference = "SYNTH-B"
         self.assertIsNone(pair_signals(self.row, self.sms))
 
-    def test_shared_claims_remain_ambiguous(self):
+    def test_shared_claims_stay_out_of_unique_pair_queue(self):
         self.candidate()
         response = self.client.get(reverse("unified-pending"))
-        self.assertEqual(response.data["count"], 3)
-        self.assertTrue(all(item["ambiguous"] for item in response.data["results"]))
-        self.assertTrue(
-            all(
-                match["strength"] == "possible"
-                for item in response.data["results"]
-                for match in item["matches"]
-            )
-        )
+        self.assertEqual(response.data["count"], 0)
 
     def test_existing_ledger_prevents_duplicate_and_keeps_both_sms_sources(self):
         raw = RawMessage.objects.create(

@@ -574,13 +574,13 @@ remain empty. Payment methods, accounts, classifications, amount, date and time
 are not changed by this metadata shortcut. No new database migration is required;
 deploy web and API together.
 
-### Unified pending review
+### Unified matched-pair review
 
-- `GET /api/review/pending/`: source (`all/sms/statement`), condition
-  (`all/matched/unmatched/corrections`), account UUID, search, inclusive
+- `GET /api/review/pending/`: account UUID, combined-source search, inclusive
   `start_date/end_date` (maximum 366 days), offset and limit (1–100, default 50).
-  Returns `{count, offset, limit, results}`; each source includes opposite-source
-  suggestions and ambiguity flags. Counts are source observations, not movements.
+  Returns `{count, offset, limit, results}`; each result contains one unique
+  one-to-one `{statement, sms, match}` pair. Count is the number of review pairs.
+  Unmatched and ambiguous one-to-many sources are excluded.
 - `GET /api/review/pair/?statement=<uuid>&sms=<uuid>`: owned, still-pending pair
   details with the saved statement draft, batch, parsed SMS/original text and reasons.
 - `POST /api/review/pair/`: `statement`, `sms`, `statement_version`, `sms_updated_at`,

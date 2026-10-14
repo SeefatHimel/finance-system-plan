@@ -1007,13 +1007,15 @@ their exact current IDs as different movements; stale suggestions return 409.
 The SMS source and date/time are kept. Independent review routes remain supported.
 No schema migration is needed.
 
-### Unified pending-source review
+### Unified matched-pair review
 
-Authenticated, private/no-store `/api/review/pending/` combines pending SMS and
-statement sources with account/source/date/condition/search filters and offset
-pagination. Suggestions use reporting-account perspective, amount, currency,
-direction, calendar date/value date and reference/balance evidence. They remain
-review-only, including same-day repeats and balance conflicts. The read-only
+Authenticated, private/no-store `/api/review/pending/` returns one queue item for
+each unique one-to-one pending SMS and statement match, with account/date/search
+filters and offset pagination. Matching uses reporting-account perspective, amount,
+currency, direction, calendar date/value date and reference/balance evidence.
+Unmatched sources and overlapping one-to-many candidates are excluded from this
+queue and remain in their individual review workflows. Balance conflicts can still
+form a unique review pair. The read-only
 `GET /api/review/pair/?statement=<uuid>&sms=<uuid>` returns original sources,
 statement draft validation and current ledger suggestions.
 

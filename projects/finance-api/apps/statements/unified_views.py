@@ -16,10 +16,6 @@ from .unified import confirm_pair, pair_signals, pending_sources, queue
 
 
 class PendingReviewFilters(serializers.Serializer):
-    source = serializers.ChoiceField(choices=("all", "sms", "statement"), default="all")
-    condition = serializers.ChoiceField(
-        choices=("all", "matched", "unmatched", "corrections"), default="all"
-    )
     account = serializers.UUIDField(required=False)
     search = serializers.CharField(max_length=255, required=False, allow_blank=True)
     start_date = serializers.DateField(required=False)
@@ -38,7 +34,7 @@ class PendingReviewFilters(serializers.Serializer):
         return data
 
 
-class PendingSourceSerializer(serializers.Serializer):
+class UnifiedPendingSourceSerializer(serializers.Serializer):
     source = serializers.ChoiceField(choices=("sms", "statement"))
     id = serializers.UUIDField()
     account = serializers.UUIDField(allow_null=True)
@@ -58,22 +54,25 @@ class PendingSourceSerializer(serializers.Serializer):
     needs_correction = serializers.BooleanField()
 
 
-class PendingMatchSerializer(PendingSourceSerializer):
+class UnifiedPendingMatchSerializer(serializers.Serializer):
     strength = serializers.ChoiceField(choices=("strong", "possible"))
     conflict = serializers.BooleanField()
     reasons = serializers.ListField(child=serializers.CharField())
 
 
-class PendingItemSerializer(PendingSourceSerializer):
-    matches = PendingMatchSerializer(many=True)
-    ambiguous = serializers.BooleanField()
+class UnifiedPendingItemSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    statement = UnifiedPendingSourceSerializer()
+    sms = UnifiedPendingSourceSerializer()
+    match = UnifiedPendingMatchSerializer()
+    needs_correction = serializers.BooleanField()
 
 
-class PendingPageSerializer(serializers.Serializer):
+class UnifiedPendingPageSerializer(serializers.Serializer):
     count = serializers.IntegerField()
     offset = serializers.IntegerField()
     limit = serializers.IntegerField()
-    results = PendingItemSerializer(many=True)
+    results = UnifiedPendingItemSerializer(many=True)
 
 
 class PairSelection(serializers.Serializer):
@@ -129,7 +128,7 @@ class UnifiedPendingView(NoStoreMixin, APIView):
 
     @extend_schema(
         parameters=[PendingReviewFilters],
-        responses=PendingPageSerializer,
+        responses=UnifiedPendingPageSerializer,
         tags=["Unified review"],
     )
     def get(self, request):

@@ -511,8 +511,10 @@ review. SMS-only and statement-only endpoints keep their existing behavior.
 
 ### What is the unified pending-review contract?
 
-`/api/review/pending/` returns paginated source observations and review-only
-opposite-source suggestions, with filters applied before pagination.
+`/api/review/pending/` returns paginated unique one-to-one review pairs as
+`{statement, sms, match}` records, with account, statement-date and combined-source
+search filters applied before pair pagination. Unmatched sources and one-to-many
+ambiguities remain in their individual workflows.
 `GET /api/review/pair/` returns owned pending-source evidence and ledger suggestions.
 The POST takes both IDs, statement version, SMS updated timestamp, balance choice
 and explicit acknowledgments; it returns one transaction ID shared by both sources.

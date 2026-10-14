@@ -528,12 +528,10 @@ export class FinanceApiClient {
 
   async getApiReviewPending(query?: {
   account?: string;
-  condition?: "all" | "matched" | "unmatched" | "corrections";
   end_date?: string;
   limit?: number;
   offset?: number;
   search?: string;
-  source?: "all" | "sms" | "statement";
   start_date?: string;
 }): Promise<UnifiedPendingPage> {
     return this.request<UnifiedPendingPage>("/api/review/pending/", { method: "GET", query });

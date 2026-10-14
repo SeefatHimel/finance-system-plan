@@ -2530,24 +2530,6 @@ paths:
           type: string
           format: uuid
       - in: query
-        name: condition
-        schema:
-          enum:
-          - all
-          - matched
-          - unmatched
-          - corrections
-          type: string
-          default: all
-          minLength: 1
-        description: '* `all` - all
-
-          * `matched` - matched
-
-          * `unmatched` - unmatched
-
-          * `corrections` - corrections'
-      - in: query
         name: end_date
         schema:
           type: string
@@ -2570,21 +2552,6 @@ paths:
         schema:
           type: string
           maxLength: 255
-      - in: query
-        name: source
-        schema:
-          enum:
-          - all
-          - sms
-          - statement
-          type: string
-          default: all
-          minLength: 1
-        description: '* `all` - all
-
-          * `sms` - sms
-
-          * `statement` - statement'
       - in: query
         name: start_date
         schema:
@@ -6133,80 +6100,23 @@ components:
     UnifiedPendingItem:
       type: object
       properties:
-        source:
-          $ref: '#/components/schemas/UnifiedSourceEnum'
         id:
           type: string
-          format: uuid
-        account:
-          type: string
-          format: uuid
-          nullable: true
-        account_name:
-          type: string
-        currency:
-          type: string
-        date:
-          type: string
-          format: date
-          nullable: true
-        time:
-          type: string
-          format: time
-          nullable: true
-        amount:
-          type: string
-          nullable: true
-        balance_after:
-          type: string
-          nullable: true
-        direction:
-          type: string
-        type:
-          type: string
-        description:
-          type: string
-        reference:
-          type: string
-        updated_at:
-          type: string
-          format: date-time
-        version:
-          type: integer
-          nullable: true
-        batch:
-          type: string
-          format: uuid
-          nullable: true
+        statement:
+          $ref: '#/components/schemas/UnifiedPendingSource'
+        sms:
+          $ref: '#/components/schemas/UnifiedPendingSource'
+        match:
+          $ref: '#/components/schemas/UnifiedPendingMatch'
         needs_correction:
           type: boolean
-        matches:
-          type: array
-          items:
-            $ref: '#/components/schemas/UnifiedPendingMatch'
-        ambiguous:
-          type: boolean
       required:
-      - account
-      - account_name
-      - ambiguous
-      - amount
-      - balance_after
-      - batch
-      - currency
-      - date
-      - description
-      - direction
       - id
-      - matches
+      - match
       - needs_correction
-      - reference
-      - source
-      - time
-      - type
-      - updated_at
-      - version
-    UnifiedPendingMatch:
+      - sms
+      - statement
+    UnifiedPendingSource:
       type: object
       properties:
         source:
@@ -6256,6 +6166,27 @@ components:
           nullable: true
         needs_correction:
           type: boolean
+      required:
+      - account
+      - account_name
+      - amount
+      - balance_after
+      - batch
+      - currency
+      - date
+      - description
+      - direction
+      - id
+      - needs_correction
+      - reference
+      - source
+      - time
+      - type
+      - updated_at
+      - version
+    UnifiedPendingMatch:
+      type: object
+      properties:
         strength:
           $ref: '#/components/schemas/UnifiedStrengthEnum'
         conflict:
@@ -6265,26 +6196,9 @@ components:
           items:
             type: string
       required:
-      - account
-      - account_name
-      - amount
-      - balance_after
-      - batch
       - conflict
-      - currency
-      - date
-      - description
-      - direction
-      - id
-      - needs_correction
       - reasons
-      - reference
-      - source
       - strength
-      - time
-      - type
-      - updated_at
-      - version
     UnifiedPendingPage:
       type: object
       properties:

@@ -837,6 +837,12 @@ balance choice for new entries; existing ledger balances stay intact. Raw SMS te
 follows retention settings while parsed fields and links remain. Ownership scopes
 apply to both sources and any existing ledger target. No migration/backfill occurs.
 
+The unified queue emits only reciprocal one-to-one matches and represents each
+pair once. An SMS or statement with zero candidates stays in its source workflow;
+any source with multiple overlapping candidates is also withheld until the
+ambiguity is resolved. Pair filtering and pagination therefore operate on review
+pairs rather than duplicated source observations.
+
 Attached confirmed SMS sources expose their saved parsed amount/balance separately
 from ledger values, including after raw text redaction. User and transaction scopes
 are rechecked before returning that optional parsed observation.

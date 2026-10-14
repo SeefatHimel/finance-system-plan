@@ -1267,6 +1267,14 @@ export interface UnifiedPairResult {
 }
 
 export interface UnifiedPendingItem {
+  id: string;
+  statement: UnifiedPendingSource;
+  sms: UnifiedPendingSource;
+  match: UnifiedPendingMatch;
+  needs_correction: boolean;
+}
+
+export interface UnifiedPendingSource {
   source: UnifiedSourceEnum;
   id: string;
   account: string | null;
@@ -1284,28 +1292,9 @@ export interface UnifiedPendingItem {
   version: number | null;
   batch: string | null;
   needs_correction: boolean;
-  matches: UnifiedPendingMatch[];
-  ambiguous: boolean;
 }
 
 export interface UnifiedPendingMatch {
-  source: UnifiedSourceEnum;
-  id: string;
-  account: string | null;
-  account_name: string;
-  currency: string;
-  date: string | null;
-  time: string | null;
-  amount: string | null;
-  balance_after: string | null;
-  direction: string;
-  type: string;
-  description: string;
-  reference: string;
-  updated_at: string;
-  version: number | null;
-  batch: string | null;
-  needs_correction: boolean;
   strength: UnifiedStrengthEnum;
   conflict: boolean;
   reasons: string[];

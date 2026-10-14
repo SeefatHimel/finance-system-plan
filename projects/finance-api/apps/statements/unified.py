@@ -234,70 +234,55 @@ def queue(user, filters):
                 "queue": "Too many overlapping pending sources. Choose an account or resolve repeated entries before comparing."
             }
         )
-    suggestions = defaultdict(list)
+    row_matches = defaultdict(list)
+    candidate_matches = defaultdict(list)
     for row in rows:
         for candidate in buckets[(row.batch.account_id, row.direction, row.amount)]:
             signals = pair_signals(row, candidate)
             if signals:
-                suggestions[("statement", str(row.pk))].append(
-                    {**summary(candidate), **signals}
-                )
-                suggestions[("sms", str(candidate.pk))].append(
-                    {**summary(row), **signals}
-                )
+                row_matches[row.pk].append((candidate, signals))
+                candidate_matches[candidate.pk].append((row, signals))
     items = []
-    for item in [summary(row) for row in rows] + [
-        summary(candidate) for candidate in candidates
-    ]:
-        matches = suggestions[(item["source"], item["id"])]
-        # Shared claims remain suggestions; never silently collapse repeated purchases.
-        ambiguous = len(matches) > 1 or any(
-            len(suggestions[(match["source"], match["id"])]) > 1 for match in matches
-        )
-        if ambiguous:
-            matches = [
-                {
-                    **match,
-                    "strength": "possible",
-                    "reasons": [
-                        *match["reasons"],
-                        "Multiple pending sources overlap. Verify one-to-one correspondence.",
-                    ],
-                }
-                for match in matches
-            ]
-        item.update(matches=matches, ambiguous=ambiguous)
-        if filters.get("source", "all") not in {"all", item["source"]}:
+    for row in rows:
+        matches = row_matches[row.pk]
+        if len(matches) != 1:
             continue
-        if filters.get("account") and item["account"] != str(filters["account"]):
+        candidate, signals = matches[0]
+        # A pair enters this queue only when both sources claim exactly one another.
+        # Repeated equal movements remain in their individual review workflows.
+        if len(candidate_matches[candidate.pk]) != 1:
             continue
+        statement, sms = summary(row), summary(candidate)
+        item = {
+            "id": f"{row.pk}:{candidate.pk}",
+            "statement": statement,
+            "sms": sms,
+            "match": signals,
+            "needs_correction": statement["needs_correction"]
+            or sms["needs_correction"],
+        }
         if filters.get("start_date") and (
-            not item["date"]
+            not statement["date"]
             or not filters["start_date"].isoformat()
-            <= item["date"]
+            <= statement["date"]
             <= filters["end_date"].isoformat()
-        ):
-            continue
-        state = filters.get("condition", "all")
-        if (
-            (state == "matched" and not matches)
-            or (state == "unmatched" and matches)
-            or (state == "corrections" and not item["needs_correction"])
         ):
             continue
         search = filters.get("search", "").casefold()
         if (
             search
             and search
-            not in f"{item['description']} {item['reference']} {item['account_name']}".casefold()
+            not in (
+                f"{statement['description']} {statement['reference']} "
+                f"{sms['description']} {sms['reference']} {statement['account_name']}"
+            ).casefold()
         ):
             continue
         items.append(item)
     items.sort(
         key=lambda item: (
-            item["date"] or "",
-            item["time"] or "",
-            item["source"],
+            item["statement"]["date"] or "",
+            item["statement"]["time"] or "",
             item["id"],
         ),
         reverse=True,
