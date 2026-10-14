@@ -1019,7 +1019,9 @@ and a date within three days. It then requires an independent corroborator:
 matching reference, reported balance, normalized counterparty, or a known transfer
 counterpart account. Amount and date alone never produce a unified-review pair.
 Conflicting nonempty references are rejected, and differing counterparty wording
-is exposed as negative evidence rather than presented as a strong match.
+is exposed as negative evidence rather than presented as a strong match. Exact
+counterparty wording by itself produces a possible match; a strong label requires
+same-day reference, reported-balance, or known counterpart-account evidence.
 Unmatched sources and overlapping one-to-many candidates are excluded from this
 queue and remain in their individual review workflows. Balance conflicts can still
 form a unique review pair. The read-only
@@ -1035,6 +1037,9 @@ are idempotent; changed ledger financial identity is rejected. Existing suggesti
 must be linked rather than bypassed with another entry in this workflow.
 The detail and confirmation endpoints repeat the reciprocal one-to-one check, so a
 stale or hand-crafted pair URL cannot bypass ambiguity protection.
+Reciprocal uniqueness is calculated across the complete pending account scope
+before the display date range is applied, so filtering cannot hide a competing
+source and make an ambiguous relationship appear confirmable.
 
 A new pair uses statement draft classification/date/time, the selected scalar
 balance, masked SMS identifiers and one raw-message link. An incoming transfer keeps

@@ -850,6 +850,12 @@ ambiguity discovered after the queue loaded. Opaque cursors keep pagination stab
 as earlier pairs leave the queue; overview counts expose unmatched and ambiguous
 source work without mixing it into the matched queue.
 
+The queue builds that reciprocal graph across the full pending account scope before
+applying its display date range. A competing row immediately outside the selected
+dates therefore still keeps the visible source ambiguous. Exact counterparty text
+alone is labelled possible; strong requires same-day reference, balance, or a known
+counterpart account.
+
 Attached confirmed SMS sources expose their saved parsed amount/balance separately
 from ledger values, including after raw text redaction. User and transaction scopes
 are rechecked before returning that optional parsed observation.

@@ -254,6 +254,18 @@ class UnifiedReviewTests(APITestCase):
         self.sms.reference = "SYNTH-B"
         self.assertIsNone(pair_signals(self.row, self.sms))
 
+    def test_merchant_only_match_remains_possible_until_stronger_evidence_agrees(self):
+        self.row.balance_after = None
+        self.row.save()
+        self.sms.balance_after = None
+        self.sms.save()
+        self.assertEqual(pair_signals(self.row, self.sms)["strength"], "possible")
+        self.row.reference = "SYNTH-REFERENCE"
+        self.row.save()
+        self.sms.reference = "synth-reference"
+        self.sms.save()
+        self.assertEqual(pair_signals(self.row, self.sms)["strength"], "strong")
+
     def test_shared_claims_stay_out_of_unique_pair_queue(self):
         self.candidate()
         response = self.client.get(reverse("unified-pending"))
@@ -295,6 +307,31 @@ class UnifiedReviewTests(APITestCase):
             400,
         )
         self.assertEqual(self.confirm().status_code, 409)
+
+    def test_date_filter_does_not_hide_competing_sources(self):
+        StatementRow.objects.create(
+            batch=self.batch,
+            position=2,
+            component="principal",
+            source_fingerprint="synthetic-row-outside-filter",
+            date=date(2026, 1, 3),
+            time=self.row.time,
+            direction=self.row.direction,
+            type=self.row.type,
+            amount=self.row.amount,
+            balance_after=self.row.balance_after,
+            counterparty_text=self.row.counterparty_text,
+            note=self.row.note,
+            classification_confirmed=True,
+            extracted={**self.row.extracted, "id": "synthetic-outside-filter"},
+        )
+        response = self.client.get(
+            reverse("unified-pending"),
+            {"start_date": "2026-01-02", "end_date": "2026-01-02"},
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["overview"]["ambiguous"], 2)
 
     def test_amount_and_date_without_independent_evidence_are_not_a_match(self):
         self.row.balance_after = None

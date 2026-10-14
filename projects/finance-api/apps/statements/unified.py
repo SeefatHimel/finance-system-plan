@@ -4,7 +4,6 @@ import base64
 import binascii
 import json
 from collections import defaultdict
-from datetime import timedelta
 from decimal import Decimal
 
 from django.db import transaction
@@ -145,7 +144,7 @@ def pair_signals(row, candidate):
     return {
         "strength": "strong"
         if distance == 0
-        and (same_reference or same_balance or same_merchant or same_counterpart)
+        and (same_reference or same_balance or same_counterpart)
         and not conflict
         and not merchant_conflict
         else "possible",
@@ -154,7 +153,7 @@ def pair_signals(row, candidate):
     }
 
 
-def pending_sources(user, account_id=None, start_date=None, end_date=None):
+def pending_sources(user, account_id=None):
     from .models import StatementRow
 
     rows = StatementRow.objects.filter(
@@ -170,14 +169,6 @@ def pending_sources(user, account_id=None, start_date=None, end_date=None):
 
         candidates = candidates.filter(
             Q(account_id=account_id) | Q(destination_account_id=account_id)
-        )
-    if start_date and end_date:
-        rows = rows.filter(date__range=(start_date, end_date))
-        candidates = candidates.filter(
-            raw_message__received_at__date__range=(
-                start_date - timedelta(days=3),
-                end_date + timedelta(days=3),
-            )
         )
     rows, candidates = (
         list(rows.order_by("id")[: MAX_PENDING + 1]),
@@ -291,13 +282,25 @@ def _decode_cursor(value):
         raise ValidationError({"cursor": "Refresh the review queue and try again."})
 
 
-def queue(user, filters):
-    rows, candidates = pending_sources(
-        user,
-        filters.get("account"),
-        filters.get("start_date"),
-        filters.get("end_date"),
+def _row_in_date_scope(row, start_date, end_date):
+    return not start_date or bool(
+        row.date and start_date <= row.date <= end_date
     )
+
+
+def _candidate_in_date_scope(candidate, start_date, end_date):
+    if not start_date:
+        return True
+    received = timezone.localtime(candidate.raw_message.received_at).date()
+    return start_date <= received <= end_date
+
+
+def queue(user, filters):
+    # Build the matching graph before applying the display date range. Otherwise,
+    # a competing source just outside the selected range could make an ambiguous
+    # relationship look one-to-one in the queue even though confirmation rejects it.
+    rows, candidates = pending_sources(user, filters.get("account"))
+    start_date, end_date = filters.get("start_date"), filters.get("end_date")
     buckets = defaultdict(list)
     for candidate in candidates:
         account, direction, _ = sms_observation(candidate)
@@ -325,7 +328,6 @@ def queue(user, filters):
                 candidate_matches[candidate.pk].append((row, signals))
     items = []
     matched_rows = set()
-    matched_candidates = set()
     ambiguous_rows = set()
     ambiguous_candidates = set()
     for row in rows:
@@ -342,8 +344,9 @@ def queue(user, filters):
             ambiguous_rows.add(row.pk)
             ambiguous_candidates.add(candidate.pk)
             continue
+        if not _row_in_date_scope(row, start_date, end_date):
+            continue
         matched_rows.add(row.pk)
-        matched_candidates.add(candidate.pk)
         statement, sms = summary(row), summary(candidate)
         item = {
             "id": f"{row.pk}:{candidate.pk}",
@@ -379,10 +382,26 @@ def queue(user, filters):
         _encode_cursor(results[-1]) if results and len(remaining) > limit else None
     )
     unmatched_rows = {
-        row.pk for row in rows if not row_matches[row.pk]
+        row.pk
+        for row in rows
+        if not row_matches[row.pk] and _row_in_date_scope(row, start_date, end_date)
     }
     unmatched_candidates = {
-        candidate.pk for candidate in candidates if not candidate_matches[candidate.pk]
+        candidate.pk
+        for candidate in candidates
+        if not candidate_matches[candidate.pk]
+        and _candidate_in_date_scope(candidate, start_date, end_date)
+    }
+    scoped_ambiguous_rows = {
+        row.pk
+        for row in rows
+        if row.pk in ambiguous_rows and _row_in_date_scope(row, start_date, end_date)
+    }
+    scoped_ambiguous_candidates = {
+        candidate.pk
+        for candidate in candidates
+        if candidate.pk in ambiguous_candidates
+        and _candidate_in_date_scope(candidate, start_date, end_date)
     }
     return {
         "count": len(items),
@@ -391,7 +410,8 @@ def queue(user, filters):
         "next_cursor": next_cursor,
         "overview": {
             "matched": len(matched_rows),
-            "ambiguous": len(ambiguous_rows) + len(ambiguous_candidates),
+            "ambiguous": len(scoped_ambiguous_rows)
+            + len(scoped_ambiguous_candidates),
             "statement_only": len(unmatched_rows),
             "sms_only": len(unmatched_candidates),
         },

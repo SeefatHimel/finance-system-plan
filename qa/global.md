@@ -366,3 +366,5 @@ ambiguous sources remain in their individual review pages, with overview counts
 linking back to those queues. Original source dates/times and
 reported balances remain independently inspectable. Suggestions are reviewable
 and never themselves authorize posting or erase ambiguous repeat movements.
+Date filters are applied after reciprocal uniqueness is established, so they cannot
+hide a competing source and promote an ambiguous relationship.
