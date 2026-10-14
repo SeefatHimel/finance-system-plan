@@ -33,7 +33,7 @@ import {
 } from "./auth-storage";
 import { AuthRequestError, isAuthenticationFailure } from "./auth-errors";
 import { notifySessionExpired } from "./auth-navigation";
-import { fetchWithConnectionError, responseError } from "./api-errors";
+import { fetchWithConnectionError, RequestError, responseError } from "./api-errors";
 
 export type {
   AccountType,
@@ -143,6 +143,7 @@ const rawMessageSchema = z.object({
 });
 
 const transactionSourceMessageSchema = z.object({
+  parsed: z.object({ amount: z.string().nullable(), balance_after: z.string().nullable(), reference: z.string(), type: z.string() }).nullable().optional(),
   id: z.string(),
   sender: z.string(),
   body: z.string().nullable(),
@@ -536,13 +537,14 @@ export type UpdateTransactionInput = {
 };
 
 function financialNumber(value: string | number, label: string): number {
+  const field = label === "reported balance" ? "reported_balances" : label.replaceAll(" ", "_");
   const normalized = String(value).trim().replaceAll(",", "");
   if (!/^-?\d+(?:\.\d{1,2})?$/.test(normalized)) {
-    throw new Error(`Enter a valid ${label} with no more than two decimal places.`);
+    throw new RequestError(`Enter a valid ${label} with no more than two decimal places.`, { [field]: "Use a number with no more than two decimal places." });
   }
   const parsed = Number(normalized);
   if (!Number.isFinite(parsed)) {
-    throw new Error(`Enter a valid ${label}.`);
+    throw new RequestError(`Enter a valid ${label}.`, { [field]: "Enter a valid number." });
   }
   return parsed;
 }
@@ -742,7 +744,7 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
     }
 
     if (!proxyResponse.ok) {
-      throw await responseError(proxyResponse);
+      throw Object.assign(await responseError(proxyResponse), { status: proxyResponse.status });
     }
 
     return proxyResponse;
@@ -1009,6 +1011,32 @@ export async function updateSenderRule(
 export async function listMessageCandidates(accessToken: string): Promise<ParsedMessageCandidate[]> {
   const response = await authenticatedFetch("/api/messages/review/", accessToken);
   return collectionSchema(parsedMessageCandidateSchema).parse(await response.json());
+}
+
+export async function listMessageCandidatePage(accessToken: string, offset = 0, limit = 100): Promise<{ count: number; results: ParsedMessageCandidate[] }> {
+  const response = await authenticatedFetch(`/api/messages/review/?limit=${limit}&offset=${offset}`, accessToken);
+  return z.object({ count: z.number().int().nonnegative(), results: z.array(parsedMessageCandidateSchema) }).parse(await response.json());
+}
+
+export async function getPendingMessageCandidate(accessToken: string, id: string): Promise<ParsedMessageCandidate> {
+  const response = await authenticatedFetch(`/api/messages/review/${encodeURIComponent(id)}/`, accessToken);
+  return parsedMessageCandidateSchema.parse(await response.json());
+}
+
+export async function getDashboardSummary(accessToken: string, startDate: string, endDate: string, signal?: AbortSignal): Promise<{
+  automated_count: number;
+  pending_count: number;
+  recent_candidates: ParsedMessageCandidate[];
+  recent_transactions: Transaction[];
+}> {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+  const response = await authenticatedFetch(`/api/reports/dashboard-summary/?${params}`, accessToken, { signal });
+  return z.object({
+    automated_count: z.number().int().nonnegative(),
+    pending_count: z.number().int().nonnegative(),
+    recent_candidates: z.array(parsedMessageCandidateSchema),
+    recent_transactions: z.array(transactionSchema)
+  }).parse(await response.json());
 }
 
 export async function reprocessMessageCandidate(
@@ -1509,11 +1537,20 @@ const savedStatementSchema = z.object({
   opening_balance: z.string().nullable(), closing_balance: z.string().nullable(), checks: statementPreviewSchema.shape.checks, warnings: z.array(z.string()),
   counts: z.object({ total: z.number(), pending: z.number(), posted: z.number(), linked: z.number(), skipped: z.number() }), created_at: z.string(), updated_at: z.string()
 });
+const statementDetailFieldSchema = z.enum(["counterparty_text", "reference", "note", "sender_account_identifier", "sender_card_identifier", "receiver_account_identifier", "receiver_card_identifier"]);
+const statementDetailSuggestionSchema = z.object({ field: statementDetailFieldSchema, label: z.string(), existing_value: z.string(), suggested_value: z.string() });
 const statementMatchSchema = z.object({
   strength: z.enum(["strong", "possible"]).default("possible"), merchant_similarity: z.number().default(0), time_difference_minutes: z.number().nullable().default(null),
   id: z.string(), date: z.string(), time: z.string().nullable(), type: z.string(), source: z.string(), amount: z.string(), account_name: z.string(),
   transfer_account_name: z.string().nullable(), category_name: z.string().nullable(), reference: z.string(), note: z.string(), balance_after: z.string().nullable(),
+  effective_balance_after: z.string().nullable(), detail_suggestions: z.array(statementDetailSuggestionSchema),
   conflict: z.boolean(), can_link: z.boolean(), reasons: z.array(z.string())
+});
+const pendingStatementSmsMatchSchema = z.object({
+  id: z.string(), date: z.string(), time: z.string(), sender: z.string(), sms_text: z.string().nullable(),
+  amount: z.string(), type: z.string(), counterparty_text: z.string(),
+  balance_after: z.string().nullable(), reference: z.string(), confidence: z.string(),
+  detail_suggestions: z.array(statementDetailSuggestionSchema),
 });
 const savedStatementRowSchema = z.object({
   id: z.string(), batch: z.string(), position: z.number(), component: z.enum(["principal", "fee"]), extracted: statementRowSchema,
@@ -1521,17 +1558,19 @@ const savedStatementRowSchema = z.object({
   type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]),
   other_account: z.string().nullable(), category: z.string().nullable(), reference: z.string(), counterparty_text: z.string(), note: z.string(), classification_confirmed: z.boolean(),
   state: z.enum(["pending", "posted", "linked", "skipped"]), transaction: z.string().nullable(), version: z.number(), created_at: z.string(), updated_at: z.string(),
-  review: z.object({ draft_issues: z.array(z.string()).default([]), suggestion: z.object({ type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]), category: z.string().nullable(), other_account: z.string().nullable(), reason: z.string() }).nullable().default(null), issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
+  review: z.object({ draft_issues: z.array(z.string()).default([]), suggestion: z.object({ type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]), category: z.string().nullable(), other_account: z.string().nullable(), reason: z.string() }).nullable().default(null), issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), pending_sms_match_count: z.number().int().nonnegative().nullable().default(0), pending_sms_matches: z.array(pendingStatementSmsMatchSchema).default([]), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
 });
 const statementRowPageSchema = z.object({ count: z.number(), offset: z.number(), limit: z.number(), results: z.array(savedStatementRowSchema) });
 const statementHistorySchema = z.object({ count: z.number(), next: z.string().nullable(), previous: z.string().nullable(), results: z.array(savedStatementSchema) });
 export type SavedStatement = z.infer<typeof savedStatementSchema>;
 export type SavedStatementRow = z.infer<typeof savedStatementRowSchema>;
 export type StatementMatch = z.infer<typeof statementMatchSchema>;
+export type StatementDetailSuggestion = z.infer<typeof statementDetailSuggestionSchema>;
+export type StatementDetailChoice = { field: StatementDetailSuggestion["field"]; existing_value: string; value: string };
 export type StatementRowPage = z.infer<typeof statementRowPageSchema>;
 export type StatementHistory = z.infer<typeof statementHistorySchema>;
 export type StatementRowEdit = Pick<SavedStatementRow, "version" | "date" | "time" | "value_date" | "direction" | "amount" | "balance_after" | "type" | "other_account" | "category" | "reference" | "counterparty_text" | "note" | "classification_confirmed">;
-export type StatementDecision = { action: "create" | "link" | "skip" | "unlink" | "reopen"; version: number; transaction?: string; remember_choices?: boolean; allow_separate?: boolean; acknowledge_issues?: boolean; acknowledge_conflict?: boolean };
+export type StatementDecision = { action: "create" | "link" | "combine_sms" | "skip" | "unlink" | "reopen"; version: number; transaction?: string; candidate?: string; dismissed_ledger_matches?: string[]; acknowledge_distinct_ledger_matches?: boolean; remember_choices?: boolean; allow_separate?: boolean; acknowledge_issues?: boolean; acknowledge_conflict?: boolean; balance_choice?: { keep: "existing" | "statement"; existing_balance_after: string | null; statement_balance_after: string | null }; detail_choices?: StatementDetailChoice[] };
 
 export async function createStatementImport(token: string, account: string, file: File, password: string, signal?: AbortSignal): Promise<SavedStatement> {
   const body = new FormData(); body.set("account", account); body.set("file", file); if (password) body.set("password", password);
@@ -1634,4 +1673,29 @@ export async function undoTransactionAction(token: string, action: string): Prom
 export async function getTransaction(token: string, id: string, signal?: AbortSignal): Promise<Transaction> {
   const response = await authenticatedFetch(`/api/transactions/${id}/`, token, { signal });
   return transactionSchema.parse(await response.json());
+}
+
+const pendingSourceSchema = z.object({
+  source: z.enum(["sms", "statement"]), id: z.string(), account: z.string().nullable(), account_name: z.string(), currency: z.string(),
+  date: z.string().nullable(), time: z.string().nullable(), amount: z.string().nullable(), balance_after: z.string().nullable(), direction: z.enum(["debit", "credit"]),
+  type: z.string(), description: z.string(), reference: z.string(), updated_at: z.string(), version: z.number().nullable(), batch: z.string().nullable(), needs_correction: z.boolean()
+});
+const pendingSignalsSchema = z.object({ strength: z.enum(["strong", "possible"]), conflict: z.boolean(), reasons: z.array(z.string()) });
+const pendingItemSchema = pendingSourceSchema.extend({ matches: z.array(pendingSourceSchema.merge(pendingSignalsSchema)), ambiguous: z.boolean() });
+const unifiedPendingSchema = z.object({ count: z.number(), offset: z.number(), limit: z.number(), results: z.array(pendingItemSchema) });
+const unifiedPairSchema = z.object({ row: savedStatementRowSchema, batch: savedStatementSchema, sms: parsedMessageCandidateSchema, match: pendingSignalsSchema });
+export type UnifiedPendingItem = z.infer<typeof pendingItemSchema>;
+export type UnifiedPendingPage = z.infer<typeof unifiedPendingSchema>;
+export type UnifiedPair = z.infer<typeof unifiedPairSchema>;
+export type UnifiedPairDecision = { statement: string; sms: string; statement_version: number; sms_updated_at: string; transaction?: string | null; balance_source: "sms" | "statement" | "existing"; acknowledge_match: boolean; acknowledge_conflict: boolean; acknowledge_issues: boolean; remember_choices: boolean };
+export async function listUnifiedPending(token: string, filters: Record<string, string>, signal?: AbortSignal): Promise<UnifiedPendingPage> {
+  const query = new URLSearchParams(filters);
+  return unifiedPendingSchema.parse(await (await authenticatedFetch(`/api/review/pending/?${query}`, token, { signal })).json());
+}
+export async function getUnifiedPair(token: string, statement: string, sms: string, signal?: AbortSignal): Promise<UnifiedPair> {
+  const query = new URLSearchParams({ statement, sms });
+  return unifiedPairSchema.parse(await (await authenticatedFetch(`/api/review/pair/?${query}`, token, { signal })).json());
+}
+export async function confirmUnifiedPair(token: string, input: UnifiedPairDecision) {
+  return z.object({ transaction: z.string(), statement: z.string(), sms: z.string(), unchanged: z.boolean() }).parse(await (await authenticatedFetch("/api/review/pair/", token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })).json());
 }

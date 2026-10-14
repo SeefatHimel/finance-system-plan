@@ -51,6 +51,7 @@ def transaction_snapshot(transaction) -> dict[str, object]:
                 "balance_after": str(item.balance_after)
                 if item.balance_after is not None
                 else None,
+                "is_effective_balance": item.is_effective_balance,
                 "fee_amount": str(item.fee_amount)
                 if item.fee_amount is not None
                 else None,

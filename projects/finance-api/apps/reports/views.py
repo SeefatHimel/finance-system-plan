@@ -4,12 +4,18 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.utils import timezone
+from django.db.models import Count
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.transactions.models import Transaction
+from apps.transactions.serializers import TransactionSerializer
+from apps.messages.models import ParsedMessageCandidate
+from apps.messages.serializers import ParsedMessageCandidateSerializer
 
 from .periods import custom_bounds
 
@@ -55,6 +61,35 @@ def month_bounds(month: str | None) -> tuple[date, date, str]:
     return start, end, month
 
 
+@extend_schema(responses=OpenApiTypes.OBJECT)
+class DashboardSummaryView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        bounds = custom_bounds(request.query_params)
+        if bounds is None:
+            start, end, _ = month_bounds(request.query_params.get("month"))
+            bounds = (start, end - timedelta(days=1))
+        pending = ParsedMessageCandidate.objects.filter(
+            user=request.user, status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
+        )
+        recent_candidates = pending.select_related(
+            "raw_message", "sender_rule", "account", "payment_method", "category",
+            "destination_account", "destination_payment_method", "possible_related_candidate", "transaction",
+        ).order_by("-raw_message__received_at", "-id")[:3]
+        transactions = Transaction.objects.filter(user=request.user, date__range=bounds)
+        recent_transactions = transactions.annotate(statement_count=Count("statement_rows", distinct=True)).select_related(
+            "account", "transfer_account", "category", "payment_method", "raw_message",
+        ).prefetch_related("transfer_evidence").order_by("-date", "-time", "-created_at", "-id")[:4]
+        return Response({
+            "pending_count": pending.count(),
+            "recent_candidates": ParsedMessageCandidateSerializer(recent_candidates, many=True).data,
+            "automated_count": transactions.filter(source__in=("sms", "mobile")).count(),
+            "recent_transactions": TransactionSerializer(recent_transactions, many=True, context={"request": request}).data,
+        }, headers={"Cache-Control": "private, no-store"})
+
+
+@extend_schema(responses=OpenApiTypes.OBJECT)
 class MonthlyReportView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -87,7 +122,7 @@ class MonthlyReportView(APIView):
             lambda: {"money_in": Decimal("0.00"), "money_out": Decimal("0.00")}
         )
 
-        for transaction in transactions:
+        for transaction in transactions.iterator(chunk_size=1000):
             if transaction.type in INCOME_TYPES:
                 income_total += transaction.amount
                 daily[transaction.date]["income"] += transaction.amount

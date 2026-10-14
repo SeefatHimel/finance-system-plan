@@ -15,10 +15,22 @@ from rest_framework.exceptions import APIException, ValidationError
 
 from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
-from apps.transactions.models import Transaction
+from apps.transactions.balance_reports import (
+    account_reports,
+    primary_transfer_evidence,
+    reported_values,
+    reviewed_account_report,
+    select_effective_account_report,
+)
+from apps.transactions.models import Transaction, TransferEvidence
 from apps.transactions.serializers import TransactionSerializer
-from apps.transactions.transfers import add_transfer_evidence, lock_transfer_user
+from apps.transactions.transfers import (
+    add_transfer_evidence,
+    ensure_transfer_evidence,
+    lock_transfer_user,
+)
 
+from .details import apply_detail_choices, clean_merchant, detail_suggestions
 from .insights import analyze, match_signals, remember
 from .link_validation import accepted_link_issues
 from .models import StatementImport, StatementRow
@@ -135,7 +147,7 @@ def save_import(*, user, account, digest, preview):
             "value_date": original["value_date"],
             "balance_after": ledger_money(original["balance_after"]),
             "reference": original["reference"],
-            "counterparty_text": original["description"][:255],
+            "counterparty_text": clean_merchant(original["description"]),
             "note": original["description"],
         }
         records.append(
@@ -474,7 +486,17 @@ def _find_statement_matches(rows):
             reference_matches = selected["reference_matches"]
             balance_matches = selected["balance_matches"]
             reported_balance = selected["reported_balance"]
-            conflict = selected["conflict"]
+            effective_balance = (
+                reported_values(record).get(batch.account_id)
+                if record.type == "transfer"
+                else record.balance_after
+            )
+            effective_conflict = (
+                row.balance_after is not None
+                and effective_balance is not None
+                and row.balance_after != effective_balance
+            )
+            conflict = selected["conflict"] or effective_conflict
             reasons = [
                 "Same account perspective, currency, direction and amount."
                 if compatible_fields
@@ -489,15 +511,21 @@ def _find_statement_matches(rows):
                 reasons.append("Reference also agrees; references can be reused.")
             if balance_matches:
                 reasons.append("Reported balance also agrees.")
-            if conflict:
+            if selected["conflict"]:
                 reasons.append(
                     f"Reported balances differ: statement {row.balance_after}, ledger observation {reported_balance}, difference {row.balance_after - reported_balance:+.2f}. Explicitly review this conflict."
+                )
+            if effective_conflict and not selected["conflict"]:
+                reasons.append(
+                    f"The current ledger balance report differs: statement {row.balance_after}, ledger {effective_balance}. Choose which reported balance to use."
                 )
             if record.id in occupied:
                 reasons.append(
                     "Another row in this statement is already attached to this movement."
                 )
             signals = selected["signals"]
+            if effective_conflict:
+                signals = {**signals, "strength": "possible"}
             reasons.extend(selected["extra_reasons"])
             if getattr(observation, "date_is_fallback", False):
                 reasons.append(
@@ -538,6 +566,10 @@ def _find_statement_matches(rows):
                         "balance_after": str(reported_balance)
                         if reported_balance is not None
                         else None,
+                        "effective_balance_after": str(effective_balance)
+                        if effective_balance is not None
+                        else None,
+                        "detail_suggestions": detail_suggestions(row, record),
                         "conflict": conflict,
                         "can_link": compatible_fields and record.id not in occupied,
                         "reasons": reasons,
@@ -573,7 +605,7 @@ def _find_statement_matches(rows):
     return results, False
 
 
-def review_context(row, matches, truncated=False):
+def review_context(row, matches, truncated=False, pending_sms_count=0):
     if resolved(row) and not hasattr(row, "_draft_issues"):
         row._draft_issues = []
     if not hasattr(row, "_draft_issues"):
@@ -590,6 +622,8 @@ def review_context(row, matches, truncated=False):
         issues.append(
             "Too much matching history to check statement-wide ambiguity. Import a shorter statement period or resolve other pending rows before trying again."
         )
+    if pending_sms_count is None and not resolved(row):
+        issues.append("Too many pending SMS to check safely. Review this row individually before adding it.")
     if link_issues:
         state = "needs_correction"
     elif resolved(row):
@@ -597,7 +631,7 @@ def review_context(row, matches, truncated=False):
     else:
         state = (
             "possible_match"
-            if matches
+            if matches or pending_sms_count
             else "needs_correction"
             if issues or draft_issues or row.extracted.get("issues") or orphaned
             else "new"
@@ -608,6 +642,7 @@ def review_context(row, matches, truncated=False):
         "suggestion": getattr(row, "_suggestion", None),
         "review_state": state,
         "matches": matches,
+        "pending_sms_match_count": pending_sms_count,
         "matching_truncated": truncated,
         "requires_acknowledgement": bool(draft_issues)
         or orphaned
@@ -655,7 +690,7 @@ def touch(row, user, before, metadata=None):
     )
 
 
-def decide_locked(*, row, user, payload, request):
+def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
     action = payload["action"]
     target = payload.get("transaction")
     if resolved(row) and action not in {"unlink", "reopen"}:
@@ -675,6 +710,11 @@ def decide_locked(*, row, user, payload, request):
     if payload["version"] != row.version:
         raise ReviewConflict()
     before = row_snapshot(row)
+    balance_resolution = None
+    ledger_before = None
+    transfer_existing_report = None
+    transfer_balance_choice = None
+    updated_details = []
     if action == "reopen":
         if row.state != "skipped":
             raise ValidationError({"action": "Only skipped rows can be reopened."})
@@ -682,18 +722,46 @@ def decide_locked(*, row, user, payload, request):
     elif action == "unlink":
         if not row.transaction_id:
             raise ValidationError({"action": "This row has no linked ledger entry."})
+        record = row.transaction
+        transaction_before = transaction_snapshot(record) if record.type == "transfer" else None
+        original_primary = (
+            primary_transfer_evidence(record, list(record.transfer_evidence.all()))
+            if record.type == "transfer"
+            else None
+        )
         row.transaction = None
         row.state = "pending"
         # Statement transfer observations have their own stable key. Remove only
         # this observation; preserve SMS/manual evidence and the ledger movement.
-        from apps.transactions.models import TransferEvidence
-
-        TransferEvidence.objects.filter(
+        removed = list(TransferEvidence.objects.filter(
             user=user, external_key=f"statement-row:{row.id}"
-        ).delete()
+        ).values_list("pk", flat=True))
+        TransferEvidence.objects.filter(pk__in=removed).delete()
+        if original_primary and original_primary.pk in removed:
+            current_primary = primary_transfer_evidence(
+                record, list(record.transfer_evidence.all())
+            )
+            record.balance_after = (
+                current_primary.balance_after if current_primary else None
+            )
+            record.save(update_fields=("balance_after", "updated_at"))
+        if removed and transaction_before is not None:
+            create_audit_log(
+                user=user,
+                action=AuditLogEntry.Action.UPDATED,
+                entity=record,
+                before=transaction_before,
+                after=transaction_snapshot(record),
+                metadata={"statement_row": str(row.id), "decision": "unlink"},
+            )
     elif action == "skip":
         row.state = "skipped"
     else:
+        if action == "link" and target:
+            # Lock before recomputing suggestions/choices, including ordinary purchases.
+            target = Transaction.objects.select_for_update().get(
+                pk=target.pk, user=user
+            )
         base_issues = financial_issues(row)
         # Deletion is an audit warning, rather than an invalid financial value.
         base_issues = [
@@ -734,15 +802,55 @@ def decide_locked(*, row, user, payload, request):
                         "transaction": "This movement no longer matches or is already attached to another row in this statement. Refresh the suggestions."
                     }
                 )
-            if match["conflict"] and not payload.get("acknowledge_conflict"):
+            choice = payload.get("balance_choice")
+            if match["conflict"] and not choice:
                 raise ValidationError(
                     {
-                        "acknowledge_conflict": "The reported balances differ. Review both observations before linking."
+                        "balance_choice": "Reported balances differ. Choose the existing ledger or statement balance before accepting this match."
                     }
                 )
-            row.transaction = Transaction.objects.select_for_update().get(
-                pk=target.pk, user=user
+            existing_balance = (
+                Decimal(match["effective_balance_after"])
+                if match["effective_balance_after"] is not None
+                else None
             )
+            if choice and (
+                choice["existing_balance_after"] != existing_balance
+                or choice["statement_balance_after"] != row.balance_after
+            ):
+                raise ReviewConflict(
+                    "Reported balances changed. Reload the row and choose again."
+                )
+            if choice and choice["keep"] == "statement" and row.balance_after is None:
+                raise ValidationError(
+                    {"balance_choice": "The statement has no reported balance to use."}
+                )
+            row.transaction = target
+            ledger_before = transaction_snapshot(target)
+            updated_details = apply_detail_choices(
+                row, target, payload.get("detail_choices", [])
+            )
+            if choice:
+                balance_resolution = {
+                    "account": str(row.batch.account_id),
+                    "keep": choice["keep"],
+                    "existing_balance_after": str(existing_balance)
+                    if existing_balance is not None
+                    else None,
+                    "statement_balance_after": str(row.balance_after)
+                    if row.balance_after is not None
+                    else None,
+                    "matched_observation_balance_after": match["balance_after"],
+                }
+            if target.type == "transfer" and choice:
+                ensure_transfer_evidence(target)
+                transfer_existing_report = account_reports(target)[0].get(
+                    row.batch.account_id
+                )
+                transfer_balance_choice = choice["keep"]
+            elif choice and choice["keep"] == "statement":
+                target.balance_after = row.balance_after
+                target.save(update_fields=("balance_after", "updated_at"))
             row.state = "linked"
             row.type = row.transaction.type
             row.category = row.transaction.category
@@ -756,6 +864,8 @@ def decide_locked(*, row, user, payload, request):
                 else None
             )
         elif action == "create":
+            from .pending_sms import pending_sms_matches
+
             if Transaction.objects.filter(
                 user=user, external_key=f"statement-row:{row.id}"
             ).exists():
@@ -768,10 +878,15 @@ def decide_locked(*, row, user, payload, request):
             issues = [issue for issue in issues if "previously linked" not in issue]
             if issues:
                 raise ValidationError({"row": issues})
-            if matches[row.id] and not payload.get("allow_separate"):
+            pending_sms = None if combining_pending_sms else pending_sms_matches(row)
+            if pending_sms is None and not combining_pending_sms:
+                raise ValidationError(
+                    {"row": "Too many pending SMS to check safely. Narrow the review period or resolve other messages before adding this row."}
+                )
+            if (matches[row.id] or pending_sms) and not payload.get("allow_separate"):
                 raise ValidationError(
                     {
-                        "allow_separate": "Possible matches exist. Accept a match or explicitly confirm that this is a separate movement."
+                        "allow_separate": "Possible ledger or pending SMS matches exist. Review them or explicitly confirm a separate movement."
                     }
                 )
             has_inline_fee = (
@@ -828,6 +943,35 @@ def decide_locked(*, row, user, payload, request):
                     "external_key": f"statement-row:{row.id}",
                 },
             )
+            if transfer_balance_choice:
+                if transfer_balance_choice == "existing":
+                    selected = transfer_existing_report or reviewed_account_report(
+                        row.transaction, row.batch.account, existing_balance
+                    )
+                else:
+                    selected = reviewed_account_report(
+                        row.transaction, row.batch.account, row.balance_after
+                    )
+                select_effective_account_report(row.transaction, selected)
+                primary = primary_transfer_evidence(
+                    row.transaction, list(row.transaction.transfer_evidence.all())
+                )
+                if primary and primary.pk == selected.pk:
+                    row.transaction.balance_after = selected.balance_after
+                    row.transaction.save(update_fields=("balance_after", "updated_at"))
+        if ledger_before is not None:
+            create_audit_log(
+                user=user,
+                action=AuditLogEntry.Action.UPDATED,
+                entity=row.transaction,
+                before=ledger_before,
+                after=transaction_snapshot(row.transaction),
+                metadata={
+                    "statement_row": str(row.id),
+                    "balance_resolution": balance_resolution,
+                    "updated_details": updated_details,
+                },
+            )
         row.classification_confirmed = True
         if payload.get("remember_choices"):
             remember(row, user)
@@ -841,6 +985,9 @@ def decide_locked(*, row, user, payload, request):
             "acknowledge_conflict": payload.get("acknowledge_conflict", False),
             "allow_separate": payload.get("allow_separate", False),
             "remember_choices": payload.get("remember_choices", False),
+            "balance_resolution": balance_resolution,
+            "updated_details": updated_details,
+            "dismissed_ledger_matches": [str(item) for item in payload.get("dismissed_ledger_matches", [])],
         },
     )
     return row, action

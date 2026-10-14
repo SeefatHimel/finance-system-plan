@@ -693,9 +693,9 @@ export async function createSenderRule(
   return (await response.json()) as SenderRule;
 }
 
-export async function listMessageCandidates(accessToken: string): Promise<ParsedMessageCandidate[]> {
-  const response = await authenticatedFetch("/api/messages/review/", accessToken);
-  return (await response.json()) as ParsedMessageCandidate[];
+export async function listMessageCandidates(accessToken: string, offset = 0): Promise<{ count: number; results: ParsedMessageCandidate[] }> {
+  const response = await authenticatedFetch(`/api/messages/review/?limit=100&offset=${offset}`, accessToken);
+  return (await response.json()) as { count: number; results: ParsedMessageCandidate[] };
 }
 
 export async function listDebts(accessToken: string): Promise<Debt[]> {

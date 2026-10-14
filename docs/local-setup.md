@@ -5,6 +5,29 @@ web, mobile, infra, and contracts projects.
 
 Execution tracker: see `docs/next-steps-checklist.md` for current done/pending status.
 
+## Project checks
+
+The same baseline runs in `.github/workflows/checks.yml` for pull requests and
+pushes to `main`. From the repository root, after installing each project's
+documented dependencies, run:
+
+```bash
+(cd projects/finance-api && python manage.py test && python manage.py makemigrations --check --dry-run && python manage.py spectacular --validate --file /tmp/finance-schema.yaml)
+(cd projects/finance-contracts && python scripts/check_backend_schema.py /tmp/finance-schema.yaml)
+(cd projects/finance-web && npm run typecheck && npm run lint && node --test tests/*.test.cjs && npm run build)
+(cd projects/finance-contracts && python scripts/generate_ts_client.py && git diff --exit-code -- generated/types.ts generated/client.ts && ../finance-web/node_modules/.bin/tsc -p tsconfig.generated.json)
+(cd projects/finance-mobile && npm run typecheck && node --test tests/*.test.cjs)
+```
+
+Schema generation may report known warnings; it must finish without errors and
+produce a nonempty file. CI runs the API tests with PostgreSQL so database
+locking/concurrency tests execute; local SQLite skips those tests. When an API
+shape intentionally changes, inspect its generated schema, update the published
+contract, regenerate TypeScript types, then update the structural snapshot with
+`python projects/finance-contracts/scripts/check_backend_schema.py /tmp/finance-schema.yaml --update`.
+Use only synthetic data for these checks. Database
+dumps (`*.dump`) are ignored by Git; store backups outside the repository.
+
 ## Required Tools
 
 - Git
@@ -57,6 +80,11 @@ Then:
 - Mobile app displays backend health. Done with initial scaffold.
 
 ## Docker Setup (All Runtime Projects)
+
+This section uses the development Compose file. For production images,
+Gunicorn/Next start commands, required HTTPS proxy settings and the explicit
+migration step, see `docs/production-deployment-plan.md`. Do not use the
+development Compose defaults for financial data.
 
 Run from infrastructure directory:
 
@@ -263,6 +291,7 @@ npm run typecheck
 npm run lint
 npm run test:auth
 npm run test:workflows
+npm run test:review-feedback
 npm run test:dates
 ```
 
@@ -408,9 +437,12 @@ environment; the deployment must permit starting that process. It creates no
 ledger entries on upload; masked rows and drafts are saved for review.
 
 Statement review assistance requires the latest API migrations, including
-`statements.0002_statementmapping`. Run `python manage.py migrate` from
+`statements.0003_reapply_pending_merchants`. Run `python manage.py migrate` from
 `projects/finance-api` before restarting API/web. The remembered-choice table stores
-scoped classifications; PDF/password retention remains unchanged (neither is saved).
+scoped classifications. Migration 0003 cleans untouched Counterparty drafts on
+pending statement rows; it preserves saved corrections, original extraction,
+notes, resolved rows, and ledger entries. PDF/password retention remains unchanged
+(neither is saved).
 
 The payment-method identity metadata update adds one migration. Run the existing
 API `python manage.py migrate` command before testing identifiers and aliases.
@@ -459,6 +491,7 @@ From `projects/finance-web`:
 npm run test:quick-add
 npm run test:auth
 npm run test:workflows
+npm run test:review-feedback
 npm run test:dates
 npm run typecheck
 npm run build

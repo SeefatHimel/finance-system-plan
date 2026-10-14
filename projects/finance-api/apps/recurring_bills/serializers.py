@@ -45,9 +45,10 @@ class RecurringBillSerializer(serializers.ModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        user = self.context["request"].user
-        fields["account"].queryset = Account.objects.filter(user=user, is_active=True)
-        fields["category"].queryset = Category.objects.filter(user=user, is_active=True)
+        request = self.context.get("request")
+        user_id = request.user.pk if request and request.user.is_authenticated else None
+        fields["account"].queryset = Account.objects.filter(user_id=user_id, is_active=True)
+        fields["category"].queryset = Category.objects.filter(user_id=user_id, is_active=True)
         return fields
 
     def create(self, validated_data):
@@ -87,8 +88,9 @@ class RecurringBillPaymentSerializer(serializers.ModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        user = self.context["request"].user
-        fields["transaction"].queryset = Transaction.objects.filter(user=user)
+        request = self.context.get("request")
+        user_id = request.user.pk if request and request.user.is_authenticated else None
+        fields["transaction"].queryset = Transaction.objects.filter(user_id=user_id)
         return fields
 
     @transaction.atomic

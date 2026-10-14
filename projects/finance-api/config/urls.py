@@ -15,6 +15,7 @@ from apps.messages.views import (
     MessageCandidateConfirmView,
     MessageCandidateRejectView,
     MessageCandidateReprocessView,
+    MessageReviewDetailView,
     MessageReviewListView,
     RawMessageImportView,
     RawMessageRedactView,
@@ -24,14 +25,15 @@ from apps.messages.views import (
     SmsDeviceStatusView,
 )
 from apps.payment_methods.views import PaymentMethodViewSet
+from apps.quick_add.views import QuickAddPresetViewSet, QuickEntryView
 from apps.reconciliation.views import AccountReconciliationView, BalanceSnapshotViewSet
 from apps.recurring_bills.views import (
     RecurringBillPaymentCreateView,
     RecurringBillViewSet,
 )
 from apps.statements.review_views import StatementImportViewSet, StatementRowViewSet
+from apps.statements.unified_views import UnifiedPairView, UnifiedPendingView
 from apps.statements.views import StatementIdentifyView, StatementPreviewView
-from apps.quick_add.views import QuickAddPresetViewSet, QuickEntryView
 from apps.transactions.views import TransactionViewSet
 
 router = DefaultRouter()
@@ -55,6 +57,8 @@ urlpatterns = [
     path("api/auth/", include("apps.users.urls")),
     path("api/", include(router.urls)),
     path("api/quick-add/entries/", QuickEntryView.as_view(), name="quick-add-entry"),
+    path("api/review/pending/", UnifiedPendingView.as_view(), name="unified-pending"),
+    path("api/review/pair/", UnifiedPairView.as_view(), name="unified-pair"),
     path("api/health/", include("apps.health.urls")),
     path("api/statements/preview/", StatementPreviewView.as_view(), name="statement-preview"),
     path("api/statements/identify/", StatementIdentifyView.as_view(), name="statement-identify"),
@@ -75,6 +79,11 @@ urlpatterns = [
         name="raw-message-redact",
     ),
     path("api/messages/review/", MessageReviewListView.as_view(), name="message-review-list"),
+    path(
+        "api/messages/review/<uuid:candidate_id>/",
+        MessageReviewDetailView.as_view(),
+        name="message-review-detail",
+    ),
     path(
         "api/messages/review/reprocess/",
         MessageCandidateBulkReprocessView.as_view(),

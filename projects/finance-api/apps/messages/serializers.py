@@ -11,6 +11,7 @@ from apps.transactions.models import Transaction
 from apps.transactions.serializers import TransactionActionSerializer
 
 from .identifiers import sanitize_financial_identifier
+from .safe_sender_regex import compile_sender_pattern
 from .models import (
     ParsedMessageCandidate,
     RawMessage,
@@ -99,8 +100,8 @@ class SenderRuleSerializer(serializers.ModelSerializer):
             attrs["pattern"] = pattern
         if match_type == SenderRule.MatchType.REGEX:
             try:
-                re.compile(pattern or sender, flags=re.IGNORECASE)
-            except re.error as error:
+                compile_sender_pattern(pattern or sender)
+            except (re.error, ValueError) as error:
                 raise serializers.ValidationError(
                     {"pattern": f"Enter a valid regular expression: {error}."}
                 ) from error
@@ -109,13 +110,14 @@ class SenderRuleSerializer(serializers.ModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        user = self.context["request"].user
-        fields["account"].queryset = Account.objects.filter(user=user, is_active=True)
+        request = self.context.get("request")
+        user_id = request.user.pk if request and request.user.is_authenticated else None
+        fields["account"].queryset = Account.objects.filter(user_id=user_id, is_active=True)
         fields["payment_method"].queryset = PaymentMethod.objects.filter(
-            user=user,
+            user_id=user_id,
             is_active=True,
         )
-        fields["category"].queryset = Category.objects.filter(user=user, is_active=True)
+        fields["category"].queryset = Category.objects.filter(user_id=user_id, is_active=True)
         return fields
 
 
@@ -402,9 +404,10 @@ class ParsedMessageConfirmSerializer(serializers.Serializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        user = self.context["request"].user
-        fields["account"].queryset = Account.objects.filter(user=user, is_active=True)
-        fields["transfer_account"].queryset = Account.objects.filter(user=user, is_active=True)
-        fields["category"].queryset = Category.objects.filter(user=user, is_active=True)
-        fields["payment_method"].queryset = PaymentMethod.objects.filter(user=user, is_active=True)
+        request = self.context.get("request")
+        user_id = request.user.pk if request and request.user.is_authenticated else None
+        fields["account"].queryset = Account.objects.filter(user_id=user_id, is_active=True)
+        fields["transfer_account"].queryset = Account.objects.filter(user_id=user_id, is_active=True)
+        fields["category"].queryset = Category.objects.filter(user_id=user_id, is_active=True)
+        fields["payment_method"].queryset = PaymentMethod.objects.filter(user_id=user_id, is_active=True)
         return fields

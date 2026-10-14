@@ -36,13 +36,11 @@ import {
   type MonthlyReport,
   type ParsedMessageCandidate,
   type SmsDeviceStatus,
-  type Transaction,
+  getDashboardSummary,
   getPeriodReport,
   getSmsDeviceStatus,
   listAccounts,
   listCategories,
-  listMessageCandidates,
-  listTransactions
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { LoadingState } from "@/components/loading-state";
@@ -54,12 +52,11 @@ type DashboardState =
   | { message: string; status: "error" }
   | {
       accounts: Account[];
-      candidates: ParsedMessageCandidate[];
       categories: Category[];
       deviceStatus: SmsDeviceStatus;
       report: MonthlyReport;
+      summary: Awaited<ReturnType<typeof getDashboardSummary>>;
       status: "ready";
-      transactions: Transaction[];
     };
 
 type CashFlowPoint = {
@@ -227,13 +224,12 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
       Promise.all([
         listAccounts(accessToken),
         listCategories(accessToken),
-        listMessageCandidates(accessToken),
+        getDashboardSummary(accessToken, range.start, range.end, controller.signal),
         getSmsDeviceStatus(accessToken),
-        getPeriodReport(accessToken, range.start, range.end, controller.signal),
-        listTransactions(accessToken, { start_date: range.start, end_date: range.end }, controller.signal)
+        getPeriodReport(accessToken, range.start, range.end, controller.signal)
       ])
-        .then(([accounts, categories, candidates, deviceStatus, report, transactions]) => {
-          if (active) setState({ accounts, candidates, categories, deviceStatus, report, status: "ready", transactions });
+        .then(([accounts, categories, summary, deviceStatus, report]) => {
+          if (active) setState({ accounts, categories, deviceStatus, report, status: "ready", summary });
         })
         .catch((error) => {
           if (!active) return;
@@ -251,22 +247,20 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
 
     const accountById = new Map(state.accounts.map((account) => [account.id, account.name]));
     const categoryById = new Map(state.categories.map((category) => [category.id, category.name]));
-    const automatedTransactions = state.transactions.filter((transaction) => transaction.source === "sms" || transaction.source === "mobile");
     const ledgerBalance = state.accounts
       .filter((account) => account.currency === "BDT")
       .reduce((total, account) => total + Number(account.ledger_balance), 0);
 
     return {
       accountById,
-      automatedTransactions,
-      captureCount: automatedTransactions.length + state.candidates.length,
+      captureCount: state.summary.automated_count + state.summary.pending_count,
       cashFlow: buildCashFlowData(state.report.daily),
       categoryById,
       lastSyncLabel: state.deviceStatus.last_successful_sync_at
         ? `Last successful sync ${new Intl.DateTimeFormat("en-US", { day: "numeric", hour: "numeric", minute: "2-digit", month: "short" }).format(new Date(state.deviceStatus.last_successful_sync_at))}`
         : state.deviceStatus.health_label,
       netPosition: ledgerBalance,
-      recentTransactions: state.transactions.slice(0, 4)
+      recentTransactions: state.summary.recent_transactions
     };
   }, [state]);
 
@@ -288,8 +282,8 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
   }
 
   const periodLabel = state.report.start_date === state.report.end_date ? formatDate(state.report.start_date) : `${formatDate(state.report.start_date)} – ${formatDate(state.report.end_date)}`;
-  const pendingCount = state.candidates.length;
-  const autoPostedCount = dashboardData.automatedTransactions.length;
+  const pendingCount = state.summary.pending_count;
+  const recordedSmsCount = state.summary.automated_count;
   const netMovement = Number(state.report.net_total);
   const syncHealthy = state.deviceStatus.health_state === "healthy";
   const syncNeedsAttention = ["background_disabled", "error", "offline", "permission_required"].includes(state.deviceStatus.health_state);
@@ -332,7 +326,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
           </div>
           <div className="automation-stats">
             <div><FileText aria-hidden="true" className="automation-stat-icon automation-stat-icon--info" size={27} /><strong>{dashboardData.captureCount}</strong><span>Captured</span></div>
-            <div><CheckCircle aria-hidden="true" className="automation-stat-icon automation-stat-icon--success" size={27} /><strong>{autoPostedCount}</strong><span>Auto-posted</span></div>
+            <div><CheckCircle aria-hidden="true" className="automation-stat-icon automation-stat-icon--success" size={27} /><strong>{recordedSmsCount}</strong><span>Recorded from SMS/mobile</span></div>
             <div><Warning aria-hidden="true" className="automation-stat-icon automation-stat-icon--warning" size={27} /><strong>{pendingCount}</strong><span>Need review</span></div>
             <div><XCircle aria-hidden="true" className="automation-stat-icon automation-stat-icon--danger" size={27} /><strong>{state.deviceStatus.failed_upload_count}</strong><span>Failed</span></div>
           </div>
@@ -351,11 +345,11 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
 
         <article className="dashboard-panel attention-panel">
           <div className="dashboard-panel__heading"><h2>Needs attention ({pendingCount})</h2><Link href="/messages/review">View all <ArrowRight aria-hidden="true" size={15} /></Link></div>
-          {state.candidates.length === 0 ? (
+          {state.summary.recent_candidates.length === 0 ? (
             <div className="attention-empty"><CheckCircle aria-hidden="true" size={24} weight="fill" /><span>No imported messages need review.</span></div>
           ) : (
             <div className="attention-list">
-              {state.candidates.slice(0, 3).map((candidate) => {
+              {state.summary.recent_candidates.map((candidate) => {
                 const CandidateIcon = candidateIcon(candidate.provider);
                 const tone = candidateTone(candidate);
                 const confidence = Math.round(Number(candidate.confidence) * 100);

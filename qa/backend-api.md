@@ -778,3 +778,116 @@ while the canonical movement counts once. Credit-card reference balances and
 ambiguous same-day timing return null comparisons with a reason. The result is a
 read-only review hint; opening-balance or earlier ledger edits recompute it, and
 no automatic adjustment or new query per account is introduced.
+
+### Can accepting a statement match replace the reported balance?
+
+Yes, through an explicit versioned balance choice. The API locks the existing
+transaction, recomputes matches, requires a choice for conflicts, and verifies both
+reviewed values. Stale choices return 409 without ledger or evidence changes.
+Transfers use the statement account's effective report, preserving the opposite
+account. Original SMS and statement observations keep their captured balances;
+an explicit statement choice uses separate reviewed ledger evidence. Transaction
+before/after snapshots and decision metadata preserve the previous values; the
+PDF extraction stays immutable. Linking counts once, and unlinking or rescanning
+confirmed SMS does not undo an explicit reviewed balance choice.
+
+### What happens to captured transfer reports when the ledger is edited?
+
+Editing a ledger date, time, reference, note, or account-bound reported balance
+does not rewrite captured SMS or statement observations. A changed balance is
+stored as separate reviewed evidence and selected as the effective account
+report; repeating the same edit reuses it. If unlinking a statement removes a
+transfer observation or restores its prior effective balance, the transaction
+history records before/after snapshots in addition to the statement-row event.
+
+
+### How does statement metadata enrichment avoid overwriting user corrections?
+
+Suggestions never write on reads. Link decisions accept a bounded whitelist of
+metadata fields with exact existing-value snapshots. The locked transaction is
+checked for stale details and invalid selections, and writes/ linking/ audit logs
+share one atomic operation. Ledger before/after values are retained, SMS evidence
+is unchanged, and confirmed-message rescans cannot replay parser defaults.
+Identifier roles are suggested only from explicit labels or the reporting-account
+header; ambiguous counterpart numbers are not guessed.
+
+### Can older pending statement rows use the newer merchant cleanup?
+
+Yes. Migration `statements.0003_reapply_pending_merchants` updates the draft
+Counterparty only when it still exactly matches the saved extracted description
+and a recognized card-purchase prefix can be removed. It bumps the row version
+to reject stale editor saves. User corrections, resolved rows, original evidence,
+notes, balances, and ledger records are unchanged; no PDF re-upload is needed.
+
+### Can two pending sources be approved as one movement?
+
+Yes. A statement row detail response offers eligible pending SMS candidates with
+the same owner, reporting account, type, direction, amount and a date within the
+three-day match window. `combine_sms` is an explicit, versioned decision. Under
+the user lock and one database transaction it rechecks both pending states,
+duplicate SMS identity, existing ledger suggestions and source discrepancies,
+then creates an SMS-dated entry and links the statement using the existing link
+engine. The row list computes pending-SMS counts in one bounded query. Existing
+ledger suggestions require an explicit acknowledgement of their exact current IDs
+as distinct movements; a changed list returns 409. Differing non-null reported balances require
+an exact-value choice; source evidence and the audit trail retain both values.
+Inline-fee principal rows are excluded because their printed final balance
+belongs to the separate fee row. Independent SMS and statement decisions remain
+available. This combined decision does not create an ordinary SMS undo action;
+unlink statement evidence and correct the ledger through Transactions instead.
+
+### How does combined pending review avoid two ledger entries?
+
+The pair decision holds the same user lock as SMS/statement writers, then locks
+and rechecks both pending sources and their version/timestamp. It reuses statement
+validation and records one entry or links a current ledger suggestion. The SMS
+candidate and PDF row point to the same transaction, with account-bound transfer
+observations when needed. Exceptions roll back all writes, and completed-pair
+retries are idempotent. Conflicting balances require acknowledgment and an explicit
+balance choice for new entries; existing ledger balances stay intact. Raw SMS text
+follows retention settings while parsed fields and links remain. Ownership scopes
+apply to both sources and any existing ledger target. No migration/backfill occurs.
+
+Attached confirmed SMS sources expose their saved parsed amount/balance separately
+from ledger values, including after raw text redaction. User and transaction scopes
+are rechecked before returning that optional parsed observation.
+
+## Review and parser safety updates
+
+**How do large SMS queues reach clients?** Clients can request `limit` (1–200)
+and `offset`; the API returns an exact `count` and a bounded `results` array.
+The old array response remains only for older mobile builds that omit `limit`.
+The dashboard summary uses count queries and at most three pending candidates
+and four recent transactions.
+
+**Can a busy unrelated account hide a pending SMS/statement match?** No. Detail
+matching narrows to the statement account perspective before evaluating a
+candidate, so unrelated same-amount messages cannot exhaust its suggestion
+window. Decisions still revalidate the candidate under a transaction lock.
+If the same-account check exceeds its safety bound, detail reports an unknown
+match count and individual or bulk statement posting stays unresolved, even
+with `allow_separate`, instead of treating unchecked SMS as absent.
+
+**What prevents a sender regex from stalling parsing?** Saved regex sender
+rules support a short subset without repeats, groups, alternatives or
+backreferences. Validation rejects unsafe new patterns, and matching skips
+unsafe old patterns as well.
+
+### How is the chosen balance applied to a unified transfer?
+
+SMS and statement observations keep their original reported values. The pair
+decision marks one account-bound transfer observation as the effective report,
+so account balance views use the reviewed choice. Linking to an existing
+transfer keeps its prior effective report. Merging transfers carries the chosen
+account reports forward while preserving each source's original value. Choosing a source with no balance
+when the other reports one returns 400. Migration
+`transactions.0008_transferevidence_effective_balance` adds this selection flag
+without rewriting existing reports.
+
+### How do large unified queues remain reviewable?
+
+Date and source filters narrow pending source queries before the 2,000-per-side
+safety cap. Selected pair detail checks nearby same-amount competitors directly,
+independent of the global backlog. Broad queues may still need an account or
+date filter. An inconclusive batched pending-SMS count is returned as null and
+requires individual review rather than being labelled zero.

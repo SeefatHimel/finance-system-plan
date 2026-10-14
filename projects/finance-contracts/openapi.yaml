@@ -463,7 +463,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/TransactionAction'}
-        '409': {description: Action changed, expired or no longer latest; nothing was reversed.}
+        '409': {description: "Action changed, expired or no longer latest; nothing was reversed."}
         '404': {description: Action not found for this user.}
   /api/transactions/{id}/statement-evidence/:
     get:
@@ -1151,17 +1151,48 @@ paths:
       summary: List parsed SMS candidates waiting for review
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema: {type: integer, minimum: 1, maximum: 200}
+          description: Request a bounded page. Omit only for older mobile clients that expect an array.
+        - in: query
+          name: offset
+          schema: {type: integer, minimum: 0, default: 0}
+          description: Zero-based offset when limit is supplied.
       responses:
         '200':
-          description: Review candidate list
+          description: Review candidate page when limit is supplied; legacy array otherwise.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ParsedMessageCandidate'
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/ParsedMessageCandidate'
+                  - $ref: '#/components/schemas/ReviewCandidatePage'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/messages/review/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    get:
+      tags: [Messages]
+      summary: Read one pending SMS candidate directly
+      description: Returns 404 when the candidate is resolved or belongs to another user.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pending SMS candidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParsedMessageCandidate'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /api/messages/review/reprocess/:
     post:
       tags: [Messages]
@@ -2160,6 +2191,28 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/reports/dashboard-summary/:
+    get:
+      tags: [Reports]
+      summary: Return bounded dashboard activity and exact counts
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: start_date
+          schema: {type: string, format: date}
+        - in: query
+          name: end_date
+          schema: {type: string, format: date}
+      responses:
+        '200':
+          description: Dashboard summary for selected period and live review queue.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSummary'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /api/reports/monthly/:
     get:
       tags: [Reports]
@@ -2466,6 +2519,143 @@ paths:
                 items:
                   $ref: '#/components/schemas/QuickAddPreset'
           description: ''
+  /api/review/pair/:
+    get:
+      operationId: pair_retrieve
+      parameters:
+      - in: query
+        name: sms
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: statement
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Unified review
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnifiedPairDetail'
+          description: ''
+    post:
+      operationId: pair_create
+      tags:
+      - Unified review
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnifiedPairDecision'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UnifiedPairDecision'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UnifiedPairDecision'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnifiedPairResult'
+          description: ''
+  /api/review/pending/:
+    get:
+      operationId: pending_retrieve
+      parameters:
+      - in: query
+        name: account
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: condition
+        schema:
+          enum:
+          - all
+          - matched
+          - unmatched
+          - corrections
+          type: string
+          default: all
+          minLength: 1
+        description: '* `all` - all
+
+          * `matched` - matched
+
+          * `unmatched` - unmatched
+
+          * `corrections` - corrections'
+      - in: query
+        name: end_date
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+      - in: query
+        name: offset
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - in: query
+        name: search
+        schema:
+          type: string
+          maxLength: 255
+      - in: query
+        name: source
+        schema:
+          enum:
+          - all
+          - sms
+          - statement
+          type: string
+          default: all
+          minLength: 1
+        description: '* `all` - all
+
+          * `sms` - sms
+
+          * `statement` - statement'
+      - in: query
+        name: start_date
+        schema:
+          type: string
+          format: date
+      tags:
+      - Unified review
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnifiedPendingPage'
+          description: ''
+
 components:
   securitySchemes:
     bearerAuth:
@@ -3385,6 +3575,26 @@ components:
         reason: {type: string}
         observed_identifiers: {type: array, items: {type: string}}
         choices: {type: array, items: {$ref: '#/components/schemas/IdentityChoice'}}
+    ReviewCandidatePage:
+      type: object
+      required: [count, results]
+      properties:
+        count: {type: integer, minimum: 0}
+        results:
+          type: array
+          items: {$ref: '#/components/schemas/ParsedMessageCandidate'}
+    DashboardSummary:
+      type: object
+      required: [pending_count, automated_count, recent_candidates, recent_transactions]
+      properties:
+        pending_count: {type: integer, minimum: 0}
+        automated_count: {type: integer, minimum: 0}
+        recent_candidates:
+          type: array
+          items: {$ref: '#/components/schemas/ParsedMessageCandidate'}
+        recent_transactions:
+          type: array
+          items: {$ref: '#/components/schemas/Transaction'}
     ParsedMessageCandidate:
       type: object
       required:
@@ -4596,6 +4806,16 @@ components:
       type: object
       required: [id, sender, body, received_at, status, redacted_at]
       properties:
+        parsed:
+          type: object
+          nullable: true
+          readOnly: true
+          properties:
+            amount: {type: string, nullable: true}
+            balance_after: {type: string, nullable: true}
+            reference: {type: string}
+            type: {type: string}
+          required: [amount, balance_after, reference, type]
         id:
           type: string
           format: uuid
@@ -5011,6 +5231,7 @@ components:
       enum:
       - create
       - link
+      - combine_sms
       - skip
       - unlink
       - reopen
@@ -5018,6 +5239,8 @@ components:
       description: '* `create` - create
 
         * `link` - link
+
+        * `combine_sms` - confirm a pending SMS and link this statement row atomically
 
         * `skip` - skip
 
@@ -5317,6 +5540,69 @@ components:
       - posted
       - skipped
       - total
+    StatementBalanceChoice:
+      type: object
+      properties:
+        keep:
+          type: string
+          enum: [existing, statement]
+        existing_balance_after:
+          type: string
+          format: decimal
+          pattern: '^-?[0-9]{1,12}(?:\.[0-9]{1,2})?$'
+          nullable: true
+        statement_balance_after:
+          type: string
+          format: decimal
+          pattern: '^-?[0-9]{1,12}(?:\.[0-9]{1,2})?$'
+          nullable: true
+      required:
+      - existing_balance_after
+      - keep
+      - statement_balance_after
+    StatementDetailField:
+      type: string
+      enum:
+      - counterparty_text
+      - reference
+      - note
+      - sender_account_identifier
+      - sender_card_identifier
+      - receiver_account_identifier
+      - receiver_card_identifier
+    StatementDetailSuggestion:
+      type: object
+      properties:
+        field:
+          $ref: '#/components/schemas/StatementDetailField'
+        label:
+          type: string
+        existing_value:
+          type: string
+        suggested_value:
+          type: string
+      required:
+      - field
+      - label
+      - existing_value
+      - suggested_value
+    StatementDetailChoice:
+      type: object
+      properties:
+        field:
+          $ref: '#/components/schemas/StatementDetailField'
+        existing_value:
+          type: string
+          description: Exact current ledger value shown during review; identifiers are masked.
+        value:
+          type: string
+          maxLength: 4000
+          minLength: 1
+          description: Reviewed value, editable before accepting. Field-specific lengths and identifier masking are enforced by the API.
+      required:
+      - field
+      - existing_value
+      - value
     StatementDecision:
       type: object
       properties:
@@ -5328,6 +5614,22 @@ components:
         transaction:
           type: string
           format: uuid
+        candidate:
+          type: string
+          format: uuid
+          description: Pending SMS candidate required for combine_sms.
+        dismissed_ledger_matches:
+          type: array
+          maxItems: 8
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+          description: Exact current ledger suggestion IDs reviewed as distinct movements before combine_sms.
+        acknowledge_distinct_ledger_matches:
+          type: boolean
+          default: false
+          description: Required with dismissed_ledger_matches when ledger suggestions exist.
         allow_separate:
           type: boolean
           default: false
@@ -5341,6 +5643,14 @@ components:
           type: boolean
           default: false
           description: Explicitly remember classification choices only after create/link.
+        balance_choice:
+          $ref: '#/components/schemas/StatementBalanceChoice'
+        detail_choices:
+          type: array
+          maxItems: 7
+          items:
+            $ref: '#/components/schemas/StatementDetailChoice'
+          description: Only selected fields change on link or combine_sms. Missing values are not automatically filled; nonempty replacements are explicit.
       required:
       - action
       - version
@@ -5473,6 +5783,14 @@ components:
         balance_after:
           type: string
           nullable: true
+        effective_balance_after:
+          type: string
+          nullable: true
+          description: Current effective reported balance for the statement account; may differ from the matched historical observation.
+        detail_suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementDetailSuggestion'
         conflict:
           type: boolean
         can_link:
@@ -5495,9 +5813,11 @@ components:
       - account_name
       - amount
       - balance_after
+      - effective_balance_after
       - can_link
       - category_name
       - conflict
+      - detail_suggestions
       - date
       - id
       - note
@@ -5510,6 +5830,56 @@ components:
       - strength
       - merchant_similarity
       - time_difference_minutes
+    PendingSmsStatementMatch:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          format: time
+        sender:
+          type: string
+        sms_text:
+          type: string
+          nullable: true
+        amount:
+          type: string
+          format: decimal
+        type:
+          type: string
+        counterparty_text:
+          type: string
+        balance_after:
+          type: string
+          format: decimal
+          nullable: true
+        reference:
+          type: string
+        confidence:
+          type: string
+          format: decimal
+        detail_suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementDetailSuggestion'
+      required:
+      - id
+      - date
+      - time
+      - sender
+      - sms_text
+      - amount
+      - type
+      - counterparty_text
+      - balance_after
+      - reference
+      - confidence
+      - detail_suggestions
     StatementReview:
       type: object
       properties:
@@ -5530,6 +5900,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StatementMatch'
+        pending_sms_match_count:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Bounded list-level count. Null means the comparison window was too busy to check safely; never treat it as zero.
+        pending_sms_matches:
+          type: array
+          description: Advisory pending SMS candidates. Populated on row detail; empty in paginated row lists.
+          items:
+            $ref: '#/components/schemas/PendingSmsStatementMatch'
         matching_truncated:
           type: boolean
         requires_acknowledgement:
@@ -5545,6 +5925,8 @@ components:
       required:
       - issues
       - matches
+      - pending_sms_match_count
+      - pending_sms_matches
       - matching_truncated
       - requires_acknowledgement
       - review_state
@@ -5738,3 +6120,276 @@ components:
       - offset
       - limit
       - results
+    UnifiedBalanceSourceEnum:
+      enum:
+      - sms
+      - statement
+      - existing
+      type: string
+      description: '* `sms` - sms
+
+        * `statement` - statement
+
+        * `existing` - existing'
+    UnifiedPairDecision:
+      type: object
+      properties:
+        statement:
+          type: string
+          format: uuid
+        sms:
+          type: string
+          format: uuid
+        statement_version:
+          type: integer
+          minimum: 1
+        sms_updated_at:
+          type: string
+          format: date-time
+        transaction:
+          type: string
+          format: uuid
+          nullable: true
+        balance_source:
+          $ref: '#/components/schemas/UnifiedBalanceSourceEnum'
+        acknowledge_match:
+          type: boolean
+          default: false
+        acknowledge_conflict:
+          type: boolean
+          default: false
+        acknowledge_issues:
+          type: boolean
+          default: false
+        remember_choices:
+          type: boolean
+          default: false
+      required:
+      - balance_source
+      - sms
+      - sms_updated_at
+      - statement
+      - statement_version
+    UnifiedPairDetail:
+      type: object
+      properties:
+        row:
+          $ref: '#/components/schemas/SavedStatementRow'
+        batch:
+          $ref: '#/components/schemas/StatementImport'
+        sms:
+          $ref: '#/components/schemas/ParsedMessageCandidate'
+        match: {}
+      required:
+      - batch
+      - match
+      - row
+      - sms
+    UnifiedPairResult:
+      type: object
+      properties:
+        transaction:
+          type: string
+          format: uuid
+        statement:
+          type: string
+          format: uuid
+        sms:
+          type: string
+          format: uuid
+        unchanged:
+          type: boolean
+      required:
+      - sms
+      - statement
+      - transaction
+      - unchanged
+    UnifiedPendingItem:
+      type: object
+      properties:
+        source:
+          $ref: '#/components/schemas/UnifiedSourceEnum'
+        id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+          nullable: true
+        account_name:
+          type: string
+        currency:
+          type: string
+        date:
+          type: string
+          format: date
+          nullable: true
+        time:
+          type: string
+          format: time
+          nullable: true
+        amount:
+          type: string
+          nullable: true
+        balance_after:
+          type: string
+          nullable: true
+        direction:
+          type: string
+        type:
+          type: string
+        description:
+          type: string
+        reference:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          nullable: true
+        batch:
+          type: string
+          format: uuid
+          nullable: true
+        needs_correction:
+          type: boolean
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnifiedPendingMatch'
+        ambiguous:
+          type: boolean
+      required:
+      - account
+      - account_name
+      - ambiguous
+      - amount
+      - balance_after
+      - batch
+      - currency
+      - date
+      - description
+      - direction
+      - id
+      - matches
+      - needs_correction
+      - reference
+      - source
+      - time
+      - type
+      - updated_at
+      - version
+    UnifiedPendingMatch:
+      type: object
+      properties:
+        source:
+          $ref: '#/components/schemas/UnifiedSourceEnum'
+        id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+          nullable: true
+        account_name:
+          type: string
+        currency:
+          type: string
+        date:
+          type: string
+          format: date
+          nullable: true
+        time:
+          type: string
+          format: time
+          nullable: true
+        amount:
+          type: string
+          nullable: true
+        balance_after:
+          type: string
+          nullable: true
+        direction:
+          type: string
+        type:
+          type: string
+        description:
+          type: string
+        reference:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          nullable: true
+        batch:
+          type: string
+          format: uuid
+          nullable: true
+        needs_correction:
+          type: boolean
+        strength:
+          $ref: '#/components/schemas/UnifiedStrengthEnum'
+        conflict:
+          type: boolean
+        reasons:
+          type: array
+          items:
+            type: string
+      required:
+      - account
+      - account_name
+      - amount
+      - balance_after
+      - batch
+      - conflict
+      - currency
+      - date
+      - description
+      - direction
+      - id
+      - needs_correction
+      - reasons
+      - reference
+      - source
+      - strength
+      - time
+      - type
+      - updated_at
+      - version
+    UnifiedPendingPage:
+      type: object
+      properties:
+        count:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnifiedPendingItem'
+      required:
+      - count
+      - limit
+      - offset
+      - results
+    UnifiedSourceEnum:
+      enum:
+      - sms
+      - statement
+      type: string
+      description: '* `sms` - sms
+
+        * `statement` - statement'
+    UnifiedStrengthEnum:
+      enum:
+      - strong
+      - possible
+      type: string
+      description: '* `strong` - strong
+
+        * `possible` - possible'

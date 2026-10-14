@@ -208,7 +208,7 @@ Dashboard attention rows deep-link to the exact candidate, and the review page
 keeps the selected candidate id in the URL so the state can be shared or
 revisited.
 A compact Received dates toolbar spans both panes; search and a Filters button
-stay above the queue. Provider, state, category and type filters apply immediately
+stay above the queue. Provider, condition, confidence, involved-account, direction, category and type filters apply immediately
 in a viewport-centered dialog, with removable chips and a filtered/total count.
 Escape restores focus to the trigger. Clear filters retains search and dates.
 Three-line rows show amount/received day, counterparty/provider and the first
@@ -274,7 +274,8 @@ account than the one they are inspecting.
 
 The audit logs page loads read-only audit entries from the Django API. It can
 filter by action, entity type, and entity id, summarizes create/update/delete
-counts, and shows expandable before/after snapshots for transaction changes. It
+counts, and shows changed transaction fields as before → after values. Full
+before/after JSON snapshots remain available for detail. It
 also reads URL query filters, so transaction rows can deep-link directly to
 their history.
 
@@ -482,10 +483,11 @@ than treated as a blanket skip category, and financial senders remain active.
 
 ## Can users see the original message while correcting a transaction?
 
-Yes. The edit dialog loads an expanded Original SMS section with full plain text,
+Yes. When linked SMS exists, the edit dialog loads an expanded Original SMS section with full plain text,
 sender and received time. It preserves line breaks, wraps long text and shows
 all linked transfer messages once. Users can collapse it while editing.
-Redacted/excluded SMS and entries without SMS have explicit explanations.
+Redacted/excluded SMS have explicit explanations. Entries without linked SMS hide
+the empty section.
 Loading failures have a retry control and do not block the form. Component state
 is discarded on closing or switching entries, stale responses are ignored, and
 bodies are not persisted to browser storage or transaction notes. The cookie
@@ -586,6 +588,17 @@ confirm links in the editor or approve validated new rows. A separate paginated
 ledger-only list highlights recorded entries with no statement suggestion within
 that account's printed period. Warnings explain provisional absence; no automatic
 deletion occurs. PDF evidence remains separate from edited ledger details.
+
+The row dialog fills most of the viewport, keeps decision buttons visible, and
+uses a full-width comparison for every suggested match. Statement and ledger
+details appear side by side on desktop and stack on phones. Each balance conflict
+has its own acknowledgment; acknowledging one match does not authorize another.
+Accept is disabled while the draft is unsaved or required acknowledgments are
+missing. Saving clears acknowledgments for the refreshed suggestions. Exact
+decimal differences remain reviewable even at one cent. Linking preserves the
+existing ledger balance and both observations instead of silently reconciling
+them. Source-discrepancy acknowledgment still applies to all posting/linking
+decisions, and the API repeats validation at decision time.
 
 ### How does statement review show a ledger edit that breaks an accepted match?
 
@@ -794,13 +807,15 @@ browser storage falls back to the default view.
 It expands the same mounted workspace (dates, queue and editor); changing Focus never moves
 fields into a new modal/portal or changes their keys. Native input values,
 controlled choices, checkboxes and evidence disclosure state therefore survive
-entering/exiting. Candidate keys reset the form only when changing messages,
-matching normal review behavior. Focus itself performs no API mutation.
+entering/exiting. Candidate keys switch the rendered form when changing messages, while sparse
+page-local native-field and checkbox drafts restore edits when the message
+returns. Amount, account and classification drafts remain candidate-scoped too;
+re-parsing or leaving resets them. Focus itself performs no API mutation.
 
 App chrome and other background controls are hidden/inert. The queue, search,
 filters and received-date controls stay interactive, with a persistent Exit control,
 header and action footer. Desktop uses two columns; small screens stack the queue
-above the editor and offer Hide/Show messages while keeping the form mounted.
+above the editor. All screen sizes offer Hide/Show messages while keeping the form mounted.
 Changing search results does not move keyboard focus away from the search field.
 An empty filter result keeps Focus open so the filter can be corrected; completing
 the actual review queue exits it. Tab stays within the workspace; Escape closes a nested dialog
@@ -809,3 +824,158 @@ and Focus scroll locks share ownership, so cleanup order cannot leave scrolling
 stuck. Contextual Edit/Undo toasts stay accessible. Focus persists across reviewed
 messages and respects mobile safe areas/visual viewport
 without requesting browser fullscreen or preventing zoom.
+
+### How does review readiness follow corrections without pretending to be automation?
+
+Readiness evaluates the edited amount/account/type and transfer counterpart.
+Optional category and low-confidence notes are advisory. An existing transfer
+match may supply a missing other account; adding separately still requires it.
+The selected edited draft stays visible while a readiness filter would otherwise
+remove it. Queue count events carry only a count and owner ID, are accepted only
+for the current session, and supersede older count requests. Review mutations,
+Undo/transaction changes and returning to the window refresh the badge. Dashboard
+wording describes SMS/mobile origin rather than claiming every entry was auto-posted.
+
+### How do compact forms remain complete and accessible?
+
+Add/Edit use a scrollable field area with persistent Save/Cancel. More details
+contains source, masked identifiers and review flags, without removing fields
+from submission. Empty SMS evidence sections disappear; retained/redacted sources
+remain inspectable. Field validation preserves backend messages, highlights the
+control, opens collapsed details and focuses the first problem. A linked-evidence
+acknowledgement cannot be bypassed by the new footer. Overall feedback still uses
+the toast. Mobile navigation has a labelled dialog, Tab containment, inert
+background/closed drawer, Escape and trigger-focus restoration.
+
+### Why offer transaction cards and fewer default columns?
+
+Six useful columns start visible, with source/balances/identifiers still selectable.
+Saved selections survive the update; Show all and Reset default are separate.
+At phone widths cards use the same formatting/actions and column preferences as
+the table. Extra selected metadata expands within each card. Internal transfers
+remain neutral in the all-account view, while account filters show debit/credit.
+This changes presentation, not matching, amounts, balances or ledger calculations.
+
+### Why combine the SMS heading and received-date filters?
+
+They belong to the same inbox controls and can share a wrapping toolbar, reducing
+separate panel padding and gaps. The heading retains guidance through an accessible
+info control; queue count and reapply remain available. Last action and Edit/Undo
+share a compact borderless line, distinct from filtering, with natural wrapping
+and 44px touch targets. Focus keeps the same date-control
+instance mounted, so an unfinished custom range survives entering/exiting Focus.
+
+### How do confidence and action filters work in SMS Focus mode?
+
+They filter pending review candidates in the browser. Parser confidence has exact
+bands and an inclusive custom percentage range; malformed/reversed ranges display
+an error and remain unapplied. This percentage is confidence in parsing an SMS,
+not a transfer-match probability. Transfer suggestions explain their evidence.
+Conditions cover required inputs, duplicate/related SMS, identifier suggestions,
+unknown/non-transaction formats and actions supported by the retained evidence.
+Account involved includes the other account only for transfer drafts. Other
+filters combine using AND. Correction filters keep the currently edited draft
+mounted while its errors clear; explicitly selecting another condition resets
+that exception. Completed-message history remains outside this inbox.
+
+The Focus top bar shares the already-mounted date controls with entry context,
+Filters, queue visibility and exit. On small screens actions become accessible
+icon buttons and dates wrap. One status distinguishes ready, corrections/review
+notes and related-transfer hints. A nearby disclosure exposes message actions.
+Find transfer match submits a lookup for the current draft, without confirming it
+when no match exists or the user returns to review. Linking still requires an
+explicit acceptance and per-account balance-conflict choices where needed.
+
+### What changed after testing SMS Focus on phones?
+
+Chrome checks at 400×740 and 320×568 found that the visible queue and status
+summary crowded the editor, filter completion buttons required scrolling, and
+empty date results discarded native input edits. Focus now starts with the queue
+hidden up to 820px, uses compact date/status/message-action controls, and keeps
+Clear/Done outside the filter-fields scroll area. The queue toggle preserves the
+mounted editor and is still available at every screen size.
+
+A sparse in-memory draft cache restores native text/date/time fields and the
+remember-choice checkbox per candidate after navigation or temporary filter
+exclusion. It never writes to localStorage or sends edits on navigation. Parser
+re-runs clear the affected drafts and increment the form revision so refreshed
+parser values replace dirty native inputs. Controlled account/amount/category and
+account-bound balance logic remain separate. Tests cover empty strings, unchecked
+choices, message isolation and single/bulk draft reset. Desktop Chrome emulation
+cannot establish actual mobile soft-keyboard behavior or other-browser coverage.
+
+### How does statement review resolve conflicting reported balances?
+
+Each possible match compares the statement draft with the existing transaction.
+When balances differ, the user must choose the current ledger report or the
+statement report; Accept remains disabled until the choice and any required
+source acknowledgment are complete. Choices belong to one match and exact
+reviewed values/version, and reset after saving. The modal uses desktop space for
+a side-by-side comparison, stacks on phones, and keeps its decision footer visible.
+The choice changes a reported balance, never the movement amount or money count.
+If detailed pending-SMS matching reaches its safety limit, the row editor
+explains why Add is unavailable and directs the user to review pending SMS.
+
+
+### How can users fill or improve transaction details when accepting a statement match?
+
+Each match has an expandable metadata comparison with editable proposed values.
+The fill-missing shortcut selects only empty fields with statement evidence.
+Nonempty replacements must be explicitly selected; acceptance applies only those
+fields. Clean merchant suggestions remove anchored card-purchase labels while
+preserving source text, merchant names and user edits. Date/time and financial
+identity stay unchanged, and full identifiers are masked before transmission.
+
+### Why can an older statement row show raw card-purchase wording?
+
+Older saved drafts kept the statement description in Counterparty. After the API
+runs migration `statements.0003_reapply_pending_merchants`, refresh the row to
+see the cleaned merchant if that draft was untouched and is still pending. The
+original extracted description and Note remain available for review. A manual
+merchant correction and any resolved row are not rewritten.
+
+### What if the SMS and PDF are both still pending?
+
+Open the statement row. Eligible pending SMS appear beside the statement values,
+with separate dates, descriptions and balances. The original SMS is available
+while retained by the user's SMS policy. Verify the same movement and
+choose a reported balance if both sources disagree, then use “Review both · count
+once.” The SMS time/date and SMS source are retained; missing merchant/reference
+details can come from the corrected statement draft. The existing SMS-only and
+statement-only review actions still work. Optional merchant, note, reference and
+masked identifier suggestions can be edited and selected before combined approval;
+unselected nonempty SMS values remain unchanged. If a ledger suggestion already
+exists, review it first rather than making another transaction. A separate
+statement movement requires explicit separate confirmation. Pending-SMS counts
+also appear in the statement row list and Possible matches filter. If a ledger
+suggestion remains, compare every suggestion and affirm that each is distinct
+before combining; a changed suggestion list requires a fresh review.
+### Where can users review pending SMS and PDF rows together?
+
+Unified review (`/review`) lists both sources with account, date, source, condition
+and search filters. Each suggested pair opens a source comparison with original
+SMS/PDF evidence. Explicit confirmation resolves both sources into one transaction;
+a new entry uses the saved statement classification/date/time and chosen balance.
+Existing ledger suggestions must be selected and retain their existing balance.
+Ambiguous suggestions and balance/source discrepancies need review; nothing posts
+automatically. The statement editor opens in save-only mode inside this workflow,
+and unmatched items retain links to their individual editors. Source counts describe
+observations, not money movements. SMS dates are received dates; statement dates
+are transaction/value dates. Both evidence sets are available from Transactions.
+
+## Bounded review and dashboard loading
+
+**Why does SMS review say a filter applies to loaded messages?** The web client
+loads 100 pending candidates initially and allows another 100 per request.
+Filtering is local for fast interaction, so it explicitly distinguishes the
+loaded subset from the exact server pending count until all pages are loaded.
+The dashboard and sidebar use exact counts without downloading the whole queue.
+
+### What happens when a deep link points to an older pending SMS?
+
+The inbox loads its first bounded page, then fetches the requested candidate by
+ID if it is not on that page. It selects that exact candidate; an unavailable
+or foreign candidate now shows a notice and the current inbox, while other
+request failures still show an error. The pair
+dialog disables a missing balance choice when the other source has a report,
+and the statement list distinguishes an unavailable match count from zero.

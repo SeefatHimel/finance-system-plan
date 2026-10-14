@@ -1,9 +1,11 @@
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import Account
 from apps.categories.models import Category
+from apps.messages.models import ParsedMessageCandidate, RawMessage
 from apps.transactions.models import Transaction
 
 
@@ -88,6 +90,32 @@ class DateRangeReportTests(APITestCase):
             type="expense",
             amount="1000",
         )
+
+    def test_dashboard_summary_counts_all_but_returns_only_recent_records(self):
+        Transaction.objects.create(
+            user=self.user, account=self.bank, date="2026-02-02",
+            type="expense", amount="7", source="sms",
+        )
+        for index in range(5):
+            body = f"Synthetic review message {index}"
+            received = timezone.now()
+            raw = RawMessage.objects.create(
+                user=self.user, sender="SYNTH", body=body, received_at=received,
+                body_hash=RawMessage.build_body_hash(sender="SYNTH", body=body, received_at=received),
+            )
+            ParsedMessageCandidate.objects.create(
+                user=self.user, raw_message=raw, account=self.bank,
+                transaction_type="expense", message_kind="card_purchase", amount="7",
+            )
+        response = self.client.get(reverse("dashboard-summary"), {
+            "start_date": "2026-01-31", "end_date": "2026-02-02",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["pending_count"], 5)
+        self.assertEqual(len(response.data["recent_candidates"]), 3)
+        self.assertEqual(response.data["automated_count"], 1)
+        self.assertEqual(len(response.data["recent_transactions"]), 4)
+        self.assertEqual(response["Cache-Control"], "private, no-store")
 
     def test_custom_range_crosses_months_and_includes_both_endpoints(self):
         response = self.client.get(

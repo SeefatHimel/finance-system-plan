@@ -39,6 +39,8 @@ React Native Metro: 8081
   `projects/finance-infra/scripts/`
 - Backup manifests, retention pruning, and a backup automation runbook in
   `docs/backup-automation.md`
+- A GitHub Actions workflow for API, web, mobile, contract generation, and
+  migration/schema checks on pull requests and pushes to `main`
 
 ## Why not decide production hosting now?
 
@@ -71,6 +73,14 @@ The backend currently uses Django 5.1, which officially supports Python through
 3.13 but not Python 3.14. Render defaults newer services to Python 3.14, which
 breaks Django admin template rendering. The repository-level `.python-version`
 keeps hosted native Python builds on the compatible 3.13 series.
+
+## What does CI check before a change reaches main?
+
+Pull requests and main-branch pushes run the API test suite, migration drift
+check and OpenAPI generation with zero errors. They also typecheck, lint, test
+and build the web app, regenerate and typecheck the shared contract, and run
+mobile typechecks and unit tests. This catches integration drift before a
+deployment; it does not replace staging smoke tests or backup restore drills.
 
 ## How should backups work?
 
@@ -121,3 +131,16 @@ PostgreSQL; SQLite skips row-lock tests. Web has no new runtime dependency. Mobi
 adds the Expo SDK-compatible native datetime picker and config plugin, so the
 next requested signed build must include that module. Source checks and Expo
 config validation do not build or publish an APK.
+# Production runtime and CI
+
+**Is development Compose suitable for production?** No. The separate
+`docker-compose.prod.yml` and production Dockerfiles run Gunicorn and `next
+start`, require explicit secrets and HTTPS origins, keep PostgreSQL internal,
+and bind API/web ports to loopback for a TLS proxy. Migrations are a deliberate
+release command, not an application boot side effect. CI's API job uses a real
+PostgreSQL service so concurrency tests run instead of being skipped on SQLite.
+
+The unified transfer-balance fix adds
+`transactions.0008_transferevidence_effective_balance`. Run migrations before
+deploying the API; it adds a selection flag and per-account uniqueness constraint
+without changing existing observations.

@@ -303,3 +303,16 @@ this advisory mapping from current settings. Transfer-worded source rows can als
 suggest the other owned account from explicit account/card/wallet evidence or a
 saved text alias, without changing the extracted description or posting values.
 Identity hints do not merge transactions or accept statement matches.
+
+### Reviewing a pending SMS together with a pending statement row
+
+Statement row detail can suggest an eligible pending SMS when account perspective,
+type, direction, amount and date window agree. This is a separate manual decision:
+verify the pair, choose between conflicting reported balances, then create one
+SMS-dated ledger transaction and attach the PDF row atomically. If ledger
+candidates also exist, compare each one and explicitly confirm that each is a
+different movement. The server rechecks the exact candidate IDs before saving;
+a changed list requires a fresh review. Different amount/type/account/
+direction, an unresolved transfer path, a busy candidate window, or a separate
+inline-fee balance keeps sources in their established independent review flows.
+A suggestion never posts or links money by itself.

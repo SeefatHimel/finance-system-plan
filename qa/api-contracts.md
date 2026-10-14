@@ -306,6 +306,8 @@ after reclassification to another type.
 Type/category/detail corrections preserve a reported balance, including zero,
 while its reporting account stays the same. For transfers that is the primary
 observation's account, so editing the opposite side does not invalidate it.
+Changing a captured SMS or PDF balance through a transfer update selects a
+separate reviewed report; the captured observation keeps its original value.
 Omitted balance retains the report on that account, including primary evidence
 when reclassifying a transfer whose main balance was empty. Explicit null clears
 it and is not restored by later updates. Account remapping clears omitted or
@@ -477,3 +479,70 @@ matched/mismatch from unavailable, card references, unknown timing and reports
 preceding a movement. Missing fields default to null/unavailable in web; clients
 must not manufacture a mismatch using today's balance. The additive response
 needs an API deployment but no database migration.
+
+### What must clients submit for a statement balance conflict?
+
+`StatementDecision.balance_choice` contains `keep` (`existing` or `statement`),
+`existing_balance_after`, and `statement_balance_after` as decimal strings or null.
+Clients display the current `StatementMatch.effective_balance_after`, rather than
+assuming an historical observation is the effective report. Conflict links require
+a choice even if `acknowledge_conflict=true`; changed reviewed values return 409.
+Deploy the web and API changes together. No model or migration changes are needed.
+
+
+### What is the contract for filling missing statement details?
+
+`StatementMatch.detail_suggestions` returns field, label, existing_value and
+suggested_value. `StatementDecision.detail_choices` optionally submits selected
+field/existing_value/value triples for a link, up to seven unique metadata fields.
+Stale snapshots return 409; unsupported fields, invalid masks, blank selected
+values and duplicate selections return readable 400 errors. No date/time, money,
+classification or account-path changes are accepted through this list.
+
+### How does combined pending SMS and statement review work at the API boundary?
+
+Statement row detail `review.pending_sms_matches` is a bounded advisory list;
+paginated row lists expose `review.pending_sms_match_count` from a bounded batch
+lookup while keeping the detailed candidate array empty. A `combine_sms`
+decision requires the pending candidate UUID and statement row version. A reported
+balance conflict requires `balance_choice` with exact reviewed SMS and statement
+values. If ledger suggestions coexist, submit their exact UUIDs in
+`dismissed_ledger_matches` with `acknowledge_distinct_ledger_matches=true`; the
+server returns 409 if the current suggestion IDs differ. The API revalidates both sources atomically and returns 409 for stale
+review. SMS-only and statement-only endpoints keep their existing behavior.
+When detailed pending-SMS matching is inconclusive, the row detail exposes a
+null match count and an empty advisory array; individual posting rejects even
+`allow_separate`, and bulk posting leaves the row unresolved. Zero still means
+a completed check found no eligible pending SMS.
+
+### What is the unified pending-review contract?
+
+`/api/review/pending/` returns paginated source observations and review-only
+opposite-source suggestions, with filters applied before pagination.
+`GET /api/review/pair/` returns owned pending-source evidence and ledger suggestions.
+The POST takes both IDs, statement version, SMS updated timestamp, balance choice
+and explicit acknowledgments; it returns one transaction ID shared by both sources.
+400 means invalid values/missing review, 409 means stale/resolved/nonmatching
+sources, and 404 covers unavailable/foreign sources. Pair retries return unchanged
+without another movement. Existing ledger suggestions cannot be silently bypassed.
+Source-message retrieval includes attached confirmed candidates as well as primary
+and transfer raw-message links. Deploy the API and run the transfer-evidence
+migration described below before rolling out the updated web review.
+
+## Schema drift gate
+
+**How does CI catch API contract drift?** It generates the Django OpenAPI
+schema, compares a structural snapshot of operations and component schemas,
+and checks that every published contract operation (apart from the simple
+health endpoint) still exists. A backend API change requires reviewing and
+updating the snapshot and, when relevant, `openapi.yaml` and generated TypeScript
+types. The bounded SMS review response and dashboard summary are documented
+in the shared contract.
+
+`GET /api/messages/review/{id}/` returns one owned, still-pending SMS candidate
+for direct inbox navigation. `review.pending_sms_match_count` is nullable: null
+means the bounded list check was inconclusive, while zero means a completed
+check found no match. The pair endpoint rejects selecting a missing balance
+when the other source reports one; the chosen transfer balance becomes the
+effective account report. Apply the new transfer-evidence migration before API
+rollout.

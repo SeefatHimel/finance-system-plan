@@ -161,10 +161,13 @@ type QueuedManualTransaction = {
 
 const rawMessageQueueKey = "finance.rawMessageQueue";
 const rawMessageQueueOwnerKey = "finance.rawMessageQueueOwner";
-const manualTransactionQueueKey = "finance.manualTransactionQueue";
-const accountCacheKey = "finance.accountCache";
-const categoryCacheKey = "finance.categoryCache";
-const transactionCacheKey = "finance.transactionCache";
+const manualTransactionQueueKey = "finance.manualTransactionQueue.v2";
+const accountCacheKey = "finance.accountCache.v2";
+const categoryCacheKey = "finance.categoryCache.v2";
+const transactionCacheKey = "finance.transactionCache.v2";
+function scopedLocalKey(base: string, scope: string | null) {
+  return scope ? `${base}.${scope}` : null;
+}
 const enabledSenderRulesKey = "finance.enabledSenderRules";
 const smsProviderOptions = [
   { label: "bKash", value: "bkash" },
@@ -770,6 +773,10 @@ function FinanceApp() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [accessToken, setAccessToken] = useState("");
+  const localDataScope = quickSessionScope(accessToken, getApiBaseUrl());
+  const accountScopeRef = useRef<string | null>(localDataScope);
+  accountScopeRef.current = localDataScope;
+  const [cacheReadyScope, setCacheReadyScope] = useState("");
   const [refreshToken, setRefreshToken] = useState("");
   const [sessionRestoring, setSessionRestoring] = useState(true);
   const [authState, setAuthState] = useState<"idle" | "loading" | "ok" | "error">("idle");
@@ -898,6 +905,7 @@ function FinanceApp() {
   const [reviewState, setReviewState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewCandidates, setReviewCandidates] = useState<ParsedMessageCandidate[]>([]);
+  const [reviewCandidateCount, setReviewCandidateCount] = useState(0);
   const [reviewActionCandidateId, setReviewActionCandidateId] = useState("");
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewCandidateDraft>>({});
   const [reviewCandidateIndex, setReviewCandidateIndex] = useState(0);
@@ -931,16 +939,19 @@ function FinanceApp() {
     setListMessage("");
     try {
       const payload = await listTransactions(accessToken.trim());
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setTransactions(payload);
       setListState("ok");
       try {
-        await AsyncStorage.setItem(transactionCacheKey, JSON.stringify(payload));
+        const key = scopedLocalKey(transactionCacheKey, localDataScope);
+        if (key) await AsyncStorage.setItem(key, JSON.stringify(payload));
       } catch {
         setListMessage(`Loaded ${payload.length} transaction(s), but could not update the local cache.`);
         return;
       }
       setListMessage(`Loaded ${payload.length} transaction(s).`);
     } catch (error) {
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setListState("error");
       setListMessage(error instanceof Error ? error.message : "Could not load transactions.");
     }
@@ -957,10 +968,12 @@ function FinanceApp() {
     setDebtMessage("");
     try {
       const payload = await listDebts(accessToken.trim());
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setDebts(payload);
       setDebtState("ok");
       setDebtMessage(`Loaded ${payload.length} debt record(s).`);
     } catch (error) {
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setDebtState("error");
       setDebtMessage(error instanceof Error ? error.message : "Could not load debts.");
     }
@@ -1043,6 +1056,7 @@ function FinanceApp() {
         listCreditCardBills(accessToken.trim()),
         accounts.length ? Promise.resolve(accounts) : listAccounts(accessToken.trim())
       ]);
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setCardBills(nextBills);
       if (!accounts.length) {
         setAccounts(nextAccounts);
@@ -1054,6 +1068,7 @@ function FinanceApp() {
       setCardBillState("ok");
       setCardBillMessage(`Loaded ${nextBills.length} credit card bill(s).`);
     } catch (error) {
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setCardBillState("error");
       setCardBillMessage(error instanceof Error ? error.message : "Could not load credit card bills.");
     }
@@ -1139,6 +1154,7 @@ function FinanceApp() {
         accounts.length ? Promise.resolve(accounts) : listAccounts(accessToken.trim()),
         categories.length ? Promise.resolve(categories) : listCategories(accessToken.trim())
       ]);
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setRecurringBills(nextBills);
       if (!accounts.length) {
         setAccounts(nextAccounts);
@@ -1152,6 +1168,7 @@ function FinanceApp() {
       setRecurringState("ok");
       setRecurringMessage(`Loaded ${nextBills.length} recurring bill(s).`);
     } catch (error) {
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setRecurringState("error");
       setRecurringMessage(error instanceof Error ? error.message : "Could not load recurring bills.");
     }
@@ -1235,6 +1252,7 @@ function FinanceApp() {
       let nextAccounts = accounts;
       if (!nextAccounts.length) {
         nextAccounts = await listAccounts(accessToken.trim());
+        if (!localDataScope || accountScopeRef.current !== localDataScope) return;
         setAccounts(nextAccounts);
       }
       selectedAccountId = selectedAccountId || nextAccounts[0]?.id || "";
@@ -1245,10 +1263,12 @@ function FinanceApp() {
       }
       setReconciliationAccountId(selectedAccountId);
       const payload = await getAccountReconciliation(accessToken.trim(), selectedAccountId);
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setReconciliation(payload);
       setReconciliationState("ok");
       setReconciliationMessage(`Expected balance for ${payload.account_name}: ${payload.expected_balance}.`);
     } catch (error) {
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setReconciliationState("error");
       setReconciliationMessage(error instanceof Error ? error.message : "Could not load reconciliation check.");
     }
@@ -1295,11 +1315,14 @@ function FinanceApp() {
     setReviewState("loading");
     setReviewMessage("");
     try {
-      const [candidates, nextAccounts] = await Promise.all([
+      const [page, nextAccounts] = await Promise.all([
         listMessageCandidates(accessToken.trim()),
         accounts.length ? Promise.resolve(accounts) : listAccounts(accessToken.trim())
       ]);
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
+      const candidates = page.results;
       setReviewCandidates(candidates);
+      setReviewCandidateCount(page.count);
       setReviewCandidateIndex((current) => Math.min(current, Math.max(0, candidates.length - 1)));
       if (!accounts.length) {
         setAccounts(nextAccounts);
@@ -1312,10 +1335,34 @@ function FinanceApp() {
         return nextDrafts;
       });
       setReviewState("ok");
-      setReviewMessage(`Loaded ${candidates.length} SMS candidate(s).`);
+      setReviewMessage(`Loaded ${candidates.length} of ${page.count} SMS candidate(s).`);
     } catch (error) {
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setReviewState("error");
       setReviewMessage(error instanceof Error ? error.message : "Could not load SMS review inbox.");
+    }
+  };
+
+  const handleLoadMoreReviewCandidates = async () => {
+    if (!accessToken.trim() || reviewState === "loading" || reviewCandidates.length >= reviewCandidateCount) return;
+    setReviewState("loading");
+    try {
+      const page = await listMessageCandidates(accessToken.trim(), reviewCandidates.length);
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
+      const candidates = [...reviewCandidates, ...page.results];
+      setReviewCandidates(candidates);
+      setReviewCandidateCount(page.count);
+      setReviewDrafts((current) => {
+        const next = { ...current };
+        for (const candidate of page.results) next[candidate.id] ??= buildReviewDraft(candidate);
+        return next;
+      });
+      setReviewState("ok");
+      setReviewMessage(`Loaded ${candidates.length} of ${page.count} SMS candidate(s).`);
+    } catch (error) {
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
+      setReviewState("error");
+      setReviewMessage(error instanceof Error ? error.message : "Could not load more messages.");
     }
   };
 
@@ -2068,6 +2115,7 @@ function FinanceApp() {
         getSmsCapturePreference(accessToken.trim()),
         AsyncStorage.getItem(enabledSenderRulesKey)
       ]);
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       const validEnabledRuleIds = normalizeStringArray(storedEnabledRuleIds).filter((ruleId) =>
         nextSenderRules.some((rule) => rule.id === ruleId)
       );
@@ -2089,6 +2137,7 @@ function FinanceApp() {
         `Loaded ${nextPaymentMethods.length} payment method(s) and ${nextSenderRules.length} sender rule(s).`
       );
     } catch (error) {
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setSmsSettingsState("error");
       setSmsSettingsMessage(error instanceof Error ? error.message : "Could not load SMS settings.");
     }
@@ -2376,6 +2425,37 @@ function FinanceApp() {
     return refreshLogin(stored.refresh);
   };
 
+  const clearLocalAccountState = () => {
+    accountScopeRef.current = null;
+    setAccounts([]);
+    setCategories([]);
+    setTransactions([]);
+    setTransactionQueue([]);
+    setTxAccountId("");
+    setTxTransferAccountId("");
+    setTxCategoryId("");
+    setReviewCandidates([]);
+    setReviewCandidateCount(0);
+    setReviewDrafts({});
+    setDebts([]);
+    setCardBills([]);
+    setRecurringBills([]);
+    setPaymentMethods([]);
+    setSenderRules([]);
+    setEnabledSenderRuleIds([]);
+    setSmsInboxSenders([]);
+    setNewSenderAccountId("");
+    setNewSenderCategoryId("");
+    setSmsCapturePreference({
+      created_at: "", excluded_message_kinds: ["otp_or_security", "promotional"],
+      excluded_providers: [], raw_sms_retention_days: 30, updated_at: ""
+    });
+    setReconciliation(null);
+    setReconciliationAccountId("");
+    setTransferDecision(null);
+    setCacheReadyScope("");
+  };
+
   const handleLogin = async () => {
     setAuthState("loading");
     setAuthMessage("");
@@ -2401,6 +2481,8 @@ function FinanceApp() {
       }
       await initializeNativeSmsSession(getApiBaseUrl(), tokens.access, tokens.refresh, nextUsername);
       await saveSession({ ...tokens, username: nextUsername });
+      clearLocalAccountState();
+      accountScopeRef.current = quickSessionScope(tokens.access, getApiBaseUrl());
       setAccessToken(tokens.access);
       setRefreshToken(tokens.refresh);
       setPassword("");
@@ -2415,7 +2497,7 @@ function FinanceApp() {
   const handleTokenValidation = async () => {
     if (!accessToken.trim()) {
       setAuthState("error");
-      setAuthMessage("Enter or generate an access token first.");
+      setAuthMessage("Sign in before checking your session.");
       return;
     }
 
@@ -2435,7 +2517,7 @@ function FinanceApp() {
   const handleLoadReferenceData = async () => {
     if (!accessToken.trim()) {
       setDataState("error");
-      setDataMessage("Sign in first or paste a valid access token.");
+      setDataMessage("Sign in before loading account data.");
       return;
     }
 
@@ -2447,11 +2529,14 @@ function FinanceApp() {
         listAccounts(accessToken.trim()),
         listCategories(accessToken.trim())
       ]);
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setAccounts(nextAccounts);
       setCategories(nextCategories);
-      await Promise.all([
-        AsyncStorage.setItem(accountCacheKey, JSON.stringify(nextAccounts)),
-        AsyncStorage.setItem(categoryCacheKey, JSON.stringify(nextCategories))
+      const accountKey = scopedLocalKey(accountCacheKey, localDataScope);
+      const categoryKey = scopedLocalKey(categoryCacheKey, localDataScope);
+      if (accountKey && categoryKey) await Promise.all([
+        AsyncStorage.setItem(accountKey, JSON.stringify(nextAccounts)),
+        AsyncStorage.setItem(categoryKey, JSON.stringify(nextCategories))
       ]);
       if (!txAccountId && nextAccounts.length > 0) {
         setTxAccountId(nextAccounts[0].id);
@@ -2464,6 +2549,7 @@ function FinanceApp() {
         `Loaded ${nextAccounts.length} account(s) and ${nextCategories.length} categor${nextCategories.length === 1 ? "y" : "ies"}.`
       );
     } catch (error) {
+      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setDataState("error");
       setDataMessage(error instanceof Error ? error.message : "Could not load accounts/categories.");
     }
@@ -2490,8 +2576,10 @@ function FinanceApp() {
   };
 
   const saveTransactionQueue = async (nextQueue: QueuedManualTransaction[]) => {
+    const key = scopedLocalKey(manualTransactionQueueKey, localDataScope);
+    if (!key) throw new Error("Sign in before saving a manual transaction locally.");
+    await AsyncStorage.setItem(key, JSON.stringify(nextQueue));
     setTransactionQueue(nextQueue);
-    await AsyncStorage.setItem(manualTransactionQueueKey, JSON.stringify(nextQueue));
   };
 
   const handleQueueManualTransaction = async () => {
@@ -2729,6 +2817,8 @@ function FinanceApp() {
 
   const handleLogout = async () => {
     let sessionRefreshToken = refreshToken.trim();
+    clearLocalAccountState();
+    setAccessToken("");
     try {
       const nativeSession = await getNativeSmsBackgroundSyncSession();
       if (nativeSession?.username === username.trim()) {
@@ -2752,6 +2842,7 @@ function FinanceApp() {
     } catch {
       // Never keep the React session active because device cleanup failed.
     } finally {
+      clearLocalAccountState();
       setAccessToken("");
       setRefreshToken("");
       setPassword("");
@@ -2768,6 +2859,12 @@ function FinanceApp() {
     void loadHealth();
     void refreshSmsPermissionState();
     void refreshSmsBackgroundStatus();
+    // Legacy shared keys have no trustworthy owner. Do not expose or replay
+    // their contents under the next person who signs in on this device.
+    void AsyncStorage.multiRemove([
+      "finance.manualTransactionQueue", "finance.accountCache",
+      "finance.categoryCache", "finance.transactionCache"
+    ]);
     loadSession()
       .then(async (storedSession) => {
         if (!storedSession) {
@@ -2817,42 +2914,6 @@ function FinanceApp() {
         setAuthMessage("Could not restore the saved session.");
       })
       .finally(() => setSessionRestoring(false));
-    Promise.all([
-      AsyncStorage.getItem(accountCacheKey),
-      AsyncStorage.getItem(categoryCacheKey)
-    ])
-      .then(([storedAccounts, storedCategories]) => {
-        const cachedAccounts = normalizeAccountCache(storedAccounts);
-        const cachedCategories = normalizeCategoryCache(storedCategories);
-        setAccounts(cachedAccounts);
-        setCategories(cachedCategories);
-        if (!txAccountId && cachedAccounts.length > 0) {
-          setTxAccountId(cachedAccounts[0].id);
-        }
-        if (!txCategoryId && cachedCategories.length > 0) {
-          setTxCategoryId(cachedCategories[0].id);
-        }
-      })
-      .catch(() => {
-        setDataState("error");
-        setDataMessage("Could not load local account/category cache.");
-      });
-    AsyncStorage.getItem(manualTransactionQueueKey)
-      .then((storedQueue) => {
-        setTransactionQueue(normalizeManualTransactionQueue(storedQueue));
-      })
-      .catch(() => {
-        setTransactionQueueState("error");
-        setTransactionQueueMessage("Could not load local transaction queue.");
-      });
-    AsyncStorage.getItem(transactionCacheKey)
-      .then((storedTransactions) => {
-        setTransactions(normalizeTransactionCache(storedTransactions));
-      })
-      .catch(() => {
-        setListState("error");
-        setListMessage("Could not load local transaction cache.");
-      });
     Promise.all([loadSecureSmsQueue(), AsyncStorage.getItem(rawMessageQueueKey)])
       .then(async ([secureQueue, legacyQueue]) => {
         const storedQueue = secureQueue || legacyQueue;
@@ -2868,6 +2929,34 @@ function FinanceApp() {
         setRawQueueMessage("Could not load local raw message queue.");
       });
   }, []);
+
+  useEffect(() => {
+    if (!localDataScope) return;
+    let active = true;
+    Promise.all([
+      AsyncStorage.getItem(scopedLocalKey(accountCacheKey, localDataScope)!),
+      AsyncStorage.getItem(scopedLocalKey(categoryCacheKey, localDataScope)!),
+      AsyncStorage.getItem(scopedLocalKey(transactionCacheKey, localDataScope)!),
+      AsyncStorage.getItem(scopedLocalKey(manualTransactionQueueKey, localDataScope)!)
+    ]).then(([storedAccounts, storedCategories, storedTransactions, storedQueue]) => {
+      if (!active) return;
+      const cachedAccounts = normalizeAccountCache(storedAccounts);
+      const cachedCategories = normalizeCategoryCache(storedCategories);
+      setAccounts(cachedAccounts);
+      setCategories(cachedCategories);
+      setTransactions(normalizeTransactionCache(storedTransactions));
+      setTransactionQueue(normalizeManualTransactionQueue(storedQueue));
+      setTxAccountId(cachedAccounts[0]?.id ?? "");
+      setTxCategoryId(cachedCategories[0]?.id ?? "");
+    }).catch(() => {
+      if (!active) return;
+      setTransactionQueueState("error");
+      setTransactionQueueMessage("Could not load this account's local data.");
+    }).finally(() => {
+      if (active) setCacheReadyScope(localDataScope);
+    });
+    return () => { active = false; };
+  }, [localDataScope]);
 
   useEffect(() => {
     if (!isNativeSmsCaptureAvailable() || !accessToken) return;
@@ -2931,6 +3020,7 @@ function FinanceApp() {
       } catch (error) {
         if (error instanceof AuthenticationError && (await loadSession())?.username === storedSession.username) {
           await clearSession();
+          clearLocalAccountState();
           setAccessToken("");
           setRefreshToken("");
           setAuthState("error");
@@ -2944,7 +3034,7 @@ function FinanceApp() {
   }, []);
 
   useEffect(() => {
-    if (!accessToken.trim()) {
+    if (!accessToken.trim() || cacheReadyScope !== localDataScope) {
       return;
     }
 
@@ -2954,7 +3044,7 @@ function FinanceApp() {
       handleLoadReviewCandidates(),
       handleLoadSmsSettings()
     ]);
-  }, [accessToken]);
+  }, [accessToken, cacheReadyScope, localDataScope]);
 
   useEffect(() => {
     if (accessToken.trim() && username.trim() && rawQueue.length > 0) {
@@ -3091,18 +3181,10 @@ function FinanceApp() {
             <Text style={styles.buttonText}>Sign In</Text>
           </Pressable>
 
-          <Text style={styles.sectionTitle}>Access Token</Text>
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            multiline
-            onChangeText={setAccessToken}
-            placeholder="Paste access token for testing /api/auth/me/"
-            style={styles.inputMultiline}
-            value={accessToken}
-          />
+          <Text style={styles.sectionTitle}>Session</Text>
+          <Text style={styles.meta}>Your account data stays scoped to the signed-in session.</Text>
           <Pressable onPress={handleTokenValidation} style={styles.buttonSecondary}>
-            <Text style={styles.buttonText}>Validate Token</Text>
+            <Text style={styles.buttonText}>Check session</Text>
           </Pressable>
 
           {refreshToken ? <Text style={styles.meta}>Refresh token received.</Text> : null}
@@ -3970,6 +4052,7 @@ function FinanceApp() {
           <Pressable onPress={handleLoadReviewCandidates} style={styles.button}>
             <Text style={styles.buttonText}>Load SMS Review Inbox</Text>
           </Pressable>
+          {reviewCandidates.length < reviewCandidateCount ? <Pressable disabled={reviewState === "loading"} onPress={() => void handleLoadMoreReviewCandidates()} style={styles.button}><Text style={styles.buttonText}>Load more ({reviewCandidates.length} of {reviewCandidateCount})</Text></Pressable> : null}
 
           {reviewState === "loading" ? <ActivityIndicator /> : null}
           {reviewState === "ok" ? <Text style={styles.okText}>{reviewMessage}</Text> : null}
@@ -4185,7 +4268,7 @@ function FinanceApp() {
         >
           <MaterialCommunityIcons color={homeFeed === "review" ? "#06141f" : "#9eb0c7"} name="clipboard-text-outline" size={20} />
           <Text style={[styles.mobileSegmentText, homeFeed === "review" ? styles.mobileSegmentTextActive : null]}>
-            To review ({reviewCandidates.length})
+            To review ({reviewCandidateCount})
           </Text>
         </Pressable>
         <Pressable
@@ -4375,7 +4458,7 @@ function FinanceApp() {
               <MaterialCommunityIcons color={reviewCandidateIndex === 0 ? "#50647e" : "#32d8f2"} name="chevron-left" size={23} />
             </Pressable>
             <View style={styles.mobileRowBody}>
-              <Text style={styles.mobileRowTitle}>Message {reviewCandidateIndex + 1} of {reviewCandidates.length}</Text>
+              <Text style={styles.mobileRowTitle}>Message {reviewCandidateIndex + 1} of {reviewCandidateCount}</Text>
               <Text style={styles.mobileRowMeta}>Confirm or reject before moving on</Text>
             </View>
             <Pressable
@@ -4387,6 +4470,7 @@ function FinanceApp() {
               <MaterialCommunityIcons color={reviewCandidateIndex >= reviewCandidates.length - 1 ? "#50647e" : "#32d8f2"} name="chevron-right" size={23} />
             </Pressable>
           </View>
+          {reviewCandidates.length < reviewCandidateCount ? <Pressable disabled={reviewState === "loading"} onPress={() => void handleLoadMoreReviewCandidates()} style={styles.mobileSecondaryAction}><Text style={styles.mobileSecondaryActionText}>Load more messages ({reviewCandidates.length} loaded)</Text></Pressable> : null}
           <View key={candidate.id} style={styles.mobileReviewCard}>
             <View style={styles.mobileHeroHeader}>
               <View style={styles.mobileProviderIcon}>

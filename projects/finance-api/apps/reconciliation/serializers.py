@@ -56,8 +56,10 @@ class BalanceSnapshotSerializer(serializers.ModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
+        request = self.context.get("request")
+        user_id = request.user.pk if request and request.user.is_authenticated else None
         fields["account"].queryset = Account.objects.filter(
-            user=self.context["request"].user,
+            user_id=user_id,
             is_active=True,
         )
         return fields

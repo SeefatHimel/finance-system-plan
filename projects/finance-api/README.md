@@ -145,6 +145,22 @@ http://localhost:8000/api/docs/
 
 ## Docker
 
+`Dockerfile` is for local development. `Dockerfile.prod` uses Python 3.13,
+Gunicorn, and collected WhiteNoise static assets; deploy it with the separate
+production Compose file and migration step in `docs/production-deployment-plan.md`.
+
+The SMS review endpoint accepts `limit=1..200` and `offset>=0` and then returns
+`{count, results}`. Older mobile clients can still omit `limit` and receive the
+original array. The dashboard calls `GET /api/reports/dashboard-summary/` for
+exact pending/automated counts and at most three candidates and four recent
+transactions, avoiding full activity lists. The summary accepts the same
+custom period bounds as the monthly report; pending messages remain live.
+
+Custom sender regular expressions use a restricted, linear-time subset:
+128 characters maximum, with no groups, quantifiers, alternatives or
+backreferences. Existing unsafe saved patterns are ignored until corrected.
+Use exact or contains matching for ordinary sender IDs.
+
 From `projects/finance-infra`:
 
 ```bash
@@ -588,8 +604,14 @@ and posting/value dates within three days. Reference and reported balance are
 supporting evidence; no suggestion is automatically accepted. Known linked
 source fingerprints also surface user-corrected ledger records outside that
 window. A fingerprint is not unique: genuine repeats remain distinct rows.
-Linking preserves ledger type/category/note/source/balance and existing SMS;
-owned transfers keep canonical From → To and add reporting-side evidence.
+Linking preserves ledger type/category/source/amount and existing SMS. A conflict
+in the effective reported balance requires an explicit choice between the current
+ledger report and the statement report. Optional reviewed metadata selections
+can fill or replace merchant, reference, note, and masked identifiers. Owned
+transfers keep canonical From → To and add reporting-side evidence. Both source
+observations retain their original reported balances. A reviewed ledger balance
+choice is stored separately, so unlinking the PDF row preserves an explicit
+choice without rewriting SMS or statement evidence.
 
 Opening/closing/summary rows are excluded. Wallet inline charges become separate
 fee/refund review rows. For newly posted principal-plus-fee events, the final
@@ -603,6 +625,8 @@ keeps the ledger entry. Deleted targets return their source rows to review.
 Financial corrections to statement-linked ledger entries require
 `allow_linked_correction`; immutable source values survive. Transfer merges move
 statement links and reject merging separate observations from one batch.
+Unlinking transfer statement evidence also records a transaction audit snapshot
+when it removes an observation or restores a prior effective balance.
 
 Limits: 4 MiB, 30 pages, 2000 extracted rows (up to 4000 principal/fee review
 components), 10 uploads/hour/user, 20-second isolated extraction worker. History
@@ -737,10 +761,11 @@ Filtering does not change matching scope, evidence or financial records.
 Verify with `python manage.py test apps.reports apps.transactions.tests
 apps.statements.test_imports`.
 
-Schema verification note: authenticated runtime schema generation exposes the
-new date parameters. Anonymous automatic generation currently fails in the
-existing `CategorySerializer.get_fields` user lookup; the checked-in shared
-OpenAPI and generated TypeScript client remain the integration contract.
+Schema verification note: automatic schema generation now handles an anonymous
+introspection request without user-scoped queryset errors or omitted endpoints.
+CI runs `manage.py spectacular --validate` and fails on schema errors. The
+checked-in shared OpenAPI and generated TypeScript client remain the integration
+contract; legacy schema warnings are tracked separately.
 
 ## Account recognition profiles
 
@@ -835,7 +860,10 @@ The implementation reuses `TransferEvidence`; no migration or second ledger entr
 is needed. Missing secondary manual reports get stable per-transaction/account
 keys, so repeated saves cannot create duplicate observations. Primary and secondary
 report edits are included in the existing transaction audit snapshots. Original SMS
-bodies and PDF extraction snapshots remain unchanged. Incoming non-transfer SMS
+bodies, PDF extraction snapshots, and captured transfer observations remain unchanged
+when editing ledger dates, notes, references, or reported balances. Changed
+provider reports use separate reviewed evidence, including an explicit clear;
+retrying the same edit does not add another observation. Incoming non-transfer SMS
 converted to a transfer retains its report on the receiving account. Restoring a
 previously reclassified transfer restores its original reporting-account context.
 
@@ -953,3 +981,94 @@ when it has a single movement that day. Reasons are `unavailable`, `matched`,
 adjustments. Opening-balance and earlier transaction edits recompute the result.
 All accounts are processed in the existing batched summary, with no per-account
 query additions. No model migration is required.
+
+## Reviewed statement detail enrichment
+
+Possible matches expose `detail_suggestions` for merchant/counterparty, reference,
+note, and masked sender/receiver account/card identifiers. “Fill missing details
+from statement” selects only empty fields with a nonempty suggestion. Existing
+values stay untouched unless the user explicitly selects a replacement; proposed
+values can be edited before accepting the match. No field is selected by default.
+Selections apply atomically with linking via `StatementDecision.detail_choices`,
+which includes each field's exact reviewed `existing_value` and desired `value`.
+Changed ledger values return 409 without partial updates; unsupported financial
+fields and duplicate selections are rejected. Identifier edits are masked before
+transmission and again before persistence. Choices and before/after values are
+audited. Unlinking or rescanning confirmed SMS does not undo these corrections.
+
+New statement drafts strip anchored labels such as “CARD PURCHASE” and “PURCHASE
+CARD” from the merchant field while retaining the original masked description.
+Merchant case/punctuation and manually saved draft corrections are preserved.
+References and explicitly labelled identifier metadata are excluded from merchant
+suggestions. The statement header identifies only the reporting account; transfer
+counterpart identifiers need explicit sender/receiver evidence. Ambiguous values
+remain empty. Payment methods, accounts, classifications, amount, date and time
+are not changed by this metadata shortcut. Deploy web and API together.
+
+Suggestions are computed for existing pending rows at review time from their saved
+masked extraction and draft fields; no re-import is needed. Read requests do not
+mutate them. Rows already resolved are not rewritten.
+
+Run `python manage.py migrate` before restarting the API. Migration
+`statements.0003_reapply_pending_merchants` updates only still-pending statement
+drafts whose Counterparty exactly equals their saved extracted description. It
+removes a recognized card-purchase prefix from that draft field and increments the
+row version so an open stale editor must reload. Manually corrected, skipped,
+linked, and added rows are left alone. The extracted description, note, balances,
+matches, and ledger transactions are not changed; existing PDFs need no re-upload.
+
+### Combined pending SMS and statement review
+
+`review.pending_sms_matches` on a statement row detail response suggests still
+pending SMS observations for the same account perspective, type, amount and date
+window. `POST /api/statements/rows/{id}/decide/` with `action=combine_sms`, row
+`version`, and `candidate` confirms one SMS and links that row atomically. Row
+lists show a batched `pending_sms_match_count`, so pending pairs appear in the
+possible-match filter. A null count means the bounded list check was inconclusive,
+not that there are zero matches. If the detail check is also inconclusive,
+individual and bulk statement posting stay blocked until the SMS queue is
+narrowed or reviewed; `allow_separate` cannot bypass an unchecked match. A conflicting
+reported balance requires an exact-value `balance_choice`. If ledger suggestions exist, the request must acknowledge
+their exact current IDs as different movements; stale suggestions return 409.
+The SMS source and date/time are kept. Independent review routes remain supported.
+That earlier combine decision uses existing tables; the unified transfer-balance
+selection described below requires the new transactions migration.
+
+### Unified pending-source review
+
+Authenticated, private/no-store `/api/review/pending/` combines pending SMS and
+statement sources with account/source/date/condition/search filters and offset
+pagination. Suggestions use reporting-account perspective, amount, currency,
+direction, calendar date/value date and reference/balance evidence. They remain
+review-only, including same-day repeats and balance conflicts. The read-only
+`GET /api/review/pair/?statement=<uuid>&sms=<uuid>` returns original sources,
+statement draft validation and current ledger suggestions.
+Date filters narrow the source query before its safety cap; source-only views
+query counterpart candidates by relevant amount and date. Pair detail checks
+the selected pair's nearby competitors without loading the full backlog. Broad
+unfiltered queues are still capped at 2,000 sources per side; use account or date
+filters when that limit is reached. `GET /api/messages/review/{id}/` reads one
+owned pending candidate directly, so links to older SMS do not depend on the
+first paginated inbox page.
+
+`POST /api/review/pair/` requires both IDs, statement version, SMS `updated_at`,
+explicit same-movement confirmation, balance source and applicable acknowledgments.
+It serializes writers through the shared user lock, locks both sources, rechecks
+pending state and matches, and reuses statement posting/link validation. Any failure
+rolls back the new ledger entry and both source decisions. Completed-pair retries
+are idempotent; changed ledger financial identity is rejected. Existing suggestions
+must be linked rather than bypassed with another entry in this workflow.
+
+A new pair uses statement draft classification/date/time, the selected scalar
+balance, masked SMS identifiers and one raw-message link. A source with no reported
+balance cannot replace the other source's available report. Transfer evidence
+marks the reviewed effective report per account without overwriting either
+original observation; linking an existing transfer keeps its effective report.
+An incoming transfer keeps reports on the receiving account through separate
+transfer observations. Candidate
+and statement relations retain their distinct dates/times/balances; the original
+PDF extraction remains immutable. Source-message retrieval includes all attached
+confirmed candidates, preserving additional SMS sources on existing entries. SMS
+raw-text retention is honored. Unified review does not learn SMS mappings implicitly,
+and never runs a data backfill. Apply `transactions.0008_transferevidence_effective_balance`
+before deploying the updated API.

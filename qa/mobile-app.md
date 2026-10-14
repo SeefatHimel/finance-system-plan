@@ -558,3 +558,16 @@ Release 0.1.9 discards native command results and returns Unit; tests cover Expo
 conversion, stored session state and error propagation. Maps remain the explicit
 contract for getters and refresh. Compilation and signing alone cannot validate
 the installed JavaScript/native boundary, so sign-in is a release smoke check.
+# Local account separation
+
+**Can a second user see or sync the first user's cached finance entries?** The
+legacy manual queue and read caches are now keyed by backend URL and token user
+ID, and React account state is cleared on logout or account switch. Shared
+legacy AsyncStorage keys had no verifiable owner, so they are deleted rather
+than silently assigned to the next login. Mobile SMS review fetches 100 records
+per page and exposes a load-more control.
+
+**Can an account switch be forced by pasting a fabricated token?** No. The
+advanced screen checks only the current server-issued session and no longer
+accepts pasted access tokens. Existing secure sessions still restore offline
+and retain their owner's queued work.

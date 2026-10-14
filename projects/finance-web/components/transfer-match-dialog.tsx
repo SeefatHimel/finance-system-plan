@@ -7,13 +7,14 @@ import { ModalDialog } from "@/components/modal-dialog";
 import type { TransferMatch, TransferBalanceChoice } from "@/lib/api";
 import type { transferComparison } from "../../finance-contracts/transfer-comparison";
 
-export function TransferMatchDialog({ original, originalSource, matches, busy, error, merging = false, onAccept, onSeparate, onCancel }: {
+export function TransferMatchDialog({ original, originalSource, matches, busy, error, merging = false, separateLabel = "Keep separate", onAccept, onSeparate, onCancel }: {
   original: ReturnType<typeof transferComparison>;
   originalSource: string;
   matches: TransferMatch[];
   busy: boolean;
   error: string | null;
   merging?: boolean;
+  separateLabel?: string;
   onAccept: (match: TransferMatch, choices: TransferBalanceChoice[]) => void;
   onSeparate: () => void;
   onCancel: () => void;
@@ -37,7 +38,7 @@ export function TransferMatchDialog({ original, originalSource, matches, busy, e
       </div>
       <div className="decision-modal__actions">
         <button className="button button--ghost" disabled={busy} onClick={onCancel} type="button">Cancel</button>
-        <button className="button button--ghost" disabled={busy} onClick={onSeparate} type="button">Keep separate</button>
+        <button className="button button--ghost" disabled={busy} onClick={onSeparate} type="button">{separateLabel}</button>
       </div>
     </ModalDialog>
   );

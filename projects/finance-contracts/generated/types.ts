@@ -352,6 +352,18 @@ export interface IdentitySuggestion {
   choices: IdentityChoice[];
 }
 
+export interface ReviewCandidatePage {
+  count: number;
+  results: ParsedMessageCandidate[];
+}
+
+export interface DashboardSummary {
+  pending_count: number;
+  automated_count: number;
+  recent_candidates: ParsedMessageCandidate[];
+  recent_transactions: Transaction[];
+}
+
 export interface ParsedMessageCandidate {
   undo_action?: TransactionAction | null;
   identity_suggestions?: IdentitySuggestion[];
@@ -811,6 +823,12 @@ export interface Transaction {
 }
 
 export interface TransactionSourceMessage {
+  parsed?: {
+  amount: string | null;
+  balance_after: string | null;
+  reference: string;
+  type: string;
+} | null;
   id: string;
   sender: string;
   body: string | null;
@@ -977,7 +995,7 @@ export interface StatementPreview {
   warnings: string[];
 }
 
-export type StatementAction = "create" | "link" | "skip" | "unlink" | "reopen";
+export type StatementAction = "create" | "link" | "combine_sms" | "skip" | "unlink" | "reopen";
 
 export type StatementComponent = "principal" | "fee";
 
@@ -1061,14 +1079,40 @@ export interface StatementCounts {
   skipped: number;
 }
 
+export interface StatementBalanceChoice {
+  keep: "existing" | "statement";
+  existing_balance_after: string | null;
+  statement_balance_after: string | null;
+}
+
+export type StatementDetailField = "counterparty_text" | "reference" | "note" | "sender_account_identifier" | "sender_card_identifier" | "receiver_account_identifier" | "receiver_card_identifier";
+
+export interface StatementDetailSuggestion {
+  field: StatementDetailField;
+  label: string;
+  existing_value: string;
+  suggested_value: string;
+}
+
+export interface StatementDetailChoice {
+  field: StatementDetailField;
+  existing_value: string;
+  value: string;
+}
+
 export interface StatementDecision {
   action: StatementAction;
   version: number;
   transaction?: string;
+  candidate?: string;
+  dismissed_ledger_matches?: string[];
+  acknowledge_distinct_ledger_matches?: boolean;
   allow_separate?: boolean;
   acknowledge_issues?: boolean;
   acknowledge_conflict?: boolean;
   remember_choices?: boolean;
+  balance_choice?: StatementBalanceChoice;
+  detail_choices?: StatementDetailChoice[];
 }
 
 export interface StatementImport {
@@ -1106,6 +1150,8 @@ export interface StatementMatch {
   reference: string;
   note: string;
   balance_after: string | null;
+  effective_balance_after: string | null;
+  detail_suggestions: StatementDetailSuggestion[];
   conflict: boolean;
   can_link: boolean;
   reasons: string[];
@@ -1114,10 +1160,27 @@ export interface StatementMatch {
   time_difference_minutes: number | null;
 }
 
+export interface PendingSmsStatementMatch {
+  id: string;
+  date: string;
+  time: string;
+  sender: string;
+  sms_text: string | null;
+  amount: string;
+  type: string;
+  counterparty_text: string;
+  balance_after: string | null;
+  reference: string;
+  confidence: string;
+  detail_suggestions: StatementDetailSuggestion[];
+}
+
 export interface StatementReview {
   issues: string[];
   review_state: "new" | "possible_match" | "needs_correction" | "posted" | "linked" | "skipped";
   matches: StatementMatch[];
+  pending_sms_match_count: number | null;
+  pending_sms_matches: PendingSmsStatementMatch[];
   matching_truncated: boolean;
   requires_acknowledgement: boolean;
   draft_issues: string[];
@@ -1185,3 +1248,88 @@ export interface StatementComparison {
   limit: number;
   results: StatementLedgerOnly[];
 }
+
+export type UnifiedBalanceSourceEnum = "sms" | "statement" | "existing";
+
+export interface UnifiedPairDecision {
+  statement: string;
+  sms: string;
+  statement_version: number;
+  sms_updated_at: string;
+  transaction?: string | null;
+  balance_source: UnifiedBalanceSourceEnum;
+  acknowledge_match?: boolean;
+  acknowledge_conflict?: boolean;
+  acknowledge_issues?: boolean;
+  remember_choices?: boolean;
+}
+
+export interface UnifiedPairDetail {
+  row: SavedStatementRow;
+  batch: StatementImport;
+  sms: ParsedMessageCandidate;
+  match: unknown;
+}
+
+export interface UnifiedPairResult {
+  transaction: string;
+  statement: string;
+  sms: string;
+  unchanged: boolean;
+}
+
+export interface UnifiedPendingItem {
+  source: UnifiedSourceEnum;
+  id: string;
+  account: string | null;
+  account_name: string;
+  currency: string;
+  date: string | null;
+  time: string | null;
+  amount: string | null;
+  balance_after: string | null;
+  direction: string;
+  type: string;
+  description: string;
+  reference: string;
+  updated_at: string;
+  version: number | null;
+  batch: string | null;
+  needs_correction: boolean;
+  matches: UnifiedPendingMatch[];
+  ambiguous: boolean;
+}
+
+export interface UnifiedPendingMatch {
+  source: UnifiedSourceEnum;
+  id: string;
+  account: string | null;
+  account_name: string;
+  currency: string;
+  date: string | null;
+  time: string | null;
+  amount: string | null;
+  balance_after: string | null;
+  direction: string;
+  type: string;
+  description: string;
+  reference: string;
+  updated_at: string;
+  version: number | null;
+  batch: string | null;
+  needs_correction: boolean;
+  strength: UnifiedStrengthEnum;
+  conflict: boolean;
+  reasons: string[];
+}
+
+export interface UnifiedPendingPage {
+  count: number;
+  offset: number;
+  limit: number;
+  results: UnifiedPendingItem[];
+}
+
+export type UnifiedSourceEnum = "sms" | "statement";
+
+export type UnifiedStrengthEnum = "strong" | "possible";

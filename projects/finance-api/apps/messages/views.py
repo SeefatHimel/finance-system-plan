@@ -4,7 +4,10 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -64,6 +67,7 @@ class SenderRuleViewSet(ModelViewSet):
         serializer.save(user=self.request.user)
 
 
+@extend_schema(request=SmsCapturePreferenceSerializer, responses=SmsCapturePreferenceSerializer)
 class SmsCapturePreferenceView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -86,6 +90,7 @@ class SmsCapturePreferenceView(APIView):
         return Response(serializer.data)
 
 
+@extend_schema(request=SmsDeviceStatusSerializer, responses=SmsDeviceStatusSerializer)
 class SmsDeviceStatusView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -121,6 +126,7 @@ class SmsDeviceStatusView(APIView):
         return Response(serializer.data)
 
 
+@extend_schema(request=RawMessageImportSerializer, responses=OpenApiTypes.OBJECT)
 class RawMessageImportView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -483,6 +489,7 @@ class RawMessageImportView(APIView):
             )
 
 
+@extend_schema(responses=OpenApiTypes.OBJECT)
 class MessageReviewListView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -504,9 +511,47 @@ class MessageReviewListView(APIView):
                 "transaction",
             )
         )
-        return Response(ParsedMessageCandidateSerializer(candidates, many=True).data)
+        limit = request.query_params.get("limit")
+        if limit is None:
+            # Legacy mobile clients still expect the array shape.
+            return Response(ParsedMessageCandidateSerializer(candidates, many=True).data)
+        try:
+            limit_number = int(limit)
+            offset = int(request.query_params.get("offset", "0"))
+        except ValueError as error:
+            raise ValidationError({"limit": "Use integer limit and offset values."}) from error
+        if not 1 <= limit_number <= 200 or offset < 0:
+            raise ValidationError({"limit": "Use a limit from 1 to 200 and a non-negative offset."})
+        return Response({
+            "count": candidates.count(),
+            "results": ParsedMessageCandidateSerializer(candidates.order_by("-raw_message__received_at", "-id")[offset:offset + limit_number], many=True).data,
+        })
 
 
+class MessageReviewDetailView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(
+        operation_id="messages_review_candidate_retrieve",
+        responses=ParsedMessageCandidateSerializer,
+    )
+    def get(self, request, candidate_id):
+        candidate = get_object_or_404(
+            ParsedMessageCandidate.objects.select_related(
+                "raw_message", "sender_rule", "account", "payment_method",
+                "category", "destination_account", "destination_payment_method",
+                "possible_related_candidate", "transaction",
+            ),
+            pk=candidate_id,
+            user=request.user,
+            status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
+        )
+        response = Response(ParsedMessageCandidateSerializer(candidate).data)
+        response["Cache-Control"] = "no-store"
+        return response
+
+
+@extend_schema(request=None, responses=ParsedMessageCandidateSerializer)
 class MessageCandidateReprocessView(RawMessageImportView):
     def post(self, request, candidate_id):
         candidate = get_object_or_404(
@@ -530,6 +575,7 @@ class MessageCandidateReprocessView(RawMessageImportView):
         return Response(ParsedMessageCandidateSerializer(candidate).data)
 
 
+@extend_schema(request=None, responses=OpenApiTypes.OBJECT)
 class MessageCandidateBulkReprocessView(RawMessageImportView):
     def post(self, request):
         candidates = (
@@ -558,6 +604,7 @@ class MessageCandidateBulkReprocessView(RawMessageImportView):
         )
 
 
+@extend_schema(request=None, responses=OpenApiTypes.OBJECT)
 class SmsDevelopmentResetView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -584,6 +631,7 @@ class SmsDevelopmentResetView(APIView):
         )
 
 
+@extend_schema(request=ParsedMessageConfirmSerializer, responses=OpenApiTypes.OBJECT)
 class MessageCandidateConfirmView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -810,6 +858,7 @@ class MessageCandidateConfirmView(APIView):
         )
 
 
+@extend_schema(request=MessageCandidateRejectSerializer, responses=ParsedMessageCandidateSerializer)
 class MessageCandidateRejectView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -904,6 +953,7 @@ class MessageCandidateRejectView(APIView):
         return Response(ParsedMessageCandidateSerializer(candidate).data)
 
 
+@extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
 class RawMessageRedactView(APIView):
     permission_classes = (IsAuthenticated,)
 

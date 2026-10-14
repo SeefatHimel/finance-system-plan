@@ -3,7 +3,7 @@
 import { DatePeriodControls } from "@/components/date-period-controls";
 import { allDates, periodBounds, type DatePeriod } from "@/lib/date-period";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { identifyStatementAccount, type StatementIdentification, createStatementImport, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
@@ -18,8 +18,9 @@ import { useToast } from "@/components/toast-provider";
 const labels: Record<string, string> = { ebl_bank: "EBL bank", city_bank: "City Bank", bkash: "bKash", new: "Statement only", possible_match: "Possible match", needs_correction: "Needs review", posted: "Added", linked: "Linked", skipped: "Skipped", pending: "Pending" };
 const emptyFilters = { state: "", direction: "", type: "", category: "", search: "", date_from: "", date_to: "" };
 
-export function StatementImportWorkspace({ initialImportId }: { initialImportId?: string }) {
+export function StatementImportWorkspace({ initialImportId, initialRowId }: { initialImportId?: string; initialRowId?: string }) {
   const router = useRouter();
+  const initialRowOpened = useRef(false);
   const { notify } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -140,13 +141,19 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
     } catch (reason) { if (!controller.signal.aborted) setUploadError(fail(reason, "Could not read the statement.")); }
     finally { if (uploadRequest.current === controller) { uploadRequest.current = null; setUploading(false); } }
   }
-  async function reviewRow(id: string) {
+  const reviewRow = useCallback(async (id: string) => {
     const token = getAccessToken(); if (!token) return;
     rowRequest.current?.abort(); const controller = new AbortController(); rowRequest.current = controller; setRowLoading(true); setSelectedRow(null);
-    try { const result = await getStatementRow(token, id, controller.signal); if (!controller.signal.aborted) setSelectedRow(result); }
-    catch (reason) { if (!controller.signal.aborted) fail(reason, "Could not load this row."); }
+    try { const result = await getStatementRow(token, id, controller.signal); if (!controller.signal.aborted) { if (result.batch !== batchId) throw new Error("This row belongs to another statement import."); setSelectedRow(result); } }
+    catch (reason) { if (!controller.signal.aborted) notify(reason instanceof Error ? reason.message : "Could not load this row.", "error"); }
     finally { if (rowRequest.current === controller) { rowRequest.current = null; setRowLoading(false); } }
-  }
+  }, [batchId, notify]);
+  useEffect(() => {
+    if (batch?.id === initialImportId && initialRowId && !initialRowOpened.current) {
+      initialRowOpened.current = true;
+      void reviewRow(initialRowId);
+    }
+  }, [batch, initialImportId, initialRowId, reviewRow]);
   const eligible = rows?.results.filter((row) => row.review.review_state === "new" && !row.review.issues.length && !row.review.requires_acknowledgement) ?? [];
   async function approveBulk() {
     const token = getAccessToken(); if (!token || !batch || !confirmBulk || bulkBusy) return;
@@ -247,8 +254,8 @@ export function StatementImportWorkspace({ initialImportId }: { initialImportId?
             <td><input type="checkbox" aria-label={`Select source row ${row.position} ${row.component}`} checked={selectedIds.includes(row.id)} disabled={row.state !== "pending" || Boolean(row.transaction) || rowsLoading || filtersPending || bulkBusy} onChange={event => setSelectedIds(old => event.target.checked ? [...old, row.id] : old.filter(id => id !== row.id))} /></td><td>{row.extracted.page} / {row.extracted.row}<br /><small>{row.component}</small></td><td>{row.date ?? "Unknown date"}{row.time ? <><br />{row.time}</> : null}{row.value_date ? <><br /><small>Value: {row.value_date}</small></> : null}</td>
             <td><strong>{row.counterparty_text || row.extracted.provider_type || "Statement movement"}</strong><div>{row.note}</div>{row.reference ? <small>Reference: {row.reference}</small> : null}</td>
             <td>{row.type.replaceAll("_", " ")}<br /><small>{row.direction} · {categories.find((c) => c.id === row.category)?.name ?? "Uncategorized"}</small></td><td>{batch.currency} {row.amount ?? "Missing"}</td><td>{row.balance_after ?? "Not reported"}</td>
-            <td>{row.transaction ? <><strong>{row.review.review_state === "needs_correction" ? "Linked entry needs review" : "Confirmed match"}</strong><br /><small>Evidence attached to ledger entry</small></> : row.review.matches.length ? row.review.matches.map(match => <div key={match.id}><strong>{match.strength === "strong" ? "Strong suggestion" : "Possible match"}</strong><br />{match.date} {match.time ?? ""}<br />{match.source} · {match.amount}<br />Balance: {match.balance_after ?? "Not reported"}<br /><small>{match.note || match.reference || "Ledger movement"}</small>{match.conflict ? <p>Balance conflict</p> : null}</div>) : <span>{row.review.review_state === "new" ? "Statement only — confirm to add" : "No suggestion — review values"}</span>}</td>
-            <td><strong>{labels[row.review.review_state] ?? row.review.review_state}</strong>{row.review.matches.some(match => match.strength === "strong") ? <div>Strong match found</div> : null}{row.review.suggestion ? <small>Remembered choices available</small> : null}{row.review.matches.length ? <div>{row.review.matches.length} suggestion{row.review.matches.length === 1 ? "" : "s"}</div> : null}{row.review.issues.length ? <small>{row.review.issues[0]}</small> : null}{row.review.requires_acknowledgement ? <small>Source or draft discrepancy · review required</small> : null}</td>
+            <td>{row.transaction ? <><strong>{row.review.review_state === "needs_correction" ? "Linked entry needs review" : "Confirmed match"}</strong><br /><small>Evidence attached to ledger entry</small></> : <>{row.review.matches.map(match => <div key={match.id}><strong>{match.strength === "strong" ? "Strong ledger suggestion" : "Possible ledger match"}</strong><br />{match.date} {match.time ?? ""}<br />{match.source} · {match.amount}<br />Balance: {match.balance_after ?? "Not reported"}<br /><small>{match.note || match.reference || "Ledger movement"}</small>{match.conflict ? <p>Balance conflict</p> : null}</div>)}{row.review.pending_sms_match_count === null ? <div><strong>SMS match count unavailable</strong><br /><small>Open the row to check for pending SMS before adding.</small></div> : row.review.pending_sms_match_count ? <div><strong>Pending SMS match</strong><br /><small>{row.review.pending_sms_match_count} message{row.review.pending_sms_match_count === 1 ? "" : "s"} to compare in review</small></div> : null}{!row.review.matches.length && row.review.pending_sms_match_count === 0 ? <span>{row.review.review_state === "new" ? "Statement only — confirm to add" : "No suggestion — review values"}</span> : null}</>}</td>
+            <td><strong>{labels[row.review.review_state] ?? row.review.review_state}</strong>{row.review.matches.some(match => match.strength === "strong") ? <div>Strong match found</div> : null}{row.review.suggestion ? <small>Remembered choices available</small> : null}{row.review.matches.length ? <div>{row.review.matches.length} ledger suggestion{row.review.matches.length === 1 ? "" : "s"}</div> : null}{row.review.pending_sms_match_count === null ? <div>SMS count unavailable</div> : row.review.pending_sms_match_count ? <div>{row.review.pending_sms_match_count} pending SMS</div> : null}{row.review.issues.length ? <small>{row.review.issues[0]}</small> : null}{row.review.requires_acknowledgement ? <small>Source or draft discrepancy · review required</small> : null}</td>
             <td><button className="button button--small" type="button" disabled={filtersPending || rowsLoading || rowLoading || bulkBusy || setupLoading || setupError !== null} onClick={() => void reviewRow(row.id)}>Review row</button></td>
           </tr>)}</tbody></table>
         </div>

@@ -22,6 +22,11 @@ ledger movement and preserves its edits. New rows require explicit individual or
 bulk approval; upload never posts. Same-file retries resume decisions, overlapping
 files suggest existing movements, and source fingerprints are never unique keys.
 Opening/summary balances are excluded; wallet fees are independent review rows.
+When both an SMS and a PDF row are still pending, an eligible statement row can
+show the pending SMS. One explicit combined approval creates one SMS-sourced
+ledger movement and links the statement. This is optional; either review queue
+still works on its own. Amount/date/account/type agreement is a suggestion, not
+automatic proof of identity, so the user verifies the pair before approval.
 Reversals and genuine repeats remain separate. Scans/card billing layouts and
 automatic posting remain future work. See [the import plan](../docs/statement-pdf-import-plan.md).
 
@@ -351,3 +356,11 @@ or restores merged records. It never blindly deletes an existing transfer,
 overwrites newer work, or restores redacted originals. Add and Edit share a form;
 Edit/Undo stay available after the success toast disappears. Deletions and bulk
 statement posting are not included in this recovery flow.
+
+### Do matching pending SMS and PDF rows count as two transactions?
+
+No. Unified review keeps them as separate source observations until the user
+confirms their correspondence, then attaches both to one ledger movement. Source
+counts may be two while the ledger count is one. Original source dates/times and
+reported balances remain independently inspectable. Suggestions are reviewable
+and never themselves authorize posting or erase ambiguous repeat movements.

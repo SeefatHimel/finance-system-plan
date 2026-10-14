@@ -14,11 +14,13 @@ Shared API contract and integration documentation.
 
 ```txt
 openapi.yaml
+backend-schema-snapshot.json
 generated/
   client.ts
   types.ts
 scripts/
   generate_ts_client.py
+  check_backend_schema.py
 requirements.txt
 tsconfig.generated.json
 examples/
@@ -78,6 +80,12 @@ To typecheck the generated client with the web project's TypeScript install:
 `generated/types.ts` exports OpenAPI component schema types. `generated/client.ts`
 exports `FinanceApiClient`, a lightweight fetch-based client with typed request
 bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
+
+CI also generates Django's schema and compares its structural operation and
+component snapshot with `backend-schema-snapshot.json`. After a reviewed API
+change, update `openapi.yaml` as appropriate, regenerate TypeScript, and run
+`python scripts/check_backend_schema.py /tmp/finance-schema.yaml --update`.
+This check also rejects contract routes that no longer exist on the backend.
 
 ## Contract Principles
 
@@ -319,8 +327,12 @@ enums retain boolean literals. JSON operations retain JSON encoding.
 
 Saved imports add multipart create, paginated history/detail, globally filtered
 rows, versioned draft PATCH, explicit decide, and bulk approve_new operations.
-Linking preserves existing ledger details; source fingerprints/references are not
-unique keys. `SavedStatementRow` separates immutable extraction from draft edits
+Linking preserves existing ledger details except explicitly selected reported
+balance and metadata choices; source fingerprints/references are not unique keys.
+`StatementMatch` returns the effective reported balance for the statement account,
+separately from the matched historical observation. Conflicts require a reviewed
+`balance_choice`; optional `detail_choices` carry selected metadata values and
+their current ledger snapshots. `SavedStatementRow` separates immutable extraction from draft edits
 and review metadata. Stale edits/decisions return 409. Bulk approval accepts 50
 IDs/versions and returns added/unchanged/unresolved counts.
 `Transaction.statement_evidence_count` is read-only; full masked observations load
@@ -529,3 +541,77 @@ Clients default missing fields to null/unavailable and never infer a historical
 mismatch by subtracting today's ledger. Existing fields and mobile clients stay
 compatible. Deploy the updated API before expecting comparison hints; no database
 migration is needed.
+
+## Reviewed statement detail enrichment
+
+Possible matches expose `detail_suggestions` for merchant/counterparty, reference,
+note, and masked sender/receiver account/card identifiers. “Fill missing details
+from statement” selects only empty fields with a nonempty suggestion. Existing
+values stay untouched unless the user explicitly selects a replacement; proposed
+values can be edited before accepting the match. No field is selected by default.
+Selections apply atomically with linking via `StatementDecision.detail_choices`,
+which includes each field's exact reviewed `existing_value` and desired `value`.
+Changed ledger values return 409 without partial updates; unsupported financial
+fields and duplicate selections are rejected. Identifier edits are masked before
+transmission and again before persistence. Choices and before/after values are
+audited. Unlinking or rescanning confirmed SMS does not undo these corrections.
+
+## Combined pending SMS and statement review
+
+Statement row detail adds `review.pending_sms_matches`: bounded pending SMS
+suggestions with date/time, account-side evidence, optional retained SMS text,
+reported balance and editable metadata proposals. Paginated row lists expose
+`pending_sms_match_count` through a bounded batched lookup; null means the list
+could not check the full candidate window, rather than zero matches. Detail fetches return
+the actual candidate list. `StatementDecision.action=combine_sms`
+requires row `version` and a pending `candidate` UUID. Differing non-null balances
+require an exact-value `balance_choice`; optional `detail_choices` use the same
+reviewed-value contract as linking. The API locks and revalidates both sources,
+creates one SMS-sourced ledger entry and links the statement atomically. When
+ledger suggestions exist, the decision must include their exact current UUIDs in
+`dismissed_ledger_matches` and set `acknowledge_distinct_ledger_matches=true` after
+review. A changed list returns 409. The original independent decision routes remain
+available. The unified transfer-balance choice below requires a migration.
+
+New statement drafts strip anchored labels such as “CARD PURCHASE” and “PURCHASE
+CARD” from the merchant field while retaining the original masked description.
+Merchant case/punctuation and manually saved draft corrections are preserved.
+References and explicitly labelled identifier metadata are excluded from merchant
+suggestions. The statement header identifies only the reporting account; transfer
+counterpart identifiers need explicit sender/receiver evidence. Ambiguous values
+remain empty. Payment methods, accounts, classifications, amount, date and time
+are not changed by this metadata shortcut. No new database migration is required;
+deploy web and API together.
+
+### Unified pending review
+
+- `GET /api/review/pending/`: source (`all/sms/statement`), condition
+  (`all/matched/unmatched/corrections`), account UUID, search, inclusive
+  `start_date/end_date` (maximum 366 days), offset and limit (1–100, default 50).
+  Returns `{count, offset, limit, results}`; each source includes opposite-source
+  suggestions and ambiguity flags. Counts are source observations, not movements.
+- `GET /api/review/pair/?statement=<uuid>&sms=<uuid>`: owned, still-pending pair
+  details with the saved statement draft, batch, parsed SMS/original text and reasons.
+- `POST /api/review/pair/`: `statement`, `sms`, `statement_version`, `sms_updated_at`,
+  `balance_source` (`sms/statement/existing`), `acknowledge_match`,
+  `acknowledge_conflict`, `acknowledge_issues`, optional `transaction` and
+  `remember_choices`. Returns `{transaction, statement, sms, unchanged}`.
+
+New pairs use one statement-draft movement and the chosen balance; both source
+reports remain. A missing report cannot replace an available one. Transfer
+evidence marks the reviewed effective balance per account without changing the
+original source reports. Existing ledger suggestions must be selected explicitly, with
+`balance_source=existing`; their ledger balance stays unchanged. HTTP 409 reports
+stale/resolved/nonmatching sources. HTTP 400 reports missing acknowledgments or
+invalid drafts. Ownership failures return 404. Retries for the same resolved pair
+are idempotent, and every failure rolls back all decisions. All responses are
+private/no-store. Statement fees remain separate. The pending queue applies date
+and source filters before its safety cap; broad queues are still bounded.
+`GET /api/messages/review/{id}/` reads a single owned pending SMS candidate for
+deep links. Apply `transactions.0008_transferevidence_effective_balance` and
+deploy API before web.
+
+Transaction source-message responses optionally add `parsed` (nullable): saved
+SMS amount, balance_after, reference and type. These fields remain available after
+raw-text redaction, only for confirmed candidates attached to that owned ledger
+entry. Existing clients can ignore the optional field.

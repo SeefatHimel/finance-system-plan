@@ -8,6 +8,7 @@ from apps.accounts.models import Account
 from apps.categories.models import Category
 from apps.transactions.models import Transaction
 
+from .details import DETAIL_FIELDS
 from .models import StatementImport, StatementRow
 from .parser import MAX_BYTES
 
@@ -207,6 +208,13 @@ class StatementSuggestionSerializer(serializers.Serializer):
     reason = serializers.CharField()
 
 
+class StatementDetailSuggestionSerializer(serializers.Serializer):
+    field = serializers.CharField()
+    label = serializers.CharField()
+    existing_value = serializers.CharField(allow_blank=True)
+    suggested_value = serializers.CharField(allow_blank=True)
+
+
 class StatementMatchSerializer(serializers.Serializer):
     strength = serializers.ChoiceField(choices=["strong", "possible"])
     merchant_similarity = serializers.FloatField()
@@ -223,9 +231,26 @@ class StatementMatchSerializer(serializers.Serializer):
     reference = serializers.CharField()
     note = serializers.CharField()
     balance_after = serializers.CharField(allow_null=True)
+    effective_balance_after = serializers.CharField(allow_null=True)
+    detail_suggestions = StatementDetailSuggestionSerializer(many=True)
     conflict = serializers.BooleanField()
     can_link = serializers.BooleanField()
     reasons = serializers.ListField(child=serializers.CharField())
+
+
+class PendingSmsStatementMatchSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    date = serializers.DateField()
+    time = serializers.TimeField()
+    sender = serializers.CharField()
+    sms_text = serializers.CharField(allow_null=True)
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2)
+    type = serializers.CharField()
+    counterparty_text = serializers.CharField(allow_blank=True)
+    balance_after = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True)
+    reference = serializers.CharField(allow_blank=True)
+    confidence = serializers.DecimalField(max_digits=4, decimal_places=2)
+    detail_suggestions = StatementDetailSuggestionSerializer(many=True)
 
 
 class StatementReviewSerializer(serializers.Serializer):
@@ -234,6 +259,8 @@ class StatementReviewSerializer(serializers.Serializer):
     issues = serializers.ListField(child=serializers.CharField())
     review_state = serializers.CharField()
     matches = StatementMatchSerializer(many=True)
+    pending_sms_match_count = serializers.IntegerField(min_value=0, allow_null=True)
+    pending_sms_matches = PendingSmsStatementMatchSerializer(many=True, required=False)
     matching_truncated = serializers.BooleanField()
     requires_acknowledgement = serializers.BooleanField()
 
@@ -246,11 +273,14 @@ class SavedStatementRowSerializer(serializers.ModelSerializer):
     def get_review(self, instance):
         from .services import review_context
 
-        return review_context(
+        result = review_context(
             instance,
             self.context.get("matches", {}).get(instance.id, []),
             self.context.get("matching_truncated", False),
+            self.context.get("pending_sms_match_counts", {}).get(instance.id, 0),
         )
+        result["pending_sms_matches"] = self.context.get("pending_sms_matches", [])
+        return result
 
     class Meta:
         model = StatementRow
@@ -343,18 +373,43 @@ class StatementRowEditSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class StatementBalanceChoiceSerializer(serializers.Serializer):
+    keep = serializers.ChoiceField(choices=("existing", "statement"))
+    existing_balance_after = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
+    )
+    statement_balance_after = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
+    )
+
+
+class StatementDetailChoiceSerializer(serializers.Serializer):
+    field = serializers.ChoiceField(choices=tuple(DETAIL_FIELDS))
+    existing_value = serializers.CharField(allow_blank=True, trim_whitespace=False)
+    value = serializers.CharField(max_length=4000, allow_blank=False)
+
+
 class StatementDecisionSerializer(serializers.Serializer):
     action = serializers.ChoiceField(
-        choices=("create", "link", "skip", "unlink", "reopen")
+        choices=("create", "link", "combine_sms", "skip", "unlink", "reopen")
     )
     version = serializers.IntegerField(min_value=1)
     transaction = serializers.PrimaryKeyRelatedField(
         queryset=Transaction.objects.none(), required=False
     )
+    candidate = serializers.UUIDField(required=False)
+    dismissed_ledger_matches = serializers.ListField(
+        child=serializers.UUIDField(), required=False, max_length=8
+    )
+    acknowledge_distinct_ledger_matches = serializers.BooleanField(default=False)
     remember_choices = serializers.BooleanField(default=False)
     allow_separate = serializers.BooleanField(default=False)
     acknowledge_issues = serializers.BooleanField(default=False)
     acknowledge_conflict = serializers.BooleanField(default=False)
+    balance_choice = StatementBalanceChoiceSerializer(required=False)
+    detail_choices = StatementDetailChoiceSerializer(
+        many=True, required=False, max_length=7
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -368,6 +423,32 @@ class StatementDecisionSerializer(serializers.Serializer):
         if attrs["action"] == "link" and "transaction" not in attrs:
             raise serializers.ValidationError(
                 {"transaction": "Choose a matching transaction."}
+            )
+        if attrs["action"] == "combine_sms" and "candidate" not in attrs:
+            raise serializers.ValidationError({"candidate": "Choose a pending SMS."})
+        dismissed = attrs.get("dismissed_ledger_matches", [])
+        if dismissed and attrs["action"] != "combine_sms":
+            raise serializers.ValidationError({"dismissed_ledger_matches": "Only combined review can dismiss ledger suggestions."})
+        if attrs["acknowledge_distinct_ledger_matches"] and attrs["action"] != "combine_sms":
+            raise serializers.ValidationError({"acknowledge_distinct_ledger_matches": "Only combined review uses this acknowledgement."})
+        if len(set(dismissed)) != len(dismissed):
+            raise serializers.ValidationError({"dismissed_ledger_matches": "Review each ledger suggestion only once."})
+        if "balance_choice" in attrs and attrs["action"] not in {"link", "combine_sms"}:
+            raise serializers.ValidationError(
+                {
+                    "balance_choice": "Balance choices are only available when linking a match."
+                }
+            )
+        details = attrs.get("detail_choices", [])
+        if details and attrs["action"] not in {"link", "combine_sms"}:
+            raise serializers.ValidationError(
+                {
+                    "detail_choices": "Detail choices are only available when linking a match."
+                }
+            )
+        if len({item["field"] for item in details}) != len(details):
+            raise serializers.ValidationError(
+                {"detail_choices": "Select each detail only once."}
             )
         return attrs
 

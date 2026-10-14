@@ -86,6 +86,7 @@ class TransactionCorrectionTests(APITestCase):
         self.assertTrue(audit.metadata["linked_correction_acknowledged"])
 
     def test_account_correction_remaps_both_sides_and_clears_obsolete_reported_values(self):
+        self.record.transfer_evidence.filter(account=self.a).update(is_effective_balance=True)
         response = self.patch(account=str(self.b.pk), transfer_account=str(self.c.pk), balance_after="9000.00", allow_linked_correction=True)
         self.assertEqual(response.status_code, 200, response.data)
         self.assertIsNone(response.data["balance_after"])
@@ -100,6 +101,7 @@ class TransactionCorrectionTests(APITestCase):
         self.assertEqual(balances[self.b.pk].ledger_balance, Decimal("1000.00"))
         self.assertEqual(balances[self.c.pk].ledger_balance, Decimal("1500.00"))
         self.assertTrue(all(summary.latest_reported_balance is None for summary in balances.values()))
+        self.assertFalse(self.record.transfer_evidence.filter(is_effective_balance=True).exists())
         self.assertEqual(len(AuditLogEntry.objects.get().before["transfer_evidence"]), 2)
 
     def test_reclassification_preserves_messages_without_using_historical_transfer_balances(self):
@@ -174,8 +176,10 @@ class TransactionCorrectionTests(APITestCase):
         primary, secondary = list(self.record.transfer_evidence.order_by("created_at"))
         primary.raw_message = None
         primary.external_key = self.record.external_key
+        primary.source = "web"
         primary.save()
         secondary.raw_message = None
+        secondary.source = "web"
         secondary.save()
         response = self.patch(balance_after="8500.00", reference="DEMO-PRIMARY")
         self.assertEqual(response.status_code, 200, response.data)

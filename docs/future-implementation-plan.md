@@ -124,8 +124,8 @@ Goal: move from local-only usage toward a reliable private deployment.
 Tasks:
 
 - Choose the first deployment target and document environment-specific settings.
-- Add CI checks for backend tests, web typecheck/lint/build, mobile typecheck,
-  contract generation, and OpenAPI drift.
+- Maintain the CI checks for backend tests, migration drift and schema generation,
+  web typecheck/lint/build, mobile typecheck, and generated contract drift.
 - Add encrypted remote backup storage with retention, restore drills, and
   monitoring alerts.
 - Add production observability for API errors, failed SMS imports, parser
@@ -192,7 +192,7 @@ and do not require changing the whole architecture:
 3. Add bulk ignore and bulk confirm actions to web SMS review.
 4. Add first dashboard summary cards for unresolved review items, upcoming bills,
    open debts, and reconciliation differences.
-5. Add CI workflow documentation and a local command checklist.
+5. Extend CI with deploy smoke tests once a safe synthetic staging environment is available.
 
 ## Transfer Automation Direction
 

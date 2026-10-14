@@ -20,6 +20,7 @@ from apps.transactions.transfers import lock_transfer_user
 
 from .insights import analyze, prepare
 from .models import StatementImport, StatementRow
+from .pending_sms import pending_sms_match_counts, pending_sms_matches
 from .serializers import (
     SavedStatementRowSerializer,
     StatementBulkResultSerializer,
@@ -204,6 +205,7 @@ class StatementImportViewSet(
         )
         prepare(records)
         matches, truncated = find_matches(records)
+        pending_counts = pending_sms_match_counts(records)
         state = request.query_params.get("state", "")
         if state and state not in {
             "new",
@@ -254,7 +256,7 @@ class StatementImportViewSet(
             )
         filtered = []
         for row in records:
-            context = review_context(row, matches[row.id], truncated)
+            context = review_context(row, matches[row.id], truncated, pending_counts[row.id])
             if (
                 state == "pending"
                 and resolved(row)
@@ -298,7 +300,8 @@ class StatementImportViewSet(
                 "results": SavedStatementRowSerializer(
                     filtered[offset : offset + limit],
                     many=True,
-                    context={"matches": matches, "matching_truncated": truncated},
+                    context={"matches": matches, "matching_truncated": truncated,
+                             "pending_sms_match_counts": pending_counts},
                 ).data,
             }
         )
@@ -315,8 +318,9 @@ class StatementImportViewSet(
     )
     @action(detail=True, methods=("get",))
     def comparison(self, request, pk=None):
-        from .comparison import compare
         from apps.reports.periods import custom_bounds
+
+        from .comparison import compare
 
         batch = self.get_object()
         bounds = custom_bounds(request.query_params)
@@ -410,9 +414,12 @@ class StatementImportViewSet(
             matches, truncated = find_matches([row])
             review = review_context(row, matches[row.id], truncated)
             issues = posting_issues(row)
+            pending_matches = pending_sms_matches(row)
             if (
                 entry["version"] != row.version
                 or matches[row.id]
+                or pending_matches is None
+                or pending_matches
                 or truncated
                 or issues
                 or review["requires_acknowledgement"]
@@ -464,8 +471,13 @@ class StatementRowViewSet(NoStoreMixin, viewsets.GenericViewSet):
             )
         row._suggestion = suggestions([row]).get(row.id)
         matches, truncated = find_matches([row])
+        pending_matches = pending_sms_matches(row)
         return SavedStatementRowSerializer(
-            row, context={"matches": matches, "matching_truncated": truncated}
+            row, context={"matches": matches, "matching_truncated": truncated,
+                          "pending_sms_matches": pending_matches or [],
+                          "pending_sms_match_counts": {
+                              row.id: len(pending_matches) if pending_matches is not None else None
+                          }}
         ).data
 
     def retrieve(self, request, pk=None):
@@ -514,10 +526,18 @@ class StatementRowViewSet(NoStoreMixin, viewsets.GenericViewSet):
             data=request.data, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
-        row, _ = decide_locked(
-            row=row,
-            user=request.user,
-            payload=serializer.validated_data,
-            request=request,
-        )
+        if serializer.validated_data["action"] == "combine_sms":
+            from .pending_sms import combine_pending_sms
+
+            row = combine_pending_sms(
+                row=row, user=request.user,
+                payload=serializer.validated_data, request=request,
+            )
+        else:
+            row, _ = decide_locked(
+                row=row,
+                user=request.user,
+                payload=serializer.validated_data,
+                request=request,
+            )
         return Response(self.representation(row))

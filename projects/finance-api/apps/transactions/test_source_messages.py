@@ -8,7 +8,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import Account
 from apps.audit_logs.models import AuditLogEntry
-from apps.messages.models import RawMessage
+from apps.messages.models import ParsedMessageCandidate, RawMessage
 
 from .models import Transaction, TransferEvidence
 
@@ -38,7 +38,7 @@ class TransactionSourceMessagesTests(APITestCase):
         self.assertEqual([row["id"] for row in response.data], [str(self.first.pk), str(self.second.pk)])
         self.assertEqual(response.data[0]["body"], self.first.body)
         self.assertEqual(response.data[1]["body"], self.second.body)
-        self.assertEqual(set(response.data[0]), {"id", "sender", "body", "received_at", "status", "redacted_at"})
+        self.assertEqual(set(response.data[0]), {"id", "sender", "body", "received_at", "status", "redacted_at", "parsed"})
         self.assertEqual(response["Cache-Control"], "private, no-store")
         self.record.refresh_from_db()
         self.assertEqual(self.record.updated_at, stamp)
@@ -81,3 +81,16 @@ class TransactionSourceMessagesTests(APITestCase):
         self.first.user = other
         self.first.save(update_fields=("user",))
         self.assertEqual([row["id"] for row in self.get_messages().data], [str(self.second.pk)])
+
+    def test_parsed_observation_requires_a_confirmed_candidate_for_this_owned_entry(self):
+        candidate = ParsedMessageCandidate.objects.create(user=self.user, raw_message=self.first, account=self.a, amount="100.00", balance_after="500.00", transaction=self.record, status="needs_review")
+        self.assertIsNone(self.get_messages().data[0]["parsed"])
+        candidate.status = "confirmed"
+        candidate.save()
+        self.assertEqual(self.get_messages().data[0]["parsed"]["balance_after"], "500.00")
+        self.first.redact()
+        self.assertEqual(self.get_messages().data[0]["parsed"]["amount"], "100.00")
+        other = get_user_model().objects.create_user(username="foreign-parsed-owner")
+        candidate.user = other
+        candidate.save()
+        self.assertIsNone(self.get_messages().data[0]["parsed"])
