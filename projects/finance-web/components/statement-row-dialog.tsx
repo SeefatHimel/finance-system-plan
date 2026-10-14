@@ -34,6 +34,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
   const [confirmSeparate, setConfirmSeparate] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [verifiedSms, setVerifiedSms] = useState<string | null>(null);
+  const [distinctLedgerMatches, setDistinctLedgerMatches] = useState(false);
   const isResolved = Boolean(row.transaction) || row.state === "skipped";
   const dirty = JSON.stringify(draft) !== JSON.stringify(editable(row));
   const source = row.extracted;
@@ -50,7 +51,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     setBusy(true); setError(null);
     try {
       const result = await updateStatementRow(token, row.id, draft);
-      setDraft(editable(result)); setAckIssues(false); setBalanceSelections({}); setDetailSelections({});
+      setDraft(editable(result)); setAckIssues(false); setBalanceSelections({}); setDetailSelections({}); setDistinctLedgerMatches(false);
       onChange(result, false); if (next) await onNext(); notify("Draft saved. Match suggestions refreshed; no ledger changes yet.");
     } catch (reason) { showError(reason); } finally { setBusy(false); }
   }
@@ -82,7 +83,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     const token = getAccessToken(); if (!token || busy || dirty) return;
     const match = row.review.pending_sms_matches.find((item) => item.id === candidateId);
     if (!match || verifiedSms !== candidateId) return;
-    if (row.review.matches.length) { showError(new Error("Review the existing ledger matches first.")); return; }
+    if (row.review.matches.length && !distinctLedgerMatches) { showError(new Error("Compare the ledger suggestions and confirm they are different movements first.")); return; }
     if (row.review.issues.length || (row.review.requires_acknowledgement && !ackIssues)) {
       showError(new Error("Resolve the statement issues and acknowledge source discrepancies first.")); return;
     }
@@ -99,6 +100,8 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     try {
       const result = await decideStatementRow(token, row.id, {
         action: "combine_sms", version: row.version, candidate: candidateId,
+        dismissed_ledger_matches: row.review.matches.map((item) => item.id),
+        acknowledge_distinct_ledger_matches: distinctLedgerMatches,
         acknowledge_issues: ackIssues, remember_choices: rememberChoices,
         balance_choice: balanceChoice,
         detail_choices: details.choices,
@@ -157,6 +160,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         {!isResolved && row.review.pending_sms_matches.length ? <section className="statement-matches" aria-labelledby="pending-sms-matches-title">
           <h3 id="pending-sms-matches-title">Pending SMS for this statement row</h3>
           <p className="inline-note">Review the same movement across both sources. This creates one SMS-dated transaction and links the statement; either queue can still be reviewed separately.</p>
+          {row.review.matches.length ? <div className="raw-message"><strong>Existing ledger suggestions also need a decision</strong><p>Compare each ledger entry in the Possible matches section below before combining the SMS and statement.</p><ul>{row.review.matches.map((item) => <li key={item.id}>{item.date} · {item.amount} · {item.note || item.reference || item.source}</li>)}</ul><label className="review-remember"><input type="checkbox" checked={distinctLedgerMatches} disabled={busy || dirty} onChange={(event) => setDistinctLedgerMatches(event.target.checked)} /><span>I compared every listed ledger entry and confirmed each is a different movement.</span></label></div> : null}
           <div className="statement-match-list">{row.review.pending_sms_matches.map((match) => {
             const conflict = match.balance_after !== null && row.balance_after !== null && match.balance_after !== row.balance_after;
             const choice = currentStatementBalanceChoice(balanceSelections[match.id], { effective_balance_after: match.balance_after }, row.balance_after, row.version);
@@ -174,9 +178,9 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
                   <label><input type="radio" name={`pending-sms-balance-${match.id}`} checked={choice?.keep === "statement"} onChange={() => setBalanceSelections((old) => ({ ...old, [match.id]: { keep: "statement", version: row.version, existing_balance_after: match.balance_after, statement_balance_after: row.balance_after } }))} /><span>Use statement balance<strong>{row.balance_after}</strong></span></label>
                 </div>
               </fieldset> : null}
-              <StatementDetailChoices matchId={match.id} suggestions={match.detail_suggestions} selections={detailSelections[match.id]?.version === row.version ? detailSelections[match.id].values : {}} disabled={busy || dirty || Boolean(row.review.matches.length)} onChange={(values) => setDetailSelections((old) => ({ ...old, [match.id]: { version: row.version, values } }))} />
+              <StatementDetailChoices matchId={match.id} suggestions={match.detail_suggestions} selections={detailSelections[match.id]?.version === row.version ? detailSelections[match.id].values : {}} disabled={busy || dirty} onChange={(values) => setDetailSelections((old) => ({ ...old, [match.id]: { version: row.version, values } }))} />
               <label className="review-remember"><input type="checkbox" checked={verifiedSms === match.id} disabled={busy || dirty} onChange={(event) => setVerifiedSms(event.target.checked ? match.id : null)} /><span>I verified these are the same movement.</span></label>
-              <button className="button button--primary" type="button" disabled={busy || dirty || verifiedSms !== match.id || row.review.matches.length > 0 || row.review.issues.length > 0 || (row.review.requires_acknowledgement && !ackIssues) || (conflict && !choice)} onClick={() => void combineSms(match.id)}>Review both · count once</button>
+              <button className="button button--primary" type="button" disabled={busy || dirty || verifiedSms !== match.id || (row.review.matches.length > 0 && !distinctLedgerMatches) || row.review.issues.length > 0 || (row.review.requires_acknowledgement && !ackIssues) || (conflict && !choice)} onClick={() => void combineSms(match.id)}>Review both · count once</button>
             </article>;
           })}</div>
         </section> : null}
@@ -192,7 +196,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
             onDetailChange={(values) => setDetailSelections((old) => ({ ...old, [match.id]: { version: row.version, values } }))}
             onAccept={() => void decide("link", match.id)} />)}</div>
         </section> : null}
-        {error ? <div><p role="alert" className="form-error">{error}</p><button className="button" type="button" disabled={busy} onClick={() => { dismiss(); setDraft(editable(row)); setBalanceSelections({}); setDetailSelections({}); setAckIssues(false); setError(null); onReload(); }}>Reload row · discard unsaved changes</button></div> : null}
+        {error ? <div><p role="alert" className="form-error">{error}</p><button className="button" type="button" disabled={busy} onClick={() => { dismiss(); setDraft(editable(row)); setBalanceSelections({}); setDetailSelections({}); setAckIssues(false); setDistinctLedgerMatches(false); setError(null); onReload(); }}>Reload row · discard unsaved changes</button></div> : null}
       </div>
       <footer className="statement-row-footer" onKeyDown={handleShortcuts}>
         {dirty ? <p className="inline-note" role="status">Save draft changes before deciding.</p> : null}

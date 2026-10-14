@@ -20,7 +20,7 @@ from apps.transactions.transfers import lock_transfer_user
 
 from .insights import analyze, prepare
 from .models import StatementImport, StatementRow
-from .pending_sms import pending_sms_matches
+from .pending_sms import pending_sms_match_counts, pending_sms_matches
 from .serializers import (
     SavedStatementRowSerializer,
     StatementBulkResultSerializer,
@@ -205,6 +205,7 @@ class StatementImportViewSet(
         )
         prepare(records)
         matches, truncated = find_matches(records)
+        pending_counts = pending_sms_match_counts(records)
         state = request.query_params.get("state", "")
         if state and state not in {
             "new",
@@ -255,7 +256,7 @@ class StatementImportViewSet(
             )
         filtered = []
         for row in records:
-            context = review_context(row, matches[row.id], truncated)
+            context = review_context(row, matches[row.id], truncated, pending_counts[row.id])
             if (
                 state == "pending"
                 and resolved(row)
@@ -299,7 +300,8 @@ class StatementImportViewSet(
                 "results": SavedStatementRowSerializer(
                     filtered[offset : offset + limit],
                     many=True,
-                    context={"matches": matches, "matching_truncated": truncated},
+                    context={"matches": matches, "matching_truncated": truncated,
+                             "pending_sms_match_counts": pending_counts},
                 ).data,
             }
         )
@@ -467,9 +469,11 @@ class StatementRowViewSet(NoStoreMixin, viewsets.GenericViewSet):
             )
         row._suggestion = suggestions([row]).get(row.id)
         matches, truncated = find_matches([row])
+        pending_matches = pending_sms_matches(row)
         return SavedStatementRowSerializer(
             row, context={"matches": matches, "matching_truncated": truncated,
-                          "pending_sms_matches": pending_sms_matches(row)}
+                          "pending_sms_matches": pending_matches,
+                          "pending_sms_match_counts": {row.id: len(pending_matches)}}
         ).data
 
     def retrieve(self, request, pk=None):

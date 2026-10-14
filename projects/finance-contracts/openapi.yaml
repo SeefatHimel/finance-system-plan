@@ -5398,6 +5398,18 @@ components:
           type: string
           format: uuid
           description: Pending SMS candidate required for combine_sms.
+        dismissed_ledger_matches:
+          type: array
+          maxItems: 8
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+          description: Exact current ledger suggestion IDs reviewed as distinct movements before combine_sms.
+        acknowledge_distinct_ledger_matches:
+          type: boolean
+          default: false
+          description: Required with dismissed_ledger_matches when ledger suggestions exist.
         allow_separate:
           type: boolean
           default: false
@@ -5668,6 +5680,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StatementMatch'
+        pending_sms_match_count:
+          type: integer
+          minimum: 0
+          description: Bounded list-level count. A pending SMS makes the row a possible match without exposing SMS text in the list.
         pending_sms_matches:
           type: array
           description: Advisory pending SMS candidates. Populated on row detail; empty in paginated row lists.
@@ -5688,6 +5704,7 @@ components:
       required:
       - issues
       - matches
+      - pending_sms_match_count
       - pending_sms_matches
       - matching_truncated
       - requires_acknowledgement

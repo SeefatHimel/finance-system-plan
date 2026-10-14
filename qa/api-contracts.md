@@ -500,8 +500,11 @@ classification or account-path changes are accepted through this list.
 ### How does combined pending SMS and statement review work at the API boundary?
 
 Statement row detail `review.pending_sms_matches` is a bounded advisory list;
-paginated row lists return an empty array to avoid a query per row. A `combine_sms`
+paginated row lists expose `review.pending_sms_match_count` from a bounded batch
+lookup while keeping the detailed candidate array empty. A `combine_sms`
 decision requires the pending candidate UUID and statement row version. A reported
 balance conflict requires `balance_choice` with exact reviewed SMS and statement
-values. The API revalidates both sources atomically and returns 409 for stale
+values. If ledger suggestions coexist, submit their exact UUIDs in
+`dismissed_ledger_matches` with `acknowledge_distinct_ledger_matches=true`; the
+server returns 409 if the current suggestion IDs differ. The API revalidates both sources atomically and returns 409 for stale
 review. SMS-only and statement-only endpoints keep their existing behavior.

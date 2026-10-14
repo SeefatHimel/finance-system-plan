@@ -603,7 +603,7 @@ def _find_statement_matches(rows):
     return results, False
 
 
-def review_context(row, matches, truncated=False):
+def review_context(row, matches, truncated=False, pending_sms_count=0):
     if resolved(row) and not hasattr(row, "_draft_issues"):
         row._draft_issues = []
     if not hasattr(row, "_draft_issues"):
@@ -620,6 +620,8 @@ def review_context(row, matches, truncated=False):
         issues.append(
             "Too much matching history to check statement-wide ambiguity. Import a shorter statement period or resolve other pending rows before trying again."
         )
+    if pending_sms_count is None and not resolved(row):
+        issues.append("Too many pending SMS to check safely. Review this row individually before adding it.")
     if link_issues:
         state = "needs_correction"
     elif resolved(row):
@@ -627,7 +629,7 @@ def review_context(row, matches, truncated=False):
     else:
         state = (
             "possible_match"
-            if matches
+            if matches or pending_sms_count
             else "needs_correction"
             if issues or draft_issues or row.extracted.get("issues") or orphaned
             else "new"
@@ -638,6 +640,7 @@ def review_context(row, matches, truncated=False):
         "suggestion": getattr(row, "_suggestion", None),
         "review_state": state,
         "matches": matches,
+        "pending_sms_match_count": pending_sms_count or 0,
         "matching_truncated": truncated,
         "requires_acknowledgement": bool(draft_issues)
         or orphaned
@@ -969,6 +972,7 @@ def decide_locked(*, row, user, payload, request):
             "remember_choices": payload.get("remember_choices", False),
             "balance_resolution": balance_resolution,
             "updated_details": updated_details,
+            "dismissed_ledger_matches": [str(item) for item in payload.get("dismissed_ledger_matches", [])],
         },
     )
     return row, action

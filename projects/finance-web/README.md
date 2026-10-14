@@ -1099,6 +1099,8 @@ The user verifies the pair, resolves any reported-balance conflict and approves
 both in one action. The ledger keeps the SMS date/time and source, while statement
 evidence is linked and counted once. This is optional; independent review actions
 still work. Editable metadata suggestions let the user fill or replace merchant,
-note, reference and masked identifiers before approval. Existing ledger suggestions
-must be handled first. Already pending rows gain suggestions on refresh without
-a PDF re-upload or migration.
+note, reference and masked identifiers before approval. The row list shows the
+pending SMS match count and includes such rows in Possible matches. If existing
+ledger suggestions also appear, compare them and acknowledge that each is a
+different movement before combining; a changed suggestion list requires reload.
+Already pending rows gain suggestions on refresh without a PDF re-upload or migration.

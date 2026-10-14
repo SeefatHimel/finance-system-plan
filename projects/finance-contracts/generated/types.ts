@@ -1087,6 +1087,8 @@ export interface StatementDecision {
   version: number;
   transaction?: string;
   candidate?: string;
+  dismissed_ledger_matches?: string[];
+  acknowledge_distinct_ledger_matches?: boolean;
   allow_separate?: boolean;
   acknowledge_issues?: boolean;
   acknowledge_conflict?: boolean;
@@ -1159,6 +1161,7 @@ export interface StatementReview {
   issues: string[];
   review_state: "new" | "possible_match" | "needs_correction" | "posted" | "linked" | "skipped";
   matches: StatementMatch[];
+  pending_sms_match_count: number;
   pending_sms_matches: PendingSmsStatementMatch[];
   matching_truncated: boolean;
   requires_acknowledgement: boolean;

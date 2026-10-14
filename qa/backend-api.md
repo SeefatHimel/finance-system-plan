@@ -816,8 +816,9 @@ three-day match window. `combine_sms` is an explicit, versioned decision. Under
 the user lock and one database transaction it rechecks both pending states,
 duplicate SMS identity, existing ledger suggestions and source discrepancies,
 then creates an SMS-dated entry and links the statement using the existing link
-engine. An existing ledger suggestion blocks the combined action so it cannot
-silently create a second movement. Differing non-null reported balances require
+engine. The row list computes pending-SMS counts in one bounded query. Existing
+ledger suggestions require an explicit acknowledgement of their exact current IDs
+as distinct movements; a changed list returns 409. Differing non-null reported balances require
 an exact-value choice; source evidence and the audit trail retain both values.
 Inline-fee principal rows are excluded because their printed final balance
 belongs to the separate fee row. Independent SMS and statement decisions remain

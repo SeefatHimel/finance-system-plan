@@ -133,6 +133,19 @@ class SavedStatementTests(APITestCase):
         self.assertEqual(self.decide(row, "combine_sms", candidate=str(candidate.id)).status_code, 409)
         self.assertEqual(Transaction.objects.count(), 1)
 
+    def test_pending_sms_is_visible_in_statement_list_and_match_filter(self):
+        batch = self.upload()
+        row = batch.rows.filter(component="principal", direction="debit").first()
+        self.pending_sms(row)
+        url = reverse("statement-import-rows", args=[batch.id])
+        all_rows = self.client.get(url).data["results"]
+        listed = next(item for item in all_rows if item["id"] == str(row.id))
+        self.assertEqual(listed["review"]["review_state"], "possible_match")
+        self.assertEqual(listed["review"]["pending_sms_match_count"], 1)
+        self.assertEqual(listed["review"]["pending_sms_matches"], [])
+        self.assertIn(str(row.id), [item["id"] for item in self.client.get(url, {"state": "possible_match"}).data["results"]])
+        self.assertNotIn(str(row.id), [item["id"] for item in self.client.get(url, {"state": "new"}).data["results"]])
+
     def test_pending_sms_balance_conflict_requires_explicit_choice(self):
         batch = self.upload()
         row = batch.rows.filter(component="principal", direction="debit").first()
@@ -164,10 +177,31 @@ class SavedStatementTests(APITestCase):
         candidate = self.pending_sms(row)
         self.ledger_purchase()
         result = self.decide(row, "combine_sms", candidate=str(candidate.id))
-        self.assertEqual(result.status_code, 400, result.data)
+        self.assertEqual(result.status_code, 409, result.data)
         self.assertEqual(Transaction.objects.count(), 1)
         candidate.refresh_from_db()
         self.assertEqual(candidate.status, ParsedMessageCandidate.Status.NEEDS_REVIEW)
+
+    def test_explicitly_dismissing_current_ledger_suggestion_allows_combined_review(self):
+        batch = self.upload()
+        row = batch.rows.filter(component="principal", direction="debit").first()
+        candidate = self.pending_sms(row)
+        other_purchase = self.ledger_purchase()
+        denied = self.decide(row, "combine_sms", candidate=str(candidate.id))
+        self.assertEqual(denied.status_code, 409, denied.data)
+        match_ids = [item["id"] for item in self.client.get(reverse("statement-row-detail", args=[row.id])).data["review"]["matches"]]
+        self.assertIn(str(other_purchase.id), match_ids)
+        denied = self.decide(row, "combine_sms", candidate=str(candidate.id), dismissed_ledger_matches=match_ids)
+        self.assertEqual(denied.status_code, 400, denied.data)
+        accepted = self.decide(row, "combine_sms", candidate=str(candidate.id),
+                               dismissed_ledger_matches=match_ids, acknowledge_distinct_ledger_matches=True)
+        self.assertEqual(accepted.status_code, 200, accepted.data)
+        row.refresh_from_db()
+        self.assertNotEqual(row.transaction_id, other_purchase.id)
+        self.assertEqual(Transaction.objects.count(), 2)
+        self.assertTrue(AuditLogEntry.objects.filter(
+            entity_id=str(row.id), metadata__dismissed_ledger_matches=match_ids
+        ).exists())
 
     def test_combined_review_rechecks_pending_sms_and_account(self):
         batch = self.upload()

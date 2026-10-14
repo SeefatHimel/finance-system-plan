@@ -944,4 +944,7 @@ statement-only review actions still work. Optional merchant, note, reference and
 masked identifier suggestions can be edited and selected before combined approval;
 unselected nonempty SMS values remain unchanged. If a ledger suggestion already
 exists, review it first rather than making another transaction. A separate
-statement movement requires explicit separate confirmation.
+statement movement requires explicit separate confirmation. Pending-SMS counts
+also appear in the statement row list and Possible matches filter. If a ledger
+suggestion remains, compare every suggestion and affirm that each is distinct
+before combining; a changed suggestion list requires a fresh review.

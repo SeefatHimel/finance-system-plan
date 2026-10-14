@@ -552,13 +552,16 @@ audited. Unlinking or rescanning confirmed SMS does not undo these corrections.
 
 Statement row detail adds `review.pending_sms_matches`: bounded pending SMS
 suggestions with date/time, account-side evidence, optional retained SMS text,
-reported balance and editable metadata proposals. Paginated row lists return an
-empty list to avoid per-row matching queries. `StatementDecision.action=combine_sms`
+reported balance and editable metadata proposals. Paginated row lists expose
+`pending_sms_match_count` through a bounded batched lookup; detail fetches return
+the actual candidate list. `StatementDecision.action=combine_sms`
 requires row `version` and a pending `candidate` UUID. Differing non-null balances
 require an exact-value `balance_choice`; optional `detail_choices` use the same
 reviewed-value contract as linking. The API locks and revalidates both sources,
-creates one SMS-sourced ledger entry and links the statement atomically. Existing
-ledger matches take priority. The original independent decision routes remain
+creates one SMS-sourced ledger entry and links the statement atomically. When
+ledger suggestions exist, the decision must include their exact current UUIDs in
+`dismissed_ledger_matches` and set `acknowledge_distinct_ledger_matches=true` after
+review. A changed list returns 409. The original independent decision routes remain
 available, and no migration is needed.
 
 New statement drafts strip anchored labels such as “CARD PURCHASE” and “PURCHASE

@@ -1,5 +1,6 @@
 """Explicit, one-step review of a pending SMS and a pending statement row."""
 
+from collections import defaultdict
 from datetime import timedelta
 from types import SimpleNamespace
 
@@ -128,6 +129,59 @@ def pending_sms_matches(row):
     ]
 
 
+def pending_sms_match_counts(rows):
+    """Find list-level suggestions in one bounded query, without sending SMS text."""
+    rows = list(rows)
+    counts = {row.id: 0 for row in rows}
+    eligible = [
+        row for row in rows
+        if not resolved(row) and row.component == "principal" and not posting_issues(row)
+    ]
+    if not eligible:
+        return counts
+    fee_positions = {
+        (row.batch_id, row.position) for row in rows if row.component == "fee"
+    }
+    for row in eligible:
+        row._has_inline_fee = (row.batch_id, row.position) in fee_positions
+    eligible = [row for row in eligible if not row._has_inline_fee]
+    if not eligible:
+        return counts
+    days = [day for row in eligible for day in dates_for(row)]
+    candidates = list(
+        ParsedMessageCandidate.objects.filter(
+            user_id=eligible[0].batch.user_id,
+            status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
+            transaction__isnull=True,
+            amount__in={row.amount for row in eligible},
+            transaction_type__in={row.type for row in eligible},
+            raw_message__received_at__date__gte=min(days) - timedelta(days=MATCH_DAYS + 1),
+            raw_message__received_at__date__lte=max(days) + timedelta(days=MATCH_DAYS + 1),
+        )
+        .select_related("raw_message", "account", "destination_account", "payment_method")
+        .order_by("id")[:10001]
+    )
+    if len(candidates) > 10000:
+        # Do not label unchecked rows as statement-only or make them bulk eligible.
+        return {**counts, **{row.id: None for row in eligible}}
+    by_day = defaultdict(list)
+    for candidate in candidates:
+        key = (
+            candidate.amount,
+            candidate.transaction_type,
+            timezone.localtime(candidate.raw_message.received_at).date(),
+        )
+        by_day[key].append(candidate)
+    for row in eligible:
+        possible = {}
+        for date in dates_for(row):
+            for offset in range(-MATCH_DAYS, MATCH_DAYS + 1):
+                for candidate in by_day[(row.amount, row.type, date + timedelta(days=offset))]:
+                    possible[candidate.id] = candidate
+        counts[row.id] = sum(_eligible(row, candidate) for candidate in possible.values())
+    return counts
+
+
 def _sms_note(candidate, row):
     return (
         f"{candidate.get_message_kind_display()} · {candidate.counterparty_text}"
@@ -152,8 +206,14 @@ def combine_pending_sms(*, row, user, payload, request):
     if not candidate or not _eligible(row, candidate) or sms_recorded_elsewhere(candidate):
         raise ReviewConflict("The SMS or statement changed. Reload both reviews before combining them.")
     matches, truncated = find_matches([row])
-    if truncated or matches[row.id]:
-        raise ValidationError({"row": "An existing ledger match may already represent this movement. Review that match before combining pending sources."})
+    if truncated:
+        raise ValidationError({"row": "Too much ledger history to verify this movement safely. Review a shorter statement period."})
+    visible_ids = {item["id"] for item in matches[row.id]}
+    dismissed_ids = {str(item) for item in payload.get("dismissed_ledger_matches", [])}
+    if visible_ids != dismissed_ids:
+        raise ReviewConflict("Ledger suggestions changed. Reload and compare every suggested movement before combining.")
+    if visible_ids and not payload.get("acknowledge_distinct_ledger_matches"):
+        raise ValidationError({"acknowledge_distinct_ledger_matches": "Confirm that every suggested ledger entry is a different movement."})
     if row.type == Transaction.Type.TRANSFER:
         data, observation = sms_transfer_data(candidate)
         account = data["account"]
