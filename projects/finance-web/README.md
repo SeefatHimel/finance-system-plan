@@ -1105,7 +1105,7 @@ ledger suggestions also appear, compare them and acknowledge that each is a
 different movement before combining; a changed suggestion list requires reload.
 Already pending rows gain suggestions on refresh without a PDF re-upload or migration.
 
-### Unified pending SMS and statement review
+### Unified matched SMS and statement review
 
 Open **Unified review** (`/review`) from the sidebar to compare all pending SMS
 candidates with saved pending statement rows. Source, account, daily/monthly/custom
@@ -1131,11 +1131,18 @@ existing entry; the combined flow cannot create a duplicate over those suggestio
 and retains that entry's existing balance. Separate movements can still be reviewed
 in their source workflows after checking all possible matches.
 
+The queue shows each unique one-to-one SMS + statement match once, so its count is
+a count of review items rather than source observations. Unmatched sources and
+ambiguous repeated candidates stay in SMS review or Statements until they can be
+resolved safely. Account, statement-date and combined-source search filters apply
+before pair pagination.
+
 One server transaction confirms the SMS candidate and links the statement row to
 one ledger entry. Both leave the pending queue together. SMS evidence is available
 in Transactions alongside the retained PDF evidence, subject to SMS-text retention.
-No sources are automatically posted, inferred matches do not prove identity, and
-multiple overlapping suggestions remain explicitly ambiguous. Different accounts,
+No sources are automatically posted and inferred matches do not prove identity.
+Multiple overlapping suggestions are kept out of this one-review-per-pair queue.
+Different accounts,
 amounts or directions never pair; up to three calendar days are allowed, with
 matching reference or balance required beyond one day. Conflicting nonempty
 references are excluded. Stale versions/timestamps fail without partial writes;

@@ -950,16 +950,19 @@ suggestion remains, compare every suggestion and affirm that each is distinct
 before combining; a changed suggestion list requires a fresh review.
 ### Where can users review pending SMS and PDF rows together?
 
-Unified review (`/review`) lists both sources with account, date, source, condition
-and search filters. Each suggested pair opens a source comparison with original
+Unified review (`/review`) lists only unique one-to-one pending pairs, one item per
+SMS + statement movement, with account, statement-date and combined-source search
+filters. Each item opens a source comparison with original
 SMS/PDF evidence. Explicit confirmation resolves both sources into one transaction;
 a new entry uses the saved statement classification/date/time and chosen balance.
 Existing ledger suggestions must be selected and retain their existing balance.
-Ambiguous suggestions and balance/source discrepancies need review; nothing posts
-automatically. The statement editor opens in save-only mode inside this workflow,
+Balance/source discrepancies need review; nothing posts automatically. Unmatched
+and ambiguous one-to-many sources remain in their individual review pages rather
+than appearing twice or implying a safe pair. The statement editor opens in
+save-only mode inside this workflow,
 returning to a freshly loaded comparison after saving or going back. The comparison
 shows extraction, statement-check and draft discrepancies before requesting an
-acknowledgment. Unmatched items retain links to their individual editors. Source
-counts describe observations, not money movements. SMS dates are received dates;
+acknowledgment. Queue counts describe matched review items, not source observations.
+SMS dates are received dates;
 statement dates are transaction/value dates. Both evidence sets are available from
 Transactions.

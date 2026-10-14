@@ -8,7 +8,7 @@ import { DatePeriodControls } from "@/components/date-period-controls";
 import { useToast } from "@/components/toast-provider";
 import { getAccessToken } from "@/lib/auth-storage";
 import { allDates, periodBounds, type DatePeriod } from "@/lib/date-period";
-import { confirmUnifiedPair, getUnifiedPair, listAccounts, listCategories, listUnifiedPending, type Account, type Category, type UnifiedPair, type UnifiedPendingItem, type UnifiedPendingPage } from "@/lib/api";
+import { confirmUnifiedPair, getUnifiedPair, listAccounts, listCategories, listUnifiedPending, type Account, type Category, type UnifiedPair, type UnifiedPendingPage } from "@/lib/api";
 import { statementBalanceDifference } from "@/lib/statement-review";
 
 function PairDialog({ pair, onCancel, onSaved, onEdit, accounts }: { accounts: Account[]; pair: UnifiedPair; onCancel: () => void; onSaved: () => void; onEdit: () => void }) {
@@ -89,7 +89,7 @@ export function UnifiedReviewWorkspace() {
   const [page, setPage] = useState<UnifiedPendingPage | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [source, setSource] = useState("all"), [condition, setCondition] = useState("all"), [account, setAccount] = useState("");
+  const [account, setAccount] = useState("");
   const [period, setPeriod] = useState<DatePeriod>(allDates);
   const [search, setSearch] = useState(""), [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0), [epoch, setEpoch] = useState(0);
@@ -106,13 +106,13 @@ export function UnifiedReviewWorkspace() {
   useEffect(() => {
     const token = getAccessToken(); if (!token) return;
     const controller = new AbortController(); setLoading(true); setError("");
-    const filters: Record<string, string> = { source, condition, search: query, offset: String(offset), limit: "50" };
+    const filters: Record<string, string> = { search: query, offset: String(offset), limit: "50" };
     const bounds = periodBounds(period);
     if (bounds.start_date && bounds.end_date) { filters.start_date = bounds.start_date; filters.end_date = bounds.end_date; }
     if (account) filters.account = account;
     const timer = setTimeout(() => { void listUnifiedPending(token, filters, controller.signal).then(result => { if (!controller.signal.aborted) { setPage(result); if (offset >= result.count && offset) setOffset(0); } }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Could not load pending sources."); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [source, condition, account, query, offset, period, epoch]);
+  }, [account, query, offset, period, epoch]);
   useEffect(() => {
     setPair(null); setPairLoading(false); if (!selection) return;
     const token = getAccessToken(); if (!token) return;
@@ -120,8 +120,8 @@ export function UnifiedReviewWorkspace() {
     void getUnifiedPair(token, selection.statement, selection.sms, controller.signal).then(result => { if (!controller.signal.aborted) setPair(result); }).catch(reason => { if (!controller.signal.aborted) { notify(reason instanceof Error ? reason.message : "Could not load both sources.", "error"); setSelection(null); } }).finally(() => { if (!controller.signal.aborted) setPairLoading(false); });
     return () => controller.abort();
   }, [selection, notify]);
-  function select(item: UnifiedPendingItem, other: UnifiedPendingItem["matches"][number]) {
-    setSelection({ statement: item.source === "statement" ? item.id : other.id, sms: item.source === "sms" ? item.id : other.id });
+  function select(statement: string, sms: string) {
+    setSelection({ statement, sms });
   }
   function refresh() { setSelection(null); setPair(null); setPairLoading(false); setEpoch(value => value + 1); }
   function returnToPair() {
@@ -131,23 +131,20 @@ export function UnifiedReviewWorkspace() {
     setEpoch(value => value + 1);
   }
   return <div className="workspace-grid"><section className="panel"><div className="panel__body">
-    <div className="unified-review-heading"><div><h2 className="section-title">Unified pending review</h2><p className="section-subtitle">Compare SMS and statement drafts before recording money. A confirmed pair keeps both sources and counts once.</p></div><button className="button" type="button" onClick={refresh}>Refresh queue</button></div>
-    <DatePeriodControls value={period} label="Pending source dates" description="Statement transaction date / SMS received date · local timezone" onChange={value => { setPeriod(value); setOffset(0); }} />
+    <div className="unified-review-heading"><div><h2 className="section-title">Matched SMS + statement review</h2><p className="section-subtitle">Each item is one unique pre-matched movement. Review it once, keep both sources, and count it once.</p></div><button className="button" type="button" onClick={refresh}>Refresh matches</button></div>
+    <DatePeriodControls value={period} label="Matched transaction dates" description="Uses the statement transaction date · local timezone" onChange={value => { setPeriod(value); setOffset(0); }} />
     <div className="unified-review-filters">
-      <label className="field"><span className="field__label">Source</span><select className="field__control" value={source} onChange={event => { setSource(event.target.value); setOffset(0); }}><option value="all">SMS + statements</option><option value="sms">SMS</option><option value="statement">Statements</option></select></label>
       <label className="field"><span className="field__label">Account</span><select className="field__control" value={account} onChange={event => { setAccount(event.target.value); setOffset(0); }}><option value="">All accounts</option>{accounts.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label className="field"><span className="field__label">Condition</span><select className="field__control" value={condition} onChange={event => { setCondition(event.target.value); setOffset(0); }}><option value="all">All pending</option><option value="matched">Possible pairs</option><option value="unmatched">No pending pair</option><option value="corrections">Missing details</option></select></label>
-      <form onSubmit={event => { event.preventDefault(); setQuery(search); setOffset(0); }} className="unified-review-search"><label className="field"><span className="field__label">Search sources</span><input className="field__control" type="search" maxLength={255} value={search} onChange={event => setSearch(event.target.value)} /></label><button className="button" type="submit">Search</button></form>
+      <form onSubmit={event => { event.preventDefault(); setQuery(search); setOffset(0); }} className="unified-review-search"><label className="field"><span className="field__label">Search matched sources</span><input className="field__control" type="search" maxLength={255} value={search} onChange={event => setSearch(event.target.value)} /></label><button className="button" type="submit">Search</button></form>
     </div>
-    <p className="inline-note">{loading ? "Loading pending sources…" : `${page?.count ?? 0} pending sources`} · Each source is listed separately until you confirm its pair. Suggestions never add transactions automatically.</p>
+    <p className="inline-note">{loading ? "Finding unique matches…" : `${page?.count ?? 0} matched ${page?.count === 1 ? "item" : "items"}`} · Matching only prepares this queue; nothing is added until you confirm.</p>
     {error ? <p className="form-error" role="alert">{error}</p> : null}{pairLoading ? <p role="status">Loading both sources…</p> : null}
-    {!loading && !error && page?.count === 0 ? <p>No pending sources match these filters.</p> : null}
-    <div className="unified-review-list" aria-busy={loading}>{page?.results.map(item => <article className="unified-review-item" key={`${item.source}:${item.id}`}>
-      <header><strong>{item.source === "sms" ? "SMS" : "Statement"} · {item.account_name}</strong><span>{item.amount === null ? "Amount needed" : `${item.currency} ${item.amount}`} · {item.direction}</span></header>
-      <p>{item.date ?? "Date needed"}{item.time ? ` · ${item.time}` : ""} · {item.description}</p>
-      {item.ambiguous ? <p className="inline-note">Multiple possible pairs. Choose one only after reviewing both sources.</p> : null}
-      {item.matches.length ? <div className="unified-review-matches">{item.matches.map(match => <button className="button" type="button" disabled={loading || pairLoading} key={`${match.source}:${match.id}`} onClick={() => select(item, match)}>Compare {match.source === "sms" ? "SMS" : "statement"} · {match.date} · {match.conflict ? "Balance differs" : match.strength === "strong" ? "Strong suggestion" : "Possible match"}</button>)}</div> : <p className="inline-note">No pending source pair found. Review independently; existing ledger matches may still be available.</p>}
-      <Link className="button button--ghost" href={item.source === "sms" ? `/messages/review?candidate=${item.id}` : `/statements?import=${item.batch}&row=${item.id}`}>Review {item.source === "sms" ? "SMS" : "statement"} separately</Link>
+    {!loading && !error && page?.count === 0 ? <p>No unique SMS + statement matches were found for these filters. Unmatched and ambiguous sources remain in their individual review pages.</p> : null}
+    <div className="unified-review-list" aria-busy={loading}>{page?.results.map(item => <article className="unified-review-item" key={item.id}>
+      <header><strong>SMS + statement · {item.statement.account_name}</strong><span>{item.statement.amount === null ? "Amount needed" : `${item.statement.currency} ${item.statement.amount}`} · {item.statement.direction}</span></header>
+      <p>{item.statement.date ?? "Date needed"}{item.statement.time ? ` · ${item.statement.time}` : ""} · {item.statement.description || item.sms.description}</p>
+      <div className="unified-review-source-summary"><span>Statement: {item.statement.description || "No description"}</span><span>SMS: {item.sms.description || "No description"}</span></div>
+      <div className="unified-review-matches"><button className="button button--primary" type="button" disabled={loading || pairLoading} onClick={() => select(item.statement.id, item.sms.id)}>Review matched item · {item.match.conflict ? "Balance differs" : item.match.strength === "strong" ? "Strong match" : "Possible match"}</button></div>
     </article>)}</div>
     <div className="statement-actions"><button className="button" type="button" disabled={loading || offset === 0} onClick={() => setOffset(value => Math.max(0, value - 50))}>Previous page</button><button className="button" type="button" disabled={loading || !page || offset + 50 >= page.count} onClick={() => setOffset(value => value + 50)}>Next page</button></div>
   </div></section>

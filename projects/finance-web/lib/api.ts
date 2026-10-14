@@ -1655,10 +1655,10 @@ const pendingSourceSchema = z.object({
   type: z.string(), description: z.string(), reference: z.string(), updated_at: z.string(), version: z.number().nullable(), batch: z.string().nullable(), needs_correction: z.boolean()
 });
 const pendingSignalsSchema = z.object({ strength: z.enum(["strong", "possible"]), conflict: z.boolean(), reasons: z.array(z.string()) });
-const pendingItemSchema = pendingSourceSchema.extend({ matches: z.array(pendingSourceSchema.merge(pendingSignalsSchema)), ambiguous: z.boolean() });
-const unifiedPendingSchema = z.object({ count: z.number(), offset: z.number(), limit: z.number(), results: z.array(pendingItemSchema) });
+const pendingPairSchema = z.object({ id: z.string(), statement: pendingSourceSchema, sms: pendingSourceSchema, match: pendingSignalsSchema, needs_correction: z.boolean() });
+const unifiedPendingSchema = z.object({ count: z.number(), offset: z.number(), limit: z.number(), results: z.array(pendingPairSchema) });
 const unifiedPairSchema = z.object({ row: savedStatementRowSchema, batch: savedStatementSchema, sms: parsedMessageCandidateSchema, match: pendingSignalsSchema });
-export type UnifiedPendingItem = z.infer<typeof pendingItemSchema>;
+export type UnifiedPendingPair = z.infer<typeof pendingPairSchema>;
 export type UnifiedPendingPage = z.infer<typeof unifiedPendingSchema>;
 export type UnifiedPair = z.infer<typeof unifiedPairSchema>;
 export type UnifiedPairDecision = { statement: string; sms: string; statement_version: number; sms_updated_at: string; transaction?: string | null; balance_source: "sms" | "statement" | "existing"; acknowledge_match: boolean; acknowledge_conflict: boolean; acknowledge_issues: boolean; remember_choices: boolean };
