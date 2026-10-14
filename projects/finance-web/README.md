@@ -1131,8 +1131,10 @@ reported balances differ, neither source is preselected: the user must choose on
 Both original reported balances remain in their source records. If ledger
 suggestions already exist, choose a verified
 existing entry; the combined flow cannot create a duplicate over those suggestions
-and retains that entry's existing balance. Separate movements can still be reviewed
-in their source workflows after checking all possible matches.
+and retains that entry's existing balance. Unavailable ledger suggestions expose a
+direct route to statement review instead of leaving an unexplained disabled action.
+Separate movements can still be reviewed in their source workflows after checking
+all possible matches.
 
 The queue shows each unique one-to-one SMS + statement match once, so its count is
 a count of review items rather than source observations. Unmatched sources and
@@ -1146,6 +1148,10 @@ one ledger entry. Both leave the pending queue together. SMS evidence is availab
 in Transactions alongside the retained PDF evidence, subject to SMS-text retention.
 No sources are automatically posted and inferred matches do not prove identity.
 Multiple overlapping suggestions are kept out of this one-review-per-pair queue.
+That ambiguity check uses the complete pending account scope before the statement
+date filter is applied, so a nearby source outside the visible date range cannot
+make a pair look unique. Counterparty wording alone remains a possible match;
+strong matches require same-day reference, balance, or known account-path evidence.
 Different accounts, amounts or directions never pair. Up to three calendar days
 are allowed, with matching reference or balance required beyond one day. Every
 pair also needs matching reference, balance, counterparty wording or known transfer

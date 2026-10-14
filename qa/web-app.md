@@ -958,6 +958,8 @@ pages. Each item opens a source comparison with original
 SMS/PDF evidence. Explicit confirmation resolves both sources into one transaction;
 a new entry uses the saved statement classification/date/time and chosen balance.
 Existing ledger suggestions must be selected and retain their existing balance.
+If none can be linked, the comparison explains the blocker and links directly to
+the statement workflow where the ledger suggestions can be resolved.
 Balance/source discrepancies need review; nothing posts automatically. Unmatched
 and ambiguous one-to-many sources remain in their individual review pages rather
 than appearing twice or implying a safe pair. Differing non-null balances start
