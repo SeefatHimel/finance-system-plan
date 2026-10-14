@@ -2578,6 +2578,19 @@ paths:
       operationId: pending_retrieve
       parameters:
       - in: query
+        name: condition
+        schema:
+          enum:
+          - all
+          - strong
+          - possible
+          - balance_differs
+          - type_differs
+          - needs_correction
+          type: string
+          default: all
+        description: Filter confirmed-unique suggestions by the review condition, before pagination.
+      - in: query
         name: account
         schema:
           type: string

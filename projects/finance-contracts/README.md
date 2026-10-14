@@ -591,11 +591,12 @@ deploy web and API together.
 ### Unified matched-pair review
 
 - `GET /api/review/pending/`: account UUID, combined-source search, inclusive
-  `start_date/end_date` (maximum 366 days), opaque `cursor`, legacy offset and
+  `start_date/end_date` (maximum 366 days), review `condition` (`all`, `strong`,
+  `possible`, `balance_differs`, `type_differs`, `needs_correction`), opaque `cursor`, legacy offset and
   limit (1–100, default 50). Returns
   `{count, offset, limit, next_cursor, overview, results}`; `overview` contains
   matched, ambiguous, statement-only and SMS-only source counts for the selected
-  account/date scope. Each result contains one reciprocal one-to-one
+  account/date scope before search/condition filtering. Each result contains one reciprocal one-to-one
   `{statement, sms, match}` pair. Count is the number of review pairs. Unmatched
   and ambiguous sources are excluded.
 - `GET /api/review/pair/?statement=<uuid>&sms=<uuid>`: owned, still-pending pair

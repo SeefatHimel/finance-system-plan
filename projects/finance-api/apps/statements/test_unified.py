@@ -201,6 +201,29 @@ class UnifiedReviewTests(APITestCase):
         )
         self.assertEqual(Transaction.objects.count(), 0)
 
+    def test_queue_review_condition_filters_and_validates(self):
+        for condition, expected in (
+            ("all", 1),
+            ("possible", 1),
+            ("strong", 0),
+            ("balance_differs", 1),
+            ("type_differs", 0),
+            ("needs_correction", 0),
+        ):
+            with self.subTest(condition=condition):
+                response = self.client.get(
+                    reverse("unified-pending"), {"condition": condition, "limit": 1}
+                )
+                self.assertEqual(response.status_code, 200, response.data)
+                self.assertEqual(response.data["count"], expected)
+                self.assertEqual(len(response.data["results"]), expected)
+                self.assertIsNone(response.data["next_cursor"])
+                self.assertEqual(response.data["overview"]["matched"], 1)
+        invalid = self.client.get(
+            reverse("unified-pending"), {"condition": "not-a-condition"}
+        )
+        self.assertEqual(invalid.status_code, 400)
+
     def test_pair_counts_once_keeps_sources_and_retries_are_idempotent(self):
         original = self.payload()
         response = self.confirm()

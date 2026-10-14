@@ -454,6 +454,17 @@ def queue(user, filters):
             ).casefold()
         ):
             continue
+        condition = filters.get("condition", "all")
+        if condition == "strong" and signals["strength"] != "strong":
+            continue
+        if condition == "possible" and signals["strength"] != "possible":
+            continue
+        if condition == "balance_differs" and not signals["conflict"]:
+            continue
+        if condition == "type_differs" and statement["type"] == sms["type"]:
+            continue
+        if condition == "needs_correction" and not item["needs_correction"]:
+            continue
         items.append(item)
     items.sort(key=_item_key, reverse=True)
     offset, limit = filters.get("offset", 0), filters.get("limit", 50)

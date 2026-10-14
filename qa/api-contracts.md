@@ -531,9 +531,12 @@ a completed check found no eligible pending SMS.
 
 `/api/review/pending/` returns paginated unique one-to-one review pairs as
 `{statement, sms, match}` records, with account, statement-date and combined-source
-search filters applied before pair pagination. It accepts an opaque cursor and
+search filters applied before pair pagination. The optional `condition` query
+parameter accepts `all`, `strong`, `possible`, `balance_differs`, `type_differs`,
+or `needs_correction` and also filters before pagination. It accepts an opaque cursor and
 returns `next_cursor` plus matched/ambiguous/statement-only/SMS-only overview
-counts. Unmatched sources and one-to-many ambiguities remain in their individual
+counts, which stay scoped to account and date but are independent of search and
+condition. Unmatched sources and one-to-many ambiguities remain in their individual
 workflows. Legacy offset remains accepted.
 Reported balances less than BDT 1 apart may corroborate a pending pair, but
 the API still reports the exact difference as a conflict and requires the usual

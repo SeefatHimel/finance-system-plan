@@ -1052,7 +1052,10 @@ selection described below requires the new transactions migration.
 
 Authenticated, private/no-store `/api/review/pending/` returns one queue item for
 each unique one-to-one pending SMS and statement match, with account/date/search
-filters and stable cursor pagination; legacy offset remains accepted for clients
+filters and stable cursor pagination; `condition` optionally selects `strong`,
+`possible`, `balance_differs`, `type_differs`, or `needs_correction` before
+pagination. The overview still counts all pairs and unmatched sources in the
+selected account/date scope, before search and condition filtering. Legacy offset remains accepted for clients
 that have not migrated. The response also reports matched, ambiguous,
 statement-only and SMS-only source counts for the selected account/date scope.
 Matching first requires reporting-account perspective, amount, currency, direction

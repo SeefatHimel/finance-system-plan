@@ -542,6 +542,7 @@ export class FinanceApiClient {
 
   async getApiReviewPending(query?: {
   account?: string;
+  condition?: "all" | "strong" | "possible" | "balance_differs" | "type_differs" | "needs_correction";
   cursor?: string;
   end_date?: string;
   limit?: number;

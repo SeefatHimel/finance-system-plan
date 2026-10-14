@@ -3185,6 +3185,23 @@
           },
           {
             "in": "query",
+            "name": "condition",
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "strong",
+                "possible",
+                "balance_differs",
+                "type_differs",
+                "needs_correction"
+              ],
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "cursor",
             "schema": {
               "maxLength": 512,

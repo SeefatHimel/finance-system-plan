@@ -868,7 +868,10 @@ The unified queue emits only reciprocal one-to-one matches and represents each
 pair once. An SMS or statement with zero candidates stays in its source workflow;
 any source with multiple overlapping candidates is also withheld until the
 ambiguity is resolved. Pair filtering and pagination therefore operate on review
-pairs rather than duplicated source observations. Exact account, direction, amount
+pairs rather than duplicated source observations. The optional `condition` filter
+selects match strength, balance difference, type disagreement, or correction need
+before cursor pagination. Overview totals still use the selected account and dates
+before condition and search filtering. Exact account, direction, amount
 and date are necessary but insufficient: matching reference, balance, normalized
 counterparty or known transfer counterpart must independently corroborate the pair.
 For BDT, a reported-balance difference below Tk 1 also corroborates matching,

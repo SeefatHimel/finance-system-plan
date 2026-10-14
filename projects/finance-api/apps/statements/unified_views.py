@@ -21,6 +21,14 @@ from .unified import confirm_pair, queue, summary, unique_pair_signals
 
 class PendingReviewFilters(serializers.Serializer):
     account = serializers.UUIDField(required=False)
+    condition = serializers.ChoiceField(
+        choices=(
+            "all", "strong", "possible", "balance_differs", "type_differs",
+            "needs_correction",
+        ),
+        required=False,
+        default="all",
+    )
     source = serializers.ChoiceField(
         choices=("all", "statement", "sms"), required=False, default="all"
     )
