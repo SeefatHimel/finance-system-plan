@@ -15,6 +15,30 @@ The recommended first target is either:
 The mobile app should point to the deployed HTTPS API URL after backend and web
 deployment are stable.
 
+The repository now has separate production Dockerfiles and
+`projects/finance-infra/docker-compose.prod.yml`. The local Compose file and
+development Dockerfiles continue to run hot-reloading development servers.
+Production uses Gunicorn for Django, `next build`/`next start` for web, and
+WhiteNoise for collected admin/static assets. PostgreSQL stays on the private
+Compose network; web and API bind only to host loopback for an HTTPS reverse
+proxy. No source tree is mounted into production containers.
+
+From `projects/finance-infra`, create an untracked production environment file
+with the required database credentials, URL-encoded `DATABASE_URL` password,
+hostnames and HTTPS origins. Then run:
+
+```sh
+docker compose --env-file .env.prod -f docker-compose.prod.yml config --quiet
+docker compose --env-file .env.prod -f docker-compose.prod.yml build
+docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm finance-api python manage.py migrate --noinput
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+```
+
+`NEXT_PUBLIC_API_BASE_URL` is embedded during the web build, so rebuild the web
+image after changing it. Configure HTTPS, proxy headers, domain routing and
+off-machine backups before exposing the service. Run migrations as a deliberate
+release step; the production API process does not mutate schema on every boot.
+
 ## Required Gates Before Real Financial Use
 
 - `DJANGO_DEBUG=false`.
@@ -128,8 +152,9 @@ Production backup work must still add:
 
 ## Current Blockers
 
-- Docker CLI is not available in the current verification environment, so
-  Compose validation and stack smoke tests must run on a machine with Docker.
+- The production Compose configuration has passed syntax validation, but the
+  Docker daemon was unavailable for an image build and stack smoke test in the
+  current verification environment.
 - Real anonymized SMS fixtures are still needed before trusting parser coverage
   for live provider messages.
 - Confirm the deployed web uses its same-origin HTTP-only cookie session and the

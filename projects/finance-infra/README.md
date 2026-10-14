@@ -2,6 +2,12 @@
 
 Infrastructure, local development, and deployment support.
 
+`docker-compose.yml` remains the local hot-reload stack. For production,
+`docker-compose.prod.yml` builds separate Gunicorn and Next.js production
+images, requires explicit environment values, keeps PostgreSQL internal, and
+binds web/API ports to loopback for an HTTPS proxy. Follow
+`docs/production-deployment-plan.md` for migrations and release checks.
+
 ## Responsibilities
 
 - Local Docker Compose.

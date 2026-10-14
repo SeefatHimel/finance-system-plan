@@ -131,3 +131,11 @@ PostgreSQL; SQLite skips row-lock tests. Web has no new runtime dependency. Mobi
 adds the Expo SDK-compatible native datetime picker and config plugin, so the
 next requested signed build must include that module. Source checks and Expo
 config validation do not build or publish an APK.
+# Production runtime and CI
+
+**Is development Compose suitable for production?** No. The separate
+`docker-compose.prod.yml` and production Dockerfiles run Gunicorn and `next
+start`, require explicit secrets and HTTPS origins, keep PostgreSQL internal,
+and bind API/web ports to loopback for a TLS proxy. Migrations are a deliberate
+release command, not an application boot side effect. CI's API job uses a real
+PostgreSQL service so concurrency tests run instead of being skipped on SQLite.

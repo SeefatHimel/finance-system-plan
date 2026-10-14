@@ -1,0 +1,13 @@
+# Production web build can see only its source and shared contracts.
+**
+!projects/
+!projects/finance-web/
+!projects/finance-web/**
+!projects/finance-contracts/
+!projects/finance-contracts/**
+**/node_modules/
+**/.next/
+**/.env*
+**/*.dump
+**/*.pdf
+**/db.sqlite3

@@ -13,13 +13,19 @@ documented dependencies, run:
 
 ```bash
 (cd projects/finance-api && python manage.py test && python manage.py makemigrations --check --dry-run && python manage.py spectacular --validate --file /tmp/finance-schema.yaml)
+(cd projects/finance-contracts && python scripts/check_backend_schema.py /tmp/finance-schema.yaml)
 (cd projects/finance-web && npm run typecheck && npm run lint && node --test tests/*.test.cjs && npm run build)
 (cd projects/finance-contracts && python scripts/generate_ts_client.py && git diff --exit-code -- generated/types.ts generated/client.ts && ../finance-web/node_modules/.bin/tsc -p tsconfig.generated.json)
 (cd projects/finance-mobile && npm run typecheck && node --test tests/*.test.cjs)
 ```
 
 Schema generation may report known warnings; it must finish without errors and
-produce a nonempty file. Use only synthetic data for these checks. Database
+produce a nonempty file. CI runs the API tests with PostgreSQL so database
+locking/concurrency tests execute; local SQLite skips those tests. When an API
+shape intentionally changes, inspect its generated schema, update the published
+contract, regenerate TypeScript types, then update the structural snapshot with
+`python projects/finance-contracts/scripts/check_backend_schema.py /tmp/finance-schema.yaml --update`.
+Use only synthetic data for these checks. Database
 dumps (`*.dump`) are ignored by Git; store backups outside the repository.
 
 ## Required Tools
@@ -74,6 +80,11 @@ Then:
 - Mobile app displays backend health. Done with initial scaffold.
 
 ## Docker Setup (All Runtime Projects)
+
+This section uses the development Compose file. For production images,
+Gunicorn/Next start commands, required HTTPS proxy settings and the explicit
+migration step, see `docs/production-deployment-plan.md`. Do not use the
+development Compose defaults for financial data.
 
 Run from infrastructure directory:
 

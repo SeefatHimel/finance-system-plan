@@ -145,6 +145,22 @@ http://localhost:8000/api/docs/
 
 ## Docker
 
+`Dockerfile` is for local development. `Dockerfile.prod` uses Python 3.13,
+Gunicorn, and collected WhiteNoise static assets; deploy it with the separate
+production Compose file and migration step in `docs/production-deployment-plan.md`.
+
+The SMS review endpoint accepts `limit=1..200` and `offset>=0` and then returns
+`{count, results}`. Older mobile clients can still omit `limit` and receive the
+original array. The dashboard calls `GET /api/reports/dashboard-summary/` for
+exact pending/automated counts and at most three candidates and four recent
+transactions, avoiding full activity lists. The summary accepts the same
+custom period bounds as the monthly report; pending messages remain live.
+
+Custom sender regular expressions use a restricted, linear-time subset:
+128 characters maximum, with no groups, quantifiers, alternatives or
+backreferences. Existing unsafe saved patterns are ignored until corrected.
+Use exact or contains matching for ordinary sender IDs.
+
 From `projects/finance-infra`:
 
 ```bash

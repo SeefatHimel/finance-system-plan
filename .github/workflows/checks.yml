@@ -8,11 +8,24 @@ on:
 jobs:
   api:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: finance_ci
+          POSTGRES_USER: finance_ci
+          POSTGRES_PASSWORD: finance_ci_synthetic_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finance_ci -d finance_ci"
+          --health-interval 10s --health-timeout 5s --health-retries 5
     defaults:
       run:
         working-directory: projects/finance-api
     env:
       DJANGO_SECRET_KEY: ci-only-synthetic-key-with-sufficient-length
+      DATABASE_URL: postgres://finance_ci:finance_ci_synthetic_password@127.0.0.1:5432/finance_ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -37,6 +50,8 @@ jobs:
           if not Path('/tmp/finance-schema.yaml').stat().st_size:
               raise SystemExit('API schema generation produced an empty file')
           PY
+      - name: Detect backend and published contract drift
+        run: python ../../projects/finance-contracts/scripts/check_backend_schema.py /tmp/finance-schema.yaml
 
   web-and-contracts:
     runs-on: ubuntu-latest
