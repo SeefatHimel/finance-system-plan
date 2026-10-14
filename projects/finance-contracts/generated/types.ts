@@ -352,6 +352,18 @@ export interface IdentitySuggestion {
   choices: IdentityChoice[];
 }
 
+export interface ReviewCandidatePage {
+  count: number;
+  results: ParsedMessageCandidate[];
+}
+
+export interface DashboardSummary {
+  pending_count: number;
+  automated_count: number;
+  recent_candidates: ParsedMessageCandidate[];
+  recent_transactions: Transaction[];
+}
+
 export interface ParsedMessageCandidate {
   undo_action?: TransactionAction | null;
   identity_suggestions?: IdentitySuggestion[];

@@ -840,3 +840,21 @@ apply to both sources and any existing ledger target. No migration/backfill occu
 Attached confirmed SMS sources expose their saved parsed amount/balance separately
 from ledger values, including after raw text redaction. User and transaction scopes
 are rechecked before returning that optional parsed observation.
+
+## Review and parser safety updates
+
+**How do large SMS queues reach clients?** Clients can request `limit` (1–200)
+and `offset`; the API returns an exact `count` and a bounded `results` array.
+The old array response remains only for older mobile builds that omit `limit`.
+The dashboard summary uses count queries and at most three pending candidates
+and four recent transactions.
+
+**Can a busy unrelated account hide a pending SMS/statement match?** No. Detail
+matching narrows to the statement account perspective before evaluating a
+candidate, so unrelated same-amount messages cannot exhaust its suggestion
+window. Decisions still revalidate the candidate under a transaction lock.
+
+**What prevents a sender regex from stalling parsing?** Saved regex sender
+rules support a short subset without repeats, groups, alternatives or
+backreferences. Validation rejects unsafe new patterns, and matching skips
+unsafe old patterns as well.

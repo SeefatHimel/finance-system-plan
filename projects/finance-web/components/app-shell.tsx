@@ -24,7 +24,7 @@ import { usePathname } from "next/navigation";
 import type { ElementType, MouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
-import { getSmsDeviceStatus, listMessageCandidates } from "@/lib/api";
+import { getSmsDeviceStatus, listMessageCandidatePage } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { QuickAddProvider, QuickAddButton } from "./quick-add";
 import { useAuth } from "@/components/auth-provider";
@@ -187,9 +187,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const token = getAccessToken();
       if (!token) return;
       const version = ++countVersion.current;
-      const [candidates, device] = await Promise.allSettled([listMessageCandidates(token), getSmsDeviceStatus(token)]);
+      const [candidates, device] = await Promise.allSettled([listMessageCandidatePage(token, 0, 1), getSmsDeviceStatus(token)]);
       if (!active || version !== countVersion.current) return;
-      setQueueCount(candidates.status === "fulfilled" ? { owner, count: candidates.value.length } : null);
+      setQueueCount(candidates.status === "fulfilled" ? { owner, count: candidates.value.count } : null);
       if (device.status === "fulfilled") setSyncLabel(device.value.health_label);
     };
     const queueChanged = (event: Event) => {

@@ -521,3 +521,13 @@ sources, and 404 covers unavailable/foreign sources. Pair retries return unchang
 without another movement. Existing ledger suggestions cannot be silently bypassed.
 Source-message retrieval includes attached confirmed candidates as well as primary
 and transfer raw-message links. API-first rollout requires no model migration.
+
+## Schema drift gate
+
+**How does CI catch API contract drift?** It generates the Django OpenAPI
+schema, compares a structural snapshot of operations and component schemas,
+and checks that every published contract operation (apart from the simple
+health endpoint) still exists. A backend API change requires reviewing and
+updating the snapshot and, when relevant, `openapi.yaml` and generated TypeScript
+types. The bounded SMS review response and dashboard summary are documented
+in the shared contract.

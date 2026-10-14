@@ -33,7 +33,7 @@ import {
   type TransferMatch,
   listAccounts,
   listCategories,
-  listMessageCandidates,
+  listMessageCandidatePage,
   listPaymentMethods,
   redactRawMessage,
   reprocessPendingMessageCandidates,
@@ -52,7 +52,7 @@ import { transferComparison } from "../../finance-contracts/transfer-comparison"
 type ReviewState =
   | { status: "loading" }
   | { message: string; status: "error" }
-  | { accounts: Account[]; candidates: ParsedMessageCandidate[]; categories: Category[]; paymentMethods: PaymentMethod[]; status: "ready" };
+  | { accounts: Account[]; candidates: ParsedMessageCandidate[]; categories: Category[]; paymentMethods: PaymentMethod[]; status: "ready"; totalCount: number };
 
 type RejectDraft = {
   candidate: ParsedMessageCandidate;
@@ -115,6 +115,8 @@ export function MessageReviewWorkspace() {
   const owner = session.status === "signed-in" ? session.user.id : null;
   const ownerRef = useRef(owner); ownerRef.current = owner;
   const loadVersion = useRef(0);
+  const loadedLimit = useRef(100);
+  const [loadingMore, setLoadingMore] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const nativeDrafts = useRef(createReviewDrafts());
   const [formRevisions, setFormRevisions] = useState<Record<string, number>>({});
@@ -164,15 +166,21 @@ export function MessageReviewWorkspace() {
     }
     if (showLoading) setReviewState({ status: "loading" });
     try {
-      const [accounts, categories, candidates, paymentMethods] = await Promise.all([
+      const [accounts, categories, firstPage, paymentMethods] = await Promise.all([
         listAccounts(accessToken),
         listCategories(accessToken),
-        listMessageCandidates(accessToken),
+        listMessageCandidatePage(accessToken, 0, 100),
         listPaymentMethods(accessToken)
       ]);
+      const candidates = [...firstPage.results];
+      while (candidates.length < firstPage.count && candidates.length < loadedLimit.current) {
+        const page = await listMessageCandidatePage(accessToken, candidates.length, Math.min(100, loadedLimit.current - candidates.length));
+        if (!page.results.length) break;
+        candidates.push(...page.results);
+      }
       if (ticket !== loadVersion.current || requestOwner !== ownerRef.current) return;
-      setReviewState({ accounts, candidates, categories, paymentMethods, status: "ready" });
-      publishReviewCount(candidates.length, requestOwner);
+      setReviewState({ accounts, candidates, categories, paymentMethods, status: "ready", totalCount: firstPage.count });
+      publishReviewCount(firstPage.count, requestOwner);
       const requestedCandidateId = new URLSearchParams(window.location.search).get("candidate") ?? "";
       setActiveCandidateId((current) => {
         if (candidates.some((candidate) => candidate.id === current)) return current;
@@ -183,6 +191,13 @@ export function MessageReviewWorkspace() {
       if (ticket !== loadVersion.current || requestOwner !== ownerRef.current) return;
       setReviewState({ message: error instanceof Error ? error.message : "Could not load SMS review inbox.", status: "error" });
     }
+  }
+
+  async function loadMoreCandidates() {
+    loadedLimit.current += 100;
+    setLoadingMore(true);
+    try { await loadData(false); }
+    finally { setLoadingMore(false); }
   }
 
   useEffect(() => { const version = loadVersion; void loadData();
@@ -499,6 +514,7 @@ export function MessageReviewWorkspace() {
         <div className="review-focus-header" hidden={!isFocused}>
           <div><h2 className="review-focus-title" tabIndex={-1}>{activeCandidate ? `SMS review · BDT ${activeValues?.amount || "—"}` : "SMS review"}</h2><span aria-live="polite" aria-atomic="true">{activeCandidate ? `${accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"} · ${activeIndex + 1} / ${filteredCandidates.length}` : "No messages match these filters"}</span></div>
           <div className="review-focus-header__actions">
+            {reviewState.candidates.length < reviewState.totalCount ? <button className="button button--ghost" disabled={loadingMore} onClick={() => void loadMoreCandidates()} type="button">{loadingMore ? "Loading…" : "Load more"}</button> : null}
             <button className="button button--ghost" type="button" aria-haspopup="dialog" onClick={() => setFiltersOpen(true)} aria-label={`Filters, ${activeFilters.length} active`} title="Filter pending messages"><FunnelSimple size={18} aria-hidden="true" /><span>Filters{activeFilters.length ? ` (${activeFilters.length})` : ""}</span></button>
             <button className="button button--ghost review-focus-queue-toggle" type="button" aria-expanded={focusQueueOpen} aria-controls="sms-review-queue" aria-label={focusQueueOpen ? "Hide messages" : "Show messages"} title={focusQueueOpen ? "Hide messages" : "Show messages"} onClick={() => setFocusQueueOpen(current => !current)}><List size={18} aria-hidden="true" /><span>{focusQueueOpen ? "Hide messages" : "Show messages"}</span></button>
             <button className="button button--ghost" type="button" aria-label="Exit focus" title="Exit focus (Escape)" onClick={() => setFocusMode(false)}><CornersIn size={19} aria-hidden="true" /><span>Exit focus</span></button>
@@ -510,7 +526,7 @@ export function MessageReviewWorkspace() {
             <HelpTooltip label="About SMS review">Resolve one message at a time. Required corrections are highlighted before confirmation.</HelpTooltip>
           </div>
           {reviewState.candidates.length > 0 ? <div className="review-toolbar__dates"><DatePeriodControls compact label="Received dates" description="Local timezone" value={period} onChange={setPeriod} /></div> : null}
-          <div className="review-hero__actions"><span className="status-badge status-badge--idle">{reviewState.candidates.length} pending</span><button className="button button--ghost" disabled={isBulkReprocessing || reviewState.candidates.length === 0} onClick={() => void handleBulkReprocess()} type="button">{isBulkReprocessing ? <ButtonBusy label="Reapplying rules" /> : <><ArrowClockwise aria-hidden="true" size={17} />Reapply rules to pending</>}</button></div>
+          <div className="review-hero__actions"><span className="status-badge status-badge--idle">{reviewState.totalCount} pending</span><button className="button button--ghost" disabled={isBulkReprocessing || reviewState.candidates.length === 0} onClick={() => void handleBulkReprocess()} type="button">{isBulkReprocessing ? <ButtonBusy label="Reapplying rules" /> : <><ArrowClockwise aria-hidden="true" size={17} />Reapply rules to pending</>}</button></div>
         </section>
         <div className="review-recovery"><RecentTransactionAction /></div>
 
@@ -525,7 +541,7 @@ export function MessageReviewWorkspace() {
                 <button className="button button--ghost review-filter-trigger" aria-label={`Filters${activeFilters.length ? `, ${activeFilters.length} active` : ""}`} aria-haspopup="dialog" onClick={() => setFiltersOpen(true)} type="button"><FunnelSimple aria-hidden="true" size={18} /><span>Filters{activeFilters.length ? ` (${activeFilters.length})` : ""}</span></button>
               </div>
               {activeFilters.length ? <div className="review-active-filters" aria-label="Active filters">{activeFilters.map(filter => <button key={filter.key} type="button" onClick={filter.clear} aria-label={`Remove ${filter.label} filter`}>{filter.label}<X aria-hidden="true" size={12} /></button>)}<button type="button" onClick={clearFilters}>Clear filters</button></div> : null}
-              <span className="review-queue__count" role="status">{filteredCandidates.length} of {reviewState.candidates.length} messages</span>
+              <span className="review-queue__count" role="status">{filteredCandidates.length} shown · {reviewState.candidates.length} loaded of {reviewState.totalCount} pending{reviewState.candidates.length < reviewState.totalCount ? " · Filters apply to loaded messages" : ""}</span>
             </div>
             <div className="review-queue__list" ref={queueList}>
               {filteredCandidates.map((candidate) => {
@@ -538,6 +554,7 @@ export function MessageReviewWorkspace() {
                 </button>;
               })}
               {!filteredCandidates.length ? <div className="review-queue__empty">No messages match these filters.</div> : null}
+              {reviewState.candidates.length < reviewState.totalCount ? <button className="button button--ghost" disabled={loadingMore} onClick={() => void loadMoreCandidates()} type="button">{loadingMore ? "Loading…" : "Load 100 more messages"}</button> : null}
             </div>
           </aside>
 

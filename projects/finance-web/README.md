@@ -2,6 +2,13 @@
 
 Next.js web dashboard for managing and reviewing the finance system.
 
+The dashboard loads bounded activity previews with exact server counts. SMS
+review initially loads 100 candidates and offers “Load 100 more messages” for
+older work. Client-side review filters apply to the loaded portion and say so
+until the full queue is loaded. The sidebar badge uses the exact queue count.
+Production images use `Dockerfile.prod` with `next build` and `next start`;
+the default Dockerfile remains for local development.
+
 ## Current Status
 
 The web app is scaffolded with:

@@ -1013,6 +1013,27 @@ export async function listMessageCandidates(accessToken: string): Promise<Parsed
   return collectionSchema(parsedMessageCandidateSchema).parse(await response.json());
 }
 
+export async function listMessageCandidatePage(accessToken: string, offset = 0, limit = 100): Promise<{ count: number; results: ParsedMessageCandidate[] }> {
+  const response = await authenticatedFetch(`/api/messages/review/?limit=${limit}&offset=${offset}`, accessToken);
+  return z.object({ count: z.number().int().nonnegative(), results: z.array(parsedMessageCandidateSchema) }).parse(await response.json());
+}
+
+export async function getDashboardSummary(accessToken: string, startDate: string, endDate: string, signal?: AbortSignal): Promise<{
+  automated_count: number;
+  pending_count: number;
+  recent_candidates: ParsedMessageCandidate[];
+  recent_transactions: Transaction[];
+}> {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+  const response = await authenticatedFetch(`/api/reports/dashboard-summary/?${params}`, accessToken, { signal });
+  return z.object({
+    automated_count: z.number().int().nonnegative(),
+    pending_count: z.number().int().nonnegative(),
+    recent_candidates: z.array(parsedMessageCandidateSchema),
+    recent_transactions: z.array(transactionSchema)
+  }).parse(await response.json());
+}
+
 export async function reprocessMessageCandidate(
   accessToken: string,
   id: string

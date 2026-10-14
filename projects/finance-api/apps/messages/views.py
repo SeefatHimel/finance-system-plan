@@ -7,6 +7,7 @@ from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -488,7 +489,7 @@ class RawMessageImportView(APIView):
             )
 
 
-@extend_schema(responses=ParsedMessageCandidateSerializer(many=True))
+@extend_schema(responses=OpenApiTypes.OBJECT)
 class MessageReviewListView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -510,7 +511,21 @@ class MessageReviewListView(APIView):
                 "transaction",
             )
         )
-        return Response(ParsedMessageCandidateSerializer(candidates, many=True).data)
+        limit = request.query_params.get("limit")
+        if limit is None:
+            # Legacy mobile clients still expect the array shape.
+            return Response(ParsedMessageCandidateSerializer(candidates, many=True).data)
+        try:
+            limit_number = int(limit)
+            offset = int(request.query_params.get("offset", "0"))
+        except ValueError as error:
+            raise ValidationError({"limit": "Use integer limit and offset values."}) from error
+        if not 1 <= limit_number <= 200 or offset < 0:
+            raise ValidationError({"limit": "Use a limit from 1 to 200 and a non-negative offset."})
+        return Response({
+            "count": candidates.count(),
+            "results": ParsedMessageCandidateSerializer(candidates.order_by("-raw_message__received_at", "-id")[offset:offset + limit_number], many=True).data,
+        })
 
 
 @extend_schema(request=None, responses=ParsedMessageCandidateSerializer)

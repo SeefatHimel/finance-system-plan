@@ -1151,15 +1151,26 @@ paths:
       summary: List parsed SMS candidates waiting for review
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema: {type: integer, minimum: 1, maximum: 200}
+          description: Request a bounded page. Omit only for older mobile clients that expect an array.
+        - in: query
+          name: offset
+          schema: {type: integer, minimum: 0, default: 0}
+          description: Zero-based offset when limit is supplied.
       responses:
         '200':
-          description: Review candidate list
+          description: Review candidate page when limit is supplied; legacy array otherwise.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ParsedMessageCandidate'
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/ParsedMessageCandidate'
+                  - $ref: '#/components/schemas/ReviewCandidatePage'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
   /api/messages/review/reprocess/:
@@ -2160,6 +2171,28 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/reports/dashboard-summary/:
+    get:
+      tags: [Reports]
+      summary: Return bounded dashboard activity and exact counts
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: start_date
+          schema: {type: string, format: date}
+        - in: query
+          name: end_date
+          schema: {type: string, format: date}
+      responses:
+        '200':
+          description: Dashboard summary for selected period and live review queue.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSummary'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /api/reports/monthly/:
     get:
       tags: [Reports]
@@ -3522,6 +3555,26 @@ components:
         reason: {type: string}
         observed_identifiers: {type: array, items: {type: string}}
         choices: {type: array, items: {$ref: '#/components/schemas/IdentityChoice'}}
+    ReviewCandidatePage:
+      type: object
+      required: [count, results]
+      properties:
+        count: {type: integer, minimum: 0}
+        results:
+          type: array
+          items: {$ref: '#/components/schemas/ParsedMessageCandidate'}
+    DashboardSummary:
+      type: object
+      required: [pending_count, automated_count, recent_candidates, recent_transactions]
+      properties:
+        pending_count: {type: integer, minimum: 0}
+        automated_count: {type: integer, minimum: 0}
+        recent_candidates:
+          type: array
+          items: {$ref: '#/components/schemas/ParsedMessageCandidate'}
+        recent_transactions:
+          type: array
+          items: {$ref: '#/components/schemas/Transaction'}
     ParsedMessageCandidate:
       type: object
       required:

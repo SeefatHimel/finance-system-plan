@@ -14,11 +14,13 @@ Shared API contract and integration documentation.
 
 ```txt
 openapi.yaml
+backend-schema-snapshot.json
 generated/
   client.ts
   types.ts
 scripts/
   generate_ts_client.py
+  check_backend_schema.py
 requirements.txt
 tsconfig.generated.json
 examples/
@@ -78,6 +80,12 @@ To typecheck the generated client with the web project's TypeScript install:
 `generated/types.ts` exports OpenAPI component schema types. `generated/client.ts`
 exports `FinanceApiClient`, a lightweight fetch-based client with typed request
 bodies, query objects, path parameters, JSON responses, and CSV `Blob` exports.
+
+CI also generates Django's schema and compares its structural operation and
+component snapshot with `backend-schema-snapshot.json`. After a reviewed API
+change, update `openapi.yaml` as appropriate, regenerate TypeScript, and run
+`python scripts/check_backend_schema.py /tmp/finance-schema.yaml --update`.
+This check also rejects contract routes that no longer exist on the backend.
 
 ## Contract Principles
 

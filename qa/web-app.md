@@ -960,3 +960,11 @@ automatically. The statement editor opens in save-only mode inside this workflow
 and unmatched items retain links to their individual editors. Source counts describe
 observations, not money movements. SMS dates are received dates; statement dates
 are transaction/value dates. Both evidence sets are available from Transactions.
+
+## Bounded review and dashboard loading
+
+**Why does SMS review say a filter applies to loaded messages?** The web client
+loads 100 pending candidates initially and allows another 100 per request.
+Filtering is local for fast interaction, so it explicitly distinguishes the
+loaded subset from the exact server pending count until all pages are loaded.
+The dashboard and sidebar use exact counts without downloading the whole queue.
