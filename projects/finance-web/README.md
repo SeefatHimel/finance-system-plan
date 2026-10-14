@@ -639,7 +639,9 @@ applying it creates an unsaved draft change and preserves reported financial fie
 Save and review before posting. Generic transfer descriptions are not learned.
 
 The statement review table displays PDF rows alongside ledger suggestions, with
-explicit confirmation in the row editor. The Statement vs ledger section shows
+explicit confirmation in the row editor. If detailed pending-SMS matching exceeds
+its safety limit, the editor explains the inconclusive check, links to SMS review,
+and disables Add until matching can complete. The Statement vs ledger section shows
 comparison counts and a paginated ledger-only list for the selected account's
 printed statement period. Entries with pending suggestions are excluded from the
 ledger-only list. Warnings identify provisional coverage; absence never triggers

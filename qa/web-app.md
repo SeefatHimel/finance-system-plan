@@ -913,6 +913,8 @@ source acknowledgment are complete. Choices belong to one match and exact
 reviewed values/version, and reset after saving. The modal uses desktop space for
 a side-by-side comparison, stacks on phones, and keeps its decision footer visible.
 The choice changes a reported balance, never the movement amount or money count.
+If detailed pending-SMS matching reaches its safety limit, the row editor
+explains why Add is unavailable and directs the user to review pending SMS.
 
 
 ### How can users fill or improve transaction details when accepting a statement match?
