@@ -952,17 +952,22 @@ before combining; a changed suggestion list requires a fresh review.
 
 Unified review (`/review`) lists only unique one-to-one pending pairs, one item per
 SMS + statement movement, with account, statement-date and combined-source search
-filters. Each item opens a source comparison with original
+filters. Compact rows display match strength and balance conflict independently;
+the scope summary links unmatched source counts back to their dedicated review
+pages. Each item opens a source comparison with original
 SMS/PDF evidence. Explicit confirmation resolves both sources into one transaction;
 a new entry uses the saved statement classification/date/time and chosen balance.
 Existing ledger suggestions must be selected and retain their existing balance.
 Balance/source discrepancies need review; nothing posts automatically. Unmatched
 and ambiguous one-to-many sources remain in their individual review pages rather
-than appearing twice or implying a safe pair. The statement editor opens in
+than appearing twice or implying a safe pair. Differing non-null balances start
+without a selected winner, and the disabled confirmation action lists every step
+still required. The statement editor opens in
 save-only mode inside this workflow,
 returning to a freshly loaded comparison after saving or going back. The comparison
 shows extraction, statement-check and draft discrepancies before requesting an
 acknowledgment. Queue counts describe matched review items, not source observations.
-SMS dates are received dates;
+SMS correction includes a return link to matched review. Stable cursor navigation
+avoids skipping pairs after earlier rows are resolved. SMS dates are received dates;
 statement dates are transaction/value dates. Both evidence sets are available from
 Transactions.

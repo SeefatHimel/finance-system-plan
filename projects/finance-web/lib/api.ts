@@ -1656,8 +1656,12 @@ const pendingSourceSchema = z.object({
 });
 const pendingSignalsSchema = z.object({ strength: z.enum(["strong", "possible"]), conflict: z.boolean(), reasons: z.array(z.string()) });
 const pendingPairSchema = z.object({ id: z.string(), statement: pendingSourceSchema, sms: pendingSourceSchema, match: pendingSignalsSchema, needs_correction: z.boolean() });
-const unifiedPendingSchema = z.object({ count: z.number(), offset: z.number(), limit: z.number(), results: z.array(pendingPairSchema) });
-const unifiedPairSchema = z.object({ row: savedStatementRowSchema, batch: savedStatementSchema, sms: parsedMessageCandidateSchema, match: pendingSignalsSchema });
+const unifiedPendingSchema = z.object({
+  count: z.number(), offset: z.number(), limit: z.number(), next_cursor: z.string().nullable(),
+  overview: z.object({ matched: z.number(), ambiguous: z.number(), statement_only: z.number(), sms_only: z.number() }),
+  results: z.array(pendingPairSchema)
+});
+const unifiedPairSchema = z.object({ row: savedStatementRowSchema, batch: savedStatementSchema, sms: parsedMessageCandidateSchema, sms_summary: pendingSourceSchema, match: pendingSignalsSchema });
 export type UnifiedPendingPair = z.infer<typeof pendingPairSchema>;
 export type UnifiedPendingPage = z.infer<typeof unifiedPendingSchema>;
 export type UnifiedPair = z.infer<typeof unifiedPairSchema>;
