@@ -566,3 +566,8 @@ ID, and React account state is cleared on logout or account switch. Shared
 legacy AsyncStorage keys had no verifiable owner, so they are deleted rather
 than silently assigned to the next login. Mobile SMS review fetches 100 records
 per page and exposes a load-more control.
+
+**Can an account switch be forced by pasting a fabricated token?** No. The
+advanced screen checks only the current server-issued session and no longer
+accepts pasted access tokens. Existing secure sessions still restore offline
+and retain their owner's queued work.

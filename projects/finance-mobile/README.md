@@ -560,3 +560,12 @@ Verification: mobile typecheck, all 23 JavaScript tests, all 23 native tests and
 signed release assembly passed. The APK reports 0.1.10/code 11, matches the
 previous signing certificate, and contains the JavaScript bundle and icon font.
 No Android device or emulator was connected for the keyboard check.
+
+### Session-scoped local data
+
+The advanced screen can check the current server-issued session but no longer
+accepts pasted access tokens. Local account, category, transaction and offline
+queue caches continue to use the signed-in session's backend/user scope; offline
+restoration reads the session saved in device secure storage. This removes the
+in-app path for choosing another user's cache with a fabricated token. Existing
+cached offline work remains available to its signed-in owner after reconnecting.

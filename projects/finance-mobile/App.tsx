@@ -2497,7 +2497,7 @@ function FinanceApp() {
   const handleTokenValidation = async () => {
     if (!accessToken.trim()) {
       setAuthState("error");
-      setAuthMessage("Enter or generate an access token first.");
+      setAuthMessage("Sign in before checking your session.");
       return;
     }
 
@@ -2517,7 +2517,7 @@ function FinanceApp() {
   const handleLoadReferenceData = async () => {
     if (!accessToken.trim()) {
       setDataState("error");
-      setDataMessage("Sign in first or paste a valid access token.");
+      setDataMessage("Sign in before loading account data.");
       return;
     }
 
@@ -3181,18 +3181,10 @@ function FinanceApp() {
             <Text style={styles.buttonText}>Sign In</Text>
           </Pressable>
 
-          <Text style={styles.sectionTitle}>Access Token</Text>
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            multiline
-            onChangeText={setAccessToken}
-            placeholder="Paste access token for testing /api/auth/me/"
-            style={styles.inputMultiline}
-            value={accessToken}
-          />
+          <Text style={styles.sectionTitle}>Session</Text>
+          <Text style={styles.meta}>Your account data stays scoped to the signed-in session.</Text>
           <Pressable onPress={handleTokenValidation} style={styles.buttonSecondary}>
-            <Text style={styles.buttonText}>Validate Token</Text>
+            <Text style={styles.buttonText}>Check session</Text>
           </Pressable>
 
           {refreshToken ? <Text style={styles.meta}>Refresh token received.</Text> : null}
