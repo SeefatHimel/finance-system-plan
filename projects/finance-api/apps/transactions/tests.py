@@ -187,6 +187,27 @@ class TransactionApiTests(APITestCase):
         self.assertEqual(rows[0]["reference"], "CASH-001")
         self.assertEqual(rows[0]["counterparty_text"], "Lunch Shop")
 
+    def test_csv_export_preserves_zero_balance_and_quotes_formula_like_text(self):
+        user = get_user_model().objects.create_user(username="safe-export")
+        self.client.force_authenticate(user)
+        account = Account.objects.create(
+            user=user, name="=UNTRUSTED()", type=Account.Type.CASH
+        )
+        Transaction.objects.create(
+            user=user, account=account, date="2026-05-01",
+            type=Transaction.Type.EXPENSE, amount="1.00", balance_after="0.00",
+            reference=" +UNTRUSTED()", counterparty_text="@UNTRUSTED()",
+            note="\t=UNTRUSTED()",
+        )
+        response = self.client.get(reverse("transaction-export"))
+        self.assertEqual(response.status_code, 200)
+        row = next(csv.DictReader(StringIO(response.content.decode())))
+        self.assertEqual(row["balance_after"], "0.00")
+        self.assertEqual(row["account_name"], "'=UNTRUSTED()")
+        self.assertEqual(row["reference"], "' +UNTRUSTED()")
+        self.assertEqual(row["counterparty_text"], "'@UNTRUSTED()")
+        self.assertEqual(row["note"], "'\t=UNTRUSTED()")
+
     def test_authenticated_user_can_search_transactions_by_normalized_text_fields(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         other_user = get_user_model().objects.create_user(username="other", password="password")

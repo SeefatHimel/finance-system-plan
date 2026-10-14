@@ -85,17 +85,21 @@ class TransactionCorrectionTests(APITestCase):
         self.assertEqual(audit.after["amount"], "1250.00")
         self.assertTrue(audit.metadata["linked_correction_acknowledged"])
 
-    def test_account_correction_remaps_both_sides_and_clears_obsolete_reported_values(self):
+    def test_account_correction_keeps_captured_observations_but_ignores_obsolete_reports(self):
         self.record.transfer_evidence.filter(account=self.a).update(is_effective_balance=True)
         response = self.patch(account=str(self.b.pk), transfer_account=str(self.c.pk), balance_after="9000.00", allow_linked_correction=True)
         self.assertEqual(response.status_code, 200, response.data)
         self.assertIsNone(response.data["balance_after"])
         by_direction = {row["direction"]: row for row in response.data["transfer_evidence"]}
-        self.assertEqual(str(by_direction["debit"]["account"]), str(self.b.pk))
-        self.assertEqual(str(by_direction["credit"]["account"]), str(self.c.pk))
-        for row in by_direction.values():
-            self.assertIsNone(row["balance_after"])
-            self.assertIsNone(row["fee_amount"])
+        self.assertEqual(str(by_direction["debit"]["account"]), str(self.a.pk))
+        self.assertEqual(str(by_direction["credit"]["account"]), str(self.b.pk))
+        self.assertEqual(by_direction["debit"]["balance_after"], "9000.00")
+        self.assertEqual(by_direction["credit"]["balance_after"], "3000.00")
+        self.assertTrue(all(row["fee_amount"] == "5.00" for row in by_direction.values()))
+        self.assertEqual(
+            {row["account"]: row["balance_after"] for row in response.data["reported_balances"]},
+            {str(self.b.pk): None, str(self.c.pk): None},
+        )
         balances = self.balances()
         self.assertEqual(balances[self.a.pk].ledger_balance, Decimal("10000.00"))
         self.assertEqual(balances[self.b.pk].ledger_balance, Decimal("1000.00"))
@@ -130,6 +134,66 @@ class TransactionCorrectionTests(APITestCase):
         self.assertEqual(balances[self.a.pk].latest_reported_balance, Decimal("9000.00"))
         self.assertIsNone(balances[self.b.pk].latest_reported_balance)
         self.assertIsNone(balances[self.c.pk].latest_reported_balance)
+        original_receiver = self.record.transfer_evidence.get(raw_message=self.raws[1])
+        self.assertEqual(original_receiver.account_id, self.b.pk)
+        self.assertEqual(original_receiver.direction, "credit")
+        self.assertEqual(original_receiver.balance_after, Decimal("3000.00"))
+        self.assertEqual(original_receiver.fee_amount, Decimal("5.00"))
+
+    def test_reversing_captured_transfer_does_not_assign_old_balance_to_new_source(self):
+        response = self.patch(
+            account=str(self.b.pk),
+            transfer_account=str(self.a.pk),
+            allow_linked_correction=True,
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNone(response.data["balance_after"])
+        self.assertEqual(
+            {row["account"]: row["balance_after"] for row in response.data["reported_balances"]},
+            {str(self.a.pk): None, str(self.b.pk): None},
+        )
+        self.assertEqual(
+            {(row["account"], row["direction"], row["balance_after"]) for row in response.data["transfer_evidence"]},
+            {(self.a.pk, "debit", "9000.00"), (self.b.pk, "credit", "3000.00")},
+        )
+        balances = self.balances()
+        self.assertIsNone(balances[self.a.pk].latest_reported_balance)
+        self.assertIsNone(balances[self.b.pk].latest_reported_balance)
+
+    def test_reversing_captured_transfer_accepts_a_new_reviewed_source_balance(self):
+        response = self.patch(
+            account=str(self.b.pk),
+            transfer_account=str(self.a.pk),
+            reported_balances=[{"account": str(self.b.pk), "balance_after": "2100.00"}],
+            allow_linked_correction=True,
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["balance_after"], "2100.00")
+        self.assertEqual(str(response.data["balance_reporting_account"]), str(self.b.pk))
+        self.assertEqual(
+            self.balances()[self.b.pk].latest_reported_balance, Decimal("2100.00")
+        )
+        original = self.record.transfer_evidence.get(raw_message=self.raws[0])
+        self.assertEqual(original.account_id, self.a.pk)
+        self.assertEqual(original.balance_after, Decimal("9000.00"))
+
+    def test_existing_reversal_does_not_expose_unattributed_legacy_balance(self):
+        # A reversal saved before this fix could retain the old scalar value.
+        self.record.account = self.b
+        self.record.transfer_account = self.a
+        self.record.save(update_fields=("account", "transfer_account"))
+        response = self.client.get(
+            reverse("transaction-detail", kwargs={"pk": self.record.pk})
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNone(response.data["balance_after"])
+        self.assertEqual(
+            {row["account"]: row["balance_after"] for row in response.data["reported_balances"]},
+            {str(self.a.pk): None, str(self.b.pk): None},
+        )
+        self.assertEqual(self.patch(note="Reviewed reversal").status_code, 200)
+        self.record.refresh_from_db()
+        self.assertIsNone(self.record.balance_after)
 
     def test_reclassified_receiving_message_does_not_clear_a_new_expense_balance_on_later_edits(self):
         self.record.raw_message = self.raws[1]

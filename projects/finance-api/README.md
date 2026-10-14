@@ -312,6 +312,8 @@ direction, source, amount, reported balance, ISO dates/times, local activity
 timestamps, review status, identifiers, IDs and external keys. Linked transfer
 observations add their account, provider, source, direction, date/time, balance,
 fee, reference and note. Raw SMS bodies are outside ledger search.
+CSV text cells that begin with spreadsheet formula characters are escaped on
+export, while numeric zero remains `0.00` rather than an empty cell.
 
 Search uses case-insensitive partial matching. Each space-separated term must
 match somewhere on the transaction or its linked evidence; quoted phrases stay
@@ -514,11 +516,12 @@ Debit. Reverse direction by swapping those accounts. The update remains one
 ledger entry and is audited with before/after snapshots and acknowledgement
 metadata.
 
-Account corrections remap observations by debit/credit side and clear reported
-balances and fee values belonging to the previous account. An unchanged old
-primary balance is cleared only when its reporting account changes, not merely
-when its type changes. An explicit new balance is accepted; date/time/reference/note/balance edits update
-only the primary observation, not every linked message. Reclassification keeps
+Account corrections remap manual observations by debit/credit side and clear
+obsolete manual reported balances and fees. Captured SMS/PDF observations keep
+their original account, direction and source values. An unchanged old primary
+balance is cleared only when its reporting account changes, not merely when its
+type changes. An explicit new balance is accepted; date/time/reference/note/balance
+edits update only primary manual evidence, not captured messages. Reclassification keeps
 observations as historical provenance and preserves source-message access and
 retry keys. Same-account reclassification preserves the primary reported balance
 (including a primary-evidence fallback when the root balance is null); the other
@@ -867,9 +870,20 @@ retrying the same edit does not add another observation. Incoming non-transfer S
 converted to a transfer retains its report on the receiving account. Restoring a
 previously reclassified transfer restores its original reporting-account context.
 
-Reversing both endpoints preserves each account's balances and changes observation
-debit/credit directions. Replacing an account clears its old reported balance and
-fees before reassignment, while the unchanged account retains its own report.
+Correcting transfer endpoints never rewrites captured SMS or PDF observations:
+their original account, direction, date, balance and fee remain available as
+source evidence. Captured observations outside the current From/To path, or with
+the wrong direction for a current endpoint, are excluded from effective balances,
+statement matching and statement coverage. A reviewed manual report may be
+reassigned to the corrected endpoint; obsolete effective selections are cleared.
+The unchanged account retains an applicable report, if one exists.
+Reversing an SMS/PDF-backed transfer without new reviewed balances clears the
+legacy scalar report rather than attributing the old account's balance to the
+new From account. Older reversed entries with only obsolete captured evidence
+also serialize that scalar as unknown and exclude it from statement matching.
+The next edit clears that obsolete stored scalar.
+Entering a reviewed balance creates current account-bound evidence and restores
+the legacy scalar from that selected report.
 Existing linked-correction acknowledgement, user-level locks, ownership validation,
 matching and explicit posting/linking rules still apply. Legacy single-balance
 clients remain supported. Transfers remain excluded from income and expense totals.

@@ -237,6 +237,23 @@ class TransferAccountReportTests(APITestCase):
         self.patch(record.pk, reported_balances=self.reports(a="8990.00", b="3010.00"))
         self.assertEqual(TransferEvidence.objects.count(), 4)
 
+        corrected_path = self.patch(
+            record.pk, transfer_account=str(self.c.pk), allow_linked_correction=True
+        )
+        sms.refresh_from_db()
+        statement.refresh_from_db()
+        self.assertEqual((sms.account_id, sms.direction, sms.balance_after),
+                         (self.a.pk, "debit", Decimal("9000.00")))
+        self.assertEqual((statement.account_id, statement.direction, statement.balance_after),
+                         (self.b.pk, "credit", Decimal("3000.00")))
+        self.assertEqual(
+            {item["account"]: item["balance_after"] for item in corrected_path["reported_balances"]},
+            {str(self.a.pk): "8990.00", str(self.c.pk): None},
+        )
+        self.assertIsNone(
+            calculate_account_balance_summaries(accounts=[self.b])[self.b.pk].latest_reported_balance
+        )
+
     def test_replacing_only_source_does_not_move_receiving_report(self):
         data = self.create(
             account=str(self.b.pk), transfer_account=str(self.a.pk), direction="credit"

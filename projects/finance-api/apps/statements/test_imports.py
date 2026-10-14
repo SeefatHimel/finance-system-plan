@@ -910,6 +910,44 @@ class StatementInsightTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["review"]["matches"][0]["id"], str(target.id))
 
+    def test_transfer_match_ignores_captured_evidence_with_obsolete_direction(self):
+        batch = self.upload()
+        row = batch.rows.first()
+        self.assertEqual(
+            self.edit(
+                row,
+                type="transfer",
+                other_account=str(self.wallet.id),
+                classification_confirmed=True,
+            ).status_code,
+            200,
+        )
+        target = Transaction.objects.create(
+            user=self.user,
+            account=self.bank,
+            transfer_account=self.wallet,
+            type="transfer",
+            direction="debit",
+            amount="50",
+            date=date(2026, 4, 2),
+            source="sms",
+        )
+        TransferEvidence.objects.create(
+            user=self.user,
+            transaction=target,
+            account=self.bank,
+            direction="credit",
+            date=date(2026, 1, 2),
+            source="sms",
+            balance_after="950",
+        )
+        response = self.client.get(reverse("statement-row-detail", args=[row.id]))
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertNotIn(
+            str(target.id),
+            [match["id"] for match in response.data["review"]["matches"]],
+        )
+
 
 class StatementComparisonTests(APITestCase):
     setUp = SavedStatementTests.setUp
@@ -998,6 +1036,48 @@ class StatementComparisonTests(APITestCase):
         result = self.comparison(batch).data["results"][0]
         self.assertEqual(result["date"], date(2026, 1, 2))
         self.assertEqual(result["balance_after"], "931.00")
+
+    def test_comparison_ignores_obsolete_captured_transfer_observation(self):
+        batch = self.upload()
+        record = self.ledger_purchase(
+            type="transfer",
+            transfer_account=self.wallet,
+            amount="19.00",
+            date=date(2030, 1, 1),
+        )
+        TransferEvidence.objects.create(
+            user=self.user,
+            transaction=record,
+            account=self.bank,
+            direction="credit",
+            date=date(2026, 1, 2),
+            balance_after="931.00",
+            source="sms",
+        )
+        response = self.comparison(batch)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_comparison_does_not_borrow_stale_scalar_after_reversal(self):
+        batch = self.upload()
+        record = self.ledger_purchase(
+            type="transfer",
+            transfer_account=self.wallet,
+            amount="19.00",
+            date=date(2026, 1, 2),
+            balance_after="931.00",
+        )
+        TransferEvidence.objects.create(
+            user=self.user,
+            transaction=record,
+            account=self.bank,
+            direction="credit",
+            date=date(2026, 1, 2),
+            balance_after="931.00",
+            source="sms",
+        )
+        result = self.comparison(batch).data["results"][0]
+        self.assertIsNone(result["balance_after"])
 
     def test_amount_balance_and_same_day_is_strong_but_shared_claim_is_ambiguous(self):
         from .services import find_matches

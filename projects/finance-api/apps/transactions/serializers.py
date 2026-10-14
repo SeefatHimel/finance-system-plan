@@ -9,6 +9,8 @@ from apps.payment_methods.models import PaymentMethod
 
 from .balance_reports import (
     account_reports,
+    applies_to_transfer,
+    has_unattributed_legacy_balance,
     is_captured_report,
     primary_transfer_evidence,
     write_account_reports,
@@ -104,6 +106,7 @@ class AccountReportedBalancesField(serializers.Field):
                     and not chosen
                     and account_id == record.account_id
                     and record.balance_after is not None
+                    and not has_unattributed_legacy_balance(record)
                     else None
                 ),
             }
@@ -162,6 +165,12 @@ class TransactionSerializer(serializers.ModelSerializer):
     transfer_evidence = TransferEvidenceSerializer(many=True, read_only=True)
     account_direction = serializers.SerializerMethodField()
     statement_evidence_count = serializers.SerializerMethodField()
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if has_unattributed_legacy_balance(instance):
+            data["balance_after"] = None
+        return data
 
     @extend_schema_field(serializers.UUIDField())
     def get_balance_reporting_account(self, record):
@@ -293,6 +302,21 @@ class TransactionSerializer(serializers.ModelSerializer):
         new_type = validated_data.get("type", instance.type)
         new_from = validated_data.get("account", instance.account)
         new_to = validated_data.get("transfer_account", instance.transfer_account)
+        captured_primary_changes_direction = bool(
+            new_type == Transaction.Type.TRANSFER
+            and primary_evidence
+            and is_captured_report(primary_evidence)
+            and not (
+                (
+                    primary_evidence.account_id == new_from.pk
+                    and primary_evidence.direction == Transaction.Direction.DEBIT
+                )
+                or (
+                    primary_evidence.account_id == new_to.pk
+                    and primary_evidence.direction == Transaction.Direction.CREDIT
+                )
+            )
+        )
         # Swapping From/To changes debit/credit, not ownership of the report.
         if (
             new_type == Transaction.Type.TRANSFER
@@ -309,8 +333,10 @@ class TransactionSerializer(serializers.ModelSerializer):
             primary_account = (
                 new_from if old_reporting_account_id == new_from.pk else new_to
             )
-        reporting_account_changed = old_reporting_account_id != getattr(
-            primary_account, "pk", None
+        reporting_account_changed = (
+            old_reporting_account_id != getattr(primary_account, "pk", None)
+            or captured_primary_changes_direction
+            or has_unattributed_legacy_balance(instance, evidence_items)
         )
         if reporting_account_changed and (
             "balance_after" not in validated_data
@@ -342,6 +368,14 @@ class TransactionSerializer(serializers.ModelSerializer):
                 if item.account_id in endpoint_ids
             }
             for evidence in evidence_items:
+                if is_captured_report(evidence):
+                    # A corrected ledger path cannot rewrite what an SMS or PDF
+                    # actually observed. Incompatible source reports remain
+                    # attached for provenance but cannot affect balances.
+                    if evidence.is_effective_balance and not applies_to_transfer(instance, evidence):
+                        evidence.is_effective_balance = False
+                        evidence.save(update_fields=("is_effective_balance",))
+                    continue
                 new_account_id = (
                     instance.transfer_account_id
                     if evidence.direction == "credit"
@@ -371,11 +405,7 @@ class TransactionSerializer(serializers.ModelSerializer):
                     if new_account_id == instance.transfer_account_id
                     else "debit"
                 )
-                if (
-                    primary_evidence
-                    and evidence.pk == primary_evidence.pk
-                    and not is_captured_report(evidence)
-                ):
+                if primary_evidence and evidence.pk == primary_evidence.pk:
                     for field in ("balance_after", "reference", "date", "time", "note"):
                         if field in validated_data:
                             setattr(evidence, field, getattr(instance, field))

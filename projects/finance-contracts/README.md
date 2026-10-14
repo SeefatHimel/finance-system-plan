@@ -258,7 +258,10 @@ remain enforced. Transfers retain From=`account`, To=`transfer_account` and
 canonical debit direction; reversal swaps accounts.
 
 Corrections retain one ledger entry, audit snapshots and unchanged original SMS.
-Account remapping clears obsolete reported balances/fees. A type change preserves
+Account remapping preserves captured SMS/PDF observations as source evidence,
+including their original balances and fees, but excludes obsolete account or
+direction reports from current balances and statement matching. Manual reports
+can be reassigned; an unmatched legacy scalar is returned as null. A type change preserves
 the primary balance when its reporting account stays the same. If reclassified,
 `transfer_evidence` remains in the response as historical provenance and the
 source-message endpoint still returns its messages. Consumers must only use
@@ -479,8 +482,10 @@ balances are allowed. Transfer amounts still must be positive.
 
 Responses add read-only `balance_reporting_account` for the primary legacy scalar
 balance. Transfer endpoints are canonical From/To, independently of which account
-reported the SMS. Reversal preserves report ownership, and adding/editing a second
-report never creates a second transaction. Existing fields and manual Credit-create
+reported the SMS. Reversal preserves applicable manual report ownership, while
+an incompatible captured report stays historical until a new reviewed balance
+is supplied. Adding/editing a second report never creates a second transaction.
+Existing fields and manual Credit-create
 normalization remain compatible. No database migration is required. Regenerate
 TypeScript interfaces with `python scripts/generate_ts_client.py`.
 

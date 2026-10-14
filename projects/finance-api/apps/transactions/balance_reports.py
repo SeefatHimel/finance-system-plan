@@ -5,7 +5,19 @@ from rest_framework.exceptions import ValidationError
 from .models import Transaction, TransferEvidence
 
 
+def applies_to_transfer(record, item):
+    """Only current-path observations can supply an account's reported balance."""
+    if record.type != Transaction.Type.TRANSFER:
+        return True  # Retain provenance while a transfer is reclassified.
+    if item.account_id == record.account_id:
+        return not is_captured_report(item) or item.direction == Transaction.Direction.DEBIT
+    if item.account_id == record.transfer_account_id:
+        return not is_captured_report(item) or item.direction == Transaction.Direction.CREDIT
+    return False
+
+
 def primary_transfer_evidence(record, items):
+    items = [item for item in items if applies_to_transfer(record, item)]
     primary = None
     if record.raw_message_id:
         primary = next(
@@ -36,6 +48,7 @@ def primary_transfer_evidence(record, items):
 
 def account_reports(record, items=None):
     items = list(record.transfer_evidence.all()) if items is None else items
+    items = [item for item in items if applies_to_transfer(record, item)]
     primary = primary_transfer_evidence(record, items)
     chosen = {item.account_id: item for item in items}
     if primary:
@@ -46,11 +59,19 @@ def account_reports(record, items=None):
     return chosen, primary
 
 
+def has_unattributed_legacy_balance(record, items=None):
+    """A scalar report cannot identify a new owner after all evidence is obsolete."""
+    if record.type != Transaction.Type.TRANSFER or record.balance_after is None:
+        return False
+    items = list(record.transfer_evidence.all()) if items is None else items
+    return bool(items) and primary_transfer_evidence(record, items) is None
+
+
 def select_effective_account_report(record, item):
     """Choose one preserved observation for an account without changing its value."""
     if item.transaction_id != record.pk or item.account_id not in {
         record.account_id, record.transfer_account_id
-    }:
+    } or not applies_to_transfer(record, item):
         raise ValidationError({"balance_after": "Choose evidence from this transfer account."})
     record.transfer_evidence.filter(
         account_id=item.account_id, is_effective_balance=True
@@ -97,7 +118,7 @@ def is_captured_report(item):
 
 
 def write_account_reports(record, reports):
-    chosen, primary = account_reports(record)
+    chosen, _ = account_reports(record)
     for report in reports:
         account = report["account"]
         item = chosen.get(account.pk)
@@ -112,17 +133,18 @@ def write_account_reports(record, reports):
         elif report["balance_after"] is not None:
             item = reviewed_account_report(record, account, report["balance_after"])
             select_effective_account_report(record, item)
-        if primary and item and primary.account_id == item.account_id:
-            record.balance_after = item.balance_after
-            record.save(update_fields=("balance_after",))
     getattr(record, "_prefetched_objects_cache", {}).pop("transfer_evidence", None)
+    _, primary = account_reports(record)
+    if primary and record.balance_after != primary.balance_after:
+        record.balance_after = primary.balance_after
+        record.save(update_fields=("balance_after",))
 
 
 def reported_values(record):
     """Effective balances keyed by their actual reporting account."""
     chosen, primary = account_reports(record)
     result = {account_id: item.balance_after for account_id, item in chosen.items()}
-    if not primary and record.balance_after is not None:
+    if not primary and record.balance_after is not None and not has_unattributed_legacy_balance(record):
         result.setdefault(record.account_id, record.balance_after)
     return result
 

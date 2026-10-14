@@ -445,7 +445,9 @@ needs a future posting/in-transit model.
 Linked account references remain searchable without returning duplicate rows.
 CSV exports append contextual `account_direction` and structured
 `transfer_evidence` JSON. Audit snapshots include the normalized evidence
-without raw SMS bodies.
+without raw SMS bodies. User-controlled CSV text is escaped when it could be
+interpreted as a spreadsheet formula; a reported balance of zero exports as
+`0.00`.
 
 ## How does SMS review interpret a credit on the selected account?
 
@@ -526,12 +528,18 @@ ownership and validity checks are never bypassed. One audited ledger update
 changes balances once, with before/after evidence snapshots and acknowledgement
 metadata. Canonical transfers store From/To accounts and debit direction.
 
-Remapping an observation clears its previous reported balance and fee. Editing
-primary metadata updates only that observation, including manual observations
-without a raw-message ID. Reclassification retains the original SMS links and
-retry keys as historical provenance, while balance summaries only consume
-transfer evidence for entries whose current type is transfer. This avoids both
-lost history and stale balances attributed to unrelated accounts.
+Account corrections leave captured SMS/PDF observations attached with their
+original account, direction, date, reported balance and fee. Reports, statement
+matching and coverage ignore captured observations outside the current transfer
+path or with the wrong direction for an endpoint. Manual reports can follow a
+corrected endpoint; obsolete effective selections are cleared. Editing primary
+metadata updates manual evidence without a raw-message ID. Reclassification
+retains the original SMS links and retry keys as historical provenance.
+When endpoints reverse, an old captured report with the wrong direction cannot
+be assigned to the new From account. The scalar is cleared unless a new reviewed
+report is supplied. Reads also suppress an unattributed scalar left by an older
+correction, and a later edit clears it; captured evidence remains available for
+inspection.
 
 ## Why can references repeat without allowing repeated SMS confirmation?
 

@@ -48,6 +48,13 @@ transaction_date_parameters = [
 ]
 
 
+def spreadsheet_safe_text(value):
+    """Prevent user-controlled CSV text from becoming a spreadsheet formula."""
+    if value and value.lstrip(" \t\r\n\ufeff").startswith(("=", "+", "-", "@")):
+        return f"'{value}"
+    return value
+
+
 @extend_schema_view(list=extend_schema(parameters=transaction_date_parameters))
 class TransactionViewSet(ModelViewSet):
     serializer_class = TransactionSerializer
@@ -356,28 +363,28 @@ class TransactionViewSet(ModelViewSet):
                     transaction.direction,
                     transaction.amount,
                     transaction.account_id,
-                    transaction.account.name,
+                    spreadsheet_safe_text(transaction.account.name),
                     transaction.transfer_account_id or "",
-                    transaction.transfer_account.name
+                    spreadsheet_safe_text(transaction.transfer_account.name)
                     if transaction.transfer_account
                     else "",
                     transaction.category_id or "",
-                    transaction.category.name if transaction.category else "",
+                    spreadsheet_safe_text(transaction.category.name) if transaction.category else "",
                     transaction.payment_method_id or "",
-                    transaction.payment_method.name
+                    spreadsheet_safe_text(transaction.payment_method.name)
                     if transaction.payment_method
                     else "",
-                    transaction.balance_after or "",
-                    transaction.sender_account_identifier,
-                    transaction.sender_card_identifier,
-                    transaction.receiver_account_identifier,
-                    transaction.receiver_card_identifier,
-                    transaction.reference,
-                    transaction.counterparty_text,
-                    transaction.external_key,
+                    transaction.balance_after if transaction.balance_after is not None else "",
+                    spreadsheet_safe_text(transaction.sender_account_identifier),
+                    spreadsheet_safe_text(transaction.sender_card_identifier),
+                    spreadsheet_safe_text(transaction.receiver_account_identifier),
+                    spreadsheet_safe_text(transaction.receiver_card_identifier),
+                    spreadsheet_safe_text(transaction.reference),
+                    spreadsheet_safe_text(transaction.counterparty_text),
+                    spreadsheet_safe_text(transaction.external_key),
                     transaction.source,
                     transaction.needs_review,
-                    transaction.note,
+                    spreadsheet_safe_text(transaction.note),
                     transaction.raw_message_id or "",
                     transaction.created_at.isoformat(),
                     transaction.updated_at.isoformat(),
