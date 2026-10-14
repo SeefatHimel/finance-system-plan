@@ -28,6 +28,7 @@ import {
   type TransactionType,
   confirmMessageCandidate,
   findTransferMatches,
+  getPendingMessageCandidate,
   linkTransfer,
   type ConfirmMessageCandidateInput,
   type TransferMatch,
@@ -166,6 +167,7 @@ export function MessageReviewWorkspace() {
     }
     if (showLoading) setReviewState({ status: "loading" });
     try {
+      const requestedCandidateId = new URLSearchParams(window.location.search).get("candidate") ?? "";
       const [accounts, categories, firstPage, paymentMethods] = await Promise.all([
         listAccounts(accessToken),
         listCategories(accessToken),
@@ -178,13 +180,15 @@ export function MessageReviewWorkspace() {
         if (!page.results.length) break;
         candidates.push(...page.results);
       }
+      if (requestedCandidateId && !candidates.some(candidate => candidate.id === requestedCandidateId)) {
+        candidates.push(await getPendingMessageCandidate(accessToken, requestedCandidateId));
+      }
       if (ticket !== loadVersion.current || requestOwner !== ownerRef.current) return;
       setReviewState({ accounts, candidates, categories, paymentMethods, status: "ready", totalCount: firstPage.count });
       publishReviewCount(firstPage.count, requestOwner);
-      const requestedCandidateId = new URLSearchParams(window.location.search).get("candidate") ?? "";
       setActiveCandidateId((current) => {
-        if (candidates.some((candidate) => candidate.id === current)) return current;
         if (candidates.some((candidate) => candidate.id === requestedCandidateId)) return requestedCandidateId;
+        if (candidates.some((candidate) => candidate.id === current)) return current;
         return candidates[0]?.id ?? "";
       });
     } catch (error) {

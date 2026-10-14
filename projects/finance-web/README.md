@@ -1128,7 +1128,9 @@ queue; SMS corrections use the existing SMS review deep link. Confirm both requi
 an explicit same-movement acknowledgment and any source/balance acknowledgments.
 For a new entry, statement classification/date/time form the ledger movement and
 users choose which reported balance to use. Both original reported balances remain
-in their source records. If ledger suggestions already exist, choose a verified
+in their source records; an unavailable balance is disabled when the other source
+reports one. Transfer account reports use the reviewed choice. If ledger
+suggestions already exist, choose a verified
 existing entry; the combined flow cannot create a duplicate over those suggestions
 and retains that entry's existing balance. Separate movements can still be reviewed
 in their source workflows after checking all possible matches.
@@ -1142,6 +1144,10 @@ amounts or directions never pair; up to three calendar days are allowed, with
 matching reference or balance required beyond one day. Conflicting nonempty
 references are excluded. Stale versions/timestamps fail without partial writes;
 retries of the same confirmed pair do not create another movement.
+Direct links to pending SMS load that candidate by ID even when it lies beyond
+the first 100 inbox rows. An unavailable or already-resolved link shows an error
+instead of opening an unrelated message. Large statement lists distinguish an
+unchecked SMS match count from a verified zero and require individual review.
 
 The queue compares up to 2,000 pending sources of each kind in the selected account
 scope and refuses excessive overlapping comparisons explicitly. Narrow by account

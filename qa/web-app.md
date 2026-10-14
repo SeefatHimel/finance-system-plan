@@ -968,3 +968,11 @@ loads 100 pending candidates initially and allows another 100 per request.
 Filtering is local for fast interaction, so it explicitly distinguishes the
 loaded subset from the exact server pending count until all pages are loaded.
 The dashboard and sidebar use exact counts without downloading the whole queue.
+
+### What happens when a deep link points to an older pending SMS?
+
+The inbox loads its first bounded page, then fetches the requested candidate by
+ID if it is not on that page. It selects that exact candidate; an unavailable
+one shows an error rather than silently selecting another message. The pair
+dialog disables a missing balance choice when the other source has a report,
+and the statement list distinguishes an unavailable match count from zero.

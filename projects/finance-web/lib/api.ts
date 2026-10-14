@@ -1018,6 +1018,11 @@ export async function listMessageCandidatePage(accessToken: string, offset = 0, 
   return z.object({ count: z.number().int().nonnegative(), results: z.array(parsedMessageCandidateSchema) }).parse(await response.json());
 }
 
+export async function getPendingMessageCandidate(accessToken: string, id: string): Promise<ParsedMessageCandidate> {
+  const response = await authenticatedFetch(`/api/messages/review/${encodeURIComponent(id)}/`, accessToken);
+  return parsedMessageCandidateSchema.parse(await response.json());
+}
+
 export async function getDashboardSummary(accessToken: string, startDate: string, endDate: string, signal?: AbortSignal): Promise<{
   automated_count: number;
   pending_count: number;
@@ -1553,7 +1558,7 @@ const savedStatementRowSchema = z.object({
   type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]),
   other_account: z.string().nullable(), category: z.string().nullable(), reference: z.string(), counterparty_text: z.string(), note: z.string(), classification_confirmed: z.boolean(),
   state: z.enum(["pending", "posted", "linked", "skipped"]), transaction: z.string().nullable(), version: z.number(), created_at: z.string(), updated_at: z.string(),
-  review: z.object({ draft_issues: z.array(z.string()).default([]), suggestion: z.object({ type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]), category: z.string().nullable(), other_account: z.string().nullable(), reason: z.string() }).nullable().default(null), issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), pending_sms_match_count: z.number().int().nonnegative().default(0), pending_sms_matches: z.array(pendingStatementSmsMatchSchema).default([]), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
+  review: z.object({ draft_issues: z.array(z.string()).default([]), suggestion: z.object({ type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]), category: z.string().nullable(), other_account: z.string().nullable(), reason: z.string() }).nullable().default(null), issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), pending_sms_match_count: z.number().int().nonnegative().nullable().default(0), pending_sms_matches: z.array(pendingStatementSmsMatchSchema).default([]), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
 });
 const statementRowPageSchema = z.object({ count: z.number(), offset: z.number(), limit: z.number(), results: z.array(savedStatementRowSchema) });
 const statementHistorySchema = z.object({ count: z.number(), next: z.string().nullable(), previous: z.string().nullable(), results: z.array(savedStatementSchema) });
