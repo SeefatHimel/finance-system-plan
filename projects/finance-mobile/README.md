@@ -1,5 +1,13 @@
 # finance-mobile
 
+Legacy manual-entry queue and account, category, and transaction caches now
+use local keys scoped to the API URL and authenticated user ID. The app clears
+in-memory account data on logout or account switch. Earlier shared AsyncStorage
+keys had no trustworthy owner and are removed rather than replayed for another
+user; any unsynced entries in that older queue must be entered again. SMS review
+loads 100 candidates at a time and shows the total pending count with a load
+more control.
+
 React Native Android app for quick capture and SMS-based transaction tracking.
 
 ## Current Status
