@@ -12,7 +12,7 @@ another transaction.
 
 Shared API contract and integration documentation.
 
-Statement preview rows may contain `citytouch_printed_code`, the masked second
+Statement preview rows may contain `citytouch_printed_code`, the second
 component exactly as printed in a City Bank Citytouch reference. It is nullable
 and does not authorize an automatic counterparty mapping. General descriptions
 remain masked; retained source codes are encrypted on the API side.
@@ -663,7 +663,7 @@ visible digits (four to 24) of recurring second codes from saved City Bank
 `CT-FT` rows. Existing four-digit codes remain valid. A longer visible code is
 kept distinct even when its last four digits match another code. Masked digits
 cannot be recovered, so an otherwise identical four-digit suffix remains
-ambiguous. GET also returns `printed_code`, the complete masked second segment
+ambiguous. GET also returns `printed_code`, the complete printed second segment
 from a saved row (or null when none remains), for display without changing the
 matching key. The
 variable first segment is not party identity. Mappings are scoped to the

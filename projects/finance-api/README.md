@@ -32,6 +32,8 @@ adds visible second-code digits that agree with the saved suffix. Printed codes
 are encrypted in the database. Existing extracted rows, corrections, links,
 ledger entries, and audit history are retained. EBL has no Citytouch codes to
 refresh, and a PDF printing `***4730` cannot reveal digits hidden by `***`.
+An older import can show `***4730` because the app masked a longer value that
+the PDF actually printed. This refresh restores that printed second component.
 An existing four-digit mapping is deliberately not copied to an upgraded code;
 verify and save the newly observed code in the directory, then remove the stale
 mapping if appropriate. Suffix collisions make automatic reassignment unsafe.
@@ -670,9 +672,9 @@ direction. Existing four-digit mappings remain valid; longer visible codes
 with the same last four digits stay distinct. Masked digits cannot be recovered,
 so a four-digit suffix can still identify more than one party.
 This code is a clue, not proof that it is an account number. The directory
-shows the complete second segment as printed (for example `***5678`), while
-matching by its visible digits. The stars do not reveal the hidden account
-number. It also shows recent masked examples and permits an external party label or a
+shows the complete second segment as printed (for example `***5678` or a full
+digit string), while matching by its visible digits. Stars printed in the PDF
+do not reveal hidden digits. It also shows recent masked examples and permits an external party label or a
 different owned account, plus an optional compatible type/category suggestion.
 Fund transfer wording does not force an internal ledger transfer: a payment can
 remain an expense, or an incoming movement can be income. Citytouch rows require

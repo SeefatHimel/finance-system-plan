@@ -5240,7 +5240,7 @@ components:
         citytouch_printed_code:
           type: string
           nullable: true
-          description: Masked Citytouch second component exactly as printed; visible digits can exceed four.
+          description: Citytouch second component exactly as printed; it may contain full or bank-masked digits.
         provider_type:
           type: string
         reference:
@@ -6559,7 +6559,7 @@ components:
         account: {type: string, format: uuid}
         account_name: {type: string}
         code: {type: string}
-        printed_code: {type: string, nullable: true, description: Complete masked second segment exactly as printed in a saved statement row.}
+        printed_code: {type: string, nullable: true, description: Complete second segment exactly as printed in a saved statement row.}
         direction: {type: string, enum: [debit, credit]}
         count: {type: integer, minimum: 0}
         pending_count: {type: integer, minimum: 0}

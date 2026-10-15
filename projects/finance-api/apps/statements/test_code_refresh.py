@@ -60,7 +60,7 @@ class CitytouchRefreshTests(TestCase):
         self.preview = {
             "profile": "city_bank", "account_hint": "1234", "currency": "BDT",
             "page_count": 1,
-            "rows": [{**self.original, "citytouch_printed_code": "***99995678"}],
+            "rows": [{**self.original, "citytouch_printed_code": "12345675678"}],
         }
 
     def command(self, *args):
@@ -84,10 +84,10 @@ class CitytouchRefreshTests(TestCase):
             digest = result.split("Digest: ")[1].splitlines()[0]
             self.command("--apply", "--digest", digest)
         self.row.refresh_from_db()
-        self.assertEqual(self.row.source_code, "***99995678")
-        self.assertEqual(code_for_row(self.row), "99995678")
+        self.assertEqual(self.row.source_code, "12345675678")
+        self.assertEqual(code_for_row(self.row), "12345675678")
         self.assertIn(
-            (self.account.id, "99995678", "debit"), observed_codes(self.user)
+            (self.account.id, "12345675678", "debit"), observed_codes(self.user)
         )
         self.assertEqual(self.row.extracted, self.original)
         self.assertEqual(self.row.note, "Reviewed personal note")
@@ -99,7 +99,7 @@ class CitytouchRefreshTests(TestCase):
                 "SELECT source_code FROM statements_statementrow WHERE id = %s",
                 [self.row.id.hex],
             )
-            self.assertNotIn("99995678", cursor.fetchone()[0])
+            self.assertNotIn("12345675678", cursor.fetchone()[0])
 
     def test_mismatched_rows_and_stale_digest_never_change_source(self):
         old = list(self.batch.rows.filter(component="principal"))
@@ -130,6 +130,7 @@ class CitytouchRefreshTests(TestCase):
 
     def test_only_longer_printed_suffix_is_an_upgrade(self):
         self.assertEqual(citytouch_printed_code("CT-FT-***1234-***99995678"), "***99995678")
+        self.assertEqual(citytouch_printed_code("CT-FT-123456789012-12345675678"), "12345675678")
         rows = list(self.batch.rows.filter(component="principal"))
         same = deepcopy(self.preview)
         same["rows"][0]["citytouch_printed_code"] = "***5678"
@@ -141,18 +142,18 @@ class CitytouchRefreshTests(TestCase):
 
     def test_pdf_parser_keeps_visible_second_code_separate_from_masked_description(self):
         pdf = synthetic_pdf(
-            "city_bank", city_first_description="CT-FT-***1234-***99995678"
+            "city_bank", city_first_description="CT-FT-123456789012-12345675678"
         )
         preview = extract_statement(pdf)
         first = preview["rows"][0]
-        self.assertEqual(first["citytouch_printed_code"], "***99995678")
-        self.assertNotIn("99995678", first["description"])
+        self.assertEqual(first["citytouch_printed_code"], "12345675678")
+        self.assertNotIn("12345675678", first["description"])
         preview["account_identity"] = "verify"
         imported, _ = save_import(
             user=self.user, account=self.account, digest=file_digest(pdf), preview=preview
         )
         saved = imported.rows.get(position=1, component="principal")
-        self.assertEqual(saved.source_code, "***99995678")
+        self.assertEqual(saved.source_code, "12345675678")
         self.assertNotIn("citytouch_printed_code", saved.extracted)
         with connection.cursor() as cursor:
             cursor.execute(
@@ -160,5 +161,5 @@ class CitytouchRefreshTests(TestCase):
                 [saved.id.hex],
             )
             ciphertext, extracted = cursor.fetchone()
-            self.assertNotIn("99995678", ciphertext)
-            self.assertNotIn("99995678", str(extracted))
+            self.assertNotIn("12345675678", ciphertext)
+            self.assertNotIn("12345675678", str(extracted))

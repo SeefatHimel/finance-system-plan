@@ -335,8 +335,9 @@ generic learned-description mapper must not collapse different `CT-FT` codes.
 Source evidence and confirmed ledger entries remain unchanged when mappings
 are edited or forgotten.
 
-The parser now captures the entire **printed** second component before masking
-long identifiers in the general description. It stores that separate clue
+The parser now captures the entire **printed** second component, whether the
+PDF shows full or masked digits, before masking long identifiers in the general
+description. It stores that separate clue
 encrypted. For older City Bank imports whose original PDFs are archived, the
 temporary `refresh_citytouch_codes` maintenance command supports dry-run and
 digest-confirmed apply. It upgrades only codes with extra visible digits that
