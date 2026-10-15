@@ -46,6 +46,7 @@ export type SmsInboxSender = {
 export type NativeSmsScanOptions = {
   fromTimestamp?: number;
   includeProcessed?: boolean;
+  restoreRedacted?: boolean;
   limit?: number;
   toTimestamp?: number;
 };

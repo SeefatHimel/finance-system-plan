@@ -147,6 +147,7 @@ type QueuedRawMessage = {
   nextRetryAt: string;
   receivedAt: string;
   reprocessExisting: boolean;
+  restoreRedacted: boolean;
   sender: string;
 };
 type QueuedManualTransaction = {
@@ -657,6 +658,7 @@ function normalizeRawQueue(storedQueue: string | null): QueuedRawMessage[] {
         nextRetryAt: stringValue(item.nextRetryAt),
         receivedAt: stringValue(item.receivedAt),
         reprocessExisting: item.reprocessExisting === true,
+        restoreRedacted: item.restoreRedacted === true,
         sender: stringValue(item.sender)
       };
 
@@ -866,7 +868,7 @@ function FinanceApp() {
     created_at: "",
     excluded_message_kinds: ["otp_or_security", "promotional"],
     excluded_providers: [],
-    raw_sms_retention_days: 30,
+    raw_sms_retention_days: null,
     updated_at: ""
   });
   const [updatingCaptureKey, setUpdatingCaptureKey] = useState("");
@@ -895,6 +897,7 @@ function FinanceApp() {
   const [smsScanFrom, setSmsScanFrom] = useState(daysAgo(30));
   const [smsScanTo, setSmsScanTo] = useState(today());
   const [smsReprocessExisting, setSmsReprocessExisting] = useState(false);
+  const [smsRestoreRedacted, setSmsRestoreRedacted] = useState(false);
   const [smsDevResetArmed, setSmsDevResetArmed] = useState(false);
   const [smsDevResetState, setSmsDevResetState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [smsDevResetMessage, setSmsDevResetMessage] = useState("");
@@ -1851,6 +1854,7 @@ function FinanceApp() {
           nextRetryAt: "",
           receivedAt: queuedInput.receivedAt,
           reprocessExisting: false,
+          restoreRedacted: false,
           sender: queuedInput.sender
         });
       });
@@ -1930,9 +1934,11 @@ function FinanceApp() {
           : "Scanning messages that have not been imported before…"
       );
       const reprocessExisting = smsScanMode === "history" && smsReprocessExisting;
+      const restoreRedacted = reprocessExisting && smsRestoreRedacted;
       const scanResult = await scanHistoricalSmsMessages({
         fromTimestamp,
         includeProcessed: reprocessExisting,
+        restoreRedacted,
         limit: 500,
         toTimestamp
       });
@@ -1971,7 +1977,8 @@ function FinanceApp() {
           if (reprocessExisting && queuedIndex !== undefined) {
             queuedMessages[queuedIndex] = {
               ...queuedMessages[queuedIndex],
-              reprocessExisting: true
+              reprocessExisting: true,
+              restoreRedacted: restoreRedacted || queuedMessages[queuedIndex].restoreRedacted
             };
           }
           localDuplicateCount += 1;
@@ -1990,6 +1997,7 @@ function FinanceApp() {
           nextRetryAt: "",
           receivedAt: queuedInput.receivedAt,
           reprocessExisting,
+          restoreRedacted,
           sender: queuedInput.sender
         });
       });
@@ -2020,6 +2028,7 @@ function FinanceApp() {
             device_message_id: attemptedMessage.deviceMessageId,
             received_at: attemptedMessage.receivedAt,
             reprocess_existing: attemptedMessage.reprocessExisting,
+            restore_redacted: attemptedMessage.restoreRedacted,
             sender: attemptedMessage.sender
           });
           syncedCount += 1;
@@ -2291,6 +2300,7 @@ function FinanceApp() {
       nextRetryAt: "",
       receivedAt: queuedInput.receivedAt,
       reprocessExisting: false,
+      restoreRedacted: false,
       sender: queuedInput.sender
     };
 
@@ -2353,6 +2363,7 @@ function FinanceApp() {
           device_message_id: attemptedMessage.deviceMessageId,
           received_at: attemptedMessage.receivedAt,
           reprocess_existing: attemptedMessage.reprocessExisting,
+          restore_redacted: attemptedMessage.restoreRedacted,
           sender: attemptedMessage.sender
         });
         syncedCount += 1;
@@ -2448,7 +2459,7 @@ function FinanceApp() {
     setNewSenderCategoryId("");
     setSmsCapturePreference({
       created_at: "", excluded_message_kinds: ["otp_or_security", "promotional"],
-      excluded_providers: [], raw_sms_retention_days: 30, updated_at: ""
+      excluded_providers: [], raw_sms_retention_days: null, updated_at: ""
     });
     setReconciliation(null);
     setReconciliationAccountId("");
@@ -5311,6 +5322,7 @@ function FinanceApp() {
               onPress={() => {
                 setSmsScanMode("new");
                 setSmsReprocessExisting(false);
+                setSmsRestoreRedacted(false);
               }}
               style={[styles.mobileSegment, smsScanMode === "new" ? styles.mobileSegmentActive : null]}
             >
@@ -5375,17 +5387,34 @@ function FinanceApp() {
               <Pressable
                 accessibilityRole="switch"
                 accessibilityState={{ checked: smsReprocessExisting }}
-                onPress={() => setSmsReprocessExisting((current) => !current)}
+                onPress={() => {
+                  setSmsReprocessExisting((current) => !current);
+                  setSmsRestoreRedacted(false);
+                }}
                 style={({ pressed }) => [styles.mobileOptionRow, pressed ? styles.mobilePressed : null]}
               >
                 <View style={styles.mobileRowBody}>
                   <Text style={styles.mobileRowTitle}>Refresh previous imports</Text>
-                  <Text style={styles.mobileRowMeta}>Re-run pending items through the latest parser without changing confirmed transactions.</Text>
+                  <Text style={styles.mobileRowMeta}>Re-run pending items and restore original text for matching transaction SMS. Confirmed transactions stay unchanged.</Text>
                 </View>
                 <View style={[styles.mobileToggle, smsReprocessExisting ? styles.mobileToggleActive : null]}>
                   <View style={[styles.mobileToggleKnob, smsReprocessExisting ? styles.mobileToggleKnobActive : null]} />
                 </View>
               </Pressable>
+              {smsReprocessExisting ? <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: smsRestoreRedacted }}
+                onPress={() => setSmsRestoreRedacted((current) => !current)}
+                style={({ pressed }) => [styles.mobileOptionRow, pressed ? styles.mobilePressed : null]}
+              >
+                <View style={styles.mobileRowBody}>
+                  <Text style={styles.mobileRowTitle}>Restore text I previously removed</Text>
+                  <Text style={styles.mobileRowMeta}>This explicitly restores matching transaction SMS even if you manually redacted them. Leave off to respect past redactions.</Text>
+                </View>
+                <View style={[styles.mobileToggle, smsRestoreRedacted ? styles.mobileToggleActive : null]}>
+                  <View style={[styles.mobileToggleKnob, smsRestoreRedacted ? styles.mobileToggleKnobActive : null]} />
+                </View>
+              </Pressable> : null}
             </View>
           ) : (
             <Text style={styles.mobileStateText}>Fast scan. Previously processed messages stay skipped.</Text>

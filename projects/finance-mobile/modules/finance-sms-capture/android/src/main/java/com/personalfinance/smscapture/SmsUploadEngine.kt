@@ -70,7 +70,8 @@ internal class SmsUploadEngine(
   private fun upload(session: SmsSession, message: Map<String, String>): SmsHttpResponse {
     val body = JSONObject().put("sender", message.getValue("sender")).put("body", message.getValue("body"))
       .put("received_at", message.getValue("receivedAt")).put("device_message_id", message.getValue("deviceMessageId"))
-      .put("reprocess_existing", message.getValue("reprocessExisting").toBoolean()).toString()
+      .put("reprocess_existing", message.getValue("reprocessExisting").toBoolean())
+      .put("restore_redacted", message["restoreRedacted"]?.toBoolean() ?: false).toString()
     return transport.post("${session.apiBaseUrl}/api/messages/import/", body, session.accessToken)
   }
 }

@@ -63,7 +63,8 @@ object FinanceSmsStore {
     sender: String,
     body: String,
     receivedAtMillis: Long,
-    includeProcessed: Boolean = false
+    includeProcessed: Boolean = false,
+    restoreRedacted: Boolean = false
   ): AppendStatus {
     if (sender.isBlank() || body.isBlank() || !matchesEnabledRule(context, sender)) {
       return AppendStatus.UNTRACKED
@@ -83,6 +84,7 @@ object FinanceSmsStore {
       if (current.optString("id") == stableId) {
         if (includeProcessed) {
           current.put("reprocessExisting", true)
+          if (restoreRedacted) current.put("restoreRedacted", true)
           current.remove("rejected")
           writeEncryptedPreference(context, KEY_MESSAGES, messages.toString())
         }
@@ -98,6 +100,7 @@ object FinanceSmsStore {
         .put("body", body)
         .put("receivedAt", receivedAt)
         .put("reprocessExisting", includeProcessed)
+        .put("restoreRedacted", restoreRedacted)
     )
     writeEncryptedPreference(context, KEY_MESSAGES, messages.toString())
     rememberProcessedId(context, stableId)
@@ -109,7 +112,8 @@ object FinanceSmsStore {
     limit: Int,
     fromTimestamp: Long?,
     toTimestamp: Long?,
-    includeProcessed: Boolean
+    includeProcessed: Boolean,
+    restoreRedacted: Boolean = false
   ): Map<String, Int> {
     val boundedLimit = limit.coerceIn(1, 1000)
     val projection = arrayOf(
@@ -152,7 +156,7 @@ object FinanceSmsStore {
         val sentAtMillis = cursor.getLong(dateSentIndex)
         val receivedAtMillis = if (sentAtMillis > 0L) sentAtMillis else cursor.getLong(dateIndex)
 
-        when (appendIfTracked(context, sender, body, receivedAtMillis, includeProcessed)) {
+        when (appendIfTracked(context, sender, body, receivedAtMillis, includeProcessed, restoreRedacted)) {
           AppendStatus.CAPTURED -> capturedCount += 1
           AppendStatus.DUPLICATE -> duplicateCount += 1
           AppendStatus.UNTRACKED -> Unit
@@ -231,7 +235,8 @@ object FinanceSmsStore {
           "body" to item.optString("body"),
           "receivedAt" to item.optString("receivedAt"),
           "deviceMessageId" to item.optString("deviceMessageId", "native:${item.optString("id")}"),
-          "reprocessExisting" to item.optBoolean("reprocessExisting").toString()
+          "reprocessExisting" to item.optBoolean("reprocessExisting").toString(),
+          "restoreRedacted" to item.optBoolean("restoreRedacted").toString()
         )
       )
     }
@@ -267,7 +272,8 @@ object FinanceSmsStore {
     for (index in 0 until messages.length()) {
       val item = messages.getJSONObject(index)
       val sameRequest = item.optString("id") == uploaded.getValue("id") &&
-        item.optBoolean("reprocessExisting").toString() == uploaded.getValue("reprocessExisting")
+        item.optBoolean("reprocessExisting").toString() == uploaded.getValue("reprocessExisting") &&
+        item.optBoolean("restoreRedacted").toString() == uploaded["restoreRedacted"].orEmpty().toBoolean().toString()
       if (!sameRequest) remaining.put(item)
     }
     // Persist each acknowledgment so interrupted work resumes from the remaining messages.

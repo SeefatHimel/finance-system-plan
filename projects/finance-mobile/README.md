@@ -1,5 +1,18 @@
 # finance-mobile
 
+## Recovering older transaction SMS originals
+
+After the API migration, transaction-related SMS uses **Keep** retention by
+default, including existing capture preferences. OTP/security and promotional
+messages remain excluded. For an already redacted transaction SMS, choose a
+history date range that includes it and enable **Refresh previous imports**.
+Retention-policy redactions can be restored during that refresh; for a manual
+redaction or an older redaction with unknown cause, also enable **Restore text I
+previously removed**. The API restores original text only when the sender,
+timestamp, and body hash match its saved record and retention is Keep. Confirmed
+ledger entries are not duplicated. The phone
+must still contain the SMS; otherwise the original text cannot be recovered.
+
 Legacy manual-entry queue and account, category, and transaction caches now
 use local keys scoped to the API URL and authenticated user ID. The app clears
 in-memory account data on logout or account switch. Earlier shared AsyncStorage

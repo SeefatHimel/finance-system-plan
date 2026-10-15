@@ -132,6 +132,7 @@ export type RawMessageImportInput = {
   device_message_id?: string;
   received_at: string;
   reprocess_existing?: boolean;
+  restore_redacted?: boolean;
   sender: string;
 };
 
@@ -139,6 +140,7 @@ export type RawMessageImportResult = {
   candidate?: ParsedMessageCandidate | null;
   is_duplicate: boolean;
   was_reprocessed: boolean;
+  was_restored?: boolean;
   message: {
     exclusion_reason: string;
     id: string;
@@ -940,6 +942,7 @@ export async function importRawMessage(
       device_message_id: input.device_message_id || "",
       received_at: input.received_at,
       reprocess_existing: input.reprocess_existing || false,
+      restore_redacted: input.restore_redacted || false,
       sender: input.sender
     }),
     headers: {

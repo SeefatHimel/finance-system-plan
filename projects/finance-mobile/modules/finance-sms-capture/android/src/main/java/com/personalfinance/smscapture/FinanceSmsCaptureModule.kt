@@ -94,12 +94,14 @@ class FinanceSmsCaptureModule : Module() {
       val fromTimestamp = (options?.get("fromTimestamp") as? Number)?.toLong()
       val toTimestamp = (options?.get("toTimestamp") as? Number)?.toLong()
       val includeProcessed = options?.get("includeProcessed") as? Boolean ?: false
+      val restoreRedacted = options?.get("restoreRedacted") as? Boolean ?: false
       FinanceSmsStore.scanHistoricalMessages(
         requireContext(),
         limit,
         fromTimestamp,
         toTimestamp,
-        includeProcessed
+        includeProcessed,
+        restoreRedacted
       )
     }.runOnQueue(ioQueue)
 

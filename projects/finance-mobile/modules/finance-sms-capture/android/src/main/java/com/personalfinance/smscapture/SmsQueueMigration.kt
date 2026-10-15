@@ -21,6 +21,7 @@ internal fun mergeSmsQueues(captured: JSONArray, legacy: JSONArray): JSONArray {
     if (existing != null) {
       if (item.optBoolean("reprocessExisting")) {
         existing.put("reprocessExisting", true)
+        if (item.optBoolean("restoreRedacted")) existing.put("restoreRedacted", true)
         existing.remove("rejected")
       }
       continue
@@ -32,6 +33,7 @@ internal fun mergeSmsQueues(captured: JSONArray, legacy: JSONArray): JSONArray {
       .put("receivedAt", item.getString("receivedAt"))
       .put("deviceMessageId", deviceId)
       .put("reprocessExisting", item.optBoolean("reprocessExisting"))
+      .put("restoreRedacted", item.optBoolean("restoreRedacted"))
     result.put(migrated)
     positions[id] = migrated
   }

@@ -1,5 +1,15 @@
 # Mobile App Q&A
 
+### Can a history rescan restore older redacted transaction SMS?
+
+Yes, if the SMS is still on the phone. Select its date range and enable
+**Refresh previous imports**. Also choose **Restore text I previously removed**
+for manual or older redactions; policy-redacted messages restore without that
+second choice. The API checks the original hash and restores only
+transaction-related text with a Keep retention preference; confirmed entries
+are not added again. The migration switches existing finite retention choices
+to Keep, while OTP/security and promotional exclusions remain.
+
 ## What is the mobile app responsible for?
 
 The mobile app's primary responsibility is automatic Android SMS capture,
