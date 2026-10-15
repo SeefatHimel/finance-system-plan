@@ -1168,6 +1168,11 @@ and the balance choice stays visible in Finish review. Less-used balance editing
 value date, reference, amount evidence and note fields sit in More transaction
 details. Original PDF/SMS values and match reasons remain available in separate
 disclosures, and collapsing them does not discard edits or bypass any checks.
+A verified Citytouch mapping can prefill the merchant and a compatible active
+category. If the mapping suggests a different type, its category waits until the
+reviewer chooses that type. An existing saved compatible category takes precedence
+on initial load; reviewers can change the result, and switching types clears
+incompatible categories.
 Original extraction issues, failed statement checks, and saved draft discrepancies
 are shown alongside the required acknowledgment so users can inspect each reason.
 For a new entry, the reviewed result's classification/date/time form the ledger movement. When

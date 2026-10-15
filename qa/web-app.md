@@ -980,6 +980,9 @@ waiving the existing confirmation checks. If a statement has
 no time, the aligned SMS received time is suggested with a visible source label;
 reviewers can clear it. A date mismatch leaves time empty, and moving the date
 away from the SMS date clears that suggestion.
+Verified code mappings prefill an active category only when it fits the current
+type. A mapping for another type waits for that type to be chosen. The saved
+category takes precedence on initial load, and reviewers can edit the result.
 Existing ledger suggestions must be selected and retain their existing balance.
 If none can be linked, the comparison explains the blocker and links directly to
 the statement workflow where the ledger suggestions can be resolved.

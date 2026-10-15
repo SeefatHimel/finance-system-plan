@@ -1,10 +1,11 @@
 "use client";
 
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
-import { categoryTypeProposal, directionForType, transactionTypes } from "@/lib/category-type";
+import { directionForType, transactionTypes } from "@/lib/category-type";
 import { localDate } from "@/lib/date-period";
 import { proposedPairTime, timeAfterPairDateChange } from "@/lib/unified-review-time";
 import { initialUnifiedMerchant } from "@/lib/unified-review-merchant";
+import { categoryAfterPairTypeChoice, compatiblePairCategory, initialPairCategory, mappedPairCategory } from "@/lib/unified-review-category";
 import type { Account, Category, StatementRowEdit, TransactionType, UnifiedPair } from "@/lib/api";
 
 export type PairTypeChoice = "" | "statement" | "sms" | "custom";
@@ -26,13 +27,12 @@ export function initialPairDraft(pair: UnifiedPair, categories: Category[]): Sta
   const { row, sms } = pair;
   const received = receivedParts(pair);
   const otherAccount = pair.sms_summary.direction === "credit" ? sms.account : sms.destination_account;
-  const activeCategory = (id: string | null) => categories.some(category => category.id === id && category.is_active) ? id : null;
   return {
     ...savedPairDraft(pair),
     date: row.date ?? received.date,
     time: proposedPairTime(row.date, row.time, received.date, received.time),
     other_account: row.other_account ?? (row.type === "transfer" && otherAccount !== pair.batch.account ? otherAccount : null),
-    category: activeCategory(row.category) ?? (row.type === sms.transaction_type ? activeCategory(sms.category) : null),
+    category: initialPairCategory(row, sms, categories),
     reference: row.reference || sms.reference,
     counterparty_text: initialUnifiedMerchant(row, sms.counterparty_text),
     note: row.note || sms.counterparty_text,
@@ -61,6 +61,13 @@ export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftCh
   const categoryName = (id: string | null) => categories.find(category => category.id === id && category.is_active)?.name ?? null;
   const smsOther = pair.sms_summary.direction === "credit" ? pair.sms.account : pair.sms.destination_account;
   const mappedMerchant = pair.row.review.suggestion?.counterparty_text;
+  const mappedCategory = mappedPairCategory(pair.row, draft.type, categories);
+  const smsCategoryOption = compatiblePairCategory(pair.sms.category, draft.type, categories);
+  const statementCategoryOption = compatiblePairCategory(pair.row.category, draft.type, categories);
+  const showSourceCategorySuggestions = pair.row.category !== pair.sms.category
+    && pair.row.type === pair.sms.transaction_type
+    && draft.type === pair.row.type
+    && Boolean(smsCategoryOption || statementCategoryOption);
   const hasMerchantAlternatives =
     Boolean(mappedMerchant && draft.counterparty_text !== mappedMerchant) ||
     Boolean(pair.sms.counterparty_text && draft.counterparty_text !== pair.sms.counterparty_text) ||
@@ -79,9 +86,7 @@ export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftCh
   }
 
   function applyType(type: TransactionType, choice: PairTypeChoice = "custom") {
-    const suggestedCategory = choice === "statement" ? pair.row.category : choice === "sms" ? pair.sms.category : draft.category;
-    const activeSuggestedCategory = categories.find(item => item.id === suggestedCategory && item.is_active);
-    const category = activeSuggestedCategory && !categoryTypeProposal(activeSuggestedCategory, type) ? activeSuggestedCategory.id : null;
+    const category = categoryAfterPairTypeChoice(pair.row, pair.sms, draft.category, type, choice || "custom", categories);
     onDraftChange({
       ...draft,
       type,
@@ -100,7 +105,24 @@ export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftCh
       <label className="field"><span className="field__label">Type</span><select className="field__control" value={draft.type} onChange={event => applyType(event.target.value as TransactionType)}>{transactionTypes.map(type => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
       <label className="field"><span className="field__label">Debit / credit for {pair.batch.account_name}</span><select className="field__control" value={draft.direction} onChange={event => setField("direction", event.target.value as "debit" | "credit")}><option value="debit">Debit</option><option value="credit">Credit</option></select></label>
       {draft.type === "transfer" ? <label className="field"><span className="field__label">Other owned account</span><select className="field__control" value={draft.other_account ?? ""} onChange={event => setField("other_account", event.target.value || null)}><option value="">Choose the other account</option>{accounts.filter(account => account.id !== pair.batch.account && account.is_active && account.currency === pair.batch.currency).map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label> : null}
-      <div className="field"><label className="field__label" htmlFor="unified-category">Category</label><select id="unified-category" className="field__control" value={draft.category ?? ""} onChange={event => categoryChoice.choose(event.target.value, draft.type, (id, type) => { if (type !== draft.type) { onDraftChange({ ...draft, category: id || null, type, direction: type === "transfer" || type === "adjustment" ? draft.direction : directionForType(type), other_account: type === "transfer" ? draft.other_account : null, classification_confirmed: true }); onTypeChoice(typeDiffers ? type === pair.row.type ? "statement" : type === pair.sms.transaction_type ? "sms" : "custom" : "custom"); } else setField("category", id || null); })}><option value="">Uncategorized</option>{categories.filter(category => category.is_active).map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select>{pair.row.category && !categoryName(pair.row.category) ? <small className="field__hint">The saved category is inactive. Choose an active category or leave this uncategorized.</small> : null}{pair.row.category !== pair.sms.category && pair.sms.category && pair.row.type === pair.sms.transaction_type ? <div className="unified-suggestions"><Suggestion label="SMS category" value={categoryName(pair.sms.category)} disabled={busy} onUse={() => setField("category", pair.sms.category)} /><Suggestion label="statement category" value={categoryName(pair.row.category)} disabled={busy} onUse={() => setField("category", pair.row.category)} /></div> : null}</div>
+      <div className="field">
+        <label className="field__label" htmlFor="unified-category">Category</label>
+        <select id="unified-category" className="field__control" value={draft.category ?? ""} onChange={event => categoryChoice.choose(event.target.value, draft.type, (id, type) => {
+          if (type !== draft.type) {
+            onDraftChange({ ...draft, category: id || null, type, direction: type === "transfer" || type === "adjustment" ? draft.direction : directionForType(type), other_account: type === "transfer" ? draft.other_account : null, classification_confirmed: true });
+            onTypeChoice(typeDiffers ? type === pair.row.type ? "statement" : type === pair.sms.transaction_type ? "sms" : "custom" : "custom");
+          } else setField("category", id || null);
+        })}>
+          <option value="">Uncategorized</option>
+          {categories.filter(category => category.is_active).map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+        </select>
+        {pair.row.category && !categoryName(pair.row.category) ? <small className="field__hint">The saved category is inactive. Choose an active category or leave this uncategorized.</small> : null}
+        {mappedCategory && draft.category === mappedCategory && !pair.row.category ? <small className="field__hint">Saved code mapping · edit if needed</small> : null}
+        {(mappedCategory && mappedCategory !== draft.category) || showSourceCategorySuggestions ? <div className="unified-suggestions">
+          {mappedCategory && mappedCategory !== draft.category ? <Suggestion label="saved mapping" value={categoryName(mappedCategory)} disabled={busy} onUse={() => setField("category", mappedCategory)} /> : null}
+          {showSourceCategorySuggestions ? <><Suggestion label="SMS category" value={categoryName(smsCategoryOption)} disabled={busy} onUse={() => setField("category", smsCategoryOption)} /><Suggestion label="statement category" value={categoryName(statementCategoryOption)} disabled={busy} onUse={() => setField("category", statementCategoryOption)} /></> : null}
+        </div> : null}
+      </div>
       <div className="field"><label className="field__label" htmlFor="unified-date">Date</label><input id="unified-date" className="field__control" type="date" value={draft.date ?? ""} onChange={event => setDate(event.target.value || null)} />{pair.row.date !== received.date ? <div className="unified-suggestions"><Suggestion label="statement" value={pair.row.date} disabled={busy} onUse={() => setDate(pair.row.date)} /><Suggestion label="SMS received date" value={received.date} disabled={busy} onUse={() => setDate(received.date)} /></div> : null}</div>
       <div className="field"><label className="field__label" htmlFor="unified-time">Time (if known)</label><input id="unified-time" className="field__control" type="time" step="1" value={draft.time ?? ""} onChange={event => setField("time", event.target.value || null)} /><div className="unified-suggestions"><Suggestion label="SMS received time" value={received.time} disabled={busy} onUse={() => setField("time", received.time)} />{pair.row.time && pair.row.time !== received.time ? <Suggestion label="statement" value={pair.row.time} disabled={busy} onUse={() => setField("time", pair.row.time)} /> : null}</div></div>
       <div className="field field--wide">

@@ -351,6 +351,9 @@ Statement review uses the separate retained code to display an enhanced
 Citytouch reference. It does not overwrite the masked historical extraction,
 user-edited draft details, or posted ledger entries.
 For a pending SMS + statement pair, a saved Citytouch code mapping prefills the
-result merchant when the statement merchant is still the raw bank reference.
+result merchant when the statement merchant is still the raw bank reference. Its
+category also prefills when active and compatible with the selected transaction
+type. A mapping for a different type waits until that type is chosen; a saved
+statement category takes precedence on initial load, and the result stays editable.
 The user can edit or choose the SMS/statement wording before confirmation;
 manually corrected merchants and the original source descriptions stay intact.
