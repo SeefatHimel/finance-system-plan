@@ -6,7 +6,7 @@ const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const output = mkdtempSync(join(tmpdir(), 'finance-statement-review-'));
 execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/statement-review.ts'], { cwd: resolve(__dirname, '..') });
-const { statementLinkBlockReason, statementBalanceDifference, insignificantBdtBalanceDifference, reportedBalanceNeedsAcknowledgment } = require(join(output, 'statement-review.js'));
+const { statementLinkBlockReason, statementBalanceDifference, insignificantBdtBalanceDifference, reportedBalanceNeedsAcknowledgment, suggestedBalanceSource } = require(join(output, 'statement-review.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
 const ready = { dirty: false, canLink: true, requiresAcknowledgement: false, issuesAcknowledged: false, conflict: false, balanceChosen: false };
 
@@ -41,4 +41,17 @@ test('only nonzero BDT differences below one taka skip extra conflict acknowledg
   assert.equal(reportedBalanceNeedsAcknowledgment('99.00', '100.00', 'BDT'), true);
   assert.equal(reportedBalanceNeedsAcknowledgment('100', '100.00', 'BDT'), false);
   assert.equal(reportedBalanceNeedsAcknowledgment('99.99', '100.00', 'USD'), true);
+});
+
+test('combined review suggests the higher eligible report without rounding', () => {
+  assert.equal(suggestedBalanceSource('714041.33', '714041.00'), 'statement');
+  assert.equal(suggestedBalanceSource('99.99', '100.00'), 'sms');
+  assert.equal(suggestedBalanceSource('-1.00', '-0.50'), 'sms');
+  assert.equal(suggestedBalanceSource('999999999999.99', '999999999999.98'), 'statement');
+  assert.equal(suggestedBalanceSource('100', '100.00'), 'sms');
+  assert.equal(suggestedBalanceSource(null, '0.00'), 'sms');
+  assert.equal(suggestedBalanceSource('0.00', null), 'statement');
+  assert.equal(suggestedBalanceSource(null, null), 'statement');
+  assert.equal(suggestedBalanceSource('110.00', '100.00', true), 'sms');
+  assert.equal(suggestedBalanceSource('110.00', null, true), '');
 });

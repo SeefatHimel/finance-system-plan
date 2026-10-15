@@ -1171,7 +1171,11 @@ disclosures, and collapsing them does not discard edits or bypass any checks.
 Original extraction issues, failed statement checks, and saved draft discrepancies
 are shown alongside the required acknowledgment so users can inspect each reason.
 For a new entry, the reviewed result's classification/date/time form the ledger movement. When
-reported balances differ, neither source is preselected: the user must choose one.
+both sources report a balance, the higher amount is selected initially; the user
+can change it. A BDT difference below Tk 1 still needs no extra balance
+acknowledgment, while larger differences do. If the statement has a separate fee,
+the SMS balance is selected because the statement balance cannot be used for the
+combined entry; if SMS reports no balance, review the fee separately.
 Both original reported balances remain in their source records; an unavailable
 balance is disabled when the other source reports one. Transfer account reports
 use the reviewed choice. If ledger

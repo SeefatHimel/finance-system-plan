@@ -22,6 +22,15 @@ function cents(value: string | null): bigint | null {
   return value.startsWith("-") ? -amount : amount;
 }
 
+// A suggestion only: the reviewer can still choose either eligible source.
+export function suggestedBalanceSource(statement: string | null, sms: string | null, statementIncludesSeparateFee = false): "statement" | "sms" | "" {
+  const statementCents = cents(statement), smsCents = cents(sms);
+  if (statementIncludesSeparateFee) return smsCents === null && statementCents !== null ? "" : "sms";
+  if (statementCents === null) return smsCents === null ? "statement" : "sms";
+  if (smsCents === null) return "statement";
+  return statementCents > smsCents ? "statement" : "sms";
+}
+
 export function insignificantBdtBalanceDifference(first: string | null, second: string | null, currency: string): boolean {
   if (currency !== "BDT") return false;
   const left = cents(first), right = cents(second);
