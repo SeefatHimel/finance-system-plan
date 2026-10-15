@@ -1626,7 +1626,7 @@ export async function getStatementSummary(token: string, id: string, signal?: Ab
 }
 
 const statementCounterpartyCodeSchema = z.object({
-  account: z.string(), account_name: z.string(), code: z.string(), direction: z.enum(["debit", "credit"]),
+  account: z.string(), account_name: z.string(), code: z.string(), printed_code: z.string().nullable(), direction: z.enum(["debit", "credit"]),
   count: z.number(), pending_count: z.number(), last_seen: z.string().nullable(),
   examples: z.array(z.object({ date: z.string().nullable(), amount: z.string().nullable(), description: z.string() })),
   mapping: z.object({ id: z.string(), party_kind: z.enum(["owned", "external"]), label: z.string(), other_account: z.string().nullable(), suggested_type: z.string(), category: z.string().nullable(), updated_at: z.string() }).nullable()

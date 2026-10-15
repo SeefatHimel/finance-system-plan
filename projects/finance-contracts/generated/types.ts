@@ -1375,6 +1375,7 @@ export interface ObservedStatementCode {
   account: string;
   account_name: string;
   code: string;
+  printed_code: string | null;
   direction: "debit" | "credit";
   count: number;
   pending_count: number;

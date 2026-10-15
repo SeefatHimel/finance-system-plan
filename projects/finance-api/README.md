@@ -620,7 +620,9 @@ direction. Existing four-digit mappings remain valid; longer visible codes
 with the same last four digits stay distinct. Masked digits cannot be recovered,
 so a four-digit suffix can still identify more than one party.
 This code is a clue, not proof that it is an account number. The directory
-shows recent masked examples and permits either an external party label or a
+shows the complete second segment as printed (for example `***5678`), while
+matching by its visible digits. The stars do not reveal the hidden account
+number. It also shows recent masked examples and permits an external party label or a
 different owned account, plus an optional compatible type/category suggestion.
 Fund transfer wording does not force an internal ledger transfer: a payment can
 remain an expense, or an incoming movement can be income. Citytouch rows require

@@ -648,7 +648,9 @@ visible digits (four to 24) of recurring second codes from saved City Bank
 `CT-FT` rows. Existing four-digit codes remain valid. A longer visible code is
 kept distinct even when its last four digits match another code. Masked digits
 cannot be recovered, so an otherwise identical four-digit suffix remains
-ambiguous. The
+ambiguous. GET also returns `printed_code`, the complete masked second segment
+from a saved row (or null when none remains), for display without changing the
+matching key. The
 variable first segment is not party identity. Mappings are scoped to the
 reporting account and debit/credit direction, and may name an external party
 or link a different owned account. Optional type/category choices are

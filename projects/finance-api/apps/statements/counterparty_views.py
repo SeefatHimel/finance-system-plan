@@ -132,6 +132,7 @@ class ObservedCodeSerializer(serializers.Serializer):
     account = serializers.UUIDField()
     account_name = serializers.CharField()
     code = serializers.CharField()
+    printed_code = serializers.CharField(allow_null=True)
     direction = serializers.CharField()
     count = serializers.IntegerField()
     pending_count = serializers.IntegerField()
@@ -187,6 +188,7 @@ class StatementCounterpartyCodeView(APIView):
                     "account": str(account_id),
                     "account_name": stats.get("account_name") or mapping.account.name,
                     "code": code,
+                    "printed_code": stats.get("printed_code"),
                     "direction": direction,
                     "count": stats.get("count", 0),
                     "pending_count": stats.get("pending_count", 0),

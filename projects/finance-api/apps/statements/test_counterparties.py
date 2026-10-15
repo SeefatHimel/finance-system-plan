@@ -10,7 +10,7 @@ from apps.accounts.models import Account
 from apps.categories.models import Category
 from apps.transactions.models import Transaction
 
-from .counterparties import citytouch_code
+from .counterparties import citytouch_code, citytouch_printed_code
 from .insights import pattern, suggestions
 from .models import StatementImport, StatementRow
 from .services import transfer_hint
@@ -83,6 +83,9 @@ class CitytouchCounterpartyTests(APITestCase):
         }
 
     def test_only_second_code_recurs_and_generic_learning_is_disabled(self):
+        self.assertEqual(
+            citytouch_printed_code("CT-FT-***1234-**5678"), "**5678"
+        )
         first = self.row(1, "1234", "5678")
         second = self.row(2, "9876", "5678")
         unrelated = self.row(3, "5678", "2222")
@@ -97,6 +100,7 @@ class CitytouchCounterpartyTests(APITestCase):
         self.assertEqual(response.data["count"], 2)
         code = next(row for row in response.data["results"] if row["code"] == "5678")
         self.assertEqual(code["count"], 2)
+        self.assertEqual(code["printed_code"], "***5678")
         self.assertEqual(code["pending_count"], 2)
         self.assertEqual(code["examples"][0]["amount"], "100.00")
         self.assertIsNone(code["mapping"])
@@ -111,6 +115,10 @@ class CitytouchCounterpartyTests(APITestCase):
         self.assertEqual(
             {entry["code"] for entry in response.data["results"]},
             {"12345678", "99995678"},
+        )
+        self.assertEqual(
+            {entry["printed_code"] for entry in response.data["results"]},
+            {"***12345678", "***99995678"},
         )
         save = self.client.post(
             reverse("statement-counterparty-codes"),

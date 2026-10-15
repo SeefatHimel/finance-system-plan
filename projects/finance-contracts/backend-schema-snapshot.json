@@ -5857,6 +5857,10 @@
         },
         "pending_count": {
           "type": "integer"
+        },
+        "printed_code": {
+          "nullable": true,
+          "type": "string"
         }
       },
       "required": [
@@ -5868,7 +5872,8 @@
         "examples",
         "last_seen",
         "mapping",
-        "pending_count"
+        "pending_count",
+        "printed_code"
       ],
       "type": "object"
     },

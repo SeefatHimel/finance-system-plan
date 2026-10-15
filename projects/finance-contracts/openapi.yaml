@@ -6486,11 +6486,12 @@ components:
         description: {type: string, description: Masked source description.}
     ObservedStatementCode:
       type: object
-      required: [account, account_name, code, direction, count, pending_count, last_seen, examples, mapping]
+      required: [account, account_name, code, printed_code, direction, count, pending_count, last_seen, examples, mapping]
       properties:
         account: {type: string, format: uuid}
         account_name: {type: string}
         code: {type: string}
+        printed_code: {type: string, nullable: true, description: Complete masked second segment exactly as printed in a saved statement row.}
         direction: {type: string, enum: [debit, credit]}
         count: {type: integer, minimum: 0}
         pending_count: {type: integer, minimum: 0}

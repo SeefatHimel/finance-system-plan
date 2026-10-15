@@ -1020,3 +1020,11 @@ Debit and credit mappings are separate. Optional type/category choices become
 editable suggestions in pending statement review; applying a suggestion still
 requires saving the draft and confirming the movement. Editing or forgetting a
 mapping does not alter confirmed transactions.
+# Citytouch counterparty display
+
+The statement code directory shows the complete masked second segment from a
+saved City Bank row, such as `***5678`, alongside its reporting account. The
+underlying mapping uses every visible digit of that segment. Stars are masking
+placeholders, so a four-digit suffix may still be shared by different parties;
+the directory says when the full number is unavailable and keeps suggestions
+review-only.

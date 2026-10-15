@@ -592,7 +592,8 @@ corroboration; amount/date alone does not create a pair.
 
 Authenticated `GET /api/statements/counterparty-codes/` returns all visible
 digits (four to 24) of the second Citytouch code by statement account and
-debit/credit direction, with
+debit/credit direction, with `printed_code` showing the complete masked second
+segment as printed in an observed row (or null if no row remains), plus
 counts, recent masked examples and an optional saved mapping. `POST` upserts a
 mapping for a code observed in that user's saved City Bank statements;
 `DELETE /{id}/` forgets it. The mapping may hold an external label or a

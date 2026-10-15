@@ -10,12 +10,18 @@ from .models import StatementCounterpartyCode, StatementRow
 # account and direction. Retain every visible digit in that group: two codes
 # can share their last four digits. Masked digits cannot be recovered.
 CITYTOUCH_REFERENCE = re.compile(
-    r"(?<![A-Z0-9])CT[-\s]*FT[-\s]*\*{2,}\d{3,24}[-\s]*\*{2,}(\d{4,24})(?![A-Z0-9])",
+    r"(?<![A-Z0-9])CT[-\s]*FT[-\s]*\*{2,}\d{3,24}[-\s]*(\*{2,}(\d{4,24}))(?![A-Z0-9])",
     re.IGNORECASE,
 )
 
 
 def citytouch_code(description):
+    match = CITYTOUCH_REFERENCE.search(description or "")
+    return match.group(2) if match else None
+
+
+def citytouch_printed_code(description):
+    """Return the complete masked second part exactly as printed in the row."""
     match = CITYTOUCH_REFERENCE.search(description or "")
     return match.group(1) if match else None
 
@@ -48,7 +54,13 @@ def observed_codes(user):
         .order_by("-date", "-position")
     )
     grouped = defaultdict(
-        lambda: {"count": 0, "pending_count": 0, "last_seen": None, "examples": []}
+        lambda: {
+            "count": 0,
+            "pending_count": 0,
+            "last_seen": None,
+            "printed_code": None,
+            "examples": [],
+        }
     )
     for row in rows.iterator():
         code = code_for_row(row)
@@ -57,6 +69,10 @@ def observed_codes(user):
         key = (row.batch.account_id, code, row.direction)
         item = grouped[key]
         item["account_name"] = row.batch.account.name
+        if item["printed_code"] is None:
+            item["printed_code"] = citytouch_printed_code(
+                row.extracted.get("description", "")
+            )
         item["count"] += 1
         item["pending_count"] += row.state == "pending" and row.transaction_id is None
         if len(item["examples"]) < 3:
