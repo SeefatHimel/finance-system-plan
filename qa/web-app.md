@@ -974,14 +974,18 @@ reference and note can be corrected in place before saving. Explicit confirmatio
 resolves both sources into one transaction; a new entry uses the reviewed
 classification/date/time and chosen balance. The combined dialog places the
 editable result and Finish review decisions side by side on desktop and stacks
-them on smaller screens. A compact source strip receives initial focus. Less-used
-fields and full source evidence open on demand without losing draft values or
-waiving the existing confirmation checks. Required acknowledgments, including
+them on smaller screens. A compact source strip receives initial focus. The note
+stays visible beside the main fields; less-used balance, reference, value date,
+and full source evidence open on demand without losing draft values or waiving
+the existing confirmation checks. Required acknowledgments, including
 the type and account-path check, share one Finish review checklist. Check required
 marks the applicable items after a differing type is chosen. The separate optional
 Remember setting is excluded, and edits reset confirmations. Balance choice stays
 independent. The source comparison can copy either description into the editable
-Final description / note; this resets acknowledgments and leaves originals intact.
+Final description / note, which stays visible below the merchant for routine
+edits; this resets acknowledgments and leaves originals intact.
+A readable current merchant also offers an optional note suggestion; selecting
+it updates the draft note while preserving the original sources.
 A separately retained full Citytouch code is not copied into the ledger note.
 The agreed amount is prominent above the type choice and remains read-only until
 a source is corrected. The optional bank-printed value date has a hint explaining
@@ -993,9 +997,12 @@ away from the SMS date clears that suggestion.
 Verified code mappings prefill an active category only when it fits the current
 type. A mapping for another type waits for that type to be chosen. The saved
 category takes precedence on initial load, and reviewers can edit the result.
-Existing ledger suggestions must be selected and retain their existing balance.
-If none can be linked, the comparison explains the blocker and links directly to
-the statement workflow where the ledger suggestions can be resolved.
+Combined review lists each ledger suggestion with its match reasons. A reviewer
+can link a compatible entry and retain its balance, or mark each suggestion as
+a different movement and explicitly confirm one new transaction for the SMS
+and statement. Unlinkable candidates remain visible with the reason linking is
+unavailable. No navigation to statement review is needed for a verified
+separate movement.
 Balance/source discrepancies need review; nothing posts automatically. Combined
 review initially selects the higher reported balance, but the reviewer may choose
 the other source. A sub-Tk-1 BDT difference needs no extra balance checkbox;

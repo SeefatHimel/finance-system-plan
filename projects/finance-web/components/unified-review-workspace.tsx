@@ -44,6 +44,9 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
   const [checksOpen, setChecksOpen] = useState(true);
   const [remember, setRemember] = useState(false);
   const [ledger, setLedger] = useState("");
+  const [separateLedgerMovement, setSeparateLedgerMovement] = useState(false);
+  const [dismissedLedgerMatches, setDismissedLedgerMatches] = useState<string[]>([]);
+  const [ackDistinctLedgerMatches, setAckDistinctLedgerMatches] = useState(false);
   const [ledgerCleared, setLedgerCleared] = useState(false);
   const [balance, setBalance] = useState<BalanceChoice>(() => suggestedBalanceSource(pair.row.balance_after, pair.sms.balance_after, Number(pair.row.extracted.signed_fee) !== 0));
   const [draft, setDraft] = useState(() => initialPairDraft(pair, categories));
@@ -56,14 +59,14 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
   function updateDraft(value: typeof draft) {
     if (value.balance_after !== draft.balance_after) setBalance(suggestedBalanceSource(value.balance_after, pair.sms.balance_after, statementIncludesSeparateFee));
     if (ledger) setLedgerCleared(true);
-    setDraft(value); setLedger(""); setAckMatch(false); setAckConflict(false); setAckIssues(false);
+    setDraft(value); setLedger(""); setSeparateLedgerMovement(false); setDismissedLedgerMatches([]); setAckDistinctLedgerMatches(false); setAckMatch(false); setAckConflict(false); setAckIssues(false);
   }
   const sourceIssues = [
     ...row.extracted.issues,
     ...pair.batch.checks.filter(check => check.passed === false).map(check => `${check.label}: expected ${check.expected ?? "unknown"}, observed ${check.observed ?? "unknown"}.`),
     ...(!row.transaction && ["posted", "linked"].includes(row.state) ? ["The previous ledger entry was deleted. Verify this source before recording it again."] : []),
   ];
-  const linkableLedgerMatches = row.review.matches.filter(match => match.can_link);
+  const ledgerSuggestionsReviewed = row.review.matches.every(match => dismissedLedgerMatches.includes(match.id));
   const ledgerMatch = row.review.matches.find(match => match.id === ledger);
   const smsLedgerDifference = statementBalanceDifference(pair.sms.balance_after, ledgerMatch?.effective_balance_after ?? null);
   const originalBalanceDifference = statementBalanceDifference(row.balance_after, pair.sms.balance_after);
@@ -95,8 +98,9 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
     ...(!ackMatch ? ["Confirm that the SMS and statement describe the same movement."] : []),
     ...(needsConflict && !ackConflict ? ["Review and acknowledge the reported-balance difference."] : []),
     ...(needsDraftReview && !ackIssues ? ["Review the edited result against the original sources."] : []),
-    ...(linkableLedgerMatches.length > 0 && !ledgerMatch?.can_link ? ["Choose a verified existing ledger transaction, or review the statement separately."] : []),
-    ...(row.review.matches.length > 0 && linkableLedgerMatches.length === 0 ? ["Resolve the unavailable ledger suggestions in statement review first."] : []),
+    ...(row.review.matches.length > 0 && !ledger && !separateLedgerMovement ? ["Choose an existing ledger movement or record this pair as a separate movement."] : []),
+    ...(separateLedgerMovement && !ledgerSuggestionsReviewed ? ["Mark each suggested ledger entry as a different movement."] : []),
+    ...(separateLedgerMovement && !ackDistinctLedgerMatches ? ["Confirm that the suggested ledger entries are different movements."] : []),
     ...(!draftChanged && !ledger && row.review.issues.length > 0 ? ["Correct the blocking statement issues before confirming."] : []),
     ...(row.review.matching_truncated ? ["Narrow the statement ledger search before confirming."] : []),
   ];
@@ -106,7 +110,7 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
     if (!typeDecisionReady) return;
     const checkedDraft = draft.classification_confirmed ? draft : { ...draft, classification_confirmed: true };
     const checkedDraftNeedsReview = row.review.requires_acknowledgement || JSON.stringify(checkedDraft) !== JSON.stringify(savedPairDraft(pair));
-    if (checkedDraft !== draft) updateDraft(checkedDraft);
+    if (checkedDraft !== draft) setDraft(checkedDraft);
     setAckMatch(true);
     if (needsConflict) setAckConflict(true);
     if (checkedDraftNeedsReview) setAckIssues(true);
@@ -122,6 +126,8 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
       await confirmUnifiedPair(token, {
         statement: row.id, sms: pair.sms.id, statement_version: row.version, sms_updated_at: pair.sms.updated_at,
         transaction: ledger || null, balance_source: balanceSource,
+        dismissed_ledger_matches: separateLedgerMovement ? dismissedLedgerMatches : [],
+        acknowledge_distinct_ledger_matches: separateLedgerMovement && ackDistinctLedgerMatches,
         type_choice: typeChoice || undefined, draft,
         acknowledge_match: ackMatch, acknowledge_conflict: ackConflict, acknowledge_issues: ackIssues, remember_choices: remember,
       });
@@ -162,7 +168,26 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
       </div>
       <section className="unified-pair-decisions" aria-label="Finish review">
       <h3>Finish review</h3>
-      {row.review.matches.length ? <section className="raw-message"><h3>Already in the ledger?</h3><p>{linkableLedgerMatches.length ? "Choose the matching ledger transaction to keep it and attach both sources." : "These ledger suggestions cannot currently accept another statement source. Resolve them in statement review before confirming this pair."}</p>{ledgerCleared ? <p role="status" className="inline-note">Your edit cleared the existing transaction choice. Verify the match and select it again before recording.</p> : null}<label className="field"><span className="field__label">Existing transaction</span><select className="field__control" disabled={busy || linkableLedgerMatches.length === 0} value={ledger} onChange={event => { setLedger(event.target.value); setLedgerCleared(false); setAckConflict(false); }}><option value="">{linkableLedgerMatches.length ? "Choose a verified ledger match" : "No linkable ledger matches"}</option>{row.review.matches.map(match => <option key={match.id} value={match.id} disabled={!match.can_link}>{match.date} · {match.amount} · {match.note || match.type}{!match.can_link ? " · unavailable" : ""}</option>)}</select></label>{ledgerMatch ? <p>Existing reported balance: {ledgerMatch.effective_balance_after ?? "Not reported"}. Linking keeps this ledger entry unchanged.</p> : null}<Link className="button button--ghost" href={`/statements?import=${pair.batch.id}&row=${row.id}`}>Review statement separately</Link></section> : <fieldset className="statement-balance-choice">
+      {row.review.matches.length ? <section className="unified-ledger-review" aria-labelledby="unified-ledger-title">
+        <h4 id="unified-ledger-title">Could this already be in the ledger?</h4>
+        <p className="inline-note">Similar entries need a decision. Compare their date, description and reported balance with both sources before recording.</p>
+        {ledgerCleared ? <p role="status" className="inline-note">Your edit cleared the ledger decision. Review these suggestions again.</p> : null}
+        <div className="unified-ledger-suggestions">
+          {row.review.matches.map(match => <article className="unified-ledger-suggestion" key={match.id}>
+            <div className="unified-ledger-suggestion__heading"><strong>{match.account_name} · {pair.batch.currency} {match.amount}</strong><span className={`status-badge ${match.can_link ? "status-badge--idle" : "status-badge--warning"}`}>{match.can_link ? "Can link" : "Cannot link"}</span></div>
+            <p>{match.date}{match.time ? ` · ${match.time}` : ""} · {match.type.replaceAll("_", " ")} · {match.source}</p>
+            <p>{match.note || match.reference || "No description"}{match.category_name ? ` · ${match.category_name}` : ""}</p>
+            <p className="inline-note">Reported balance: {match.effective_balance_after ?? "Not reported"}</p>
+            <details className="statement-match-reasons" open={!match.can_link}><summary>Why suggested{match.can_link ? "" : " and why linking is unavailable"}</summary><ul>{match.reasons.map((reason, index) => <li key={`${match.id}-${index}`}>{reason}</li>)}</ul></details>
+            {match.can_link ? <label className="unified-ledger-choice"><input type="radio" name="unified-ledger-decision" checked={ledger === match.id} disabled={busy} onChange={() => { setLedger(match.id); setSeparateLedgerMovement(false); setDismissedLedgerMatches([]); setAckDistinctLedgerMatches(false); setLedgerCleared(false); setAckConflict(false); }} /><span>This is the same movement · link both sources</span></label> : null}
+            {separateLedgerMovement ? <label className="unified-ledger-choice"><input type="checkbox" checked={dismissedLedgerMatches.includes(match.id)} disabled={busy} onChange={event => { setDismissedLedgerMatches(current => event.target.checked ? [...current, match.id] : current.filter(id => id !== match.id)); setAckDistinctLedgerMatches(false); }} /><span>This is a different movement</span></label> : null}
+          </article>)}
+        </div>
+        <label className="unified-ledger-choice unified-ledger-choice--separate"><input type="radio" name="unified-ledger-decision" checked={separateLedgerMovement} disabled={busy} onChange={() => { setLedger(""); setSeparateLedgerMovement(true); setDismissedLedgerMatches([]); setAckDistinctLedgerMatches(false); setAckConflict(false); }} /><span>Record SMS + statement as a separate transaction</span></label>
+        {separateLedgerMovement && ledgerSuggestionsReviewed ? <label className="review-remember"><input type="checkbox" checked={ackDistinctLedgerMatches} disabled={busy} onChange={event => setAckDistinctLedgerMatches(event.target.checked)} /><span>I verified that every ledger suggestion above is a different movement. Record this pair once as a new transaction.</span></label> : null}
+        <small className="field__hint">If one suggestion is the same movement but cannot be linked, review its statement evidence before recording another transaction.</small>
+      </section> : null}
+      {!ledger ? <fieldset className="statement-balance-choice">
         <legend>Balance to use in the ledger</legend>
         <div className="statement-balance-options">
           <label><input type="radio" name="unified-balance" value="sms" checked={balance === "sms"} disabled={busy || (pair.sms.balance_after === null && draft.balance_after !== null)} onChange={() => { setBalance("sms"); setAckConflict(false); }} /><span>SMS<strong>{pair.sms.balance_after ?? "Not reported"}</strong></span></label>
@@ -170,12 +195,12 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
         </div>
         <span className="field__hint">{balanceHint} Edit the statement draft in More transaction details. Both originals remain attached.</span>
         {statementIncludesSeparateFee && pair.sms.balance_after === null && draft.balance_after !== null ? <Link className="button button--ghost" href={`/statements?import=${pair.batch.id}&row=${row.id}`}>Review fee separately</Link> : null}
-      </fieldset>}
+      </fieldset> : null}
       {!draftChanged && row.review.issues.length ? <ul className="statement-error">{row.review.issues.map(issue => <li key={issue}>{issue}</li>)}</ul> : null}
       <section className="unified-pair-checklist" aria-labelledby="unified-checklist-title">
         <div className="unified-pair-checklist__header"><h4 id="unified-checklist-title">Required confirmations</h4><button className="button button--ghost button--small" type="button" disabled={busy || requiredChecksComplete || !typeDecisionReady} onClick={checkRequiredConfirmations}>{requiredChecksComplete ? "Checked" : "Check required"}</button></div>
         {!typeDecisionReady ? <small className="field__hint">Choose the final transaction type first.</small> : null}
-        <label className="review-remember"><input type="checkbox" disabled={busy} checked={draft.classification_confirmed} onChange={event => updateDraft({ ...draft, classification_confirmed: event.target.checked })} /><span>I reviewed the transaction type and account path.</span></label>
+        <label className="review-remember"><input type="checkbox" disabled={busy} checked={draft.classification_confirmed} onChange={event => setDraft({ ...draft, classification_confirmed: event.target.checked })} /><span>I reviewed the transaction type and account path.</span></label>
         {needsConflict ? <div className="statement-match-conflict"><strong>Review balance differences{originalBalanceNeedsReview && originalBalanceDifference !== null ? ` · original reports differ by ${pair.batch.currency} ${originalBalanceDifference}` : ""}</strong><p>Saved statement: {row.balance_after ?? "Not reported"} · SMS: {pair.sms.balance_after ?? "Not reported"}{draft.balance_after !== row.balance_after ? ` · edited statement draft: ${draft.balance_after ?? "Not reported"}` : ""}.</p>{smsLedgerDifference !== null && smsLedgerDifference !== "0.00" ? <p>SMS minus existing ledger balance: {pair.batch.currency} {smsLedgerDifference}.</p> : null}{ledgerMatch?.conflict ? <ul>{ledgerMatch.reasons.filter(reason => reason.includes("balance")).map(reason => <li key={reason}>{reason}</li>)}</ul> : null}<label className="review-remember"><input type="checkbox" disabled={busy} checked={ackConflict} onChange={event => setAckConflict(event.target.checked)} /><span>I reviewed the differing balances and my balance choice.</span></label></div> : null}
         {needsDraftReview ? <div className="unified-pair-checklist__item" aria-label="Source and draft discrepancies"><strong>Edited result and source checks</strong>{draftChanged ? <p className="inline-note">The server will recheck the match and statement draft together before recording anything.</p> : null}{sourceIssues.length || (!draftChanged && row.review.draft_issues.length) ? <details className="unified-check-details" open={checksOpen} onToggle={event => setChecksOpen(event.currentTarget.open)}><summary>Source checks ({sourceIssues.length + (draftChanged ? 0 : row.review.draft_issues.length)})</summary>{sourceIssues.length ? <><strong>Original statement checks</strong><ul>{sourceIssues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></> : null}{!draftChanged && row.review.draft_issues.length ? <><strong>Saved draft checks</strong><ul>{row.review.draft_issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></> : null}</details> : null}<label className="review-remember"><input type="checkbox" disabled={busy} checked={ackIssues} onChange={event => setAckIssues(event.target.checked)} /><span>I reviewed the edited result against both original sources.</span></label></div> : null}
         <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackMatch} onChange={event => setAckMatch(event.target.checked)} /><span>These sources describe the same money movement.</span></label>

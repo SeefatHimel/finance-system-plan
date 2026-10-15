@@ -4,7 +4,7 @@ import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
 import { localDate } from "@/lib/date-period";
 import { proposedPairTime, timeAfterPairDateChange } from "@/lib/unified-review-time";
-import { initialUnifiedMerchant } from "@/lib/unified-review-merchant";
+import { initialUnifiedMerchant, merchantNoteSuggestion } from "@/lib/unified-review-merchant";
 import { categoryAfterPairTypeChoice, compatiblePairCategory, initialPairCategory, mappedPairCategory } from "@/lib/unified-review-category";
 import type { Account, Category, StatementRowEdit, TransactionType, UnifiedPair } from "@/lib/api";
 
@@ -61,6 +61,7 @@ export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftCh
   const categoryName = (id: string | null) => categories.find(category => category.id === id && category.is_active)?.name ?? null;
   const smsOther = pair.sms_summary.direction === "credit" ? pair.sms.account : pair.sms.destination_account;
   const mappedMerchant = pair.row.review.suggestion?.counterparty_text;
+  const merchantNote = merchantNoteSuggestion(draft.counterparty_text, draft.note);
   const mappedCategory = mappedPairCategory(pair.row, draft.type, categories);
   const smsCategoryOption = compatiblePairCategory(pair.sms.category, draft.type, categories);
   const statementCategoryOption = compatiblePairCategory(pair.row.category, draft.type, categories);
@@ -136,14 +137,14 @@ export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftCh
           {pair.row.counterparty_text && pair.row.counterparty_text !== draft.counterparty_text ? <Suggestion label="statement text" value={pair.row.counterparty_text} disabled={busy} onUse={() => setField("counterparty_text", pair.row.counterparty_text)} /> : null}
         </div> : null}
       </div>
+      <div className="field field--wide"><label className="field__label" htmlFor="unified-note">Final description / note</label><textarea id="unified-note" className="field__control" maxLength={4000} rows={3} value={draft.note} onChange={event => setField("note", event.target.value)} />{merchantNote ? <div className="unified-suggestions"><Suggestion label="merchant as note" value={merchantNote} disabled={busy} onUse={() => setField("note", merchantNote)} /></div> : null}<small className="field__hint">Choose a suggestion, use a source description below, or write your own note.</small></div>
     </fieldset>
     {draft.type === "transfer" ? <p className="unified-path-preview">Money moves: {draft.direction === "credit" ? `${accountName(draft.other_account)} → ${pair.batch.account_name}` : `${pair.batch.account_name} → ${accountName(draft.other_account)}`}</p> : null}
-    <details className="unified-more-fields"><summary>More transaction details <span>Balance, reference, note, value date</span></summary>
+    <details className="unified-more-fields"><summary>More transaction details <span>Balance, reference, value date</span></summary>
       <fieldset className="statement-edit-fields" disabled={busy}><legend className="visually-hidden">Additional transaction fields</legend>
         <label className="field"><span className="field__label">Statement draft balance after</span><input className="field__control" type="number" step="0.01" value={draft.balance_after ?? ""} onChange={event => setField("balance_after", event.target.value || null)} /><small className="statement-choice-help">Original PDF balance stays in the source evidence.</small></label>
-        <label className="field"><span className="field__label">Value date (if printed)</span><input className="field__control" type="date" value={draft.value_date ?? ""} onChange={event => setField("value_date", event.target.value || null)} /><small className="field__hint">Bank's effective date. The transaction date above remains the ledger date.</small></label>
+        <label className="field"><span className="field__label">Value date (if printed)</span><input className="field__control" type="date" value={draft.value_date ?? ""} onChange={event => setField("value_date", event.target.value || null)} /><small className="field__hint">Bank&apos;s effective date. The transaction date above remains the ledger date.</small></label>
         <div className="field"><label className="field__label" htmlFor="unified-reference">Reference</label><input id="unified-reference" className="field__control" maxLength={120} value={draft.reference} onChange={event => setField("reference", event.target.value)} />{pair.sms.reference && pair.sms.reference !== pair.row.reference ? <div className="unified-suggestions"><Suggestion label="SMS" value={pair.sms.reference} disabled={busy} onUse={() => setField("reference", pair.sms.reference)} /></div> : null}</div>
-        <div className="field field--wide"><label className="field__label" htmlFor="unified-note">Final description / note</label><textarea id="unified-note" className="field__control" maxLength={4000} rows={2} value={draft.note} onChange={event => setField("note", event.target.value)} /><small className="field__hint">Choose a source description in Compare original sources, or edit it here.</small></div>
       </fieldset>
     </details>
     {categoryChoice.confirmation}

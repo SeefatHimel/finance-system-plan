@@ -3526,6 +3526,20 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .unified-pair-decisions .statement-balance-choice { margin: 0 0 14px; }
 .unified-pair-decisions .statement-balance-options { gap: 8px; }
 .unified-pair-decisions .statement-balance-options label { padding: 9px; }
+.unified-ledger-review { border: 1px solid var(--panel-border); border-radius: 10px; margin-bottom: 14px; padding: 12px; }
+.unified-ledger-review h4 { font-size: 14px; margin: 0 0 6px; }
+.unified-ledger-review > .inline-note { margin: 0 0 10px; }
+.unified-ledger-suggestions { display: grid; gap: 8px; margin: 10px 0; max-height: 34dvh; overflow-y: auto; overscroll-behavior: contain; }
+.unified-ledger-suggestion { background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; min-width: 0; padding: 10px; }
+.unified-ledger-suggestion__heading { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; }
+.unified-ledger-suggestion p { font-size: 13px; margin: 5px 0; overflow-wrap: anywhere; }
+.unified-ledger-suggestion .statement-match-reasons { margin: 8px 0; }
+.unified-ledger-suggestion .statement-match-reasons ul { margin: 6px 0; }
+.unified-ledger-choice { align-items: flex-start; border: 1px solid var(--panel-border); border-radius: 8px; cursor: pointer; display: flex; font-size: 13px; gap: 9px; margin-top: 9px; min-height: 42px; padding: 10px; }
+.unified-ledger-choice:has(input:checked) { border-color: var(--accent); }
+.unified-ledger-choice input { accent-color: var(--accent); flex: 0 0 auto; margin: 2px 0 0; }
+.unified-ledger-choice--separate { font-weight: 700; }
+.unified-ledger-review > .field__hint { display: block; margin-top: 10px; }
 .unified-pair-decisions > .raw-message, .unified-pair-decisions > .unified-pair-remember { margin-top: 10px; }
 .unified-pair-decisions .review-remember { padding: 10px; }
 .unified-pair-checklist { border: 1px solid var(--panel-border); border-radius: 10px; display: grid; gap: 8px; margin-top: 12px; padding: 12px; }

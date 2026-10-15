@@ -1166,14 +1166,17 @@ side on wide screens, then stacks them on smaller screens. Its compact source st
 highlights material differences; the type choice is made beside the final type,
 and the balance choice stays visible in Finish review. The agreed amount appears
 prominently above the type choice; to correct it, edit a source before combining.
-Less-used balance editing, value date, reference and note fields sit in More
-transaction details. Value date is the bank's printed effective date and can
+The final description / note stays visible below the merchant for routine edits.
+Less-used balance editing, value date and reference fields sit in More transaction
+details. Value date is the bank's printed effective date and can
 help matching; the final transaction Date remains the ledger date.
 Original PDF/SMS values and match reasons remain available in separate
 disclosures, and collapsing them does not discard edits or bypass any checks.
 The source comparison offers Use as final note beside each description. This
 copies the chosen saved statement wording or parsed SMS description into the
 editable Final description / note field; original source evidence stays intact.
+The current merchant also offers a one-click note suggestion when it is readable;
+it updates as the merchant changes and never replaces a typed note automatically.
 The statement shortcut uses its saved wording rather than copying a separately
 retained full Citytouch code into the ledger note.
 Finish review groups required acknowledgments, including the type and account-path
@@ -1196,19 +1199,22 @@ the SMS balance is selected because the statement balance cannot be used for the
 combined entry; if SMS reports no balance, review the fee separately.
 Both original reported balances remain in their source records; an unavailable
 balance is disabled when the other source reports one. Transfer account reports
-use the reviewed choice. If ledger
-suggestions already exist, choose a verified
-existing entry; the combined flow cannot create a duplicate over those suggestions
-and retains that entry's existing balance. Unavailable ledger suggestions expose a
-direct route to statement review instead of leaving an unexplained disabled action.
+use the reviewed choice. If ledger suggestions already exist, the dialog shows
+each candidate's date, description, reported balance and match reasons. A
+linkable candidate can be selected to keep its existing ledger balance. For a
+genuinely different movement, choose to record the SMS and statement as a
+separate transaction, mark every ledger suggestion as different, and explicitly
+confirm that review. This also works when a suggestion is already attached to
+another row in the same statement. The server rechecks the exact suggestion IDs
+before posting; new or changed suggestions require another review.
 An inline edit does not hide saved ledger suggestions; the API revalidates all
 matching and posting rules atomically before it changes either source. A failed
 review leaves both sources pending and prompts a refresh or source correction.
 Editing after selecting an existing ledger entry clears that selection and shows
 a notice to verify and choose the entry again. On small screens, the dialog footer
 has its own bounded scroll area so the result and action buttons remain reachable.
-Separate movements can still be reviewed in their source workflows after checking
-all possible matches.
+The two sources in a reviewed pair still count as one new movement when the
+suggested ledger entries are confirmed to be separate.
 
 The queue shows each unique one-to-one SMS + statement match once, so its count is
 a count of review items rather than source observations. Unmatched sources and
