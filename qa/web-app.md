@@ -980,7 +980,10 @@ waiving the existing confirmation checks. Required acknowledgments, including
 the type and account-path check, share one Finish review checklist. Check required
 marks the applicable items after a differing type is chosen. The separate optional
 Remember setting is excluded, and edits reset confirmations. Balance choice stays
-independent. If a statement has
+independent. The source comparison can copy either description into the editable
+Final description / note; this resets acknowledgments and leaves originals intact.
+A separately retained full Citytouch code is not copied into the ledger note.
+If a statement has
 no time, the aligned SMS received time is suggested with a visible source label;
 reviewers can clear it. A date mismatch leaves time empty, and moving the date
 away from the SMS date clears that suggestion.

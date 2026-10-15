@@ -3494,6 +3494,7 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .unified-pair-dialog .statement-row-footer { align-items: center; display: flex; gap: 18px; justify-content: space-between; }
 .unified-pair-dialog .statement-row-footer .statement-actions { flex-shrink: 0; margin: 0; }
 .statement-match-comparison section > .button { margin-top: 14px; max-width: 100%; white-space: normal; }
+.statement-match-comparison .unified-description-choice { font-size: 12px; margin-top: 6px; min-height: 30px; padding: 5px 8px; }
 .unified-pair-body { padding: 16px; }
 .unified-pair-grid { align-items: start; display: grid; gap: 16px; grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr); }
 .unified-pair-main, .unified-pair-decisions { min-width: 0; }

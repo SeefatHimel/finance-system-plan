@@ -1168,6 +1168,11 @@ and the balance choice stays visible in Finish review. Less-used balance editing
 value date, reference, amount evidence and note fields sit in More transaction
 details. Original PDF/SMS values and match reasons remain available in separate
 disclosures, and collapsing them does not discard edits or bypass any checks.
+The source comparison offers Use as final note beside each description. This
+copies the chosen saved statement wording or parsed SMS description into the
+editable Final description / note field; original source evidence stays intact.
+The statement shortcut uses its saved wording rather than copying a separately
+retained full Citytouch code into the ledger note.
 Finish review groups required acknowledgments, including the type and account-path
 check, in one checklist. Check required marks the currently applicable items
 together after any differing transaction type is chosen; later edits or changed
