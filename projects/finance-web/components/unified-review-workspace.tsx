@@ -9,6 +9,7 @@ import { UnifiedPairEditor, initialPairDraft, savedPairDraft, type PairTypeChoic
 import { useToast } from "@/components/toast-provider";
 import { getAccessToken } from "@/lib/auth-storage";
 import { allDates, periodBounds, type DatePeriod } from "@/lib/date-period";
+import { displayedStatementText } from "@/lib/statement-citytouch";
 import {
   confirmUnifiedPair,
   getUnifiedPair,
@@ -136,9 +137,9 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
       <div className="statement-match-comparison">
         <section aria-label="Statement source"><h3>Statement</h3><dl>
           <div><dt>Date / time</dt><dd>{formatStatementDateTime(row.date, row.time)}</dd></div><div><dt>Amount / direction</dt><dd>{pair.batch.currency} {row.amount} · {row.direction}</dd></div>
-          <div><dt>Account / path</dt><dd>{statementPath}</dd></div><div><dt>Type</dt><dd>{row.type.replaceAll("_", " ")}</dd></div><div><dt>Description</dt><dd>{row.counterparty_text || row.note}</dd></div><div><dt>Reference</dt><dd>{row.reference || "Not reported"}</dd></div>
+          <div><dt>Account / path</dt><dd>{statementPath}</dd></div><div><dt>Type</dt><dd>{row.type.replaceAll("_", " ")}</dd></div><div><dt>Description</dt><dd>{displayedStatementText(row.counterparty_text || row.note, row.extracted.description, row.citytouch_printed_code)}</dd></div><div><dt>Reference</dt><dd>{row.reference || "Not reported"}</dd></div>
           <div className={originalBalanceNeedsReview ? "statement-balance-value--conflict" : undefined}><dt>Reported balance after</dt><dd>{row.balance_after ?? "Not reported"}</dd></div>
-        </dl><details className="statement-match-reasons"><summary>Original PDF row · page {row.extracted.page}</summary><p className="statement-evidence-text">{row.extracted.description}</p></details><button className="button" type="button" disabled={busy} onClick={onEdit}>Edit statement draft</button></section>
+        </dl><details className="statement-match-reasons"><summary>Original PDF row · page {row.extracted.page}</summary><p className="statement-evidence-text">{row.extracted.description}</p>{row.citytouch_printed_code ? <p>Citytouch code printed in PDF: {row.citytouch_printed_code}</p> : null}</details><button className="button" type="button" disabled={busy} onClick={onEdit}>Edit statement draft</button></section>
         <section aria-label="SMS source"><h3>SMS</h3><dl>
           <div><dt>Date / time</dt><dd>{dateTimeFormatter.format(new Date(pair.sms.raw_message.received_at))}</dd></div><div><dt>Amount / direction</dt><dd>{pair.sms_summary.currency} {pair.sms_summary.amount} · {pair.sms_summary.direction}</dd></div><div><dt>Account / path</dt><dd>{smsPath}</dd></div><div><dt>Parsed type</dt><dd>{pair.sms.transaction_type.replaceAll("_", " ")}</dd></div>
           <div><dt>Description</dt><dd>{pair.sms.counterparty_text || pair.sms.message_kind.replaceAll("_", " ")}</dd></div><div><dt>Reference</dt><dd>{pair.sms.reference || "Not reported"}</dd></div><div className={originalBalanceNeedsReview ? "statement-balance-value--conflict" : undefined}><dt>Reported balance after</dt><dd>{pair.sms.balance_after ?? "Not reported"}</dd></div>

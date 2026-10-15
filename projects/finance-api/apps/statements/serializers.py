@@ -278,7 +278,12 @@ class StatementReviewSerializer(serializers.Serializer):
 
 class SavedStatementRowSerializer(serializers.ModelSerializer):
     extracted = StatementRowSerializer(read_only=True)
+    citytouch_printed_code = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_citytouch_printed_code(self, instance):
+        return instance.source_code or None
 
     @extend_schema_field(StatementReviewSerializer)
     def get_review(self, instance):
@@ -301,6 +306,7 @@ class SavedStatementRowSerializer(serializers.ModelSerializer):
             "position",
             "component",
             "extracted",
+            "citytouch_printed_code",
             "date",
             "time",
             "value_date",

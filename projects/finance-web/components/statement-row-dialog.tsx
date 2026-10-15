@@ -7,6 +7,7 @@ import { StatementDetailChoices } from "@/components/statement-detail-choices";
 import { statementLinkBlockReason } from "@/lib/statement-review";
 import { currentStatementBalanceChoice, type StatementBalanceSelection } from "@/lib/statement-balance-choice";
 import { selectedStatementDetails, type DetailSelections } from "@/lib/statement-details";
+import { displayedStatementText } from "@/lib/statement-citytouch";
 import { ModalDialog } from "@/components/modal-dialog";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { useToast } from "@/components/toast-provider";
@@ -122,6 +123,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         <details className="raw-message" open><summary>Original extracted row</summary>
           <p>{source.date ?? "Unknown date"}{source.time ? ` · ${source.time}` : ""} · {source.provider_type || source.direction}</p>
           <p className="statement-evidence-text">{source.description}</p>
+          {row.citytouch_printed_code ? <p>Citytouch code printed in PDF: {row.citytouch_printed_code}</p> : null}
           <p>Principal: {source.amount ?? "Unreadable"} · Signed fee: {source.signed_fee} · Reported final balance: {source.balance_after ?? "Unreadable"}</p>
           {source.value_date ? <p>Printed value date: {source.value_date}</p> : null}
           {source.issues.length ? <ul>{source.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : null}
@@ -169,7 +171,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
             return <article className="statement-match-card" key={match.id}>
               <header className="statement-match-heading"><h4>Pending SMS · {match.sender}</h4><span>{batch.currency} {match.amount}</span></header>
               <div className="statement-match-comparison">
-                <section><h5>Statement</h5><p>{row.date}{row.time ? ` · ${row.time}` : ""}</p><p>{row.counterparty_text || source.description}</p><p>Balance after: {row.balance_after ?? "Not reported"}</p></section>
+                <section><h5>Statement</h5><p>{row.date}{row.time ? ` · ${row.time}` : ""}</p><p>{displayedStatementText(row.counterparty_text || source.description, source.description, row.citytouch_printed_code)}</p><p>Balance after: {row.balance_after ?? "Not reported"}</p></section>
                 <section><h5>SMS</h5><p>{match.date} · {match.time}</p><p>{match.counterparty_text || "No counterparty parsed"}</p><p>Balance after: {match.balance_after ?? "Not reported"}</p><p>Parser confidence: {Math.round(Number(match.confidence) * 100)}%</p></section>
               </div>
               {match.sms_text ? <details className="raw-message"><summary>Original SMS</summary><p className="statement-evidence-text">{match.sms_text}</p></details> : null}

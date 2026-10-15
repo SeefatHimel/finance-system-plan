@@ -3,6 +3,7 @@
 import { StatementDetailChoices } from "@/components/statement-detail-choices";
 import { statementBalanceDifference, statementLinkBlockReason } from "@/lib/statement-review";
 import { selectedStatementDetails, type DetailSelections } from "@/lib/statement-details";
+import { displayedStatementText } from "@/lib/statement-citytouch";
 import type { Account, Category, SavedStatement, SavedStatementRow, StatementDecision, StatementMatch } from "@/lib/api";
 
 export function StatementMatchComparison({ row, batch, match, accounts, categories, busy, dirty, issuesAcknowledged, balanceChoice, detailSelections, onBalanceChoice, onDetailChange, onAccept }: {
@@ -29,7 +30,7 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
     { label: "Type / category", statement: `${row.type.replaceAll("_", " ")} · ${categories.find((category) => category.id === row.category)?.name ?? "Uncategorized"}`, ledger: `${match.type.replaceAll("_", " ")} · ${match.category_name ?? "Uncategorized"}` },
     { label: "Reported balance after", statement: balanceText(row.balance_after), ledger: balanceText(match.effective_balance_after), balance: true },
     { label: "Reference", statement: row.reference || "Not reported", ledger: match.reference || "Not reported" },
-    { label: "Description", statement: row.counterparty_text || row.note || row.extracted.description, ledger: match.note || "No note" },
+    { label: "Description", statement: displayedStatementText(row.counterparty_text || row.note || row.extracted.description, row.extracted.description, row.citytouch_printed_code), ledger: match.note || "No note" },
   ];
   const hintId = `statement-match-hint-${match.id}`;
   return <article className="statement-match-card">

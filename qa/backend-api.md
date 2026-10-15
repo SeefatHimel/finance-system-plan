@@ -860,6 +860,8 @@ compares source-row identities, and only upgrades agreeing second-code suffixes.
 The separate code field is encrypted; saved extraction, corrected drafts,
 linked/posted transactions, and audit history remain intact. A same-file
 re-upload only attaches the original PDF and does not reparse it.
+Saved row responses expose the recovered code separately for authenticated
+review and code search; the original masked description stays immutable.
 
 ### Can two pending sources be approved as one movement?
 

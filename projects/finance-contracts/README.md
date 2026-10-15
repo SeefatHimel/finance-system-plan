@@ -16,6 +16,9 @@ Statement preview rows may contain `citytouch_printed_code`, the second
 component exactly as printed in a City Bank Citytouch reference. It is nullable
 and does not authorize an automatic counterparty mapping. General descriptions
 remain masked; retained source codes are encrypted on the API side.
+Saved row responses expose the retained code as read-only
+`citytouch_printed_code` so review screens can show it without rewriting
+historical extraction or corrected draft text.
 
 ## Responsibilities
 

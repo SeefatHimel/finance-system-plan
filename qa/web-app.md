@@ -1031,9 +1031,8 @@ requires saving the draft and confirming the movement. Editing or forgetting a
 mapping does not alter confirmed transactions.
 # Citytouch counterparty display
 
-The statement code directory shows the complete masked second segment from a
-saved City Bank row, such as `***5678`, alongside its reporting account. The
-underlying mapping uses every visible digit of that segment. Stars are masking
-placeholders, so a four-digit suffix may still be shared by different parties;
-the directory says when the full number is unavailable and keeps suggestions
-review-only.
+The statement code directory shows the visible digits of the second Citytouch
+segment alongside its reporting account. A four-digit suffix may still be
+shared by different parties, so mappings remain review-only. Statement review
+rows display a recovered full second code when available; their original masked
+extraction and any user-edited draft fields stay unchanged.

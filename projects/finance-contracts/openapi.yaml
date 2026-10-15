@@ -5466,6 +5466,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/StatementRow'
           readOnly: true
+        citytouch_printed_code:
+          type: string
+          nullable: true
+          readOnly: true
+          description: Complete second Citytouch component retained from the printed PDF when available.
         date:
           type: string
           format: date
@@ -5552,6 +5557,7 @@ components:
       - balance_after
       - batch
       - category
+      - citytouch_printed_code
       - classification_confirmed
       - component
       - counterparty_text

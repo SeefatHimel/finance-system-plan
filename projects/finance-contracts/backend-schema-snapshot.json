@@ -7934,6 +7934,11 @@
           "readOnly": true,
           "type": "string"
         },
+        "citytouch_printed_code": {
+          "nullable": true,
+          "readOnly": true,
+          "type": "string"
+        },
         "classification_confirmed": {
           "readOnly": true,
           "type": "boolean"
@@ -8057,6 +8062,7 @@
         "balance_after",
         "batch",
         "category",
+        "citytouch_printed_code",
         "classification_confirmed",
         "component",
         "counterparty_text",

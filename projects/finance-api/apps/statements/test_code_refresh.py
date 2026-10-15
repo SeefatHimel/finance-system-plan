@@ -11,6 +11,7 @@ from django.core.management.base import CommandError
 from django.db import connection
 from django.test import TestCase
 from rest_framework.exceptions import ValidationError
+from rest_framework.test import APIClient
 
 from apps.accounts.models import Account
 from apps.transactions.models import Transaction
@@ -42,6 +43,7 @@ class CitytouchRefreshTests(TestCase):
         )
         self.original = {
             "id": "1:1", "page": 1, "row": 1, "date": "2026-01-02", "time": None,
+            "posting_date": "2026-01-02", "provider_type": "",
             "value_date": None, "direction": "debit", "amount": "50.00",
             "signed_fee": "0.00", "balance_after": "950.00", "reference": "",
             "description": "CT-FT-***1234-***5678", "issues": [], "bounds": [1, 2, 3, 4],
@@ -94,6 +96,21 @@ class CitytouchRefreshTests(TestCase):
         self.assertEqual(self.row.version, 5)
         self.assertEqual(self.row.transaction_id, self.transaction.id)
         self.assertEqual(Transaction.objects.count(), 1)
+        client = APIClient()
+        client.force_authenticate(self.user)
+        result = client.get(
+            f"/api/statements/imports/{self.batch.id}/rows/",
+            {"search": "12345675678"},
+        )
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.data["count"], 1)
+        self.assertEqual(
+            result.data["results"][0]["citytouch_printed_code"], "12345675678"
+        )
+        self.assertEqual(
+            result.data["results"][0]["extracted"]["description"],
+            "CT-FT-***1234-***5678",
+        )
         with connection.cursor() as cursor:
             cursor.execute(
                 "SELECT source_code FROM statements_statementrow WHERE id = %s",

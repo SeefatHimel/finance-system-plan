@@ -347,3 +347,6 @@ invocation. It does not apply to EBL, whose statement layout has no Citytouch
 code, or recover digits that the PDF itself masks.
 Existing four-digit mappings are not migrated to longer codes automatically;
 the user must verify the new observation before saving its mapping.
+Statement review uses the separate retained code to display an enhanced
+Citytouch reference. It does not overwrite the masked historical extraction,
+user-edited draft details, or posted ledger entries.

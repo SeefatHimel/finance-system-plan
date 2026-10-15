@@ -618,3 +618,6 @@ source row. It is the second Citytouch component exactly as printed, including
 all visible digits or the bank's mask; other profiles return null. The ordinary description remains
 masked. This field supports encrypted server-side code retention and the
 temporary maintenance refresh; it never authorizes an automatic mapping.
+Saved row responses also include a read-only, nullable
+`citytouch_printed_code`; row search includes it. The masked `extracted`
+description and editable draft fields are unchanged.

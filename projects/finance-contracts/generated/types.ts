@@ -1041,6 +1041,7 @@ export interface SavedStatementRow {
   position: number;
   component: StatementComponent;
   extracted: StatementRow;
+  citytouch_printed_code: string | null;
   date: string | null;
   time: string | null;
   value_date: string | null;

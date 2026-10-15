@@ -330,7 +330,7 @@ class StatementImportViewSet(
             if (
                 search
                 and search
-                not in f"{row.note} {row.reference} {row.counterparty_text} {row.extracted.get('description', '')}".casefold()
+                not in f"{row.note} {row.reference} {row.counterparty_text} {row.source_code} {row.extracted.get('description', '')}".casefold()
             ):
                 continue
             filtered.append(row)

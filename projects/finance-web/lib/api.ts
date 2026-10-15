@@ -1565,6 +1565,7 @@ const pendingStatementSmsMatchSchema = z.object({
 });
 const savedStatementRowSchema = z.object({
   id: z.string(), batch: z.string(), position: z.number(), component: z.enum(["principal", "fee"]), extracted: statementRowSchema,
+  citytouch_printed_code: z.string().nullable(),
   date: z.string().nullable(), time: z.string().nullable(), value_date: z.string().nullable(), direction: z.enum(["debit", "credit"]), amount: z.string().nullable(), balance_after: z.string().nullable(),
   type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]),
   other_account: z.string().nullable(), category: z.string().nullable(), reference: z.string(), counterparty_text: z.string(), note: z.string(), classification_confirmed: z.boolean(),
