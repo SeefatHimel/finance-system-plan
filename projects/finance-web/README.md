@@ -1164,9 +1164,12 @@ Record one transaction lists every outstanding requirement beside the disabled a
 The combined review puts the editable transaction and confirmation decisions side by
 side on wide screens, then stacks them on smaller screens. Its compact source strip
 highlights material differences; the type choice is made beside the final type,
-and the balance choice stays visible in Finish review. Less-used balance editing,
-value date, reference, amount evidence and note fields sit in More transaction
-details. Original PDF/SMS values and match reasons remain available in separate
+and the balance choice stays visible in Finish review. The agreed amount appears
+prominently above the type choice; to correct it, edit a source before combining.
+Less-used balance editing, value date, reference and note fields sit in More
+transaction details. Value date is the bank's printed effective date and can
+help matching; the final transaction Date remains the ledger date.
+Original PDF/SMS values and match reasons remain available in separate
 disclosures, and collapsing them does not discard edits or bypass any checks.
 The source comparison offers Use as final note beside each description. This
 copies the chosen saved statement wording or parsed SMS description into the

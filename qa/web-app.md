@@ -983,6 +983,9 @@ Remember setting is excluded, and edits reset confirmations. Balance choice stay
 independent. The source comparison can copy either description into the editable
 Final description / note; this resets acknowledgments and leaves originals intact.
 A separately retained full Citytouch code is not copied into the ledger note.
+The agreed amount is prominent above the type choice and remains read-only until
+a source is corrected. The optional bank-printed value date has a hint explaining
+that it assists matching while the final transaction Date stays the ledger date.
 If a statement has
 no time, the aligned SMS received time is suggested with a visible source label;
 reviewers can clear it. A date mismatch leaves time empty, and moving the date

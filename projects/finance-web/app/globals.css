@@ -3505,6 +3505,10 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .unified-result-editor { padding: 14px; }
 .unified-result-editor > header { align-items: center; }
 .unified-result-editor header p { font-size: 12px; margin-top: 2px; }
+.unified-amount-summary { align-items: center; background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: space-between; margin-top: 12px; padding: 10px 12px; }
+.unified-amount-summary > div { align-items: baseline; display: flex; flex-wrap: wrap; gap: 5px 10px; }
+.unified-amount-summary span, .unified-amount-summary small { color: var(--muted); font-size: 12px; }
+.unified-amount-summary strong { font-size: 18px; font-variant-numeric: tabular-nums; }
 .unified-result-editor .unified-core-fields { gap: 12px; margin: 12px 0 0; }
 .unified-result-editor .field__label { font-size: 13px; }
 .unified-result-editor .field__control { min-height: 42px; }
