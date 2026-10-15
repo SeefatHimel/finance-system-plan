@@ -81,6 +81,8 @@ check and OpenAPI generation with zero errors. They also typecheck, lint, test
 and build the web app, regenerate and typecheck the shared contract, and run
 mobile typechecks and unit tests. This catches integration drift before a
 deployment; it does not replace staging smoke tests or backup restore drills.
+The API CI job installs `requirements-dev.txt` because the synthetic PDF tests
+generate fixtures with ReportLab, which is intentionally a test-only dependency.
 
 ## How should backups work?
 
