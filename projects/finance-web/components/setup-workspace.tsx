@@ -5,7 +5,7 @@ import { useFeedbackMessage } from "@/components/toast-provider";
 import type React from "react";
 import Link from "next/link";
 import { SlidersHorizontal } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   type Account,
@@ -18,6 +18,7 @@ import {
   deleteCategory,
   listAccounts,
   listCategories,
+  revealPaymentMethodIdentifiers,
   updateAccount,
   updateCategory
 } from "@/lib/api";
@@ -109,6 +110,7 @@ export function SetupWorkspace() {
   const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
   const [editingAccountId, setEditingAccountId] = useState("");
+  const revealAccountId = useRef("");
   const [editingAccountName, setEditingAccountName] = useState("");
   const [editingAccountType, setEditingAccountType] = useState<AccountType>("cash");
   const [editingCategoryId, setEditingCategoryId] = useState("");
@@ -117,6 +119,10 @@ export function SetupWorkspace() {
   const [activeTab, setActiveTab] = useState<SetupTab>("accounts");
   const [drawer, setDrawer] = useState<SetupDrawer>(null);
   const [accountIdentity, setAccountIdentity] = useState<AccountIdentityDraft>(emptyAccountIdentity);
+  useEffect(() => {
+    if (drawer !== "account-edit") revealAccountId.current = "";
+    if (drawer === null) setAccountIdentity(emptyAccountIdentity());
+  }, [drawer]);
   const [, setNotice] = useFeedbackMessage("success");
   const [accountSearch, setAccountSearch] = useState("");
   const [accountTypeFilter, setAccountTypeFilter] = useState<AccountType | "all">("all");
@@ -305,6 +311,7 @@ export function SetupWorkspace() {
   }
 
   function handleSelectAccount(accountId: string) {
+    revealAccountId.current = accountId;
     setEditingAccountId(accountId);
     const selected = setupState.status === "ready"
       ? setupState.accounts.find((account) => account.id === accountId)
@@ -321,6 +328,26 @@ export function SetupWorkspace() {
       aliases: selected.identity.aliases.join("\n")
     } : emptyAccountIdentity());
     if (selected) setDrawer("account-edit");
+  }
+
+  async function revealAccountNumbers() {
+    if (setupState.status !== "ready") return;
+    const methodId = setupState.accounts.find(account => account.id === editingAccountId)?.identity?.id;
+    const token = getAccessToken();
+    if (!methodId || !token) return;
+    try {
+      const original = await revealPaymentMethodIdentifiers(token, methodId);
+      if (revealAccountId.current !== editingAccountId) return;
+      const hasFullValue = Boolean(original.identifier && original.identifier !== accountIdentity.identifier) || original.additional_identifiers.some((item, index) => item.value !== accountIdentity.additional_identifiers[index]?.value);
+      if (!hasFullValue) {
+        setNotice("Only masked values were saved for this older profile. Enter the full numbers and save to archive them.");
+        return;
+      }
+      setAccountIdentity(current => ({ ...current, identifier: original.identifier || current.identifier, additional_identifiers: original.additional_identifiers.length ? original.additional_identifiers : current.additional_identifiers }));
+      setNotice("Saved numbers are shown in the editor until you close it.");
+    } catch (error) {
+      setAccountError(error instanceof Error ? error.message : "Could not show saved numbers.");
+    }
   }
 
   function handleSelectCategory(categoryId: string) {
@@ -517,6 +544,8 @@ export function SetupWorkspace() {
       {drawer ? (
         <ModalDialog labelledBy="setup-editor-title" className="form-drawer" busy={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onCancel={() => setDrawer(null)}>
           <div className="form-drawer__header"><div><h2 id="setup-editor-title">{drawer === "account-create" ? "Add account" : drawer === "account-edit" ? "Edit account" : drawer === "category-create" ? "Add category" : "Edit category"}</h2><p>{drawer.startsWith("account") ? "Keep account details accurate for reporting and reconciliation." : "Organize transactions with clear, reusable labels."}</p></div><button aria-label="Close form" className="icon-button" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">×</button></div>
+
+          {drawer === "account-edit" && accountIdentity.enabled ? <button className="button button--ghost" type="button" onClick={() => void revealAccountNumbers()}>Show saved full numbers</button> : null}
 
           {drawer === "account-create" ? <form className="drawer-form" onSubmit={handleAccountSubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" /></label><label className="field"><span className="field__label">Type</span><select className="field__control" name="type" required onChange={event => { if (!accountIdentity.identifier && !accountIdentity.additional_identifiers.length) setAccountIdentity(current => ({ ...current, identifier_kind: event.target.value === "credit_card" ? "card" : "account", provider: ["bank", "card", "other"].includes(current.provider) ? event.target.value === "credit_card" ? "card" : event.target.value === "mobile_wallet" ? "other" : "bank" : current.provider })); }}>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label><label className="field"><span className="field__label">Starting balance</span><input className="field__control" min="0" name="starting_balance" step="0.01" type="number" /></label><label className="field"><span className="field__label">Currency</span><select className="field__control" defaultValue="BDT" name="currency"><option value="BDT">BDT</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label><AccountIdentityFields value={accountIdentity} onChange={setAccountIdentity} disabled={isSavingAccount || isUpdatingAccount} />{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingAccount} type="submit">{isSavingAccount ? <ButtonBusy label="Saving" /> : "Add account"}</button></div></form> : null}
 

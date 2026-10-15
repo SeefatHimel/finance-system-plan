@@ -6,7 +6,7 @@ import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
 import type React from "react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   type Account,
@@ -29,6 +29,7 @@ import {
   listCategories,
   listPaymentMethods,
   listSenderRules,
+  revealPaymentMethodIdentifiers,
   updateSmsCapturePreference,
   updatePaymentMethod,
   updateSenderRule
@@ -97,6 +98,7 @@ export function SmsSettingsWorkspace() {
   const [activeSection, setActiveSection] = useState<"capture" | "senders" | "payments">("capture");
 
   const [editingPaymentMethodId, setEditingPaymentMethodId] = useState("");
+  const revealPaymentId = useRef("");
   const [editingPaymentMethodAccount, setEditingPaymentMethodAccount] = useState("");
   const [editingPaymentMethodName, setEditingPaymentMethodName] = useState("");
   const [editingPaymentMethodProvider, setEditingPaymentMethodProvider] = useState<PaymentProvider>("bkash");
@@ -107,6 +109,14 @@ export function SmsSettingsWorkspace() {
   const [editingIdentifierKind, setEditingIdentifierKind] = useState<IdentifierKind>("any");
   const [editingIdentifiers, setEditingIdentifiers] = useState<ExtraIdentifier[]>([]);
   const [editingAliases, setEditingAliases] = useState("");
+  useEffect(() => {
+    if (activeSection !== "payments") {
+      revealPaymentId.current = "";
+      setEditingPaymentMethodIdentifier("");
+      setEditingIdentifiers([]);
+      setEditingPaymentMethodId("");
+    }
+  }, [activeSection]);
 
   const [editingSenderRuleId, setEditingSenderRuleId] = useState("");
   const [editingSenderRuleAccount, setEditingSenderRuleAccount] = useState("");
@@ -289,6 +299,7 @@ export function SmsSettingsWorkspace() {
   }
 
   function handleSelectPaymentMethod(paymentMethodId: string) {
+    revealPaymentId.current = paymentMethodId;
     setEditingPaymentMethodId(paymentMethodId);
     const selected = settingsState.status === "ready"
       ? settingsState.paymentMethods.find((method) => method.id === paymentMethodId)
@@ -300,6 +311,25 @@ export function SmsSettingsWorkspace() {
     setEditingIdentifierKind(selected?.identifier_kind ?? "any");
     setEditingIdentifiers(selected?.additional_identifiers ?? []);
     setEditingAliases(selected?.aliases.join("\n") ?? "");
+  }
+
+  async function revealSelectedPaymentNumbers() {
+    const token = getAccessToken();
+    if (!token || !editingPaymentMethodId) return;
+    try {
+      const original = await revealPaymentMethodIdentifiers(token, editingPaymentMethodId);
+      if (revealPaymentId.current !== editingPaymentMethodId) return;
+      const hasFullValue = Boolean(original.identifier && original.identifier !== editingPaymentMethodIdentifier) || original.additional_identifiers.some((item, index) => item.value !== editingIdentifiers[index]?.value);
+      if (!hasFullValue) {
+        notify("Only masked values were saved for this older method. Enter the full numbers and save to archive them.");
+        return;
+      }
+      setEditingPaymentMethodIdentifier(original.identifier || editingPaymentMethodIdentifier);
+      if (original.additional_identifiers.length) setEditingIdentifiers(original.additional_identifiers);
+      notify("Saved numbers are shown in the editor until you leave this page.");
+    } catch (error) {
+      setPaymentMethodError(error instanceof Error ? error.message : "Could not show saved numbers.");
+    }
   }
 
   function handleSelectSenderRule(senderRuleId: string) {
@@ -623,15 +653,16 @@ export function SmsSettingsWorkspace() {
             </label>
 
             <label className="field field--wide">
-              <span className="field__label">Safe identifier or masked suffix</span>
+              <span className="field__label">Account / card number or masked suffix</span>
               <input
                 className="field__control"
+                autoComplete="off"
                 disabled={!hasAccounts}
                 name="identifier"
-                placeholder="For example: 7890 or 017…1234"
+                placeholder="For example: full number or ****1234"
                 type="text"
               />
-              <span className="field__hint">Used to match SMS account/card evidence to this alias. Never enter a full card number.</span>
+              <span className="field__hint">Full numbers are encrypted by the API; normal views show only a safe suffix.</span>
             </label>
 
             <PaymentIdentityFields kind={newIdentifierKind} onKind={setNewIdentifierKind} identifiers={newIdentifiers} onIdentifiers={setNewIdentifiers} aliases={newAliases} onAliases={setNewAliases} disabled={!hasAccounts || isSavingPaymentMethod} />
@@ -686,6 +717,7 @@ export function SmsSettingsWorkspace() {
                 ))}
               </select>
             </label>
+            <button className="button button--ghost" disabled={!editingPaymentMethodId} onClick={() => void revealSelectedPaymentNumbers()} type="button">Show saved full numbers</button>
             <label className="field">
               <span className="field__label">Account</span>
               <select
@@ -727,14 +759,15 @@ export function SmsSettingsWorkspace() {
               </select>
             </label>
             <label className="field">
-              <span className="field__label">Safe identifier or masked suffix</span>
+              <span className="field__label">Account / card number or masked suffix</span>
               <input
                 className="field__control"
+                autoComplete="off"
                 onChange={(event) => setEditingPaymentMethodIdentifier(event.target.value)}
                 type="text"
                 value={editingPaymentMethodIdentifier}
               />
-              <span className="field__hint">Use a masked value or last four digits only.</span>
+              <span className="field__hint">Enter a full number to store it encrypted. Normal views show only its safe suffix.</span>
             </label>
             <PaymentIdentityFields kind={editingIdentifierKind} onKind={setEditingIdentifierKind} identifiers={editingIdentifiers} onIdentifiers={setEditingIdentifiers} aliases={editingAliases} onAliases={setEditingAliases} disabled={!editingPaymentMethodId || isUpdatingPaymentMethod} />
             <button className="button button--ghost" disabled={isUpdatingPaymentMethod} type="submit">

@@ -900,6 +900,17 @@ export async function listPaymentMethods(accessToken: string, signal?: AbortSign
   return collectionSchema(paymentMethodSchema).parse(await response.json());
 }
 
+export async function revealPaymentMethodIdentifiers(accessToken: string, id: string): Promise<{
+  identifier: string;
+  additional_identifiers: { kind: "account" | "card"; value: string; label: string }[];
+}> {
+  const response = await authenticatedFetch(`/api/payment-methods/${id}/original-identifiers/`, accessToken, { cache: "no-store" });
+  return z.object({
+    identifier: z.string(),
+    additional_identifiers: z.array(z.object({ kind: z.enum(["account", "card"]), value: z.string(), label: z.string() }))
+  }).parse(await response.json());
+}
+
 export async function createPaymentMethod(
   accessToken: string,
   input: CreatePaymentMethodInput
@@ -1534,7 +1545,7 @@ const savedStatementSchema = z.object({
   id: z.string(), account: z.string(), account_name: z.string(), profile: z.string(), parser_version: z.string(), currency: z.string(),
   account_suggestion: z.object({ account: z.string().nullable(), name: z.string(), reason: z.string(), ambiguous: z.boolean(), requires_review: z.boolean().default(false), choices: z.array(z.object({ account: z.string(), name: z.string() })).default([]) }).nullable().optional(),
   account_hint: z.string(), account_identity: z.string(), period_start: z.string().nullable(), period_end: z.string().nullable(), page_count: z.number(),
-  opening_balance: z.string().nullable(), closing_balance: z.string().nullable(), checks: statementPreviewSchema.shape.checks, warnings: z.array(z.string()),
+  opening_balance: z.string().nullable(), closing_balance: z.string().nullable(), has_original_file: z.boolean(), checks: statementPreviewSchema.shape.checks, warnings: z.array(z.string()),
   counts: z.object({ total: z.number(), pending: z.number(), posted: z.number(), linked: z.number(), skipped: z.number() }), created_at: z.string(), updated_at: z.string()
 });
 const statementDetailFieldSchema = z.enum(["counterparty_text", "reference", "note", "sender_account_identifier", "sender_card_identifier", "receiver_account_identifier", "receiver_card_identifier"]);
@@ -1575,6 +1586,9 @@ export type StatementDecision = { action: "create" | "link" | "combine_sms" | "s
 export async function createStatementImport(token: string, account: string, file: File, password: string, signal?: AbortSignal): Promise<SavedStatement> {
   const body = new FormData(); body.set("account", account); body.set("file", file); if (password) body.set("password", password);
   return savedStatementSchema.parse(await (await authenticatedFetch("/api/statements/imports/", token, { method: "POST", body, signal })).json());
+}
+export async function downloadStatementOriginal(token: string, id: string): Promise<Blob> {
+  return (await authenticatedFetch(`/api/statements/imports/${id}/original/`, token)).blob();
 }
 const statementIdentificationSchema = z.object({
   profile: z.string(), account_hint: z.string(),

@@ -1,5 +1,13 @@
 # Web App Q&A
 
+### How can a user recover full original financial source data?
+
+Statement imports show whether an encrypted original PDF is available and let
+the owner download it. For older imports, re-upload the identical PDF under the
+same account to attach it without new rows. Account settings now submit full
+numbers to the API for encrypted storage while showing safe suffixes in ordinary
+views. Previously truncated numbers must be entered again.
+
 ## What is the web app responsible for?
 
 The web app is the command center for managing transactions, accounts,
@@ -489,7 +497,8 @@ all linked transfer messages once. Users can collapse it while editing.
 Redacted/excluded SMS have explicit explanations. Entries without linked SMS hide
 the empty section.
 Loading failures have a retry control and do not block the form. Component state
-is discarded on closing or switching entries, stale responses are ignored, and
+is discarded on closing or switching entries, including any revealed full
+account/card number; stale responses are ignored, and
 bodies are not persisted to browser storage or transaction notes. The cookie
 proxy preserves the API's private/no-store response header.
 

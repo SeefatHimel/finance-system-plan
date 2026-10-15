@@ -600,8 +600,9 @@ Multipart uploads use the cookie proxy with session refresh and body limits.
 Passwords clear on submission and are never stored in the browser. Cancellation
 aborts the response; a server draft may still finish and appear in history, but
 upload never posts. Limits are 4 MiB, 30 pages and supported digital layouts;
-scans and credit-card billing statements remain unsupported. Original PDFs and
-passwords are discarded; masked rows are retained as evidence.
+scans and credit-card billing statements remain unsupported. Original PDFs are
+retained encrypted and downloadable by their owner; unlock passwords are discarded.
+Masked rows remain the review evidence.
 
 ### Faster statement review
 
@@ -833,8 +834,13 @@ Transfer matching and balance forms show concise labels. Info icons hold optiona
 
 Account recognition and payment-method identifiers accept at least three ending
 digits. Prefer longer masked values; a three-digit SMS ending matches their ending
-without adding another identifier. Full-number masking remains last-four before
-submission. One/two-digit suffixes are rejected.
+without adding another identifier. Full numbers entered in account settings are
+encrypted by the API and displayed as a safe suffix; statement/ledger evidence
+remains masked. Previously saved identifiers reduced to last-four must be
+re-entered to recover the full number. Masked source evidence still matches by
+safe suffix; a source exposing the complete number can use an exact encrypted-value
+comparison to disambiguate equal suffixes.
+One/two-digit suffixes are rejected.
 
 SMS review shows sender/receiver account suggestions when only three digits
 overlap, with the saved account and card/method name. No account or method is
