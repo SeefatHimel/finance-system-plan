@@ -114,6 +114,10 @@ class PairDecision(PairSelection):
     acknowledge_conflict = serializers.BooleanField(default=False)
     acknowledge_issues = serializers.BooleanField(default=False)
     remember_choices = serializers.BooleanField(default=False)
+    dismissed_ledger_matches = serializers.ListField(
+        child=serializers.UUIDField(), required=False, default=list, max_length=8
+    )
+    acknowledge_distinct_ledger_matches = serializers.BooleanField(default=False)
     type_choice = serializers.ChoiceField(
         choices=("statement", "sms", "custom"), required=False
     )
@@ -124,6 +128,17 @@ class PairDecision(PairSelection):
         if draft and draft["version"] != attrs["statement_version"]:
             raise serializers.ValidationError(
                 {"draft": "The draft version must match the selected statement row."}
+            )
+        dismissed = attrs["dismissed_ledger_matches"]
+        if len(dismissed) != len(set(dismissed)):
+            raise serializers.ValidationError(
+                {"dismissed_ledger_matches": "Review each ledger suggestion only once."}
+            )
+        if attrs.get("transaction") and (
+            dismissed or attrs["acknowledge_distinct_ledger_matches"]
+        ):
+            raise serializers.ValidationError(
+                {"dismissed_ledger_matches": "Do not dismiss suggestions when linking an existing transaction."}
             )
         return attrs
 

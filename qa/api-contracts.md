@@ -568,7 +568,11 @@ pair decision atomically, rechecking a unique match for date, direction or amoun
 changes while preserving the two original source observations.
 400 means invalid values/missing review, 409 means stale/resolved/nonmatching
 sources, and 404 covers unavailable/foreign sources. Pair retries return unchanged
-without another movement. Existing ledger suggestions cannot be silently bypassed.
+without another movement. To create a separate pair despite ledger suggestions,
+submit all current suggestion UUIDs in `dismissed_ledger_matches` with
+`acknowledge_distinct_ledger_matches=true`. The API rejects a missing review
+with 400 or a changed suggestion set with 409; linking an existing entry cannot
+dismiss suggestions.
 Source-message retrieval includes attached confirmed candidates as well as primary
 and transfer raw-message links. Deploy the API and run the transfer-evidence
 migration described below before rolling out the updated web review.

@@ -1280,6 +1280,8 @@ export interface UnifiedPairDecision {
   statement_version: number;
   sms_updated_at: string;
   transaction?: string | null;
+  dismissed_ledger_matches?: string[];
+  acknowledge_distinct_ledger_matches?: boolean;
   balance_source: UnifiedBalanceSourceEnum;
   type_choice?: UnifiedTypeChoiceEnum;
   draft?: UnifiedPairDraft;

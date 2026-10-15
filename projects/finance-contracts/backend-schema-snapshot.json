@@ -6018,6 +6018,10 @@
           "default": false,
           "type": "boolean"
         },
+        "acknowledge_distinct_ledger_matches": {
+          "default": false,
+          "type": "boolean"
+        },
         "acknowledge_issues": {
           "default": false,
           "type": "boolean"
@@ -6028,6 +6032,14 @@
         },
         "balance_source": {
           "$ref": "#/components/schemas/BalanceSourceEnum"
+        },
+        "dismissed_ledger_matches": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
         },
         "draft": {
           "$ref": "#/components/schemas/StatementRowEdit"

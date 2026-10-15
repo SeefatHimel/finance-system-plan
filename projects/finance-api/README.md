@@ -1181,8 +1181,14 @@ acknowledgment requirement. Both original reports remain exact.
 It serializes writers through the shared user lock, locks both sources, rechecks
 pending state and matches, and reuses statement posting/link validation. Any failure
 rolls back the new ledger entry and both source decisions. Completed-pair retries
-are idempotent; changed ledger financial identity is rejected. Existing suggestions
-must be linked rather than bypassed with another entry in this workflow.
+are idempotent; changed ledger financial identity is rejected. To record a
+genuinely distinct SMS/statement pair despite ledger suggestions, the request
+must list every current suggested ledger UUID in
+`dismissed_ledger_matches` and set
+`acknowledge_distinct_ledger_matches=true`. The API recomputes those suggestions
+under the user lock and returns 409 if they changed; missing review returns 400.
+It then applies the existing statement `allow_separate` safeguard and records
+one entry with both sources. Linking an existing entry cannot include dismissals.
 The detail and confirmation endpoints repeat the reciprocal one-to-one check, so a
 stale or hand-crafted pair URL cannot bypass ambiguity protection.
 Reciprocal uniqueness is calculated across the complete pending account scope

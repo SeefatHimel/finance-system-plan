@@ -917,6 +917,11 @@ of effective balance. Unified confirmation waives only the additional balance
 acknowledgment for a sub-Tk-1 statement/SMS difference; a Tk-1-or-greater
 original or edited difference still requires it. Existing-ledger conflicts
 retain their separate acknowledgment.
+For an existing-ledger suggestion that represents a different movement, unified
+confirmation requires every current suggestion UUID plus an explicit
+distinct-movement acknowledgment. It recomputes suggestions under the user lock
+and rejects stale selections before reusing the statement create safeguard.
+The resulting SMS and statement share one new ledger entry.
 The queue, pair detail and confirmation endpoint all repeat reciprocal uniqueness
 checks. This prevents a stale or hand-crafted detail request from bypassing an
 ambiguity discovered after the queue loaded. Opaque cursors keep pagination stable

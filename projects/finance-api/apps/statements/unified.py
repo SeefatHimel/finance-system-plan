@@ -660,6 +660,28 @@ def confirm_pair(*, user, row, candidate, payload, request):
         raise ValidationError(
             {"balance_source": "Choose SMS or statement for a new transaction."}
         )
+    dismissed_ledger_matches = [
+        str(item) for item in payload.get("dismissed_ledger_matches", [])
+    ]
+    if not target:
+        matches, truncated = find_matches([row])
+        if truncated:
+            raise ValidationError(
+                {"row": "Too much ledger history to review safely. Narrow the statement period."}
+            )
+        visible_ids = {match["id"] for match in matches[row.pk]}
+        if visible_ids and not dismissed_ledger_matches:
+            raise ValidationError(
+                {"dismissed_ledger_matches": "Review every suggested ledger entry or link the same movement."}
+            )
+        if visible_ids != set(dismissed_ledger_matches):
+            raise ReviewConflict(
+                "Ledger suggestions changed. Reload and compare every suggested movement before recording this pair."
+            )
+        if visible_ids and not payload.get("acknowledge_distinct_ledger_matches"):
+            raise ValidationError(
+                {"acknowledge_distinct_ledger_matches": "Confirm that every suggested ledger entry is a different movement."}
+            )
     selected_balance = (
         candidate.balance_after
         if payload["balance_source"] == "sms"
@@ -720,6 +742,8 @@ def confirm_pair(*, user, row, candidate, payload, request):
             "acknowledge_conflict": payload["acknowledge_conflict"],
             "remember_choices": payload["remember_choices"],
             "balance_choice": balance_choice,
+            "allow_separate": bool(dismissed_ledger_matches),
+            "dismissed_ledger_matches": dismissed_ledger_matches,
         },
         # This source was verified above and will be attached in the same atomic
         # operation. Ledger-match safeguards remain enabled in decide_locked.
@@ -797,6 +821,7 @@ def confirm_pair(*, user, row, candidate, payload, request):
             "statement_row": str(row.pk),
             "sms_candidate": str(candidate.pk),
             "decision": "unified_match",
+            "dismissed_ledger_matches": dismissed_ledger_matches,
         },
     )
     preference = SmsCapturePreference.objects.filter(user=user).first()

@@ -689,6 +689,109 @@ class UnifiedReviewTests(APITestCase):
         self.assertEqual(len(evidence.data), 2)
         self.assertEqual(Transaction.objects.count(), 1)
 
+    def test_distinct_ledger_suggestion_requires_explicit_review_before_new_pair(self):
+        record = Transaction.objects.create(
+            user=self.user, account=self.account, amount="100.00",
+            date=self.row.date, type="expense", direction="debit",
+            balance_after="800.00", note="Similar earlier purchase", source="manual",
+        )
+        pair = self.client.get(
+            reverse("unified-pair"), {"statement": self.row.pk, "sms": self.sms.pk}
+        )
+        matches = pair.data["row"]["review"]["matches"]
+        self.assertEqual([match["id"] for match in matches], [str(record.pk)])
+        self.assertTrue(matches[0]["can_link"])
+        self.assertEqual(self.confirm().status_code, 400)
+        self.assertEqual(
+            self.confirm(
+                dismissed_ledger_matches=[str(record.pk)],
+            ).status_code,
+            400,
+        )
+        self.assertEqual(
+            self.confirm(
+                dismissed_ledger_matches=[str(record.pk), str(record.pk)],
+                acknowledge_distinct_ledger_matches=True,
+            ).status_code,
+            400,
+        )
+        self.assertEqual(
+            self.confirm(
+                dismissed_ledger_matches=[str(self.wallet.pk)],
+                acknowledge_distinct_ledger_matches=True,
+            ).status_code,
+            409,
+        )
+        response = self.confirm(
+            dismissed_ledger_matches=[str(record.pk)],
+            acknowledge_distinct_ledger_matches=True,
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertNotEqual(response.data["transaction"], str(record.pk))
+        self.assertEqual(Transaction.objects.count(), 2)
+        self.row.refresh_from_db()
+        self.sms.refresh_from_db()
+        self.assertEqual(self.row.transaction_id, self.sms.transaction_id)
+        self.assertTrue(
+            AuditLogEntry.objects.filter(
+                user=self.user,
+                metadata__dismissed_ledger_matches=[str(record.pk)],
+            ).exists()
+        )
+
+    def test_unlinkable_ledger_suggestion_can_be_reviewed_as_distinct(self):
+        record = Transaction.objects.create(
+            user=self.user, account=self.account, amount="100.00",
+            date=self.row.date, type="expense", direction="debit",
+            balance_after="800.00", note="Another statement row", source="import",
+        )
+        StatementRow.objects.create(
+            batch=self.batch, position=2, component="principal",
+            source_fingerprint="synthetic-other-row",
+            date=self.row.date, direction="debit", type="expense",
+            amount="100.00", balance_after="800.00", transaction=record,
+            state="linked", classification_confirmed=True,
+            extracted={**self.row.extracted, "id": "synthetic-other", "row": 2},
+        )
+        pair = self.client.get(
+            reverse("unified-pair"), {"statement": self.row.pk, "sms": self.sms.pk}
+        )
+        matches = pair.data["row"]["review"]["matches"]
+        self.assertEqual([match["id"] for match in matches], [str(record.pk)])
+        self.assertFalse(matches[0]["can_link"])
+        self.assertEqual(self.confirm().status_code, 400)
+        response = self.confirm(
+            dismissed_ledger_matches=[str(record.pk)],
+            acknowledge_distinct_ledger_matches=True,
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(Transaction.objects.count(), 2)
+
+    def test_distinct_ledger_choice_rejects_stale_suggestions(self):
+        record = Transaction.objects.create(
+            user=self.user, account=self.account, amount="100.00",
+            date=self.row.date, type="expense", direction="debit",
+            note="Similar earlier purchase", source="manual",
+        )
+        pair = self.client.get(
+            reverse("unified-pair"), {"statement": self.row.pk, "sms": self.sms.pk}
+        )
+        self.assertEqual(
+            [match["id"] for match in pair.data["row"]["review"]["matches"]],
+            [str(record.pk)],
+        )
+        Transaction.objects.create(
+            user=self.user, account=self.account, amount="100.00",
+            date=self.row.date, type="expense", direction="debit",
+            note="Another similar purchase", source="manual",
+        )
+        response = self.confirm(
+            dismissed_ledger_matches=[str(record.pk)],
+            acknowledge_distinct_ledger_matches=True,
+        )
+        self.assertEqual(response.status_code, 409, response.data)
+        self.assertEqual(Transaction.objects.count(), 2)
+
     def test_incoming_transfer_keeps_receiving_reports_from_both_sources(self):
         self.row.direction = "credit"
         self.row.type = "transfer"

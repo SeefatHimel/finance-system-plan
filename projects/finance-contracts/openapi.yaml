@@ -6299,6 +6299,17 @@ components:
           type: string
           format: uuid
           nullable: true
+        dismissed_ledger_matches:
+          type: array
+          maxItems: 8
+          items:
+            type: string
+            format: uuid
+          description: Exact current suggestion IDs reviewed as different movements when creating a new pair.
+        acknowledge_distinct_ledger_matches:
+          type: boolean
+          default: false
+          description: Required when ledger suggestions are dismissed for a separate movement.
         balance_source:
           $ref: '#/components/schemas/UnifiedBalanceSourceEnum'
         type_choice:

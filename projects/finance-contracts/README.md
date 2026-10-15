@@ -637,8 +637,11 @@ Inline draft edits and pair confirmation share one transaction. Date, direction
 and amount corrections must preserve a unique source match; metadata and balance
 corrections retain the original source evidence that established the pair.
 evidence marks the reviewed effective balance per account without changing the
-original source reports. Existing ledger suggestions must be selected explicitly, with
-`balance_source=existing`; their ledger balance stays unchanged. HTTP 409 reports
+original source reports. Existing ledger suggestions can be selected explicitly, with
+`balance_source=existing`, to retain their ledger balance. A separate pair
+requires `dismissed_ledger_matches` containing every current suggestion ID and
+`acknowledge_distinct_ledger_matches=true`; the server checks those IDs again
+before creating one transaction with both sources. HTTP 409 reports
 stale/resolved/nonmatching sources. HTTP 400 reports missing acknowledgments or
 invalid drafts. Ownership failures return 404. Retries for the same resolved pair
 are idempotent, and every failure rolls back all decisions. All responses are
