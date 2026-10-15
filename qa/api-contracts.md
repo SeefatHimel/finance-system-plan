@@ -1,5 +1,14 @@
 # API Contracts Q&A
 
+### Which endpoints reveal original sources?
+
+Authenticated statement owners can GET `/api/statements/imports/{id}/original/`
+for a no-store PDF, and payment-method owners can GET
+`/api/payment-methods/{id}/original-identifiers/` for exact entered identifiers.
+Normal list/detail responses remain masked; `has_original_file` reports archive
+availability. Existing SMS import with `reprocess_existing` can restore a
+hash-matching redacted body without duplicating a transaction.
+
 ## What is the contracts project for?
 
 The contracts project documents the API boundary shared by backend, web, and
@@ -342,7 +351,9 @@ Rows support global state/type/category/direction/search/date filters. Transacti
 expose a read-only statement evidence count and on-demand evidence endpoint.
 Decimal values are strings and unknown time/balance is null. The generated client
 supports both multipart uploads and JSON review operations. All source responses
-are authenticated and no-store; raw PDFs/passwords never enter saved contracts.
+are authenticated and no-store. Original PDFs are archived encrypted and served
+only to their owner through the binary download endpoint; unlock passwords are
+never saved.
 
 ### What are the statement review assistance boundaries?
 

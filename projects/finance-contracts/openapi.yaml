@@ -165,8 +165,8 @@ paths:
         '503':
           description: Extraction worker unavailable.
       description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store. Saves masked source
-        rows only; never posts on upload. Original PDF and password are discarded. Limits match the preview
-        endpoint.'
+        rows only; never posts on upload. An encrypted copy of the original PDF is retained, while its unlock
+        password is discarded. The same file can restore an older import original without duplicating rows.'
   /api/statements/imports/{id}/:
     get:
       operationId: statements_imports_retrieve
@@ -194,6 +194,26 @@ paths:
         '404':
           description: Owned import, row, or transaction not found.
       description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store.'
+  /api/statements/imports/{id}/original/:
+    get:
+      operationId: statements_imports_original_retrieve
+      tags: [Statements]
+      parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Original PDF bytes for an owned import; no-store attachment
+          content:
+            application/pdf:
+              schema: {type: string, format: binary}
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '503':
+          description: Archive cannot be decrypted or fails its digest check.
   /api/statements/imports/{id}/approve_new/:
     post:
       operationId: statements_imports_approve_new_create
@@ -975,6 +995,25 @@ paths:
       responses:
         '204':
           description: Payment method deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/payment-methods/{id}/original-identifiers/:
+    get:
+      tags: [Payment Methods]
+      summary: Reveal exact identifiers entered for an owned payment method
+      parameters:
+        - $ref: '#/components/parameters/UuidPathId'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Decrypted user-entered identifiers; Cache-Control no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OriginalIdentifiers'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
@@ -3258,6 +3297,20 @@ components:
         kind: {type: string, enum: [account, card]}
         value: {type: string, maxLength: 120}
         label: {type: string, maxLength: 80, default: ""}
+    OriginalIdentifiers:
+      type: object
+      required: [identifier, additional_identifiers]
+      properties:
+        identifier: {type: string, description: Exact primary value originally entered, or blank for a legacy masked-only record.}
+        additional_identifiers:
+          type: array
+          items:
+            type: object
+            required: [kind, value, label]
+            properties:
+              kind: {type: string, enum: [account, card]}
+              value: {type: string}
+              label: {type: string}
     PaymentMethod:
       type: object
       required:
@@ -3277,7 +3330,7 @@ components:
         identifier:
           type: string
           maxLength: 120
-          description: Optional masked numeric account/card identifier or safe suffix with at least three ending digits. Three-digit overlap requires explicit review. Text names belong in aliases.
+          description: Masked display value or suffix; a full entered value is retained separately encrypted and exposed only by the reveal endpoint. Three-digit overlap requires explicit review.
         identifier_kind:
           type: string
           enum: [any, account, card]
@@ -3582,6 +3635,10 @@ components:
           type: boolean
           default: false
           description: Re-run a duplicate pending review candidate through the latest parser.
+        restore_redacted:
+          type: boolean
+          default: false
+          description: Explicitly restore a manually or historically redacted transaction SMS during a history rescan when the original message is still on the device and retention is Keep.
     RawMessageImportResponse:
       type: object
       required: [candidate, is_duplicate, was_reprocessed, message]
@@ -3595,6 +3652,9 @@ components:
         was_reprocessed:
           type: boolean
           description: True when an existing pending candidate was updated by the latest parser.
+        was_restored:
+          type: boolean
+          description: True when the original body of a redacted duplicate was restored.
         message:
           $ref: '#/components/schemas/RawMessage'
     RawMessageRedactResponse:
@@ -5747,6 +5807,9 @@ components:
         page_count:
           type: integer
           readOnly: true
+        has_original_file:
+          type: boolean
+          readOnly: true
         checks:
           type: array
           items:
@@ -5792,6 +5855,7 @@ components:
       - id
       - opening_balance
       - page_count
+      - has_original_file
       - parser_version
       - period_end
       - period_start

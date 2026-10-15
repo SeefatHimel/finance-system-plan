@@ -94,7 +94,7 @@ def response_type(operation: dict[str, Any]) -> str:
         content = response.get("content", {})
         if "application/json" in content:
             return ts_type(content["application/json"].get("schema"))
-        if "text/csv" in content:
+        if "text/csv" in content or "application/pdf" in content:
             return "Blob"
         if status == "204":
             return "void"
@@ -257,7 +257,7 @@ def generate_client(openapi: dict[str, Any]) -> str:
         "      return undefined as T;\n"
         "    }\n"
         "    const contentType = response.headers.get('content-type') ?? '';\n"
-        "    if (contentType.includes('text/csv')) {\n"
+        "    if (contentType.includes('text/csv') || contentType.includes('application/pdf')) {\n"
         "      return (await response.blob()) as T;\n"
         "    }\n"
         "    return (await response.json()) as T;\n"

@@ -2178,6 +2178,39 @@
         ]
       }
     },
+    "/api/payment-methods/{id}/original-identifiers/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OriginalIdentifiers"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/quick-add/entries/": {
       "post": {
         "requestBody": {
@@ -3831,6 +3864,41 @@
         ]
       }
     },
+    "/api/statements/imports/{id}/original/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/statements/imports/{id}/review_selected/": {
       "post": {
         "parameters": [
@@ -4825,7 +4893,8 @@
           "type": "string"
         },
         "display_order": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -5186,7 +5255,8 @@
           "type": "string"
         },
         "display_order": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -5895,6 +5965,25 @@
       ],
       "type": "object"
     },
+    "OriginalIdentifiers": {
+      "properties": {
+        "additional_identifiers": {
+          "items": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "identifier": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "additional_identifiers",
+        "identifier"
+      ],
+      "type": "object"
+    },
     "PaginatedStatementImportList": {
       "properties": {
         "count": {
@@ -6404,7 +6493,8 @@
           "type": "string"
         },
         "display_order": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -6538,7 +6628,8 @@
           "type": "string"
         },
         "display_order": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -6733,7 +6824,8 @@
           "type": "string"
         },
         "display_order": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -6794,7 +6886,8 @@
           "type": "string"
         },
         "display_order": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -6868,7 +6961,8 @@
           "type": "string"
         },
         "reminder_days_before": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -6937,7 +7031,8 @@
           "type": "string"
         },
         "priority": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -7218,7 +7313,8 @@
           "type": "string"
         },
         "display_order": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -7401,7 +7497,8 @@
           "type": "string"
         },
         "display_order": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -7630,6 +7727,10 @@
           "default": false,
           "type": "boolean"
         },
+        "restore_redacted": {
+          "default": false,
+          "type": "boolean"
+        },
         "sender": {
           "maxLength": 120,
           "type": "string"
@@ -7698,7 +7799,8 @@
           "type": "string"
         },
         "reminder_days_before": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -8032,7 +8134,8 @@
           "type": "string"
         },
         "priority": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -8122,7 +8225,8 @@
           "type": "string"
         },
         "failed_upload_count": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -8154,7 +8258,8 @@
           "type": "string"
         },
         "pending_upload_count": {
-          "maximum": 2147483647,
+          "format": "int64",
+          "maximum": 9223372036854775807,
           "minimum": 0,
           "type": "integer"
         },
@@ -8672,6 +8777,10 @@
           "readOnly": true,
           "type": "string"
         },
+        "has_original_file": {
+          "readOnly": true,
+          "type": "boolean"
+        },
         "id": {
           "format": "uuid",
           "readOnly": true,
@@ -8728,6 +8837,7 @@
         "counts",
         "created_at",
         "currency",
+        "has_original_file",
         "id",
         "opening_balance",
         "page_count",

@@ -208,6 +208,15 @@ export interface PaymentIdentifier {
   label: string;
 }
 
+export interface OriginalIdentifiers {
+  identifier: string;
+  additional_identifiers: {
+  kind: "account" | "card";
+  value: string;
+  label: string;
+}[];
+}
+
 export interface PaymentMethod {
   id: string;
   account: string;
@@ -323,12 +332,14 @@ export interface RawMessageImportRequest {
   received_at: string;
   device_message_id?: string;
   reprocess_existing?: boolean;
+  restore_redacted?: boolean;
 }
 
 export interface RawMessageImportResponse {
   candidate: ParsedMessageCandidate | null;
   is_duplicate: boolean;
   was_reprocessed: boolean;
+  was_restored?: boolean;
   message: RawMessage;
 }
 
@@ -1128,6 +1139,7 @@ export interface StatementImport {
   period_start: string | null;
   period_end: string | null;
   page_count: number;
+  has_original_file: boolean;
   checks: StatementCheck[];
   warnings: string[];
   opening_balance: string | null;

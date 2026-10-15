@@ -1,5 +1,15 @@
 # finance-contracts
 
+Original-source additions: statement import responses report `has_original_file`;
+an authenticated `GET /api/statements/imports/{id}/original/` returns the exact
+PDF as a no-store attachment. `GET /api/payment-methods/{id}/original-identifiers/`
+reveals encrypted user-entered account/card values on demand. Ordinary account
+and payment-method responses continue to expose masked values only. Repeated
+SMS imports with `reprocess_existing: true` may restore a matching policy-redacted
+transaction SMS when its retention preference is Keep. Manual and legacy redactions
+also require `restore_redacted: true`; `was_restored` reports the result. Duplicates do not post
+another transaction.
+
 Shared API contract and integration documentation.
 
 ## Responsibilities
