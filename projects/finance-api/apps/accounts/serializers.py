@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from apps.payment_methods.models import PaymentMethod
 from apps.payment_methods.serializers import AccountIdentitySerializer
+from apps.payment_methods.secure_identifiers import retain_originals
 from apps.transactions.services import calculate_account_balance_summaries
 
 from .models import Account
@@ -102,6 +103,7 @@ class AccountSerializer(serializers.ModelSerializer):
                 setattr(method, field, value)
             method.is_active = True
             method.save()
+        retain_originals(method, self.initial_data.get("identity") or {})
 
     @transaction.atomic
     def create(self, validated_data):

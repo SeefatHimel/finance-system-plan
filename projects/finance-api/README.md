@@ -2,6 +2,31 @@
 
 Django backend and source of truth for the finance system.
 
+## Original-source retention and recovery
+
+New supported statement imports save the exact uploaded PDF in an encrypted,
+user-scoped archive. `GET /api/statements/imports/{id}/original/` downloads it;
+normal row responses remain masked. For older imports, re-upload the **same PDF
+to the same account**. The duplicate import path attaches its original without
+creating another batch or transaction. A different file or account is a new
+import and should be reviewed normally. PDF unlock passwords are never saved.
+
+New SMS capture preferences keep transaction-related original text. Migration
+`finance_messages.0013_default_keep_transaction_sms` switches existing finite
+preferences to Keep. OTP/security and promotions remain excluded. To restore an
+already redacted transaction SMS, set retention to Keep and run a history scan
+with **Refresh previous imports**; the original body is restored only when its
+hash matches the saved message. If the SMS is no longer on the phone, it cannot
+be reconstructed from parsed fields. Rescanning does not create a second entry.
+
+Account/card numbers newly entered in Accounts or Payment Methods are stored
+encrypted while normal API responses remain masked. The authenticated
+`GET /api/payment-methods/{id}/original-identifiers/` endpoint reveals exact
+entered values on demand with `Cache-Control: no-store`. Older masked-only
+identifiers cannot be expanded; re-enter the full values to archive them.
+Archives depend on `DJANGO_SECRET_KEY` (and configured fallback keys during
+rotation); include the matching key in a secure backup procedure.
+
 ## Current Status
 
 The API project is scaffolded with:
@@ -662,8 +687,8 @@ when it removes an observation or restores a prior effective balance.
 
 Limits: 4 MiB, 30 pages, 2000 extracted rows (up to 4000 principal/fee review
 components), 10 uploads/hour/user, 20-second isolated extraction worker. History
-matching is bounded and blocks posting if its search is truncated. PDFs/passwords
-are discarded; saved rows contain masked extracted values, corrections and audit
+matching is bounded and blocks posting if its search is truncated. PDF unlock passwords
+are discarded; original PDFs are encrypted, and saved rows contain masked extracted values, corrections and audit
 history. Responses use no-store. Account suffix hints do not prove ownership.
 
 Install requirements, run `python manage.py migrate` (adds
@@ -704,7 +729,7 @@ never deletes a ledger transaction. Stale rows remain unresolved. Both actions
 use the existing user/row lock order and atomic transaction protections.
 
 Apply migration `statements.0002_statementmapping` before using remembered
-choices (`python manage.py migrate`). No original PDF or password is retained.
+choices (`python manage.py migrate`). Current imports retain encrypted original PDFs; unlock passwords are not retained.
 
 Statement/ledger comparison (`GET /api/statements/imports/{id}/comparison/`)
 returns confirmed, review, statement-only and skipped component counts, plus
@@ -762,7 +787,7 @@ full server-side period, independently of transaction-list pagination.
 
 Payment methods support `identifier_kind` (`account`, `card`, legacy `any`), up to
 20 additional typed masked identifiers with optional labels, and up to 20 text
-aliases. Full unmasked values are reduced to safe suffixes by API validation;
+aliases. Full unmasked values are encrypted and ordinary responses show safe suffixes;
 labels and numeric identifiers are separate fields. Apply the payment-method
 migration with the normal `python manage.py migrate` command before deploying.
 SMS endpoint matching and PDF account hints share a read-only identity resolver:
@@ -803,8 +828,8 @@ contract; legacy schema warnings are tracked separately.
 
 Account create/update accepts optional `identity` metadata: provider, masked primary
 identifier and its account/card kind, up to 20 additional typed identifiers with
-labels, and up to 20 text aliases. Numbers with no mask are reduced to the last four
-digits before storage; numbers are not valid text aliases. A profile needs at least
+labels, and up to 20 text aliases. Numbers with no mask have encrypted originals
+and masked display values; numbers are not valid text aliases. A profile needs at least
 one identifier or alias. Ownership comes from the account and authenticated user,
 not client-supplied payment-method IDs.
 
@@ -945,7 +970,8 @@ movement or database migration is introduced.
 Recognition accepts masked identifiers or suffixes with at least three ending
 digits. Keep longer saved identifiers: a three-digit SMS ending can suggest a
 compatible saved four-digit or masked number without creating another mapping.
-Unmasked full numbers still reduce to four digits; one/two-digit values and masks
+Unmasked full numbers are stored encrypted while display values reduce to four digits;
+an exact full source value can disambiguate matching suffixes. One/two-digit values and masks
 with fewer than three ending digits are rejected.
 
 Three-digit overlap always remains weak, including a unique match or a matching

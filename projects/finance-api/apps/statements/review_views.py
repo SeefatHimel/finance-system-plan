@@ -1,7 +1,9 @@
 from uuid import UUID
 
+from cryptography.fernet import InvalidToken
 from django.db import transaction as db_transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.debug import sensitive_post_parameters
@@ -17,9 +19,10 @@ from rest_framework.response import Response
 
 from apps.categories.models import Category
 from apps.transactions.transfers import lock_transfer_user
+from config.secure_data import decrypt_bytes, encrypt_bytes
 
 from .insights import analyze, prepare
-from .models import StatementImport, StatementRow
+from .models import StatementImport, StatementOriginalFile, StatementRow
 from .pending_sms import pending_sms_match_counts, pending_sms_matches
 from .serializers import (
     SavedStatementRowSerializer,
@@ -94,6 +97,9 @@ class StatementImportViewSet(
             StatementImport.objects.filter(user=self.request.user)
             .select_related("account")
             .annotate(
+                has_original_file=Exists(
+                    StatementOriginalFile.objects.filter(batch_id=OuterRef("pk"))
+                ),
                 count_total=Count("rows"),
                 count_pending=Count(
                     "rows",
@@ -131,27 +137,63 @@ class StatementImportViewSet(
     )
     def create(self, request):
         serializer = StatementPreviewRequestSerializer(
-            data=request.data, context={"request": request}
+            data=request.data, context={"request": request, "allow_inactive": True}
         )
         serializer.is_valid(raise_exception=True)
         account = serializer.validated_data["account"]
         file = serializer.validated_data["file"]
-        digest = file_digest(file.read())
+        original_bytes = file.read()
+        digest = file_digest(original_bytes)
         existing = (
             self.get_queryset().filter(account=account, file_digest=digest).first()
         )
         if existing:
+            StatementOriginalFile.objects.get_or_create(
+                batch=existing,
+                defaults={
+                    "ciphertext": encrypt_bytes(original_bytes),
+                    "size": len(original_bytes),
+                },
+            )
+            existing = self.get_queryset().get(pk=existing.pk)
             return Response(self.get_serializer(existing).data)
+        if not account.is_active:
+            raise ValidationError({"account": "Activate this account before importing a new statement."})
         file.seek(0)
         # Reuse the verified bounded extractor. It returns errors without saving.
         response = StatementPreviewView().extract(request, serializer)
         if response.status_code != 200:
             return response
-        batch, created = save_import(
-            user=request.user, account=account, digest=digest, preview=response.data
-        )
+        with db_transaction.atomic():
+            batch, created = save_import(
+                user=request.user, account=account, digest=digest, preview=response.data
+            )
+            StatementOriginalFile.objects.get_or_create(
+                batch=batch,
+                defaults={
+                    "ciphertext": encrypt_bytes(original_bytes),
+                    "size": len(original_bytes),
+                },
+            )
         batch = self.get_queryset().get(pk=batch.id)
         return Response(self.get_serializer(batch).data, status=201 if created else 200)
+
+    @extend_schema(responses={(200, "application/pdf"): OpenApiTypes.BINARY}, tags=["Statements"])
+    @action(detail=True, methods=["get"], url_path="original")
+    def original(self, request, pk=None):
+        batch = self.get_object()
+        source = get_object_or_404(StatementOriginalFile, batch=batch)
+        try:
+            data = decrypt_bytes(source.ciphertext)
+        except InvalidToken:
+            return Response({"detail": "Original statement cannot be decrypted. Check the archive key."}, status=503)
+        if file_digest(data) != batch.file_digest:
+            return Response({"detail": "Original statement failed its integrity check."}, status=503)
+        response = HttpResponse(data, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="statement-{batch.id}.pdf"'
+        response["X-Content-Type-Options"] = "nosniff"
+        response["Cache-Control"] = "no-store"
+        return response
 
     @extend_schema(
         responses=StatementRowPageSerializer,

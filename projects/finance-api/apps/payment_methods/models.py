@@ -39,6 +39,7 @@ class PaymentMethod(models.Model):
         default="any",
     )
     additional_identifiers = models.JSONField(default=list, blank=True)
+    encrypted_identifiers = models.BinaryField(default=b"", blank=True, editable=False)
     aliases = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     display_order = models.PositiveIntegerField(default=0)

@@ -1,5 +1,14 @@
 # Infrastructure Q&A
 
+### What must be preserved to recover encrypted original sources?
+
+Back up the database together with the active `DJANGO_SECRET_KEY`. The API
+encrypts imported PDF bytes, transaction SMS bodies, and full user-entered
+account/card identifiers before database persistence. On key rotation, keep the
+old key in `DJANGO_SECRET_KEY_FALLBACKS` until those records are re-encrypted.
+Deploy the code and run all migrations before using the original-source
+endpoints; a database restore without the matching key cannot decrypt them.
+
 ## What is the infrastructure project responsible for?
 
 The infrastructure project owns local services, Docker Compose, database setup,

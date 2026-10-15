@@ -14,7 +14,11 @@ from rest_framework.exceptions import ValidationError
 
 from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
-from apps.messages.models import ParsedMessageCandidate, SmsCapturePreference
+from apps.messages.models import (
+    ParsedMessageCandidate,
+    RawMessage,
+    SmsCapturePreference,
+)
 from apps.transactions.balance_reports import (
     account_reports,
     select_effective_account_report,
@@ -797,5 +801,5 @@ def confirm_pair(*, user, row, candidate, payload, request):
     )
     preference = SmsCapturePreference.objects.filter(user=user).first()
     if preference and preference.raw_sms_retention_days == 0:
-        candidate.raw_message.redact()
+        candidate.raw_message.redact(reason=RawMessage.RedactionReason.RETENTION)
     return record, False

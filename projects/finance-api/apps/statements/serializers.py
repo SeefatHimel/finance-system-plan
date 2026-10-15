@@ -9,7 +9,7 @@ from apps.categories.models import Category
 from apps.transactions.models import Transaction
 
 from .details import DETAIL_FIELDS
-from .models import StatementImport, StatementRow
+from .models import StatementImport, StatementOriginalFile, StatementRow
 from .parser import MAX_BYTES
 
 
@@ -39,7 +39,8 @@ class StatementPreviewRequestSerializer(StatementIdentifyRequestSerializer):
         request = self.context.get("request")
         if request and request.user.is_authenticated:
             self.fields["account"].queryset = Account.objects.filter(
-                user=request.user, is_active=True
+                user=request.user,
+                **({} if self.context.get("allow_inactive") else {"is_active": True}),
             )
 
     def validate_account(self, value):
@@ -135,8 +136,15 @@ class StatementCountsSerializer(serializers.Serializer):
 
 class StatementImportSerializer(serializers.ModelSerializer):
     account_name = serializers.CharField(source="account.name", read_only=True)
+    has_original_file = serializers.SerializerMethodField()
     counts = serializers.SerializerMethodField()
     account_suggestion = serializers.SerializerMethodField()
+
+    @extend_schema_field(bool)
+    def get_has_original_file(self, instance):
+        if hasattr(instance, "has_original_file"):
+            return instance.has_original_file
+        return StatementOriginalFile.objects.filter(batch_id=instance.pk).exists()
 
     @extend_schema_field(StatementAccountSuggestionSerializer(allow_null=True))
     def get_account_suggestion(self, instance):
@@ -178,6 +186,7 @@ class StatementImportSerializer(serializers.ModelSerializer):
             "period_start",
             "period_end",
             "page_count",
+            "has_original_file",
             "checks",
             "warnings",
             "opening_balance",

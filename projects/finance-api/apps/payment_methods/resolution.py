@@ -3,6 +3,7 @@
 import re
 
 from .models import PaymentMethod
+from .secure_identifiers import originals_for
 
 
 def identifiers(method):
@@ -54,6 +55,26 @@ def identifier_score(saved, observed):
     return 60 if ap and bp else 30
 
 
+def exact_original_score(method, kind, observed):
+    """Use an exact full value only when the source exposes one; never reveal it."""
+    observed = re.sub(r"[\s-]+", "", observed)
+    if not re.fullmatch(r"\+?\d{7,}", observed):
+        return 0
+    observed_digits = re.sub(r"\D", "", observed)
+    originals = originals_for(method)
+    candidates = [
+        (method.identifier_kind, originals["identifier"]),
+        *((item["kind"], item["value"]) for item in originals["additional_identifiers"]),
+    ]
+    for saved_kind, saved_value in candidates:
+        if saved_kind not in {"any", kind} and kind != "any":
+            continue
+        compact = re.sub(r"[\s-]+", "", saved_value)
+        if re.fullmatch(r"\+?\d{7,}", compact) and re.sub(r"\D", "", compact) == observed_digits:
+            return 120
+    return 0
+
+
 def matching_methods(
     *, user, evidence, provider="", excluded_account_id=None, methods=None
 ):
@@ -82,7 +103,7 @@ def matching_methods(
             continue
         matches = []
         for method in methods:
-            score = max(
+            masked_score = max(
                 (
                     identifier_score(saved["value"], value)
                     for saved in identifiers(method)
@@ -90,6 +111,7 @@ def matching_methods(
                 ),
                 default=0,
             )
+            score = max(masked_score, exact_original_score(method, kind, value))
             if score:
                 matches.append((score, method))
         if not matches:

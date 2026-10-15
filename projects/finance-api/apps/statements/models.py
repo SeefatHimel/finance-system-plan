@@ -8,7 +8,7 @@ from apps.transactions.models import Transaction
 
 
 class StatementImport(models.Model):
-    """Saved masked extraction; original PDF bytes and passwords are never saved."""
+    """Saved extraction; original PDFs are encrypted separately, without passwords."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -38,6 +38,18 @@ class StatementImport(models.Model):
             )
         ]
         indexes: ClassVar = [models.Index(fields=("user", "created_at"))]
+
+
+class StatementOriginalFile(models.Model):
+    """Encrypted original uploaded bytes, separate from list/detail queries."""
+
+    batch = models.OneToOneField(
+        StatementImport, on_delete=models.CASCADE, primary_key=True,
+        related_name="original_file",
+    )
+    ciphertext = models.BinaryField()
+    size = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class StatementRow(models.Model):

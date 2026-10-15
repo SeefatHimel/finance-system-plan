@@ -39,9 +39,24 @@ Never commit:
 - Allow raw message redaction. Redaction should remove the original SMS body
   and device message id while preserving parsed ledger evidence, duplicate
   hashes, and audit links.
-- Default raw-text retention to 30 days after confirmation. Let the user choose
-  immediate removal, a shorter finite period, or explicit long-term retention.
-  Run `python manage.py redact_expired_sms` on a daily production schedule.
+- New capture preferences keep transaction-related SMS text until explicit redaction.
+  Migration 0013 changes existing finite/immediate retention preferences to Keep,
+  as requested. Excluded OTP/security and promotional bodies are still replaced
+  before storage. Users can choose a finite period again in capture settings;
+  `python manage.py redact_expired_sms` applies to those later choices.
+- Stored transaction SMS bodies are encrypted before database persistence. A
+  normal history refresh does not reverse manual redaction; restoring manually
+  redacted or legacy SMS requires a separate explicit choice and the original
+  message still present on the phone. The server retains only transaction-related
+  SMS originals; excluded messages remain tombstones.
+- Imported statement PDFs are encrypted before database storage. Normal review
+  rows remain masked; authenticated downloads use `Cache-Control: no-store`.
+  The PDF unlock password is not stored. Account/card numbers entered in account
+  or payment-method settings are encrypted separately; ordinary responses show
+  only masked identifiers, and exact values require an authenticated reveal.
+- Archive encryption derives from `DJANGO_SECRET_KEY`; preserve that secret for
+  backups and use `SECRET_KEY_FALLBACKS` during key rotation. A database backup
+  without the matching key cannot decrypt saved originals.
 - Never copy the complete raw SMS into a transaction note. Store a normalized
   summary and structured evidence fields instead.
 - Rejection should record the reason and allow the user to redact the body,

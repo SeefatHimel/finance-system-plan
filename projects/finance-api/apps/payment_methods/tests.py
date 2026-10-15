@@ -32,6 +32,29 @@ class PaymentMethodApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["name"], "Personal bKash")
+        from .models import PaymentMethod
+        from .secure_identifiers import originals_for
+
+        method = PaymentMethod.objects.get(id=response.data["id"])
+        self.assertEqual(method.identifier, "0000")
+        self.assertNotIn(b"01700000000", bytes(method.encrypted_identifiers))
+        self.assertEqual(originals_for(method)["identifier"], "01700000000")
+        revealed = self.client.get(reverse("payment-method-original-identifiers", args=[method.id]))
+        self.assertEqual(revealed.data["identifier"], "01700000000")
+        self.assertEqual(revealed["Cache-Control"], "no-store")
+        self.client.patch(
+            reverse("payment-method-detail", args=[method.id]),
+            {"identifier": "0000", "name": "Personal bKash renamed"},
+            format="json",
+        )
+        method.refresh_from_db()
+        self.assertEqual(originals_for(method)["identifier"], "01700000000")
+        other = get_user_model().objects.create_user(username="other-payment-owner")
+        self.client.force_authenticate(other)
+        self.assertEqual(
+            self.client.get(reverse("payment-method-original-identifiers", args=[method.id])).status_code,
+            404,
+        )
 
     def test_user_cannot_attach_payment_method_to_another_users_account(self):
         user = get_user_model().objects.create_user(
@@ -80,6 +103,26 @@ class PaymentIdentityTests(APITestCase):
             identifier="1111",
             identifier_kind="account",
         )
+
+    def test_exact_full_source_disambiguates_shared_suffix_without_exposing_it(self):
+        from .models import PaymentMethod
+        from .resolution import matching_methods
+        from .secure_identifiers import retain_originals
+
+        first = PaymentMethod.objects.create(
+            user=self.user, account=self.bank, name="First account", provider="bank",
+            identifier="4730", identifier_kind="account",
+        )
+        second = PaymentMethod.objects.create(
+            user=self.user, account=self.wallet, name="Second account", provider="bank",
+            identifier="4730", identifier_kind="account",
+        )
+        retain_originals(first, {"identifier": "12345678904730"})
+        retain_originals(second, {"identifier": "98765432104730"})
+        masked = matching_methods(user=self.user, evidence=[("account", "***4730")])
+        self.assertEqual({method.id for method in masked}, {first.id, second.id})
+        exact = matching_methods(user=self.user, evidence=[("account", "98765432104730")])
+        self.assertEqual([method.id for method in exact], [second.id])
 
     def test_masking_typed_identifiers_and_no_ledger_mutation(self):
         from apps.transactions.models import Transaction

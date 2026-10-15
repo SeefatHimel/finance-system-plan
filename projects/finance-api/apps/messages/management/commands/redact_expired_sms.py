@@ -3,7 +3,11 @@ from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from apps.messages.models import ParsedMessageCandidate, RawMessage, SmsCapturePreference
+from apps.messages.models import (
+    ParsedMessageCandidate,
+    RawMessage,
+    SmsCapturePreference,
+)
 
 
 class Command(BaseCommand):
@@ -25,7 +29,7 @@ class Command(BaseCommand):
                 candidate__updated_at__lte=cutoff,
             )
             for message in messages.iterator():
-                message.redact()
+                message.redact(reason=RawMessage.RedactionReason.RETENTION)
                 redacted_count += 1
 
         self.stdout.write(self.style.SUCCESS(f"Redacted {redacted_count} raw SMS message(s)."))

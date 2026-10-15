@@ -13,6 +13,7 @@ from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
 from apps.messages.models import (
     ParsedMessageCandidate,
+    RawMessage,
     SenderRuleMapping,
     SmsCapturePreference,
 )
@@ -497,7 +498,7 @@ def attach_candidate(candidate, record, observation, remember=False):
         )
     preference, _ = SmsCapturePreference.objects.get_or_create(user=record.user)
     if preference.raw_sms_retention_days == 0:
-        candidate.raw_message.redact()
+        candidate.raw_message.redact(reason=RawMessage.RedactionReason.RETENTION)
 
 
 @transaction.atomic

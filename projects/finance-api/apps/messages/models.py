@@ -9,6 +9,8 @@ from django.db import models
 from django.db.models.functions import Lower, Trim
 from django.utils import timezone
 
+from config.secure_data import EncryptedSmsTextField
+
 
 class SenderRule(models.Model):
     class Provider(models.TextChoices):
@@ -187,7 +189,7 @@ class SmsCapturePreference(models.Model):
     raw_sms_retention_days = models.PositiveIntegerField(
         blank=True,
         null=True,
-        default=30,
+        default=None,
         validators=[MaxValueValidator(3650)],
         help_text="Days to retain raw SMS after confirmation. Zero redacts immediately; null keeps it.",
     )
@@ -205,6 +207,11 @@ class RawMessage(models.Model):
         IGNORED = "ignored", "Ignored"
         REDACTED = "redacted", "Redacted"
 
+    class RedactionReason(models.TextChoices):
+        MANUAL = "manual", "User requested"
+        RETENTION = "retention", "Retention policy"
+        LEGACY = "legacy", "Reason unknown before migration"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -212,7 +219,7 @@ class RawMessage(models.Model):
         related_name="raw_messages",
     )
     sender = models.CharField(max_length=120)
-    body = models.TextField()
+    body = EncryptedSmsTextField()
     received_at = models.DateTimeField()
     device_message_id = models.CharField(max_length=120, blank=True)
     body_hash = models.CharField(max_length=64)
@@ -229,6 +236,7 @@ class RawMessage(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     redacted_at = models.DateTimeField(blank=True, null=True)
+    redaction_reason = models.CharField(max_length=16, choices=RedactionReason.choices, blank=True, default="")
 
     class Meta:
         ordering = ("-received_at", "-created_at")
@@ -259,12 +267,13 @@ class RawMessage(models.Model):
     def __str__(self) -> str:
         return f"{self.sender} {self.received_at}"
 
-    def redact(self):
+    def redact(self, *, reason=RedactionReason.MANUAL):
         self.body = "[redacted]"
         self.device_message_id = ""
         self.status = self.Status.REDACTED
         self.redacted_at = timezone.now()
-        self.save(update_fields=("body", "device_message_id", "status", "redacted_at"))
+        self.redaction_reason = reason
+        self.save(update_fields=("body", "device_message_id", "status", "redacted_at", "redaction_reason"))
 
 
 class ParsedMessageCandidate(models.Model):

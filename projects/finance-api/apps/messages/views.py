@@ -153,6 +153,7 @@ class RawMessageImportView(APIView):
         )
         if duplicate:
             candidate = getattr(duplicate, "candidate", None)
+            was_restored = self._restore_original(duplicate, candidate, payload, body_hash)
             was_reprocessed = self._reprocess_candidate(candidate) if payload["reprocess_existing"] else False
             return Response(
                 {
@@ -163,6 +164,7 @@ class RawMessageImportView(APIView):
                     ),
                     "is_duplicate": True,
                     "was_reprocessed": was_reprocessed,
+                    "was_restored": was_restored,
                     "message": RawMessageSerializer(duplicate).data,
                 },
                 status=status.HTTP_200_OK,
@@ -247,6 +249,7 @@ class RawMessageImportView(APIView):
         except IntegrityError:
             raw_message = RawMessage.objects.get(user=request.user, body_hash=body_hash)
             candidate = getattr(raw_message, "candidate", None)
+            was_restored = self._restore_original(raw_message, candidate, payload, body_hash)
             was_reprocessed = self._reprocess_candidate(candidate) if payload["reprocess_existing"] else False
             return Response(
                 {
@@ -257,6 +260,7 @@ class RawMessageImportView(APIView):
                     ),
                     "is_duplicate": True,
                     "was_reprocessed": was_reprocessed,
+                    "was_restored": was_restored,
                     "message": RawMessageSerializer(raw_message).data,
                 },
                 status=status.HTTP_200_OK,
@@ -271,6 +275,32 @@ class RawMessageImportView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    @staticmethod
+    def _restore_original(message, candidate, payload, body_hash):
+        # An explicit history rescan can restore the exact same transaction SMS.
+        # Existing finite retention choices remain in force until changed by the user.
+        if (
+            not payload["reprocess_existing"]
+            or candidate is None
+            or candidate.status == ParsedMessageCandidate.Status.IGNORED
+            or message.exclusion_reason
+            or message.status != RawMessage.Status.REDACTED
+            or message.body_hash != body_hash
+            or classify_message_kind_for_capture(payload["body"])
+        ):
+            return False
+        if message.redaction_reason != RawMessage.RedactionReason.RETENTION and not payload["restore_redacted"]:
+            return False
+        preference = SmsCapturePreference.objects.filter(user=message.user).first()
+        if preference and preference.raw_sms_retention_days is not None:
+            return False
+        message.body = payload["body"]
+        message.status = RawMessage.Status.IMPORTED
+        message.redacted_at = None
+        message.redaction_reason = ""
+        message.save(update_fields=("body", "status", "redacted_at", "redaction_reason"))
+        return True
 
     def _find_duplicate(self, *, user, body_hash: str, device_message_id: str):
         queryset = RawMessage.objects.filter(user=user)
@@ -828,7 +858,7 @@ class MessageCandidateConfirmView(APIView):
         capture_preference, _created = SmsCapturePreference.objects.get_or_create(user=request.user)
         retention_days = capture_preference.raw_sms_retention_days
         if retention_days == 0:
-            candidate.raw_message.redact()
+            candidate.raw_message.redact(reason=RawMessage.RedactionReason.RETENTION)
 
         recorder.finish(transaction_record, "confirm")
         candidate.undo_action = transaction_record.undo_action

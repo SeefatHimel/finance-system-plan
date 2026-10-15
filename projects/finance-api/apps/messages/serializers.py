@@ -11,7 +11,6 @@ from apps.transactions.models import Transaction
 from apps.transactions.serializers import TransactionActionSerializer
 
 from .identifiers import sanitize_financial_identifier
-from .safe_sender_regex import compile_sender_pattern
 from .models import (
     ParsedMessageCandidate,
     RawMessage,
@@ -19,6 +18,7 @@ from .models import (
     SmsCapturePreference,
     SmsDeviceStatus,
 )
+from .safe_sender_regex import compile_sender_pattern
 
 CAPTURE_MESSAGE_KIND_CHOICES = tuple(
     choice
@@ -162,6 +162,7 @@ class RawMessageImportSerializer(serializers.Serializer):
         allow_blank=True,
     )
     reprocess_existing = serializers.BooleanField(required=False, default=False)
+    restore_redacted = serializers.BooleanField(required=False, default=False)
 
 
 class IdentityChoiceSerializer(serializers.Serializer):

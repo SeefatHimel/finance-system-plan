@@ -449,20 +449,20 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
         notes.append("Detected bank transfer wording.")
 
     counterparty_text = _extract_merchant_text(body) or _extract_counterparty_text(body)
-    identifiers = _extract_identifier_evidence(body, message_kind)
+    raw_identifiers = _extract_identifier_evidence(body, message_kind, sanitize=False)
     sender_payment_method = _find_payment_method_for_identifiers(
         user=raw_message.user,
         identifiers=(
-            identifiers["sender_account_identifier"],
-            identifiers["sender_card_identifier"],
+            raw_identifiers["sender_account_identifier"],
+            raw_identifiers["sender_card_identifier"],
         ),
         provider=provider,
     )
     receiver_payment_method = _find_payment_method_for_identifiers(
         user=raw_message.user,
         identifiers=(
-            identifiers["receiver_account_identifier"],
-            identifiers["receiver_card_identifier"],
+            raw_identifiers["receiver_account_identifier"],
+            raw_identifiers["receiver_card_identifier"],
         ),
         provider="",
     )
@@ -497,18 +497,18 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
             transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
             possible_internal_transfer = destination_account is not None
             confidence = max(confidence, Decimal("0.90"))
-            notes.append("Matched the transfer source from a saved masked identifier.")
+            notes.append("Matched the transfer source from a saved identifier.")
         elif receiver_payment_method:
             account = receiver_payment_method.account
             payment_method = receiver_payment_method
             confidence = max(confidence, Decimal("0.90"))
-            notes.append("Matched the receiving account from a saved masked identifier.")
+            notes.append("Matched the receiving account from a saved identifier.")
     else:
         if sender_payment_method:
             account = sender_payment_method.account
             payment_method = sender_payment_method
             confidence = max(confidence, Decimal("0.90"))
-            notes.append("Matched the source account from a saved masked identifier.")
+            notes.append("Matched the source account from a saved identifier.")
         if receiver_payment_method and (
             sender_payment_method is None
             or receiver_payment_method.account_id != sender_payment_method.account_id
@@ -522,7 +522,7 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
                 transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
                 possible_internal_transfer = True
             confidence = max(confidence, Decimal("0.88"))
-            notes.append("Matched the receiving account from a saved masked identifier.")
+            notes.append("Matched the receiving account from a saved identifier.")
 
     if amount is None:
         notes.append("Could not extract an amount with the Tk/BDT parser.")
@@ -703,7 +703,7 @@ def _find_payment_method_hint(*, user, text: str, excluded_account_id=None):
     return unique_method(user=user, evidence=evidence, excluded_account_id=excluded_account_id)
 
 
-def _extract_identifier_evidence(body: str, message_kind: str) -> dict[str, str]:
+def _extract_identifier_evidence(body: str, message_kind: str, *, sanitize=True) -> dict[str, str]:
     identifiers = {
         "sender_account_identifier": "",
         "sender_card_identifier": "",
@@ -723,7 +723,7 @@ def _extract_identifier_evidence(body: str, message_kind: str) -> dict[str, str]
         ("card", _CARD_IDENTIFIER_PATTERN),
     ):
         for match in pattern.finditer(body):
-            identifier = sanitize_financial_identifier(match.group(1))
+            identifier = sanitize_financial_identifier(match.group(1)) if sanitize else match.group(1).strip()
             if not identifier:
                 continue
             context = body[max(0, match.start() - 36):match.start()].lower()

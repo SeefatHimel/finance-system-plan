@@ -295,5 +295,5 @@ def combine_pending_sms(*, row, user, payload, request):
     candidate.save(update_fields=("transaction", "status", "updated_at"))
     preference, _ = SmsCapturePreference.objects.get_or_create(user=user)
     if preference.raw_sms_retention_days == 0:
-        candidate.raw_message.redact()
+        candidate.raw_message.redact(reason=RawMessage.RedactionReason.RETENTION)
     return linked

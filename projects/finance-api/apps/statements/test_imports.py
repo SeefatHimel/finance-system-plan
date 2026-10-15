@@ -23,7 +23,7 @@ from apps.messages.models import ParsedMessageCandidate, RawMessage
 from apps.transactions.models import Transaction, TransferEvidence
 from apps.transactions.services import calculate_expected_balance
 
-from .models import StatementImport, StatementRow
+from .models import StatementImport, StatementOriginalFile, StatementRow
 from .tests import synthetic_pdf
 
 
@@ -61,6 +61,29 @@ class SavedStatementTests(APITestCase):
         self.assertIn(response.status_code, (200, 201), response.data)
         self.assertEqual(response["Cache-Control"], "no-store")
         return StatementImport.objects.get(pk=response.data["id"])
+
+    def test_original_pdf_is_encrypted_and_old_import_can_be_restored(self):
+        batch = self.upload()
+        source = StatementOriginalFile.objects.get(batch=batch)
+        self.assertNotIn(self.pdf[:32], bytes(source.ciphertext))
+        self.assertEqual(source.size, len(self.pdf))
+        original_url = reverse("statement-import-original", args=[batch.id])
+        downloaded = self.client.get(original_url)
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertEqual(downloaded.content, self.pdf)
+        self.assertEqual(downloaded["Cache-Control"], "no-store")
+        other = get_user_model().objects.create_user(username="other-source-user")
+        self.client.force_authenticate(other)
+        self.assertEqual(self.client.get(original_url).status_code, 404)
+        self.client.force_authenticate(self.user)
+        source.delete()  # Simulate an import saved before original-file retention.
+        self.bank.is_active = False
+        self.bank.save(update_fields=("is_active", "updated_at"))
+        count = StatementRow.objects.filter(batch=batch).count()
+        self.assertEqual(self.client.get(original_url).status_code, 404)
+        self.upload()  # Re-uploading the identical PDF attaches it without new rows.
+        self.assertTrue(StatementOriginalFile.objects.filter(batch=batch).exists())
+        self.assertEqual(StatementRow.objects.filter(batch=batch).count(), count)
 
     def edit(self, row, **fields):
         return self.client.patch(

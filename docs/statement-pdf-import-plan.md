@@ -89,7 +89,8 @@ Delivered backend concepts:
 
 - `StatementImport`: user, reporting account, file digest, detected profile and
   parser version, period, currency, summary checks and timestamps. Masked extraction is retained;
-  original PDFs and passwords are discarded. Processing is separate from posting.
+  original PDFs are stored encrypted for source recovery; unlock passwords are
+  discarded. Processing is separate from posting.
 - `StatementRow`: stable source identity, page/row locations, normalized values,
   validation results, review decision, and optional ledger/evidence links.
 - Fee/adjustment components: preserve separately posted fee rows and inline
@@ -155,8 +156,9 @@ links; AI confidence alone never authorizes a money movement or merge.
 
 Saved imports require `statements.0001_initial`. The selected reporting account
 is fixed for a saved batch; remapping needs a new upload for the correct account.
-Original PDFs/passwords are not retained, so source viewing exposes masked row
-extraction/page provenance, not the PDF itself. Original checks are not rewritten
+Original PDFs are encrypted and available to their owner on demand; unlock
+passwords are not retained. Review rows expose masked extraction/page provenance.
+Original checks are not rewritten
 by draft edits. No OCR, saved extraction revisions, background queue, or automatic
 posting is delivered. Limits: 4 MiB, 30 pages, 2000 source rows, 10 uploads/hour/user,
 20-second worker timeout. Saved review components can double for inline fees.

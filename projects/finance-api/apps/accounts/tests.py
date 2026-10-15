@@ -55,6 +55,12 @@ class AccountIdentityApiTests(APITestCase):
             response.data["identity"]["additional_identifiers"][0]["value"], "2222"
         )
         self.assertEqual(account.identity_method.account_id, account.pk)
+        from apps.payment_methods.secure_identifiers import originals_for
+
+        originals = originals_for(account.identity_method)
+        self.assertEqual(originals["identifier"], "9876543210123")
+        self.assertEqual(originals["additional_identifiers"][0]["value"], "12345678902222")
+        self.assertNotIn(b"9876543210123", bytes(account.identity_method.encrypted_identifiers))
         message = RawMessage.objects.create(
             user=self.user,
             sender="EBL",

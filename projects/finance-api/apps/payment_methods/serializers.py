@@ -1,9 +1,11 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from apps.accounts.models import Account
 from apps.messages.identifiers import sanitize_financial_identifier
 
 from .models import PaymentMethod
+from .secure_identifiers import retain_originals
 
 
 class AdditionalIdentifierSerializer(serializers.Serializer):
@@ -20,6 +22,11 @@ class AdditionalIdentifierSerializer(serializers.Serializer):
                 "Enter a masked identifier with at least three ending digits, or a suffix of at least three digits."
             )
         return safe
+
+
+class OriginalIdentifiersSerializer(serializers.Serializer):
+    identifier = serializers.CharField(allow_blank=True)
+    additional_identifiers = serializers.ListField(child=serializers.DictField())
 
 
 class PaymentMethodSerializer(serializers.ModelSerializer):
@@ -92,6 +99,18 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
             is_active=True,
         )
         return fields
+
+    @transaction.atomic
+    def create(self, validated_data):
+        method = super().create(validated_data)
+        retain_originals(method, self.initial_data)
+        return method
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        method = super().update(instance, validated_data)
+        retain_originals(method, self.initial_data)
+        return method
 
 
 class AccountIdentitySerializer(PaymentMethodSerializer):

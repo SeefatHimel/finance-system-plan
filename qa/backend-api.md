@@ -1,5 +1,21 @@
 # Backend API Q&A
 
+### How are exact statement, SMS, and account/card sources retained?
+
+The statement importer encrypts exact PDF bytes, keeps masked review rows, and
+serves the PDF only to its owner through a no-store endpoint. A same-file,
+same-account retry can attach the PDF to a legacy import. The unlock password is
+not retained. Transaction SMS remains in `RawMessage.body` encrypted by default;
+OTP/security and promotions are excluded. A history rescan restores a redacted
+body only for the same hash and a Keep preference. Retention-policy redaction can
+restore automatically on refresh; manual and older unknown redactions require the
+explicit restore option. Full account/card identifiers
+entered after this change are encrypted in the payment-method record; normal
+responses remain masked. Legacy digits already discarded require source re-entry.
+If an incoming SMS or statement actually contains the complete account/card
+number, the resolver can compare it with encrypted saved originals to
+disambiguate equal suffixes. A masked source still provides only suffix evidence.
+
 ## What is the backend responsible for?
 
 The backend owns authentication, user-scoped data, accounts, categories,
@@ -614,8 +630,10 @@ require acknowledgement and preserve original extraction. Source discrepancies
 require review, and principal/fee components are independently posted.
 
 The preview endpoint remains stateless. Saved imports require migration
-`statements.0001_initial`. PDFs/passwords are discarded; masked extraction and
-audit history remain. Synthetic fixtures and PostgreSQL concurrency tests cover
+`statements.0001_initial`. New imports encrypt and retain exact PDF bytes while
+discarding unlock passwords; older imports can regain the PDF by re-uploading the
+same file to the same account. Masked extraction and audit history remain.
+Synthetic fixtures and PostgreSQL concurrency tests cover
 same-file retries, overlaps, corrected values, repeats, fees and transfer merges.
 
 ### How does statement review learn and validate corrections?

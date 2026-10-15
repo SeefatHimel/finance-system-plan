@@ -1,5 +1,17 @@
 # Local Setup
 
+## Original-source storage update
+
+After pulling this change, install the updated API requirements and run
+`python manage.py migrate` in `projects/finance-api` before starting the API.
+Migrations add encrypted PDF and account/card identifier storage and set existing
+SMS capture retention preferences to **Keep**. Existing redacted SMS bodies and
+previously truncated identifiers cannot be reconstructed from the database.
+
+Keep `DJANGO_SECRET_KEY` stable for encrypted-source recovery. If rotating it,
+set `DJANGO_SECRET_KEY_FALLBACKS` to the previous key while old archives exist;
+the fallback setting is a comma-separated list and must stay private.
+
 This document describes the local development setup for the scaffolded API,
 web, mobile, infra, and contracts projects.
 
@@ -441,8 +453,21 @@ Statement review assistance requires the latest API migrations, including
 `projects/finance-api` before restarting API/web. The remembered-choice table stores
 scoped classifications. Migration 0003 cleans untouched Counterparty drafts on
 pending statement rows; it preserves saved corrections, original extraction,
-notes, resolved rows, and ledger entries. PDF/password retention remains unchanged
-(neither is saved).
+notes, resolved rows, and ledger entries. Since `statements.0006`, the original
+PDF is stored encrypted; its unlock password is never saved.
+
+For original-source retention, deploy API code and run `python manage.py migrate`
+before using the new endpoints. This applies `statements.0006` (encrypted PDF
+archive), `payment_methods.0004` (encrypted full account/card entries), and
+`finance_messages.0013`–`0014` (Keep preference, encrypted existing SMS bodies,
+and redaction provenance). Keep the existing `DJANGO_SECRET_KEY` available with
+database backups. During rotation, put the previous key in
+`DJANGO_SECRET_KEY_FALLBACKS` until all old archives have been re-encrypted.
+Previously discarded PDF bytes and account/card digits cannot be reconstructed
+from masked rows; re-upload the same PDF or re-enter the complete identifier.
+For redacted transaction SMS still on the phone, use a history scan and the
+explicit restore option when the earlier redaction was manual or its cause is
+unknown.
 
 The payment-method identity metadata update adds one migration. Run the existing
 API `python manage.py migrate` command before testing identifiers and aliases.

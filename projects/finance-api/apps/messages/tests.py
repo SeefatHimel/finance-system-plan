@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework.test import APITestCase
@@ -165,7 +166,7 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["excluded_providers"], [])
         self.assertEqual(response.data["excluded_message_kinds"], ["otp_or_security", "promotional"])
-        self.assertEqual(response.data["raw_sms_retention_days"], 30)
+        self.assertIsNone(response.data["raw_sms_retention_days"])
 
     def test_ebl_transfer_does_not_treat_masked_account_as_balance(self):
         user = get_user_model().objects.create_user(username="ebl-user", password="password")
@@ -1762,10 +1763,106 @@ class MessageReviewApiTests(APITestCase):
         raw_message = RawMessage.objects.get(id=raw_message_id)
         self.assertEqual(raw_message.body, "[redacted]")
         self.assertEqual(raw_message.status, RawMessage.Status.REDACTED)
+        self.assertEqual(raw_message.redaction_reason, RawMessage.RedactionReason.MANUAL)
         self.assertEqual(raw_message.device_message_id, "")
         self.assertIsNotNone(raw_message.redacted_at)
         self.assertEqual(response.data["message"]["body"], "[redacted]")
         self.assertEqual(response.data["candidate"]["raw_message"]["body"], "[redacted]")
+
+    def test_explicit_history_rescan_restores_same_transaction_sms_only_when_kept(self):
+        candidate = self.import_payment_message()
+        confirm = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": candidate["id"]}),
+            {},
+            format="json",
+        )
+        self.assertEqual(confirm.status_code, 200)
+        message = RawMessage.objects.get(id=candidate["raw_message"]["id"])
+        original_body = message.body
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT body FROM {RawMessage._meta.db_table} WHERE id = %s",
+                [str(message.pk) if connection.vendor == "postgresql" else message.pk.hex],
+            )
+            stored_body = cursor.fetchone()[0]
+        self.assertNotIn(original_body, stored_body)
+        self.assertTrue(stored_body.startswith("finance-sms-v1:"))
+
+        message.redact(reason=RawMessage.RedactionReason.RETENTION)
+        payload = {
+            "sender": message.sender,
+            "body": original_body,
+            "received_at": message.received_at.isoformat(),
+            "reprocess_existing": True,
+        }
+        response = self.client.post(reverse("raw-message-import"), payload, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["was_restored"])
+        message.refresh_from_db()
+        self.assertEqual(message.body, original_body)
+        self.assertIsNone(message.redacted_at)
+        self.assertEqual(message.redaction_reason, "")
+        self.assertEqual(RawMessage.objects.count(), 1)
+        self.assertEqual(Transaction.objects.count(), 1)
+
+        SmsCapturePreference.objects.update_or_create(user=self.user, defaults={"raw_sms_retention_days": 7})
+        message.redact()
+        self.client.post(reverse("raw-message-import"), payload, format="json")
+        message.refresh_from_db()
+        self.assertEqual(message.body, "[redacted]")
+
+    def test_existing_plaintext_sms_is_encrypted_by_migration(self):
+        from importlib import import_module
+        from types import SimpleNamespace
+
+        candidate = self.import_payment_message()
+        message = RawMessage.objects.get(id=candidate["raw_message"]["id"])
+        original_body = message.body
+        message.redact()
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"UPDATE {RawMessage._meta.db_table} SET body = %s, redaction_reason = '' WHERE id = %s",
+                [original_body, str(message.pk) if connection.vendor == "postgresql" else message.pk.hex],
+            )
+        migration = import_module("apps.messages.migrations.0014_encrypt_raw_sms_and_track_redaction")
+        migration.encrypt_saved_sms(
+            SimpleNamespace(get_model=lambda *_: RawMessage),
+            SimpleNamespace(connection=connection),
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT body FROM {RawMessage._meta.db_table} WHERE id = %s",
+                [str(message.pk) if connection.vendor == "postgresql" else message.pk.hex],
+            )
+            stored_body = cursor.fetchone()[0]
+        self.assertTrue(stored_body.startswith("finance-sms-v1:"))
+        self.assertNotIn(original_body, stored_body)
+        message.refresh_from_db()
+        self.assertEqual(message.body, original_body)
+        self.assertEqual(message.redaction_reason, RawMessage.RedactionReason.LEGACY)
+
+    def test_manual_and_legacy_redactions_require_explicit_restore_choice(self):
+        candidate = self.import_payment_message()
+        message = RawMessage.objects.get(id=candidate["raw_message"]["id"])
+        original_body = message.body
+        payload = {
+            "sender": message.sender,
+            "body": original_body,
+            "received_at": message.received_at.isoformat(),
+            "reprocess_existing": True,
+        }
+        for reason in (RawMessage.RedactionReason.MANUAL, RawMessage.RedactionReason.LEGACY):
+            message.redact(reason=reason)
+            response = self.client.post(reverse("raw-message-import"), payload, format="json")
+            self.assertFalse(response.data["was_restored"])
+            message.refresh_from_db()
+            self.assertEqual(message.body, "[redacted]")
+            response = self.client.post(
+                reverse("raw-message-import"), {**payload, "restore_redacted": True}, format="json"
+            )
+            self.assertTrue(response.data["was_restored"])
+            message.refresh_from_db()
+            self.assertEqual(message.body, original_body)
 
     def test_confirmed_transaction_uses_safe_normalized_note(self):
         candidate = self.import_payment_message()

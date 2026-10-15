@@ -40,6 +40,7 @@ def env_int(name: str, default: int) -> int:
 
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "local-dev-secret")
+SECRET_KEY_FALLBACKS = env_list("DJANGO_SECRET_KEY_FALLBACKS", [])
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 
