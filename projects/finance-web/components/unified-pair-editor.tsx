@@ -135,7 +135,6 @@ export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftCh
           {pair.row.counterparty_text && pair.row.counterparty_text !== draft.counterparty_text ? <Suggestion label="statement text" value={pair.row.counterparty_text} disabled={busy} onUse={() => setField("counterparty_text", pair.row.counterparty_text)} /> : null}
         </div> : null}
       </div>
-      <label className="review-remember field--wide"><input type="checkbox" checked={draft.classification_confirmed} onChange={event => setField("classification_confirmed", event.target.checked)} /><span>I reviewed the transaction type and account path.</span></label>
     </fieldset>
     {draft.type === "transfer" ? <p className="unified-path-preview">Money moves: {draft.direction === "credit" ? `${accountName(draft.other_account)} → ${pair.batch.account_name}` : `${pair.batch.account_name} → ${accountName(draft.other_account)}`}</p> : null}
     <details className="unified-more-fields"><summary>More transaction details <span>Balance, reference, note, value date</span></summary>

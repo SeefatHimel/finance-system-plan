@@ -1168,6 +1168,11 @@ and the balance choice stays visible in Finish review. Less-used balance editing
 value date, reference, amount evidence and note fields sit in More transaction
 details. Original PDF/SMS values and match reasons remain available in separate
 disclosures, and collapsing them does not discard edits or bypass any checks.
+Finish review groups required acknowledgments, including the type and account-path
+check, in one checklist. Check required marks the currently applicable items
+together after any differing transaction type is chosen; later edits or changed
+choices reset them as before. The optional Remember choices setting stays separate
+and is never checked by that action. Balance decisions remain independent.
 A verified Citytouch mapping can prefill the merchant and a compatible active
 category. If the mapping suggests a different type, its category waits until the
 reviewer chooses that type. An existing saved compatible category takes precedence

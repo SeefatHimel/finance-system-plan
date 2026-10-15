@@ -3521,8 +3521,17 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .unified-pair-decisions .statement-balance-choice { margin: 0 0 14px; }
 .unified-pair-decisions .statement-balance-options { gap: 8px; }
 .unified-pair-decisions .statement-balance-options label { padding: 9px; }
-.unified-pair-decisions .statement-match-conflict, .unified-pair-decisions .raw-message, .unified-pair-decisions > .review-remember { margin-top: 10px; }
+.unified-pair-decisions > .raw-message, .unified-pair-decisions > .unified-pair-remember { margin-top: 10px; }
 .unified-pair-decisions .review-remember { padding: 10px; }
+.unified-pair-checklist { border: 1px solid var(--panel-border); border-radius: 10px; display: grid; gap: 8px; margin-top: 12px; padding: 12px; }
+.unified-pair-checklist__header { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+.unified-pair-checklist__header h4 { font-size: 14px; margin: 0; }
+.unified-pair-checklist__item { background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; padding: 10px; }
+.unified-pair-checklist__item > strong { font-size: 13px; }
+.unified-pair-checklist__item .inline-note { font-size: 12px; margin: 6px 0; }
+.unified-pair-checklist .statement-match-conflict { margin: 0; }
+.unified-pair-checklist .review-remember { background: transparent; border: 0; border-radius: 0; min-height: 0; padding: 8px 0 0; }
+.unified-pair-checklist > .review-remember { border-top: 1px solid var(--panel-border); padding-top: 10px; }
 .unified-pair-main > .unified-source-evidence { margin-top: 12px; }
 .unified-pair-main > .raw-message { margin-top: 8px; }
 @media (max-width: 1050px) {

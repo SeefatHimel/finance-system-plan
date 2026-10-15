@@ -976,7 +976,11 @@ classification/date/time and chosen balance. The combined dialog places the
 editable result and Finish review decisions side by side on desktop and stacks
 them on smaller screens. A compact source strip receives initial focus. Less-used
 fields and full source evidence open on demand without losing draft values or
-waiving the existing confirmation checks. If a statement has
+waiving the existing confirmation checks. Required acknowledgments, including
+the type and account-path check, share one Finish review checklist. Check required
+marks the applicable items after a differing type is chosen. The separate optional
+Remember setting is excluded, and edits reset confirmations. Balance choice stays
+independent. If a statement has
 no time, the aligned SMS received time is suggested with a visible source label;
 reviewers can clear it. A date mismatch leaves time empty, and moving the date
 away from the SMS date clears that suggestion.

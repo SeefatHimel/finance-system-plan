@@ -70,6 +70,8 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
   const originalBalanceNeedsReview = pair.match.conflict && reportedBalanceNeedsAcknowledgment(row.balance_after, pair.sms.balance_after, pair.batch.currency);
   const editedBalanceNeedsReview = reportedBalanceNeedsAcknowledgment(draft.balance_after, pair.sms.balance_after, pair.batch.currency);
   const needsConflict = originalBalanceNeedsReview || editedBalanceNeedsReview || Boolean(ledgerMatch?.conflict) || (smsLedgerDifference !== null && smsLedgerDifference !== "0.00");
+  const requiredChecksComplete = draft.classification_confirmed && ackMatch && (!needsConflict || ackConflict) && (!needsDraftReview || ackIssues);
+  const typeDecisionReady = !typeDiffers || (Boolean(typeChoice) && !(typeChoice === "custom" && (draft.type === row.type || draft.type === pair.sms.transaction_type)));
   const accountNames = useMemo(() => new Map(accounts.map(account => [account.id, account.name])), [accounts]);
   const accountName = (id: string | null) => id ? accountNames.get(id) ?? "Account unknown" : "Account unknown";
   const otherName = accountName(row.other_account);
@@ -96,6 +98,16 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
     ...(row.review.matching_truncated ? ["Narrow the statement ledger search before confirming."] : []),
   ];
   const blocked = busy || requirements.length > 0;
+
+  function checkRequiredConfirmations() {
+    if (!typeDecisionReady) return;
+    const checkedDraft = draft.classification_confirmed ? draft : { ...draft, classification_confirmed: true };
+    const checkedDraftNeedsReview = row.review.requires_acknowledgement || JSON.stringify(checkedDraft) !== JSON.stringify(savedPairDraft(pair));
+    if (checkedDraft !== draft) updateDraft(checkedDraft);
+    setAckMatch(true);
+    if (needsConflict) setAckConflict(true);
+    if (checkedDraftNeedsReview) setAckIssues(true);
+  }
 
   async function confirm() {
     const token = getAccessToken();
@@ -156,11 +168,16 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
         <span className="field__hint">{balanceHint} Edit the statement draft in More transaction details. Both originals remain attached.</span>
         {statementIncludesSeparateFee && pair.sms.balance_after === null && draft.balance_after !== null ? <Link className="button button--ghost" href={`/statements?import=${pair.batch.id}&row=${row.id}`}>Review fee separately</Link> : null}
       </fieldset>}
-      {needsConflict ? <section className="statement-match-conflict"><strong>Review balance differences{originalBalanceNeedsReview && originalBalanceDifference !== null ? ` · original reports differ by ${pair.batch.currency} ${originalBalanceDifference}` : ""}</strong><p>Saved statement: {row.balance_after ?? "Not reported"} · SMS: {pair.sms.balance_after ?? "Not reported"}{draft.balance_after !== row.balance_after ? ` · edited statement draft: ${draft.balance_after ?? "Not reported"}` : ""}.</p>{smsLedgerDifference !== null && smsLedgerDifference !== "0.00" ? <p>SMS minus existing ledger balance: {pair.batch.currency} {smsLedgerDifference}.</p> : null}{ledgerMatch?.conflict ? <ul>{ledgerMatch.reasons.filter(reason => reason.includes("balance")).map(reason => <li key={reason}>{reason}</li>)}</ul> : null}<label className="review-remember"><input type="checkbox" disabled={busy} checked={ackConflict} onChange={event => setAckConflict(event.target.checked)} /><span>I reviewed the differing balances and my balance choice.</span></label></section> : null}
       {!draftChanged && row.review.issues.length ? <ul className="statement-error">{row.review.issues.map(issue => <li key={issue}>{issue}</li>)}</ul> : null}
-      {needsDraftReview ? <section className="raw-message" aria-label="Source and draft discrepancies"><h3>Edited result and source checks</h3>{draftChanged ? <p className="inline-note">The server will recheck the match and statement draft together before recording anything.</p> : null}{sourceIssues.length || (!draftChanged && row.review.draft_issues.length) ? <details className="unified-check-details" open={checksOpen} onToggle={event => setChecksOpen(event.currentTarget.open)}><summary>Source checks ({sourceIssues.length + (draftChanged ? 0 : row.review.draft_issues.length)})</summary>{sourceIssues.length ? <><strong>Original statement checks</strong><ul>{sourceIssues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></> : null}{!draftChanged && row.review.draft_issues.length ? <><strong>Saved draft checks</strong><ul>{row.review.draft_issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></> : null}</details> : null}<label className="review-remember"><input type="checkbox" disabled={busy} checked={ackIssues} onChange={event => setAckIssues(event.target.checked)} /><span>I reviewed the edited result against both original sources.</span></label></section> : null}
-      <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackMatch} onChange={event => setAckMatch(event.target.checked)} /><span>These sources describe the same money movement.</span></label>
-      <label className="review-remember"><input type="checkbox" disabled={busy} checked={remember} onChange={event => setRemember(event.target.checked)} /><span>Remember statement category and transfer choices.</span></label>
+      <section className="unified-pair-checklist" aria-labelledby="unified-checklist-title">
+        <div className="unified-pair-checklist__header"><h4 id="unified-checklist-title">Required confirmations</h4><button className="button button--ghost button--small" type="button" disabled={busy || requiredChecksComplete || !typeDecisionReady} onClick={checkRequiredConfirmations}>{requiredChecksComplete ? "Checked" : "Check required"}</button></div>
+        {!typeDecisionReady ? <small className="field__hint">Choose the final transaction type first.</small> : null}
+        <label className="review-remember"><input type="checkbox" disabled={busy} checked={draft.classification_confirmed} onChange={event => updateDraft({ ...draft, classification_confirmed: event.target.checked })} /><span>I reviewed the transaction type and account path.</span></label>
+        {needsConflict ? <div className="statement-match-conflict"><strong>Review balance differences{originalBalanceNeedsReview && originalBalanceDifference !== null ? ` · original reports differ by ${pair.batch.currency} ${originalBalanceDifference}` : ""}</strong><p>Saved statement: {row.balance_after ?? "Not reported"} · SMS: {pair.sms.balance_after ?? "Not reported"}{draft.balance_after !== row.balance_after ? ` · edited statement draft: ${draft.balance_after ?? "Not reported"}` : ""}.</p>{smsLedgerDifference !== null && smsLedgerDifference !== "0.00" ? <p>SMS minus existing ledger balance: {pair.batch.currency} {smsLedgerDifference}.</p> : null}{ledgerMatch?.conflict ? <ul>{ledgerMatch.reasons.filter(reason => reason.includes("balance")).map(reason => <li key={reason}>{reason}</li>)}</ul> : null}<label className="review-remember"><input type="checkbox" disabled={busy} checked={ackConflict} onChange={event => setAckConflict(event.target.checked)} /><span>I reviewed the differing balances and my balance choice.</span></label></div> : null}
+        {needsDraftReview ? <div className="unified-pair-checklist__item" aria-label="Source and draft discrepancies"><strong>Edited result and source checks</strong>{draftChanged ? <p className="inline-note">The server will recheck the match and statement draft together before recording anything.</p> : null}{sourceIssues.length || (!draftChanged && row.review.draft_issues.length) ? <details className="unified-check-details" open={checksOpen} onToggle={event => setChecksOpen(event.currentTarget.open)}><summary>Source checks ({sourceIssues.length + (draftChanged ? 0 : row.review.draft_issues.length)})</summary>{sourceIssues.length ? <><strong>Original statement checks</strong><ul>{sourceIssues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></> : null}{!draftChanged && row.review.draft_issues.length ? <><strong>Saved draft checks</strong><ul>{row.review.draft_issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></> : null}</details> : null}<label className="review-remember"><input type="checkbox" disabled={busy} checked={ackIssues} onChange={event => setAckIssues(event.target.checked)} /><span>I reviewed the edited result against both original sources.</span></label></div> : null}
+        <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackMatch} onChange={event => setAckMatch(event.target.checked)} /><span>These sources describe the same money movement.</span></label>
+      </section>
+      <label className="review-remember unified-pair-remember"><input type="checkbox" disabled={busy} checked={remember} onChange={event => setRemember(event.target.checked)} /><span>Remember statement category and transfer choices. <small>Optional · not included in Check required.</small></span></label>
       </section>
       </div>
       {error ? <p className="form-error" role="alert">{error} Close and refresh the queue if either source changed.</p> : null}
