@@ -571,6 +571,9 @@ health endpoint) still exists. A backend API change requires reviewing and
 updating the snapshot and, when relevant, `openapi.yaml` and generated TypeScript
 types. The bounded SMS review response and dashboard summary are documented
 in the shared contract.
+The snapshot is generated against PostgreSQL, matching CI and production;
+SQLite's backend-dependent integer bounds differ and are not used as the
+canonical contract.
 
 `GET /api/messages/review/{id}/` returns one owned, still-pending SMS candidate
 for direct inbox navigation. `review.pending_sms_match_count` is nullable: null

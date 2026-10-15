@@ -86,6 +86,9 @@ component snapshot with `backend-schema-snapshot.json`. After a reviewed API
 change, update `openapi.yaml` as appropriate, regenerate TypeScript, and run
 `python scripts/check_backend_schema.py /tmp/finance-schema.yaml --update`.
 This check also rejects contract routes that no longer exist on the backend.
+Generate the snapshot with `DATABASE_URL` pointing to PostgreSQL, as in CI and
+production. SQLite gives Django integer fields a different maximum and `int64`
+format, causing a false schema-drift failure against PostgreSQL.
 
 ## Contract Principles
 

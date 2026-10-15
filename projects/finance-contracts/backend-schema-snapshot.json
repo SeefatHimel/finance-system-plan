@@ -4825,8 +4825,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -5187,8 +5186,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -6401,8 +6399,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -6536,8 +6533,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -6732,8 +6728,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -6794,8 +6789,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -6869,8 +6863,7 @@
           "type": "string"
         },
         "reminder_days_before": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -6939,8 +6932,7 @@
           "type": "string"
         },
         "priority": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -7221,8 +7213,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -7405,8 +7396,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -7703,8 +7693,7 @@
           "type": "string"
         },
         "reminder_days_before": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -8038,8 +8027,7 @@
           "type": "string"
         },
         "priority": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -8129,8 +8117,7 @@
           "type": "string"
         },
         "failed_upload_count": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -8162,8 +8149,7 @@
           "type": "string"
         },
         "pending_upload_count": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },

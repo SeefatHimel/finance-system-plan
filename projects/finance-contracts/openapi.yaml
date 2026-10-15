@@ -2787,9 +2787,8 @@ components:
           type: boolean
         display_order:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
         available:
           type: boolean
           readOnly: true
@@ -2841,9 +2840,8 @@ components:
           type: boolean
         display_order:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
         available:
           type: boolean
           readOnly: true
