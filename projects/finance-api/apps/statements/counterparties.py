@@ -7,9 +7,10 @@ from .models import StatementCounterpartyCode, StatementRow
 
 # The first group varies per movement and is never identity evidence. Only the
 # recurring second group is a candidate party code, scoped to one statement
-# account and direction. It is not assumed to be a card/account number.
+# account and direction. Retain every visible digit in that group: two codes
+# can share their last four digits. Masked digits cannot be recovered.
 CITYTOUCH_REFERENCE = re.compile(
-    r"(?<![A-Z0-9])CT[-\s]*FT[-\s]*\*{2,}\d{3,4}[-\s]*\*{2,}(\d{4})(?!\d)",
+    r"(?<![A-Z0-9])CT[-\s]*FT[-\s]*\*{2,}\d{3,24}[-\s]*\*{2,}(\d{4,24})(?![A-Z0-9])",
     re.IGNORECASE,
 )
 
@@ -114,6 +115,6 @@ def code_suggestions(rows):
             "category": str(category_id) if category_id else None,
             "other_account": str(other_account_id) if other_account_id else None,
             "counterparty_text": mapping.label,
-            "reason": f"Verified Citytouch code ending {code}: {mapping.label}. Check this transaction before applying.",
+            "reason": f"Verified Citytouch second code {code}: {mapping.label}. Check this transaction before applying.",
         }
     return result

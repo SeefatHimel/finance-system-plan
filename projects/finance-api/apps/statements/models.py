@@ -149,7 +149,7 @@ class StatementCounterpartyCode(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
     profile = models.CharField(max_length=32, default="city_bank")
-    code = models.CharField(max_length=4)
+    code = models.CharField(max_length=24)
     direction = models.CharField(max_length=16, choices=Transaction.Direction.choices)
     party_kind = models.CharField(max_length=16, choices=PartyKind.choices)
     label = models.CharField(max_length=120)

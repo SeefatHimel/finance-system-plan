@@ -19,7 +19,7 @@ from .models import StatementCounterpartyCode
 
 class CodeMappingInputSerializer(serializers.Serializer):
     account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none())
-    code = serializers.RegexField(r"^\d{4}$", max_length=4)
+    code = serializers.RegexField(r"^\d{4,24}$", max_length=24)
     direction = serializers.ChoiceField(choices=Transaction.Direction.choices)
     party_kind = serializers.ChoiceField(
         choices=StatementCounterpartyCode.PartyKind.choices

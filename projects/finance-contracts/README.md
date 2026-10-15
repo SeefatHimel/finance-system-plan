@@ -643,8 +643,12 @@ entry. Existing clients can ignore the optional field.
 
 ## Citytouch statement code directory
 
-The authenticated statement-code GET/POST and DELETE endpoints expose only
-four-digit recurring second codes from saved City Bank `CT-FT` rows. The
+The authenticated statement-code GET/POST and DELETE endpoints expose the
+visible digits (four to 24) of recurring second codes from saved City Bank
+`CT-FT` rows. Existing four-digit codes remain valid. A longer visible code is
+kept distinct even when its last four digits match another code. Masked digits
+cannot be recovered, so an otherwise identical four-digit suffix remains
+ambiguous. The
 variable first segment is not party identity. Mappings are scoped to the
 reporting account and debit/credit direction, and may name an external party
 or link a different owned account. Optional type/category choices are

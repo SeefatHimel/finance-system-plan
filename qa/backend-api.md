@@ -949,7 +949,10 @@ requires individual review rather than being labelled zero.
 `CT-FT` describes the bank operation. The ledger type depends on purpose:
 movement between two tracked accounts is a transfer, while an outgoing payment
 can be an expense. The first masked reference segment varies per movement;
-the second recurring four-digit segment is a candidate party code. The API
+the second recurring visible segment is a candidate party code. The API keeps
+all visible digits, so longer codes sharing a four-digit suffix stay distinct;
+masked-out digits remain unknown and a four-digit-only code can still collide.
+It
 groups it by reporting account and debit/credit direction and requires a
 user-verified mapping before suggesting a party or type. It explicitly blocks
 generic description learning for these rows so unrelated recipients cannot

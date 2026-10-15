@@ -590,8 +590,9 @@ corroboration; amount/date alone does not create a pair.
 
 ### What is the Citytouch counterparty-code API boundary?
 
-Authenticated `GET /api/statements/counterparty-codes/` returns observed
-four-digit ending codes by statement account and debit/credit direction, with
+Authenticated `GET /api/statements/counterparty-codes/` returns all visible
+digits (four to 24) of the second Citytouch code by statement account and
+debit/credit direction, with
 counts, recent masked examples and an optional saved mapping. `POST` upserts a
 mapping for a code observed in that user's saved City Bank statements;
 `DELETE /{id}/` forgets it. The mapping may hold an external label or a

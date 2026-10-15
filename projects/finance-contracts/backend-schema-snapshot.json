@@ -5267,8 +5267,8 @@
           "type": "string"
         },
         "code": {
-          "maxLength": 4,
-          "pattern": "^\\d{4}$",
+          "maxLength": 24,
+          "pattern": "^\\d{4,24}$",
           "type": "string"
         },
         "direction": {

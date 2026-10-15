@@ -101,6 +101,34 @@ class CitytouchCounterpartyTests(APITestCase):
         self.assertEqual(code["examples"][0]["amount"], "100.00")
         self.assertIsNone(code["mapping"])
 
+    def test_second_codes_with_same_last_four_digits_stay_distinct(self):
+        first = self.row(1, "12345678", "12345678")
+        second = self.row(2, "9876", "99995678")
+        self.assertEqual(citytouch_code(first.extracted["description"]), "12345678")
+        self.assertEqual(citytouch_code(second.extracted["description"]), "99995678")
+        response = self.client.get(reverse("statement-counterparty-codes"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            {entry["code"] for entry in response.data["results"]},
+            {"12345678", "99995678"},
+        )
+        save = self.client.post(
+            reverse("statement-counterparty-codes"),
+            self.payload(code="12345678"),
+            format="json",
+        )
+        self.assertEqual(save.status_code, 200, save.data)
+        self.assertIn(first.id, suggestions([first, second]))
+        self.assertNotIn(second.id, suggestions([first, second]))
+        self.assertEqual(
+            self.client.post(
+                reverse("statement-counterparty-codes"),
+                self.payload(code="5678"),
+                format="json",
+            ).status_code,
+            400,
+        )
+
     def test_external_payment_mapping_suggests_without_rewriting_draft(self):
         first = self.row(1, "1234", "5678")
         second = self.row(2, "9876", "5678")

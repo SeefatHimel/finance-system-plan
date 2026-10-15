@@ -6459,7 +6459,7 @@ components:
       required: [account, code, direction, party_kind, label]
       properties:
         account: {type: string, format: uuid}
-        code: {type: string, pattern: '^\d{4}$', description: Recurring second code only.}
+        code: {type: string, pattern: '^\d{4,24}$', maxLength: 24, description: All visible digits of the recurring second code only.}
         direction: {type: string, enum: [debit, credit]}
         party_kind: {type: string, enum: [owned, external]}
         label: {type: string, maxLength: 120}

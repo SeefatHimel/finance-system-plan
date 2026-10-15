@@ -614,8 +614,11 @@ remain unsupported pending separate extraction and accounting validation.
   retaining the observed masked source rows.
 
 For City Bank `CT-FT-***1234-***5678` descriptions, the first part varies by
-movement and is never used as party identity. Only the second four-digit code
-is grouped, separately for each reporting account and debit/credit direction.
+movement and is never used as party identity. All visible digits of the second
+code are grouped, separately for each reporting account and debit/credit
+direction. Existing four-digit mappings remain valid; longer visible codes
+with the same last four digits stay distinct. Masked digits cannot be recovered,
+so a four-digit suffix can still identify more than one party.
 This code is a clue, not proof that it is an account number. The directory
 shows recent masked examples and permits either an external party label or a
 different owned account, plus an optional compatible type/category suggestion.
