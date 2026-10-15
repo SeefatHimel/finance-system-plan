@@ -1,13 +1,12 @@
 """Django settings for the finance API."""
 
+import os
 from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlparse
-import os
 
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
-
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
@@ -126,13 +125,20 @@ def database_config() -> dict[str, object]:
     if parsed.scheme not in {"postgres", "postgresql"}:
         raise ValueError("DATABASE_URL must use postgres:// or postgresql://")
 
+    host = parsed.hostname or "localhost"
+    # Transaction poolers can move the next FETCH to another server connection.
+    # Neon marks pooled endpoints with a -pooler suffix; other poolers can opt in.
+    pooled_host = host.split(".", 1)[0].endswith("-pooler")
     return {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": parsed.path.lstrip("/"),
         "USER": parsed.username or "",
         "PASSWORD": parsed.password or "",
-        "HOST": parsed.hostname or "localhost",
+        "HOST": host,
         "PORT": parsed.port or 5432,
+        "DISABLE_SERVER_SIDE_CURSORS": env_bool(
+            "DJANGO_DB_DISABLE_SERVER_SIDE_CURSORS", pooled_host
+        ),
     }
 
 
@@ -180,7 +186,7 @@ def validate_production_settings() -> None:
     ):
         errors.append("DJANGO_ALLOWED_HOSTS must be restricted to deployed hostnames.")
     if any(
-        origin.startswith("http://localhost") or origin.startswith("http://127.0.0.1")
+        origin.startswith(("http://localhost", "http://127.0.0.1"))
         for origin in CORS_ALLOWED_ORIGINS
     ):
         errors.append("DJANGO_CORS_ALLOWED_ORIGINS must be restricted to deployed HTTPS origins.")

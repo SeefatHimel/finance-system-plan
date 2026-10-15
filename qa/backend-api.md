@@ -221,6 +221,13 @@ JWT refresh tokens rotate on use and old refresh tokens are blacklisted after
 rotation, which makes refresh-token reuse fail instead of silently extending a
 stolen token.
 
+**Why are server-side cursors disabled with pooled PostgreSQL?** Django's
+`QuerySet.iterator()` streams through a cursor tied to a server connection.
+Transaction pooling may assign the next fetch to another connection, raising
+`InvalidCursorName`. Neon `-pooler` hosts disable these cursors automatically;
+other poolers use `DJANGO_DB_DISABLE_SERVER_SIDE_CURSORS=true`. Direct database
+connections keep streaming cursors.
+
 Transaction list and CSV export endpoints support the same user-scoped filters:
 month, account, category, type, debit/credit direction, source, and `search`
 across ledger fields, related names, numbers, dates/times, identifiers, review

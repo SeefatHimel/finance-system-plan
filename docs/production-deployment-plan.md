@@ -46,6 +46,9 @@ release step; the production API process does not mutate schema on every boot.
   compatible with Python 3.14.
 - Strong `DJANGO_SECRET_KEY` stored outside git.
 - `DATABASE_URL` points to PostgreSQL, not SQLite.
+- A transaction-pooled PostgreSQL endpoint disables Django server-side cursors.
+  Neon `-pooler` hosts are detected automatically; other poolers need
+  `DJANGO_DB_DISABLE_SERVER_SIDE_CURSORS=true`.
 - `DJANGO_ALLOWED_HOSTS` is limited to deployed API hostnames.
 - `DJANGO_CORS_ALLOWED_ORIGINS` is limited to deployed web origins.
 - `DJANGO_CSRF_TRUSTED_ORIGINS` contains the deployed HTTPS API/admin origins.

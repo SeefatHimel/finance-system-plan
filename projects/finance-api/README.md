@@ -103,6 +103,13 @@ and CSRF origins. Use full origins including the scheme for
 `DJANGO_CSRF_TRUSTED_ORIGINS`, for example `https://api.example.com`. Render's
 `RENDER_EXTERNAL_URL` is trusted automatically.
 
+PostgreSQL transaction poolers cannot preserve Django's server-side cursors
+between fetches. Neon `-pooler` hosts automatically set
+`DISABLE_SERVER_SIDE_CURSORS`; for another transaction pooler, set
+`DJANGO_DB_DISABLE_SERVER_SIDE_CURSORS=true`. Direct PostgreSQL connections
+retain streaming cursors. Set `DJANGO_DEBUG=false` on Render so exceptions do
+not expose detailed tracebacks and environment settings to visitors.
+
 To use hosted PostgreSQL from your laptop instead, set `DATABASE_URL` in
 `.env` to the provider **external** URL (Render includes
 `singapore-postgres.render.com`). Do not commit that file.
