@@ -1036,3 +1036,8 @@ segment alongside its reporting account. A four-digit suffix may still be
 shared by different parties, so mappings remain review-only. Statement review
 rows display a recovered full second code when available; their original masked
 extraction and any user-edited draft fields stay unchanged.
+When a pending statement is reviewed together with matching SMS, a saved code
+mapping prefills the result merchant only if the statement merchant is still
+the raw bank reference. The reviewer may edit it or choose either source's
+wording. Saving the mapping alone does not alter stored statement drafts or
+existing ledger transactions.

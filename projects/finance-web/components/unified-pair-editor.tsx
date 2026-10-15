@@ -4,6 +4,7 @@ import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { categoryTypeProposal, directionForType, transactionTypes } from "@/lib/category-type";
 import { localDate } from "@/lib/date-period";
 import { proposedPairTime, timeAfterPairDateChange } from "@/lib/unified-review-time";
+import { initialUnifiedMerchant } from "@/lib/unified-review-merchant";
 import type { Account, Category, StatementRowEdit, TransactionType, UnifiedPair } from "@/lib/api";
 
 export type PairTypeChoice = "" | "statement" | "sms" | "custom";
@@ -33,7 +34,7 @@ export function initialPairDraft(pair: UnifiedPair, categories: Category[]): Sta
     other_account: row.other_account ?? (row.type === "transfer" && otherAccount !== pair.batch.account ? otherAccount : null),
     category: activeCategory(row.category) ?? (row.type === sms.transaction_type ? activeCategory(sms.category) : null),
     reference: row.reference || sms.reference,
-    counterparty_text: row.counterparty_text || sms.counterparty_text,
+    counterparty_text: initialUnifiedMerchant(row, sms.counterparty_text),
     note: row.note || sms.counterparty_text,
   };
 }
@@ -59,6 +60,11 @@ export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftCh
   const accountName = (id: string | null) => accounts.find(account => account.id === id)?.name ?? "Choose the other account";
   const categoryName = (id: string | null) => categories.find(category => category.id === id && category.is_active)?.name ?? null;
   const smsOther = pair.sms_summary.direction === "credit" ? pair.sms.account : pair.sms.destination_account;
+  const mappedMerchant = pair.row.review.suggestion?.counterparty_text;
+  const hasMerchantAlternatives =
+    Boolean(mappedMerchant && draft.counterparty_text !== mappedMerchant) ||
+    Boolean(pair.sms.counterparty_text && draft.counterparty_text !== pair.sms.counterparty_text) ||
+    Boolean(pair.row.counterparty_text && draft.counterparty_text !== pair.row.counterparty_text);
 
   function setField<K extends keyof StatementRowEdit>(field: K, value: StatementRowEdit[K]) {
     onDraftChange({ ...draft, [field]: value });
@@ -101,7 +107,16 @@ export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftCh
       <label className="field"><span className="field__label">Statement draft balance after</span><input className="field__control" type="number" step="0.01" value={draft.balance_after ?? ""} onChange={event => setField("balance_after", event.target.value || null)} /><small className="statement-choice-help">The original PDF amount remains in source evidence below.</small></label>
       <label className="field"><span className="field__label">Value date (if printed)</span><input className="field__control" type="date" value={draft.value_date ?? ""} onChange={event => setField("value_date", event.target.value || null)} /></label>
       <div className="field"><label className="field__label" htmlFor="unified-reference">Reference</label><input id="unified-reference" className="field__control" maxLength={120} value={draft.reference} onChange={event => setField("reference", event.target.value)} />{pair.sms.reference && pair.sms.reference !== pair.row.reference ? <div className="unified-suggestions"><Suggestion label="SMS" value={pair.sms.reference} disabled={busy} onUse={() => setField("reference", pair.sms.reference)} /></div> : null}</div>
-      <div className="field field--wide"><label className="field__label" htmlFor="unified-counterparty">Counterparty / merchant</label><input id="unified-counterparty" className="field__control" maxLength={255} value={draft.counterparty_text} onChange={event => setField("counterparty_text", event.target.value)} />{pair.sms.counterparty_text && pair.sms.counterparty_text !== pair.row.counterparty_text ? <div className="unified-suggestions"><Suggestion label="SMS" value={pair.sms.counterparty_text} disabled={busy} onUse={() => setField("counterparty_text", pair.sms.counterparty_text)} /><Suggestion label="statement" value={pair.row.counterparty_text} disabled={busy} onUse={() => setField("counterparty_text", pair.row.counterparty_text)} /></div> : null}</div>
+      <div className="field field--wide">
+        <label className="field__label" htmlFor="unified-counterparty">Counterparty / merchant</label>
+        <input id="unified-counterparty" className="field__control" maxLength={255} value={draft.counterparty_text} onChange={event => setField("counterparty_text", event.target.value)} />
+        {mappedMerchant ? <small className="field__hint">Saved code mapping · edit if needed</small> : null}
+        {hasMerchantAlternatives ? <div className="unified-suggestions">
+          {mappedMerchant && draft.counterparty_text !== mappedMerchant ? <Suggestion label="saved mapping" value={mappedMerchant} disabled={busy} onUse={() => setField("counterparty_text", mappedMerchant)} /> : null}
+          {pair.sms.counterparty_text && pair.sms.counterparty_text !== draft.counterparty_text ? <Suggestion label="SMS" value={pair.sms.counterparty_text} disabled={busy} onUse={() => setField("counterparty_text", pair.sms.counterparty_text)} /> : null}
+          {pair.row.counterparty_text && pair.row.counterparty_text !== draft.counterparty_text ? <Suggestion label="statement text" value={pair.row.counterparty_text} disabled={busy} onUse={() => setField("counterparty_text", pair.row.counterparty_text)} /> : null}
+        </div> : null}
+      </div>
       <div className="field field--wide"><label className="field__label" htmlFor="unified-note">Note</label><textarea id="unified-note" className="field__control" maxLength={4000} rows={2} value={draft.note} onChange={event => setField("note", event.target.value)} />{pair.sms.counterparty_text && pair.sms.counterparty_text !== pair.row.note ? <div className="unified-suggestions"><Suggestion label="SMS description" value={pair.sms.counterparty_text} disabled={busy} onUse={() => setField("note", pair.sms.counterparty_text)} /><Suggestion label="statement note" value={pair.row.note} disabled={busy} onUse={() => setField("note", pair.row.note)} /></div> : null}</div>
       <label className="review-remember field--wide"><input type="checkbox" checked={draft.classification_confirmed} onChange={event => setField("classification_confirmed", event.target.checked)} /><span>I reviewed the transaction type and account path.</span></label>
     </fieldset>
