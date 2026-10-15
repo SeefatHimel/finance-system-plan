@@ -637,3 +637,14 @@ Transaction source-message responses optionally add `parsed` (nullable): saved
 SMS amount, balance_after, reference and type. These fields remain available after
 raw-text redaction, only for confirmed candidates attached to that owned ledger
 entry. Existing clients can ignore the optional field.
+
+## Citytouch statement code directory
+
+The authenticated statement-code GET/POST and DELETE endpoints expose only
+four-digit recurring second codes from saved City Bank `CT-FT` rows. The
+variable first segment is not party identity. Mappings are scoped to the
+reporting account and debit/credit direction, and may name an external party
+or link a different owned account. Optional type/category choices are
+review-only suggestions for pending statement drafts. Responses include masked
+recent examples, never the original PDF. The contract adds no automatic ledger
+mutation or confirmation operation.

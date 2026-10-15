@@ -601,6 +601,23 @@ remain unsupported pending separate extraction and accounting validation.
 - `POST /api/statements/imports/{id}/approve_new/`: explicitly approve up to 50
   IDs/versions; fresh matches, stale rows and discrepancies remain unresolved.
 - `GET /api/transactions/{id}/statement-evidence/`: on-demand masked sources.
+- `GET/POST /api/statements/counterparty-codes/`: list recurring Citytouch
+  statement codes and save an explicitly verified party/classification mapping.
+- `DELETE /api/statements/counterparty-codes/{id}/`: forget a mapping while
+  retaining the observed masked source rows.
+
+For City Bank `CT-FT-***1234-***5678` descriptions, the first part varies by
+movement and is never used as party identity. Only the second four-digit code
+is grouped, separately for each reporting account and debit/credit direction.
+This code is a clue, not proof that it is an account number. The directory
+shows recent masked examples and permits either an external party label or a
+different owned account, plus an optional compatible type/category suggestion.
+Fund transfer wording does not force an internal ledger transfer: a payment can
+remain an expense, or an incoming movement can be income. Citytouch rows require
+explicit classification review before posting. Verified mappings only appear as
+editable suggestions on pending drafts; they do not rewrite posted transactions
+or original statement evidence. Apply migration
+`statements.0004_statementcounterpartycode` before deploying this API and web UI.
 
 Matching uses reporting-account perspective, equal currency/amount/direction,
 and posting/value dates within three days. Reference and reported balance are

@@ -136,3 +136,41 @@ class StatementMapping(models.Model):
                 name="statement_mapping_scope",
             )
         ]
+
+
+class StatementCounterpartyCode(models.Model):
+    """User-verified meaning of a recurring, masked statement code."""
+
+    class PartyKind(models.TextChoices):
+        OWNED = "owned", "My account"
+        EXTERNAL = "external", "External party"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
+    profile = models.CharField(max_length=32, default="city_bank")
+    code = models.CharField(max_length=4)
+    direction = models.CharField(max_length=16, choices=Transaction.Direction.choices)
+    party_kind = models.CharField(max_length=16, choices=PartyKind.choices)
+    label = models.CharField(max_length=120)
+    other_account = models.ForeignKey(
+        "accounts.Account", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="statement_code_mappings",
+    )
+    suggested_type = models.CharField(
+        max_length=32, blank=True, choices=Transaction.Type.choices,
+    )
+    category = models.ForeignKey(
+        "categories.Category", null=True, blank=True, on_delete=models.SET_NULL,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints: ClassVar = [
+            models.UniqueConstraint(
+                fields=("user", "account", "profile", "code", "direction"),
+                name="statement_counterparty_code_scope",
+            )
+        ]
+        indexes: ClassVar = [models.Index(fields=("user", "account", "code"))]

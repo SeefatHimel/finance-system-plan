@@ -43,6 +43,12 @@ def merchant_text(value):
 
 
 def pattern(row):
+    from .counterparties import code_for_row
+
+    # Citytouch's first reference part is unique per movement while its second
+    # part recurs. A generic description pattern would collapse unrelated payees.
+    if code_for_row(row):
+        return None, ""
     label = merchant_text(row.extracted.get("description", ""))
     if len(label) < 4:
         return None, ""
@@ -72,10 +78,12 @@ def suggestions(rows):
     from apps.payment_methods.resolution import (
         identifier_suffix,
         matching_methods,
-        unique_method,
         named_methods,
         text_identifier_evidence,
+        unique_method,
     )
+
+    from .counterparties import code_for_row, code_suggestions
 
     methods = list(
         PaymentMethod.objects.filter(
@@ -92,8 +100,12 @@ def suggestions(rows):
             pattern_key__in=keys,
         ).select_related("category", "other_account")
     }
-    result = {}
+    result = code_suggestions(rows)
     for row in rows:
+        if code_for_row(row):
+            # Unverified or unmapped Citytouch codes never fall through to
+            # generic numeric/payment-method or merchant learning.
+            continue
         # Numeric identity hints require transfer wording. Descriptions remain
         # immutable and the hint never changes a row or its ledger movement.
         from .services import transfer_hint

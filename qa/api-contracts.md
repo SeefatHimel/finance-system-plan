@@ -581,3 +581,15 @@ Queue, detail and POST all enforce reciprocal uniqueness. Account, currency,
 direction, amount and date are necessary, while reference, reported balance,
 normalized counterparty or known transfer counterpart supplies independent
 corroboration; amount/date alone does not create a pair.
+
+### What is the Citytouch counterparty-code API boundary?
+
+Authenticated `GET /api/statements/counterparty-codes/` returns observed
+four-digit ending codes by statement account and debit/credit direction, with
+counts, recent masked examples and an optional saved mapping. `POST` upserts a
+mapping for a code observed in that user's saved City Bank statements;
+`DELETE /{id}/` forgets it. The mapping may hold an external label or a
+different active owned account in the same currency, plus an optional
+direction-compatible transaction type and category. Foreign account/category
+IDs, unobserved codes and external `transfer` suggestions return 400. This is
+review metadata only: no endpoint creates or edits a ledger transaction.

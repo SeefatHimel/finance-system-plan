@@ -205,6 +205,7 @@ class StatementSuggestionSerializer(serializers.Serializer):
     type = serializers.CharField()
     category = serializers.UUIDField(allow_null=True)
     other_account = serializers.UUIDField(allow_null=True)
+    counterparty_text = serializers.CharField(required=False)
     reason = serializers.CharField()
 
 

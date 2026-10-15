@@ -1558,7 +1558,7 @@ const savedStatementRowSchema = z.object({
   type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]),
   other_account: z.string().nullable(), category: z.string().nullable(), reference: z.string(), counterparty_text: z.string(), note: z.string(), classification_confirmed: z.boolean(),
   state: z.enum(["pending", "posted", "linked", "skipped"]), transaction: z.string().nullable(), version: z.number(), created_at: z.string(), updated_at: z.string(),
-  review: z.object({ draft_issues: z.array(z.string()).default([]), suggestion: z.object({ type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]), category: z.string().nullable(), other_account: z.string().nullable(), reason: z.string() }).nullable().default(null), issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), pending_sms_match_count: z.number().int().nonnegative().nullable().default(0), pending_sms_matches: z.array(pendingStatementSmsMatchSchema).default([]), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
+  review: z.object({ draft_issues: z.array(z.string()).default([]), suggestion: z.object({ type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]), category: z.string().nullable(), other_account: z.string().nullable(), counterparty_text: z.string().optional(), reason: z.string() }).nullable().default(null), issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), pending_sms_match_count: z.number().int().nonnegative().nullable().default(0), pending_sms_matches: z.array(pendingStatementSmsMatchSchema).default([]), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
 });
 const statementRowPageSchema = z.object({ count: z.number(), offset: z.number(), limit: z.number(), results: z.array(savedStatementRowSchema) });
 const statementHistorySchema = z.object({ count: z.number(), next: z.string().nullable(), previous: z.string().nullable(), results: z.array(savedStatementSchema) });
@@ -1623,6 +1623,25 @@ const statementSummarySchema = z.object({
 export type StatementSummary = z.infer<typeof statementSummarySchema>;
 export async function getStatementSummary(token: string, id: string, signal?: AbortSignal): Promise<StatementSummary> {
   return statementSummarySchema.parse(await (await authenticatedFetch(`/api/statements/imports/${id}/summary/`, token, { signal })).json());
+}
+
+const statementCounterpartyCodeSchema = z.object({
+  account: z.string(), account_name: z.string(), code: z.string(), direction: z.enum(["debit", "credit"]),
+  count: z.number(), pending_count: z.number(), last_seen: z.string().nullable(),
+  examples: z.array(z.object({ date: z.string().nullable(), amount: z.string().nullable(), description: z.string() })),
+  mapping: z.object({ id: z.string(), party_kind: z.enum(["owned", "external"]), label: z.string(), other_account: z.string().nullable(), suggested_type: z.string(), category: z.string().nullable(), updated_at: z.string() }).nullable()
+});
+export type StatementCounterpartyCode = z.infer<typeof statementCounterpartyCodeSchema>;
+export type StatementCounterpartyCodeInput = { account: string; code: string; direction: "debit" | "credit"; party_kind: "owned" | "external"; label: string; other_account: string | null; suggested_type: string; category: string | null };
+export async function listStatementCounterpartyCodes(token: string, signal?: AbortSignal): Promise<StatementCounterpartyCode[]> {
+  const payload = await (await authenticatedFetch("/api/statements/counterparty-codes/", token, { signal })).json();
+  return z.object({ count: z.number(), results: z.array(statementCounterpartyCodeSchema) }).parse(payload).results;
+}
+export async function saveStatementCounterpartyCode(token: string, input: StatementCounterpartyCodeInput) {
+  return (await authenticatedFetch("/api/statements/counterparty-codes/", token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })).json();
+}
+export async function forgetStatementCounterpartyCode(token: string, id: string) {
+  await authenticatedFetch(`/api/statements/counterparty-codes/${id}/`, token, { method: "DELETE" });
 }
 export async function reviewSelectedStatementRows(token: string, id: string, rows: { id: string; version: number }[], action: "create" | "skip") {
   return z.object({ added: z.number(), skipped: z.number(), unchanged: z.number(), unresolved: z.array(z.object({ id: z.string(), reason: z.string() })) }).parse(await (await authenticatedFetch(`/api/statements/imports/${id}/review_selected/`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows, action }) })).json());

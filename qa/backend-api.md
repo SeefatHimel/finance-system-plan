@@ -932,3 +932,16 @@ safety cap. Selected pair detail checks nearby same-amount competitors directly,
 independent of the global backlog. Broad queues may still need an account or
 date filter. An inconclusive batched pending-SMS count is returned as null and
 requires individual review rather than being labelled zero.
+
+### Why does a Citytouch fund transfer not always become an internal transfer?
+
+`CT-FT` describes the bank operation. The ledger type depends on purpose:
+movement between two tracked accounts is a transfer, while an outgoing payment
+can be an expense. The first masked reference segment varies per movement;
+the second recurring four-digit segment is a candidate party code. The API
+groups it by reporting account and debit/credit direction and requires a
+user-verified mapping before suggesting a party or type. It explicitly blocks
+generic description learning for these rows so unrelated recipients cannot
+inherit the same classification. Suggestions do not mutate drafts, posted
+transactions or source evidence. Migration `statements.0004_statementcounterpartycode`
+stores the user-scoped mapping.

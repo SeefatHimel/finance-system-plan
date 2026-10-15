@@ -3451,6 +3451,86 @@
         ]
       }
     },
+    "/api/statements/counterparty-codes/": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservedCodeList"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeMappingInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeMappingOutput"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/statements/counterparty-codes/{id}/": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {}
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/statements/identify/": {
       "post": {
         "requestBody": {
@@ -5156,6 +5236,119 @@
       ],
       "type": "string"
     },
+    "CodeExample": {
+      "properties": {
+        "amount": {
+          "format": "decimal",
+          "nullable": true,
+          "pattern": "^-?\\d{0,12}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "date",
+        "description"
+      ],
+      "type": "object"
+    },
+    "CodeMappingInput": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "category": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "code": {
+          "maxLength": 4,
+          "pattern": "^\\d{4}$",
+          "type": "string"
+        },
+        "direction": {
+          "$ref": "#/components/schemas/Direction864Enum"
+        },
+        "label": {
+          "maxLength": 120,
+          "type": "string"
+        },
+        "other_account": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "party_kind": {
+          "$ref": "#/components/schemas/PartyKindEnum"
+        },
+        "suggested_type": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/SuggestedTypeEnum"
+            },
+            {
+              "$ref": "#/components/schemas/BlankEnum"
+            }
+          ]
+        }
+      },
+      "required": [
+        "account",
+        "code",
+        "direction",
+        "label",
+        "party_kind"
+      ],
+      "type": "object"
+    },
+    "CodeMappingOutput": {
+      "properties": {
+        "category": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "other_account": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "party_kind": {
+          "type": "string"
+        },
+        "suggested_type": {
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "id",
+        "label",
+        "other_account",
+        "party_kind",
+        "suggested_type",
+        "updated_at"
+      ],
+      "type": "object"
+    },
     "ComponentEnum": {
       "enum": [
         "principal",
@@ -5632,6 +5825,72 @@
         "unknown"
       ],
       "type": "string"
+    },
+    "ObservedCode": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "account_name": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "last_seen": {
+          "format": "date",
+          "nullable": true,
+          "type": "string"
+        },
+        "mapping": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/CodeMappingOutput"
+            }
+          ],
+          "nullable": true
+        },
+        "pending_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "account",
+        "account_name",
+        "code",
+        "count",
+        "direction",
+        "examples",
+        "last_seen",
+        "mapping",
+        "pending_count"
+      ],
+      "type": "object"
+    },
+    "ObservedCodeList": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/components/schemas/ObservedCode"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "count",
+        "results"
+      ],
+      "type": "object"
     },
     "PaginatedStatementImportList": {
       "properties": {
@@ -6122,6 +6381,13 @@
         }
       },
       "type": "object"
+    },
+    "PartyKindEnum": {
+      "enum": [
+        "owned",
+        "external"
+      ],
+      "type": "string"
     },
     "PatchedAccount": {
       "properties": {
@@ -9026,6 +9292,9 @@
           "nullable": true,
           "type": "string"
         },
+        "counterparty_text": {
+          "type": "string"
+        },
         "other_account": {
           "format": "uuid",
           "nullable": true,
@@ -9116,6 +9385,21 @@
       "enum": [
         "debit",
         "credit"
+      ],
+      "type": "string"
+    },
+    "SuggestedTypeEnum": {
+      "enum": [
+        "expense",
+        "income",
+        "transfer",
+        "adjustment",
+        "fee",
+        "refund",
+        "lend",
+        "borrow",
+        "repayment_received",
+        "repayment_paid"
       ],
       "type": "string"
     },

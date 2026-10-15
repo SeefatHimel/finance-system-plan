@@ -1006,3 +1006,13 @@ or foreign candidate now shows a notice and the current inbox, while other
 request failures still show an error. The pair dialog disables a missing balance
 choice when the other source has a report, and the statement list distinguishes
 an unavailable match count from zero.
+
+### How can a user identify recurring Citytouch codes without a saved account?
+
+The Statement codes page lists codes found in saved City Bank statement rows,
+with counts and recent masked examples. A user can save an external recipient
+name without creating a tracked account, or link a different owned account.
+Debit and credit mappings are separate. Optional type/category choices become
+editable suggestions in pending statement review; applying a suggestion still
+requires saving the draft and confirming the movement. Editing or forgetting a
+mapping does not alter confirmed transactions.

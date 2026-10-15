@@ -5,6 +5,7 @@ import { allDates, periodBounds, type DatePeriod } from "@/lib/date-period";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { identifyStatementAccount, type StatementIdentification, createStatementImport, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { transactionTypes } from "@/lib/category-type";
@@ -190,6 +191,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
   return <div className="workspace-grid statement-preview">
     <section className="panel"><div className="panel__body">
       <h2 className="section-title">Import a statement PDF</h2><p className="section-subtitle">Upload an EBL bank, City Bank savings, or bKash digital statement, then review matches and approve new movements.</p>
+      <p><Link href="/statement-counterparties">Identify recurring Citytouch counterparty codes</Link></p>
       <p className="inline-note">Uploads save a draft, without adding transactions. Original PDFs and passwords are discarded; masked rows are saved as evidence.</p>
       {setupError ? <p role="alert" className="form-error">{setupError}</p> : null}
       <form className="form-grid" onSubmit={upload}>

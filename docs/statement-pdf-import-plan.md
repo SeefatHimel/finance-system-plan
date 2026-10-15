@@ -316,3 +316,17 @@ a changed list requires a fresh review. Different amount/type/account/
 direction, an unresolved transfer path, a busy candidate window, or a separate
 inline-fee balance keeps sources in their established independent review flows.
 A suggestion never posts or links money by itself.
+
+### Citytouch recurring code review
+
+For City Bank `CT-FT-***1234-***5678` rows, group only the recurring second
+masked code, scoped to the reporting account and debit/credit direction. Treat
+it as an unverified clue until the user names an external counterparty or
+links a different owned account in the Statement codes directory. Show recent
+masked source examples for verification. A verified code may suggest the party,
+type, category and owned transfer path on pending rows, but the user applies
+the suggestion in review. The bank's fund-transfer operation does not decide
+whether the ledger movement is an internal transfer, expense or income. The
+generic learned-description mapper must not collapse different `CT-FT` codes.
+Source evidence and confirmed ledger entries remain unchanged when mappings
+are edited or forgotten.

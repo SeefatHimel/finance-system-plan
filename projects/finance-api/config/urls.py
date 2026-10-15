@@ -31,6 +31,10 @@ from apps.recurring_bills.views import (
     RecurringBillPaymentCreateView,
     RecurringBillViewSet,
 )
+from apps.statements.counterparty_views import (
+    StatementCounterpartyCodeDetailView,
+    StatementCounterpartyCodeView,
+)
 from apps.statements.review_views import StatementImportViewSet, StatementRowViewSet
 from apps.statements.unified_views import UnifiedPairView, UnifiedPendingView
 from apps.statements.views import StatementIdentifyView, StatementPreviewView
@@ -59,6 +63,8 @@ urlpatterns = [
     path("api/quick-add/entries/", QuickEntryView.as_view(), name="quick-add-entry"),
     path("api/review/pending/", UnifiedPendingView.as_view(), name="unified-pending"),
     path("api/review/pair/", UnifiedPairView.as_view(), name="unified-pair"),
+    path("api/statements/counterparty-codes/", StatementCounterpartyCodeView.as_view(), name="statement-counterparty-codes"),
+    path("api/statements/counterparty-codes/<uuid:pk>/", StatementCounterpartyCodeDetailView.as_view(), name="statement-counterparty-code-detail"),
     path("api/health/", include("apps.health.urls")),
     path("api/statements/preview/", StatementPreviewView.as_view(), name="statement-preview"),
     path("api/statements/identify/", StatementIdentifyView.as_view(), name="statement-identify"),

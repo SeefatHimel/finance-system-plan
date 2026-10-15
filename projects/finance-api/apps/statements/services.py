@@ -48,6 +48,10 @@ class ReviewConflict(APIException):
 
 def transfer_hint(row):
     text = f"{row.extracted.get('provider_type', '')} {row.extracted.get('description', '')}"
+    from .counterparties import code_for_row
+
+    if code_for_row(row):
+        return True
     return row.component == "principal" and bool(
         re.search(
             r"transfer|npsb|eft|card\s*to\s*bkash|add\s*money|send\s*money",

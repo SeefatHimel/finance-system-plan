@@ -1209,3 +1209,13 @@ no database migration or mobile APK rebuild is needed.
 Transactions' Original SMS section also displays saved parsed amounts and reported
 balances for attached confirmed SMS candidates, even after text retention redacts
 an original message. It distinguishes those values from the editable ledger balance.
+
+## Citytouch statement codes
+
+The Statements page links to `/statement-counterparties`, an authenticated
+directory of recurring masked City Bank `CT-FT` codes. It separates debit and
+credit observations per reporting account, shows recent masked statement rows,
+and lets the user label a code as an external party or link another owned
+account. Type and category suggestions are optional and remain editable in the
+statement-row review form. Saving a mapping does not post or change ledger data.
+The first varying reference segment is not matched as a party identifier.

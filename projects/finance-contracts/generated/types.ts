@@ -1203,6 +1203,7 @@ export interface StatementSuggestion {
   type: TransactionType;
   category: string | null;
   other_account: string | null;
+  counterparty_text?: string;
   reason: string;
 }
 
@@ -1342,3 +1343,47 @@ export interface UnifiedPendingOverview {
 export type UnifiedSourceEnum = "sms" | "statement";
 
 export type UnifiedStrengthEnum = "strong" | "possible";
+
+export interface StatementCodeMappingInput {
+  account: string;
+  code: string;
+  direction: "debit" | "credit";
+  party_kind: "owned" | "external";
+  label: string;
+  other_account?: string | null;
+  suggested_type?: string;
+  category?: string | null;
+}
+
+export interface StatementCodeMapping {
+  id: string;
+  party_kind: "owned" | "external";
+  label: string;
+  other_account: string | null;
+  suggested_type: string;
+  category: string | null;
+  updated_at: string;
+}
+
+export interface ObservedStatementCodeExample {
+  date: string | null;
+  amount: string | null;
+  description: string;
+}
+
+export interface ObservedStatementCode {
+  account: string;
+  account_name: string;
+  code: string;
+  direction: "debit" | "credit";
+  count: number;
+  pending_count: number;
+  last_seen: string | null;
+  examples: ObservedStatementCodeExample[];
+  mapping: StatementCodeMapping | null;
+}
+
+export interface ObservedStatementCodeList {
+  count: number;
+  results: ObservedStatementCode[];
+}

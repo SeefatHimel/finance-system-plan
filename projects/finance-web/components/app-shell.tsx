@@ -49,6 +49,7 @@ const navItems: NavItem[] = [
   { href: "/review", icon: CheckCircle, label: "Unified review", subtitle: "Review pre-matched SMS and statement movements", title: "Unified review" },
   { href: "/messages/review", icon: ChatCenteredText, label: "SMS review", subtitle: "Review parsed messages before they enter your ledger", title: "SMS review" },
   { href: "/statements", icon: FileText, label: "Statements", subtitle: "Review statement imports, matches, and ledger evidence", title: "Statement PDFs" },
+  { href: "/statement-counterparties", icon: CreditCard, label: "Statement codes", subtitle: "Name recurring counterparty codes from statements", title: "Statement counterparty codes" },
   { href: "/sms-settings", icon: GearSix, label: "SMS settings", subtitle: "Configure payment methods and sender rules", title: "SMS settings" },
   { href: "/reports", icon: ChartBar, label: "Reports", subtitle: "Understand income, expenses, and net movement for any period", title: "Financial reports" },
   { href: "/debts", icon: PlusCircle, label: "Debts", subtitle: "Track money borrowed, lent, and repaid", title: "Debts & lending" },
