@@ -5,6 +5,7 @@ from django.conf import settings
 from django.db import models
 
 from apps.transactions.models import Transaction
+from config.secure_data import EncryptedStatementCodeField
 
 
 class StatementImport(models.Model):
@@ -68,6 +69,9 @@ class StatementRow(models.Model):
         max_length=16, choices=(("principal", "Principal"), ("fee", "Fee"))
     )
     extracted = models.JSONField()
+    # Original extraction stays untouched; this is the second CT-FT component
+    # as printed in the source PDF, refreshed independently of ledger drafts.
+    source_code = EncryptedStatementCodeField(blank=True, default="")
     source_fingerprint = models.CharField(max_length=64, db_index=True)
     date = models.DateField(null=True)
     time = models.TimeField(null=True)

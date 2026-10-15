@@ -8,6 +8,7 @@ from django.conf import settings
 from django.db import models
 
 SMS_PREFIX = "finance-sms-v1:"
+STATEMENT_CODE_PREFIX = "finance-statement-code-v1:"
 
 
 def _cipher():
@@ -46,3 +47,18 @@ class EncryptedSmsTextField(models.TextField):
         if value is None:
             return None
         return SMS_PREFIX + encrypt_bytes(value.encode("utf-8")).decode("ascii")
+
+
+class EncryptedStatementCodeField(models.TextField):
+    """Encrypt separately retained printed statement codes at the ORM boundary."""
+
+    def from_db_value(self, value, expression, connection):
+        if not value or not value.startswith(STATEMENT_CODE_PREFIX):
+            return value
+        return decrypt_bytes(value[len(STATEMENT_CODE_PREFIX):].encode("ascii")).decode("utf-8")
+
+    def get_prep_value(self, value):
+        value = super().get_prep_value(value)
+        if not value:
+            return value
+        return STATEMENT_CODE_PREFIX + encrypt_bytes(value.encode("utf-8")).decode("ascii")

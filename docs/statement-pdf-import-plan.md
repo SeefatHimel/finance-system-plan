@@ -334,3 +334,15 @@ whether the ledger movement is an internal transfer, expense or income. The
 generic learned-description mapper must not collapse different `CT-FT` codes.
 Source evidence and confirmed ledger entries remain unchanged when mappings
 are edited or forgotten.
+
+The parser now captures the entire **printed** second component before masking
+long identifiers in the general description. It stores that separate clue
+encrypted. For older City Bank imports whose original PDFs are archived, the
+temporary `refresh_citytouch_codes` maintenance command supports dry-run and
+digest-confirmed apply. It upgrades only codes with extra visible digits that
+end in the previously saved suffix; it preserves all draft and ledger fields.
+The command is disabled unless `ALLOW_STATEMENT_CODE_REFRESH=1` is set for that
+invocation. It does not apply to EBL, whose statement layout has no Citytouch
+code, or recover digits that the PDF itself masks.
+Existing four-digit mappings are not migrated to longer codes automatically;
+the user must verify the new observation before saving its mapping.

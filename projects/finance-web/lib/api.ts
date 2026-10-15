@@ -1516,7 +1516,7 @@ export async function mergeTransfers(accessToken: string, retainedId: string, du
 const statementRowSchema = z.object({
   id: z.string(), page: z.number(), row: z.number(), date: z.string().nullable(),
   time: z.string().nullable(), posting_date: z.string().nullable(), value_date: z.string().nullable(),
-  description: z.string(), provider_type: z.string(), reference: z.string(),
+  description: z.string(), citytouch_printed_code: z.string().nullable().optional(), provider_type: z.string(), reference: z.string(),
   direction: z.enum(["debit", "credit"]), amount: z.string().nullable(), signed_fee: z.string(),
   balance_after: z.string().nullable(), issues: z.array(z.string()), bounds: z.array(z.number())
 });

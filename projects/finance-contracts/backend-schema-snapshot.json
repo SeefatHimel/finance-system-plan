@@ -9195,6 +9195,10 @@
           },
           "type": "array"
         },
+        "citytouch_printed_code": {
+          "nullable": true,
+          "type": "string"
+        },
         "date": {
           "format": "date",
           "nullable": true,

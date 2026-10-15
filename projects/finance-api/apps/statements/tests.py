@@ -20,7 +20,7 @@ from apps.transactions.models import Transaction
 from .parser import MAX_BYTES, StatementParseError, extract_statement
 
 
-def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_count=1, account_identifier="9876543210123"):
+def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_count=1, account_identifier="9876543210123", city_first_description="PURCHASE CARD SYNTH SHOP"):
     stream = io.BytesIO()
     c = canvas.Canvas(
         stream,
@@ -76,7 +76,7 @@ def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_cou
             number(471, 650, "DEPOSIT")
             number(564, 650, "BALANCE")
             for y, description, out, inc, balance in [
-                (620, "PURCHASE CARD SYNTH SHOP", "50.00", None, "950.00"),
+                (620, city_first_description, "50.00", None, "950.00"),
                 (600, "REVERSE PURCHASE SYNTH SHOP", None, "50.00", "1,000.00"),
                 (580, "PURCHASE CARD SYNTH SHOP", "50.00", None, "950.00"),
             ]:

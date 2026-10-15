@@ -968,6 +968,7 @@ export interface StatementRow {
   posting_date: string | null;
   value_date: string | null;
   description: string;
+  citytouch_printed_code?: string | null;
   provider_type: string;
   reference: string;
   direction: "debit" | "credit";

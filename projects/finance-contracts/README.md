@@ -12,6 +12,11 @@ another transaction.
 
 Shared API contract and integration documentation.
 
+Statement preview rows may contain `citytouch_printed_code`, the masked second
+component exactly as printed in a City Bank Citytouch reference. It is nullable
+and does not authorize an automatic counterparty mapping. General descriptions
+remain masked; retained source codes are encrypted on the API side.
+
 ## Responsibilities
 
 - OpenAPI schema.

@@ -15,10 +15,12 @@ import pdfplumber
 from pdfminer.pdfdocument import PDFPasswordIncorrect
 from pdfplumber.utils.exceptions import PdfminerException
 
+from .citytouch import citytouch_printed_code
+
 MAX_BYTES = 4 * 1024 * 1024
 MAX_PAGES = 30
 MAX_ROWS = 2000
-PARSER_VERSION = "1"
+PARSER_VERSION = "2"
 MONEY = re.compile(r"-?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}")
 DATE_TOKEN = (
     r"(?:\d{2}-[A-Za-z]{3}-\d{2,4}|\d{2}-\d{2}-\d{4}|\d{2}\s+[A-Za-z]{3}\s+\d{4})"
@@ -371,6 +373,7 @@ def extract_statement(data: bytes, password=""):
                     "posting_date": date,
                     "value_date": parse_date(value_match[1]) if value_match else None,
                     "description": mask_identifiers(description[:2000]),
+                    "citytouch_printed_code": citytouch_printed_code(description[:2000]) if profile == "city_bank" else None,
                     "provider_type": provider_type[:120],
                     "reference": reference_match[1][:120] if reference_match else "",
                     "direction": "debit" if values["out"] is not None else "credit",

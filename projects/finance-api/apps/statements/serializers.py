@@ -68,6 +68,7 @@ class StatementRowSerializer(serializers.Serializer):
     posting_date = serializers.DateField(allow_null=True)
     value_date = serializers.DateField(allow_null=True)
     description = serializers.CharField()
+    citytouch_printed_code = serializers.CharField(allow_null=True, required=False)
     provider_type = serializers.CharField()
     reference = serializers.CharField()
     direction = serializers.ChoiceField(choices=["debit", "credit"])

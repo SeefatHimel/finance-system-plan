@@ -155,3 +155,10 @@ The unified transfer-balance fix adds
 `transactions.0008_transferevidence_effective_balance`. Run migrations before
 deploying the API; it adds a selection flag and per-account uniqueness constraint
 without changing existing observations.
+
+**How is the temporary Citytouch recovery run safely?** Migrate the API through
+`statements.0007`, then run `refresh_citytouch_codes` from its documented
+environment with `ALLOW_STATEMENT_CODE_REFRESH=1` on that command only. Dry-run
+first and pass its digest to `--apply`. The flag is unset afterward, so the
+maintenance command is disabled by default. Keep the PDF unlock password in a
+temporary environment variable if needed, not in shell arguments or Git.

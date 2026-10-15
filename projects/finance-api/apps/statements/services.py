@@ -131,6 +131,7 @@ def save_import(*, user, account, digest, preview):
     records = []
     for position, original in enumerate(preview["rows"], 1):
         original = {**original, "issues": list(original["issues"])}
+        printed_code = original.pop("citytouch_printed_code", None)
         if any(
             original[key] is not None and ledger_money(original[key]) is None
             for key in ("amount", "balance_after", "signed_fee")
@@ -159,6 +160,7 @@ def save_import(*, user, account, digest, preview):
         records.append(
             StatementRow(
                 component="principal",
+                source_code=printed_code or "",
                 source_fingerprint=source_fingerprint(original, "principal"),
                 direction=direction,
                 amount=ledger_money(original["amount"]),

@@ -612,3 +612,9 @@ different active owned account in the same currency, plus an optional
 direction-compatible transaction type and category. Foreign account/category
 IDs, unobserved codes and external `transfer` suggestions return 400. This is
 review metadata only: no endpoint creates or edits a ledger transaction.
+
+New statement previews also expose optional `citytouch_printed_code` on each
+source row. It is the second Citytouch component exactly as printed, including
+the bank's mask; other profiles return null. The ordinary description remains
+masked. This field supports encrypted server-side code retention and the
+temporary maintenance refresh; it never authorizes an automatic mapping.

@@ -465,6 +465,12 @@ database backups. During rotation, put the previous key in
 `DJANGO_SECRET_KEY_FALLBACKS` until all old archives have been re-encrypted.
 Previously discarded PDF bytes and account/card digits cannot be reconstructed
 from masked rows; re-upload the same PDF or re-enter the complete identifier.
+For an archived City Bank statement whose code was shortened by an older
+parser, deploy and migrate the API, then use the dry-run/apply
+`refresh_citytouch_codes` commands in `projects/finance-api/README.md` for that
+import. The command is disabled by default, never replaces rows, and cannot
+recover digits the PDF itself hides. Re-uploading the same PDF only archives it;
+it does not redo extraction.
 For redacted transaction SMS still on the phone, use a history scan and the
 explicit restore option when the earlier redaction was manual or its cause is
 unknown.

@@ -5237,6 +5237,10 @@ components:
         description:
           type: string
           description: Wrapped row text with long numeric personal identifiers masked.
+        citytouch_printed_code:
+          type: string
+          nullable: true
+          description: Masked Citytouch second component exactly as printed; visible digits can exceed four.
         provider_type:
           type: string
         reference:

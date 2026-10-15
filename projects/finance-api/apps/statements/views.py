@@ -36,6 +36,35 @@ class StatementIdentifyThrottle(StatementPreviewThrottle):
     scope = "statement_identify"
 
 
+def extract_pdf_bytes(data, password=""):
+    """Run the bounded PDF worker for imports and archived-source refreshes."""
+    payload = {"pdf": base64.b64encode(data).decode("ascii"), "password": password}
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "apps.statements.worker"],
+            input=json.dumps(payload).encode(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            cwd=settings.BASE_DIR,
+            timeout=20,
+            check=True,
+        )
+        output = json.loads(result.stdout)
+    except subprocess.TimeoutExpired:
+        return Response(
+            {"file": ["Preview took too long. Export a shorter statement period and retry."]},
+            status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return Response(
+            {"file": ["Statement processing is temporarily unavailable. Please retry."]},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    if "error" in output:
+        raise ValidationError({"file": [output["error"]], "code": [output["code"]]})
+    return output["preview"]
+
+
 @method_decorator(sensitive_post_parameters("password", "file"), name="dispatch")
 class StatementPreviewView(APIView):
     permission_classes = (IsAuthenticated,)
@@ -52,46 +81,13 @@ class StatementPreviewView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         account = serializer.validated_data.get("account")
-        payload = {
-            "pdf": base64.b64encode(serializer.validated_data["file"].read()).decode(
-                "ascii"
-            ),
-            "password": serializer.validated_data.get("password", ""),
-        }
-        try:
-            # subprocess.run kills and waits for the worker on timeout. No PDFs,
-            # passwords, or parser tracebacks are persisted or logged here.
-            result = subprocess.run(
-                [sys.executable, "-m", "apps.statements.worker"],
-                input=json.dumps(payload).encode(),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                cwd=settings.BASE_DIR,
-                timeout=20,
-                check=True,
-            )
-            output = json.loads(result.stdout)
-        except subprocess.TimeoutExpired:
-            return Response(
-                {
-                    "file": [
-                        "Preview took too long. Export a shorter statement period and retry."
-                    ]
-                },
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            )
-        except (subprocess.SubprocessError, OSError, ValueError):
-            return Response(
-                {
-                    "file": [
-                        "Statement processing is temporarily unavailable. Please retry."
-                    ]
-                },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-        if "error" in output:
-            raise ValidationError({"file": [output["error"]], "code": [output["code"]]})
-        preview = output["preview"]
+        # The worker gets private bytes/password on stdin, never in argv or logs.
+        preview = extract_pdf_bytes(
+            serializer.validated_data["file"].read(),
+            serializer.validated_data.get("password", ""),
+        )
+        if isinstance(preview, Response):
+            return preview
         if account and (preview["profile"] == "bkash") != (
             account.type == "mobile_wallet"
         ):

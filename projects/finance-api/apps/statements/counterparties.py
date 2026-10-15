@@ -1,35 +1,17 @@
 """Citytouch reference observations and explicit, review-only party suggestions."""
 
-import re
 from collections import defaultdict
 
+from .citytouch import citytouch_code, citytouch_printed_code, visible_code
 from .models import StatementCounterpartyCode, StatementRow
-
-# The first group varies per movement and is never identity evidence. Only the
-# recurring second group is a candidate party code, scoped to one statement
-# account and direction. Retain every visible digit in that group: two codes
-# can share their last four digits. Masked digits cannot be recovered.
-CITYTOUCH_REFERENCE = re.compile(
-    r"(?<![A-Z0-9])CT[-\s]*FT[-\s]*\*{2,}\d{3,24}[-\s]*(\*{2,}(\d{4,24}))(?![A-Z0-9])",
-    re.IGNORECASE,
-)
-
-
-def citytouch_code(description):
-    match = CITYTOUCH_REFERENCE.search(description or "")
-    return match.group(2) if match else None
-
-
-def citytouch_printed_code(description):
-    """Return the complete masked second part exactly as printed in the row."""
-    match = CITYTOUCH_REFERENCE.search(description or "")
-    return match.group(1) if match else None
 
 
 def code_for_row(row):
     if row.component != "principal" or row.batch.profile != "city_bank":
         return None
-    return citytouch_code(row.extracted.get("description", ""))
+    return visible_code(row.source_code) or citytouch_code(
+        row.extracted.get("description", "")
+    )
 
 
 def observed_codes(user):
@@ -48,6 +30,7 @@ def observed_codes(user):
             "date",
             "amount",
             "extracted",
+            "source_code",
             "state",
             "transaction_id",
         )
@@ -70,7 +53,7 @@ def observed_codes(user):
         item = grouped[key]
         item["account_name"] = row.batch.account.name
         if item["printed_code"] is None:
-            item["printed_code"] = citytouch_printed_code(
+            item["printed_code"] = row.source_code or citytouch_printed_code(
                 row.extracted.get("description", "")
             )
         item["count"] += 1

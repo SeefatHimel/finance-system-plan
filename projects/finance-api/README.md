@@ -11,6 +11,31 @@ to the same account**. The duplicate import path attaches its original without
 creating another batch or transaction. A different file or account is a new
 import and should be reviewed normally. PDF unlock passwords are never saved.
 
+For a one-time refresh of **City Bank Citytouch codes** in an existing import,
+first deploy the parser update and migration `statements.0007`. Open the import
+in the web app and copy its `import` UUID from the URL. From the API environment,
+run the command below with the actual username and import UUID. Dry-run prints
+only counts and a digest; it does not replace an import. If the count is useful,
+run the second command with that exact digest. The flag enables this maintenance
+command for one invocation only; the command is disabled by default.
+
+```bash
+ALLOW_STATEMENT_CODE_REFRESH=1 python manage.py refresh_citytouch_codes --username USERNAME --batch-id IMPORT_UUID
+ALLOW_STATEMENT_CODE_REFRESH=1 python manage.py refresh_citytouch_codes --username USERNAME --batch-id IMPORT_UUID --apply --digest DRY_RUN_DIGEST
+```
+
+Use `--password-env PDF_PASSWORD_VARIABLE` if the archived PDF is locked; put
+the password in that environment variable temporarily, never in a command
+argument. Run separately for each City Bank import. The command checks the
+archived PDF digest, account, source-row identity, and dry-run digest, then only
+adds visible second-code digits that agree with the saved suffix. Printed codes
+are encrypted in the database. Existing extracted rows, corrections, links,
+ledger entries, and audit history are retained. EBL has no Citytouch codes to
+refresh, and a PDF printing `***4730` cannot reveal digits hidden by `***`.
+An existing four-digit mapping is deliberately not copied to an upgraded code;
+verify and save the newly observed code in the directory, then remove the stale
+mapping if appropriate. Suffix collisions make automatic reassignment unsafe.
+
 New SMS capture preferences keep transaction-related original text. Migration
 `finance_messages.0013_default_keep_transaction_sms` switches existing finite
 preferences to Keep. OTP/security and promotions remain excluded. To restore an

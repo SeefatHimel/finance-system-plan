@@ -852,6 +852,15 @@ and a recognized card-purchase prefix can be removed. It bumps the row version
 to reject stale editor saves. User corrections, resolved rows, original evidence,
 notes, balances, and ledger records are unchanged; no PDF re-upload is needed.
 
+**How do we recover more printed Citytouch digits for an older import?** After
+`statements.0007`, run the disabled-by-default `refresh_citytouch_codes`
+maintenance command first as a dry-run, then with its digest and `--apply`. It
+decrypts and verifies the archived PDF, re-extracts it in the bounded worker,
+compares source-row identities, and only upgrades agreeing second-code suffixes.
+The separate code field is encrypted; saved extraction, corrected drafts,
+linked/posted transactions, and audit history remain intact. A same-file
+re-upload only attaches the original PDF and does not reparse it.
+
 ### Can two pending sources be approved as one movement?
 
 Yes. A statement row detail response offers eligible pending SMS candidates with
