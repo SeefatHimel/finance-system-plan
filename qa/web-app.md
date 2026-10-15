@@ -972,8 +972,11 @@ pages. Each item opens an editable, prefilled result with original SMS/PDF evide
 Differing parsed types require an explicit choice; merchant, category, date/time,
 reference and note can be corrected in place before saving. Explicit confirmation
 resolves both sources into one transaction; a new entry uses the reviewed
-classification/date/time and chosen balance. A compact source comparison appears
-before the editable result and receives initial dialog focus. If a statement has
+classification/date/time and chosen balance. The combined dialog places the
+editable result and Finish review decisions side by side on desktop and stacks
+them on smaller screens. A compact source strip receives initial focus. Less-used
+fields and full source evidence open on demand without losing draft values or
+waiving the existing confirmation checks. If a statement has
 no time, the aligned SMS received time is suggested with a visible source label;
 reviewers can clear it. A date mismatch leaves time empty, and moving the date
 away from the SMS date clears that suggestion.

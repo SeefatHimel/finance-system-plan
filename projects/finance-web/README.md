@@ -1161,6 +1161,13 @@ reset. Its footer offers Back to comparison and Save draft & compare; posting an
 next-row actions remain in the full statement workflow. SMS corrections use the
 existing SMS review deep link, which provides a visible return to matched review.
 Record one transaction lists every outstanding requirement beside the disabled action.
+The combined review puts the editable transaction and confirmation decisions side by
+side on wide screens, then stacks them on smaller screens. Its compact source strip
+highlights material differences; the type choice is made beside the final type,
+and the balance choice stays visible in Finish review. Less-used balance editing,
+value date, reference, amount evidence and note fields sit in More transaction
+details. Original PDF/SMS values and match reasons remain available in separate
+disclosures, and collapsing them does not discard edits or bypass any checks.
 Original extraction issues, failed statement checks, and saved draft discrepancies
 are shown alongside the required acknowledgment so users can inspect each reason.
 For a new entry, the reviewed result's classification/date/time form the ledger movement. When

@@ -3458,15 +3458,8 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .unified-review-pagination { justify-content: flex-end; }
 .status-badge--warning { background: #2b2414; border-color: #4a3b1d; color: var(--warning); }
 .viewport-modal.unified-pair-dialog { max-width: min(1400px, calc(100vw - 32px)); }
-.unified-pair-summary { background: var(--background); border: 1px solid var(--panel-border); border-radius: 12px; margin-bottom: 16px; padding: 14px 18px; }
+.unified-pair-summary { background: var(--background); border: 1px solid var(--panel-border); border-radius: 12px; }
 .unified-pair-summary:focus { outline: none; }
-.unified-pair-summary h3 { margin: 0; }
-.unified-pair-summary p { color: var(--muted); margin: 4px 0 12px; }
-.unified-pair-summary dl { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
-.unified-pair-summary dl > div { border: 1px solid var(--panel-border); border-radius: 8px; min-width: 0; overflow-wrap: anywhere; padding: 10px; }
-.unified-pair-summary dt { color: var(--muted); font-size: 12px; font-weight: 750; margin-bottom: 6px; }
-.unified-pair-summary dd { margin: 3px 0 0; }
-.unified-pair-summary__difference { border-color: var(--warning) !important; }
 .unified-result-editor { background: var(--background); border: 1px solid var(--panel-border); border-radius: 12px; padding: 18px; }
 .unified-result-editor > header { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
 .unified-result-editor h3 { margin: 0; }
@@ -3501,8 +3494,43 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .unified-pair-dialog .statement-row-footer { align-items: center; display: flex; gap: 18px; justify-content: space-between; }
 .unified-pair-dialog .statement-row-footer .statement-actions { flex-shrink: 0; margin: 0; }
 .statement-match-comparison section > .button { margin-top: 14px; max-width: 100%; white-space: normal; }
+.unified-pair-body { padding: 16px; }
+.unified-pair-grid { align-items: start; display: grid; gap: 16px; grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr); }
+.unified-pair-main, .unified-pair-decisions { min-width: 0; }
+.unified-pair-summary { align-items: center; display: flex; flex-wrap: wrap; gap: 5px 12px; margin-bottom: 12px; padding: 10px 14px; }
+.unified-pair-summary strong { color: var(--accent); font-size: 13px; }
+.unified-pair-summary > span:not(.unified-pair-summary__difference) { color: var(--muted); flex: 1 1 260px; font-size: 12px; overflow-wrap: anywhere; }
+.unified-pair-summary__difference { border: 1px solid #4a3b1d; border-radius: 999px; color: var(--warning); font-size: 12px; font-weight: 700; padding: 3px 8px; white-space: nowrap; }
+.unified-result-editor { padding: 14px; }
+.unified-result-editor > header { align-items: center; }
+.unified-result-editor header p { font-size: 12px; margin-top: 2px; }
+.unified-result-editor .unified-core-fields { gap: 12px; margin: 12px 0 0; }
+.unified-result-editor .field__label { font-size: 13px; }
+.unified-result-editor .field__control { min-height: 42px; }
+.unified-type-choice { margin-top: 12px; padding: 9px 12px 11px; }
+.unified-type-choice legend { font-size: 13px; }
+.unified-type-options { gap: 7px; }
+.unified-type-options label { font-size: 13px; min-height: 38px; padding: 6px 9px; }
+.unified-path-preview { font-size: 13px; margin-top: 12px; padding-top: 10px; }
+.unified-more-fields { border-top: 1px solid var(--panel-border); margin-top: 12px; padding-top: 10px; }
+.unified-more-fields > summary { color: var(--accent); cursor: pointer; font-size: 13px; font-weight: 700; }
+.unified-more-fields > summary span { color: var(--muted); font-weight: 400; margin-left: 6px; }
+.unified-more-fields .statement-edit-fields { gap: 12px; margin-top: 14px; }
+.unified-pair-decisions { background: var(--background); border: 1px solid var(--panel-border); border-radius: 12px; padding: 14px; }
+.unified-pair-decisions h3 { font-size: 17px; margin: 0 0 12px; }
+.unified-pair-decisions .statement-balance-choice { margin: 0 0 14px; }
+.unified-pair-decisions .statement-balance-options { gap: 8px; }
+.unified-pair-decisions .statement-balance-options label { padding: 9px; }
+.unified-pair-decisions .statement-match-conflict, .unified-pair-decisions .raw-message, .unified-pair-decisions > .review-remember { margin-top: 10px; }
+.unified-pair-decisions .review-remember { padding: 10px; }
+.unified-pair-main > .unified-source-evidence { margin-top: 12px; }
+.unified-pair-main > .raw-message { margin-top: 8px; }
+@media (max-width: 1050px) {
+  .unified-pair-grid { grid-template-columns: minmax(0, 1fr); }
+  .unified-pair-main > .unified-source-evidence { margin-top: 8px; }
+}
 @media (max-width: 900px) { .unified-review-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 900px) { .unified-review-search { grid-column: 1 / -1; } .unified-pair-summary dl { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) { .unified-review-search { grid-column: 1 / -1; } }
 @media (max-width: 720px) {
   .unified-review-filters, .unified-review-item, .unified-review-source-summary { grid-template-columns: minmax(0, 1fr); }
   .unified-review-search { grid-column: auto; }
