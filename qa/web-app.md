@@ -971,7 +971,11 @@ away from the SMS date clears that suggestion.
 Existing ledger suggestions must be selected and retain their existing balance.
 If none can be linked, the comparison explains the blocker and links directly to
 the statement workflow where the ledger suggestions can be resolved.
-Balance/source discrepancies need review; nothing posts automatically. Unmatched
+Balance/source discrepancies need review; nothing posts automatically. A
+sub-Tk-1 BDT statement/SMS balance difference keeps the explicit balance
+source choice and exact source values, while suppressing the amber conflict
+banner and extra checkbox. Larger differences and selected existing-ledger
+conflicts continue to require acknowledgment. Unmatched
 and ambiguous one-to-many sources remain in their individual review pages rather
 than appearing twice or implying a safe pair. Differing non-null balances start
 without a selected winner, and the disabled confirmation action lists every step

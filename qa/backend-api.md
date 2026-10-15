@@ -875,8 +875,12 @@ before condition and search filtering. Exact account, direction, amount
 and date are necessary but insufficient: matching reference, balance, normalized
 counterparty or known transfer counterpart must independently corroborate the pair.
 For BDT, a reported-balance difference below Tk 1 also corroborates matching,
-but still counts as a conflict. Both source reports keep their exact values,
-and posting requires the usual explicit choice of effective balance.
+and still counts as a reported difference in matching metadata. Both source
+reports keep their exact values, and posting requires the usual explicit choice
+of effective balance. Unified confirmation waives only the additional balance
+acknowledgment for a sub-Tk-1 statement/SMS difference; a Tk-1-or-greater
+original or edited difference still requires it. Existing-ledger conflicts
+retain their separate acknowledgment.
 The queue, pair detail and confirmation endpoint all repeat reciprocal uniqueness
 checks. This prevents a stale or hand-crafted detail request from bypassing an
 ambiguity discovered after the queue loaded. Opaque cursors keep pagination stable

@@ -540,7 +540,10 @@ condition. Unmatched sources and one-to-many ambiguities remain in their individ
 workflows. Legacy offset remains accepted.
 Reported balances less than BDT 1 apart may corroborate a pending pair, but
 the API still reports the exact difference as a conflict and requires the usual
-explicit balance choice before confirmation. Neither source report is rounded.
+explicit balance choice before confirmation. The unified confirm endpoint does
+not require `acknowledge_conflict` solely for that sub-Tk-1 source difference;
+Tk 1 or more and separate ledger conflicts still require it. Neither source
+report is rounded.
 `GET /api/review/pair/` returns owned pending-source evidence, normalized SMS
 account perspective and ledger suggestions.
 An optional pending-queue `source` filter bounds comparison work, while results

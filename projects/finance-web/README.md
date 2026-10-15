@@ -1136,6 +1136,10 @@ statement type, SMS type or a different type; date/time, category, merchant,
 reference and note suggestions remain individually editable. Amount stays tied
 to the matched source amounts and must be corrected in source review. The two
 originals, match reasons and reported balances remain expandable for comparison.
+A BDT statement/SMS balance difference below Tk 1 does not show the amber
+conflict banner or checkbox in unified review. The user still explicitly
+chooses SMS or statement as the ledger balance; both source values remain visible.
+Larger differences and existing-ledger conflicts retain the warning.
 A compact comparison of source date/time, type and reported balance appears before
 the result form, and focus starts there when the dialog opens. When the statement
 has no time and its date matches the SMS received date, the form suggests the SMS

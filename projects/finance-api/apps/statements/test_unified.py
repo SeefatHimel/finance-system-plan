@@ -246,13 +246,28 @@ class UnifiedReviewTests(APITestCase):
         self.assertEqual(self.client.get(reverse("unified-pending")).data["count"], 0)
 
     def test_balance_choice_and_acknowledgments(self):
-        for field in ("acknowledge_match", "acknowledge_conflict"):
-            response = self.confirm(**{field: False})
-            self.assertEqual(response.status_code, 400, response.data)
-            self.assertEqual(Transaction.objects.count(), 0)
-        response = self.confirm(balance_source="statement")
+        response = self.confirm(acknowledge_match=False)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        response = self.confirm(balance_source="statement", acknowledge_conflict=False)
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(Transaction.objects.get().balance_after, Decimal("900.07"))
+
+    def test_one_taka_difference_still_requires_conflict_acknowledgment(self):
+        self.sms.balance_after = Decimal("899.07")
+        self.sms.save()
+        response = self.confirm(acknowledge_conflict=False)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("acknowledge_conflict", response.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_edited_large_difference_requires_acknowledgment(self):
+        response = self.confirm(
+            draft=self.draft(balance_after="902.00"), acknowledge_conflict=False
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("acknowledge_conflict", response.data)
+        self.assertEqual(Transaction.objects.count(), 0)
 
     def test_type_disagreement_requires_explicit_choice(self):
         self.sms.transaction_type = "transfer"
@@ -334,7 +349,7 @@ class UnifiedReviewTests(APITestCase):
         self.assertEqual(record.balance_after, Decimal("900.44"))
         self.assertEqual(self.sms.balance_after, Decimal("900.00"))
 
-    def test_edited_draft_and_new_balance_difference_need_review_acknowledgments(self):
+    def test_edited_draft_still_needs_source_review_but_not_subtaka_balance_ack(self):
         self.row.balance_after = Decimal("900.00")
         self.row.save(update_fields=["balance_after"])
         self.row.refresh_from_db()
@@ -343,11 +358,10 @@ class UnifiedReviewTests(APITestCase):
         self.assertEqual(response.status_code, 400, response.data)
         self.assertIn("acknowledge_issues", response.data)
         response = self.confirm(draft=edited, acknowledge_conflict=False)
-        self.assertEqual(response.status_code, 400, response.data)
-        self.assertIn("acknowledge_conflict", response.data)
-        self.assertEqual(Transaction.objects.count(), 0)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(Transaction.objects.count(), 1)
         self.row.refresh_from_db()
-        self.assertEqual(self.row.balance_after, Decimal("900.00"))
+        self.assertEqual(self.row.balance_after, Decimal("900.44"))
 
     def test_stale_or_foreign_draft_is_rejected(self):
         self.assertEqual(

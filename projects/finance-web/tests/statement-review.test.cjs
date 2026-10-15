@@ -6,7 +6,7 @@ const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const output = mkdtempSync(join(tmpdir(), 'finance-statement-review-'));
 execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/statement-review.ts'], { cwd: resolve(__dirname, '..') });
-const { statementLinkBlockReason, statementBalanceDifference } = require(join(output, 'statement-review.js'));
+const { statementLinkBlockReason, statementBalanceDifference, insignificantBdtBalanceDifference, reportedBalanceNeedsAcknowledgment } = require(join(output, 'statement-review.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
 const ready = { dirty: false, canLink: true, requiresAcknowledgement: false, issuesAcknowledged: false, conflict: false, balanceChosen: false };
 
@@ -28,4 +28,17 @@ test('reported balance differences retain exact cents, sign, zero and unknown va
   assert.equal(statementBalanceDifference('-0.01', '0.00'), '-0.01');
   assert.equal(statementBalanceDifference('999999999999.99', '-999999999999.99'), '+1999999999999.98');
   for (const value of [null, '', 'NaN', 'Infinity', '1.001', '1e3']) assert.equal(statementBalanceDifference(value, '0.00'), null);
+});
+
+test('only nonzero BDT differences below one taka skip extra conflict acknowledgment', () => {
+  assert.equal(insignificantBdtBalanceDifference('714041.33', '714041.00', 'BDT'), true);
+  assert.equal(insignificantBdtBalanceDifference('99.01', '100.00', 'BDT'), true);
+  assert.equal(insignificantBdtBalanceDifference('99.00', '100.00', 'BDT'), false);
+  assert.equal(insignificantBdtBalanceDifference('100.00', '100.00', 'BDT'), false);
+  assert.equal(insignificantBdtBalanceDifference('99.99', '100.00', 'USD'), false);
+  assert.equal(insignificantBdtBalanceDifference(null, '100.00', 'BDT'), false);
+  assert.equal(reportedBalanceNeedsAcknowledgment('714041.33', '714041.00', 'BDT'), false);
+  assert.equal(reportedBalanceNeedsAcknowledgment('99.00', '100.00', 'BDT'), true);
+  assert.equal(reportedBalanceNeedsAcknowledgment('100', '100.00', 'BDT'), false);
+  assert.equal(reportedBalanceNeedsAcknowledgment('99.99', '100.00', 'USD'), true);
 });

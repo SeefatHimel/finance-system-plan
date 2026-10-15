@@ -1108,8 +1108,11 @@ validates ownership, financial values and transfer account path, then saves the
 draft and confirms the pair in one database transaction. Date, direction and
 amount corrections must still support a unique match; metadata and balance
 corrections retain the original evidence that established the pair.
-An edited draft requires explicit source-review acknowledgment; any new
-statement/SMS balance difference requires conflict acknowledgment as well.
+An edited draft requires explicit source-review acknowledgment. A BDT
+statement/SMS balance difference strictly below Tk 1 still requires the user
+to choose which report the ledger uses, but does not require a second conflict
+acknowledgment. Differences of Tk 1 or more and non-BDT differences retain the
+acknowledgment requirement. Both original reports remain exact.
 It serializes writers through the shared user lock, locks both sources, rechecks
 pending state and matches, and reuses statement posting/link validation. Any failure
 rolls back the new ledger entry and both source decisions. Completed-pair retries

@@ -6239,6 +6239,11 @@ components:
         acknowledge_conflict:
           type: boolean
           default: false
+          description: >-
+            Required for material reported-balance conflicts. A BDT
+            statement/SMS difference strictly below Tk 1 still needs an
+            explicit balance_source, but not this additional acknowledgment.
+            Selected existing-ledger conflicts retain their review requirement.
         acknowledge_issues:
           type: boolean
           default: false

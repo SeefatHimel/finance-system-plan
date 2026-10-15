@@ -44,6 +44,16 @@ MAX_PENDING = 2000
 NON_FINANCIAL = {"unknown", "otp_or_security", "balance_notice", "promotional"}
 
 
+def insignificant_bdt_balance_difference(left, right, currency):
+    """Sub-taka source differences still need a balance choice, not an extra acknowledgment."""
+    return (
+        currency == "BDT"
+        and left is not None
+        and right is not None
+        and Decimal("0.00") < abs(left - right) < Decimal("1.00")
+    )
+
+
 def sms_observation(candidate):
     received = timezone.localtime(candidate.raw_message.received_at)
     incoming = (
@@ -105,13 +115,8 @@ def pair_signals(row, candidate):
     same_balance = (
         row.balance_after is not None and row.balance_after == candidate.balance_after
     )
-    near_balance = (
-        row.batch.currency == "BDT"
-        and row.balance_after is not None
-        and candidate.balance_after is not None
-        and Decimal("0.00")
-        < abs(row.balance_after - candidate.balance_after)
-        < Decimal("1.00")
+    near_balance = insignificant_bdt_balance_difference(
+        row.balance_after, candidate.balance_after, row.batch.currency
     )
     merchant = merchant_text(
         row.counterparty_text or row.extracted.get("description", "")
@@ -558,6 +563,13 @@ def confirm_pair(*, user, row, candidate, payload, request):
         raise ReviewConflict(
             "These sources are no longer pending matches. Reload the queue."
         )
+    original_balance_after = row.balance_after
+    original_balance_needs_review = (
+        signals["conflict"]
+        and not insignificant_bdt_balance_difference(
+            original_balance_after, candidate.balance_after, row.batch.currency
+        )
+    )
     original_type = row.type
     draft = payload.get("draft")
     draft_changed = False
@@ -610,12 +622,18 @@ def confirm_pair(*, user, row, candidate, payload, request):
         raise ValidationError(
             {"acknowledge_issues": "Review the edited result against both original sources before confirming."}
         )
-    edited_balance_conflict = (
+    edited_balance_needs_review = (
         row.balance_after is not None
         and candidate.balance_after is not None
         and row.balance_after != candidate.balance_after
+        and not insignificant_bdt_balance_difference(
+            row.balance_after, candidate.balance_after, row.batch.currency
+        )
     )
-    if (signals["conflict"] or edited_balance_conflict) and not payload["acknowledge_conflict"]:
+    if (
+        (original_balance_needs_review or edited_balance_needs_review)
+        and not payload["acknowledge_conflict"]
+    ):
         raise ValidationError(
             {"acknowledge_conflict": "Review both reported balances before matching."}
         )

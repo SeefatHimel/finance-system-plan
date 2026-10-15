@@ -15,14 +15,28 @@ export function statementLinkBlockReason(review: LinkReview): string | null {
   return null;
 }
 
-// Compare exact decimal cents; even a one-cent disagreement requires review.
+function cents(value: string | null): bigint | null {
+  if (value === null || !/^-?\d+(?:\.\d{1,2})?$/.test(value)) return null;
+  const [whole, fraction = ""] = value.replace(/^-/, "").split(".");
+  const amount = BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, "0"));
+  return value.startsWith("-") ? -amount : amount;
+}
+
+export function insignificantBdtBalanceDifference(first: string | null, second: string | null, currency: string): boolean {
+  if (currency !== "BDT") return false;
+  const left = cents(first), right = cents(second);
+  if (left === null || right === null) return false;
+  const difference = left > right ? left - right : right - left;
+  return difference > BigInt(0) && difference < BigInt(100);
+}
+
+export function reportedBalanceNeedsAcknowledgment(first: string | null, second: string | null, currency: string): boolean {
+  const left = cents(first), right = cents(second);
+  return left !== null && right !== null && left !== right && !insignificantBdtBalanceDifference(first, second, currency);
+}
+
+// Preserve exact source reports even when the extra acknowledgment is unnecessary.
 export function statementBalanceDifference(statement: string | null, ledger: string | null): string | null {
-  function cents(value: string | null): bigint | null {
-    if (value === null || !/^-?\d+(?:\.\d{1,2})?$/.test(value)) return null;
-    const [whole, fraction = ""] = value.replace(/^-/, "").split(".");
-    const amount = BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, "0"));
-    return value.startsWith("-") ? -amount : amount;
-  }
   const left = cents(statement), right = cents(ledger);
   if (left === null || right === null) return null;
   const difference = left - right;
