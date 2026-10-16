@@ -6,6 +6,7 @@ from django.db.models import Count, Q
 from django.http import HttpResponse
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from rest_framework import serializers
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -48,6 +49,19 @@ transaction_date_parameters = [
 ]
 
 
+class ActivityPageQuery(serializers.Serializer):
+    limit = serializers.IntegerField(default=25, min_value=1, max_value=100)
+    offset = serializers.IntegerField(default=0, min_value=0, max_value=2147483647)
+    account = serializers.UUIDField(required=False)
+    category = serializers.UUIDField(required=False)
+
+
+class TransactionActivityPageSerializer(serializers.Serializer):
+    count = serializers.IntegerField(min_value=0)
+    next_offset = serializers.IntegerField(min_value=0, allow_null=True)
+    results = TransactionSerializer(many=True)
+
+
 def spreadsheet_safe_text(value):
     """Prevent user-controlled CSV text from becoming a spreadsheet formula."""
     if value and value.lstrip(" \t\r\n\ufeff").startswith(("=", "+", "-", "@")):
@@ -59,6 +73,33 @@ def spreadsheet_safe_text(value):
 class TransactionViewSet(ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = (IsAuthenticated,)
+
+    @extend_schema(
+        parameters=[*transaction_date_parameters,
+                    OpenApiParameter("account", OpenApiTypes.UUID),
+                    OpenApiParameter("category", OpenApiTypes.UUID),
+                    OpenApiParameter("type", str),
+                    OpenApiParameter("direction", str),
+                    OpenApiParameter("source", str),
+                    OpenApiParameter("ordering", str, enum=["-date", "-created_at", "-updated_at"]),
+                    OpenApiParameter("limit", {"type": "integer", "minimum": 1, "maximum": 100, "default": 25}),
+                    OpenApiParameter("offset", {"type": "integer", "minimum": 0, "maximum": 2147483647, "default": 0})],
+        responses=TransactionActivityPageSerializer,
+    )
+    @action(detail=False, methods=("get",))
+    def activity(self, request):
+        """Bounded timeline; the existing list retains its array response."""
+        query = ActivityPageQuery(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        limit, offset = query.validated_data["limit"], query.validated_data["offset"]
+        queryset = self.filter_queryset(self.get_queryset())
+        count = queryset.count()
+        rows = list(queryset[offset:offset + limit])
+        return Response({
+            "count": count,
+            "next_offset": offset + len(rows) if offset + len(rows) < count and rows else None,
+            "results": self.get_serializer(rows, many=True).data,
+        }, headers={"Cache-Control": "private, no-store"})
 
     @extend_schema(
         responses=SavedStatementRowSerializer(many=True), tags=["Transactions"]
@@ -147,7 +188,7 @@ class TransactionViewSet(ModelViewSet):
 
         queryset = filter_transaction_search(queryset, self.request.query_params.get("search"), user=self.request.user)
 
-        if self.action == "list":
+        if self.action in {"list", "activity"}:
             ordering = self.request.query_params.get("ordering", "-date")
             if ordering in {"-created_at", "-updated_at"}:
                 queryset = queryset.order_by(ordering, "-id")

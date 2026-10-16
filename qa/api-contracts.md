@@ -668,3 +668,13 @@ PDF password and returns `updated_rows`. The action is owner-scoped, no-store,
 throttled, and revalidates archived bytes and row fingerprints. Statement review
 suggestions may include a verified note; counterparty code mappings accept and
 return `note_template`.
+
+### What is the mobile transaction activity contract?
+
+`GET /api/transactions/activity/` adds a bounded page envelope while retaining the
+legacy list's array response. It reuses list filters and takes limit 1–100
+(default 25) and nonnegative offset (default 0); count is the filtered user-owned
+total, next_offset is null at the end, and results contains normal Transaction
+objects. Mobile aborts superseded requests and deduplicates appended IDs. Offset
+pages are refreshed after concurrent ledger changes. API deployment precedes
+mobile distribution; no database migration is needed.

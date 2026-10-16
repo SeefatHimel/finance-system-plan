@@ -825,6 +825,12 @@ export interface UndoTransactionRequest {
   action: string;
 }
 
+export interface TransactionActivityPage {
+  count: number;
+  next_offset: number | null;
+  results: Transaction[];
+}
+
 export interface Transaction {
   undo_action?: TransactionAction | null;
   reported_balances?: AccountReportedBalance[];

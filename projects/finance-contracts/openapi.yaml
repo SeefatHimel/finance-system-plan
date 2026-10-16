@@ -2126,6 +2126,115 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/transactions/activity/:
+    get:
+      tags:
+      - Transactions
+      summary: List a page of transaction activity
+      description: Bounded owned timeline. Existing transaction-list clients keep the array response. Refresh after
+        ledger changes while paging.
+      security:
+      - bearerAuth: []
+      parameters:
+      - in: query
+        name: date_field
+        schema:
+          type: string
+          enum:
+          - date
+          - created_at
+          - updated_at
+          default: date
+        description: Date used by month and range filters; timestamp days use Asia/Dhaka.
+      - in: query
+        name: start_date
+        schema:
+          type: string
+          format: date
+        description: Inclusive start date; requires end_date and excludes month.
+      - in: query
+        name: end_date
+        schema:
+          type: string
+          format: date
+        description: Inclusive end date; range at most 366 days.
+      - in: query
+        name: ordering
+        schema:
+          type: string
+          enum:
+          - -date
+          - -created_at
+          - -updated_at
+          default: -date
+        description: Sort newest transaction dates first (default), newest ledger additions first, or latest saved
+          changes first. Date filters use date_field (transaction date by default); omit dates to include all activity.
+          Creation and edits update updated_at, as do newly linked transfer evidence and merges; reads and idempotent
+          transfer retries do not. Edits and linked evidence do not change created_at.
+      - in: query
+        name: month
+        schema:
+          type: string
+          pattern: ^\d{4}-\d{2}$
+        description: Filter by month in YYYY-MM format.
+      - in: query
+        name: account
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: category
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: type
+        schema:
+          $ref: '#/components/schemas/TransactionType'
+      - in: query
+        name: direction
+        schema:
+          $ref: '#/components/schemas/TransactionDirection'
+      - in: query
+        name: source
+        schema:
+          $ref: '#/components/schemas/TransactionSource'
+        description: Filter by transaction origin, such as web, mobile, sms, import, or system.
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search all ledger fields including account/category/payment-method names, currency, type, direction,
+          source, amount, reported balance, ISO dates/times, review status, identifiers, reference, counterparty,
+          note, IDs and external keys, including linked transfer evidence. Case-insensitive partial matches; every
+          space-separated term must match somewhere. Quote phrases to keep them together. Formatted amounts accept
+          thousands separators. Existing filters still apply. IDs accept full values or hexadecimal fragments of at
+          least 8 characters. Maximum 256 characters and 12 terms. Raw SMS bodies are not searched.
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      - in: query
+        name: offset
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+          default: 0
+      responses:
+        '200':
+          description: Private, non-cacheable page with a filtered count.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionActivityPage'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /api/transactions/:
     get:
       tags: [Transactions]
@@ -4921,6 +5030,15 @@ components:
       required: [action]
       properties:
         action: {type: string, format: uuid}
+    TransactionActivityPage:
+      type: object
+      required: [count, next_offset, results]
+      properties:
+        count: {type: integer, minimum: 0}
+        next_offset: {type: integer, minimum: 0, nullable: true}
+        results:
+          type: array
+          items: {$ref: '#/components/schemas/Transaction'}
     Transaction:
       type: object
       required:

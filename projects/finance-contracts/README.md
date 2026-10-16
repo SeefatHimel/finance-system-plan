@@ -698,3 +698,15 @@ or link a different owned account. Optional type/category choices are
 review-only suggestions for pending statement drafts. Responses include masked
 recent examples, never the original PDF. The contract adds no automatic ledger
 mutation or confirmation operation.
+
+## Paginated transaction activity
+
+`GET /api/transactions/activity/` accepts the transaction list's existing search,
+account/category/type/direction/source/date/ordering filters plus `limit` (1–100,
+default 25) and `offset` (nonnegative, default 0). It returns required `count`,
+nullable `next_offset`, and a `results` array of `Transaction` records. Count is
+the filtered owned total; `next_offset=null` ends pagination. Responses are
+private/no-store. Malformed paging/UUID/date inputs return 400; missing auth
+returns 401. Existing `GET /api/transactions/` remains an array. Offset pagination
+is not a historical snapshot: refresh after concurrent ledger changes and
+deduplicate IDs when appending. Deploy the API before the new mobile client.

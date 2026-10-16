@@ -1279,3 +1279,19 @@ Explicitly remembered statement choices can also suggest a corrected note.
 New bKash bill drafts use Electricity, Internet, or Mobile Recharge for clear
 provider wording, with Utilities & Bills as the fallback. A migration refines
 only untouched pending generic bill drafts, not posted or manually edited rows.
+
+## Paginated transaction activity
+
+`GET /api/transactions/activity/` is an authenticated, read-only timeline using
+all existing transaction filters/search and ordering. It returns
+`{count, next_offset, results}`. `limit` defaults to 25 and must be 1–100;
+`offset` defaults to zero and must be nonnegative. UUID filter inputs are
+validated. Count/results are scoped to the authenticated user; account filtering
+includes both sides of owned transfers and reports the selected account's
+perspective. Responses are `private, no-store`.
+
+The existing transaction list keeps its array response. No migration is needed.
+Offset pages are refreshed after ledger changes; clients must deduplicate IDs
+and refresh if records change while browsing. Mobile uses this endpoint for
+bounded Home previews and the complete paginated Activity timeline. Deploy API
+before distributing the updated mobile app.

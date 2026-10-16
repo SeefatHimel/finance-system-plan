@@ -1054,3 +1054,12 @@ A password is supplied per request for locked PDFs. Clear Pay Bill and Mobile
 Recharge wording selects specific expense categories for new rows; a migration
 refines untouched pending generic bill rows. An exact full Send Money recipient
 match to one owned active bKash wallet suggests, but never posts, a transfer.
+
+### Does pagination break existing transaction-list clients?
+
+No. The new authenticated read-only `/api/transactions/activity/` route returns
+filtered count, next_offset and up to 100 results (25 by default). The existing
+list remains an array. Both use the same owned queryset, search, date filters,
+transfer account perspective and stable ordering. Bad paging/UUID inputs return
+400, unauthenticated requests return 401, and activity responses are private and
+non-cacheable. No new model or migration is required.
