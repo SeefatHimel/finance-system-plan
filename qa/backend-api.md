@@ -647,6 +647,14 @@ checks; discrepancies block bulk creation and need individual acknowledgement.
 Match strength uses merchant/time/reference/balance corroboration; ties remain possible.
 Selected create/skip actions preserve locks, version checks, ownership and atomicity.
 
+bKash `Card to bKash` credits begin as unconfirmed transfer drafts on new
+imports. The source `provider_type` and masked details stay in the saved
+extraction, while the original uploaded PDF is archived encrypted. Previously
+imported pending rows receive read-only transfer suggestions without changing
+their drafts. A trailing City/EBL bank label supplies possible active owned
+accounts, never an automatic account selection; the reviewer must verify card
+ownership and may choose a non-transfer type for an externally funded top-up.
+
 ### How do statement imports identify ledger-only entries?
 
 A read-only comparison scopes ledger history to the authenticated owner, selected

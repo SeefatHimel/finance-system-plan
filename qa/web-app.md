@@ -1077,3 +1077,12 @@ mapping prefills the result merchant only if the statement merchant is still
 the raw bank reference. The reviewer may edit it or choose either source's
 wording. Saving the mapping alone does not alter stored statement drafts or
 existing ledger transactions.
+
+### How does the web app review bKash card-funded statement credits?
+
+For a bKash `Card to bKash` credit, the statement row form shows a transfer
+explanation beside Type and possible City/EBL funding accounts beside Other
+owned account. The bank label does not select a specific account. Choosing a
+suggestion changes only the draft and resets the reviewed-type confirmation;
+the user must verify ownership, save, then make the ledger decision. Existing
+pending imports gain these hints when opened, with no re-upload required.

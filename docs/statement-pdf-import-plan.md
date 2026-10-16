@@ -213,6 +213,18 @@ Explicitly remembered category/type/owned-account choices appear as suggestions
 for later matching source patterns; generic transfer wording is excluded. These
 suggestions never auto-post or change reported amounts, dates or balances.
 
+For bKash `Card to bKash` credits, new imports start as unconfirmed transfer
+drafts. A reviewer must identify the other **owned** account before recording a
+transfer; a card-funded top-up from someone else's card may instead be classified
+as income or another appropriate type. A trailing `/ City` or `/ ebl` in the
+statement details offers matching active BDT bank/card accounts as choices, but
+never selects one from the bank name alone. Existing pending rows receive this
+read-only suggestion when opened; their saved drafts and ledger entries are not
+rewritten. The source transaction type and masked details remain in the immutable
+extracted row, and the original uploaded PDF is retained encrypted for imports
+made after original-file storage was introduced. Older imports without an archive
+can attach it by uploading the identical PDF again.
+
 Full-import saved-draft reconciliation is independent of original extraction checks.
 The summary separates principal/inline fee totals and review decisions, labels derived
 openings and unavailable checks, and retains skipped rows in statement arithmetic.

@@ -363,6 +363,10 @@ opt-in via `remember_choices` on individual create/link. Summary is user-scoped,
 no-store and uses draft observation amounts (linked ledger amounts may differ after
 correction). Selected actions accept create/skip and max 50 IDs/versions; stale,
 matched or discrepant create rows return unresolved reasons. Skip retains ledger data.
+For bKash card-funded credits, `review.suggestion` may include optional
+`account_candidates` (`account` UUID and `name`) derived from a trailing City/EBL
+bank label. These are choices, not an assigned `other_account`; source extraction,
+draft fields and ledger decisions remain separate.
 
 ### What does the statement comparison endpoint guarantee?
 
