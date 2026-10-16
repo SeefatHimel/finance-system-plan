@@ -614,3 +614,13 @@ Settings reveal their active item, and SMS focus mode preserves edits.
 On a physical Android device check Activity pagination/search/filter cancellation,
 transaction details/back, More/drawer destinations, candidate-specific review,
 keyboard behavior, offline recovery and account switching.
+
+### Shared client presentation checks
+
+Use `npm run typecheck` and `node --test tests/*.test.cjs` from each of
+`projects/finance-web` and `projects/finance-mobile`. Focused checks are web
+`node --test tests/presentation.test.cjs tests/movement-presentation.test.cjs` and
+mobile `node --test tests/native-fields.test.cjs tests/quick-add-focus.test.cjs`.
+See [interface conventions](interface-conventions.md) for browser/device checks.
+No migrations or new environment variables are required. Mobile branding and
+controls are included only after distributing a rebuilt APK.

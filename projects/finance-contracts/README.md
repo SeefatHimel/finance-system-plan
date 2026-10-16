@@ -710,3 +710,13 @@ private/no-store. Malformed paging/UUID/date inputs return 400; missing auth
 returns 401. Existing `GET /api/transactions/` remains an array. Offset pagination
 is not a historical snapshot: refresh after concurrent ledger changes and
 deduplicate IDs when appending. Deploy the API before the new mobile client.
+
+## Shared client presentation
+
+`presentation.ts` provides pure formatting and movement-presentation helpers for
+web and mobile: Finance branding, selection colors, exact decimal currency text,
+validated date-only values, local timestamp/input fields and readable labels.
+It contains no React, storage, network or ledger mutation code and does not change
+the generated HTTP contract. See [interface conventions](../../docs/interface-conventions.md).
+Regression coverage lives in web `tests/presentation.test.cjs` and
+`tests/movement-presentation.test.cjs`; both clients typecheck their imports.

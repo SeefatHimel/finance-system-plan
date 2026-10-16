@@ -678,3 +678,11 @@ total, next_offset is null at the end, and results contains normal Transaction
 objects. Mobile aborts superseded requests and deduplicates appended IDs. Offset
 pages are refreshed after concurrent ledger changes. API deployment precedes
 mobile distribution; no database migration is needed.
+
+### Does sharing presentation helpers change the API boundary?
+
+No. `finance-contracts/presentation.ts` is dependency-free client code, like the
+existing Quick Add/transfer helpers. Web and native import it directly; generated
+OpenAPI types, decimal strings, date/time payloads, evidence and ownership rules
+remain unchanged. Formatting belongs to clients; financial calculations and
+validation remain authoritative on the API.

@@ -376,3 +376,14 @@ Review inbox, with Planning and Settings expandable. Mobile keeps its five tabs,
 adds a complete searchable Activity timeline, and routes More/drawer items to
 the named section. Existing deep links and ledger semantics are preserved; this
 changes navigation and reads, not automatic transaction confirmation or matching.
+
+### How do the web and mobile interfaces stay consistent?
+
+Both clients use Finance branding and pure client presentation helpers for exact
+currency strings, readable calendar dates and local timestamps. Full transaction
+review groups classification, accounts, amount, dates and descriptive fields;
+Quick Add keeps Amount first for speed. Soft mint selections differ from primary
+Save/Confirm buttons and expose accessibility state. Optional details retain
+drafts while collapsed; conflicts and required corrections remain visible.
+These conventions do not change ledger maths or API semantics. Saved views and
+privacy controls are deferred. See [interface conventions](../docs/interface-conventions.md).
