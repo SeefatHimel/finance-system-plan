@@ -1142,7 +1142,9 @@ before search and review-condition filtering; ambiguous sources link to their
 individual statement and SMS review pages. The page shows only reciprocal
 one-to-one pairs backed by evidence beyond amount/date; unmatched and ambiguous
 sources remain in their dedicated review pages. Source totals explain how many are
-matched, ambiguous, statement-only or SMS-only in the selected scope. Unknown
+matched, ambiguous, statement-only or SMS-only in the selected scope. The default
+**SMS pairs found** condition shows all eligible pairs; the other conditions
+narrow those same pairs rather than switching to unmatched sources. Unknown
 dates/account/amounts and non-financial SMS need their source editor first. SMS
 dates are received timestamps and statement dates are transaction dates, but both
 are formatted consistently. Statement fee rows remain independently reviewable.

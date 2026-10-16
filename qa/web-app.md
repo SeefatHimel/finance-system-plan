@@ -971,8 +971,9 @@ codes, amounts, dates, category, and page/row within the selected import.
 
 Unified review (`/review`) lists only unique one-to-one pending pairs, one item per
 SMS + statement movement, with account, statement-date and combined-source search
-filters. Review condition also filters strong/possible matches, differing balances
-or types, and items needing correction before pagination. Overview totals remain
+filters. The default **SMS pairs found** option shows those pairs; review
+condition also filters strong/possible matches, differing balances or types,
+and items needing correction before pagination. Overview totals remain
 for the selected account and date before condition/search filtering. Ambiguous
 sources link to the separate statement and SMS queues. Compact rows display match strength and balance conflict independently;
 the scope summary links unmatched source counts back to their dedicated review
