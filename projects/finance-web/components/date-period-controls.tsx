@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { ArrowCounterClockwise } from "@phosphor-icons/react";
 import { allDates, dailyPeriod, dateRangeError, monthPeriod, periodLabel, shiftPeriod, type DatePeriod } from "@/lib/date-period";
 
 export function DatePeriodControls({ value, onChange, allowAll = true, label = "Date filter", description, children, compact = false }: {
@@ -47,13 +48,13 @@ export function DatePeriodControls({ value, onChange, allowAll = true, label = "
       <label className="field" htmlFor={`${id}-start`}><span className="field__label">Start date</span><input id={`${id}-start`} className="field__control" type="date" value={custom.start} onChange={event => setCustom(old => ({ ...old, start: event.target.value }))} /></label>
       <label className="field" htmlFor={`${id}-end`}><span className="field__label">End date</span><input id={`${id}-end`} className="field__control" type="date" min={custom.start} value={custom.end} onChange={event => setCustom(old => ({ ...old, end: event.target.value }))} /></label>
       <button className="button button--primary" type="button" onClick={applyCustom}>Apply dates</button>
-    </div> : mode !== "all" ? <div className="date-period-fields">
+    </div> : mode !== "all" ? <div className="date-period-fields date-period-fields--single">
       <button className="button button--ghost" type="button" aria-label={`Previous ${mode === "daily" ? "day" : "month"}`} onClick={() => onChange(shiftPeriod(value, -1))}>←</button>
       <label className="field" htmlFor={`${id}-date`}><span className="field__label">{mode === "daily" ? "Day" : "Month"}</span><input id={`${id}-date`} className="field__control" type={mode === "daily" ? "date" : "month"} value={mode === "daily" ? value.start : value.start.slice(0, 7)} onChange={event => {
         if (event.target.value) onChange(mode === "daily" ? dailyPeriod(event.target.value) : monthPeriod(event.target.value));
       }} /></label>
       <button className="button button--ghost" type="button" aria-label={`Next ${mode === "daily" ? "day" : "month"}`} onClick={() => onChange(shiftPeriod(value, 1))}>→</button>
-      <button className="button button--ghost" type="button" onClick={() => onChange(mode === "daily" ? dailyPeriod() : monthPeriod())}>{mode === "daily" ? "Today" : "Current month"}</button>
+      <button className="button button--ghost" type="button" aria-label={mode === "daily" ? "Today" : "Current month"} title={mode === "daily" ? "Today" : "Current month"} onClick={() => onChange(mode === "daily" ? dailyPeriod() : monthPeriod())}>{compact ? <ArrowCounterClockwise aria-hidden="true" size={18} /> : mode === "daily" ? "Today" : "Current month"}</button>
     </div> : null}
     <p className="date-period-caption" title={compact ? periodLabel(value) : undefined}>{compact && mode !== "custom" ? description || periodLabel(value) : `${periodLabel(value)}${description ? ` · ${description}` : ""}`}</p>
     {error ? <p className="form-error" role="alert">{error}</p> : null}

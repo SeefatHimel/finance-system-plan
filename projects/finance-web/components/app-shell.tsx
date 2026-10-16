@@ -31,6 +31,7 @@ import { useAuth } from "@/components/auth-provider";
 import { ButtonBusy } from "@/components/loading-state";
 
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { ReviewNavigation, isReviewPath } from "./review-navigation";
 import { REVIEW_QUEUE_CHANGED, validReviewCount } from "@/lib/review-status";
 
 type NavItem = {
@@ -46,7 +47,7 @@ const navItems: NavItem[] = [
   { href: "/transactions", icon: ListBullets, label: "Transactions", subtitle: "Record, review, and export money movement", title: "Transactions" },
   { href: "/quick-add", icon: PlusCircle, label: "Quick Add presets", subtitle: "Configure your manual-entry shortcuts", title: "Quick Add presets" },
   { href: "/accounts", icon: CreditCard, label: "Accounts", subtitle: "Manage accounts and transaction categories", title: "Accounts & categories" },
-  { href: "/review", icon: CheckCircle, label: "Unified review", subtitle: "Review pre-matched SMS and statement movements", title: "Unified review" },
+  { href: "/review", icon: CheckCircle, label: "Review inbox", subtitle: "Review SMS, statements and matched sources", title: "Review inbox" },
   { href: "/messages/review", icon: ChatCenteredText, label: "SMS review", subtitle: "Review parsed messages before they enter your ledger", title: "SMS review" },
   { href: "/statements", icon: FileText, label: "Statements", subtitle: "Review statement imports, matches, and ledger evidence", title: "Statement PDFs" },
   { href: "/statement-counterparties", icon: CreditCard, label: "Statement codes", subtitle: "Name recurring counterparty codes from statements", title: "Statement counterparty codes" },
@@ -57,6 +58,14 @@ const navItems: NavItem[] = [
   { href: "/recurring-bills", icon: CalendarDots, label: "Recurring bills", subtitle: "Stay ahead of scheduled payments", title: "Recurring bills" },
   { href: "/reconciliation", icon: CheckCircle, label: "Reconciliation", subtitle: "Compare your ledger with real balances", title: "Balance reconciliation" },
   { href: "/audit-logs", icon: FileText, label: "Audit logs", subtitle: "Inspect the history behind ledger changes", title: "Audit logs" }
+];
+
+const planningPaths = ["/debts", "/credit-cards", "/recurring-bills", "/reconciliation"];
+const settingsPaths = ["/quick-add", "/statement-counterparties", "/sms-settings", "/audit-logs"];
+const navigationGroups = [
+  { label: "Overview", paths: ["/", "/transactions", "/review", "/accounts", "/reports"] },
+  { label: "Planning", paths: planningPaths },
+  { label: "Settings", paths: settingsPaths }
 ];
 
 const sidebarPreferenceKey = "finance.sidebarCollapsed.v1";
@@ -77,6 +86,7 @@ function currentDateLabel() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { session, signOut, isSigningOut } = useAuth();
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const accountMenu = useRef<HTMLDivElement>(null);
   const accountButton = useRef<HTMLButtonElement>(null);
@@ -108,6 +118,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     mobileViewport.addEventListener("change", closeMobileNavigation);
     return () => mobileViewport.removeEventListener("change", closeMobileNavigation);
   }, []);
+
+  useEffect(() => {
+    const group = planningPaths.includes(pathname) ? "Planning" : settingsPaths.includes(pathname) ? "Settings" : null;
+    if (group) setOpenGroups(current => current.includes(group) ? current : [...current, group]);
+  }, [pathname]);
 
   useEffect(() => {
     setIsMobileNavOpen(false);
@@ -255,26 +270,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
 
         <nav className="app-nav" aria-label="Primary navigation">
-          {navItems.map((item) => {
-            const selected = isActive(item, pathname);
-            const NavIcon = item.icon;
-            const showCount = item.href === "/messages/review" && pendingCount !== null && pendingCount > 0;
-
-            return (
-              <Link
-                aria-current={selected ? "page" : undefined}
-                aria-label={`${item.label}${showCount ? `, ${pendingCount} pending` : ""}`}
-                className={`app-nav__item${selected ? " app-nav__item--active" : ""}`}
-                href={item.href}
-                key={item.href}
-                onClick={(event) => handleNavigation(event, item.href)}
-                title={`${item.label}${showCount ? ` (${pendingCount} pending)` : ""}`}
-              >
+          {navigationGroups.map(group => {
+            const links = group.paths.map(path => navItems.find(item => item.href === path)!).map(item => {
+              const selected = item.href === "/review" ? isReviewPath(pathname) : isActive(item, pathname);
+              const NavIcon = item.icon;
+              const showCount = item.href === "/review" && pendingCount !== null && pendingCount > 0;
+              const label = `${item.label}${showCount ? `, ${pendingCount} pending SMS` : ""}`;
+              return <Link aria-current={selected ? "page" : undefined} aria-label={label}
+                className={`app-nav__item${selected ? " app-nav__item--active" : ""}`} href={item.href}
+                key={item.href} onClick={event => handleNavigation(event, item.href)} title={label}>
                 <NavIcon aria-hidden="true" className="nav-icon" size={20} weight={selected ? "fill" : "regular"} />
                 <span className="app-nav__label">{item.label}</span>
-                {showCount ? <span className="app-nav__count" aria-hidden="true">{pendingCount !== null && pendingCount > 99 ? "99+" : pendingCount}</span> : null}
-              </Link>
-            );
+                {showCount ? <span className="app-nav__count" aria-hidden="true">{pendingCount! > 99 ? "99+" : pendingCount}</span> : null}
+              </Link>;
+            });
+            return group.label === "Overview" ? <div className="app-nav__group" key={group.label}>{links}</div>
+              : <details className="app-nav__group" key={group.label} open={openGroups.includes(group.label)} onToggle={event => {
+                const open = event.currentTarget.open;
+                setOpenGroups(current => open ? current.includes(group.label) ? current : [...current, group.label] : current.filter(value => value !== group.label));
+              }}><summary aria-label={`${group.label} navigation`} title={group.label}>{group.label === "Settings" ? <GearSix aria-hidden="true" size={19} /> : <CalendarDots aria-hidden="true" size={19} />}<span className="app-nav__label">{group.label}</span></summary>{links}</details>;
           })}
         </nav>
 
@@ -353,7 +367,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div> : null}
           </div>
         </header>
-        <div aria-busy={isNavigating} className={`app-main${isNavigating ? " app-main--navigating" : ""}`}>{children}</div>
+        <div aria-busy={isNavigating} className={`app-main${isNavigating ? " app-main--navigating" : ""}`}>{isReviewPath(pathname) ? <ReviewNavigation pendingSms={pendingCount} /> : null}{children}</div>
       </div>
     </div></QuickAddProvider>
   );

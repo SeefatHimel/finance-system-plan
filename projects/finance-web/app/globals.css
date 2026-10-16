@@ -3586,3 +3586,54 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .statement-original-source > strong { display: block; margin-bottom: 8px; }
 .statement-original-viewer__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .statement-original-viewer__frame { background: #fff; border: 1px solid var(--panel-border); border-radius: 8px; display: block; height: min(70dvh, 760px); width: 100%; }
+
+
+/* Daily navigation and transaction controls keep results above the fold. */
+.app-nav__group { display: grid; gap: 3px; }
+.app-nav__group > summary { align-items: center; color: var(--muted); cursor: pointer; display: flex; gap: 11px; min-height: 44px; padding: 10px 12px; }
+.app-nav__group > summary::after { content: "+"; margin-left: auto; }
+.app-nav__group[open] > summary::after { content: "−"; }
+.review-navigation { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.review-navigation a { align-items: center; border: 1px solid var(--panel-border); border-radius: 8px; display: inline-flex; gap: 8px; min-height: 44px; padding: 8px 14px; }
+.review-navigation a[aria-current="page"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.review-navigation a span { background: var(--panel-border); border-radius: 12px; color: var(--foreground); font-size: 12px; padding: 1px 7px; }
+.review-navigation + .review-workspace { height: calc(100dvh - 190px); }
+.transaction-filters { display: grid; gap: 12px; margin-block: 16px; }
+.transaction-filter-primary { align-items: end; display: grid; gap: 10px; grid-template-columns: minmax(190px, 2fr) minmax(130px, 1fr) minmax(150px, 1fr) auto auto; }
+.transaction-filter-primary .field { min-width: 0; }
+.transaction-filters .date-period-controls { padding: 0; }
+.transaction-advanced-filters > summary, .transaction-display-options > summary { align-items: center; cursor: pointer; display: flex; gap: 8px; min-height: 36px; width: fit-content; }
+.transaction-advanced-filters > summary::after, .transaction-display-options > summary::after { content: "+"; }
+.transaction-advanced-filters[open] > summary::after, .transaction-display-options[open] > summary::after { content: "−"; }
+.transaction-filter-secondary { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); padding-block: 10px; }
+.transaction-filter-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.transaction-applied-filters { color: var(--accent); font-size: 13px; margin: 0; }
+.transaction-display-options { flex-shrink: 0; position: relative; }
+.transaction-display-options__body { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; display: grid; gap: 12px; padding: 14px; position: absolute; right: 0; width: min(320px, calc(100vw - 48px)); z-index: 10; }
+@media (min-width: 821px) {
+  .app-frame--sidebar-collapsed .app-nav__group > summary { justify-content: center; padding-inline: 8px; }
+  .app-frame--sidebar-collapsed .app-nav__group > summary::after { display: none; }
+}
+@media (max-width: 1100px) {
+  .transaction-filter-primary { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .transaction-filter-primary { grid-template-columns: 1fr 1fr; }
+  .transaction-filter-primary > .field:first-child { grid-column: 1 / -1; }
+  .transaction-filter-primary .field__control { width: 100%; }
+  .transaction-filter-primary > button { width: 100%; }
+  .review-navigation { gap: 6px; }
+  .review-navigation a { flex: 1; justify-content: center; padding-inline: 8px; }
+}
+
+@media (max-width: 640px) {
+  .transaction-list-header { align-items: center; flex-direction: row; }
+  .transaction-list-header .section-subtitle { display: none; }
+  .transaction-list-header > .button { flex-shrink: 0; padding-inline: 10px; width: auto; }
+  .transaction-filters .date-period-mode { flex-wrap: nowrap; width: 100%; }
+  .transaction-filters .date-period-mode select { flex: 1; min-width: 100px; width: auto; }
+  .transaction-filters .date-period-fields--single { flex-wrap: nowrap; width: 100%; }
+  .transaction-filters .date-period-fields--single .field { flex: 1; min-width: 0; }
+  .transaction-filters .date-period-fields--single input { min-width: 0; width: 100%; }
+  .transaction-filters .date-period-fields--single .field__label { clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
+}

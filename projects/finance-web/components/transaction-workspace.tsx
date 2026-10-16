@@ -164,6 +164,7 @@ export function TransactionWorkspace() {
     source: "",
     type: ""
   });
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [dateView, setDateView] = useState<DatePeriod["mode"]>("monthly");
   const filtersRef = useRef(filters);
   const setFilters = useCallback((next: TransactionFilterState) => {
@@ -655,6 +656,11 @@ export function TransactionWorkspace() {
     );
   }
 
+  const advancedFilterCount = [filters.type, filters.direction, filters.source, filters.category, filters.date_field !== "date" ? filters.date_field : ""].filter(Boolean).length;
+  const hasUnappliedFilters = (["search", "account", "type", "direction", "source", "category", "date_field"] as const).some(key => filters[key] !== displayedFilters[key]);
+  const appliedFilterSummary = [displayedFilters.type, displayedFilters.direction, displayedFilters.source,
+    displayedFilters.category ? categoryNames.get(displayedFilters.category) ?? "Selected category" : "", displayedFilters.date_field === "date" ? "" : displayedFilters.date_field === "created_at" ? "Added date" : "Updated date"].filter(Boolean).join(" · ");
+
   const editingTransaction = editingRecord ?? undefined;
   const balanceAccountId = editingAccountId;
   const requiresLinkedCorrection = Boolean(editingTransaction && (
@@ -963,7 +969,7 @@ export function TransactionWorkspace() {
 
       <section className="panel">
         <div className="panel__body">
-          <div className="report-header">
+          <div className="report-header transaction-list-header">
             <div>
               <h2 className="section-title">Transactions</h2>
               <p className="section-subtitle">
@@ -983,167 +989,297 @@ export function TransactionWorkspace() {
           <RecentTransactionAction />
           {formMessage ? <p className="form-success">{formMessage}</p> : null}
 
-          <div className="transaction-view-switch" aria-label="Transaction ordering">
-            <button className="button button--ghost" aria-pressed={filters.ordering === "-date"} onClick={() => selectOrdering("-date")} type="button">By transaction date</button>
-            <button className="button button--ghost" aria-pressed={filters.ordering === "-created_at"} onClick={() => selectOrdering("-created_at")} type="button">Recently added</button>
-            <button className="button button--ghost" aria-pressed={filters.ordering === "-updated_at"} onClick={() => selectOrdering("-updated_at")} type="button">Recently updated</button>
-          </div>
-
-          <DatePeriodControls label="Transaction dates" description={filters.date_field === "date" ? "Based on transaction date" : "Activity calendar days use Asia/Dhaka"} value={periodFromFilters(filters, dateView)} onChange={selectPeriod}>
-            <label className="field"><span className="field__label">Filter date</span><select aria-label="Filter date" className="field__control" value={filters.date_field} onChange={event => {
-              const nextFilters = { ...filtersRef.current, date_field: event.target.value as TransactionFilterState["date_field"] };
-              setFilters(nextFilters); applyFilterUrl(nextFilters); void loadData(nextFilters, false);
-            }}><option value="date">Transaction date</option><option value="created_at">Added date</option><option value="updated_at">Updated date</option></select></label>
-          </DatePeriodControls>
-
-          <form className="filter-form transaction-filter-form" onSubmit={handleFilterSubmit}>
-            <label className="field">
-              <span className="field__label">Type</span>
-              <select
-                className="field__control"
-                name="type"
-                onChange={(event) =>
-                  setFilters({ ...filters, type: event.target.value as TransactionFilterState["type"] })
-                }
-                value={filters.type}
+          <form className="transaction-filters" onSubmit={handleFilterSubmit}>
+            <div className="transaction-filter-primary">
+              <label className="field">
+                <span className="field__label" id="transaction-search-label">
+                  Search
+                </span>
+                <input
+                  className="field__control"
+                  name="search"
+                  onChange={(event) =>
+                    setFilters({ ...filters, search: event.target.value })
+                  }
+                  aria-labelledby="transaction-search-label"
+                  maxLength={256}
+                  placeholder="Search all transaction fields"
+                  type="search"
+                  value={filters.search}
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Account</span>
+                <select
+                  className="field__control"
+                  name="account"
+                  onChange={(event) =>
+                    setFilters({ ...filters, account: event.target.value })
+                  }
+                  value={filters.account}
+                >
+                  <option value="">All accounts</option>
+                  {loadState.accounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field__label">Sort</span>
+                <select
+                  className="field__control"
+                  aria-label="Transaction ordering"
+                  value={filters.ordering}
+                  onChange={(event) =>
+                    selectOrdering(
+                      event.target.value as TransactionFilterState["ordering"],
+                    )
+                  }
+                >
+                  <option value="-date">Transaction date</option>
+                  <option value="-created_at">Recently added</option>
+                  <option value="-updated_at">Recently updated</option>
+                </select>
+              </label>
+              <button className="button button--primary" type="submit">
+                Apply filters
+              </button>
+              <button
+                className="button button--ghost"
+                onClick={clearFilters}
+                type="button"
               >
-                <option value="">All types</option>
-                {transactionTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type.replaceAll("_", " ")}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span className="field__label">Debit / credit</span>
-              <select
-                className="field__control"
-                name="direction"
-                onChange={(event) =>
-                  setFilters({
-                    ...filters,
-                    direction: event.target.value as TransactionFilterState["direction"]
-                  })
-                }
-                value={filters.direction}
-              >
-                <option value="">All directions</option>
-                <option value="debit">Debit</option>
-                <option value="credit">Credit</option>
-              </select>
-            </label>
-
-            <label className="field">
-              <span className="field__label">Source</span>
-              <select
-                className="field__control"
-                name="source"
-                onChange={(event) =>
-                  setFilters({ ...filters, source: event.target.value as TransactionFilterState["source"] })
-                }
-                value={filters.source}
-              >
-                <option value="">All sources</option>
-                {transactionSources.map((source) => (
-                  <option key={source} value={source}>
-                    {source}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span className="field__label" id="transaction-search-label">Search</span>
-              <input
-                className="field__control"
-                name="search"
-                onChange={(event) => setFilters({ ...filters, search: event.target.value })}
-                aria-describedby="transaction-search-hint"
-                aria-labelledby="transaction-search-label"
-                maxLength={256}
-                placeholder="Search all transaction fields"
-                type="search"
-                value={filters.search}
-              />
-              <small className="field__hint" id="transaction-search-hint">Accounts, categories, amounts, dates, notes and linked details. Use quotes for a phrase.</small>
-            </label>
-
-            <label className="field">
-              <span className="field__label">Account</span>
-              <select
-                className="field__control"
-                name="account"
-                onChange={(event) => setFilters({ ...filters, account: event.target.value })}
-                value={filters.account}
-              >
-                <option value="">All accounts</option>
-                {loadState.accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span className="field__label">Category</span>
-              <select
-                className="field__control"
-                name="category"
-                onChange={(event) => setFilters({ ...filters, category: event.target.value })}
-                value={filters.category}
-              >
-                <option value="">All categories</option>
-                {loadState.categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <button className="button button--primary" type="submit">
-              Apply filters
-            </button>
-            <button className="button button--ghost" onClick={clearFilters} type="button">
-              Clear
-            </button>
-            <button
-              className="button button--ghost"
-              disabled={isExporting}
-              onClick={() => void handleExportTransactions()}
-              type="button"
+                Clear
+              </button>
+            </div>
+            <DatePeriodControls
+              label="Transaction dates"
+              description={
+                filters.date_field === "date"
+                  ? "Based on transaction date"
+                  : `Based on ${filters.date_field === "created_at" ? "added" : "updated"} date · Asia/Dhaka`
+              }
+              value={periodFromFilters(filters, dateView)}
+              onChange={selectPeriod}
+              compact
+            />
+            <details
+              className="transaction-advanced-filters"
+              open={advancedFiltersOpen}
+              onToggle={(event) => setAdvancedFiltersOpen(event.currentTarget.open)}
             >
-              {isExporting ? <ButtonBusy label="Exporting" /> : "Export CSV"}
-            </button>
+              <summary>
+                <SlidersHorizontal aria-hidden="true" size={17} />
+                More filters{advancedFilterCount ? ` (${advancedFilterCount})` : ""}
+              </summary>
+              <div className="transaction-filter-secondary">
+                <label className="field">
+                  <span className="field__label">Type</span>
+                  <select
+                    className="field__control"
+                    name="type"
+                    onChange={(event) =>
+                      setFilters({
+                        ...filters,
+                        type: event.target.value as TransactionFilterState["type"],
+                      })
+                    }
+                    value={filters.type}
+                  >
+                    <option value="">All types</option>
+                    {transactionTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type.replaceAll("_", " ")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field__label">Debit / credit</span>
+                  <select
+                    className="field__control"
+                    name="direction"
+                    onChange={(event) =>
+                      setFilters({
+                        ...filters,
+                        direction: event.target
+                          .value as TransactionFilterState["direction"],
+                      })
+                    }
+                    value={filters.direction}
+                  >
+                    <option value="">All directions</option>
+                    <option value="debit">Debit</option>
+                    <option value="credit">Credit</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field__label">Source</span>
+                  <select
+                    className="field__control"
+                    name="source"
+                    onChange={(event) =>
+                      setFilters({
+                        ...filters,
+                        source: event.target
+                          .value as TransactionFilterState["source"],
+                      })
+                    }
+                    value={filters.source}
+                  >
+                    <option value="">All sources</option>
+                    {transactionSources.map((source) => (
+                      <option key={source} value={source}>
+                        {source}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field__label">Category</span>
+                  <select
+                    className="field__control"
+                    name="category"
+                    onChange={(event) =>
+                      setFilters({ ...filters, category: event.target.value })
+                    }
+                    value={filters.category}
+                  >
+                    <option value="">All categories</option>
+                    {loadState.categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field__label">Filter date</span>
+                  <select
+                    aria-label="Filter date"
+                    className="field__control"
+                    value={filters.date_field}
+                    onChange={(event) => {
+                      const nextFilters = {
+                        ...filtersRef.current,
+                        date_field: event.target
+                          .value as TransactionFilterState["date_field"],
+                      };
+                      setFilters(nextFilters);
+                    }}
+                  >
+                    <option value="date">Transaction date</option>
+                    <option value="created_at">Added date</option>
+                    <option value="updated_at">Updated date</option>
+                  </select>
+                </label>
+              </div>
+              <div className="transaction-filter-actions">
+                <button className="button button--primary" type="submit">
+                  Apply advanced filters
+                </button>
+                <button
+                  className="button button--ghost"
+                  disabled={isExporting}
+                  onClick={() => void handleExportTransactions()}
+                  type="button"
+                >
+                  {isExporting ? <ButtonBusy label="Exporting" /> : "Export CSV"}
+                </button>
+              </div>
+            </details>
+            {hasUnappliedFilters ? (
+              <small className="field__hint" role="status">
+                Filter changes are not applied yet.
+              </small>
+            ) : null}
+            {appliedFilterSummary ? (
+              <p className="transaction-applied-filters">{appliedFilterSummary}</p>
+            ) : null}
           </form>
 
           {exportMessage ? <p className="section-subtitle">{exportMessage}</p> : null}
 
           <div className="transaction-table-toolbar">
             <div>
-              <p className="section-subtitle">{displayedFilters.ordering === "-updated_at" ? "Latest saved changes first, including new entries, edits and linked transfer evidence. Transaction dates may be older." : displayedFilters.ordering === "-created_at" ? "Newest ledger additions first. Transaction dates may be older; edits do not change added time." : "Showing records by transaction date from the authenticated backend API."}</p>
-              {isRefreshing ? <span className="transaction-refresh-state"><ButtonBusy label={`Loading ${periodLabel(periodFromFilters(requestedFilters))}. Showing ${periodLabel(periodFromFilters(displayedFilters))} results until ready.`} /></span> : null}
-              {refreshError ? <div className="transaction-refresh-error" role="alert"><p className="form-error">{refreshError} Showing {periodLabel(periodFromFilters(displayedFilters))} results.</p><button className="button button--ghost button--small" onClick={() => void loadData(requestedFilters, false)} type="button">Retry loading transactions</button></div> : null}
+              <p className="section-subtitle">
+                {displayedFilters.ordering === "-updated_at"
+                  ? "Latest saved changes first, including new entries, edits and linked transfer evidence. Transaction dates may be older."
+                  : displayedFilters.ordering === "-created_at"
+                    ? "Newest ledger additions first. Transaction dates may be older; edits do not change added time."
+                    : `${loadState.transactions.length} ${loadState.transactions.length === 1 ? "transaction" : "transactions"} · By transaction date`}
+              </p>
+              {isRefreshing ? (
+                <span className="transaction-refresh-state">
+                  <ButtonBusy
+                    label={`Loading ${periodLabel(periodFromFilters(requestedFilters))}. Showing ${periodLabel(periodFromFilters(displayedFilters))} results until ready.`}
+                  />
+                </span>
+              ) : null}
+              {refreshError ? (
+                <div className="transaction-refresh-error" role="alert">
+                  <p className="form-error">
+                    {refreshError} Showing{" "}
+                    {periodLabel(periodFromFilters(displayedFilters))} results.
+                  </p>
+                  <button
+                    className="button button--ghost button--small"
+                    onClick={() => void loadData(requestedFilters, false)}
+                    type="button"
+                  >
+                    Retry loading transactions
+                  </button>
+                </div>
+              ) : null}
             </div>
-            {identifierView.control}
-            <details className="column-picker">
-              <summary><SlidersHorizontal aria-hidden="true" size={17} />Columns <span>{visibleColumns.length}/{transactionColumns.length}</span></summary>
-              <div className="column-picker__menu">
-                <strong>Visible columns</strong>
-                {transactionColumns.map((column) => (
-                  <label key={column.id}>
-                    <input checked={visibleColumns.includes(column.id)} onChange={() => toggleColumn(column.id)} type="checkbox" />
-                    <span>{column.label}</span>
-                  </label>
-                ))}
-                <button className="button button--ghost button--small" onClick={() => {
-                  setVisibleColumns(allTransactionColumns);
-                  persistVisibleColumns(allTransactionColumns);
-                }} type="button">Show all</button>
-                <button className="button button--ghost button--small" type="button" onClick={() => { setVisibleColumns(defaultTransactionColumns); persistVisibleColumns(defaultTransactionColumns); }}>Reset default</button>
+            <details className="transaction-display-options">
+              <summary>Display options</summary>
+              <div className="transaction-display-options__body">
+                {identifierView.control}
+                <details className="column-picker">
+                  <summary>
+                    <SlidersHorizontal aria-hidden="true" size={17} />
+                    Columns{" "}
+                    <span>
+                      {visibleColumns.length}/{transactionColumns.length}
+                    </span>
+                  </summary>
+                  <div className="column-picker__menu">
+                    <strong>Visible columns</strong>
+                    {transactionColumns.map((column) => (
+                      <label key={column.id}>
+                        <input
+                          checked={visibleColumns.includes(column.id)}
+                          onChange={() => toggleColumn(column.id)}
+                          type="checkbox"
+                        />
+                        <span>{column.label}</span>
+                      </label>
+                    ))}
+                    <button
+                      className="button button--ghost button--small"
+                      onClick={() => {
+                        setVisibleColumns(allTransactionColumns);
+                        persistVisibleColumns(allTransactionColumns);
+                      }}
+                      type="button"
+                    >
+                      Show all
+                    </button>
+                    <button
+                      className="button button--ghost button--small"
+                      type="button"
+                      onClick={() => {
+                        setVisibleColumns(defaultTransactionColumns);
+                        persistVisibleColumns(defaultTransactionColumns);
+                      }}
+                    >
+                      Reset default
+                    </button>
+                  </div>
+                </details>
               </div>
             </details>
           </div>

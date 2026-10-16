@@ -1309,3 +1309,23 @@ matches to another owned bKash wallet appear as review suggestions for Send
 Money, while verified merchant mappings can also offer a reusable note.
 Specific bKash bill categories appear only for recognized bill wording and
 remain editable during review.
+
+## Compact transaction controls and review navigation
+
+Transactions keeps search, account and sorting in the primary toolbar. Daily,
+monthly, all-date and custom periods use the compact date control; rapid month
+changes retain the existing cancellable debounce. Type, direction, source,
+category, date basis and CSV export are under **More filters**. Applied secondary
+filters remain summarized when collapsed, and unapplied changes are labeled.
+Display-only identifier/column controls are under **Display options**. Collapsing
+controls preserves their values; reloadable filter URLs and added/updated date
+semantics are unchanged.
+
+The sidebar exposes Dashboard, Transactions, Review inbox, Accounts and Reports.
+Planning and Settings are expandable, open automatically for their active route,
+and remain usable in collapsed and phone navigation. **Review inbox** groups
+**Matched sources**, **SMS** and **Statements** with a shared route switcher.
+Existing `/review`, `/messages/review` and `/statements` links—including selected
+source IDs—still work. The badge specifically counts pending SMS, not the sum of
+all source types. SMS focus mode continues to cover the complete workspace and
+retain edits while entering/exiting.

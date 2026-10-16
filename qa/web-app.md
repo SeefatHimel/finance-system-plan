@@ -1103,3 +1103,14 @@ A: For a bKash import with an archived PDF, it fills missing recurring
 identifiers only and reports the count. A locked PDF needs its password again.
 The review screens offer verified category and note suggestions without
 overwriting the user's edits or posting a movement.
+
+### How do compact filters and the Review inbox work?
+
+Search, account, sorting and compact period controls remain visible in
+Transactions; secondary filters/export and display preferences expand on demand.
+Applied filters remain summarized and unapplied edits are marked. Collapsing does
+not reset values, while URLs preserve reloadable filters and date basis. The
+sidebar groups the three existing review routes under Review inbox with Matched
+sources, SMS and Statements links. Planning/Settings expand for active routes;
+old deep links, phone navigation and full SMS focus mode remain supported. The
+review badge is explicitly a pending SMS count, not a combined source count.
