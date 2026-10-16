@@ -1395,6 +1395,49 @@
         ]
       }
     },
+    "/api/messages/import/batch/": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RawMessageBatchImport"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/RawMessageBatchImport"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/RawMessageBatchImport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RawMessageBatchResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/messages/raw/{message_id}/redact/": {
       "post": {
         "parameters": [
@@ -7708,6 +7751,74 @@
         "received_at",
         "redacted_at",
         "sender",
+        "status"
+      ],
+      "type": "object"
+    },
+    "RawMessageBatchImport": {
+      "properties": {
+        "messages": {
+          "items": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "maxItems": 25,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "messages"
+      ],
+      "type": "object"
+    },
+    "RawMessageBatchResponse": {
+      "properties": {
+        "results": {
+          "items": {
+            "$ref": "#/components/schemas/RawMessageBatchResult"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "results"
+      ],
+      "type": "object"
+    },
+    "RawMessageBatchResult": {
+      "properties": {
+        "candidate_id": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "client_id": {
+          "type": "string"
+        },
+        "errors": {},
+        "exclusion_reason": {
+          "type": "string"
+        },
+        "is_duplicate": {
+          "type": "boolean"
+        },
+        "message_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "status": {
+          "type": "integer"
+        },
+        "was_reprocessed": {
+          "type": "boolean"
+        },
+        "was_restored": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "client_id",
         "status"
       ],
       "type": "object"

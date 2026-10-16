@@ -640,3 +640,13 @@ unless status is `unique`. The older `pending_sms_match_count` remains the
 stricter same-type counter and can be zero for such a pair. Search is scoped to
 the selected import and covers saved draft and extracted row values before
 pagination.
+
+### Does HTTP 200 mean a whole SMS batch was successfully imported?
+
+No. `/api/messages/import/batch/` returns an envelope with one `client_id`/`status`
+receipt per submitted message. Clients acknowledge only individually confirmed
+200/201 items with saved message IDs. Validation failures remain for correction;
+temporary failures and uncertain, incomplete or malformed responses remain queued
+for idempotent retry using the same device IDs/body/timestamps. Invalid envelope
+IDs or more than 25 items return 400 without partial writes. Reprocessing and
+explicit restoration flags retain the single-message contract.

@@ -343,6 +343,31 @@ export interface RawMessageImportResponse {
   message: RawMessage;
 }
 
+export interface RawMessageBatchImportRequest {
+  messages: RawMessageBatchItem[];
+}
+
+export type RawMessageBatchItem = RawMessageImportRequest & {
+  client_id: string;
+  body?: string;
+};
+
+export interface RawMessageBatchImportResponse {
+  results: RawMessageBatchImportResult[];
+}
+
+export interface RawMessageBatchImportResult {
+  client_id: string;
+  status: number;
+  message_id?: string;
+  candidate_id?: string | null;
+  is_duplicate?: boolean;
+  was_reprocessed?: boolean;
+  was_restored?: boolean;
+  exclusion_reason?: string;
+  errors?: Record<string, unknown>;
+}
+
 export interface RawMessageRedactResponse {
   candidate: ParsedMessageCandidate | null;
   message: RawMessage;

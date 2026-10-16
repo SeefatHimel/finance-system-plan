@@ -1,5 +1,17 @@
 # finance-contracts
 
+Batch SMS sync uses `POST /api/messages/import/batch/`, a 1–25-item envelope of
+single-import payloads plus distinct `client_id` correlation keys. HTTP 200 is
+an envelope acknowledgement, not success for every message: clients must inspect
+each result's `status`. Only a matching 200/201 item receipt with a `message_id`
+confirms durable acceptance. Preserve original device IDs, timestamps and bodies
+when retrying an uncertain response. Per-item 400 errors need correction; 5xx,
+408 and 429 results stay queued for backoff. Authentication failures apply to the
+request, not message validity. The endpoint does not create ledger transactions.
+`RawMessageBatchImportRequest` and `RawMessageBatchImportResponse` are published
+in OpenAPI and generated TypeScript. The backend snapshot is regenerated with
+PostgreSQL integer ranges to match CI, rather than SQLite's int64 defaults.
+
 Original-source additions: statement import responses report `has_original_file`;
 an authenticated `GET /api/statements/imports/{id}/original/` returns the exact
 PDF as a no-store attachment. `GET /api/payment-methods/{id}/original-identifiers/`

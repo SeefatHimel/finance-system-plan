@@ -1147,6 +1147,37 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/messages/import/batch/:
+    post:
+      tags: [Messages]
+      summary: Import a bounded batch of SMS messages
+      description: >-
+        Import 1–25 messages with independent transactions and compact per-item
+        receipts. client_id values must be nonempty and unique within a request;
+        device_message_id and sender/body/received_at retain the single-import
+        duplicate protection. Replaying a lost response does not create another
+        candidate or ledger entry. Item validation/import failures do not roll
+        back successful siblings. A 200 envelope is not blanket success: inspect
+        every result status. No original SMS text or review suggestions are returned.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RawMessageBatchImportRequest'
+      responses:
+        '200':
+          description: Per-message durable receipts, possibly including failures
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RawMessageBatchImportResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /api/messages/capture-preferences/:
     get:
       tags: [Messages]
@@ -3658,6 +3689,49 @@ components:
           description: True when the original body of a redacted duplicate was restored.
         message:
           $ref: '#/components/schemas/RawMessage'
+    RawMessageBatchImportRequest:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          minItems: 1
+          maxItems: 25
+          items:
+            $ref: '#/components/schemas/RawMessageBatchItem'
+    RawMessageBatchItem:
+      allOf:
+        - $ref: '#/components/schemas/RawMessageImportRequest'
+        - type: object
+          required: [client_id]
+          properties:
+            client_id: {type: string, minLength: 1, maxLength: 120}
+            body: {type: string, minLength: 1, maxLength: 16000}
+    RawMessageBatchImportResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RawMessageBatchImportResult'
+    RawMessageBatchImportResult:
+      type: object
+      required: [client_id, status]
+      properties:
+        client_id: {type: string}
+        status:
+          type: integer
+          description: 201 new, 200 duplicate, 400 invalid/untrusted, 500 retryable import failure.
+        message_id: {type: string, format: uuid}
+        candidate_id: {type: string, format: uuid, nullable: true}
+        is_duplicate: {type: boolean}
+        was_reprocessed: {type: boolean}
+        was_restored: {type: boolean}
+        exclusion_reason: {type: string}
+        errors:
+          type: object
+          additionalProperties: true
     RawMessageRedactResponse:
       type: object
       required: [candidate, message]
