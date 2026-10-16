@@ -20,9 +20,9 @@ internal interface SmsTransport {
 }
 
 /** A deadline covers DNS, connect, request and the entire response body. */
-internal class SmsHttpClient(private val deadlineMs: Long = 25_000) : SmsTransport {
+internal class SmsHttpClient(private val deadlineMs: Long = 25_000, readTimeoutMs: Long = 20_000) : SmsTransport {
   private val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS)
-    .readTimeout(20, TimeUnit.SECONDS).callTimeout(deadlineMs, TimeUnit.MILLISECONDS)
+    .readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS).callTimeout(deadlineMs, TimeUnit.MILLISECONDS)
     .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false).build()
   private val active = ConcurrentHashMap.newKeySet<Call>()
 

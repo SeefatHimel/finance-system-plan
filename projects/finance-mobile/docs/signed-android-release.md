@@ -79,9 +79,12 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.10**, Android version code **11**. It fixes Quick Add
-popup focus timing and removes competing Android keyboard resizing. It retains
-0.1.9's fix for returning a native `SmsSession` through Expo during sign-in.
+The current release is **0.1.12**, Android version code **13**. It adds bounded
+batch SMS uploads with per-item receipts, atomic local acknowledgement and
+retry-safe duplicate protection. It also includes session-scoped account caches,
+paged review and explicit restoration of redacted SMS. Native restoration changes require installing this APK; a web
+or API deployment alone cannot update the installed Android module. It retains
+0.1.10's Quick Add keyboard fixes and 0.1.9's native session bridge correction.
 Command-only session/scheduling methods now resolve without a result. It includes
 the recent transfer comparison layout, review date/time and Debit/Credit controls,
 account-labelled balance conflict choices, compact explanation icons and
@@ -111,7 +114,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.10.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.12.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -215,7 +218,7 @@ Share diagnostics must contain no message body, sender, user or credential.
 Test slow responses, rejected records and a temporarily failing first record
 with synthetic data. A failing record must not block valid later records.
 
-Release 0.1.8 is superseded because its sign-in bridge failed. Use 0.1.10 with
+Release 0.1.8 is superseded because its sign-in bridge failed. Use 0.1.12 with
 the same signing key. Verify transfer comparison
 scrolling and fixed actions, local review date/time, direction changes retaining
 edited fields, required same-account balance choices, tap-to-open help, and
@@ -261,3 +264,35 @@ The 0.1.10 build passed typecheck, 23 JavaScript tests, 23 native tests and sign
 assembly. Package metadata is 0.1.10/code 11, the signing certificate matches
 0.1.9, and the embedded JavaScript and exact icon font were verified. Device
 keyboard checks remain pending.
+
+For 0.1.11 (Android code 12), upgrade in place with the existing signing key and
+use the current backend API. Verify session restoration, logout/account switching,
+offline cache separation and loading additional SMS review pages. Historical
+reprocessing must respect previous redactions by default; restoring previously
+redacted SMS requires the explicit restoration option. Also smoke-test Quick Add
+typing and SMS upload after upgrading. Do not uninstall to apply the update, as
+uninstalling removes device-local queues and secure storage.
+
+Before assembly, run `npm run typecheck` and `node --test tests/*.test.cjs` from
+the mobile project. Then run the native test/assembly command above. Verify APK
+version, signing identity, embedded JavaScript and icon font before distributing.
+These checks do not replace testing the installed app on a physical Android phone.
+
+The 0.1.11 release passed typecheck, all 23 JavaScript tests, all 23 native tests
+and signed assembly. Package metadata is 0.1.11/code 12 and the signing certificate
+matches 0.1.10. The embedded production API URL, JavaScript, icon font and native
+restoration update were verified. Physical-device smoke checks remain pending.
+## Batch-sync release 0.1.12
+
+Deploy the batch-capable API first, then install version 0.1.12/code 13 over the
+existing signed app. A backend without the batch route remains usable through
+single-message fallback, so that compatibility path does not provide the speedup.
+No database migration or local queue reset is required for this feature.
+
+Smoke-test a long SMS history, disconnect during a batch, reconnect/restart and
+confirm only unacknowledged messages retry. Verify no extra ledger entries, a
+malformed response cannot empty the queue, account changes stop uploads, and
+manual redactions stay respected unless restoration is explicitly selected.
+Counters may advance by up to 25 after each batch acknowledgement. For service
+outages, leave queued SMS intact and allow normal retry/backoff. Check keyboard,
+sign-in and regular background capture after upgrading as well.

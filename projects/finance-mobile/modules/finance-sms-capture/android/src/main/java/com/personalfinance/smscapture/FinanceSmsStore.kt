@@ -283,6 +283,19 @@ object FinanceSmsStore {
   }
 
   @Synchronized
+  internal fun completeUploadBatch(context: Context, results: List<SmsUploadOutcome>, owner: String, apiBaseUrl: String) {
+    val session = getSyncSession(context)
+    if (session?.username != owner || session.apiBaseUrl != apiBaseUrl) throw SmsSessionChanged()
+    try {
+      val messages = JSONArray(readEncryptedPreference(context, KEY_MESSAGES, "[]"))
+      val remaining = applySmsUploadReceipts(messages, results)
+      check(prefs(context).edit().putString(KEY_MESSAGES, FinanceSmsCrypto.encrypt(remaining.toString())).commit()) {
+        "Could not save SMS batch progress."
+      }
+    } catch (error: Exception) { throw SmsStorageException(error) }
+  }
+
+  @Synchronized
   fun clearMessages(context: Context, ids: List<String>) {
     if (ids.isEmpty()) {
       return
@@ -344,6 +357,7 @@ object FinanceSmsStore {
     return (0 until messages.length()).count { !messages.getJSONObject(it).optBoolean("rejected") }
   }
 
+  @Synchronized
   fun configureSyncSession(
     context: Context,
     apiBaseUrl: String,
@@ -375,6 +389,7 @@ object FinanceSmsStore {
     return SmsSession(apiBaseUrl, accessToken, refreshToken, username)
   }
 
+  @Synchronized
   fun clearSyncSession(context: Context) {
     prefs(context).edit().remove(KEY_SYNC_SESSION).apply()
   }
@@ -388,9 +403,10 @@ object FinanceSmsStore {
     failureKind: String = "",
     stage: String = "",
     httpCode: Int = 0,
-    errorClass: String = ""
+    errorClass: String = "",
+    pendingCount: Int? = null
   ) {
-    val knownPending = runCatching { pendingMessageCount(context) }.getOrNull()
+    val knownPending = pendingCount ?: runCatching { pendingMessageCount(context) }.getOrNull()
     val previousStatus = runCatching { JSONObject(prefs(context).getString(KEY_SYNC_STATUS, "{}") ?: "{}") }.getOrElse { JSONObject() }
     val payload = JSONObject()
       .put("state", state)
@@ -445,6 +461,7 @@ object FinanceSmsStore {
     )
   }
 
+  @Synchronized
   fun resetTrackingState(context: Context) {
     prefs(context)
       .edit()

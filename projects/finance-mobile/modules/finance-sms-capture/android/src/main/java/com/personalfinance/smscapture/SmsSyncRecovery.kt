@@ -31,6 +31,8 @@ internal fun smsSyncFailure(error: Exception): SmsSyncFailure = when (error) {
     "Connection interrupted. SMS remain saved and will retry when connectivity returns.")
   is SmsRetryableHttpException -> SmsSyncFailure("server",
     "Finance service is temporarily unavailable (${error.code}). SMS remain saved and will retry automatically.")
+  is SmsBatchProtocolException -> SmsSyncFailure("server",
+    "The finance server returned an invalid batch receipt. SMS remain saved and will retry; verify the API is up to date.")
   is SmsSessionExpired -> SmsSyncFailure("auth", "SMS authentication expired. Open the app and sign in again; saved SMS are retained.")
   is SmsSessionChanged -> SmsSyncFailure("auth", "The signed-in session changed. SMS upload stopped without acknowledging another user's queue.")
   is SmsStorageException -> SmsSyncFailure("storage", "Encrypted SMS state could not be read. It has been retained; sync diagnostics identify this as a storage failure.")

@@ -582,3 +582,54 @@ queue caches continue to use the signed-in session's backend/user scope; offline
 restoration reads the session saved in device secure storage. This removes the
 in-app path for choosing another user's cache with a fabricated token. Existing
 cached offline work remains available to its signed-in owner after reconnecting.
+
+### Native release 0.1.11
+
+Version 0.1.11 (Android code 12) packages the session-scoped cache restrictions,
+100-record SMS review pages with Load more, and explicit restoration of previously
+redacted SMS during historical reprocessing. Ordinary scans/reprocessing keep
+restoration disabled. The restoration flag travels through the native encrypted
+queue and upload engine, so an installed 0.1.10 app needs this new native build.
+Use the current backend API for these workflows.
+
+The signed APK uses the existing signing identity for an in-place upgrade and
+retains the Quick Add keyboard and native sign-in fixes. Install
+`dist/releases/finance-mobile-0.1.11.apk` over the existing app; keep the app
+installed to preserve device-local queued work. Follow the
+[signed-release guide](docs/signed-android-release.md) for verification and phone
+smoke checks.
+
+Release verification passed: mobile typecheck, 23 JavaScript tests, 23 native
+tests and signed assembly. The APK reports 0.1.11/code 12, matches the previous
+signing certificate, and contains the production API URL, JavaScript bundle,
+icon font and updated native restoration code. Physical-device smoke checks
+remain pending.
+### Batch SMS sync in release 0.1.12
+
+Version 0.1.12 (Android code 13) sends up to 25 SMS per request, bounded to 128 KiB,
+with one batch in flight. The API must expose `/api/messages/import/batch/` for
+the speedup; 404/405 switches the current worker run to the legacy endpoint.
+The batch request has a 60-second total/read deadline; the worker retains its
+four-minute processing budget and schedules continuation work when needed.
+
+The uploader validates all correlation IDs/statuses before applying any receipt.
+Confirmed items are removed, invalid items remain held for correction, and
+temporary item failures are delayed for retry. Missing, duplicate or unexpected
+receipts and lost responses retain the entire unacknowledged batch. Retries keep
+the original device IDs, timestamps, SMS and explicit restoration choices. A
+changed user/backend stops acknowledgements. A newer reprocessing/restoration
+request or a newly captured message cannot be deleted by an older receipt.
+
+One encrypted queue replacement is committed per completed batch. Running status
+updates reuse one pending count and are throttled between completed batches;
+message counts remain accurate but may advance in groups. Oversized messages
+remain held instead of blocking later uploads, and HTTP 413 shrinks batches.
+The native HTTP regression imports 552 messages in 23 requests; this demonstrates
+reduced round trips, not a promised real-device speed multiplier.
+
+Run `npm run typecheck`, `node --test tests/*.test.cjs` and the native unit tests
+before assembly. Install `dist/releases/finance-mobile-0.1.12.apk` over the existing
+app with the same key. Deploy the batch-capable API first; verify a long history
+sync, disconnect/reconnect, app restart, account switching and Quick Add on a
+physical phone. The legacy JavaScript fallback remains single-message sync;
+the installed Android module owns automatic/background batch sync.

@@ -17,10 +17,11 @@ class FinanceSmsSyncWorker(
   appContext: Context,
   workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
-  private val uploads = SmsHttpClient()
+  private val uploads = SmsHttpClient(deadlineMs = 60_000, readTimeoutMs = 60_000)
 
   override suspend fun doWork(): Result {
     var latest = SmsUploadProgress("session", 0, 0)
+    var lastStatusAt = 0L
     try {
       val session = FinanceSmsStore.getSyncSession(applicationContext) ?: throw SmsSessionExpired()
       latest = latest.copy(stage = "migration")
@@ -32,14 +33,21 @@ class FinanceSmsSyncWorker(
         override fun postpone(id: String, code: Int, until: Long) = FinanceSmsStore.postponeMessage(applicationContext, id, code, until)
         override fun pending() = FinanceSmsStore.pendingMessageCount(applicationContext)
         override fun retryable() = FinanceSmsStore.retryableMessageCount(applicationContext)
+        override fun complete(results: List<SmsUploadOutcome>) =
+          FinanceSmsStore.completeUploadBatch(applicationContext, results, session.username, session.apiBaseUrl)
       }
       val engine = SmsUploadEngine(queue, FinanceSmsAuth.sessions(applicationContext), uploads,
         active = { if (isStopped) throw kotlinx.coroutines.CancellationException("SMS worker stopped") },
         progress = { progress ->
           latest = progress
-          FinanceSmsStore.setSyncStatus(applicationContext, "running",
-            "Uploaded ${progress.imported}; ${queue.pending()} saved on device.", progress.imported, progress.rejected,
-            stage = progress.stage, httpCode = progress.httpCode)
+          val time = android.os.SystemClock.elapsedRealtime()
+          if (progress.stage == "progress" || progress.stage == "auth_refresh" || time - lastStatusAt >= 1000) {
+            val pending = queue.pending()
+            FinanceSmsStore.setSyncStatus(applicationContext, "running",
+              "Uploaded ${progress.imported}; $pending saved on device.", progress.imported, progress.rejected,
+              stage = progress.stage, httpCode = progress.httpCode, pendingCount = pending)
+            lastStatusAt = time
+          }
         })
       val result = kotlinx.coroutines.runInterruptible(kotlinx.coroutines.Dispatchers.IO) { engine.drain(session.username) }
       val pending = queue.pending()

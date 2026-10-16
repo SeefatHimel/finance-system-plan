@@ -34,10 +34,22 @@ class SmsUploadIntegrationTest {
   private fun coordinator(store: Sessions, http: SmsTransport) = SmsSessionCoordinator(store, http) { it.startsWith("fresh-") }
   private fun session(server: MockWebServer) = SmsSession(server.url("").toString().trimEnd('/'), "expired-0", "refresh-0", "synthetic-user")
 
-  @Test fun all552AcknowledgementsReduceTheActualQueueOneAtATime() {
+  private fun batchResponse(request: RecordedRequest, codes: Map<String, Int> = emptyMap()): MockResponse {
+    assertEquals("/api/messages/import/batch/", request.path)
+    val messages = JSONObject(request.body.readUtf8()).getJSONArray("messages")
+    assertTrue(messages.length() in 1..25)
+    val results = org.json.JSONArray()
+    repeat(messages.length()) { index ->
+      val id = messages.getJSONObject(index).getString("client_id")
+      results.put(JSONObject().put("client_id", id).put("status", codes[id] ?: 201).put("message_id", "saved-$id"))
+    }
+    return MockResponse().setBody(JSONObject().put("results", results).toString())
+  }
+
+  @Test fun all552MessagesUse23BatchRequestsWithValidatedReceipts() {
     val server = MockWebServer()
     server.dispatcher = object : Dispatcher() {
-      override fun dispatch(request: RecordedRequest) = MockResponse().setResponseCode(201).setBody("{}")
+      override fun dispatch(request: RecordedRequest) = batchResponse(request)
     }
     server.start()
     try {
@@ -45,7 +57,7 @@ class SmsUploadIntegrationTest {
       val result = SmsUploadEngine(queue, coordinator(store, http), http).drain("synthetic-user")
       assertEquals(552, result.imported); assertEquals(0, queue.pending()); assertFalse(result.retry)
       assertEquals((551 downTo 0).toList(), queue.counts)
-      assertEquals(552, server.requestCount)
+      assertEquals(23, server.requestCount)
     } finally { server.shutdown() }
   }
 
@@ -53,8 +65,7 @@ class SmsUploadIntegrationTest {
     val server = MockWebServer()
     server.dispatcher = object : Dispatcher() {
       override fun dispatch(request: RecordedRequest): MockResponse {
-        val bad = JSONObject(request.body.readUtf8()).getString("device_message_id") == "synthetic-0"
-        return MockResponse().setResponseCode(if (bad) 500 else 201).setBody("{}")
+        return batchResponse(request, mapOf("synthetic-0" to 500))
       }
     }
     server.start()
@@ -81,7 +92,7 @@ class SmsUploadIntegrationTest {
     }
     try {
       val queue = Queue(2)
-      assertEquals(2, SmsUploadEngine(queue, auth, http).drain("synthetic-user").imported)
+      assertEquals(2, SmsUploadEngine(queue, auth, http, batchEnabled = false).drain("synthetic-user").imported)
       assertEquals(0, queue.pending()); assertEquals(3, server.requestCount)
     } finally { server.shutdown() }
   }
@@ -114,7 +125,7 @@ class SmsUploadIntegrationTest {
     try {
       val store = Sessions(session(server)); val queue = Queue(3); val http = SmsHttpClient(250)
       val start = System.nanoTime()
-      try { SmsUploadEngine(queue, coordinator(store, http), http).drain("synthetic-user"); fail("Deadline should stop a trickling response") }
+      try { SmsUploadEngine(queue, coordinator(store, http), http, batchEnabled = false).drain("synthetic-user"); fail("Deadline should stop a trickling response") }
       catch (error: Exception) { assertEquals("network", smsSyncFailure(error).kind) }
       assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start) < 2000)
       assertEquals(3, queue.pending()); assertTrue(queue.counts.isEmpty())
@@ -125,7 +136,7 @@ class SmsUploadIntegrationTest {
     val server = MockWebServer(); server.start(); server.enqueue(MockResponse().setResponseCode(503))
     try {
       val store = Sessions(session(server)); val queue = Queue(552); val http = SmsHttpClient()
-      try { SmsUploadEngine(queue, coordinator(store, http), http).drain("synthetic-user"); fail("Service outage should retry") }
+      try { SmsUploadEngine(queue, coordinator(store, http), http, batchEnabled = false).drain("synthetic-user"); fail("Service outage should retry") }
       catch (error: SmsRetryableHttpException) { assertEquals(503, error.code) }
       assertEquals(552, queue.pending()); assertEquals(1, server.requestCount)
     } finally { server.shutdown() }
@@ -162,7 +173,7 @@ class SmsUploadIntegrationTest {
     }
     try {
       val queue = Queue(2)
-      try { SmsUploadEngine(queue, auth, SmsHttpClient()).drain("synthetic-user"); fail("Changed user must stop uploads") }
+      try { SmsUploadEngine(queue, auth, SmsHttpClient(), batchEnabled = false).drain("synthetic-user"); fail("Changed user must stop uploads") }
       catch (_: SmsSessionChanged) { assertEquals(2, queue.pending()); assertTrue(queue.counts.isEmpty()) }
     } finally { server.shutdown() }
   }
@@ -172,7 +183,7 @@ class SmsUploadIntegrationTest {
     server.enqueue(MockResponse().setResponseCode(400)); server.enqueue(MockResponse().setResponseCode(201))
     try {
       val store = Sessions(session(server)); val queue = Queue(2); val http = SmsHttpClient()
-      val result = SmsUploadEngine(queue, coordinator(store, http), http).drain("synthetic-user")
+      val result = SmsUploadEngine(queue, coordinator(store, http), http, batchEnabled = false).drain("synthetic-user")
       assertEquals(1, result.rejected); assertEquals(1, result.imported); assertEquals(1, queue.pending())
       assertFalse(result.retry); assertEquals(setOf("synthetic-0"), queue.held)
     } finally { server.shutdown() }
@@ -184,9 +195,9 @@ class SmsUploadIntegrationTest {
       val store = Sessions(session(server)); val queue = Queue(2); val http = SmsHttpClient()
       var stage = ""
       val failed = object : SmsUploadQueue by queue {
-        override fun acknowledge(message: Map<String, String>) { throw SmsStorageException(IllegalStateException("Synthetic commit failure")) }
+        override fun complete(results: List<SmsUploadOutcome>) { throw SmsStorageException(IllegalStateException("Synthetic commit failure")) }
       }
-      try { SmsUploadEngine(failed, coordinator(store, http), http, progress = { stage = it.stage }).drain("synthetic-user"); fail("Storage failure should retain the queue") }
+      try { SmsUploadEngine(failed, coordinator(store, http), http, progress = { stage = it.stage }, batchEnabled = false).drain("synthetic-user"); fail("Storage failure should retain the queue") }
       catch (_: SmsStorageException) { assertEquals("acknowledge", stage) }
       assertEquals(2, queue.pending())
     } finally { server.shutdown() }

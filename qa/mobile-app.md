@@ -581,3 +581,27 @@ per page and exposes a load-more control.
 advanced screen checks only the current server-issued session and no longer
 accepts pasted access tokens. Existing secure sessions still restore offline
 and retain their owner's queued work.
+
+## Which APK includes session isolation, paged review and redacted-SMS restoration?
+
+Release 0.1.11 (Android code 12) includes those changes and retains the 0.1.10
+Quick Add keyboard fix. Redacted text is restored only after the explicit
+historical-reprocessing choice; ordinary scans leave restoration off. The flag
+is handled by native capture, encrypted queuing and upload code, so deploying
+only the backend/web cannot deliver this native change. Upgrade over the existing
+app with the same signing key to preserve local work, and use the current API.
+Physical-device checks cover account switching/offline isolation, Load more,
+restoration opt-in, sign-in, keyboard behavior and SMS upload.
+## Why does Android SMS sync use batches, and are retries still safe?
+
+Release 0.1.12 (Android code 13) sends up to 25 messages/128 KiB per request with
+one request in flight. Per-item receipts are validated before one encrypted queue
+commit applies successes, correction holds and retry delays. Partial or malformed
+receipts, timeouts and lost responses never acknowledge unknown outcomes. Stable
+device IDs/body/timestamps keep server-side duplicate protection intact, and
+authentication rotation replays the same batch. User/backend changes stop the
+old upload, while newer restoration intents survive an older acknowledgement.
+Batch 404/405 falls back to the existing endpoint for rollout compatibility.
+Repeated queue counting and full-queue writes now occur per batch instead of per
+SMS. Deploy the updated API to enable the speedup; real-phone smoke checks remain
+separate from unit and HTTP fault tests.

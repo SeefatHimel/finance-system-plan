@@ -562,13 +562,16 @@ mobile typecheck and `test:sms-sync` before signed assembly. Phone-specific
 root-cause evidence comes from Show sync diagnostics in Capture; its operational
 metadata can be shared without SMS bodies or credentials.
 
-Mobile release 0.1.10 uses Android code 11 and fixes Quick Add popup keyboard
-focus/resize handling. It retains 0.1.9's native session bridge fix; 0.1.8 is
-superseded. From `projects/finance-mobile`, run `npm run typecheck` and
-`npm run test:quick-add-focus`, then from `android` run
+Mobile release 0.1.12 uses Android code 13 and adds batch SMS sync. Deploy the
+API with `/api/messages/import/batch/` for batches of up to 25; older servers
+remain usable through single-upload fallback. It includes session-scoped caches,
+paged review and explicit restoration of redacted SMS. It retains the
+Quick Add keyboard and native session bridge fixes; 0.1.8 is superseded.
+From `projects/finance-mobile`, run `npm run typecheck` and
+`node --test tests/*.test.cjs`, then from `android` run
 `NODE_ENV=production ./gradlew :finance-sms-capture:testReleaseUnitTest assembleRelease`.
 Keep the existing private signing key and upgrade in place to retain local SMS.
-The versioned output is `projects/finance-mobile/dist/releases/finance-mobile-0.1.10.apk`;
+The versioned output is `projects/finance-mobile/dist/releases/finance-mobile-0.1.12.apk`;
 release binaries remain ignored. Native tests, assembly and signature were
 verified; physical-device keyboard, sign-in and SMS checks remain separate.
 
