@@ -10,25 +10,32 @@ import {
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
+import {
+  formatCalendarDate,
+  presentationColors,
+} from "../../finance-contracts/presentation";
 import { localTime } from "../../finance-contracts/quick-add";
 
 export function NativeTimeField({
   value,
   onChange,
+  label,
 }: {
   value: string;
+  label?: string;
   onChange: (value: string) => void;
 }) {
   const [ios, setIos] = useState<Date | null>(null);
   function open() {
     const date = new Date();
-    if (/^([01]\d|2[0-3]):[0-5]\d$/.test(value))
+    if (/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value))
       date.setHours(Number(value.slice(0, 2)), Number(value.slice(3, 5)), 0, 0);
     if (Platform.OS === "android")
       DateTimePickerAndroid.open({
         value: date,
         mode: "time",
         display: "clock",
+        is24Hour: true,
         onChange: (event, selected) => {
           if (event.type === "set" && selected) onChange(localTime(selected));
         },
@@ -39,15 +46,24 @@ export function NativeTimeField({
     <View style={{ gap: 8 }}>
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={
+          label ? `Choose ${label.toLowerCase()} on clock` : undefined
+        }
         onPress={open}
-        style={{ backgroundColor: "#153747", borderRadius: 8, padding: 12 }}
+        style={{
+          backgroundColor: presentationColors.selected,
+          borderRadius: 8,
+          padding: 12,
+          minHeight: 48,
+          justifyContent: "center",
+        }}
       >
-        <Text style={{ color: "#55e6a5", fontWeight: "700" }}>
+        <Text style={{ color: presentationColors.accent, fontWeight: "700" }}>
           Choose time on clock
         </Text>
       </Pressable>
       <TextInput
-        accessibilityLabel="Exact time HH:MM"
+        accessibilityLabel={`${label ?? "Exact time"} HH:MM`}
         value={value}
         onChangeText={onChange}
         keyboardType="numbers-and-punctuation"
@@ -93,6 +109,8 @@ export function NativeTimeField({
                 }}
               />
               <Pressable
+                accessibilityRole="button"
+                style={{ minHeight: 48, justifyContent: "center" }}
                 onPress={() => {
                   onChange(localTime(ios));
                   setIos(null);
@@ -102,7 +120,11 @@ export function NativeTimeField({
                   Apply time
                 </Text>
               </Pressable>
-              <Pressable onPress={() => setIos(null)}>
+              <Pressable
+                accessibilityRole="button"
+                style={{ minHeight: 48, justifyContent: "center" }}
+                onPress={() => setIos(null)}
+              >
                 <Text style={{ color: "white", padding: 12 }}>Cancel</Text>
               </Pressable>
             </View>
@@ -116,15 +138,18 @@ export function NativeTimeField({
 export function NativeDateField({
   value,
   onChange,
+  label,
 }: {
   value: string;
+  label?: string;
   onChange: (value: string) => void;
 }) {
   const [ios, setIos] = useState<Date | null>(null);
   function open() {
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
-      ? new Date(`${value}T12:00:00`)
-      : new Date();
+    const date =
+      formatCalendarDate(value) !== "Unknown date"
+        ? new Date(`${value}T12:00:00`)
+        : new Date();
     const apply = (selected: Date) =>
       onChange(
         `${selected.getFullYear()}-${String(selected.getMonth() + 1).padStart(2, "0")}-${String(selected.getDate()).padStart(2, "0")}`,
@@ -144,15 +169,27 @@ export function NativeDateField({
     <View style={{ gap: 8 }}>
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={
+          label ? `Choose ${label.toLowerCase()} on calendar` : undefined
+        }
         onPress={open}
-        style={{ backgroundColor: "#153747", borderRadius: 8, padding: 12 }}
+        style={{
+          backgroundColor: presentationColors.selected,
+          borderRadius: 8,
+          padding: 12,
+          minHeight: 48,
+          justifyContent: "center",
+        }}
       >
-        <Text style={{ color: "#55e6a5", fontWeight: "700" }}>
-          Choose date · {value}
+        <Text style={{ color: presentationColors.accent, fontWeight: "700" }}>
+          Choose date
+          {formatCalendarDate(value) !== "Unknown date"
+            ? ` · ${formatCalendarDate(value)}`
+            : ""}
         </Text>
       </Pressable>
       <TextInput
-        accessibilityLabel="Exact date YYYY-MM-DD"
+        accessibilityLabel={`${label ?? "Exact date"} YYYY-MM-DD`}
         value={value}
         onChangeText={onChange}
         placeholder="YYYY-MM-DD"
@@ -193,6 +230,8 @@ export function NativeDateField({
                 }}
               />
               <Pressable
+                accessibilityRole="button"
+                style={{ minHeight: 48, justifyContent: "center" }}
                 onPress={() => {
                   const date = ios;
                   onChange(
@@ -205,7 +244,11 @@ export function NativeDateField({
                   Apply date
                 </Text>
               </Pressable>
-              <Pressable onPress={() => setIos(null)}>
+              <Pressable
+                accessibilityRole="button"
+                style={{ minHeight: 48, justifyContent: "center" }}
+                onPress={() => setIos(null)}
+              >
                 <Text style={{ color: "white", padding: 12 }}>Cancel</Text>
               </Pressable>
             </View>

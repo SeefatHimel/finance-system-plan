@@ -674,3 +674,24 @@ Run `npm run typecheck` and `npm run test:activity` for the new timeline and
 selection regressions, or `node --test tests/*.test.cjs` for all JS checks.
 Physical-device checks still include keyboard behavior, large text, native Back,
 long-history scrolling, offline/reconnect and switching signed-in accounts.
+
+## Shared presentation and accessibility
+
+The installed label, login, drawer and signed-in header now use **Finance**.
+Package identity and Expo slug stay unchanged. See
+[shared interface conventions](../../docs/interface-conventions.md) for formatting,
+button hierarchy and scope. SMS review follows the web field sequence, exposes
+calendar/clock controls, and keeps optional payment methods in a disclosure that
+retains edits. Selected review choices expose checked state and a visible check;
+Quick Add and Home/Capture selections use soft mint. SMS date/time and Today
+defaults use one local calendar interpretation. Core transaction amounts retain
+exact cents; missing candidate amounts are no longer displayed as zero.
+
+Run `node --test tests/native-fields.test.cjs` for picker/draft regressions and
+`node --test tests/*.test.cjs` for all mobile checks. A JS bundle export does not
+replace testing picker appearance, TalkBack and the keyboard on the device. This
+pass does not add native balance editing, saved views or an amount privacy toggle.
+
+Changing a known reporting account during SMS review now omits the original
+account’s parsed balance and shows a visible warning; zero balances remain valid.
+Type/direction corrections alone do not clear that account’s balance.

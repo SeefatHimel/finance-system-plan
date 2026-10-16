@@ -626,3 +626,20 @@ visible and Android hardware Back navigation. Full Quick Add opens manual entry
 directly. A review card opens its exact candidate ID, preserves that selection
 across queue reordering and keeps drafts keyed by candidate, rather than opening
 whichever index happened to be selected previously.
+
+### What shared interface improvements are implemented on native?
+
+Finance is the visible product name, including the installed Android label after
+rebuilding. Core transaction amounts/dates share web's pure presentation helpers.
+SMS review puts Type/Category before accounts and Amount/Date/Time, exposes native
+calendar/24-hour clock pickers, and places optional payment methods in a mounted
+disclosure so collapsing it cannot erase drafts. Selected review radios announce
+checked state and show a check; Quick Add distinguishes selections from Save.
+Local SMS date and time resolve together instead of mixing UTC dates with local
+times. Picker open/cancel does not alter values; exact text entry remains.
+Native balance editing and deeper editor parity remain future work. Physical
+device checks are still needed for keyboard, TalkBack and picker appearance.
+
+Changing a known reporting account during SMS review now omits the original
+account’s parsed balance and shows a visible warning; zero balances remain valid.
+Type/direction corrections alone do not clear that account’s balance.

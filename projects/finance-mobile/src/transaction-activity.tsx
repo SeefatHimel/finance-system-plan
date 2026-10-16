@@ -1,3 +1,10 @@
+import {
+  formatCurrency as money,
+  formatCalendarDate as dateLabel,
+  formatTimestamp,
+  displayLabel as title,
+  presentationColors,
+} from "../../finance-contracts/presentation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -51,18 +58,6 @@ const types = [
   "repayment_received",
   "repayment_paid",
 ];
-const title = (value: string) =>
-  value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
-const money = (value: string, currency = "BDT") =>
-  `${currency} ${Number(value).toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const dateLabel = (day: string) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(day)
-    ? new Date(`${day}T12:00:00`).toLocaleDateString("en-BD", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : day;
 function Button({
   label,
   onPress,
@@ -226,6 +221,9 @@ function ActivityFilterSheet({
                         : "Start date"}
                   </Text>
                   <NativeDateField
+                    label={
+                      draft.mode === "custom" ? "Start date" : "Activity date"
+                    }
                     value={draft.start}
                     onChange={(start) => {
                       setDraft((current) => ({ ...current, start }));
@@ -236,6 +234,7 @@ function ActivityFilterSheet({
                     <>
                       <Text style={s.muted}>End date</Text>
                       <NativeDateField
+                        label="End date"
                         value={draft.end}
                         onChange={(end) => {
                           setDraft((current) => ({ ...current, end }));
@@ -328,12 +327,12 @@ function TransactionDetails({
       categories.find((item) => item.id === row.category)?.name ??
         "Uncategorized",
     ],
-    ["Source", row.source],
+    ["Source", title(row.source)],
     ["Reference", row.reference || "Not reported"],
     ["Counterparty", row.counterparty_text || "Not reported"],
     ["Note", row.note || "None"],
-    ["Added", new Date(row.created_at).toLocaleString()],
-    ["Updated", new Date(row.updated_at).toLocaleString()],
+    ["Added", formatTimestamp(row.created_at)],
+    ["Updated", formatTimestamp(row.updated_at)],
   ];
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
@@ -669,7 +668,7 @@ export function TransactionActivity({
                   </Text>
                   <Text style={s.muted}>
                     {row.time?.slice(0, 5) || "Time not reported"} ·{" "}
-                    {row.source} ·{" "}
+                    {title(row.source)} ·{" "}
                     {transfer
                       ? "Internal transfer"
                       : (accountNames.get(row.account) ?? "Unknown account")}
@@ -744,7 +743,11 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   buttonText: { color: "#cce8ec", fontSize: 14, fontWeight: "600" },
-  selected: { borderWidth: 1, borderColor: "#55e6a5" },
+  selected: {
+    borderWidth: 1,
+    borderColor: presentationColors.accent,
+    backgroundColor: presentationColors.selected,
+  },
   disabled: { opacity: 0.5 },
   error: { color: "#ff9399", fontSize: 14, lineHeight: 21 },
   row: {

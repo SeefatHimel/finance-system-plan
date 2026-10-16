@@ -1,10 +1,13 @@
+import { PRODUCT_NAME, formatCurrency, formatCalendarDate, timestampFields, presentationColors } from "../finance-contracts/presentation";
 import { TransactionActivity } from "./src/transaction-activity";
 import { initialActivityFilters } from "./src/activity-model";
 import { mobileDestinations, reviewIndex, reviewSelection, type MobileDestination, type AdvancedTool } from "./src/mobile-navigation";
 import { QuickAddHub, type QuickAddHandle } from "./src/quick-add-hub";
 import { quickSessionScope } from "./src/secure-document";
 import { transferComparison, transferBalanceConflicts } from "../finance-contracts/transfer-comparison";
-import { NativeTimeField } from "./src/native-time-field";
+import { reviewReportedBalance, updateReviewBalanceContext } from "./src/review-balance";
+import { Disclosure } from "./src/disclosure";
+import { NativeDateField, NativeTimeField } from "./src/native-time-field";
 import { smsSyncPresentation, smsSyncDiagnostics } from "./src/sms-sync-presentation";
 import { localDay, localTime, type QuickPreset, type QuickDraft } from "../finance-contracts/quick-add";
 import { StatusBar } from "expo-status-bar";
@@ -121,6 +124,7 @@ type HomeFeed = "review" | "captured";
 type MobilePanel = "sms-automation" | "accounts" | null;
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 type ReviewCandidateDraft = {
+  balanceAccountId: string;
   direction: string;
   accountId: string;
   amount: string;
@@ -196,8 +200,7 @@ function parseMoney(value: string | null | undefined) {
 }
 
 function formatMoney(value: number) {
-  const [wholePart, decimalPart] = value.toFixed(2).split(".");
-  return `BDT ${wholePart.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${decimalPart}`;
+  return formatCurrency(value);
 }
 
 function sumMoney<T>(items: T[], selector: (item: T) => string | null | undefined) {
@@ -685,7 +688,7 @@ function normalizeRawQueue(storedQueue: string | null): QueuedRawMessage[] {
 }
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return localDay();
 }
 
 function currentInputTime() {
@@ -693,28 +696,17 @@ function currentInputTime() {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-function inputTimeFromTimestamp(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
+function inputTimeFromTimestamp(value: string) { return timestampFields(value).time; }
 
 function daysAgo(days: number) {
   const date = new Date();
   date.setDate(date.getDate() - days);
-  return date.toISOString().slice(0, 10);
+  return localDay(date);
 }
 
 function formatMobileDate(value: string) {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric"
-  });
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatCalendarDate(value) : Number.isFinite(date.getTime()) ? formatCalendarDate(localDay(date)) : "Unknown date";
 }
 
 function titleCase(value: string) {
@@ -793,7 +785,7 @@ function FinanceApp() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [txAccountId, setTxAccountId] = useState("");
   const [txCategoryId, setTxCategoryId] = useState("");
-  const [txDate, setTxDate] = useState(new Date().toISOString().slice(0, 10));
+  const [txDate, setTxDate] = useState(localDay());
   const [txTime, setTxTime] = useState(currentInputTime());
   const [txDirection, setTxDirection] = useState("debit");
   const [txTransferAccountId, setTxTransferAccountId] = useState("");
@@ -1419,7 +1411,7 @@ function FinanceApp() {
         direction: draft.direction,
         account: draft.accountId,
         amount: normalizedAmount,
-        balance_after: candidate.balance_after,
+        balance_after: reviewReportedBalance(candidate.balance_after, draft.balanceAccountId, draft.accountId),
         category: draft.categoryId || null,
         counterparty_text: draft.counterpartyText.trim(),
         date: draft.date.trim(),
@@ -1456,17 +1448,19 @@ function FinanceApp() {
     const direction = candidate.suggested_transfer_direction || (incoming || ["income", "refund"].includes(candidate.transaction_type) ? "credit" : "debit");
     const reportingRole = direction === "credit" ? "receiver" : "sender";
     const weakRoles = new Set((candidate.identity_suggestions ?? []).map(hint => hint.role));
+    const accountId = weakRoles.has(reportingRole) ? "" : (incoming ? candidate.destination_account ?? candidate.account : candidate.account) ?? "";
     return {
-      accountId: weakRoles.has(reportingRole) ? "" : (incoming ? candidate.destination_account ?? candidate.account : candidate.account) ?? "",
+      accountId,
+      balanceAccountId: accountId,
       direction,
       amount: candidate.amount ?? "",
       categoryId: candidate.category ?? "",
       counterpartyText: candidate.counterparty_text,
-      date: candidate.raw_message.received_at.slice(0, 10),
+      date: timestampFields(candidate.raw_message.received_at).date,
       note: "",
       paymentMethodId: weakRoles.has(reportingRole) ? "" : (incoming && candidate.destination_account ? candidate.destination_payment_method : candidate.payment_method) ?? "",
       reference: candidate.reference,
-      time: inputTimeFromTimestamp(candidate.raw_message.received_at),
+      time: timestampFields(candidate.raw_message.received_at).time,
       transactionType: candidate.transaction_type,
       transferAccountId: weakRoles.has(reportingRole === "receiver" ? "sender" : "receiver") ? "" : (incoming ? candidate.destination_account ? candidate.account : null : candidate.destination_account) ?? ""
     };
@@ -1478,10 +1472,7 @@ function FinanceApp() {
   const updateReviewDraft = (candidate: ParsedMessageCandidate, patch: Partial<ReviewCandidateDraft>) => {
     setReviewDrafts((currentDrafts) => ({
       ...currentDrafts,
-      [candidate.id]: {
-        ...(currentDrafts[candidate.id] ?? buildReviewDraft(candidate)),
-        ...patch
-      }
+      [candidate.id]: updateReviewBalanceContext(currentDrafts[candidate.id] ?? buildReviewDraft(candidate), patch)
     }));
   };
 
@@ -1564,7 +1555,7 @@ function FinanceApp() {
       setSmsPermissionMessage(
         isGranted
           ? "SMS access is ready. Choose trusted senders and start the sync."
-          : "Allow read and receive access so Finance Mobile can find matching messages."
+          : "Allow read and receive access so Finance can find matching messages."
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
@@ -3175,7 +3166,7 @@ function FinanceApp() {
       <StatusBar style="dark" />
       <View style={styles.advancedHeader}>
         <Pressable
-          accessibilityLabel="Back to Finance Mobile"
+          accessibilityLabel="Back to Finance"
           onPress={() => setAdvancedTool(null)}
           style={styles.advancedHeaderButton}
         >
@@ -3254,7 +3245,7 @@ function FinanceApp() {
             value={txNote}
           />
           <Pressable onPress={handleQuickAddTransaction} style={styles.button}>
-            <Text style={styles.buttonText}>Create Transaction</Text>
+            <Text style={styles.buttonText}>Save transaction</Text>
           </Pressable>
           <Pressable onPress={handleQueueManualTransaction} style={styles.buttonSecondary}>
             <Text style={styles.buttonText}>Queue Transaction Offline</Text>
@@ -3874,7 +3865,7 @@ function FinanceApp() {
   const recentTransactions = transactions.slice(0, 8);
 
   const renderTransactionRow = (transaction: Transaction) => {
-    const isIncome = transaction.type === "income" || transaction.direction === "credit";
+    const isIncome = transaction.type !== "transfer" && (transaction.type === "income" || transaction.direction === "credit");
     const icon: IconName = transaction.type === "transfer" ? "swap-horizontal" : isIncome ? "bank-transfer-in" : "cart-outline";
     const title = transaction.type === "transfer" ? `${accountName(transaction.account)} → ${accountName(transaction.transfer_account)}` : transaction.counterparty_text || transaction.note || titleCase(transaction.type);
 
@@ -3888,10 +3879,10 @@ function FinanceApp() {
           <Text numberOfLines={1} style={styles.mobileRowMeta}>
             {formatMobileDate(transaction.date)}{transaction.time ? ` at ${transaction.time.slice(0, 5)}` : ""} · {transaction.source || "Ledger"}
           </Text>
-          {transaction.type === "transfer" ? transaction.transfer_evidence?.map((item) => <Text key={item.id} style={styles.mobileRowMeta}>{accountName(item.account)} · {item.direction}{item.reference ? ` · ${item.reference}` : ""}{item.balance_after !== null ? ` · balance ${item.balance_after}` : ""}</Text>) : null}
+          {transaction.type === "transfer" ? transaction.transfer_evidence?.map((item) => <Text key={item.id} style={styles.mobileRowMeta}>{accountName(item.account)} · {item.direction}{item.reference ? ` · ${item.reference}` : ""}{item.balance_after !== null ? ` · balance ${formatCurrency(item.balance_after, accounts.find(account => account.id === item.account)?.currency ?? "BDT")}` : ""}</Text>) : null}
         </View>
         <Text style={[styles.mobileRowAmount, isIncome ? styles.mobileRowAmountSuccess : null]}>
-          {transaction.type === "transfer" ? "↔" : isIncome ? "+" : "−"} {formatMoney(parseMoney(transaction.amount))}
+          {transaction.type === "transfer" ? "↔" : isIncome ? "+" : "−"} {formatCurrency(transaction.amount, accounts.find(account => account.id === transaction.account)?.currency ?? "BDT")}
         </Text>
       </View>
     );
@@ -3923,7 +3914,7 @@ function FinanceApp() {
           <Text numberOfLines={1} style={styles.mobileRowMeta}>
             {candidate.counterparty_text || titleCase(candidate.transaction_type)}
           </Text>
-          <Text style={styles.mobileQueueAmount}>{formatMoney(parseMoney(candidate.amount))}</Text>
+          <Text style={styles.mobileQueueAmount}>{formatCurrency(candidate.amount)}</Text>
         </View>
         <View style={styles.mobileQueueAside}>
           <Text style={[styles.mobileConfidence, isLowConfidence ? styles.mobileConfidenceWarning : null]}>
@@ -3940,19 +3931,21 @@ function FinanceApp() {
       <View><Text style={styles.mobileFieldLabel}>Quick Add</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>{quickFavorites.map(preset => <Pressable accessibilityRole="button" key={preset.id} onPress={() => quickHub.current?.open(preset.id)} style={styles.mobileChoice}><Text style={styles.mobileChoiceText}>{preset.name}</Text></Pressable>)}<Pressable accessibilityRole="button" onPress={() => quickHub.current?.open()} style={styles.mobileChoice}><Text style={styles.mobileChoiceText}>{quickFavorites.length ? "See all" : "Add manual entry"}</Text></Pressable></ScrollView></View>
       <View style={styles.mobileSegmentedControl}>
         <Pressable
+          accessibilityRole="tab" accessibilityState={{ selected: homeFeed === "review" }}
           onPress={() => setHomeFeed("review")}
           style={[styles.mobileSegment, homeFeed === "review" ? styles.mobileSegmentActive : null]}
         >
-          <MaterialCommunityIcons color={homeFeed === "review" ? "#06141f" : "#9eb0c7"} name="clipboard-text-outline" size={20} />
+          <MaterialCommunityIcons color={homeFeed === "review" ? presentationColors.accent : "#9eb0c7"} name="clipboard-text-outline" size={20} />
           <Text style={[styles.mobileSegmentText, homeFeed === "review" ? styles.mobileSegmentTextActive : null]}>
             To review ({reviewCandidateCount})
           </Text>
         </Pressable>
         <Pressable
+          accessibilityRole="tab" accessibilityState={{ selected: homeFeed === "captured" }}
           onPress={() => setHomeFeed("captured")}
           style={[styles.mobileSegment, homeFeed === "captured" ? styles.mobileSegmentActive : null]}
         >
-          <MaterialCommunityIcons color={homeFeed === "captured" ? "#06141f" : "#9eb0c7"} name="format-list-bulleted" size={20} />
+          <MaterialCommunityIcons color={homeFeed === "captured" ? presentationColors.accent : "#9eb0c7"} name="format-list-bulleted" size={20} />
           <Text style={[styles.mobileSegmentText, homeFeed === "captured" ? styles.mobileSegmentTextActive : null]}>
             Activity ({transactionTotal ?? `${transactions.length} saved`})
           </Text>
@@ -3995,7 +3988,7 @@ function FinanceApp() {
                   <Text style={styles.mobileConfidenceLabel}>confidence</Text>
                 </View>
               </View>
-              <Text style={styles.mobileHeroAmount}>{formatMoney(parseMoney(primaryCandidate.amount))}</Text>
+              <Text style={styles.mobileHeroAmount}>{formatCurrency(primaryCandidate.amount)}</Text>
               <Text style={styles.mobileHeroDescription}>
                 {primaryCandidate.counterparty_text || titleCase(primaryCandidate.transaction_type)}
               </Text>
@@ -4020,7 +4013,7 @@ function FinanceApp() {
                   ) : (
                     <MaterialCommunityIcons color="#06141f" name="check" size={22} />
                   )}
-                  <Text style={styles.mobilePrimaryButtonText}>Confirm</Text>
+                  <Text style={styles.mobilePrimaryButtonText}>Confirm & add</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => openReviewCandidate(primaryCandidate.id)}
@@ -4127,7 +4120,7 @@ function FinanceApp() {
               <Text style={styles.mobileConfidence}>{confidencePercent(candidate.confidence)}</Text>
             </View>
             <View style={styles.mobileReviewAmountRow}>
-              <Text style={styles.mobileReviewAmount}>{formatMoney(parseMoney(candidate.amount))}</Text>
+              <Text style={styles.mobileReviewAmount}>{formatCurrency(candidate.amount)}</Text>
               <Pressable accessibilityRole="button" accessibilityState={{ disabled: isWorking }}
                 accessibilityLabel={`Switch to ${draft.direction === "credit" ? "debit / money sent" : "credit / money received"}`}
                 accessibilityHint={`Changes direction for ${accounts.find(account => account.id === draft.accountId)?.name ?? "the selected account"}.`}
@@ -4157,59 +4150,12 @@ function FinanceApp() {
               </View>;
             })}
 
-            <View style={styles.mobileRangeRow}>
-              <View style={styles.mobileRangeField}>
-                <Text style={styles.mobileFieldLabel}>Amount</Text>
-                <View style={styles.mobileInputWrap}>
-                  <MaterialCommunityIcons color="#7890ad" name="cash" size={19} />
-                  <TextInput
-                    accessibilityLabel="Transaction amount"
-                    keyboardType="decimal-pad"
-                    onChangeText={(amount) => updateReviewDraft(candidate, { amount })}
-                    placeholder="0.00"
-                    placeholderTextColor="#5f7590"
-                    style={styles.mobileInput}
-                    value={draft.amount}
-                  />
-                </View>
-              </View>
-              <View style={styles.mobileRangeField}>
-                <Text style={styles.mobileFieldLabel}>Date</Text>
-                <View style={styles.mobileInputWrap}>
-                  <MaterialCommunityIcons color="#7890ad" name="calendar-outline" size={19} />
-                  <TextInput
-                    accessibilityLabel="Transaction date in year month day format"
-                    autoCapitalize="none"
-                    onChangeText={(date) => updateReviewDraft(candidate, { date })}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#5f7590"
-                    style={styles.mobileInput}
-                    value={draft.date}
-                  />
-                </View>
-              </View>
-            </View>
-
-            <Text style={styles.mobileFieldLabel}>Transaction time</Text>
-            <View style={styles.mobileInputWrap}>
-              <MaterialCommunityIcons color="#7890ad" name="clock-outline" size={19} />
-              <TextInput
-                accessibilityLabel="Transaction time in hour minute format"
-                autoCapitalize="none"
-                onChangeText={(time) => updateReviewDraft(candidate, { time })}
-                placeholder="HH:MM"
-                placeholderTextColor="#5f7590"
-                style={styles.mobileInput}
-                value={draft.time}
-              />
-            </View>
-
             <Text style={styles.mobileFieldLabel}>Transaction type</Text>
             <View style={styles.mobileChoiceRow}>
               {["expense", "income", "transfer", "fee", "refund"].map((type) => (
                 <Pressable
                   accessibilityRole="radio"
-                  accessibilityState={{ selected: draft.transactionType === type }}
+                  accessibilityState={{ checked: draft.transactionType === type }}
                   key={type}
                   onPress={() => updateReviewDraft(candidate, {
                     transactionType: type,
@@ -4218,18 +4164,45 @@ function FinanceApp() {
                   style={[styles.mobileChoice, draft.transactionType === type ? styles.mobileChoiceActive : null]}
                 >
                   <Text style={[styles.mobileChoiceText, draft.transactionType === type ? styles.mobileChoiceTextActive : null]}>
-                    {titleCase(type)}
+                    {draft.transactionType === type ? "✓ " : ""}{titleCase(type)}
                   </Text>
                 </Pressable>
               ))}
             </View>
 
-            <Text style={styles.mobileFieldLabel}>Account</Text>
+            <Text style={styles.mobileFieldLabel}>Category</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.mobileChoiceRow}>
+                <Pressable
+                  accessibilityRole="radio" accessibilityState={{ checked: !draft.categoryId }}
+                  onPress={() => updateReviewDraft(candidate, { categoryId: "" })}
+                  style={[styles.mobileChoice, !draft.categoryId ? styles.mobileChoiceActive : null]}
+                >
+                  <Text style={[styles.mobileChoiceText, !draft.categoryId ? styles.mobileChoiceTextActive : null]}>{!draft.categoryId ? "✓ " : ""}No category</Text>
+                </Pressable>
+                {categories.map((category) => (
+                  <Pressable
+                    key={category.id}
+                    accessibilityRole="radio" accessibilityState={{ checked: draft.categoryId === category.id }}
+                    onPress={() => updateReviewDraft(candidate, { categoryId: category.id })}
+                    style={[styles.mobileChoice, draft.categoryId === category.id ? styles.mobileChoiceActive : null]}
+                  >
+                    <Text style={[styles.mobileChoiceText, draft.categoryId === category.id ? styles.mobileChoiceTextActive : null]}>
+                      {draft.categoryId === category.id ? "✓ " : ""}{category.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+
+            <Text style={styles.mobileFieldLabel}>Reporting account</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.mobileChoiceRow}>
                 {accounts.map((account) => (
                   <Pressable
                     key={account.id}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: draft.accountId === account.id }}
                     onPress={() => updateReviewDraft(candidate, {
                       accountId: account.id,
                       paymentMethodId: draft.accountId === account.id ? draft.paymentMethodId : ""
@@ -4237,7 +4210,7 @@ function FinanceApp() {
                     style={[styles.mobileChoice, draft.accountId === account.id ? styles.mobileChoiceActive : null]}
                   >
                     <Text style={[styles.mobileChoiceText, draft.accountId === account.id ? styles.mobileChoiceTextActive : null]}>
-                      {account.name}
+                      {draft.accountId === account.id ? "✓ " : ""}{account.name}
                     </Text>
                   </Pressable>
                 ))}
@@ -4246,17 +4219,19 @@ function FinanceApp() {
 
             {draft.transactionType === "transfer" ? (
               <>
-                <Text style={styles.mobileFieldLabel}>Other transfer account</Text>
+                <Text style={styles.mobileFieldLabel}>Other transfer account · {draft.direction === "credit" ? "From" : "To"}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={styles.mobileChoiceRow}>
                     {accounts.filter((account) => account.id !== draft.accountId).map((account) => (
                       <Pressable
                         key={account.id}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: draft.transferAccountId === account.id }}
                         onPress={() => updateReviewDraft(candidate, { transferAccountId: account.id })}
                         style={[styles.mobileChoice, draft.transferAccountId === account.id ? styles.mobileChoiceActive : null]}
                       >
                         <Text style={[styles.mobileChoiceText, draft.transferAccountId === account.id ? styles.mobileChoiceTextActive : null]}>
-                          {account.name}
+                          {draft.transferAccountId === account.id ? "✓ " : ""}{account.name}
                         </Text>
                       </Pressable>
                     ))}
@@ -4265,51 +4240,16 @@ function FinanceApp() {
               </>
             ) : null}
 
-            <Text style={styles.mobileFieldLabel}>Payment method</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.mobileChoiceRow}>
-                <Pressable
-                  onPress={() => updateReviewDraft(candidate, { paymentMethodId: "" })}
-                  style={[styles.mobileChoice, !draft.paymentMethodId ? styles.mobileChoiceActive : null]}
-                >
-                  <Text style={[styles.mobileChoiceText, !draft.paymentMethodId ? styles.mobileChoiceTextActive : null]}>None</Text>
-                </Pressable>
-                {paymentMethods.filter((method) => method.account === draft.accountId).map((method) => (
-                  <Pressable
-                    key={method.id}
-                    onPress={() => updateReviewDraft(candidate, { paymentMethodId: method.id })}
-                    style={[styles.mobileChoice, draft.paymentMethodId === method.id ? styles.mobileChoiceActive : null]}
-                  >
-                    <Text style={[styles.mobileChoiceText, draft.paymentMethodId === method.id ? styles.mobileChoiceTextActive : null]}>
-                      {method.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-
-            <Text style={styles.mobileFieldLabel}>Category</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.mobileChoiceRow}>
-                <Pressable
-                  onPress={() => updateReviewDraft(candidate, { categoryId: "" })}
-                  style={[styles.mobileChoice, !draft.categoryId ? styles.mobileChoiceActive : null]}
-                >
-                  <Text style={[styles.mobileChoiceText, !draft.categoryId ? styles.mobileChoiceTextActive : null]}>None</Text>
-                </Pressable>
-                {categories.map((category) => (
-                  <Pressable
-                    key={category.id}
-                    onPress={() => updateReviewDraft(candidate, { categoryId: category.id })}
-                    style={[styles.mobileChoice, draft.categoryId === category.id ? styles.mobileChoiceActive : null]}
-                  >
-                    <Text style={[styles.mobileChoiceText, draft.categoryId === category.id ? styles.mobileChoiceTextActive : null]}>
-                      {category.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
+            {candidate.balance_after !== null && draft.accountId && reviewReportedBalance(candidate.balance_after, draft.balanceAccountId, draft.accountId) === null ? <Text accessibilityRole="alert" style={styles.warningText}>The reported balance belongs to {accountName(draft.balanceAccountId)} and will not be applied to {accountName(draft.accountId)}.</Text> : null}
+            <Text style={styles.mobileFieldLabel}>Amount</Text>
+            <View style={styles.mobileInputWrap}>
+              <MaterialCommunityIcons color="#7890ad" name="cash" size={19} />
+              <TextInput accessibilityLabel="Transaction amount" keyboardType="decimal-pad" onChangeText={(amount) => updateReviewDraft(candidate, { amount })} placeholder="0.00" placeholderTextColor="#5f7590" style={styles.mobileInput} value={draft.amount} />
+            </View>
+            <View style={[styles.mobileRangeRow, { flexWrap: "wrap" }]}>
+              <View style={[styles.mobileRangeField, { minWidth: 150 }]}><Text style={styles.mobileFieldLabel}>Date</Text><NativeDateField label="Transaction date" value={draft.date} onChange={date => updateReviewDraft(candidate, { date })} /></View>
+              <View style={[styles.mobileRangeField, { minWidth: 150 }]}><Text style={styles.mobileFieldLabel}>Time</Text><NativeTimeField label="Transaction time" value={draft.time} onChange={time => updateReviewDraft(candidate, { time })} /></View>
+            </View>
 
             <View style={styles.mobileInputWrap}>
               <MaterialCommunityIcons color="#7890ad" name="store-outline" size={19} />
@@ -4344,6 +4284,33 @@ function FinanceApp() {
                 value={draft.note}
               />
             </View>
+            <Disclosure label={`Payment method · ${paymentMethods.find(method => method.id === draft.paymentMethodId)?.name ?? "None"}`}>
+            <Text style={styles.mobileRowMeta}>The card or wallet used for this account.</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.mobileChoiceRow}>
+                <Pressable
+                  accessibilityRole="radio" accessibilityState={{ checked: !draft.paymentMethodId }}
+                  onPress={() => updateReviewDraft(candidate, { paymentMethodId: "" })}
+                  style={[styles.mobileChoice, !draft.paymentMethodId ? styles.mobileChoiceActive : null]}
+                >
+                  <Text style={[styles.mobileChoiceText, !draft.paymentMethodId ? styles.mobileChoiceTextActive : null]}>{!draft.paymentMethodId ? "✓ " : ""}No payment method</Text>
+                </Pressable>
+                {paymentMethods.filter((method) => method.account === draft.accountId).map((method) => (
+                  <Pressable
+                    key={method.id}
+                    accessibilityRole="radio" accessibilityState={{ checked: draft.paymentMethodId === method.id }}
+                    onPress={() => updateReviewDraft(candidate, { paymentMethodId: method.id })}
+                    style={[styles.mobileChoice, draft.paymentMethodId === method.id ? styles.mobileChoiceActive : null]}
+                  >
+                    <Text style={[styles.mobileChoiceText, draft.paymentMethodId === method.id ? styles.mobileChoiceTextActive : null]}>
+                      {draft.paymentMethodId === method.id ? "✓ " : ""}{method.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+
+            </Disclosure>
             <View style={styles.mobileActionRow}>
               <Pressable
                 disabled={isWorking}
@@ -4351,7 +4318,7 @@ function FinanceApp() {
                 style={styles.mobilePrimaryButton}
               >
                 {isWorking ? <ActivityIndicator color="#06141f" /> : <MaterialCommunityIcons color="#06141f" name="check" size={21} />}
-                <Text style={styles.mobilePrimaryButtonText}>Confirm</Text>
+                <Text style={styles.mobilePrimaryButtonText}>Confirm & add</Text>
               </Pressable>
               <Pressable
                 disabled={isWorking}
@@ -4960,7 +4927,7 @@ function FinanceApp() {
               style={[styles.mobileSegment, smsScanMode === "new" ? styles.mobileSegmentActive : null]}
             >
               <MaterialCommunityIcons
-                color={smsScanMode === "new" ? "#06141f" : "#9eb0c7"}
+                color={smsScanMode === "new" ? presentationColors.accent : "#9eb0c7"}
                 name="message-plus-outline"
                 size={19}
               />
@@ -4973,7 +4940,7 @@ function FinanceApp() {
               style={[styles.mobileSegment, smsScanMode === "history" ? styles.mobileSegmentActive : null]}
             >
               <MaterialCommunityIcons
-                color={smsScanMode === "history" ? "#06141f" : "#9eb0c7"}
+                color={smsScanMode === "history" ? presentationColors.accent : "#9eb0c7"}
                 name="history"
                 size={19}
               />
@@ -5202,7 +5169,7 @@ function FinanceApp() {
             <View style={styles.mobileBrandMark}>
               <MaterialCommunityIcons color="#06141f" name="message-processing-outline" size={30} />
             </View>
-            <Text style={styles.mobileLoginTitle}>Finance Mobile</Text>
+            <Text style={styles.mobileLoginTitle}>{PRODUCT_NAME}</Text>
             <Text style={styles.mobileLoginSubtitle}>Your bank and wallet SMS, organized automatically.</Text>
           </View>
           <View style={styles.mobileLoginPanel}>
@@ -5290,7 +5257,7 @@ function FinanceApp() {
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Quick Add manual entry" onPress={() => quickHub.current?.open()} style={styles.mobileHeaderButton}><MaterialCommunityIcons color="#55e6a5" name="plus" size={24} /></Pressable>
         <View style={styles.mobileHeaderTitleWrap}>
-          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.mobileAppTitle}>Signal <Text style={styles.mobileAppTitleAccent}>Inbox</Text></Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.mobileAppTitle}>{PRODUCT_NAME}</Text>
           <Text numberOfLines={2} style={styles.mobileAppSubtitle}>Bank & wallet SMS to insights</Text>
         </View>
         <Pressable
@@ -5365,7 +5332,7 @@ function FinanceApp() {
                 <MaterialCommunityIcons color="#06141f" name="message-processing-outline" size={23} />
               </View>
               <View>
-                <Text style={styles.mobileDrawerTitle}>Finance Mobile</Text>
+                <Text style={styles.mobileDrawerTitle}>{PRODUCT_NAME}</Text>
                 <Text style={styles.mobileDrawerSubtitle}>Automation center</Text>
               </View>
             </View>
@@ -5550,20 +5517,22 @@ const styles = StyleSheet.create({
     minHeight: 260
   },
   mobileChoice: {
+    maxWidth: "100%",
     backgroundColor: "#0d1e2d",
     borderColor: "#2a4059",
     borderRadius: 999,
     borderWidth: 1,
-    minHeight: 42,
+    minHeight: 48,
     paddingHorizontal: 15,
     paddingVertical: 11
   },
   mobileChoiceActive: {
-    backgroundColor: "#123c43",
-    borderColor: "#32d8f2"
+    backgroundColor: presentationColors.selected,
+    borderColor: presentationColors.accent
   },
   mobileChoiceRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     paddingVertical: 4
   },
@@ -5588,7 +5557,7 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   mobileChoiceTextActive: {
-    color: "#e7fbff"
+    color: presentationColors.accent
   },
   mobileConfidence: {
     backgroundColor: "#113d38",
@@ -6424,7 +6393,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8
   },
   mobileSegmentActive: {
-    backgroundColor: "#32d8f2"
+    borderColor: presentationColors.accent,
+    borderWidth: 1,
+    backgroundColor: presentationColors.selected
   },
   mobileSegmentedControl: {
     backgroundColor: "#0e1c2c",
@@ -6441,7 +6412,7 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   mobileSegmentTextActive: {
-    color: "#06141f"
+    color: presentationColors.accent
   },
   mobileSmsQuote: {
     alignItems: "flex-start",

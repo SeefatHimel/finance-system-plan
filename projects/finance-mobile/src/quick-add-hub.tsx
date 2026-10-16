@@ -1,3 +1,4 @@
+import { presentationColors } from "../../finance-contracts/presentation";
 import {
   forwardRef,
   useCallback,
@@ -1075,16 +1076,27 @@ function Action({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={{ disabled, selected }}
       disabled={disabled}
       onPress={onPress}
       style={[
         s.action,
-        primary || selected ? s.primary : null,
+        primary ? s.primary : selected ? s.selected : null,
         disabled ? { opacity: 0.45 } : null,
       ]}
     >
-      <Text style={[s.bold, primary || selected ? { color: "#08261d" } : null]}>
+      <Text
+        style={[
+          s.bold,
+          primary
+            ? { color: "#08261d" }
+            : selected
+              ? { color: presentationColors.accent }
+              : null,
+        ]}
+      >
+        {selected ? "✓ " : ""}
         {label}
       </Text>
     </Pressable>
@@ -1228,14 +1240,19 @@ const s = StyleSheet.create({
     borderColor: "#294158",
   },
   action: {
-    minHeight: 44,
+    minHeight: 48,
     justifyContent: "center",
     padding: 12,
     borderRadius: 8,
     backgroundColor: "#183344",
     flexShrink: 1,
   },
-  primary: { backgroundColor: "#55e6a5" },
+  primary: { backgroundColor: presentationColors.accent },
+  selected: {
+    backgroundColor: presentationColors.selected,
+    borderWidth: 1,
+    borderColor: presentationColors.accent,
+  },
   text: { color: "#e7eef7", fontSize: 14 },
   bold: { color: "#e7eef7", fontSize: 14, fontWeight: "700" },
   muted: { color: "#91a7c2", fontSize: 13 },
