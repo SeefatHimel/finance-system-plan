@@ -7,8 +7,6 @@ import {
   CreditCard,
   DeviceMobile,
   FileText,
-  Info,
-  Plus,
   Receipt,
   ShieldCheck,
   Warning,
@@ -46,6 +44,9 @@ import { getAccessToken } from "@/lib/auth-storage";
 import { LoadingState } from "@/components/loading-state";
 import { DatePeriodControls } from "@/components/date-period-controls";
 import { monthPeriod, type DatePeriod } from "@/lib/date-period";
+import { formatMovementAmount, movementPresentation } from "@/lib/movement-presentation";
+import { HelpTooltip } from "@/components/help-tooltip";
+import { QuickAddShortcuts } from "@/components/quick-add";
 
 type DashboardState =
   | { status: "loading" }
@@ -92,11 +93,6 @@ function formatDate(value: string) {
   }).format(new Date(`${value}T00:00:00`));
 }
 
-function signedMoney(amount: number, direction: string) {
-  const prefix = direction === "credit" ? "+" : "-";
-  return `${prefix}${money.format(Math.abs(amount))}`;
-}
-
 function sourceLabel(source: string) {
   if (source === "sms") return "SMS";
   return titleCase(source);
@@ -106,15 +102,15 @@ function candidateReason(candidate: ParsedMessageCandidate) {
   const confidence = Number(candidate.confidence);
   if (candidate.possible_internal_transfer) return "Possible transfer";
   if (!candidate.account || !candidate.amount) return "Missing details";
-  if (confidence >= 0.85) return "Ready to confirm";
-  return "Category needed";
+  if (candidate.transaction_type === "transfer" && (!candidate.account || !candidate.destination_account || candidate.account === candidate.destination_account)) return "Verify transfer accounts";
+  if (candidate.raw_message.duplicate_of) return "Verify possible duplicate";
+  if (confidence >= 0.85) return "Ready for review";
+  return "Review parsed details";
 }
 
 function candidateTone(candidate: ParsedMessageCandidate) {
-  const confidence = Number(candidate.confidence);
-  if (confidence >= 0.85) return "success";
-  if (confidence >= 0.65) return "warning";
-  return "danger";
+  if (Number(candidate.confidence) < 0.65) return "danger";
+  return candidateReason(candidate) === "Ready for review" ? "success" : "warning";
 }
 
 function candidateIcon(provider: string) {
@@ -253,6 +249,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
 
     return {
       accountById,
+      currencyByAccount: new Map(state.accounts.map(account => [account.id, account.currency])),
       captureCount: state.summary.automated_count + state.summary.pending_count,
       cashFlow: buildCashFlowData(state.report.daily),
       categoryById,
@@ -291,8 +288,8 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
   return (
     <div className="automation-dashboard">
       <section className="dashboard-panel dashboard-date-controls" aria-label="Dashboard date controls">
-        <DatePeriodControls label="Dashboard dates" allowAll={false} value={range} onChange={setRange} />
-        <p role="status">{periodLoading ? "Updating selected period…" : `Showing ${periodLabel}`}. Current balances and review queue stay live.</p>
+        <DatePeriodControls label="Dashboard dates" allowAll={false} value={range} onChange={setRange} compact description={`Showing ${periodLabel}`} />
+        {periodLoading ? <p role="status">Updating selected period…</p> : null}
         {periodError ? <p className="form-error" role="alert">{periodError}</p> : null}
       </section>
       <section className="dashboard-period-totals" aria-label="Selected period totals" aria-busy={periodLoading}>
@@ -304,7 +301,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
         <article className="dashboard-panel net-position-panel">
           <div className="net-position-panel__summary">
             <div>
-              <div className="panel-label">Net position <Info aria-hidden="true" size={15} /></div>
+              <div className="panel-label">Current net position <HelpTooltip label="About current net position">Sum of current BDT ledger balances. Reported bank balances are separate in Accounts. The date filter changes activity totals and charts; balances and the review queue stay current.</HelpTooltip></div>
               <strong className="net-position-value"><span>BDT</span> {new Intl.NumberFormat("en-BD", { maximumFractionDigits: 0 }).format(dashboardData.netPosition)}</strong>
               <p className={`net-position-change${netMovement < 0 ? " net-position-change--negative" : ""}`}>
                 {netMovement >= 0 ? "+" : "-"}{money.format(Math.abs(netMovement))} <span>for {periodLabel}</span>
@@ -316,6 +313,35 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
             </div>
           </div>
           <CashFlowChart data={dashboardData.cashFlow} />
+        </article>
+
+        <article className="dashboard-panel attention-panel">
+          <div className="dashboard-panel__heading"><h2>Needs attention ({pendingCount})</h2><Link href="/messages/review">View all <ArrowRight aria-hidden="true" size={15} /></Link></div>
+          {state.summary.recent_candidates.length === 0 ? (
+            <div className="attention-empty"><CheckCircle aria-hidden="true" size={24} weight="fill" /><span>No imported messages need review.</span></div>
+          ) : (
+            <div className="attention-list">
+              {state.summary.recent_candidates.map((candidate) => {
+                const CandidateIcon = candidateIcon(candidate.provider);
+                const tone = candidateTone(candidate);
+                return (
+                  <Link className="attention-row" href={`/messages/review?candidate=${candidate.id}`} key={candidate.id}>
+                    <span className={`attention-row__icon attention-row__icon--${tone}`}><CandidateIcon aria-hidden="true" size={22} weight="fill" /></span>
+                    <span className="attention-row__subject"><strong>{candidate.counterparty_text || `${titleCase(candidate.provider)} ${titleCase(candidate.message_kind)}`}</strong><small>{titleCase(candidate.provider)} · {formatDate(candidate.raw_message.received_at.slice(0, 10))}</small><small className={`attention-row__state attention-row__reason--${tone}`}>{candidateReason(candidate)}</small></span>
+                    <span className="attention-row__amount">{candidate.amount === null ? "Amount needed" : formatMovementAmount(candidate.amount)}</span>
+                    <ArrowRight aria-hidden="true" className="attention-row__arrow" size={16} />
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </article>
+      </section>
+
+      <section className="dashboard-middle-grid">
+        <article className="dashboard-panel spending-panel">
+          <h2>Spending by category</h2>
+          <SpendingChart categories={state.report.spending_categories} />
         </article>
 
         <article className="dashboard-panel automation-status-panel">
@@ -337,61 +363,33 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
         </article>
       </section>
 
-      <section className="dashboard-middle-grid">
-        <article className="dashboard-panel spending-panel">
-          <h2>Spending by category</h2>
-          <SpendingChart categories={state.report.spending_categories} />
-        </article>
-
-        <article className="dashboard-panel attention-panel">
-          <div className="dashboard-panel__heading"><h2>Needs attention ({pendingCount})</h2><Link href="/messages/review">View all <ArrowRight aria-hidden="true" size={15} /></Link></div>
-          {state.summary.recent_candidates.length === 0 ? (
-            <div className="attention-empty"><CheckCircle aria-hidden="true" size={24} weight="fill" /><span>No imported messages need review.</span></div>
-          ) : (
-            <div className="attention-list">
-              {state.summary.recent_candidates.map((candidate) => {
-                const CandidateIcon = candidateIcon(candidate.provider);
-                const tone = candidateTone(candidate);
-                const confidence = Math.round(Number(candidate.confidence) * 100);
-                return (
-                  <Link className="attention-row" href={`/messages/review?candidate=${candidate.id}`} key={candidate.id}>
-                    <span className={`attention-row__icon attention-row__icon--${tone}`}><CandidateIcon aria-hidden="true" size={22} weight="fill" /></span>
-                    <span className="attention-row__subject"><strong>{titleCase(candidate.provider)} {titleCase(candidate.message_kind)}</strong><small>{formatDate(candidate.raw_message.received_at.slice(0, 10))} · SMS</small></span>
-                    <span className={`attention-row__confidence attention-row__confidence--${tone}`}><strong>{confidence}%</strong><small>confidence</small></span>
-                    <span className={`attention-row__reason attention-row__reason--${tone}`}><strong>{candidateReason(candidate)}</strong><small>{confidence >= 85 ? "Looks good" : "Needs your review"}</small></span>
-                    <ArrowRight aria-hidden="true" className="attention-row__arrow" size={16} />
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </article>
-      </section>
-
       <section className="dashboard-panel recent-transactions-panel">
         <div className="dashboard-panel__heading recent-transactions-heading">
           <h2>Recent transactions in selected period</h2>
-          <div><Link className="dashboard-button dashboard-button--secondary" href="/transactions"><Plus aria-hidden="true" size={15} />Add transaction</Link><Link href="/transactions">View all <ArrowRight aria-hidden="true" size={15} /></Link></div>
+          <Link href="/transactions">View all <ArrowRight aria-hidden="true" size={15} /></Link>
         </div>
         {dashboardData.recentTransactions.length === 0 ? (
           <div className="dashboard-empty"><Receipt aria-hidden="true" size={28} /><strong>No transactions in this period</strong><span>Synced and manually recorded activity will appear here.</span></div>
         ) : (
           <div className="dashboard-table-wrap">
             <table className="dashboard-table">
-              <thead><tr><th>Date</th><th>Description</th><th>Account</th><th>Category</th><th>Source</th><th>Import</th><th>Status</th><th>Amount (BDT)</th></tr></thead>
+              <thead><tr><th>Date</th><th>Description</th><th>Account</th><th>Category</th><th>Source</th><th>Import</th><th>Status</th><th>Amount</th></tr></thead>
               <tbody>
                 {dashboardData.recentTransactions.map((transaction) => {
                   const isAutomated = transaction.source === "sms" || transaction.source === "mobile";
+                  const movement = movementPresentation(transaction, dashboardData.accountById);
+                  const currency = dashboardData.currencyByAccount.get(transaction.account) ?? "BDT";
+                  const amount = formatMovementAmount(transaction.amount, currency);
                   return (
                     <tr key={transaction.id}>
                       <td>{formatDate(transaction.date)}</td>
-                      <td><span className="transaction-description-icon"><Receipt aria-hidden="true" size={17} /></span><strong>{transaction.counterparty_text || transaction.reference || titleCase(transaction.type)}</strong><small>{transaction.reference || titleCase(transaction.type)}</small></td>
-                      <td>{dashboardData.accountById.get(transaction.account) ?? "Unknown account"}</td>
+                      <td><span className="transaction-description-icon"><Receipt aria-hidden="true" size={17} /></span><strong>{transaction.counterparty_text || transaction.note || transaction.reference || titleCase(transaction.type)}</strong><small>{transaction.reference || titleCase(transaction.type)}</small></td>
+                      <td>{movement.path}</td>
                       <td>{transaction.category ? dashboardData.categoryById.get(transaction.category) ?? "Uncategorized" : "Uncategorized"}</td>
                       <td><span className="table-source-icon">{transaction.source === "sms" ? <ChatCenteredText aria-hidden="true" size={16} /> : transaction.source === "mobile" ? <DeviceMobile aria-hidden="true" size={16} /> : <FileText aria-hidden="true" size={16} />}{sourceLabel(transaction.source)}</span></td>
                       <td className="import-cell">{isAutomated ? "Verified" : "Manual"}</td>
                       <td><span className={`transaction-status${isAutomated ? " transaction-status--posted" : ""}`}><CheckCircle aria-hidden="true" size={14} weight="fill" />Posted</span></td>
-                      <td className={`dashboard-amount${transaction.direction === "credit" ? " dashboard-amount--credit" : ""}`}>{signedMoney(Number(transaction.amount), transaction.direction)}</td>
+                      <td className={`dashboard-amount dashboard-amount--${movement.tone}`}>{movement.sign}{amount}</td>
                     </tr>
                   );
                 })}
@@ -400,6 +398,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
           </div>
         )}
       </section>
+      <QuickAddShortcuts compact />
     </div>
   );
 }

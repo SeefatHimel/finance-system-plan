@@ -3637,3 +3637,76 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
   .transaction-filters .date-period-fields--single input { min-width: 0; width: 100%; }
   .transaction-filters .date-period-fields--single .field__label { clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 }
+
+/* Keep financial context and pending work ahead of optional dashboard shortcuts. */
+.dashboard-date-controls { padding: 12px 16px; gap: 6px; }
+.dashboard-date-controls .date-period-controls { margin: 0; padding: 0; }
+.dashboard-date-controls > p { color: var(--muted); font-size: 12px; }
+.dashboard-period-totals { gap: 12px; }
+.dashboard-period-totals article { padding: 12px 16px; gap: 4px; }
+.attention-row { grid-template-columns: 38px minmax(0, 1fr) auto 16px; gap: 10px; }
+.attention-row__amount { color: var(--foreground); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.attention-row__subject .attention-row__state { color: var(--accent); }
+.attention-row__subject .attention-row__reason--warning { color: var(--warning); }
+.attention-row__subject .attention-row__reason--danger { color: var(--danger); }
+.attention-row__subject strong { white-space: normal; overflow-wrap: anywhere; }
+.dashboard-amount--transfer { color: var(--foreground); }
+.quick-shortcuts--compact .panel__body { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; }
+.quick-shortcuts--compact .quick-heading { margin: 0; gap: 14px; }
+.quick-shortcuts--compact .quick-preset-grid { display: flex; flex: 1; flex-wrap: wrap; gap: 8px; margin: 0; }
+.quick-shortcuts--compact .quick-preset-tile { min-height: 44px; padding: 8px 12px; width: auto; }
+.quick-shortcuts--compact .quick-preset-tile span { font-size: 11px; }
+.review-transfer-path { display: grid; gap: 5px; padding: 12px 22px; border-bottom: 1px solid var(--panel-border); }
+.review-transfer-path > span { color: var(--muted); font-size: 12px; }
+.review-transfer-path > strong { overflow-wrap: anywhere; }
+.review-payment-details { border-block: 1px solid var(--panel-border); padding-block: 10px; }
+.review-payment-details > summary { align-items: center; cursor: pointer; display: flex; gap: 10px; min-height: 36px; }
+.review-payment-details > summary::after { content: "+"; margin-left: auto; }
+.review-payment-details[open] > summary::after { content: "−"; }
+.review-payment-details > summary span { color: var(--muted); font-size: 12px; }
+.review-payment-details > .field { margin-top: 12px; }
+.transaction-direction-control { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; }
+.statement-library > summary, .statement-review-checks > summary { cursor: pointer; min-height: 48px; padding: 14px 18px; font-weight: 600; }
+.statement-library > .workspace-grid { padding: 0 12px 12px; }
+.statement-selected-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; }
+.statement-selected-heading p { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+.statement-review-health { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; width: 100%; font-size: 13px; }
+.statement-review-health .form-error, .statement-review-health .inline-note { margin: 0; }
+.statement-filter-primary, .statement-filter-secondary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-block: 12px; }
+.statement-filter-primary .field, .statement-filter-secondary .field { min-width: 0; }
+.statement-row-filters, .statement-bulk-actions { margin-block: 8px; }
+.statement-row-filters > summary, .statement-bulk-actions > summary { cursor: pointer; padding-block: 8px; width: fit-content; }
+.source-differences { border: 1px solid var(--panel-border); border-radius: 8px; margin-block: 12px; padding: 8px 12px; }
+.source-differences p { font-size: 13px; margin: 6px 0; }
+@media (max-width: 640px) {
+  .dashboard-period-totals { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .dashboard-period-totals article { padding: 10px 8px; }
+  .dashboard-period-totals article > span { font-size: 11px; }
+  .dashboard-period-totals strong { font-size: 14px; }
+  .dashboard-date-controls .date-period-mode, .dashboard-date-controls .date-period-fields--single { width: 100%; }
+  .dashboard-date-controls .date-period-fields--single { flex-wrap: nowrap; }
+  .dashboard-date-controls .date-period-fields--single .field { min-width: 0; flex: 1; }
+  .dashboard-date-controls .date-period-fields--single input { min-width: 0; width: 100%; }
+  .attention-row { grid-template-columns: 34px minmax(0, 1fr) auto; gap: 8px; }
+  .attention-row__arrow { display: none; }
+  .attention-row__amount { font-size: 12px; }
+  .statement-filter-primary, .statement-filter-secondary { grid-template-columns: 1fr 1fr; }
+  .statement-filter-primary > .field:first-child { grid-column: 1 / -1; }
+  .statement-filter-primary .field__control, .statement-filter-secondary .field__control { width: 100%; }
+  .statement-selected-heading { align-items: flex-start; }
+}
+.statement-preview { padding: 0; gap: 12px; }
+.statement-filter-primary .field, .statement-filter-secondary .field { align-self: start; }
+.statement-filter-primary .field__control, .statement-filter-secondary .field__control { min-height: 44px; }
+.statement-tool-options { align-items: center; display: flex; flex-wrap: wrap; column-gap: 20px; }
+.statement-tool-options > details[open] { flex-basis: 100%; }
+.statement-tool-options .statement-row-filters, .statement-tool-options .statement-bulk-actions { margin: 0; }
+.statement-review-panel > .panel__body { padding: 16px 18px; }
+.statement-row-heading { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.statement-row-heading > h2 { margin: 0; }
+.statement-row-heading > .date-period-controls { flex: 1; padding: 0; }
+.statement-row-heading .date-period-caption { flex-basis: auto; margin-left: auto; }
+@media (max-width: 640px) {
+  .statement-row-heading > .date-period-controls { flex-basis: 100%; }
+  .statement-row-heading .date-period-caption { flex-basis: 100%; margin: 0; }
+}

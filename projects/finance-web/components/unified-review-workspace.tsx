@@ -8,7 +8,7 @@ import { StatementRowDialog } from "@/components/statement-row-dialog";
 import { UnifiedPairEditor, initialPairDraft, savedPairDraft, type PairTypeChoice } from "@/components/unified-pair-editor";
 import { useToast } from "@/components/toast-provider";
 import { getAccessToken } from "@/lib/auth-storage";
-import { allDates, periodBounds, type DatePeriod } from "@/lib/date-period";
+import { allDates, localDate, periodBounds, type DatePeriod } from "@/lib/date-period";
 import { displayedStatementText } from "@/lib/statement-citytouch";
 import {
   confirmUnifiedPair,
@@ -21,7 +21,7 @@ import {
   type UnifiedPair,
   type UnifiedPendingPage,
 } from "@/lib/api";
-import { reportedBalanceNeedsAcknowledgment, statementBalanceDifference, suggestedBalanceSource } from "@/lib/statement-review";
+import { calendarDayDifference, insignificantBdtBalanceDifference, reportedBalanceNeedsAcknowledgment, statementBalanceDifference, suggestedBalanceSource } from "@/lib/statement-review";
 
 type BalanceChoice = "" | "sms" | "statement";
 
@@ -70,6 +70,8 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
   const ledgerMatch = row.review.matches.find(match => match.id === ledger);
   const smsLedgerDifference = statementBalanceDifference(pair.sms.balance_after, ledgerMatch?.effective_balance_after ?? null);
   const originalBalanceDifference = statementBalanceDifference(row.balance_after, pair.sms.balance_after);
+  const sourceDateDifference = calendarDayDifference(row.date, localDate(new Date(pair.sms.raw_message.received_at)));
+  const smallSourceBalanceDifference = insignificantBdtBalanceDifference(row.balance_after, pair.sms.balance_after, pair.batch.currency);
   const originalBalanceNeedsReview = pair.match.conflict && reportedBalanceNeedsAcknowledgment(row.balance_after, pair.sms.balance_after, pair.batch.currency);
   const editedBalanceNeedsReview = reportedBalanceNeedsAcknowledgment(draft.balance_after, pair.sms.balance_after, pair.batch.currency);
   const needsConflict = originalBalanceNeedsReview || editedBalanceNeedsReview || Boolean(ledgerMatch?.conflict) || (smsLedgerDifference !== null && smsLedgerDifference !== "0.00");
@@ -149,7 +151,9 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
         <strong>Same account, direction and amount</strong>
         <span>Statement {formatStatementDateTime(row.date, row.time)} · SMS {dateTimeFormatter.format(new Date(pair.sms.raw_message.received_at))}</span>
         {typeDiffers ? <span className="unified-pair-summary__difference">Type differs</span> : null}
-        {originalBalanceNeedsReview ? <span className="unified-pair-summary__difference">Balances differ</span> : null}
+        {sourceDateDifference ? <span className="unified-pair-summary__difference">Dates differ by {Math.abs(sourceDateDifference)} calendar day{Math.abs(sourceDateDifference) === 1 ? "" : "s"}</span> : null}
+        {originalBalanceDifference !== null && originalBalanceDifference !== "0.00" ? <span className={originalBalanceNeedsReview ? "unified-pair-summary__difference" : "inline-note"}>Reported balance difference: {pair.batch.currency} {originalBalanceDifference} (statement minus SMS){smallSourceBalanceDifference ? " · Small difference under BDT 1" : ""}</span> : null}
+        <span>Reported balances · Statement: {row.balance_after ?? "Not reported"} · SMS: {pair.sms.balance_after ?? "Not reported"}</span>
       </section>
       <UnifiedPairEditor pair={pair} accounts={accounts} categories={categories} draft={draft} onDraftChange={updateDraft} typeChoice={typeChoice} onTypeChoice={choice => { setTypeChoice(choice); setAckMatch(false); }} busy={busy} />
       <details className="unified-source-evidence"><summary>Compare original sources and parsed values</summary>

@@ -1329,3 +1329,37 @@ Existing `/review`, `/messages/review` and `/statements` links—including selec
 source IDs—still work. The badge specifically counts pending SMS, not the sum of
 all source types. SMS focus mode continues to cover the complete workspace and
 retain edits while entering/exiting.
+
+
+## Dashboard and review layout (web)
+
+The dashboard prioritizes compact period controls, period totals and current net
+position beside the pending SMS queue. Review cards show the amount and one
+review status. Quick Add remains in the shared header; favorite shortcuts are a
+compact section below recent activity. Current net position is the BDT ledger
+sum, separate from reported bank balances in Accounts. Date filters affect
+activity totals/charts and recent rows, while balances and review remain current.
+Recent transfers show both accounts with a neutral amount; ordinary debits and
+credits retain their signs, currency and two decimal places.
+
+The transaction add/edit and SMS forms follow type/category, accounts, amount
+and reported balance, date/time, then description/reference. Transfer accounts
+stay adjacent; SMS review shows the money path and its reporting account.
+Optional payment methods stay mounted inside details, so collapsing the section
+or entering/exiting focus mode preserves the choice. The selected method remains
+named in the summary. Existing error focus opens a disclosure containing the
+first invalid field. Balances stay bound to their reporting accounts.
+
+Selecting a statement closes the upload/history library and puts review rows
+first. Search, review state, sort and compact date controls are visible; less
+frequent row filters and bulk actions expand on demand. Source failures, warnings,
+unavailable checks and saved draft discrepancies remain summarized above the
+rows. **View checks & PDF** opens the original PDF, extraction checks, ledger
+comparison and import summary. Back to the import library clears the selected
+review, while toggling the library retains its form values. Original-file refresh,
+matching, approval guards and row pagination keep their existing semantics.
+
+Combined-source and ledger-match reviews show exact balance differences and
+calendar-day date gaps. Differences under BDT 1 are labeled small, without
+claiming that rounding caused them. Existing balance choices and acknowledgement
+rules are unchanged; neither original report is rounded or overwritten by the UI.

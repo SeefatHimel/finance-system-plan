@@ -752,7 +752,7 @@ export function QuickAddButton() {
     </button>
   );
 }
-export function QuickAddShortcuts() {
+export function QuickAddShortcuts({ compact = false }: { compact?: boolean }) {
   const quick = useQuickAdd();
   const { load } = quick;
   useEffect(() => {
@@ -762,7 +762,7 @@ export function QuickAddShortcuts() {
     .filter((p) => p.is_enabled && p.is_favorite)
     .slice(0, 6);
   return (
-    <section className="panel">
+    <section className={`panel${compact ? " quick-shortcuts--compact" : ""}`} aria-label="Quick Add shortcuts">
       <div className="panel__body">
         <div className="quick-heading">
           <h2 className="section-title">Quick Add</h2>

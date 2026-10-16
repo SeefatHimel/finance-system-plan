@@ -93,3 +93,31 @@ These align with the reference landmarks within the expected scaling difference 
 ## Final result
 
 **Passed**
+
+
+## Web review follow-up — 17 October 2026
+
+The original reference comparison above records an earlier dashboard pass. The
+current web layout intentionally prioritizes financial context and review work:
+compact dates and totals precede net position plus Needs attention; optional
+favorite shortcuts follow recent transactions. Internal transfers use a neutral
+amount and show both accounts, and review cards show exact amounts.
+
+Statement selection collapses the import library and places review rows ahead of
+source/reconciliation details. Exception counts remain visible. Secondary row
+filters and bulk actions preserve their selections while collapsed. Add/edit and
+SMS fields share a consistent order, with optional payment methods in details.
+Combined review surfaces exact balance and date differences without changing
+matching, acknowledgement or posting rules.
+
+Verification uses only the synthetic local preview at 127.0.0.1:3174, plus web
+TypeScript and regression checks. Screenshots are stored outside the repository.
+
+Verified at 1280 × 720 and 390 × 844 in the in-app browser with no relevant
+console warnings/errors or horizontal page overflow. A selected statement's first
+review row starts within the desktop viewport. The table keeps its own horizontal
+scrolling on narrow screens. Exercised statement selection/reload, collapsed
+filter retention, source-check access, both combined and ledger balance-conflict
+reviews, SMS focus/draft preservation, and manual add followed by edit. The saved
+synthetic entry reloaded its exact balance and payment method after saving with
+More details collapsed. TypeScript and all 78 web regression tests passed.

@@ -1,7 +1,7 @@
 "use client";
 
 import { StatementDetailChoices } from "@/components/statement-detail-choices";
-import { statementBalanceDifference, statementLinkBlockReason } from "@/lib/statement-review";
+import { calendarDayDifference, insignificantBdtBalanceDifference, statementBalanceDifference, statementLinkBlockReason } from "@/lib/statement-review";
 import { selectedStatementDetails, type DetailSelections } from "@/lib/statement-details";
 import { displayedStatementText } from "@/lib/statement-citytouch";
 import type { Account, Category, SavedStatement, SavedStatementRow, StatementDecision, StatementMatch } from "@/lib/api";
@@ -22,6 +22,8 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
     issuesAcknowledged, conflict: match.conflict, balanceChosen: Boolean(balanceChoice),
   });
   const difference = statementBalanceDifference(row.balance_after, match.effective_balance_after);
+  const dateDifference = calendarDayDifference(row.date, match.date);
+  const smallDifference = insignificantBdtBalanceDifference(row.balance_after, match.effective_balance_after, batch.currency);
   const other = accounts.find((account) => account.id === row.other_account)?.name ?? "Other account";
   const path = row.type === "transfer" ? (row.direction === "credit" ? `${other} → ${batch.account_name}` : `${batch.account_name} → ${other}`) : batch.account_name;
   const balanceText = (value: string | null) => value === null ? "Not reported" : `${batch.currency} ${value}`;
@@ -36,6 +38,10 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
   const hintId = `statement-match-hint-${match.id}`;
   return <article className="statement-match-card">
     <header className="statement-match-heading"><h4>{match.strength === "strong" ? "Strong match" : "Possible match"}</h4><span>{batch.currency} {match.amount}</span></header>
+    {Boolean(dateDifference) || (difference !== null && difference !== "0.00") ? <div className="source-differences" aria-label="Statement and ledger differences">
+      {dateDifference ? <p>Dates differ by {Math.abs(dateDifference)} calendar day{Math.abs(dateDifference) === 1 ? "" : "s"}.</p> : null}
+      {difference !== null && difference !== "0.00" ? <p className={smallDifference ? "inline-note" : "form-error"}>Reported balance difference: {batch.currency} {difference} (statement minus ledger).{smallDifference ? " Small difference under BDT 1; both exact reports remain saved." : " Review the balance choice below."}</p> : null}
+    </div> : null}
     <div className="statement-match-comparison">
       <section aria-label="Statement saved draft"><h5>Statement <small>Saved draft · {batch.currency} {row.amount}</small></h5><dl>{comparison.map((item) => <div key={item.label} className={item.balance && match.conflict ? "statement-balance-value--conflict" : undefined}><dt>{item.label}</dt><dd>{item.statement}</dd></div>)}</dl></section>
       <section aria-label="Existing ledger entry"><h5>Existing transaction <small>{match.source} · {batch.currency} {match.amount}</small></h5><dl>{comparison.map((item) => <div key={item.label} className={item.balance && match.conflict ? "statement-balance-value--conflict" : undefined}><dt>{item.label}</dt><dd>{item.ledger}</dd></div>)}</dl></section>
@@ -43,7 +49,7 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
     {match.conflict ? <fieldset className="statement-match-conflict" disabled={busy || dirty || !match.can_link}>
       <legend>Which reported balance should the ledger use?</legend>
       <p>Difference{difference !== null ? `: ${batch.currency} ${difference}` : " requires review"}. The original statement and prior ledger value stay in the audit history.</p>
-      {balanceChoice && balanceAutoSelected ? <p>The higher balance is selected initially for a difference under BDT 1. You can choose the other.</p> : null}
+      {balanceChoice && balanceAutoSelected ? <p>Small difference under BDT 1. The higher report is suggested; you can choose either. This does not alter either original source.</p> : null}
       {match.balance_after !== match.effective_balance_after ? <p>The matched source observation reports {balanceText(match.balance_after)}; the current ledger report is shown above.</p> : null}
       <div className="statement-balance-options">
         <label><input type="radio" name={`balance-${row.id}-${match.id}`} checked={balanceChoice?.keep === "existing"} onChange={() => onBalanceChoice("existing")} /><span>Keep existing ledger balance<strong>{balanceText(match.effective_balance_after)}</strong></span></label>

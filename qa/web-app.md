@@ -1114,3 +1114,27 @@ sidebar groups the three existing review routes under Review inbox with Matched
 sources, SMS and Statements links. Planning/Settings expand for active routes;
 old deep links, phone navigation and full SMS focus mode remain supported. The
 review badge is explicitly a pending SMS count, not a combined source count.
+
+
+### How does the web prioritize review without hiding financial conflicts?
+
+Dashboard totals and current BDT ledger position come first, with pending SMS
+amounts beside them. Internal transfers have a neutral amount and both accounts;
+reported bank balances remain separate from the ledger total. Quick Add stays
+reachable through the header, with favorite presets below recent activity.
+
+Selecting a statement collapses its upload/history library, shows the review
+rows first and moves source/reconciliation details below the table. Failure,
+warning and unavailable-check counts stay visible, and View checks & PDF opens
+the details. Secondary filters and bulk operations are disclosures; selection,
+filtering and server-side approval checks still apply.
+
+### Do compact editor sections change what is saved?
+
+No. Add/edit and SMS review use a consistent field order and keep optional
+payment-method controls mounted when collapsed. The selected method is named in
+the summary. Error focus expands the first invalid field's disclosure; focus mode
+does not remount the SMS form. Transfer paths and reporting accounts remain
+explicit, and reported balances stay with their accounts. Combined-source review
+shows the exact balance delta and calendar-day date gap, while the existing
+sub-taka acknowledgement and source-preservation rules remain unchanged.

@@ -7,6 +7,17 @@ type LinkReview = {
   balanceChosen: boolean;
 };
 
+/** Compare printed/received calendar dates without a timezone or DST shift. */
+export function calendarDayDifference(statementDate: string | null, otherDate: string | null): number | null {
+  const day = (value: string | null) => {
+    if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const date = new Date(`${value}T00:00:00Z`);
+    return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? date.getTime() : null;
+  };
+  const first = day(statementDate), second = day(otherDate);
+  return first === null || second === null ? null : (second - first) / 86400000;
+}
+
 export function statementLinkBlockReason(review: LinkReview): string | null {
   if (review.dirty) return "Save your draft to refresh matches first.";
   if (!review.canLink) return "This entry cannot be linked. Refresh the match suggestions.";

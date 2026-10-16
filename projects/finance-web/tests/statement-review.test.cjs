@@ -6,7 +6,7 @@ const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const output = mkdtempSync(join(tmpdir(), 'finance-statement-review-'));
 execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/statement-review.ts'], { cwd: resolve(__dirname, '..') });
-const { statementLinkBlockReason, statementBalanceDifference, insignificantBdtBalanceDifference, reportedBalanceNeedsAcknowledgment, suggestedBalanceSource } = require(join(output, 'statement-review.js'));
+const { calendarDayDifference, statementLinkBlockReason, statementBalanceDifference, insignificantBdtBalanceDifference, reportedBalanceNeedsAcknowledgment, suggestedBalanceSource } = require(join(output, 'statement-review.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
 const ready = { dirty: false, canLink: true, requiresAcknowledgement: false, issuesAcknowledged: false, conflict: false, balanceChosen: false };
 
@@ -54,4 +54,14 @@ test('combined review suggests the higher eligible report without rounding', () 
   assert.equal(suggestedBalanceSource(null, null), 'statement');
   assert.equal(suggestedBalanceSource('110.00', '100.00', true), 'sms');
   assert.equal(suggestedBalanceSource('110.00', null, true), '');
+});
+
+// Printed dates must stay calendar dates across browser zones and DST boundaries.
+test('source date differences are signed calendar days and reject unavailable or invalid dates', () => {
+  assert.equal(calendarDayDifference('2026-01-02', '2026-01-05'), 3);
+  assert.equal(calendarDayDifference('2026-01-05', '2026-01-02'), -3);
+  assert.equal(calendarDayDifference('2026-03-08', '2026-03-09'), 1);
+  assert.equal(calendarDayDifference('2024-02-28', '2024-03-01'), 2);
+  assert.equal(calendarDayDifference('2026-10-17', '2026-10-17'), 0);
+  for (const value of [null, '', '2026-02-30', '2026-1-02', 'not a date']) assert.equal(calendarDayDifference(value, '2026-01-05'), null);
 });
