@@ -1215,10 +1215,16 @@ export interface StatementSelected {
   action: "create" | "skip";
 }
 
+export interface StatementAccountCandidate {
+  account: string;
+  name: string;
+}
+
 export interface StatementSuggestion {
   type: TransactionType;
   category: string | null;
   other_account: string | null;
+  account_candidates?: StatementAccountCandidate[];
   counterparty_text?: string;
   reason: string;
 }

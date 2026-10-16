@@ -8330,6 +8330,22 @@
       ],
       "type": "string"
     },
+    "StatementAccountCandidate": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "account",
+        "name"
+      ],
+      "type": "object"
+    },
     "StatementAccountSuggestion": {
       "properties": {
         "account": {
@@ -9420,6 +9436,12 @@
     },
     "StatementSuggestion": {
       "properties": {
+        "account_candidates": {
+          "items": {
+            "$ref": "#/components/schemas/StatementAccountCandidate"
+          },
+          "type": "array"
+        },
         "category": {
           "format": "uuid",
           "nullable": true,

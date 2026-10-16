@@ -6098,6 +6098,17 @@ components:
       required:
       - rows
       - action
+    StatementAccountCandidate:
+      type: object
+      properties:
+        account:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+      - account
+      - name
     StatementSuggestion:
       type: object
       properties:
@@ -6111,6 +6122,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        account_candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementAccountCandidate'
         counterparty_text:
           type: string
           description: Optional verified party label from a recurring statement code.
