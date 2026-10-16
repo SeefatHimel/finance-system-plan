@@ -47,6 +47,30 @@ def manifest(schema):
     }
 
 
+def first_difference(expected, actual, path="schema"):
+    """Identify the first drift without dumping the full generated contract."""
+    if isinstance(expected, dict) and isinstance(actual, dict):
+        for key in sorted(expected.keys() | actual.keys()):
+            location = f"{path}.{key}"
+            if key not in expected:
+                return f"{location} was added"
+            if key not in actual:
+                return f"{location} was removed"
+            difference = first_difference(expected[key], actual[key], location)
+            if difference:
+                return difference
+    elif isinstance(expected, list) and isinstance(actual, list):
+        if len(expected) != len(actual):
+            return f"{path} has {len(actual)} items; snapshot has {len(expected)}"
+        for index, (old_item, new_item) in enumerate(zip(expected, actual)):
+            difference = first_difference(old_item, new_item, f"{path}[{index}]")
+            if difference:
+                return difference
+    elif expected != actual:
+        return f"{path} changed from {expected!r} to {actual!r}"
+    return None
+
+
 def main():
     generated = yaml.safe_load(Path(sys.argv[1]).read_text())
     published = yaml.safe_load((ROOT / "openapi.yaml").read_text())
@@ -61,7 +85,8 @@ def main():
     expected = json.loads(SNAPSHOT.read_text())
     if actual != expected:
         raise SystemExit(
-            "Backend API schema changed. Review the generated schema, update "
+            f"Backend API schema changed: {first_difference(expected, actual)}. "
+            "Review the generated schema, update "
             "openapi.yaml and generated types as needed, then run "
             "check_backend_schema.py <generated-schema> --update."
         )
