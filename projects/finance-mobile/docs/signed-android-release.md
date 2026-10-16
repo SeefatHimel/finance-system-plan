@@ -79,19 +79,15 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.12**, Android version code **13**. It adds bounded
-batch SMS uploads with per-item receipts, atomic local acknowledgement and
-retry-safe duplicate protection. It also includes session-scoped account caches,
-paged review and explicit restoration of redacted SMS. Native restoration changes require installing this APK; a web
-or API deployment alone cannot update the installed Android module. It retains
-0.1.10's Quick Add keyboard fixes and 0.1.9's native session bridge correction.
-Command-only session/scheduling methods now resolve without a result. It includes
-the recent transfer comparison layout, review date/time and Debit/Credit controls,
-account-labelled balance conflict choices, compact explanation icons and
-review-only short account/card suffix suggestions. It retains the SMS sync,
-Quick Add and scheduling improvements from earlier releases. The shared Add/Edit
-editor and latest-action Undo controls are web features and are not native
-controls in this APK.
+The current release is **0.1.13**, Android version code **14**. It adds searchable
+native review choices, full SMS viewing, account-bound balance corrections,
+saved-transaction editing and latest-action Edit/Undo recovery. Capture separates
+queue/correction/retry counts and shows server-reported success times; Accounts
+show dated ledger/report comparisons. Batch upload, duplicate protection and the
+existing encrypted queues retain their earlier behavior. Install this APK to
+receive these native screens. The API must already provide transaction recovery,
+source evidence, Activity and account comparison endpoints; deploy existing API
+migrations first. This mobile change adds no migration.
 
 ## 5. Build the signed APK
 
@@ -114,7 +110,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.12.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.13.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -218,7 +214,7 @@ Share diagnostics must contain no message body, sender, user or credential.
 Test slow responses, rejected records and a temporarily failing first record
 with synthetic data. A failing record must not block valid later records.
 
-Release 0.1.8 is superseded because its sign-in bridge failed. Use 0.1.12 with
+Release 0.1.8 is superseded because its sign-in bridge failed. Use 0.1.13 with
 the same signing key. Verify transfer comparison
 scrolling and fixed actions, local review date/time, direction changes retaining
 edited fields, required same-account balance choices, tap-to-open help, and
@@ -309,3 +305,48 @@ After deployment, an unauthenticated request to `/api/messages/import/batch/`
 should resolve to the protected API (normally HTTP 401), rather than route-level
 404. A successful Git push or APK installation alone does not establish that the
 backend deployment has completed.
+
+## Native workflow release 0.1.13
+
+Build only after mobile typecheck, the complete JavaScript suite and Android
+module unit tests pass. From `projects/finance-mobile` run:
+
+```bash
+npm run typecheck
+npm test
+npm run test:review
+cd android
+NODE_ENV=production ./gradlew :finance-sms-capture:testReleaseUnitTest
+NODE_ENV=production ./gradlew assembleRelease
+```
+
+Keep the existing keystore. Verify version **0.1.13/code 14**, package
+`com.personalfinance.mobile`, label **Finance**, the production HTTPS API URL,
+the bundled icon font and the signing certificate against the preceding APK.
+Copy the APK to `dist/releases/finance-mobile-0.1.13.apk`; do not commit binaries.
+No reset/uninstall is necessary for an upgrade signed with the same key.
+
+Physical-device acceptance remains required:
+
+- Open searchable account/category sheets, type, scroll without selecting, Cancel,
+  select explicitly, and try an incompatible category/type decision.
+- Open/cancel native date and time dialogs; edit amount, note and a zero reported
+  balance while data refreshes. Verify the keyboard remains open while typing.
+- Read a long full SMS; verify redacted text remains unavailable. Load SMS/PDF
+  evidence from Activity Edit, correct a note, and confirm a linked core correction.
+- Reverse a transfer with both balances: each report stays with its named account.
+  Change account/type; verify an old report cannot be silently moved to another.
+- Save/approve, use Edit or Undo, dismiss the notice, then find the latest action in
+  More. Try repeated taps, a newer web edit, expiry, disconnect after Undo and an
+  app restart. Offline queueing alone must not claim an online ledger save.
+- Watch a large batch sync, network interruption and held rejection: accepted,
+  waiting, delayed and correction counts must remain distinct. Unknown queue state
+  must not show Ready. Compare last-success server/device-status timestamps.
+- Compare Accounts' dated report and ledger-at-report difference; credit cards
+  must not offer a cash-mismatch correction. Open the indicated account's balance
+  check and quickly switch accounts to detect stale results.
+- Check small width, enlarged text, TalkBack, Android Back, nested modal dismissal,
+  phone restart/sign-in and logout/account switching with unsent work.
+
+Automated React Native host tests verify state, requests and ownership guards;
+they do not validate Android window layout, physical keyboard or TalkBack behavior.

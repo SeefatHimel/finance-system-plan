@@ -562,7 +562,8 @@ mobile typecheck and `test:sms-sync` before signed assembly. Phone-specific
 root-cause evidence comes from Show sync diagnostics in Capture; its operational
 metadata can be shared without SMS bodies or credentials.
 
-Mobile release 0.1.12 uses Android code 13 and adds batch SMS sync. Deploy the
+Mobile release 0.1.13 uses Android code 14 and adds native review editing,
+latest-action recovery and clearer sync/account summaries. It retains batch SMS sync. Deploy the
 API with `/api/messages/import/batch/` for batches of up to 25; older servers
 remain usable through single-upload fallback. It includes session-scoped caches,
 paged review and explicit restoration of redacted SMS. It retains the
@@ -571,13 +572,13 @@ From `projects/finance-mobile`, run `npm run typecheck` and
 `node --test tests/*.test.cjs`, then from `android` run
 `NODE_ENV=production ./gradlew :finance-sms-capture:testReleaseUnitTest assembleRelease`.
 Keep the existing private signing key and upgrade in place to retain local SMS.
-The versioned output is `projects/finance-mobile/dist/releases/finance-mobile-0.1.12.apk`;
+The versioned output is `projects/finance-mobile/dist/releases/finance-mobile-0.1.13.apk`;
 release binaries remain ignored. Native tests, assembly and signature were
 verified; physical-device keyboard, sign-in and SMS checks remain separate.
 
 ### Transaction recovery migration
 
-Before running web clients with Edit/Undo, run `python manage.py migrate` from
+Before running web or mobile clients with Edit/Undo, run `python manage.py migrate` from
 `projects/finance-api` using the configured environment. This applies
 `transactions.0007_transaction_action_recovery`; no production data backfill or
 SMS/PDF re-import is required.
@@ -624,3 +625,19 @@ mobile `node --test tests/native-fields.test.cjs tests/quick-add-focus.test.cjs`
 See [interface conventions](interface-conventions.md) for browser/device checks.
 No migrations or new environment variables are required. Mobile branding and
 controls are included only after distributing a rebuilt APK.
+
+### Native review and recovery checks
+
+From `projects/finance-mobile`, run `npm run typecheck` and `npm test` for all
+mobile JavaScript regressions; `npm run test:review` targets native editor,
+selection, balance, recovery and sync-status interaction tests. Then run the
+Android unit/assembly commands above with JDK 17 and the existing external
+signing configuration. The 0.1.13 APK consumes existing transaction PATCH,
+source-messages, statement-evidence, recent-action and undo endpoints. There is no
+new database migration in this mobile pass. Recovery reads refresh on foreground
+and after accepted saves; status reads refresh after upload completion, rather
+than issuing a server request for every individual SMS.
+
+Review the physical-device checklist in the signed-release guide before calling
+keyboard, layout, TalkBack or real background SMS behavior verified. Install over
+the existing app to retain encrypted pending work.
