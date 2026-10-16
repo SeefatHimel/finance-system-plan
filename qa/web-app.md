@@ -1092,7 +1092,7 @@ again, while existing draft edits stay.
 
 ### How does the web app review bKash card-funded statement credits?
 
-For a bKash `Card to bKash` credit, the statement row form shows a transfer
+For a bKash `Card to bKash` or `Bank to bKash` credit, the statement row form shows a transfer
 explanation beside Type and possible City/EBL funding accounts beside Other
 owned account. The bank label does not select a specific account. Choosing a
 suggestion changes only the draft and resets the reviewed-type confirmation;

@@ -220,7 +220,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
   return <div className="workspace-grid statement-preview">
     <section className="panel"><div className="panel__body">
       <h2 className="section-title">Import a statement PDF</h2><p className="section-subtitle">Upload an EBL bank, City Bank savings, or bKash digital statement, then review matches and approve new movements.</p>
-      <p><Link href="/statement-counterparties">Identify recurring Citytouch counterparty codes</Link></p>
+      <p><Link href="/statement-counterparties">Identify recurring statement codes</Link></p>
       <p className="inline-note">Uploads save a draft and an encrypted copy of the original PDF, without adding transactions. Passwords are never stored.</p>
       {setupError ? <p role="alert" className="form-error">{setupError}</p> : null}
       <form className="form-grid" onSubmit={upload}>
