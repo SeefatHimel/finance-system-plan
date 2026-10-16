@@ -165,6 +165,40 @@ class RawMessageImportSerializer(serializers.Serializer):
     restore_redacted = serializers.BooleanField(required=False, default=False)
 
 
+class RawMessageBatchItemSerializer(RawMessageImportSerializer):
+    client_id = serializers.CharField(max_length=120, trim_whitespace=False)
+    body = serializers.CharField(max_length=16000)
+
+
+class RawMessageBatchImportSerializer(serializers.Serializer):
+    # Validate correlation before any writes, then validate individual payloads independently.
+    messages = serializers.ListField(child=serializers.DictField(), min_length=1, max_length=25)
+
+    def validate_messages(self, messages):
+        ids = [item.get("client_id") for item in messages]
+        if any(not isinstance(value, str) or not value.strip() or len(value) > 120 for value in ids):
+            raise serializers.ValidationError("Each message requires a nonempty client_id of at most 120 characters.")
+        if len(set(ids)) != len(ids):
+            raise serializers.ValidationError("client_id must be unique within the batch.")
+        return messages
+
+
+class RawMessageBatchResultSerializer(serializers.Serializer):
+    client_id = serializers.CharField()
+    status = serializers.IntegerField()
+    message_id = serializers.UUIDField(required=False)
+    candidate_id = serializers.UUIDField(required=False, allow_null=True)
+    is_duplicate = serializers.BooleanField(required=False)
+    was_reprocessed = serializers.BooleanField(required=False)
+    was_restored = serializers.BooleanField(required=False)
+    exclusion_reason = serializers.CharField(required=False, allow_blank=True)
+    errors = serializers.JSONField(required=False)
+
+
+class RawMessageBatchResponseSerializer(serializers.Serializer):
+    results = RawMessageBatchResultSerializer(many=True)
+
+
 class IdentityChoiceSerializer(serializers.Serializer):
     account = serializers.UUIDField()
     name = serializers.CharField()

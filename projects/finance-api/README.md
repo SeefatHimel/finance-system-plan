@@ -1,5 +1,33 @@
 # finance-api
 
+## Batch SMS import
+
+`POST /api/messages/import/batch/` accepts `{"messages": [...]}` with 1–25
+items. Each item uses the single-import fields plus a nonempty `client_id`
+(maximum 120 characters), unique within the envelope. SMS bodies are limited to
+16,000 characters per batch item. Invalid envelopes return 400 before writes;
+invalid items return individual 400 results while valid siblings proceed.
+
+HTTP 200 contains `results`, each correlated by `client_id`: `status` is 201 for
+a new message, 200 for a duplicate, 400 for an invalid/untrusted item, or 500 for
+an import failure that can be retried. Successful results include `message_id`,
+nullable `candidate_id`, duplicate/reprocessing/restoration flags and the
+exclusion reason. They omit original bodies and expensive review suggestions.
+Each item commits independently; one failed item does not roll back other items.
+
+Both import endpoints share the existing body-hash/device-ID duplicate lookup,
+capture rules and redaction-restoration policy. A user-row writer lock serializes
+concurrent imports for the same user, including device-ID retries with changed
+text. Importing/replaying SMS creates review candidates, not ledger transactions.
+Batch requests reuse trusted sender rules and capture preferences for that request
+only. Responses are `no-store`; exception text and SMS content are not exposed
+in error receipts. There is no database migration for batch sync.
+
+Deploy this API before installing mobile 0.1.12 to enable batching. Older apps
+continue using the unchanged single-message endpoint. Run
+`python manage.py test apps.messages` and run the PostgreSQL concurrency tests
+before releasing; SQLite cannot verify row-lock serialization.
+
 Django backend and source of truth for the finance system.
 
 ## Original-source retention and recovery

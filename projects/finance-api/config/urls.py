@@ -17,6 +17,7 @@ from apps.messages.views import (
     MessageCandidateReprocessView,
     MessageReviewDetailView,
     MessageReviewListView,
+    RawMessageBatchImportView,
     RawMessageImportView,
     RawMessageRedactView,
     SenderRuleViewSet,
@@ -69,6 +70,7 @@ urlpatterns = [
     path("api/statements/preview/", StatementPreviewView.as_view(), name="statement-preview"),
     path("api/statements/identify/", StatementIdentifyView.as_view(), name="statement-identify"),
     path("api/messages/import/", RawMessageImportView.as_view(), name="raw-message-import"),
+    path("api/messages/import/batch/", RawMessageBatchImportView.as_view(), name="raw-message-batch-import"),
     path(
         "api/messages/capture-preferences/",
         SmsCapturePreferenceView.as_view(),

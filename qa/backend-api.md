@@ -1013,3 +1013,13 @@ generic description learning for these rows so unrelated recipients cannot
 inherit the same classification. Suggestions do not mutate drafts, posted
 transactions or source evidence. Migration `statements.0004_statementcounterpartycode`
 stores the user-scoped mapping.
+## How does batch SMS import avoid partial-failure and duplicate problems?
+
+The batch endpoint accepts at most 25 messages and returns an individual result
+for each client correlation ID. Each item has its own atomic transaction; a bad
+item cannot undo successful siblings. Both single and batch import share parsing,
+capture policy, redaction rules and existing duplicate keys. A per-user writer
+lock also serializes concurrent device-ID checks. Retry after a lost response
+returns the already-saved candidate instead of posting another ledger entry.
+Compact receipts omit original SMS bodies and identity-suggestion serialization;
+sender rules and capture preferences are loaded once per batch request.

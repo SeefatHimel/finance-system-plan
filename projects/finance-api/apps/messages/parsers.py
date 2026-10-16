@@ -56,12 +56,11 @@ def has_numeric_content(body: str) -> bool:
     return _NUMERIC_CONTENT_PATTERN.search(body) is not None
 
 
-def find_sender_rule(*, user, sender: str):
-    rules = SenderRule.objects.filter(user=user, is_active=True).select_related(
-        "account",
-        "payment_method",
-        "category",
-    )
+def find_sender_rule(*, user, sender: str, rules=None):
+    if rules is None:
+        rules = SenderRule.objects.filter(user=user, is_active=True).select_related(
+            "account", "payment_method", "category",
+        )
 
     for rule in rules:
         if _matches_rule(rule=rule, sender=sender):
@@ -69,8 +68,8 @@ def find_sender_rule(*, user, sender: str):
     return None
 
 
-def parse_raw_message(raw_message):
-    sender_rule = find_sender_rule(user=raw_message.user, sender=raw_message.sender)
+def parse_raw_message(raw_message, *, sender_rule=None):
+    sender_rule = sender_rule or find_sender_rule(user=raw_message.user, sender=raw_message.sender)
     provider = _detect_provider(sender_rule=sender_rule, sender=raw_message.sender)
     excluded_kind = classify_message_kind_for_capture(raw_message.body)
 

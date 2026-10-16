@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 from django.conf import settings
@@ -44,6 +45,9 @@ from .serializers import (
     MessageCandidateRejectSerializer,
     ParsedMessageCandidateSerializer,
     ParsedMessageConfirmSerializer,
+    RawMessageBatchImportSerializer,
+    RawMessageBatchItemSerializer,
+    RawMessageBatchResponseSerializer,
     RawMessageImportSerializer,
     RawMessageSerializer,
     SenderRuleSerializer,
@@ -133,151 +137,76 @@ class RawMessageImportView(APIView):
     def post(self, request):
         serializer = RawMessageImportSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        payload = serializer.validated_data
-        sender_rule = find_sender_rule(user=request.user, sender=payload["sender"])
-        if sender_rule is None:
-            return Response(
-                {"sender": "No active trusted sender rule matches this message."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        body_hash = RawMessage.build_body_hash(
-            sender=payload["sender"],
-            body=payload["body"],
-            received_at=payload["received_at"],
-        )
+        return self._import_message(request.user, serializer.validated_data)
 
-        duplicate = self._find_duplicate(
-            user=request.user,
-            body_hash=body_hash,
-            device_message_id=payload.get("device_message_id", ""),
-        )
+    @transaction.atomic
+    def _import_message(self, user, payload, *, compact=False, context=None):
+        # Share the review/transfer writer lock, including retries with a reused device ID.
+        lock_transfer_user(user)
+        sender_rule = find_sender_rule(user=user, sender=payload["sender"],
+                                       rules=context["rules"] if context else None)
+        if sender_rule is None:
+            return Response({"sender": "No active trusted sender rule matches this message."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        body_hash = RawMessage.build_body_hash(sender=payload["sender"], body=payload["body"],
+                                               received_at=payload["received_at"])
+        duplicate = self._find_duplicate(user=user, body_hash=body_hash,
+                                         device_message_id=payload.get("device_message_id", ""))
         if duplicate:
             candidate = getattr(duplicate, "candidate", None)
-            was_restored = self._restore_original(duplicate, candidate, payload, body_hash)
-            was_reprocessed = self._reprocess_candidate(candidate) if payload["reprocess_existing"] else False
-            return Response(
-                {
-                    "candidate": (
-                        ParsedMessageCandidateSerializer(candidate).data
-                        if candidate
-                        else None
-                    ),
-                    "is_duplicate": True,
-                    "was_reprocessed": was_reprocessed,
-                    "was_restored": was_restored,
-                    "message": RawMessageSerializer(duplicate).data,
-                },
-                status=status.HTTP_200_OK,
-            )
+            restored = self._restore_original(duplicate, candidate, payload, body_hash, context=context)
+            reprocessed = self._reprocess_candidate(candidate, sender_rule=sender_rule, context=context) if payload["reprocess_existing"] else False
+            return self._import_result(duplicate, candidate, duplicate=True, reprocessed=reprocessed,
+                                       restored=restored, compact=compact)
 
-        transient_message = RawMessage(
-            user=request.user,
-            sender=payload["sender"],
-            body=payload["body"],
-            received_at=payload["received_at"],
-        )
-        parsed = parse_raw_message(transient_message)
-        preference = SmsCapturePreference.objects.filter(user=request.user).first()
+        transient = RawMessage(user=user, sender=payload["sender"], body=payload["body"],
+                               received_at=payload["received_at"])
+        parsed = parse_raw_message(transient, sender_rule=sender_rule)
+        preference = context["preference"] if context else SmsCapturePreference.objects.filter(user=user).first()
         excluded_providers = set(preference.excluded_providers if preference else [])
-        excluded_message_kinds = set(
-            preference.excluded_message_kinds
-            if preference
-            else default_excluded_message_kinds()
-        )
-        exclusion_reason = ""
-        if parsed["provider"] in excluded_providers:
-            exclusion_reason = "provider_excluded"
-        elif parsed["message_kind"] in excluded_message_kinds:
-            exclusion_reason = "message_kind_excluded"
-        elif not has_numeric_content(payload["body"]):
-            exclusion_reason = "no_numeric_content"
-
-        if exclusion_reason:
-            try:
-                with transaction.atomic():
-                    raw_message = RawMessage.objects.create(
-                        user=request.user,
-                        sender=payload["sender"],
-                        body="[excluded before storage]",
-                        received_at=payload["received_at"],
-                        device_message_id=payload.get("device_message_id", ""),
-                        body_hash=body_hash,
-                        provider=parsed["provider"],
-                        message_kind=parsed["message_kind"],
-                        exclusion_reason=exclusion_reason,
-                        status=RawMessage.Status.IGNORED,
-                    )
-            except IntegrityError:
-                raw_message = self._find_duplicate(
-                    user=request.user,
-                    body_hash=body_hash,
-                    device_message_id=payload.get("device_message_id", ""),
-                )
-                return Response(
-                    {
-                        "candidate": None,
-                        "is_duplicate": True,
-                        "was_reprocessed": False,
-                        "message": RawMessageSerializer(raw_message).data,
-                    },
-                    status=status.HTTP_200_OK,
-                )
-            return Response(
-                {
-                    "candidate": None,
-                    "is_duplicate": False,
-                    "was_reprocessed": False,
-                    "message": RawMessageSerializer(raw_message).data,
-                },
-                status=status.HTTP_201_CREATED,
-            )
-
+        excluded_kinds = set(preference.excluded_message_kinds if preference else default_excluded_message_kinds())
+        exclusion_reason = ("provider_excluded" if parsed["provider"] in excluded_providers else
+                            "message_kind_excluded" if parsed["message_kind"] in excluded_kinds else
+                            "no_numeric_content" if not has_numeric_content(payload["body"]) else "")
         try:
             with transaction.atomic():
                 raw_message = RawMessage.objects.create(
-                    user=request.user,
-                    sender=payload["sender"],
-                    body=payload["body"],
-                    received_at=payload["received_at"],
-                    device_message_id=payload.get("device_message_id", ""),
-                    body_hash=body_hash,
-                    provider=parsed["provider"],
-                    message_kind=parsed["message_kind"],
+                    user=user, sender=payload["sender"],
+                    body="[excluded before storage]" if exclusion_reason else payload["body"],
+                    received_at=payload["received_at"], device_message_id=payload.get("device_message_id", ""),
+                    body_hash=body_hash, provider=parsed["provider"], message_kind=parsed["message_kind"],
+                    exclusion_reason=exclusion_reason,
+                    status=RawMessage.Status.IGNORED if exclusion_reason else RawMessage.Status.IMPORTED,
                 )
-                candidate = self._create_candidate(raw_message, parsed=parsed)
-                self._link_possible_related_candidate(candidate)
+                candidate = None if exclusion_reason else self._create_candidate(raw_message, parsed=parsed)
+                if candidate:
+                    self._link_possible_related_candidate(candidate)
         except IntegrityError:
-            raw_message = RawMessage.objects.get(user=request.user, body_hash=body_hash)
+            # Body-hash uniqueness remains the final guard against a racing retry.
+            raw_message = self._find_duplicate(user=user, body_hash=body_hash,
+                                               device_message_id=payload.get("device_message_id", ""))
+            if raw_message is None:
+                raise
             candidate = getattr(raw_message, "candidate", None)
-            was_restored = self._restore_original(raw_message, candidate, payload, body_hash)
-            was_reprocessed = self._reprocess_candidate(candidate) if payload["reprocess_existing"] else False
-            return Response(
-                {
-                    "candidate": (
-                        ParsedMessageCandidateSerializer(candidate).data
-                        if candidate
-                        else None
-                    ),
-                    "is_duplicate": True,
-                    "was_reprocessed": was_reprocessed,
-                    "was_restored": was_restored,
-                    "message": RawMessageSerializer(raw_message).data,
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        return Response(
-            {
-                "candidate": ParsedMessageCandidateSerializer(candidate).data,
-                "is_duplicate": False,
-                "was_reprocessed": False,
-                "message": RawMessageSerializer(raw_message).data,
-            },
-            status=status.HTTP_201_CREATED,
-        )
+            restored = self._restore_original(raw_message, candidate, payload, body_hash, context=context)
+            reprocessed = self._reprocess_candidate(candidate, sender_rule=sender_rule, context=context) if payload["reprocess_existing"] else False
+            return self._import_result(raw_message, candidate, duplicate=True, reprocessed=reprocessed,
+                                       restored=restored, compact=compact)
+        return self._import_result(raw_message, candidate, compact=compact)
 
     @staticmethod
-    def _restore_original(message, candidate, payload, body_hash):
+    def _import_result(message, candidate, *, duplicate=False, reprocessed=False, restored=False, compact=False):
+        flags = {"is_duplicate": duplicate, "was_reprocessed": reprocessed, "was_restored": restored}
+        if compact:
+            data = {**flags, "message_id": str(message.pk), "candidate_id": str(candidate.pk) if candidate else None,
+                    "exclusion_reason": message.exclusion_reason}
+        else:
+            data = {**flags, "candidate": ParsedMessageCandidateSerializer(candidate).data if candidate else None,
+                    "message": RawMessageSerializer(message).data}
+        return Response(data, status=status.HTTP_200_OK if duplicate else status.HTTP_201_CREATED)
+
+    @staticmethod
+    def _restore_original(message, candidate, payload, body_hash, *, context=None):
         # An explicit history rescan can restore the exact same transaction SMS.
         # Existing finite retention choices remain in force until changed by the user.
         if (
@@ -292,7 +221,7 @@ class RawMessageImportView(APIView):
             return False
         if message.redaction_reason != RawMessage.RedactionReason.RETENTION and not payload["restore_redacted"]:
             return False
-        preference = SmsCapturePreference.objects.filter(user=message.user).first()
+        preference = context["preference"] if context else SmsCapturePreference.objects.filter(user=message.user).first()
         if preference and preference.raw_sms_retention_days is not None:
             return False
         message.body = payload["body"]
@@ -342,7 +271,7 @@ class RawMessageImportView(APIView):
         )
 
     @transaction.atomic
-    def _reprocess_candidate(self, candidate):
+    def _reprocess_candidate(self, candidate, *, sender_rule=None, context=None):
         if candidate is None:
             return False
         # Confirmation uses the same user lock: skip decisions must never
@@ -351,7 +280,7 @@ class RawMessageImportView(APIView):
         candidate.refresh_from_db()
         if candidate.status != ParsedMessageCandidate.Status.NEEDS_REVIEW:
             return False
-        preference = SmsCapturePreference.objects.filter(user=candidate.user).first()
+        preference = context["preference"] if context else SmsCapturePreference.objects.filter(user=candidate.user).first()
         excluded_kinds = preference.excluded_message_kinds if preference else default_excluded_message_kinds()
         if candidate.raw_message.status == RawMessage.Status.REDACTED:
             if candidate.message_kind in excluded_kinds:
@@ -362,7 +291,7 @@ class RawMessageImportView(APIView):
             self._discard_candidate(candidate)
             return True
 
-        parsed = parse_raw_message(candidate.raw_message)
+        parsed = parse_raw_message(candidate.raw_message, sender_rule=sender_rule)
         if parsed["message_kind"] in excluded_kinds:
             self._discard_candidate(candidate, exclusion_reason="message_kind_excluded", message_kind=parsed["message_kind"])
             return True
@@ -517,6 +446,46 @@ class RawMessageImportView(APIView):
                     "updated_at",
                 )
             )
+
+
+@extend_schema(request=RawMessageBatchImportSerializer, responses={200: RawMessageBatchResponseSerializer})
+class RawMessageBatchImportView(RawMessageImportView):
+    """Commit each item independently; retries keep the single-import deduplication keys."""
+
+    def post(self, request):
+        envelope = RawMessageBatchImportSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+        context = {
+            "rules": list(SenderRule.objects.filter(user=request.user, is_active=True)
+                          .select_related("account", "payment_method", "category")),
+            "preference": SmsCapturePreference.objects.filter(user=request.user).first(),
+        }
+        results = []
+        for item in envelope.validated_data["messages"]:
+            serializer = RawMessageBatchItemSerializer(data=item)
+            if not serializer.is_valid():
+                results.append({"client_id": item["client_id"], "status": 400,
+                                "errors": serializer.errors})
+                continue
+            try:
+                with transaction.atomic():
+                    response = self._import_message(request.user, serializer.validated_data,
+                                                    compact=True, context=context)
+                result = {"client_id": item["client_id"], "status": response.status_code}
+                if response.status_code < 300:
+                    result.update(response.data)
+                else:
+                    result["errors"] = response.data
+                results.append(result)
+            except ValidationError as error:
+                detail = error.detail if isinstance(error.detail, dict) else {"detail": error.detail}
+                results.append({"client_id": item["client_id"], "status": 400, "errors": detail})
+            except Exception as error:  # noqa: BLE001 - Isolate items without logging private SQL/SMS values.
+                # Never expose exception strings/SQL/SMS bodies in sync acknowledgements.
+                logging.getLogger(__name__).error("SMS batch item failed (%s)", type(error).__name__)
+                results.append({"client_id": item["client_id"], "status": 500,
+                                "errors": {"detail": "Message could not be imported. Retry this item."}})
+        return Response({"results": results}, headers={"Cache-Control": "no-store"})
 
 
 @extend_schema(responses=OpenApiTypes.OBJECT)
