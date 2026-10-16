@@ -378,8 +378,8 @@ The API retains observations as provenance so the original messages remain
 available. Activity shows per-account evidence balances/references only while
 `type=transfer`, preventing historical transfer balances from appearing on a
 corrected expense or other type. The ordinary ledger amount and account use the
-corrected transaction. Full ledger corrections currently happen in the web
-editor; this change does not add a native editor.
+corrected transaction. Release 0.1.13 also provides native saved-entry editing
+with the same account-bound reported-balance rules.
 
 Transfer evidence caches preserve the API’s read-only `is_primary` flag. Older
 caches lacking the field normalize it to false; cache loading never guesses which
@@ -557,8 +557,9 @@ in 0.1.8 (code 9), which is superseded because sign-in failed. These include
 transfer comparison and review time/direction changes,
 account-labelled balance conflicts, native help dialogs and explicit short-suffix
 account/card suggestions. It keeps the existing signing identity for upgrades.
-Web Add/Edit and Undo remain web workflows; Android device smoke tests cover the
-native interactions separately. Version metadata and SMS diagnostics stay aligned.
+In that release, Add/Edit and Undo remained web workflows. Native saved-entry
+Edit and latest-action recovery arrive in 0.1.13; Android device smoke tests cover
+the native interactions separately. Version metadata and SMS diagnostics stay aligned.
 
 ### Why did a compiled release fail during native session initialization?
 
@@ -614,7 +615,7 @@ uses a bounded preview plus the exact API count. The timeline is a FlatList
 outside the outer ScrollView. Filter changes abort old work; generation checks
 reject late responses, duplicate IDs are merged, and failed appends preserve
 loaded rows. Cached previews are labeled incomplete, and user/backend scope
-changes clear local selection/filter state. Details are read-only and preserve
+changes clear local selection/filter state. Details support the native editor in 0.1.13 and preserve
 the timeline position. Date filters use transaction date; added/updated grouping
 uses Asia/Dhaka. The API must be deployed before installing the updated APK.
 
@@ -637,9 +638,52 @@ disclosure so collapsing it cannot erase drafts. Selected review radios announce
 checked state and show a check; Quick Add distinguishes selections from Save.
 Local SMS date and time resolve together instead of mixing UTC dates with local
 times. Picker open/cancel does not alter values; exact text entry remains.
-Native balance editing and deeper editor parity remain future work. Physical
-device checks are still needed for keyboard, TalkBack and picker appearance.
+Release 0.1.13 adds native reported-balance corrections and saved-entry editing
+with the account ownership rules below. Physical-device checks are still needed
+for keyboard, TalkBack and picker appearance.
 
 Changing a known reporting account during SMS review now omits the original
 account’s parsed balance and shows a visible warning; zero balances remain valid.
 Type/direction corrections alone do not clear that account’s balance.
+
+### How do native review and saved-entry editing avoid losing corrections?
+
+Stable field components retain typing through lookup/token refreshes. Searchable
+selection sheets commit only an explicit choice, and incompatible categories ask
+for the intended type before changing it. SMS review can correct its labelled
+reported balance; changing reporting account visibly clears the old value.
+Saved-entry editing loads by UUID and patches only changed fields, with separate
+account-bound transfer balances and a collapsed second report. Source evidence
+loads independently. Linked core corrections need acknowledgement after sources
+load. A preflight updated timestamp check catches already changed entries and
+keeps the draft, but is not an atomic concurrency lock. Full selectable SMS obeys
+redaction/retention; original identifiers and provenance are preserved.
+
+### Can a mobile user recover an accidental confirmation or save?
+
+Yes. Online acceptance refreshes a 15-second Edit/Undo notice, and More retains
+the latest action. The existing server permits Undo only for the latest unchanged
+action within 24 hours; removed SMS text cannot be restored by Undo. The client
+rechecks eligibility, rejects double taps and reconciles an uncertain response
+with GET instead of blindly retrying POST. A locally queued entry is not called
+saved to the ledger. Recovery survives foregrounding and is scoped to user/backend;
+stale responses and old-owner callbacks cannot act on another user's session.
+There is no arbitrary action-history undo. Deploy the existing recovery API;
+no additional migration is introduced by this native pass.
+
+### What do the new mobile sync and account summaries actually prove?
+
+Capture distinguishes accepted acknowledgements this run, waiting, delayed and
+correction counts. Delayed native metadata excludes rejected records. Unknown or
+unreadable queue state cannot claim Ready. Retry guidance says whether Android
+has scheduled work; timestamps are server-reported and may include this user's
+other devices. Accepted SMS still need ledger review. A successful health check
+means connection to the server, not complete processing.
+
+Accounts compare the dated report against the ledger at that report, rather than
+today's ledger. Credit-card reports are references rather than cash comparisons;
+cached snapshots are labelled. Mismatches link directly to the existing balance
+check. Automated checks cover classification decisions, balance ownership, full
+SMS retention, stale edits/owners, repeated taps and lost Undo responses. Physical
+phone layout, keyboard, TalkBack and end-to-end SMS acceptance remain separate
+release smoke checks.

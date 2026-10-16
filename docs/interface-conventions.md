@@ -9,11 +9,12 @@ when a new APK is installed.
 The web transaction editor and SMS review use Type/Category, account selection,
 Amount/Reported balance, Date/Time, then merchant, reference and note. Native SMS
 review now follows that sequence for the fields it supports: Type/Category,
-reporting account and optional other transfer account, Amount, Date/Time, then
-merchant, reference and note. It keeps the existing parser balance on its reporting account; selecting another
-known reporting account omits that balance and displays a warning. An initially
-unassigned parser balance binds to the first account choice, matching web behavior;
-this pass does not add native balance editing or full web-editor parity.
+reporting account and optional other transfer account, Amount/Reported balance,
+Date/Time, then merchant, reference and note. Native review and the saved-entry
+editor accept account-labelled balance corrections. Changing a known reporting
+account clears its old balance with a warning. Transfer edits retain separate
+account-bound balances through reversal; the second balance is collapsed. An
+initially unassigned parser balance binds to the first account choice.
 
 A reporting account is the account described by the SMS. For a credit transfer,
 “Other transfer account · From” identifies the sender; for a debit it says “To.”
@@ -62,7 +63,9 @@ comparison helpers. It is not an HTTP contract or ledger calculation layer.
   currency conversion or change matching and balance calculations.
 
 Saved filter views and an overview privacy toggle are deferred by product choice.
-There are no API, database or migration changes in this pass.
+Native Edit/Undo use existing authenticated transaction and recovery endpoints;
+account summaries use the existing dated comparison fields. No new API schema or
+database migration is added.
 
 ## Verification
 
@@ -80,3 +83,24 @@ Export an Android JS bundle as a packaging check; native keyboard, screen-reader
 announcements, system picker appearance and installed app name still need a
 physical-device test with a new APK. Never use real SMS or account data in committed
 fixtures or screenshots.
+
+## Native recovery and status
+
+Native account/category/payment-method choices use searchable sheets with
+explicit selection and Cancel. Incompatible classification choices require a
+visible decision. Full SMS uses a separate selectable, read-only view respecting
+retention; original statement/SMS evidence stays separate from editable notes.
+Review actions and their errors remain pinned below the scrollable fields.
+
+A 15-second recovery notification offers Edit and Undo after server acceptance;
+More retains the latest action and Refresh. Undo follows the backend's 24-hour,
+latest-unchanged-action rules, rechecks availability and reads after an uncertain
+response instead of blindly repeating the mutation. Ordinary offline queueing
+is not presented as a posted ledger entry.
+
+Native Capture distinguishes last-run acknowledgements, queued work, temporary
+delays and records needing correction. Unknown counts are unavailable, not zero.
+Server health and upload/review completion are separate states. Account reports
+are compared with the ledger at the report time; credit-card references are not
+cash mismatches. Run mobile `npm test` and native unit checks, then verify the
+signed APK on a physical phone for large text, nested sheets, keyboard and Back.

@@ -647,7 +647,8 @@ The virtualized timeline has pull-to-refresh, retry and explicit Load more.
 Duplicate page IDs are deduplicated; failed appends retain the loaded rows;
 filter changes and unmount abort in-flight work and ignore late responses.
 Opening/closing transaction details retains filters and the timeline position.
-Details are read-only; existing web editing remains available on the web app.
+Details offer Edit transaction, which fetches the current saved entry by ID in a
+full-screen native editor without resetting Activity filters.
 Transfers show both account names, and an account-filtered view uses that
 account's debit/credit perspective. Details preserve reported balances by account.
 
@@ -690,8 +691,66 @@ exact cents; missing candidate amounts are no longer displayed as zero.
 Run `node --test tests/native-fields.test.cjs` for picker/draft regressions and
 `node --test tests/*.test.cjs` for all mobile checks. A JS bundle export does not
 replace testing picker appearance, TalkBack and the keyboard on the device. This
-pass does not add native balance editing, saved views or an amount privacy toggle.
+shared pass left native balance editing for the mobile pass below. Saved views
+and an amount privacy toggle remain deferred.
 
 Changing a known reporting account during SMS review now omits the original
 account’s parsed balance and shows a visible warning; zero balances remain valid.
 Type/direction corrections alone do not clear that account’s balance.
+
+## Native review, editing and recovery (0.1.13)
+
+SMS review now uses searchable account, category and payment-method sheets.
+Selections are explicit; Cancel preserves the previous choice. An incompatible
+category/type change asks for the intended type before updating classification.
+Amount, date/time, reference, merchant and note remain editable. The reported
+balance is labelled with its reporting account, accepts zero and negative
+balances, and clears with a warning when that reporting account changes. Other
+transfer accounts appear only for transfers. A pinned action bar keeps validation
+and server errors next to Reject and Confirm & add.
+
+**View full SMS** opens selectable original text and its sender/received time;
+redacted or missing text shows its retention state instead. The native editor
+loads SMS and statement evidence independently of the saved transaction, so a
+slow evidence request does not reset or block an ordinary note correction.
+Transfer balances are stored by account; reversal never swaps their ownership.
+The second balance is optional and collapsed. Type/account/amount corrections to
+linked entries require explicit acknowledgement after sources load successfully.
+Edits patch only changed fields; a fresh timestamp check detects already changed
+entries before saving. This check is not an atomic edit lock. A conflict keeps the
+draft and offers explicit discard/reload. JWT refresh and lookup refresh do not
+remount fields or replace unsaved text. Original provenance/identifiers remain
+attached to the saved record.
+
+Successful online Quick Add uploads, manual saves, SMS approvals, transfer links
+and edits expose **Edit** and **Undo** in a short notification. More also keeps a
+persistent latest-action card with Refresh. Offline queueing alone does not
+claim a ledger save. Undo uses the existing API's latest unchanged action and
+24-hour window; it cannot restore SMS already removed by retention. The client
+rechecks eligibility, blocks repeated taps and reconciles a lost Undo response
+with a read, never a blind repeated mutation. It is a latest-action control,
+not a multi-action history. Recovery and edit requests are scoped to the signed-in
+user/backend; stale responses cannot replace another user's screen.
+
+Capture separates accepted-this-run, waiting, delayed and correction counts,
+shows the last successful sync reported by the server and names automatic versus
+manual retries. Server timestamps may include this user's other devices. Missing
+or unreadable queue state never claims Ready. Delayed native counts exclude
+held/rejected records. A reachable health endpoint confirms the server connection,
+not completion of SMS upload or ledger approval.
+
+Accounts show the ledger balance and the dated provider report separately.
+Mismatch compares against the ledger **at the report**, with a direct balance
+review action. Credit-card reports remain references, not cash-balance mismatches.
+Cached account snapshots are labelled. Search choices, actions and new fields
+have visible text, accessibility states and at least 48-point touch targets;
+compact recovery actions wrap on narrow screens.
+
+Run `npm run typecheck`, `npm test`, `npm run test:review` (focused interactions)
+and the native unit tests before assembly. See the
+[signed release guide](docs/signed-android-release.md) for 0.1.13/code 14 and the
+phone acceptance checklist. These are native state/interaction tests, not proof
+of physical keyboard, TalkBack or visual layout behavior. No new database
+migration is added; the existing transaction Edit/Undo and account comparison
+endpoints must be deployed. A recovery status failure never disables ordinary
+review. Saved views and the privacy toggle remain deferred.

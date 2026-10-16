@@ -14,12 +14,32 @@ export function reviewReportedBalance(
 }
 
 export function updateReviewBalanceContext<
-  T extends { accountId: string; balanceAccountId: string },
+  T extends {
+    accountId: string;
+    balanceAccountId: string;
+    balanceAfter?: string;
+    balanceNotice?: string;
+  },
 >(draft: T, patch: Partial<T>): T {
+  const changed =
+    patch.accountId !== undefined &&
+    Boolean(draft.accountId) &&
+    patch.accountId !== draft.accountId;
+  const editing = "balanceAfter" in draft;
   return {
     ...draft,
     ...patch,
     balanceAccountId:
-      draft.balanceAccountId || draft.accountId || patch.accountId || "",
+      editing && changed
+        ? patch.accountId!
+        : draft.balanceAccountId || draft.accountId || patch.accountId || "",
+    ...(editing && changed
+      ? {
+          balanceAfter: "",
+          balanceNotice: draft.balanceAfter
+            ? "Reported balance cleared because the reporting account changed. Enter the new account's balance if known."
+            : "",
+        }
+      : {}),
   };
 }

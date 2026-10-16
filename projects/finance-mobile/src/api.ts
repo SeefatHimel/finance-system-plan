@@ -2,8 +2,8 @@ import type { QuickPreset, PresetInput, QuickEntryInput } from "../../finance-co
 import { boundedFetch } from "./bounded-fetch";
 import { quickSessionScope } from "./secure-document";
 
-import type { IdentitySuggestion, TransferEvidence, TransferMatch, TransactionActivityPage as ContractActivityPage } from "../../finance-contracts/generated/types";
-export type { TransferMatch } from "../../finance-contracts/generated/types";
+import type { TransactionAction, IdentitySuggestion, TransferEvidence, TransferMatch, TransactionActivityPage as ContractActivityPage } from "../../finance-contracts/generated/types";
+export type { TransactionAction, TransferMatch } from "../../finance-contracts/generated/types";
 
 declare const process: {
   env: {
@@ -79,6 +79,9 @@ export type Account = {
   latest_reported_balance: string | null;
   latest_reported_balance_date: string | null;
   ledger_balance: string;
+  ledger_balance_at_latest_report?: string | null;
+  latest_reported_balance_difference?: string | null;
+  reported_balance_comparison?: string;
   name: string;
   starting_balance: string;
   type: string;
@@ -168,6 +171,7 @@ export type RawMessage = {
 };
 
 export type ParsedMessageCandidate = {
+  undo_action?: TransactionAction | null;
   identity_suggestions?: IdentitySuggestion[];
   suggested_transfer_direction?: "" | "debit" | "credit";
   account: string | null;
@@ -284,6 +288,10 @@ export type CreateTransactionInput = {
 };
 
 export type Transaction = {
+  undo_action?: TransactionAction | null;
+  reported_balances?: { account: string; balance_after: string | null }[];
+  balance_reporting_account?: string | null;
+  statement_evidence_count?: number;
   account_direction: string;
   transfer_evidence: TransferEvidence[];
   account: string;
@@ -451,23 +459,20 @@ export function getApiBaseUrl() {
 }
 
 async function responseErrorMessage(response: Response) {
+  if (response.status >= 500) return "The server is temporarily unavailable. Changes were not confirmed; reconnect and review the saved entry before retrying.";
+  if (response.status === 429) return "Too many requests. Wait a moment before retrying.";
   try {
-    const payload = (await response.json()) as Record<string, unknown>;
-    if (typeof payload.detail === "string") {
-      return payload.detail;
+    const payload: unknown = await response.json();
+    const messages: string[] = [];
+    function read(value: unknown, path: string, depth = 0) {
+      if (depth > 4 || messages.length >= 12) return;
+      if (typeof value === "string") { const label = path.replaceAll("_", " "); messages.push(`${label ? `${label}: ` : ""}${value.slice(0, 500)}`); }
+      else if (Array.isArray(value)) value.forEach(item => read(item, path, depth + 1));
+      else if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) read(item, [path, ["detail", "non_field_errors"].includes(key) ? "" : key].filter(Boolean).join(" · "), depth + 1);
     }
-    for (const value of Object.values(payload)) {
-      if (typeof value === "string") {
-        return value;
-      }
-      if (Array.isArray(value) && typeof value[0] === "string") {
-        return value[0];
-      }
-    }
-  } catch {
-    // Fall through to the HTTP status when the response is not JSON.
-  }
-  return `Request failed with HTTP ${response.status}.`;
+    read(payload, ""); if (messages.length) return messages.join("\n");
+  } catch { /* Non-JSON errors use an actionable status fallback. */ }
+  return `Request failed with HTTP ${response.status}. Refresh and try again.`;
 }
 
 export async function checkHealth(): Promise<HealthResult> {
@@ -1039,12 +1044,55 @@ export async function saveQuickPreset(accessToken: string, input: PresetInput | 
   const response = await authenticatedFetch(`/api/quick-add/presets/${id ? `${id}/` : ""}`, accessToken, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
   return await response.json() as QuickPreset;
 }
-export async function postQuickEntry(accessToken: string, input: QuickEntryInput): Promise<{ transaction: string; replayed: boolean }> {
+export async function postQuickEntry(accessToken: string, input: QuickEntryInput): Promise<{ transaction: string; replayed: boolean; undo_action?: TransactionAction | null }> {
   const response = await authenticatedFetch("/api/quick-add/entries/", accessToken, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-  return await response.json() as { transaction: string; replayed: boolean };
+  return await response.json() as { transaction: string; replayed: boolean; undo_action?: TransactionAction | null };
 }
 
 export async function reorderQuickPresets(accessToken: string, ids: string[]): Promise<QuickPreset[]> {
   const response = await authenticatedFetch("/api/quick-add/presets/reorder/", accessToken, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
   return await response.json() as QuickPreset[];
+}
+
+
+export async function recentTransactionAction(token: string, signal?: AbortSignal): Promise<TransactionAction | null> {
+  const response = await authenticatedFetch("/api/transactions/recent-action/", token, { signal });
+  const value: unknown = await response.json();
+  if (value === null) return null;
+  return readTransactionAction(value);
+}
+function readTransactionAction(value: unknown): TransactionAction {
+  if (!value || typeof value !== "object") throw new Error("Transaction recovery could not be read. Refresh to try again.");
+  const item = value as TransactionAction;
+  if (typeof item.id !== "string" || !item.id || typeof item.label !== "string" || typeof item.can_undo !== "boolean" || typeof item.undone !== "boolean" || !(item.transaction === null || typeof item.transaction === "string") || !Number.isFinite(Date.parse(item.expires_at)) || !Number.isFinite(Date.parse(item.created_at))) throw new Error("Transaction recovery could not be read. Refresh to try again.");
+  return item;
+}
+export async function undoTransactionAction(token: string, action: string): Promise<TransactionAction> {
+  const response = await authenticatedFetch("/api/transactions/undo/", token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+  return readTransactionAction(await response.json());
+}
+export async function getTransaction(token: string, id: string, signal?: AbortSignal): Promise<Transaction> {
+  const response = await authenticatedFetch(`/api/transactions/${encodeURIComponent(id)}/`, token, { signal });
+  const item = await response.json() as Transaction;
+  if (!item || item.id !== id || typeof item.amount !== "string" || !Array.isArray(item.transfer_evidence) || !Number.isFinite(Date.parse(item.updated_at)) || [item.account, item.date, item.type, item.direction].some(value => typeof value !== "string")) throw new Error("Transaction details could not be read. Retry loading the entry.");
+  return item;
+}
+export type UpdateTransactionInput = Omit<Partial<CreateTransactionInput>, "category"> & { category?: string | null; reported_balances?: { account: string; balance_after: string | null }[]; allow_linked_correction?: boolean; needs_review?: boolean };
+export async function updateTransaction(token: string, id: string, input: UpdateTransactionInput): Promise<Transaction> {
+  const response = await authenticatedFetch(`/api/transactions/${encodeURIComponent(id)}/`, token, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  return await response.json() as Transaction;
+}
+export type TransactionSourceMessage = { id: string; sender: string; received_at: string; body: string | null; redacted_at: string | null };
+export async function getTransactionSourceMessages(token: string, id: string, signal?: AbortSignal): Promise<TransactionSourceMessage[]> {
+  const response = await authenticatedFetch(`/api/transactions/${encodeURIComponent(id)}/source-messages/`, token, { signal });
+  const values: unknown = await response.json(); if (!Array.isArray(values) || values.some(item => !item || typeof item.id !== "string" || typeof item.sender !== "string" || !(item.body === null || typeof item.body === "string"))) throw new Error("Source messages could not be read."); return values as TransactionSourceMessage[];
+}
+export type StatementSource = { id: string; date: string | null; time: string | null; description: string; amount: string | null; balance_after: string | null; extracted: { description?: string; raw_text?: string } };
+export async function getTransactionStatements(token: string, id: string, signal?: AbortSignal): Promise<StatementSource[]> {
+  const response = await authenticatedFetch(`/api/transactions/${encodeURIComponent(id)}/statement-evidence/`, token, { signal });
+  const values: unknown = await response.json(); if (!Array.isArray(values) || values.some(item => !item || typeof item.id !== "string")) throw new Error("Statement evidence could not be read."); return values as StatementSource[];
+}
+export async function getSmsDeviceStatus(token: string, signal?: AbortSignal): Promise<SmsDeviceStatus> {
+  const response = await authenticatedFetch("/api/messages/device-status/", token, { signal });
+  return await response.json() as SmsDeviceStatus;
 }

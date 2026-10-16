@@ -265,3 +265,14 @@ users and tokens. The user can copy or share it; diagnostics are not uploaded
 in the background. A DNS exception records a request failure, not a diagnosis
 of Wi-Fi/router settings. Exact phone behavior still requires that device's
 operational diagnostics or logs; simulated HTTP tests do not prove its cause.
+
+### Queue presentation in 0.1.13
+
+The native delayed count excludes held/rejected records so UI correction and
+delay counts are disjoint. Pending counts still include all saved unacknowledged
+messages; uploads, receipts and retry keys are unchanged. Capture shows accepted
+acknowledgements for the current/last run, waiting, delayed and correction counts,
+plus last-success time reported by the existing device-status API (which may
+include this user's other devices). Unknown/unreadable state is unavailable, not
+an empty queue. Health success only confirms server reachability. Do not infer a
+posted ledger transaction from a successful raw-SMS acknowledgement.

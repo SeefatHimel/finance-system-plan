@@ -45,6 +45,7 @@ type Props = {
   revision: number;
   pendingCount: number;
   onQuickAdd: () => void;
+  onEdit?: (id: string) => void;
 };
 const types = [
   "expense",
@@ -304,7 +305,9 @@ function TransactionDetails({
   accounts,
   categories,
   onClose,
+  onEdit,
 }: {
+  onEdit?: (id: string) => void;
   row: Transaction;
   accounts: Account[];
   categories: Category[];
@@ -341,7 +344,7 @@ function TransactionDetails({
           <Text accessibilityRole="header" style={s.heading}>
             Transaction details
           </Text>
-          <Button label="Close transaction details" onPress={onClose} />
+          <View style={s.wrap}>{onEdit ? <Button label="Edit transaction" onPress={() => { onClose(); onEdit(row.id); }} /> : null}<Button label="Close transaction details" onPress={onClose} /></View>
         </View>
         <ScrollView contentContainerStyle={s.content}>
           <Text style={s.amount}>{money(row.amount, currency)}</Text>
@@ -398,6 +401,7 @@ export function TransactionActivity({
   revision,
   pendingCount,
   onQuickAdd,
+  onEdit,
 }: Props) {
   const query = activityQuery(filters),
     key = JSON.stringify(query);
@@ -704,6 +708,7 @@ export function TransactionActivity({
       ) : null}
       {selected ? (
         <TransactionDetails
+          onEdit={onEdit}
           row={selected}
           accounts={accounts}
           categories={categories}

@@ -433,7 +433,7 @@ object FinanceSmsStore {
       val legacyCount = JSONArray(getSecureRawQueue(context)).length()
       QueueSnapshot(messages.length() + legacyCount,
         (0 until messages.length()).count { messages.getJSONObject(it).optBoolean("rejected") },
-        (0 until messages.length()).count { messages.getJSONObject(it).optLong("retryAt") > System.currentTimeMillis() },
+        (0 until messages.length()).count { !messages.getJSONObject(it).optBoolean("rejected") && messages.getJSONObject(it).optLong("retryAt") > System.currentTimeMillis() },
         (0 until messages.length()).map { messages.getJSONObject(it).optInt("httpCode") }.filter { it >= 400 }.groupingBy { it.toString() }.eachCount())
     }.getOrNull()
     val pending = snapshot?.pending ?: payload.optInt("pendingCount")

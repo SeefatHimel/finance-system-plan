@@ -93,3 +93,72 @@ test("an older backend preserves the HTTP status for the actionable deployment m
     (error) => error.status === 404,
   );
 });
+
+test("native editing patches exact decimals and account-bound balances; Undo posts only its action ID", async () => {
+  const calls = [];
+  const action = {
+    id: "demo-action",
+    label: "Transaction saved",
+    can_undo: true,
+    undone: false,
+    transaction: "demo-entry",
+    expires_at: "2026-10-18T00:00:00Z",
+    created_at: "2026-10-17T00:00:00Z",
+  };
+  const api = loadApi(async (url, init) => {
+    calls.push({ url, init });
+    return new Response(
+      JSON.stringify(url.endsWith("/undo/") ? action : { id: "demo-entry" }),
+    );
+  });
+  await api.updateTransaction("synthetic-token", "demo-entry", {
+    amount: "123456789012.07",
+    reported_balances: [
+      { account: "bank", balance_after: "0.00" },
+      { account: "wallet", balance_after: null },
+    ],
+  });
+  assert.equal(calls[0].init.method, "PATCH");
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    amount: "123456789012.07",
+    reported_balances: [
+      { account: "bank", balance_after: "0.00" },
+      { account: "wallet", balance_after: null },
+    ],
+  });
+  await api.undoTransactionAction("synthetic-token", "demo-action");
+  assert.equal(new URL(calls[1].url).pathname, "/api/transactions/undo/");
+  assert.deepEqual(JSON.parse(calls[1].init.body), { action: "demo-action" });
+  assert(calls.every((call) => !call.url.includes("synthetic-token")));
+});
+test("recovery rejects malformed receipts; validation errors remain readable and server debug text stays private", async () => {
+  const malformed = loadApi(
+    async () => new Response(JSON.stringify({ id: "demo", can_undo: true })),
+  );
+  await assert.rejects(
+    malformed.recentTransactionAction("synthetic-token"),
+    /could not be read/,
+  );
+  const invalid = loadApi(
+    async () =>
+      new Response(
+        JSON.stringify({
+          reported_balances: [{ balance_after: ["Enter a valid amount."] }],
+        }),
+        { status: 400 },
+      ),
+  );
+  await assert.rejects(
+    invalid.updateTransaction("synthetic-token", "demo-entry", {}),
+    /reported balances · balance after: Enter a valid amount/,
+  );
+  const unavailable = loadApi(
+    async () => new Response("private server diagnostics", { status: 500 }),
+  );
+  await assert.rejects(
+    unavailable.updateTransaction("synthetic-token", "demo-entry", {}),
+    (error) =>
+      /server is temporarily unavailable/.test(error.message) &&
+      !error.message.includes("private server"),
+  );
+});

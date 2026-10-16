@@ -1,3 +1,10 @@
+import { reviewDraftError } from "./src/review-validation";
+import { ActionButton, SourceMessage, ui } from "./src/mobile-ui";
+import { SyncSummary, useServerSyncStatus } from "./src/sync-summary";
+import { ReviewFields, type ReviewDraft } from "./src/review-fields";
+import { AccountSummary } from "./src/account-summary";
+import { TransactionEditor } from "./src/transaction-editor";
+import { RecoveryCard, useTransactionRecovery } from "./src/transaction-recovery";
 import { PRODUCT_NAME, formatCurrency, formatCalendarDate, timestampFields, presentationColors } from "../finance-contracts/presentation";
 import { TransactionActivity } from "./src/transaction-activity";
 import { initialActivityFilters } from "./src/activity-model";
@@ -123,21 +130,7 @@ type MainTab = "home" | "activity" | "capture" | "review" | "more";
 type HomeFeed = "review" | "captured";
 type MobilePanel = "sms-automation" | "accounts" | null;
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
-type ReviewCandidateDraft = {
-  balanceAccountId: string;
-  direction: string;
-  accountId: string;
-  amount: string;
-  categoryId: string;
-  counterpartyText: string;
-  date: string;
-  note: string;
-  paymentMethodId: string;
-  reference: string;
-  time: string;
-  transferAccountId: string;
-  transactionType: string;
-};
+type ReviewCandidateDraft = ReviewDraft;
 function isIncomingReview(candidate: ParsedMessageCandidate) {
   return candidate.suggested_transfer_direction
     ? candidate.suggested_transfer_direction === "credit"
@@ -361,6 +354,10 @@ function normalizeAccountCache(storedAccounts: string | null): Account[] {
       }
 
       const account = {
+        is_active: typeof item.is_active === "boolean" ? item.is_active : undefined,
+        ledger_balance_at_latest_report: nullableStringValue(item.ledger_balance_at_latest_report),
+        latest_reported_balance_difference: nullableStringValue(item.latest_reported_balance_difference),
+        reported_balance_comparison: stringValue(item.reported_balance_comparison),
         currency: stringValue(item.currency) || "BDT",
         id: stringValue(item.id),
         latest_reported_balance: stringValue(item.latest_reported_balance) || null,
@@ -762,6 +759,9 @@ export default function App() {
 
 function FinanceApp() {
   const quickHub = useRef<QuickAddHandle>(null);
+  const [editingTransaction, setEditingTransaction] = useState<{ id: string; scope: string } | null>(null);
+  const reviewSubmitting = useRef<object | null>(null);
+  const manualSubmitting = useRef<object | null>(null), transferSubmitting = useRef<object | null>(null), reconciliationRequest = useRef(0);
   const [quickFavorites, setQuickFavorites] = useState<QuickPreset[]>([]);
   const [quickPendingCount, setQuickPendingCount] = useState(0);
   const [txCounterparty, setTxCounterparty] = useState("");
@@ -1251,6 +1251,8 @@ function FinanceApp() {
       return;
     }
 
+    const ticket = ++reconciliationRequest.current;
+    setReconciliation(null);
     let selectedAccountId = accountId;
     setReconciliationState("loading");
     setReconciliationMessage("");
@@ -1258,7 +1260,7 @@ function FinanceApp() {
       let nextAccounts = accounts;
       if (!nextAccounts.length) {
         nextAccounts = await listAccounts(accessToken.trim());
-        if (!localDataScope || accountScopeRef.current !== localDataScope) return;
+        if (!localDataScope || accountScopeRef.current !== localDataScope || ticket !== reconciliationRequest.current) return;
         setAccounts(nextAccounts);
       }
       selectedAccountId = selectedAccountId || nextAccounts[0]?.id || "";
@@ -1269,12 +1271,12 @@ function FinanceApp() {
       }
       setReconciliationAccountId(selectedAccountId);
       const payload = await getAccountReconciliation(accessToken.trim(), selectedAccountId);
-      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
+      if (!localDataScope || accountScopeRef.current !== localDataScope || ticket !== reconciliationRequest.current) return;
       setReconciliation(payload);
       setReconciliationState("ok");
       setReconciliationMessage(`Expected balance for ${payload.account_name}: ${payload.expected_balance}.`);
     } catch (error) {
-      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
+      if (!localDataScope || accountScopeRef.current !== localDataScope || ticket !== reconciliationRequest.current) return;
       setReconciliationState("error");
       setReconciliationMessage(error instanceof Error ? error.message : "Could not load reconciliation check.");
     }
@@ -1374,6 +1376,7 @@ function FinanceApp() {
   };
 
   const handleConfirmReviewCandidate = async (candidate: ParsedMessageCandidate) => {
+    if (reviewSubmitting.current) return;
     if (!accessToken.trim()) {
       setReviewState("error");
       setReviewMessage("Sign in first or paste a valid access token.");
@@ -1381,27 +1384,12 @@ function FinanceApp() {
     }
 
     const draft = getReviewDraft(candidate);
-    if (!draft.accountId || !draft.amount.trim()) {
-      setReviewState("error");
-      setReviewMessage("Select an account and enter the transaction amount before confirming.");
-      return;
-    }
+    const issue = reviewDraftError(draft, accounts, categories, paymentMethods);
+    if (issue) { setReviewState("error"); setReviewMessage(issue); return; }
     const normalizedAmount = draft.amount.trim().replaceAll(",", "");
-    if (!/^\d+(?:\.\d{1,2})?$/.test(normalizedAmount) || Number(normalizedAmount) <= 0) {
-      setReviewState("error");
-      setReviewMessage("Enter a valid positive amount with no more than two decimal places.");
-      return;
-    }
-    if (!isValidIsoDate(draft.date.trim())) {
-      setReviewState("error");
-      setReviewMessage("Enter a valid transaction date in YYYY-MM-DD format.");
-      return;
-    }
-    if (draft.time.trim() && !isValidTime(draft.time.trim())) {
-      setReviewState("error");
-      setReviewMessage("Enter a valid transaction time in HH:MM format.");
-      return;
-    }
+    const operation = {};
+    reviewSubmitting.current = operation;
+    const owner = localDataScope;
     setReviewActionCandidateId(candidate.id);
     setReviewState("loading");
     setReviewMessage("");
@@ -1411,7 +1399,7 @@ function FinanceApp() {
         direction: draft.direction,
         account: draft.accountId,
         amount: normalizedAmount,
-        balance_after: reviewReportedBalance(candidate.balance_after, draft.balanceAccountId, draft.accountId),
+        balance_after: reviewReportedBalance(draft.balanceAfter.trim().replaceAll(",", "") || null, draft.balanceAccountId, draft.accountId),
         category: draft.categoryId || null,
         counterparty_text: draft.counterpartyText.trim(),
         date: draft.date.trim(),
@@ -1426,6 +1414,7 @@ function FinanceApp() {
       if (draft.transactionType === "transfer" || candidate.possible_internal_transfer || ["receive_money", "bank_transfer_in"].includes(candidate.message_kind)) {
         const matchInput = { candidate: candidate.id, draft: input };
         const matches = await findTransferMatches(accessToken.trim(), matchInput);
+        if (owner !== accountScopeRef.current) return;
         if (matches.length) {
           setTransferError("");
           setTransferDecision({ input: matchInput, matches });
@@ -1434,12 +1423,15 @@ function FinanceApp() {
         }
       }
       await confirmMessageCandidate(accessToken.trim(), candidate.id, input);
-      await handleLoadReviewCandidates();
+      if (owner !== accountScopeRef.current) return;
+      await recovery.announce();
     } catch (error) {
+      if (owner !== accountScopeRef.current) return;
       setReviewState("error");
       setReviewMessage(error instanceof Error ? error.message : "Could not confirm SMS candidate.");
     } finally {
-      setReviewActionCandidateId("");
+      if (reviewSubmitting.current === operation) reviewSubmitting.current = null;
+      if (owner === accountScopeRef.current) setReviewActionCandidateId("");
     }
   };
 
@@ -1452,6 +1444,8 @@ function FinanceApp() {
     return {
       accountId,
       balanceAccountId: accountId,
+      balanceAfter: candidate.balance_after ?? "",
+      balanceNotice: "",
       direction,
       amount: candidate.amount ?? "",
       categoryId: candidate.category ?? "",
@@ -1470,6 +1464,7 @@ function FinanceApp() {
     reviewDrafts[candidate.id] ?? buildReviewDraft(candidate);
 
   const updateReviewDraft = (candidate: ParsedMessageCandidate, patch: Partial<ReviewCandidateDraft>) => {
+    if (reviewSubmitting.current) return;
     setReviewDrafts((currentDrafts) => ({
       ...currentDrafts,
       [candidate.id]: updateReviewBalanceContext(currentDrafts[candidate.id] ?? buildReviewDraft(candidate), patch)
@@ -1483,12 +1478,16 @@ function FinanceApp() {
     candidate: ParsedMessageCandidate,
     exclusion: "entry" | "provider" | "sender" = "entry"
   ) => {
+    if (reviewSubmitting.current) return;
     if (!accessToken.trim()) {
       setReviewState("error");
       setReviewMessage("Sign in first or paste a valid access token.");
       return;
     }
 
+    const owner = localDataScope;
+    const operation = {};
+    reviewSubmitting.current = operation;
     setReviewActionCandidateId(candidate.id);
     setReviewState("loading");
     setReviewMessage("");
@@ -1499,15 +1498,18 @@ function FinanceApp() {
         reason: candidate.message_kind === "otp_or_security" ? "otp_security" : "not_transaction",
         redact_raw_sms: true
       });
+      if (owner !== accountScopeRef.current) return;
       await Promise.all([
         handleLoadReviewCandidates(),
         exclusion === "entry" ? Promise.resolve() : handleLoadSmsSettings()
       ]);
     } catch (error) {
+      if (owner !== accountScopeRef.current) return;
       setReviewState("error");
       setReviewMessage(error instanceof Error ? error.message : "Could not reject SMS candidate.");
     } finally {
-      setReviewActionCandidateId("");
+      if (reviewSubmitting.current === operation) reviewSubmitting.current = null;
+      if (owner === accountScopeRef.current) setReviewActionCandidateId("");
     }
   };
 
@@ -1540,6 +1542,7 @@ function FinanceApp() {
     ? smsBackgroundStatus?.pendingCount ?? rawQueue.length
     : rawQueue.length;
   const smsSync = smsSyncPresentation(smsBackgroundStatus, pendingSmsCount);
+  const serverSync = useServerSyncStatus(accessToken, localDataScope, smsSync.running ? "running" : smsBackgroundStatus?.updatedAt ?? "");
 
   const refreshSmsPermissionState = async () => {
     if (Platform.OS !== "android" || !isNativeSmsCaptureAvailable()) {
@@ -2458,6 +2461,11 @@ function FinanceApp() {
     setReviewCandidateIndex(0);
     setReviewCandidateCount(0);
     setReviewDrafts({});
+    setEditingTransaction(null);
+    reviewSubmitting.current = null; manualSubmitting.current = null; transferSubmitting.current = null;
+    reconciliationRequest.current++;
+    setReviewActionCandidateId(""); setTransferBusy(false);
+    setReviewState("idle"); setReviewMessage(""); setTxState("idle"); setTxMessage("");
     setDebts([]);
     setCardBills([]);
     setRecurringBills([]);
@@ -2643,6 +2651,7 @@ function FinanceApp() {
   };
 
   const handleQuickAddTransaction = async () => {
+    if (manualSubmitting.current) return;
     if (!accessToken.trim()) {
       setTxState("error");
       setTxMessage("Sign in first or paste a valid access token.");
@@ -2657,6 +2666,9 @@ function FinanceApp() {
       return;
     }
 
+    const operation = {};
+    manualSubmitting.current = operation;
+    const owner = localDataScope;
     setTxState("loading");
     setTxMessage("");
 
@@ -2664,6 +2676,7 @@ function FinanceApp() {
       if (input.type === "transfer") {
         input.external_key = `mobile-transfer:${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const matches = await findTransferMatches(accessToken.trim(), { draft: input });
+        if (owner !== accountScopeRef.current) return;
         if (matches.length) {
           setTransferError("");
           setTransferDecision({ input: { draft: input }, matches });
@@ -2671,21 +2684,29 @@ function FinanceApp() {
           return;
         }
       }
+      if (owner !== accountScopeRef.current) return;
       await createTransaction(accessToken.trim(), input);
+      if (owner !== accountScopeRef.current) return;
       setTxState("ok");
-      setTxMessage("Transaction created.");
+      setTxMessage("Transaction saved.");
+      await recovery.announce();
+      if (owner !== accountScopeRef.current) return;
       setTxAmount("");
       setTxBalanceAfter("");
       setTxNote("");
       setTxCounterparty("");
     } catch (error) {
+      if (owner !== accountScopeRef.current) return;
       setTxState("error");
       setTxMessage(error instanceof Error ? error.message : "Could not create transaction.");
-    }
+    } finally { if (manualSubmitting.current === operation) manualSubmitting.current = null; }
   };
 
   const handleTransferDecision = async (match?: TransferMatch, balanceChoices: import("./src/api").TransferBalanceChoice[] = []) => {
-    if (!transferDecision || !accessToken.trim()) return;
+    if (!transferDecision || !accessToken.trim() || transferSubmitting.current) return;
+    const operation = {};
+    transferSubmitting.current = operation;
+    const owner = localDataScope;
     setTransferBusy(true);
     setTransferError("");
     try {
@@ -2693,8 +2714,10 @@ function FinanceApp() {
       else if (transferDecision.input.candidate) {
         await confirmMessageCandidate(accessToken.trim(), transferDecision.input.candidate, transferDecision.input.draft as ConfirmMessageCandidateInput);
       } else await createTransaction(accessToken.trim(), transferDecision.input.draft as CreateTransactionInput);
+      if (owner !== accountScopeRef.current) return;
       if (transferDecision.queueId) {
         await saveTransactionQueue(transactionQueue.filter((entry) => entry.id !== transferDecision.queueId));
+        if (owner !== accountScopeRef.current) return;
         setTransactionQueueMessage("Transfer resolved. Sync again to continue the remaining queue.");
       } else if (!transferDecision.input.candidate) {
         setTxAmount(""); setTxBalanceAfter(""); setTxNote("");
@@ -2702,10 +2725,12 @@ function FinanceApp() {
         setTxMessage(match ? "Transfer linked. One movement in both accounts." : "Transfer kept separate.");
       }
       setTransferDecision(null);
-      await Promise.all([handleLoadReviewCandidates(), handleLoadTransactions()]);
+      await recovery.announce();
+
     } catch (error) {
+      if (owner !== accountScopeRef.current) return;
       setTransferError(error instanceof Error ? error.message : "Could not resolve transfer match.");
-    } finally { setTransferBusy(false); }
+    } finally { if (transferSubmitting.current === operation) { transferSubmitting.current = null; if (owner === accountScopeRef.current) setTransferBusy(false); } }
   };
 
   const handleSyncTransactionQueue = async () => {
@@ -3161,6 +3186,9 @@ function FinanceApp() {
     if (destination === "reconciliation") void handleLoadReconciliation();
   }
 
+  const recovery = useTransactionRecovery(accessToken, localDataScope, () => { void handleLoadTransactions(); void handleLoadReferenceData(); void handleLoadReviewCandidates(); });
+  function openTransactionEditor(id: string) { if (localDataScope && accountScopeRef.current === localDataScope) setEditingTransaction({ id, scope: localDataScope }); }
+  const editorSurface = editingTransaction && editingTransaction.scope === localDataScope && accessToken ? <TransactionEditor key={`${editingTransaction.scope}.${editingTransaction.id}`} id={editingTransaction.id} token={accessToken} scope={localDataScope!} accounts={accounts} categories={categories} paymentMethods={paymentMethods} isCurrent={() => accountScopeRef.current === editingTransaction.scope} onClose={() => setEditingTransaction(current => current?.id === editingTransaction.id && current.scope === editingTransaction.scope ? null : current)} onSaved={() => { if (accountScopeRef.current !== editingTransaction.scope) return; setEditingTransaction(current => current?.id === editingTransaction.id && current.scope === editingTransaction.scope ? null : current); void recovery.announce(); }} /> : null;
   const renderAdvancedTools = () => (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" />
@@ -3849,7 +3877,7 @@ function FinanceApp() {
   );
 
   if (advancedTool) {
-    return renderAdvancedTools();
+    return <View style={{ flex: 1, backgroundColor: "#081421" }}>{renderAdvancedTools()}<RecoveryCard compact recovery={recovery} onEdit={openTransactionEditor} />{editorSurface}</View>;
   }
 
   const tabItems: Array<{ icon: IconName; key: MainTab; label: string }> = [
@@ -4065,7 +4093,7 @@ function FinanceApp() {
     </View>
   );
 
-  const renderActivity = () => <TransactionActivity key={localDataScope ?? "signed-out"} scope={localDataScope ?? ""} token={accessToken} accounts={accounts} categories={categories} filters={activityFilters} onFiltersChange={setActivityFilters} cached={transactions} revision={activityRevision} pendingCount={transactionQueue.length + quickPendingCount} onQuickAdd={() => quickHub.current?.open()} />;
+  const renderActivity = () => <TransactionActivity onEdit={openTransactionEditor} key={localDataScope ?? "signed-out"} scope={localDataScope ?? ""} token={accessToken} accounts={accounts} categories={categories} filters={activityFilters} onFiltersChange={setActivityFilters} cached={transactions} revision={activityRevision} pendingCount={transactionQueue.length + quickPendingCount} onQuickAdd={() => quickHub.current?.open()} />;
 
   const renderReview = () => (
     <View style={styles.mobileSectionStack}>
@@ -4120,7 +4148,7 @@ function FinanceApp() {
               <Text style={styles.mobileConfidence}>{confidencePercent(candidate.confidence)}</Text>
             </View>
             <View style={styles.mobileReviewAmountRow}>
-              <Text style={styles.mobileReviewAmount}>{formatCurrency(candidate.amount)}</Text>
+              <Text style={styles.mobileReviewAmount}>{formatCurrency(draft.amount)}</Text>
               <Pressable accessibilityRole="button" accessibilityState={{ disabled: isWorking }}
                 accessibilityLabel={`Switch to ${draft.direction === "credit" ? "debit / money sent" : "credit / money received"}`}
                 accessibilityHint={`Changes direction for ${accounts.find(account => account.id === draft.accountId)?.name ?? "the selected account"}.`}
@@ -4131,7 +4159,7 @@ function FinanceApp() {
               </Pressable>
             </View>
             <Text style={styles.mobileRowMeta}>{draft.direction === "credit" ? "Money into" : "Money out of"} {accounts.find(account => account.id === draft.accountId)?.name ?? "the selected account"}</Text>
-            <Text numberOfLines={3} style={styles.mobileSmsQuoteText}>{candidate.raw_message.body}</Text>
+            <SourceMessage message={candidate.raw_message} />
             {(candidate.identity_suggestions ?? []).map(hint => {
               const reporting = hint.role === (draft.direction === "credit" ? "receiver" : "sender");
               if (!reporting && draft.transactionType !== "transfer") return null;
@@ -4150,184 +4178,8 @@ function FinanceApp() {
               </View>;
             })}
 
-            <Text style={styles.mobileFieldLabel}>Transaction type</Text>
-            <View style={styles.mobileChoiceRow}>
-              {["expense", "income", "transfer", "fee", "refund"].map((type) => (
-                <Pressable
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: draft.transactionType === type }}
-                  key={type}
-                  onPress={() => updateReviewDraft(candidate, {
-                    transactionType: type,
-                    transferAccountId: type === "transfer" ? draft.transferAccountId : ""
-                  })}
-                  style={[styles.mobileChoice, draft.transactionType === type ? styles.mobileChoiceActive : null]}
-                >
-                  <Text style={[styles.mobileChoiceText, draft.transactionType === type ? styles.mobileChoiceTextActive : null]}>
-                    {draft.transactionType === type ? "✓ " : ""}{titleCase(type)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <ReviewFields draft={draft} accounts={accounts} categories={categories} paymentMethods={paymentMethods} busy={isWorking} onChange={patch => updateReviewDraft(candidate, patch)} />
 
-            <Text style={styles.mobileFieldLabel}>Category</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.mobileChoiceRow}>
-                <Pressable
-                  accessibilityRole="radio" accessibilityState={{ checked: !draft.categoryId }}
-                  onPress={() => updateReviewDraft(candidate, { categoryId: "" })}
-                  style={[styles.mobileChoice, !draft.categoryId ? styles.mobileChoiceActive : null]}
-                >
-                  <Text style={[styles.mobileChoiceText, !draft.categoryId ? styles.mobileChoiceTextActive : null]}>{!draft.categoryId ? "✓ " : ""}No category</Text>
-                </Pressable>
-                {categories.map((category) => (
-                  <Pressable
-                    key={category.id}
-                    accessibilityRole="radio" accessibilityState={{ checked: draft.categoryId === category.id }}
-                    onPress={() => updateReviewDraft(candidate, { categoryId: category.id })}
-                    style={[styles.mobileChoice, draft.categoryId === category.id ? styles.mobileChoiceActive : null]}
-                  >
-                    <Text style={[styles.mobileChoiceText, draft.categoryId === category.id ? styles.mobileChoiceTextActive : null]}>
-                      {draft.categoryId === category.id ? "✓ " : ""}{category.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-
-            <Text style={styles.mobileFieldLabel}>Reporting account</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.mobileChoiceRow}>
-                {accounts.map((account) => (
-                  <Pressable
-                    key={account.id}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: draft.accountId === account.id }}
-                    onPress={() => updateReviewDraft(candidate, {
-                      accountId: account.id,
-                      paymentMethodId: draft.accountId === account.id ? draft.paymentMethodId : ""
-                    })}
-                    style={[styles.mobileChoice, draft.accountId === account.id ? styles.mobileChoiceActive : null]}
-                  >
-                    <Text style={[styles.mobileChoiceText, draft.accountId === account.id ? styles.mobileChoiceTextActive : null]}>
-                      {draft.accountId === account.id ? "✓ " : ""}{account.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-
-            {draft.transactionType === "transfer" ? (
-              <>
-                <Text style={styles.mobileFieldLabel}>Other transfer account · {draft.direction === "credit" ? "From" : "To"}</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={styles.mobileChoiceRow}>
-                    {accounts.filter((account) => account.id !== draft.accountId).map((account) => (
-                      <Pressable
-                        key={account.id}
-                        accessibilityRole="radio"
-                        accessibilityState={{ checked: draft.transferAccountId === account.id }}
-                        onPress={() => updateReviewDraft(candidate, { transferAccountId: account.id })}
-                        style={[styles.mobileChoice, draft.transferAccountId === account.id ? styles.mobileChoiceActive : null]}
-                      >
-                        <Text style={[styles.mobileChoiceText, draft.transferAccountId === account.id ? styles.mobileChoiceTextActive : null]}>
-                          {draft.transferAccountId === account.id ? "✓ " : ""}{account.name}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </ScrollView>
-              </>
-            ) : null}
-
-            {candidate.balance_after !== null && draft.accountId && reviewReportedBalance(candidate.balance_after, draft.balanceAccountId, draft.accountId) === null ? <Text accessibilityRole="alert" style={styles.warningText}>The reported balance belongs to {accountName(draft.balanceAccountId)} and will not be applied to {accountName(draft.accountId)}.</Text> : null}
-            <Text style={styles.mobileFieldLabel}>Amount</Text>
-            <View style={styles.mobileInputWrap}>
-              <MaterialCommunityIcons color="#7890ad" name="cash" size={19} />
-              <TextInput accessibilityLabel="Transaction amount" keyboardType="decimal-pad" onChangeText={(amount) => updateReviewDraft(candidate, { amount })} placeholder="0.00" placeholderTextColor="#5f7590" style={styles.mobileInput} value={draft.amount} />
-            </View>
-            <View style={[styles.mobileRangeRow, { flexWrap: "wrap" }]}>
-              <View style={[styles.mobileRangeField, { minWidth: 150 }]}><Text style={styles.mobileFieldLabel}>Date</Text><NativeDateField label="Transaction date" value={draft.date} onChange={date => updateReviewDraft(candidate, { date })} /></View>
-              <View style={[styles.mobileRangeField, { minWidth: 150 }]}><Text style={styles.mobileFieldLabel}>Time</Text><NativeTimeField label="Transaction time" value={draft.time} onChange={time => updateReviewDraft(candidate, { time })} /></View>
-            </View>
-
-            <View style={styles.mobileInputWrap}>
-              <MaterialCommunityIcons color="#7890ad" name="store-outline" size={19} />
-              <TextInput
-                accessibilityLabel="Counterparty or merchant"
-                onChangeText={(counterpartyText) => updateReviewDraft(candidate, { counterpartyText })}
-                placeholder="Counterparty or merchant"
-                placeholderTextColor="#5f7590"
-                style={styles.mobileInput}
-                value={draft.counterpartyText}
-              />
-            </View>
-            <View style={styles.mobileInputWrap}>
-              <MaterialCommunityIcons color="#7890ad" name="identifier" size={19} />
-              <TextInput
-                accessibilityLabel="Transaction reference"
-                onChangeText={(reference) => updateReviewDraft(candidate, { reference })}
-                placeholder="Reference"
-                placeholderTextColor="#5f7590"
-                style={styles.mobileInput}
-                value={draft.reference}
-              />
-            </View>
-            <View style={styles.mobileInputWrap}>
-              <MaterialCommunityIcons color="#7890ad" name="note-text-outline" size={19} />
-              <TextInput
-                accessibilityLabel="Transaction note"
-                onChangeText={(note) => updateReviewDraft(candidate, { note })}
-                placeholder="Note (optional)"
-                placeholderTextColor="#5f7590"
-                style={styles.mobileInput}
-                value={draft.note}
-              />
-            </View>
-            <Disclosure label={`Payment method · ${paymentMethods.find(method => method.id === draft.paymentMethodId)?.name ?? "None"}`}>
-            <Text style={styles.mobileRowMeta}>The card or wallet used for this account.</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.mobileChoiceRow}>
-                <Pressable
-                  accessibilityRole="radio" accessibilityState={{ checked: !draft.paymentMethodId }}
-                  onPress={() => updateReviewDraft(candidate, { paymentMethodId: "" })}
-                  style={[styles.mobileChoice, !draft.paymentMethodId ? styles.mobileChoiceActive : null]}
-                >
-                  <Text style={[styles.mobileChoiceText, !draft.paymentMethodId ? styles.mobileChoiceTextActive : null]}>{!draft.paymentMethodId ? "✓ " : ""}No payment method</Text>
-                </Pressable>
-                {paymentMethods.filter((method) => method.account === draft.accountId).map((method) => (
-                  <Pressable
-                    key={method.id}
-                    accessibilityRole="radio" accessibilityState={{ checked: draft.paymentMethodId === method.id }}
-                    onPress={() => updateReviewDraft(candidate, { paymentMethodId: method.id })}
-                    style={[styles.mobileChoice, draft.paymentMethodId === method.id ? styles.mobileChoiceActive : null]}
-                  >
-                    <Text style={[styles.mobileChoiceText, draft.paymentMethodId === method.id ? styles.mobileChoiceTextActive : null]}>
-                      {draft.paymentMethodId === method.id ? "✓ " : ""}{method.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-
-            </Disclosure>
-            <View style={styles.mobileActionRow}>
-              <Pressable
-                disabled={isWorking}
-                onPress={() => void handleConfirmReviewCandidate(candidate)}
-                style={styles.mobilePrimaryButton}
-              >
-                {isWorking ? <ActivityIndicator color="#06141f" /> : <MaterialCommunityIcons color="#06141f" name="check" size={21} />}
-                <Text style={styles.mobilePrimaryButtonText}>Confirm & add</Text>
-              </Pressable>
-              <Pressable
-                disabled={isWorking}
-                onPress={() => confirmRejectReviewCandidate(candidate)}
-                style={styles.mobileOutlineButton}
-              >
-                <Text style={styles.mobileOutlineButtonText}>Reject</Text>
-              </Pressable>
-            </View>
           </View>
           </>
         );
@@ -4351,27 +4203,7 @@ function FinanceApp() {
         <Text style={styles.mobileSecondaryActionText}>Refresh accounts</Text>
       </Pressable>
       <InlineFeedback loadingLabel="Refreshing accounts…" message={dataMessage} state={dataState} />
-      <View style={styles.mobileGroupedList}>
-        {accounts.map((account) => (
-          <View key={account.id} style={styles.mobileAccountRow}>
-            <View style={styles.mobileProviderIcon}>
-              <MaterialCommunityIcons
-                color="#55e6a5"
-                name={account.type === "credit_card" ? "credit-card-outline" : account.type === "cash" ? "cash" : "bank-outline"}
-                size={22}
-              />
-            </View>
-            <View style={styles.mobileRowBody}>
-              <Text style={styles.mobileRowTitle}>{account.name}</Text>
-              <Text style={styles.mobileRowMeta}>{titleCase(account.type)}</Text>
-            </View>
-            <View style={[styles.mobileConnectedBadge, account.is_active === false ? { opacity: 0.6 } : null]}>
-              <View style={styles.mobileConnectedDot} />
-              <Text style={styles.mobileConnectedText}>{account.is_active === false ? "Inactive" : account.is_active === true ? "Active" : "Saved"}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
+      <View style={{ gap: 12 }}>{accounts.map(account => <AccountSummary key={account.id} account={account} cached={dataState !== "ok"} onReview={() => { setAdvancedTool("reconciliation"); void handleLoadReconciliation(account.id); }} />)}</View>
       {!accounts.length ? <Text style={styles.mobileStateText}>No accounts loaded yet.</Text> : null}
     </View>
   );
@@ -4459,20 +4291,7 @@ function FinanceApp() {
             <Text style={styles.mobileSectionTitle}>Automatic sync</Text>
             <Text style={styles.mobileSectionMeta}>{smsSync.label}</Text>
           </View>
-          <Text style={styles.mobileStateText}>
-            {smsSync.message}
-          </Text>
-          <Text style={styles.mobileRowMeta}>
-            {smsBackgroundStatus?.pendingCountKnown === false ? "Count unavailable" : `${smsBackgroundStatus?.queueReadable === false ? "Last known count: " : ""}${pendingSmsCount} saved on device · ${Math.max(0, pendingSmsCount - (smsBackgroundStatus?.rejectedCount ?? 0) - (smsBackgroundStatus?.delayedCount ?? 0))} waiting to upload`}
-            {smsBackgroundStatus?.delayedCount ? ` · ${smsBackgroundStatus.delayedCount} temporarily delayed` : ""}
-            {smsBackgroundStatus?.rejectedCount ? ` · ${smsBackgroundStatus.rejectedCount} need correction` : ""}
-          </Text>
-          {smsBackgroundStatus?.nextAttemptAt && new Date(smsBackgroundStatus.nextAttemptAt).getTime() > Date.now() ? (
-            <Text style={styles.mobileRowMeta}>Retry no earlier than {new Date(smsBackgroundStatus.nextAttemptAt).toLocaleTimeString()} · requires connectivity</Text>
-          ) : null}
-          {smsBackgroundStatus?.updatedAt ? (
-            <Text style={styles.mobileRowMeta}>Last activity {new Date(smsBackgroundStatus.updatedAt).toLocaleString()}</Text>
-          ) : null}
+          <SyncSummary status={smsBackgroundStatus} pending={pendingSmsCount} server={serverSync} />
           <Pressable
             disabled={smsSync.running || smsRetryRequested}
             onPress={() => void handleRetrySmsBackgroundSync()}
@@ -5097,6 +4916,7 @@ function FinanceApp() {
   const renderMore = () => (
     <View style={styles.mobileSectionStack}>
       <View style={styles.mobilePageIntro}><Text style={styles.mobilePageTitle}>More</Text><Text style={styles.mobilePageSubtitle}>Accounts, planning and settings.</Text></View>
+      <RecoveryCard recovery={recovery} onEdit={openTransactionEditor} />
       <Text accessibilityRole="header" style={styles.mobileFieldLabel}>Accounts</Text>
       <View style={styles.mobileGroupedList}>{mobileDestinations.filter(item => item.id === "accounts").map(destinationRow)}</View>
       <Text accessibilityRole="header" style={styles.mobileFieldLabel}>Planning</Text>
@@ -5110,8 +4930,8 @@ function FinanceApp() {
         <View style={styles.mobileSystemHeader}>
           <View style={[styles.mobileSyncDot, state === "error" ? styles.mobileSyncDotError : null]} />
           <View style={styles.mobileRowBody}>
-            <Text style={styles.mobileRowTitle}>{state === "success" ? "All systems operational" : state === "loading" ? "Waking the server…" : "Connection needs attention"}</Text>
-            <Text style={styles.mobileRowMeta}>{getApiBaseUrl()}</Text>
+            <Text style={styles.mobileRowTitle}>{state === "success" ? "Server connection checked" : state === "loading" ? "Waking the server…" : state === "error" ? "Server connection needs attention" : "Server connection not checked"}</Text>
+            <Text style={styles.mobileRowMeta}>This checks the API connection; SMS sync status is shown in Capture.</Text>
           </View>
         </View>
         <Pressable onPress={loadHealth} style={styles.mobileTextButton}>
@@ -5232,6 +5052,9 @@ function FinanceApp() {
     );
   }
 
+  const selectedReviewCandidate = activeTab === "review" && !mobilePanel && reviewCandidates.length ? reviewCandidates[reviewSelection(reviewCandidates, reviewCandidateId, reviewCandidateIndex)] : null;
+  const selectedReviewDraft = selectedReviewCandidate ? getReviewDraft(selectedReviewCandidate) : null;
+  const selectedReviewIssue = selectedReviewDraft ? reviewDraftError(selectedReviewDraft, accounts, categories, paymentMethods) : "";
   const activeContent = mobilePanel === "accounts" ? renderAccounts() : mobilePanel === "sms-automation"
     ? renderSmsAutomation()
     : activeTab === "home"
@@ -5274,24 +5097,24 @@ function FinanceApp() {
             <Text style={styles.mobileSyncTitle}>
               {smsPermissionState !== "granted"
                 ? "Setup"
-                : state === "error" && !smsSync.running ? "Offline" : smsSync.label}
+                : state === "error" && !smsSync.running ? "Connection" : smsSync.label}
             </Text>
             <Text style={styles.mobileSyncMeta}>
-              {smsBackgroundStatus?.pendingCountKnown === false ? "Count unavailable" : pendingSmsCount
+              {smsBackgroundStatus?.pendingCountKnown === false || smsBackgroundStatus?.queueReadable === false ? "Count unavailable" : pendingSmsCount
                 ? `${pendingSmsCount} queued`
                 : smsBackgroundStatus?.state === "running"
                   ? "SMS syncing"
                   : smsBackgroundStatus?.state === "error"
                     ? "SMS needs attention"
                     : smsPermissionState === "granted"
-                      ? "SMS sync ready"
+                      ? smsBackgroundStatus ? "Device queue checked" : "Status not checked"
                       : "Permission needed"}
             </Text>
           </View>
         </Pressable>
       </View>
 
-      <QuickAddHub key={quickScope ?? "signed-out"} ref={quickHub} scope={quickScope} token={accessToken} onFavorites={setQuickFavorites} onPendingCount={setQuickPendingCount} onReferences={(accounts, categories) => { setAccounts(accounts); setCategories(categories); }} onSaved={() => { void handleLoadTransactions(); void handleLoadReferenceData(); }} onFullEntry={handleQuickFullEntry} />
+      <QuickAddHub key={quickScope ?? "signed-out"} ref={quickHub} scope={quickScope} token={accessToken} onFavorites={setQuickFavorites} onPendingCount={setQuickPendingCount} onReferences={(accounts, categories) => { setAccounts(accounts); setCategories(categories); }} onSaved={() => { void recovery.announce(); }} onFullEntry={handleQuickFullEntry} />
       {activeTab === "activity" && !mobilePanel ? <View style={{ flex: 1 }}>{activeContent}</View> : (      <Animated.ScrollView
         contentContainerStyle={styles.mobileScrollContent}
         keyboardShouldPersistTaps="handled"
@@ -5301,6 +5124,9 @@ function FinanceApp() {
         {activeContent}
       </Animated.ScrollView>)}
 
+      {selectedReviewCandidate ? <View style={[ui.card, { borderRadius: 0, padding: 12 }]}><Text accessibilityLiveRegion="polite" style={selectedReviewIssue || reviewState === "error" ? ui.error : ui.muted}>{reviewState === "error" && reviewMessage ? reviewMessage : selectedReviewIssue || `Ready · ${formatCurrency(selectedReviewDraft?.amount)}`}</Text><View style={ui.row}><ActionButton label="Reject message" disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => confirmRejectReviewCandidate(selectedReviewCandidate)} /><ActionButton label={reviewActionCandidateId ? "Confirming…" : "Confirm & add"} primary disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => void handleConfirmReviewCandidate(selectedReviewCandidate)} /></View></View> : null}
+      <RecoveryCard compact recovery={recovery} onEdit={openTransactionEditor} />
+      {editorSurface}
       <View style={styles.mobileTabBar}>
         {tabItems.map((item) => {
           const isActive = activeTab === item.key;
@@ -5423,7 +5249,7 @@ const styles = StyleSheet.create({
   mobileHelpRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
   mobileHelpIcon: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   mobileReviewAmountRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, marginTop: 12, marginBottom: 8 },
-  mobileReviewDirectionToggle: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 8, minHeight: 44, paddingHorizontal: 12, backgroundColor: "#102238" },
+  mobileReviewDirectionToggle: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 8, minHeight: 48, paddingHorizontal: 12, backgroundColor: "#102238" },
   transferMatchOverlay: { flex: 1, justifyContent: "center", padding: 12, backgroundColor: "rgba(0,0,0,0.65)" },
   transferMatchPanel: { height: "96%", maxWidth: 1100, width: "100%", alignSelf: "center", borderRadius: 18, padding: 16, backgroundColor: "#081421", gap: 10 },
   transferMatchWarning: { backgroundColor: "#2b2414", borderRadius: 8, color: "#ffbf4d", padding: 10, fontSize: 13 },
@@ -6482,8 +6308,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     gap: 8,
-    minHeight: 44,
-    paddingHorizontal: 10
+    minHeight: 48,
+    paddingHorizontal: 10,
+    paddingVertical: 6
   },
   mobileSyncDot: {
     backgroundColor: "#35e4ad",
@@ -6501,12 +6328,12 @@ const styles = StyleSheet.create({
   mobileSyncDotWaiting: { backgroundColor: "#ffc15a", shadowColor: "#ffc15a" },
   mobileSyncMeta: {
     color: "#7890ad",
-    fontSize: 9,
+    fontSize: 12,
     marginTop: 1
   },
   mobileSyncTitle: {
     color: "#55e6a5",
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: "800"
   },
   mobileSystemCard: {
