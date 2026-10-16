@@ -19,7 +19,7 @@ import { displayedStatementText } from "@/lib/statement-citytouch";
 import { useToast } from "@/components/toast-provider";
 
 const labels: Record<string, string> = { ebl_bank: "EBL bank", city_bank: "City Bank", bkash: "bKash", new: "Not in ledger", possible_match: "Possible match", needs_correction: "Needs review", posted: "Added", linked: "Linked", skipped: "Skipped", pending: "Pending" };
-const emptyFilters = { state: "", direction: "", type: "", category: "", search: "", date_from: "", date_to: "" };
+const emptyFilters = { state: "", direction: "", type: "", category: "", search: "", date_from: "", date_to: "", ordering: "source" };
 
 function StatementDescriptionCell({ row }: { row: SavedStatementRow }) {
   const source = row.extracted.description;
@@ -274,6 +274,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
           <label className="field"><span className="field__label">Debit / credit</span><select className="field__control" value={filters.direction} onChange={(e) => filter("direction", e.target.value)}><option value="">All directions</option><option value="debit">Debit</option><option value="credit">Credit</option></select></label>
           <label className="field"><span className="field__label">Type</span><select className="field__control" value={filters.type} onChange={(e) => filter("type", e.target.value)}><option value="">All types</option>{transactionTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
           <label className="field"><span className="field__label">Category</span><select className="field__control" value={filters.category} onChange={(e) => filter("category", e.target.value)}><option value="">All categories</option><option value="none">Uncategorized</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+          <label className="field"><span className="field__label">Sort rows</span><select className="field__control" value={filters.ordering} onChange={(e) => filter("ordering", e.target.value)}><option value="source">Statement order</option><option value="date_desc">Newest date first</option><option value="date_asc">Oldest date first</option><option value="amount_desc">Highest amount first</option><option value="amount_asc">Lowest amount first</option></select></label>
 
         </div>
         <div className="statement-actions"><button className="button button--ghost" type="button" onClick={() => { setFilters(emptyFilters); setRowPeriod(allDates); }}>Clear filters</button><button className="button button--primary" type="button" disabled={filtersPending || rowsLoading || rowsError !== null || !eligible.length || setupLoading || bulkBusy} onClick={() => confirmRows("create", eligible)}>Approve {eligible.length} new rows on this page</button><button className="button" type="button" disabled={rowsLoading || filtersPending || bulkBusy || !selectedEligible.length} onClick={() => confirmRows("create", selectedEligible)}>Approve selected new rows ({selectedEligible.length})</button><button className="button" type="button" disabled={rowsLoading || filtersPending || bulkBusy || !selectedIds.length} onClick={() => confirmRows("skip", rows?.results.filter(row => selectedIds.includes(row.id)) ?? [])}>Skip selected ({selectedIds.length})</button></div>

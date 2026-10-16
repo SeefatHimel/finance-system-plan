@@ -640,6 +640,9 @@ unless status is `unique`. The older `pending_sms_match_count` remains the
 stricter same-type counter and can be zero for such a pair. Search is scoped to
 the selected import and covers saved draft and extracted row values before
 pagination.
+Optional `ordering` sorts filtered rows before pagination. Values are `source`
+(default), `date_desc`, `date_asc`, `amount_desc`, and `amount_asc`; missing
+values stay last and ties preserve statement order.
 
 ### Does HTTP 200 mean a whole SMS batch was successfully imported?
 

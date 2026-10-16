@@ -389,6 +389,18 @@ paths:
         schema:
           type: string
           format: date
+      - in: query
+        name: ordering
+        required: false
+        description: Sort all filtered rows before pagination; defaults to source order.
+        schema:
+          type: string
+          enum:
+          - source
+          - date_desc
+          - date_asc
+          - amount_desc
+          - amount_asc
       tags:
       - Statements
       security:

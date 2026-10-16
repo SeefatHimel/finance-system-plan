@@ -626,6 +626,8 @@ selected rows. Confirmation captures their IDs/versions; fresh matches, stale
 versions and source/draft discrepancies stay for individual review. Selection clears
 when the import, page or applied filters change. Bulk skipping never deletes ledger
 records. The existing approve-all-new action remains available for each page.
+Sort rows by statement order (default), date, or amount in either direction. Sorting
+applies across the filtered import before pagination and returns to page one.
 
 The row editor supports Save & next and Next unresolved row, including later pages
 under the current filters. Save changes before moving next. Shortcuts within the

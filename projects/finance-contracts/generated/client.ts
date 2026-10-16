@@ -114,6 +114,7 @@ export class FinanceApiClient {
   search?: string;
   date_from?: string;
   date_to?: string;
+  ordering?: "source" | "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
 }): Promise<StatementRowPage> {
     return this.request<StatementRowPage>("/api/statements/imports/{id}/rows/".replace('{id}', encodeURIComponent(pathParams.id)), { method: "GET", query });
   }

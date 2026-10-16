@@ -570,8 +570,11 @@ Other linked reports are read-only here.
 ## Can users upload bank and wallet statement PDFs?
 
 Yes. Statements saves supported digital BDT imports and resumes them from history.
-Review filters apply across all rows before pagination. The viewport-centered row
-editor shows original masked evidence beside all editable draft details. Saving
+Review filters and the sort selector apply across all rows before pagination. Sort
+by statement order (the default), date in either direction, or amount in either
+direction; changing the order returns to page one and clears row selection.
+The viewport-centered row editor shows original masked evidence beside all
+editable draft details. Saving
 refreshes matches; linking preserves one existing ledger entry, while adding
 despite suggestions asks for separate-movement confirmation. Bulk approval only
 posts validated new visible rows and reports unresolved items. Toasts complement

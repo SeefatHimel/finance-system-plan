@@ -4048,6 +4048,20 @@
           },
           {
             "in": "query",
+            "name": "ordering",
+            "schema": {
+              "enum": [
+                "amount_asc",
+                "amount_desc",
+                "date_asc",
+                "date_desc",
+                "source"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "search",
             "schema": {
               "type": "string"

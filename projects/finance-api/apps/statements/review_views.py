@@ -256,6 +256,11 @@ class StatementImportViewSet(
             OpenApiParameter("search", str, description="Search saved row fields and original extracted values within this import."),
             OpenApiParameter("date_from", OpenApiTypes.DATE),
             OpenApiParameter("date_to", OpenApiTypes.DATE),
+            OpenApiParameter(
+                "ordering", str,
+                enum=["source", "date_desc", "date_asc", "amount_desc", "amount_asc"],
+                description="Sort all filtered rows before pagination; defaults to source order.",
+            ),
         ],
     )
     @action(detail=True, methods=("get",))
@@ -295,6 +300,9 @@ class StatementImportViewSet(
         direction = request.query_params.get("direction", "")
         kind = request.query_params.get("type", "")
         category = request.query_params.get("category", "")
+        ordering = request.query_params.get("ordering", "source")
+        if ordering not in {"source", "date_desc", "date_asc", "amount_desc", "amount_asc"}:
+            raise ValidationError({"ordering": "Choose a valid row order."})
         if direction and direction not in dict(
             StatementRow._meta.get_field("direction").choices
         ):
@@ -362,6 +370,16 @@ class StatementImportViewSet(
             if search and search not in searchable_row_text(row):
                 continue
             filtered.append(row)
+        # Queryset order is the stable tie-breaker: printed row, component, id.
+        # Missing dates/amounts stay last in either direction.
+        if ordering == "date_desc":
+            filtered.sort(key=lambda row: (row.date is None, -row.date.toordinal() if row.date else 0))
+        elif ordering == "date_asc":
+            filtered.sort(key=lambda row: (row.date is None, row.date.toordinal() if row.date else 0))
+        elif ordering == "amount_desc":
+            filtered.sort(key=lambda row: (row.amount is None, -row.amount if row.amount is not None else 0))
+        elif ordering == "amount_asc":
+            filtered.sort(key=lambda row: (row.amount is None, row.amount if row.amount is not None else 0))
         page = filtered[offset : offset + limit]
         from .unified import unique_pending_pairs_for_rows
 

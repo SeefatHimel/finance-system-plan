@@ -733,6 +733,11 @@ period selection. Comparison ranges narrow only ledger-only results, before
 pagination; filtered `count` differs deliberately from whole-statement `counts`.
 Matching coverage and financial records remain unchanged. No migration is needed.
 
+Statement row `ordering` sorts the filtered import before pagination: `source`
+(default), `date_desc`, `date_asc`, `amount_desc`, or `amount_asc`. Missing dates
+or amounts sort last, and ties retain statement row order. Invalid values return
+400.
+
 ## How are account/card numbers attached to accounts and recognized?
 
 Accounts accept optional nested identity metadata and manage one shared payment

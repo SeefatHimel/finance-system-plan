@@ -631,6 +631,34 @@ class SavedStatementTests(APITestCase):
         self.assertEqual(self.edit(row, note="No access").status_code, 404)
         self.assertEqual(self.decide(row).status_code, 404)
 
+    def test_row_ordering_applies_before_pagination_and_keeps_missing_values_last(self):
+        batch = self.upload()
+        rows = list(batch.rows.all())
+        self.assertEqual(len(rows), 3)
+        for row, day, amount in zip(
+            rows,
+            [date(2026, 1, 1), date(2026, 1, 3), None],
+            ["25.00", None, "100.00"],
+        ):
+            StatementRow.objects.filter(pk=row.pk).update(date=day, amount=amount)
+        url = reverse("statement-import-rows", args=[batch.id])
+
+        def ids(**params):
+            response = self.client.get(url, params)
+            self.assertEqual(response.status_code, 200, response.data)
+            return [item["id"] for item in response.data["results"]]
+
+        self.assertEqual(ids(), [str(row.id) for row in rows])
+        self.assertEqual(ids(ordering="date_desc"), [str(row.id) for row in (rows[1], rows[0], rows[2])])
+        self.assertEqual(ids(ordering="date_asc"), [str(row.id) for row in rows])
+        self.assertEqual(ids(ordering="amount_desc"), [str(row.id) for row in (rows[2], rows[0], rows[1])])
+        self.assertEqual(ids(ordering="amount_asc"), [str(row.id) for row in (rows[0], rows[2], rows[1])])
+        self.assertEqual(ids(ordering="amount_desc", limit=1, offset=1), [str(rows[0].id)])
+        self.assertEqual(ids(ordering="date_desc", date_to="2026-01-02"), [str(rows[0].id)])
+        StatementRow.objects.filter(pk=rows[2].pk).update(amount="25.00")
+        self.assertEqual(ids(ordering="amount_asc"), [str(row.id) for row in (rows[0], rows[2], rows[1])])
+        self.assertEqual(self.client.get(url, {"ordering": "other"}).status_code, 400)
+
     def test_transfer_merge_retains_statement_observations_and_blocks_same_batch(self):
         from django.db import transaction
         from rest_framework.exceptions import ValidationError
