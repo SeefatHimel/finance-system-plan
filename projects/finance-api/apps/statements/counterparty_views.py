@@ -44,6 +44,7 @@ class CodeMappingInputSerializer(serializers.Serializer):
         allow_null=True,
         required=False,
     )
+    note_template = serializers.CharField(max_length=500, allow_blank=True, required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -131,6 +132,7 @@ class CodeMappingOutputSerializer(serializers.Serializer):
     other_account = serializers.UUIDField(allow_null=True)
     suggested_type = serializers.CharField(allow_blank=True)
     category = serializers.UUIDField(allow_null=True)
+    note_template = serializers.CharField(allow_blank=True)
     updated_at = serializers.DateTimeField()
 
 
@@ -169,6 +171,7 @@ def mapping_data(mapping):
         else None,
         "suggested_type": mapping.suggested_type,
         "category": str(mapping.category_id) if mapping.category_id else None,
+        "note_template": mapping.note_template,
         "updated_at": mapping.updated_at,
     }
 
@@ -263,6 +266,7 @@ class StatementCounterpartyCodeView(APIView):
                 else None,
                 "suggested_type": values.get("suggested_type", ""),
                 "category": values.get("category"),
+                "note_template": values.get("note_template", ""),
             },
         )
         return Response(CodeMappingOutputSerializer(mapping_data(mapping)).data)

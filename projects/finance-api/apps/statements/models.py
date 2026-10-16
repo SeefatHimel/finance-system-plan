@@ -143,6 +143,7 @@ class StatementMapping(models.Model):
         null=True,
         related_name="statement_mappings",
     )
+    note_template = models.CharField(max_length=500, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -181,6 +182,7 @@ class StatementCounterpartyCode(models.Model):
     category = models.ForeignKey(
         "categories.Category", null=True, blank=True, on_delete=models.SET_NULL,
     )
+    note_template = models.CharField(max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -214,6 +214,35 @@ paths:
           $ref: '#/components/responses/NotFoundError'
         '503':
           description: Archive cannot be decrypted or fails its digest check.
+  /api/statements/imports/{id}/refresh-identifiers/:
+    post:
+      operationId: statements_imports_refresh_identifiers_create
+      tags: [Statements]
+      parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+      security:
+      - bearerAuth: []
+      description: Owner-scoped and throttled. Verify the retained bKash PDF and saved row fingerprints, then fill missing encrypted recurring identifiers only. Original extraction, reviewed drafts and ledger entries remain unchanged.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatementRefreshRequest'
+      responses:
+        '200':
+          description: Number of saved rows enriched.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementRefreshResult'
+        '400':
+          description: Password needed, unsupported profile, or row mismatch.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '429':
+          description: Refresh rate exceeded.
+        '503':
+          description: Archive decryption or extraction unavailable.
   /api/statements/imports/{id}/approve_new/:
     post:
       operationId: statements_imports_approve_new_create
@@ -6215,6 +6244,9 @@ components:
         counterparty_text:
           type: string
           description: Optional verified party label from a recurring statement code.
+        note:
+          type: string
+          description: Optional saved note suggestion; never overwrites an edited note automatically.
         reason:
           type: string
       required:
@@ -6667,9 +6699,10 @@ components:
         other_account: {type: string, format: uuid, nullable: true}
         suggested_type: {type: string, description: Optional direction-compatible ledger type.}
         category: {type: string, format: uuid, nullable: true}
+        note_template: {type: string, maxLength: 500, description: Optional reviewed note to suggest for future rows.}
     StatementCodeMapping:
       type: object
-      required: [id, party_kind, label, other_account, suggested_type, category, updated_at]
+      required: [id, party_kind, label, other_account, suggested_type, category, note_template, updated_at]
       properties:
         id: {type: string, format: uuid}
         party_kind: {type: string, enum: [owned, external]}
@@ -6677,7 +6710,17 @@ components:
         other_account: {type: string, format: uuid, nullable: true}
         suggested_type: {type: string}
         category: {type: string, format: uuid, nullable: true}
+        note_template: {type: string}
         updated_at: {type: string, format: date-time}
+    StatementRefreshRequest:
+      type: object
+      properties:
+        password: {type: string, writeOnly: true, maxLength: 256, description: Optional PDF password, never retained.}
+    StatementRefreshResult:
+      type: object
+      required: [updated_rows]
+      properties:
+        updated_rows: {type: integer, minimum: 0}
     ObservedStatementCodeExample:
       type: object
       required: [date, amount, description]

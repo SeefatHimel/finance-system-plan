@@ -662,3 +662,9 @@ temporary failures and uncertain, incomplete or malformed responses remain queue
 for idempotent retry using the same device IDs/body/timestamps. Invalid envelope
 IDs or more than 25 items return 400 without partial writes. Reprocessing and
 explicit restoration flags retain the single-message contract.
+Q: How does the archived bKash refresh cross the API boundary?
+A: `POST /api/statements/imports/{id}/refresh-identifiers/` accepts an optional
+PDF password and returns `updated_rows`. The action is owner-scoped, no-store,
+throttled, and revalidates archived bytes and row fingerprints. Statement review
+suggestions may include a verified note; counterparty code mappings accept and
+return `note_template`.

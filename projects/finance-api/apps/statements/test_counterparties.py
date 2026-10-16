@@ -341,11 +341,12 @@ class CitytouchCounterpartyTests(APITestCase):
             format="json",
         ).status_code, 400)
         saved = self.client.post(
-            url, self.payload(profile="bkash", account=str(self.wallet.id), code=code, label="Synthetic payee"),
+            url, self.payload(profile="bkash", account=str(self.wallet.id), code=code, label="Synthetic payee", note_template="Reviewed payment note"),
             format="json",
         )
         self.assertEqual(saved.status_code, 200, saved.data)
         self.assertEqual(suggestions([row])[row.id]["counterparty_text"], "Synthetic payee")
+        self.assertEqual(suggestions([row])[row.id]["note"], "Reviewed payment note")
         from .models import StatementCounterpartyCode
 
         mapping = StatementCounterpartyCode.objects.get(pk=saved.data["id"])

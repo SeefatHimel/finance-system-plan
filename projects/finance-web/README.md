@@ -1302,3 +1302,10 @@ New bKash `Pay Bill` and `Mobile Recharge` debit drafts use `Utilities & Bills`
 when that category is active. Older pending bills get the category after the
 backend migration; upload the identical PDF again to recover repeatable
 identifiers that older masked imports did not retain. Existing edits remain.
+On a saved bKash import, **Refresh identifiers from saved PDF** can enrich
+older rows without reuploading the PDF. Enter its password only if the PDF was
+locked; a missing archive still needs an identical reupload. Exact full-number
+matches to another owned bKash wallet appear as review suggestions for Send
+Money, while verified merchant mappings can also offer a reusable note.
+Specific bKash bill categories appear only for recognized bill wording and
+remain editable during review.

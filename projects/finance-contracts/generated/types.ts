@@ -1251,6 +1251,7 @@ export interface StatementSuggestion {
   other_account: string | null;
   account_candidates?: StatementAccountCandidate[];
   counterparty_text?: string;
+  note?: string;
   reason: string;
 }
 
@@ -1405,6 +1406,7 @@ export interface StatementCodeMappingInput {
   other_account?: string | null;
   suggested_type?: string;
   category?: string | null;
+  note_template?: string;
 }
 
 export interface StatementCodeMapping {
@@ -1414,7 +1416,16 @@ export interface StatementCodeMapping {
   other_account: string | null;
   suggested_type: string;
   category: string | null;
+  note_template: string;
   updated_at: string;
+}
+
+export interface StatementRefreshRequest {
+  password?: string;
+}
+
+export interface StatementRefreshResult {
+  updated_rows: number;
 }
 
 export interface ObservedStatementCodeExample {

@@ -1047,3 +1047,10 @@ lock also serializes concurrent device-ID checks. Retry after a lost response
 returns the already-saved candidate instead of posting another ledger entry.
 Compact receipts omit original SMS bodies and identity-suggestion serialization;
 sender rules and capture preferences are loaded once per batch request.
+Q: How are older bKash recurring identifiers and bill categories improved?
+A: An authenticated, throttled import action decrypts the retained PDF, verifies
+its digest and saved row fingerprints, and fills only missing encrypted codes.
+A password is supplied per request for locked PDFs. Clear Pay Bill and Mobile
+Recharge wording selects specific expense categories for new rows; a migration
+refines untouched pending generic bill rows. An exact full Send Money recipient
+match to one owned active bKash wallet suggests, but never posts, a transfer.

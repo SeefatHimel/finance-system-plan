@@ -1570,7 +1570,7 @@ const savedStatementRowSchema = z.object({
   type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]),
   other_account: z.string().nullable(), category: z.string().nullable(), reference: z.string(), counterparty_text: z.string(), note: z.string(), classification_confirmed: z.boolean(),
   state: z.enum(["pending", "posted", "linked", "skipped"]), transaction: z.string().nullable(), version: z.number(), created_at: z.string(), updated_at: z.string(),
-  review: z.object({ draft_issues: z.array(z.string()).default([]), suggestion: z.object({ type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]), category: z.string().nullable(), other_account: z.string().nullable(), account_candidates: z.array(z.object({ account: z.string(), name: z.string() })).default([]), counterparty_text: z.string().optional(), reason: z.string() }).nullable().default(null), issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), pending_sms_match_count: z.number().int().nonnegative().nullable().default(0), unified_pending_sms_pair_id: z.string().nullable().default(null), unified_pending_sms_status: z.enum(["none", "unique", "ambiguous", "unavailable"]).default("none"), pending_sms_matches: z.array(pendingStatementSmsMatchSchema).default([]), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
+  review: z.object({ draft_issues: z.array(z.string()).default([]), suggestion: z.object({ type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]), category: z.string().nullable(), other_account: z.string().nullable(), account_candidates: z.array(z.object({ account: z.string(), name: z.string() })).default([]), counterparty_text: z.string().optional(), note: z.string().optional(), reason: z.string() }).nullable().default(null), issues: z.array(z.string()), review_state: z.string(), matches: z.array(statementMatchSchema), pending_sms_match_count: z.number().int().nonnegative().nullable().default(0), unified_pending_sms_pair_id: z.string().nullable().default(null), unified_pending_sms_status: z.enum(["none", "unique", "ambiguous", "unavailable"]).default("none"), pending_sms_matches: z.array(pendingStatementSmsMatchSchema).default([]), matching_truncated: z.boolean(), requires_acknowledgement: z.boolean() })
 });
 const statementRowPageSchema = z.object({ count: z.number(), offset: z.number(), limit: z.number(), results: z.array(savedStatementRowSchema) });
 const statementHistorySchema = z.object({ count: z.number(), next: z.string().nullable(), previous: z.string().nullable(), results: z.array(savedStatementSchema) });
@@ -1590,6 +1590,13 @@ export async function createStatementImport(token: string, account: string, file
 }
 export async function downloadStatementOriginal(token: string, id: string, signal?: AbortSignal): Promise<Blob> {
   return (await authenticatedFetch(`/api/statements/imports/${id}/original/`, token, { signal })).blob();
+}
+
+export async function refreshStatementIdentifiers(token: string, id: string, password = ""): Promise<number> {
+  const response = await authenticatedFetch(`/api/statements/imports/${id}/refresh-identifiers/`, token, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }),
+  });
+  return z.object({ updated_rows: z.number().int().nonnegative() }).parse(await response.json()).updated_rows;
 }
 const statementIdentificationSchema = z.object({
   profile: z.string(), account_hint: z.string(),
@@ -1644,10 +1651,10 @@ const statementCounterpartyCodeSchema = z.object({
   account: z.string(), account_name: z.string(), profile: z.enum(["city_bank", "bkash"]), code: z.string(), printed_code: z.string().nullable(), direction: z.enum(["debit", "credit"]),
   count: z.number(), pending_count: z.number(), last_seen: z.string().nullable(),
   examples: z.array(z.object({ date: z.string().nullable(), amount: z.string().nullable(), description: z.string() })),
-  mapping: z.object({ id: z.string(), party_kind: z.enum(["owned", "external"]), label: z.string(), other_account: z.string().nullable(), suggested_type: z.string(), category: z.string().nullable(), updated_at: z.string() }).nullable()
+  mapping: z.object({ id: z.string(), party_kind: z.enum(["owned", "external"]), label: z.string(), other_account: z.string().nullable(), suggested_type: z.string(), category: z.string().nullable(), note_template: z.string().default(""), updated_at: z.string() }).nullable()
 });
 export type StatementCounterpartyCode = z.infer<typeof statementCounterpartyCodeSchema>;
-export type StatementCounterpartyCodeInput = { account: string; profile: "city_bank" | "bkash"; code: string; direction: "debit" | "credit"; party_kind: "owned" | "external"; label: string; other_account: string | null; suggested_type: string; category: string | null };
+export type StatementCounterpartyCodeInput = { account: string; profile: "city_bank" | "bkash"; code: string; direction: "debit" | "credit"; party_kind: "owned" | "external"; label: string; other_account: string | null; suggested_type: string; category: string | null; note_template: string };
 export async function listStatementCounterpartyCodes(token: string, signal?: AbortSignal): Promise<StatementCounterpartyCode[]> {
   const payload = await (await authenticatedFetch("/api/statements/counterparty-codes/", token, { signal })).json();
   return z.object({ count: z.number(), results: z.array(statementCounterpartyCodeSchema) }).parse(payload).results;

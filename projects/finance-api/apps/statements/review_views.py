@@ -1,5 +1,7 @@
+from functools import wraps
 from uuid import UUID
 
+from config.secure_data import decrypt_bytes, encrypt_bytes
 from cryptography.fernet import InvalidToken
 from django.db import transaction as db_transaction
 from django.db.models import Count, Exists, OuterRef, Q
@@ -19,7 +21,6 @@ from rest_framework.response import Response
 
 from apps.categories.models import Category
 from apps.transactions.transfers import lock_transfer_user
-from config.secure_data import decrypt_bytes, encrypt_bytes
 
 from .insights import analyze, prepare
 from .models import StatementImport, StatementOriginalFile, StatementRow
@@ -32,6 +33,8 @@ from .serializers import (
     StatementDecisionSerializer,
     StatementImportSerializer,
     StatementPreviewRequestSerializer,
+    StatementRefreshRequestSerializer,
+    StatementRefreshResultSerializer,
     StatementRowEditSerializer,
     StatementRowPageSerializer,
     StatementSelectedSerializer,
@@ -64,6 +67,15 @@ class NoStoreMixin:
         response = super().finalize_response(request, response, *args, **kwargs)
         response["Cache-Control"] = "no-store"
         return response
+
+
+def redact_pdf_password(view):
+    """Mark the underlying Django request before DRF handles a password POST."""
+    @wraps(view)
+    def wrapped(self, request, *args, **kwargs):
+        request._request.sensitive_post_parameters = ("password",)
+        return view(self, request, *args, **kwargs)
+    return wrapped
 
 
 def searchable_row_text(row):
@@ -121,7 +133,7 @@ class StatementImportViewSet(
         return super().initialize_request(request, *args, **kwargs)
 
     def get_throttles(self):
-        return [StatementPreviewThrottle()] if self.action == "create" else []
+        return [StatementPreviewThrottle()] if self.action in {"create", "refresh_identifiers"} else []
 
     def get_queryset(self):
         if not self.request.user.is_authenticated:
@@ -238,6 +250,39 @@ class StatementImportViewSet(
         response["X-Content-Type-Options"] = "nosniff"
         response["Cache-Control"] = "no-store"
         return response
+
+    @extend_schema(
+        request=StatementRefreshRequestSerializer,
+        responses={200: StatementRefreshResultSerializer},
+        tags=["Statements"],
+    )
+    @redact_pdf_password
+    @action(detail=True, methods=["post"], url_path="refresh-identifiers", parser_classes=[JSONParser])
+    def refresh_identifiers(self, request, pk=None):
+        batch = self.get_object()
+        if batch.profile != "bkash":
+            raise ValidationError({"detail": "Identifier refresh is available for bKash statements."})
+        serializer = StatementRefreshRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        source = get_object_or_404(StatementOriginalFile, batch=batch)
+        try:
+            data = decrypt_bytes(source.ciphertext)
+        except InvalidToken:
+            return Response({"detail": "Original statement cannot be decrypted. Check the archive key."}, status=503)
+        if len(data) != source.size or file_digest(data) != batch.file_digest:
+            return Response({"detail": "Original statement failed its integrity check."}, status=503)
+        from .views import extract_pdf_bytes
+
+        preview = extract_pdf_bytes(
+            data, serializer.validated_data.get("password", ""),
+            include_private_identifiers=True,
+        )
+        if isinstance(preview, Response):
+            return preview
+        if preview.get("profile") != "bkash" or len(preview.get("rows", [])) != batch.rows.filter(component="principal").count():
+            raise ValidationError({"detail": "Archived statement rows do not match this import. No data was changed."})
+        updated = refresh_bkash_identifiers(batch, preview, strict=True)
+        return Response(StatementRefreshResultSerializer({"updated_rows": updated}).data)
 
     @extend_schema(
         responses=StatementRowPageSerializer,

@@ -72,6 +72,21 @@ def bkash_funding_credit(original, profile, component="principal"):
     )
 
 
+def bkash_bill_category_name(original):
+    """Specific categories only for explicit bKash bill/recharge wording."""
+    kind = str(original.get("provider_type") or "").strip().casefold()
+    details = str(original.get("description") or "").casefold()
+    if kind == "mobile recharge":
+        return "Mobile Recharge"
+    if kind != "pay bill":
+        return None
+    if re.search(r"\b(?:desco|dpdc|bpdb|palli\s+bidyut|electric(?:ity)?|power\s+(?:supply|distribution))\b", details):
+        return "Electricity"
+    if re.search(r"\b(?:internet|broadband|wifi|wi-fi|isp)\b", details):
+        return "Internet"
+    return "Utilities & Bills"
+
+
 def resolved(row):
     return row.state == "skipped" or row.transaction_id is not None
 
@@ -139,18 +154,20 @@ def save_import(*, user, account, digest, preview):
         opening_balance=ledger_money(preview["opening_balance"]),
         closing_balance=ledger_money(preview["closing_balance"]),
     )
-    bill_category = None
+    bill_categories = {}
     if batch.profile == "bkash":
         from apps.categories.models import Category
 
-        bill_category = Category.objects.filter(
-            user=user, name="Utilities & Bills", kind="expense", is_active=True
-        ).first()
+        bill_categories = {category.name: category for category in Category.objects.filter(
+            user=user, name__in=["Utilities & Bills", "Electricity", "Internet", "Mobile Recharge"],
+            kind="expense", is_active=True,
+        )}
     records = []
     for position, original in enumerate(preview["rows"], 1):
         original = {**original, "issues": list(original["issues"])}
         printed_code = original.pop("citytouch_printed_code", None)
         bkash_code = original.pop("bkash_identifier", None)
+        bill_name = bkash_bill_category_name(original) if batch.profile == "bkash" else None
         if any(
             original[key] is not None and ledger_money(original[key]) is None
             for key in ("amount", "balance_after", "signed_fee")
@@ -177,10 +194,10 @@ def save_import(*, user, account, digest, preview):
             "reference": original["reference"],
             "counterparty_text": clean_merchant(original["description"]),
             "note": original["description"],
-            "category": bill_category if (
-                bill_category and direction == "debit" and
-                original.get("provider_type", "").casefold() in {"pay bill", "mobile recharge"}
-            ) else None,
+            "category": (
+                bill_categories.get(bill_name)
+                or bill_categories.get("Utilities & Bills")
+            ) if direction == "debit" and bill_name else None,
         }
         records.append(
             StatementRow(
@@ -221,18 +238,19 @@ def save_import(*, user, account, digest, preview):
 
 
 @db_transaction.atomic
-def refresh_bkash_identifiers(batch, preview):
+def refresh_bkash_identifiers(batch, preview, *, strict=False):
     """Enrich identical archived rows without replacing source or ledger decisions."""
     if batch.profile != "bkash" or preview.get("profile") != "bkash":
         return 0
     original_rows = preview.get("rows", [])
     saved = list(batch.rows.select_for_update().filter(component="principal").order_by("position"))
-    if len(saved) != len(original_rows):
-        return 0
-    if any(
+    mismatch = len(saved) != len(original_rows) or any(
         row.position != position or row.source_fingerprint != source_fingerprint(original, "principal")
         for position, (row, original) in enumerate(zip(saved, original_rows), 1)
-    ):
+    )
+    if mismatch:
+        if strict:
+            raise ValidationError({"detail": "Archived statement rows do not match this import. No data was changed."})
         return 0
     changed = 0
     for row, original in zip(saved, original_rows):

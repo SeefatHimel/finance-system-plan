@@ -73,7 +73,7 @@ class DefaultCategoryTests(TestCase):
 
         self.assertEqual(
             Category.objects.filter(user=empty_user).count(),
-            len(DEFAULT_CATEGORIES),
+            len(migration.DEFAULT_CATEGORIES),
         )
         self.assertEqual(
             list(Category.objects.filter(user=customized_user).values_list("name", flat=True)),

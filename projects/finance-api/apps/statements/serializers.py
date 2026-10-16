@@ -59,6 +59,17 @@ class StatementPreviewRequestSerializer(StatementIdentifyRequestSerializer):
         return value
 
 
+class StatementRefreshRequestSerializer(serializers.Serializer):
+    password = serializers.CharField(
+        required=False, allow_blank=True, write_only=True,
+        max_length=256, trim_whitespace=False,
+    )
+
+
+class StatementRefreshResultSerializer(serializers.Serializer):
+    updated_rows = serializers.IntegerField()
+
+
 class StatementRowSerializer(serializers.Serializer):
     id = serializers.CharField()
     page = serializers.IntegerField()
@@ -222,6 +233,7 @@ class StatementSuggestionSerializer(serializers.Serializer):
     other_account = serializers.UUIDField(allow_null=True)
     account_candidates = StatementAccountCandidateSerializer(many=True, required=False)
     counterparty_text = serializers.CharField(required=False)
+    note = serializers.CharField(required=False, allow_blank=True)
     reason = serializers.CharField()
 
 

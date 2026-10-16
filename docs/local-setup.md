@@ -581,3 +581,8 @@ Before running web clients with Edit/Undo, run `python manage.py migrate` from
 `projects/finance-api` using the configured environment. This applies
 `transactions.0007_transaction_action_recovery`; no production data backfill or
 SMS/PDF re-import is required.
+For bKash imports saved before recurring identifiers were retained, open the
+saved import in Statements and select **Refresh identifiers from saved PDF**.
+Supply the PDF password when needed. If that import has no saved original,
+reupload the identical PDF to attach it. Run migrations before testing the new
+Electricity, Internet, Mobile Recharge, and merchant-note fields.

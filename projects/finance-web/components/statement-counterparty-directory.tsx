@@ -21,6 +21,7 @@ function initialChoice(row: StatementCounterpartyCode): StatementCounterpartyCod
     other_account: row.mapping?.other_account ?? null,
     suggested_type: row.mapping?.suggested_type ?? "",
     category: row.mapping?.category ?? null,
+    note_template: row.mapping?.note_template ?? "",
   };
 }
 
@@ -143,6 +144,7 @@ export function StatementCounterpartyDirectory() {
             {draft.party_kind === "owned" ? <label className="field"><span className="field__label">Other owned account</span><select className="field__control" required value={draft.other_account ?? ""} onChange={(event) => setDraft({ ...draft, other_account: event.target.value || null })}><option value="">Choose account</option>{otherOptions.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label> : null}
             <label className="field"><span className="field__label">Suggest transaction type</span><select className="field__control" value={draft.suggested_type} onChange={(event) => setDraft({ ...draft, suggested_type: event.target.value, category: null })}><option value="">No type suggestion</option>{transactionTypes.filter((type) => (type !== "transfer" || draft.party_kind === "owned") && (type === "transfer" || type === "adjustment" || directionForType(type) === row.direction)).map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
             {draft.suggested_type ? <label className="field"><span className="field__label">Suggest category</span><select className="field__control" value={draft.category ?? ""} onChange={(event) => setDraft({ ...draft, category: event.target.value || null })}><option value="">No category suggestion</option>{categories.filter((category) => category.is_active && compatibleCategory(category, draft.suggested_type)).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label> : null}
+            <label className="field"><span className="field__label">Suggest note</span><input className="field__control" maxLength={500} value={draft.note_template} onChange={(event) => setDraft({ ...draft, note_template: event.target.value })} placeholder="Optional note for this recipient" /><small className="field__hint">Shown as a suggestion for future rows; never replaces your edited note automatically.</small></label>
             <div className="statement-code-actions"><button className="button button--primary" type="submit" disabled={busy}>Save verified mapping</button><button className="button" type="button" disabled={busy} onClick={() => { setEditing(null); setDraft(null); }}>Cancel</button>{row.mapping ? <button className="button" type="button" disabled={busy} onClick={() => void forget(row)}>Forget mapping</button> : null}</div>
           </form>}
       </article>;

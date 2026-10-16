@@ -1098,3 +1098,8 @@ owned account. The bank label does not select a specific account. Choosing a
 suggestion changes only the draft and resets the reviewed-type confirmation;
 the user must verify ownership, save, then make the ledger decision. Existing
 pending imports gain these hints when opened, with no re-upload required.
+Q: What does the saved-statement refresh button change?
+A: For a bKash import with an archived PDF, it fills missing recurring
+identifiers only and reports the count. A locked PDF needs its password again.
+The review screens offer verified category and note suggestions without
+overwriting the user's edits or posting a movement.

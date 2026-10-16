@@ -6,7 +6,7 @@ import { allDates, periodBounds, type DatePeriod } from "@/lib/date-period";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { identifyStatementAccount, type StatementIdentification, createStatementImport, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
+import { identifyStatementAccount, type StatementIdentification, createStatementImport, refreshStatementIdentifiers, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { transactionTypes } from "@/lib/category-type";
 import { LoadingState } from "@/components/loading-state";
@@ -76,6 +76,8 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
   const [batchId, setBatchId] = useState(initialImportId ?? "");
   const [batch, setBatch] = useState<SavedStatement | null>(null);
   const [batchError, setBatchError] = useState<string | null>(null);
+  const [refreshPassword, setRefreshPassword] = useState("");
+  const [refreshingIdentifiers, setRefreshingIdentifiers] = useState(false);
   const [rows, setRows] = useState<StatementRowPage | null>(null);
   const [rowsLoading, setRowsLoading] = useState(false);
   const [rowsError, setRowsError] = useState<string | null>(null);
@@ -141,7 +143,21 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
   function openBatch(id: string) {
     rowRequest.current?.abort(); setSelectedRow(null); setRowLoading(false); setBatch(null); setSummary(null); setRows(null);
     setRowPeriod(allDates); setFilters(emptyFilters); setAppliedFilters(emptyFilters); setOffset(0); setBatchId(id);
+    setRefreshPassword("");
     router.replace(`/statements?import=${id}`, { scroll: false });
+  }
+  async function refreshIdentifiers() {
+    const token = getAccessToken();
+    if (!token || !batch || refreshingIdentifiers) return;
+    setRefreshingIdentifiers(true);
+    const unlock = refreshPassword;
+    setRefreshPassword("");
+    try {
+      const updated = await refreshStatementIdentifiers(token, batch.id, unlock);
+      setEpoch((value) => value + 1);
+      notify(updated ? `Found recurring identifiers in ${updated} archived rows. Reviewed entries were not changed.` : "No missing recurring identifiers were found. Reviewed entries were not changed.");
+    } catch (reason) { fail(reason, "Could not refresh archived identifiers."); }
+    finally { setRefreshingIdentifiers(false); }
   }
   function fail(reason: unknown, fallback: string) { const message = reason instanceof Error ? reason.message : fallback; notify(message, "error"); return message; }
   async function identifyFile(selected: File | null, unlock: string) {
@@ -258,7 +274,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
     {batchError ? <p role="alert" className="form-error">{batchError}</p> : null}
     {batchId && !batch && !batchError ? <LoadingState compact label="Loading statement" detail="Retrieving your saved review" /> : null}
     {batch ? <>
-      <section className="panel"><div className="panel__body"><h2 className="section-title">{batch.account_name} · {labels[batch.profile] ?? batch.profile}</h2><p>{batch.period_start ?? "Unknown"} → {batch.period_end ?? "Unknown"} · {batch.page_count} pages · Account ending {batch.account_hint || "unknown"}</p>{batch.has_original_file ? <StatementOriginalViewer key={batch.id} batchId={batch.id} /> : <p className="inline-note">Original PDF unavailable for this older import. Re-upload the identical file under {batch.account_name} to attach it without adding rows or transactions again.</p>}{batch.account_suggestion ? <p className="inline-note">{batch.account_suggestion.account ? `Saved identifier suggests ${batch.account_suggestion.name}. ` : ""}{batch.account_suggestion.reason}{batch.account_suggestion.account && batch.account_suggestion.account !== batch.account ? " This differs from the selected statement account; verify before approving." : ""}</p> : null}
+      <section className="panel"><div className="panel__body"><h2 className="section-title">{batch.account_name} · {labels[batch.profile] ?? batch.profile}</h2><p>{batch.period_start ?? "Unknown"} → {batch.period_end ?? "Unknown"} · {batch.page_count} pages · Account ending {batch.account_hint || "unknown"}</p>{batch.has_original_file ? <StatementOriginalViewer key={batch.id} batchId={batch.id} /> : <p className="inline-note">Original PDF unavailable for this older import. Re-upload the identical file under {batch.account_name} to attach it without adding rows or transactions again.</p>}{batch.profile === "bkash" && batch.has_original_file ? <div className="statement-actions"><button className="button" type="button" disabled={refreshingIdentifiers} onClick={() => void refreshIdentifiers()}>{refreshingIdentifiers ? "Refreshing…" : "Refresh identifiers from saved PDF"}</button><label className="field"><span className="field__label">PDF password, if needed</span><input className="field__control" type="password" autoComplete="off" value={refreshPassword} onChange={(event) => setRefreshPassword(event.target.value)} /></label><small>Only fills missing recurring identifiers. It does not change reviewed rows or ledger entries.</small></div> : null}{batch.account_suggestion ? <p className="inline-note">{batch.account_suggestion.account ? `Saved identifier suggests ${batch.account_suggestion.name}. ` : ""}{batch.account_suggestion.reason}{batch.account_suggestion.account && batch.account_suggestion.account !== batch.account ? " This differs from the selected statement account; verify before approving." : ""}</p> : null}
         <p>Verify this statement belongs to the selected account. A suffix match is a hint; it does not prove ownership.</p>
         <div className="metric-row">{[["Review rows", batch.counts.total], ["Pending", batch.counts.pending], ["Added", batch.counts.posted], ["Linked", batch.counts.linked], ["Skipped", batch.counts.skipped]].map(([name, value]) => <div className="metric" key={name}><span className="metric__label">{name}</span><strong className="metric__value">{value}</strong></div>)}</div>
         <details className="raw-message"><summary>Original extraction checks</summary><ul className="statement-checks">{batch.checks.map((check) => <li key={check.label}><strong>{check.passed === null ? "Unavailable" : check.passed ? "Passed" : "Needs review"}</strong> — {check.label}{check.expected !== null ? ` · Reported ${check.expected}, extracted ${check.observed ?? "unknown"}` : " · Not printed or readable"}</li>)}</ul><ul className="statement-warnings">{batch.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul><p>These checks describe the original extraction. Draft corrections are saved separately; source discrepancies require explicit review.</p></details>

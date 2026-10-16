@@ -90,6 +90,7 @@ def suggestions(rows):
     from apps.accounts.models import Account
     from apps.payment_methods.models import PaymentMethod
     from apps.payment_methods.resolution import (
+        exact_original_score,
         identifier_suffix,
         matching_methods,
         named_methods,
@@ -125,7 +126,24 @@ def suggestions(rows):
     }
     result = code_suggestions(rows)
     for row in rows:
-        if code_for_row(row):
+        code = code_for_row(row)
+        if code and row.id not in result and batch.profile == "bkash" and code.startswith("send:phone:"):
+            number = code.removeprefix("send:phone:")
+            exact = [method for method in methods if (
+                method.provider == "bkash"
+                and method.account.type == "mobile_wallet"
+                and method.account.currency == batch.currency
+                and method.account_id != batch.account_id
+                and exact_original_score(method, "account", number) == 120
+            )]
+            if len({method.account_id for method in exact}) == 1:
+                account = exact[0].account
+                result[row.id] = {
+                    "type": "transfer", "category": None,
+                    "other_account": str(account.id),
+                    "reason": f"The full Send Money recipient matches a saved number for {account.name}. Verify ownership before applying.",
+                }
+        if code:
             # Unverified or unmapped Citytouch codes never fall through to
             # generic numeric/payment-method or merchant learning.
             continue
@@ -210,6 +228,7 @@ def suggestions(rows):
         result[row.id] = {
             "type": mapping.type,
             "category": str(mapping.category_id) if mapping.category_id else None,
+            "note": mapping.note_template,
             "other_account": str(mapping.other_account_id)
             if mapping.other_account_id
             else None,
@@ -232,6 +251,7 @@ def remember(row, user):
                 "direction": row.direction,
                 "category": row.category,
                 "other_account": row.other_account,
+                "note_template": row.note[:500] if row.note and row.note.strip() != str(row.extracted.get("description") or "").strip() else "",
             },
         )
 

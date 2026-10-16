@@ -1609,7 +1609,7 @@ class StatementIdentitySuggestionTests(APITestCase):
     upload = SavedStatementTests.upload
 
     def test_bkash_bill_category_and_identifier_refresh_preserve_original_draft(self):
-        utilities = Category.objects.get(user=self.user, name="Utilities & Bills")
+        internet = Category.objects.get(user=self.user, name="Internet")
         pdf = synthetic_pdf("bkash", bkash_details={
             "Send Money": ("01999990001 / TRX ID:", "SYNTHSEND"),
             "Pay Bill": ("DOT INTERNET / TRX ID:", "SYNTHBILL"),
@@ -1627,7 +1627,7 @@ class StatementIdentitySuggestionTests(APITestCase):
             self.assertNotIn("01999990001", cursor.fetchone()[0])
         self.assertNotIn("01999990001", str(send.extracted))
         self.assertEqual(bill.source_code, "bill:name:DOT INTERNET")
-        self.assertEqual(bill.category_id, utilities.id)
+        self.assertEqual(bill.category_id, internet.id)
         self.assertIsNone(fee.category_id)
         detail = self.client.get(reverse("statement-row-detail", args=[send.id]))
         self.assertIsNone(detail.data["citytouch_printed_code"])
@@ -1643,6 +1643,91 @@ class StatementIdentitySuggestionTests(APITestCase):
         self.assertEqual(send.note, "Reviewed note")
         self.assertEqual(send.version, previous_version + 1)
         self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_archived_refresh_only_fills_missing_identifier(self):
+        pdf = synthetic_pdf("bkash", bkash_details={
+            "Send Money": ("01999990001 / TRX ID:", "SYNTHSEND"),
+        })
+        batch = self.upload(data=pdf, account=self.wallet)
+        row = batch.rows.get(position=2, component="principal")
+        StatementRow.objects.filter(pk=row.pk).update(source_code="", note="My reviewed note")
+        url = reverse("statement-import-refresh-identifiers", args=[batch.pk])
+        response = self.client.post(url, {}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["updated_rows"], 1)
+        row.refresh_from_db()
+        self.assertEqual(row.source_code, "send:phone:01999990001")
+        self.assertEqual(row.note, "My reviewed note")
+        self.assertEqual(self.client.post(url, {}, format="json").data["updated_rows"], 0)
+        other = get_user_model().objects.create_user(username="other-refresh-user")
+        self.client.force_authenticate(other)
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, 404)
+
+    def test_locked_archived_refresh_requires_password_and_preserves_draft(self):
+        pdf = synthetic_pdf("bkash", password="synthetic-secret", bkash_details={
+            "Send Money": ("01999990001 / TRX ID:", "SYNTHSEND"),
+        })
+        response = self.client.post(reverse("statement-import-list"), {
+            "account": str(self.wallet.id),
+            "file": SimpleUploadedFile("locked.pdf", pdf),
+            "password": "synthetic-secret",
+        }, format="multipart")
+        self.assertEqual(response.status_code, 201, response.data)
+        batch = StatementImport.objects.get(pk=response.data["id"])
+        row = batch.rows.get(position=2, component="principal")
+        StatementRow.objects.filter(pk=row.pk).update(source_code="", note="Keep this edited note")
+        url = reverse("statement-import-refresh-identifiers", args=[batch.pk])
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, 400)
+        row.refresh_from_db()
+        self.assertEqual(row.source_code, "")
+        result = self.client.post(url, {"password": "synthetic-secret"}, format="json")
+        self.assertEqual(result.status_code, 200, result.data)
+        self.assertEqual(result.data["updated_rows"], 1)
+        row.refresh_from_db()
+        self.assertEqual(row.note, "Keep this edited note")
+
+    def test_specific_pending_bill_migration_keeps_edited_rows(self):
+        import importlib
+
+        from django.apps import apps
+
+        migration = importlib.import_module("apps.statements.migrations.0010_specific_pending_bills")
+        batch = self.upload(data=synthetic_pdf("bkash", bkash_details={
+            "Pay Bill": ("DOT INTERNET / TRX ID:", "SYNTHBILL"),
+        }), account=self.wallet)
+        row = batch.rows.get(position=3, component="principal")
+        generic = Category.objects.get(user=self.user, name="Utilities & Bills")
+        specific = Category.objects.get(user=self.user, name="Internet")
+        StatementRow.objects.filter(pk=row.pk).update(category=generic)
+        migration.refine_pending_bills(apps, connection.schema_editor())
+        row.refresh_from_db()
+        self.assertEqual(row.category_id, specific.id)
+        StatementRow.objects.filter(pk=row.pk).update(category=generic, note="Edited manually")
+        migration.refine_pending_bills(apps, connection.schema_editor())
+        row.refresh_from_db()
+        self.assertEqual(row.category_id, generic.id)
+
+    def test_exact_full_recipient_suggests_owned_wallet_only_if_unique(self):
+        from apps.payment_methods.models import PaymentMethod
+        from apps.payment_methods.secure_identifiers import retain_originals
+
+        from .insights import suggestions
+
+        batch = self.upload(data=synthetic_pdf("bkash", bkash_details={
+            "Send Money": ("01999990001 / TRX ID:", "SYNTHSEND"),
+        }), account=self.wallet)
+        row = batch.rows.get(position=2, component="principal")
+        owned = Account.objects.create(user=self.user, name="Other wallet", type="mobile_wallet", currency="BDT")
+        method = PaymentMethod.objects.create(user=self.user, account=owned, name="Other wallet method", provider="bkash")
+        retain_originals(method, {"identifier": "01999990001"})
+        hint = suggestions([row])[row.id]
+        self.assertEqual(hint["other_account"], str(owned.id))
+        self.assertEqual(hint["type"], "transfer")
+        self.assertEqual(row.type, "income")
+        another = Account.objects.create(user=self.user, name="Third wallet", type="mobile_wallet", currency="BDT")
+        second = PaymentMethod.objects.create(user=self.user, account=another, name="Third wallet method", provider="bkash")
+        retain_originals(second, {"identifier": "01999990001"})
+        self.assertNotIn(row.id, suggestions([row]))
 
     def test_existing_pending_bkash_bill_migration_preserves_reviewed_rows(self):
         import importlib

@@ -1263,3 +1263,19 @@ confirmed candidates, preserving additional SMS sources on existing entries. SMS
 raw-text retention is honored. Unified review does not learn SMS mappings implicitly,
 and never runs a data backfill. Apply `transactions.0008_transferevidence_effective_balance`
 before deploying the updated API.
+# Recurring bKash statement clues
+
+Saved bKash imports with an archived PDF can call
+`POST /api/statements/imports/{id}/refresh-identifiers/` with JSON
+`{"password":""}` (supply the PDF password when encrypted). The owner-scoped,
+throttled action checks the archive digest and row fingerprints, then fills only
+missing encrypted recurring identifiers. It returns `updated_rows`; reviewed
+drafts, original extraction, and ledger entries stay unchanged. Imports without
+an archived PDF still require an identical-file reupload. Passwords are never
+stored. A full Send Money recipient number matching exactly one active saved
+bKash wallet identifier suggests the other account for review; recharge and
+bill numbers never imply a transfer. Verified code mappings can suggest a note.
+Explicitly remembered statement choices can also suggest a corrected note.
+New bKash bill drafts use Electricity, Internet, or Mobile Recharge for clear
+provider wording, with Utilities & Bills as the fallback. A migration refines
+only untouched pending generic bill drafts, not posted or manually edited rows.

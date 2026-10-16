@@ -3942,6 +3942,49 @@
         ]
       }
     },
+    "/api/statements/imports/{id}/refresh-identifiers/": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementRefreshRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementRefreshResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/statements/imports/{id}/review_selected/": {
       "post": {
         "parameters": [
@@ -5402,6 +5445,10 @@
           "maxLength": 120,
           "type": "string"
         },
+        "note_template": {
+          "maxLength": 500,
+          "type": "string"
+        },
         "other_account": {
           "format": "uuid",
           "nullable": true,
@@ -5452,6 +5499,9 @@
         "label": {
           "type": "string"
         },
+        "note_template": {
+          "type": "string"
+        },
         "other_account": {
           "format": "uuid",
           "nullable": true,
@@ -5472,6 +5522,7 @@
         "category",
         "id",
         "label",
+        "note_template",
         "other_account",
         "party_kind",
         "suggested_type",
@@ -9280,6 +9331,27 @@
       ],
       "type": "object"
     },
+    "StatementRefreshRequest": {
+      "properties": {
+        "password": {
+          "maxLength": 256,
+          "type": "string",
+          "writeOnly": true
+        }
+      },
+      "type": "object"
+    },
+    "StatementRefreshResult": {
+      "properties": {
+        "updated_rows": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "updated_rows"
+      ],
+      "type": "object"
+    },
     "StatementReview": {
       "properties": {
         "draft_issues": {
@@ -9577,6 +9649,9 @@
           "type": "string"
         },
         "counterparty_text": {
+          "type": "string"
+        },
+        "note": {
           "type": "string"
         },
         "other_account": {
