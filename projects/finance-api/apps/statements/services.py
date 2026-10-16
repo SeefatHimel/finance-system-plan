@@ -50,24 +50,24 @@ def transfer_hint(row):
     text = f"{row.extracted.get('provider_type', '')} {row.extracted.get('description', '')}"
     from .counterparties import code_for_row
 
-    if code_for_row(row):
+    if row.batch.profile == "city_bank" and code_for_row(row):
         return True
     return row.component == "principal" and bool(
         re.search(
-            r"transfer|npsb|eft|card\s*to\s*bkash|add\s*money|send\s*money",
+            r"transfer|npsb|eft|(?:card|bank)\s*to\s*bkash|add\s*money|send\s*money",
             text,
             re.IGNORECASE,
         )
     )
 
 
-def bkash_card_funding(original, profile, component="principal"):
-    """A card-funded wallet credit is a transfer draft, pending ownership review."""
+def bkash_funding_credit(original, profile, component="principal"):
+    """Bank/card-funded wallet credit is a transfer draft, pending ownership review."""
     return (
         profile == "bkash"
         and component == "principal"
         and original.get("direction") == "credit"
-        and re.fullmatch(r"card\s+to\s+bkash", str(original.get("provider_type") or "").strip(), re.I)
+        and re.fullmatch(r"(?:card|bank)\s+to\s+bkash", str(original.get("provider_type") or "").strip(), re.IGNORECASE)
         is not None
     )
 
@@ -139,10 +139,18 @@ def save_import(*, user, account, digest, preview):
         opening_balance=ledger_money(preview["opening_balance"]),
         closing_balance=ledger_money(preview["closing_balance"]),
     )
+    bill_category = None
+    if batch.profile == "bkash":
+        from apps.categories.models import Category
+
+        bill_category = Category.objects.filter(
+            user=user, name="Utilities & Bills", kind="expense", is_active=True
+        ).first()
     records = []
     for position, original in enumerate(preview["rows"], 1):
         original = {**original, "issues": list(original["issues"])}
         printed_code = original.pop("citytouch_printed_code", None)
+        bkash_code = original.pop("bkash_identifier", None)
         if any(
             original[key] is not None and ledger_money(original[key]) is None
             for key in ("amount", "balance_after", "signed_fee")
@@ -156,7 +164,7 @@ def save_import(*, user, account, digest, preview):
             r"reverse|refund|reversal", original["description"], re.IGNORECASE
         ):
             kind = "refund"
-        elif bkash_card_funding(original, batch.profile):
+        elif bkash_funding_credit(original, batch.profile):
             kind = "transfer"
         common = {
             "batch": batch,
@@ -169,11 +177,15 @@ def save_import(*, user, account, digest, preview):
             "reference": original["reference"],
             "counterparty_text": clean_merchant(original["description"]),
             "note": original["description"],
+            "category": bill_category if (
+                bill_category and direction == "debit" and
+                original.get("provider_type", "").casefold() in {"pay bill", "mobile recharge"}
+            ) else None,
         }
         records.append(
             StatementRow(
                 component="principal",
-                source_code=printed_code or "",
+                source_code=printed_code or bkash_code or "",
                 source_fingerprint=source_fingerprint(original, "principal"),
                 direction=direction,
                 amount=ledger_money(original["amount"]),
@@ -191,7 +203,7 @@ def save_import(*, user, account, digest, preview):
                     amount=ledger_money(abs(fee)),
                     type="fee" if fee < 0 else "refund",
                     note="Statement inline charge · " + original["description"],
-                    **{k: v for k, v in common.items() if k != "note"},
+                    **{k: v for k, v in common.items() if k not in {"note", "category"}},
                 )
             )
     StatementRow.objects.bulk_create(records)
@@ -206,6 +218,32 @@ def save_import(*, user, account, digest, preview):
         },
     )
     return batch, True
+
+
+@db_transaction.atomic
+def refresh_bkash_identifiers(batch, preview):
+    """Enrich identical archived rows without replacing source or ledger decisions."""
+    if batch.profile != "bkash" or preview.get("profile") != "bkash":
+        return 0
+    original_rows = preview.get("rows", [])
+    saved = list(batch.rows.select_for_update().filter(component="principal").order_by("position"))
+    if len(saved) != len(original_rows):
+        return 0
+    if any(
+        row.position != position or row.source_fingerprint != source_fingerprint(original, "principal")
+        for position, (row, original) in enumerate(zip(saved, original_rows), 1)
+    ):
+        return 0
+    changed = 0
+    for row, original in zip(saved, original_rows):
+        code = original.get("bkash_identifier")
+        if not code or row.source_code:
+            continue
+        row.source_code = code
+        row.version += 1
+        row.save(update_fields=("source_code", "version", "updated_at"))
+        changed += 1
+    return changed
 
 
 def financial_issues(row):

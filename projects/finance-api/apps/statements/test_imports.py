@@ -1608,6 +1608,66 @@ class StatementIdentitySuggestionTests(APITestCase):
     setUp = SavedStatementTests.setUp
     upload = SavedStatementTests.upload
 
+    def test_bkash_bill_category_and_identifier_refresh_preserve_original_draft(self):
+        utilities = Category.objects.get(user=self.user, name="Utilities & Bills")
+        pdf = synthetic_pdf("bkash", bkash_details={
+            "Send Money": ("01999990001 / TRX ID:", "SYNTHSEND"),
+            "Pay Bill": ("DOT INTERNET / TRX ID:", "SYNTHBILL"),
+        })
+        batch = self.upload(data=pdf, account=self.wallet)
+        send = batch.rows.get(position=2, component="principal")
+        bill = batch.rows.get(position=3, component="principal")
+        fee = batch.rows.get(position=3, component="fee")
+        self.assertEqual(send.source_code, "send:phone:01999990001")
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT source_code FROM statements_statementrow WHERE id = %s",
+                [send.id.hex if connection.vendor == "sqlite" else str(send.id)],
+            )
+            self.assertNotIn("01999990001", cursor.fetchone()[0])
+        self.assertNotIn("01999990001", str(send.extracted))
+        self.assertEqual(bill.source_code, "bill:name:DOT INTERNET")
+        self.assertEqual(bill.category_id, utilities.id)
+        self.assertIsNone(fee.category_id)
+        detail = self.client.get(reverse("statement-row-detail", args=[send.id]))
+        self.assertIsNone(detail.data["citytouch_printed_code"])
+
+        # Simulate a row imported before identifier retention; uploading the exact
+        # same PDF enriches evidence without replacing the reviewed draft.
+        StatementRow.objects.filter(pk=send.pk).update(source_code="", note="Reviewed note")
+        previous_version = send.version
+        reopened = self.upload(data=pdf, account=self.wallet)
+        self.assertEqual(reopened.id, batch.id)
+        send.refresh_from_db()
+        self.assertEqual(send.source_code, "send:phone:01999990001")
+        self.assertEqual(send.note, "Reviewed note")
+        self.assertEqual(send.version, previous_version + 1)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_existing_pending_bkash_bill_migration_preserves_reviewed_rows(self):
+        import importlib
+
+        from django.apps import apps
+        from django.db import connection
+
+        migration = importlib.import_module(
+            "apps.statements.migrations.0008_bkash_statement_identifiers"
+        )
+        utilities = Category.objects.get(user=self.user, name="Utilities & Bills")
+        batch = self.upload(data=synthetic_pdf("bkash"), account=self.wallet)
+        bill = batch.rows.get(position=3, component="principal")
+        fee = batch.rows.get(position=3, component="fee")
+        StatementRow.objects.filter(pk=bill.pk).update(category=None)
+        migration.categorize_pending_bkash_bills(apps, connection.schema_editor())
+        bill.refresh_from_db()
+        fee.refresh_from_db()
+        self.assertEqual(bill.category_id, utilities.id)
+        self.assertIsNone(fee.category_id)
+        StatementRow.objects.filter(pk=bill.pk).update(category=None, state="posted")
+        migration.categorize_pending_bkash_bills(apps, connection.schema_editor())
+        bill.refresh_from_db()
+        self.assertIsNone(bill.category_id)
+
     def test_new_bkash_card_credit_is_unconfirmed_transfer_draft(self):
         batch = self.upload(data=synthetic_pdf("bkash"), account=self.wallet)
         row = batch.rows.get(position=1, component="principal")
@@ -1619,6 +1679,16 @@ class StatementIdentitySuggestionTests(APITestCase):
         self.assertEqual(detail.status_code, 200, detail.data)
         self.assertIn("Choose the other owned account", str(detail.data["review"]["issues"]))
         self.assertTrue(StatementOriginalFile.objects.filter(batch=batch).exists())
+
+    def test_new_bkash_bank_credit_is_unconfirmed_transfer_draft(self):
+        batch = self.upload(
+            data=synthetic_pdf("bkash", bkash_funding_type="Bank to bKash"),
+            account=self.wallet,
+        )
+        row = batch.rows.get(position=1, component="principal")
+        self.assertEqual(row.type, "transfer")
+        self.assertIsNone(row.other_account_id)
+        self.assertFalse(row.classification_confirmed)
 
     def test_existing_bkash_card_credit_suggests_bank_accounts_without_editing(self):
         from apps.payment_methods.models import PaymentMethod

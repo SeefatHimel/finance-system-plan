@@ -1,4 +1,6 @@
-"""Manage user-verified meanings of recurring Citytouch statement codes."""
+"""Manage user-verified meanings of recurring statement identifiers."""
+
+import re
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
@@ -13,13 +15,16 @@ from apps.accounts.models import Account
 from apps.categories.models import Category
 from apps.transactions.models import Transaction
 
+from .bkash_identifiers import CODE as BKASH_CODE
+from .bkash_identifiers import mapping_code
 from .counterparties import observed_codes
 from .models import StatementCounterpartyCode
 
 
 class CodeMappingInputSerializer(serializers.Serializer):
     account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none())
-    code = serializers.RegexField(r"^\d{4,24}$", max_length=24)
+    profile = serializers.ChoiceField(choices=["city_bank", "bkash"], default="city_bank")
+    code = serializers.CharField(max_length=150)
     direction = serializers.ChoiceField(choices=Transaction.Direction.choices)
     party_kind = serializers.ChoiceField(
         choices=StatementCounterpartyCode.PartyKind.choices
@@ -60,10 +65,17 @@ class CodeMappingInputSerializer(serializers.Serializer):
         other = attrs.get("other_account")
         direction = attrs["direction"]
         suggested_type = attrs.get("suggested_type", "")
-        if account.type not in {"bank", "savings"}:
+        profile = attrs["profile"]
+        if (profile == "city_bank" and account.type not in {"bank", "savings"}) or (
+            profile == "bkash" and account.type != "mobile_wallet"
+        ):
             raise serializers.ValidationError(
-                {"account": "Choose a bank statement account."}
+                {"account": "Choose an account matching this statement provider."}
             )
+        if (profile == "city_bank" and not re.fullmatch(r"\d{4,24}", attrs["code"])) or (
+            profile == "bkash" and not BKASH_CODE.fullmatch(attrs["code"])
+        ):
+            raise serializers.ValidationError({"code": "Choose a valid observed statement identifier."})
         if kind == "owned" and (
             not other or other.id == account.id or other.currency != account.currency
         ):
@@ -131,6 +143,7 @@ class CodeExampleSerializer(serializers.Serializer):
 class ObservedCodeSerializer(serializers.Serializer):
     account = serializers.UUIDField()
     account_name = serializers.CharField()
+    profile = serializers.CharField()
     code = serializers.CharField()
     printed_code = serializers.CharField(allow_null=True)
     direction = serializers.CharField()
@@ -175,18 +188,24 @@ class StatementCounterpartyCodeView(APIView):
         mappings = StatementCounterpartyCode.objects.filter(
             user=request.user
         ).select_related("account", "other_account", "category")
-        saved = {(m.account_id, m.code, m.direction): m for m in mappings}
-        keys = sorted(
-            set(observed) | set(saved), key=lambda key: (str(key[0]), key[1], key[2])
+        saved = {(m.account_id, m.profile, m.code, m.direction): m for m in mappings}
+        keys = set(observed)
+        # Legacy Citytouch mappings remain visible even if their source row was removed.
+        keys.update(
+            (m.account_id, m.profile, m.code, m.direction)
+            for m in mappings if m.profile == "city_bank"
         )
         results = []
-        for account_id, code, direction in keys:
-            stats = observed.get((account_id, code, direction), {})
-            mapping = saved.get((account_id, code, direction))
+        for account_id, profile, code, direction in sorted(
+            keys, key=lambda key: (str(key[0]), key[1], key[2], key[3])
+        ):
+            stats = observed.get((account_id, profile, code, direction), {})
+            mapping = saved.get((account_id, profile, mapping_code(profile, account_id, code), direction))
             results.append(
                 {
                     "account": str(account_id),
                     "account_name": stats.get("account_name") or mapping.account.name,
+                    "profile": profile,
                     "code": code,
                     "printed_code": stats.get("printed_code"),
                     "direction": direction,
@@ -214,24 +233,27 @@ class StatementCounterpartyCodeView(APIView):
         serializer.is_valid(raise_exception=True)
         values = serializer.validated_data
         account = values["account"]
+        profile = values["profile"]
         code = values["code"]
         direction = values["direction"]
-        if (account.id, code, direction) not in observed_codes(
+        stored_code = mapping_code(profile, account.id, code)
+        if (account.id, profile, code, direction) not in observed_codes(
             request.user
         ) and not StatementCounterpartyCode.objects.filter(
             user=request.user,
             account=account,
-            code=code,
+            profile=profile,
+            code=stored_code,
             direction=direction,
         ).exists():
             raise serializers.ValidationError(
-                {"code": "This code was not found in a saved City Bank statement."}
+                {"code": "This identifier was not found in a saved statement."}
             )
         mapping, _ = StatementCounterpartyCode.objects.update_or_create(
             user=request.user,
             account=account,
-            profile="city_bank",
-            code=code,
+            profile=profile,
+            code=stored_code,
             direction=direction,
             defaults={
                 "party_kind": values["party_kind"],

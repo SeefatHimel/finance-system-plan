@@ -30,7 +30,7 @@ paths:
       tags: [Statements]
       security:
       - bearerAuth: []
-      description: User-scoped recurring Citytouch codes; no ledger mutations.
+      description: User-scoped recurring Citytouch and bKash statement identifiers; no ledger mutations.
       responses:
         '200':
           description: Observed and saved codes.
@@ -45,7 +45,7 @@ paths:
       tags: [Statements]
       security:
       - bearerAuth: []
-      description: Save a reviewed mapping for a code observed in the user's City Bank statements.
+      description: Save a reviewed mapping for an identifier observed in the user's City Bank or bKash statements.
       requestBody:
         required: true
         content:
@@ -6659,7 +6659,8 @@ components:
       required: [account, code, direction, party_kind, label]
       properties:
         account: {type: string, format: uuid}
-        code: {type: string, pattern: '^\d{4,24}$', maxLength: 24, description: All visible digits of the recurring second code only.}
+        profile: {type: string, enum: [city_bank, bkash], default: city_bank}
+        code: {type: string, maxLength: 150, description: Citytouch second code or a typed recurring bKash identifier from an observed row; never a transaction ID.}
         direction: {type: string, enum: [debit, credit]}
         party_kind: {type: string, enum: [owned, external]}
         label: {type: string, maxLength: 120}
@@ -6686,12 +6687,13 @@ components:
         description: {type: string, description: Masked source description.}
     ObservedStatementCode:
       type: object
-      required: [account, account_name, code, printed_code, direction, count, pending_count, last_seen, examples, mapping]
+      required: [account, account_name, profile, code, printed_code, direction, count, pending_count, last_seen, examples, mapping]
       properties:
         account: {type: string, format: uuid}
         account_name: {type: string}
+        profile: {type: string, enum: [city_bank, bkash]}
         code: {type: string}
-        printed_code: {type: string, nullable: true, description: Complete second segment exactly as printed in a saved statement row.}
+        printed_code: {type: string, nullable: true, description: Complete Citytouch second segment exactly as printed; null for bKash.}
         direction: {type: string, enum: [debit, credit]}
         count: {type: integer, minimum: 0}
         pending_count: {type: integer, minimum: 0}

@@ -5392,8 +5392,7 @@
           "type": "string"
         },
         "code": {
-          "maxLength": 24,
-          "pattern": "^\\d{4,24}$",
+          "maxLength": 150,
           "type": "string"
         },
         "direction": {
@@ -5410,6 +5409,14 @@
         },
         "party_kind": {
           "$ref": "#/components/schemas/PartyKindEnum"
+        },
+        "profile": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/ProfileEnum"
+            }
+          ],
+          "default": "city_bank"
         },
         "suggested_type": {
           "oneOf": [
@@ -5986,6 +5993,9 @@
         "printed_code": {
           "nullable": true,
           "type": "string"
+        },
+        "profile": {
+          "type": "string"
         }
       },
       "required": [
@@ -5998,7 +6008,8 @@
         "last_seen",
         "mapping",
         "pending_count",
-        "printed_code"
+        "printed_code",
+        "profile"
       ],
       "type": "object"
     },
@@ -7499,6 +7510,13 @@
         "ids"
       ],
       "type": "object"
+    },
+    "ProfileEnum": {
+      "enum": [
+        "city_bank",
+        "bkash"
+      ],
+      "type": "string"
     },
     "Provider3b4Enum": {
       "enum": [

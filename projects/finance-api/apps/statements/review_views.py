@@ -43,6 +43,7 @@ from .services import (
     file_digest,
     find_matches,
     posting_issues,
+    refresh_bkash_identifiers,
     resolved,
     review_context,
     row_snapshot,
@@ -187,13 +188,24 @@ class StatementImportViewSet(
                     "size": len(original_bytes),
                 },
             )
+            if existing.profile == "bkash":
+                from .views import extract_pdf_bytes
+
+                refreshed = extract_pdf_bytes(
+                    original_bytes, serializer.validated_data.get("password", ""),
+                    include_private_identifiers=True,
+                )
+                if not isinstance(refreshed, Response):
+                    refresh_bkash_identifiers(existing, refreshed)
             existing = self.get_queryset().get(pk=existing.pk)
             return Response(self.get_serializer(existing).data)
         if not account.is_active:
             raise ValidationError({"account": "Activate this account before importing a new statement."})
         file.seek(0)
         # Reuse the verified bounded extractor. It returns errors without saving.
-        response = StatementPreviewView().extract(request, serializer)
+        response = StatementPreviewView().extract(
+            request, serializer, include_private_identifiers=True
+        )
         if response.status_code != 200:
             return response
         with db_transaction.atomic():

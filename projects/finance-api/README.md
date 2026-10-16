@@ -679,6 +679,9 @@ remain unsupported pending separate extraction and accounting validation.
 - `POST /api/statements/imports/`: multipart account/file/optional password; saves
   masked extraction and editable drafts, without ledger writes. The same exact
   file for the same user/account returns its existing review, preserving edits.
+  For bKash, re-uploading the identical PDF can fill missing recurring identifiers
+  on older saved rows after an exact row-fingerprint check; it does not replace
+  reviewed drafts or ledger entries.
 - `GET /api/statements/imports/` and `/{id}/`: paginated history and counts.
 - `GET /api/statements/imports/{id}/rows/`: global state/search/direction/type/
   category/date filters before pagination (default 50, maximum 100). Search
@@ -695,8 +698,8 @@ remain unsupported pending separate extraction and accounting validation.
   IDs/versions; fresh ledger or unified SMS pairs, stale rows and discrepancies
   remain unresolved. Separate posting requires an explicit individual choice.
 - `GET /api/transactions/{id}/statement-evidence/`: on-demand masked sources.
-- `GET/POST /api/statements/counterparty-codes/`: list recurring Citytouch
-  statement codes and save an explicitly verified party/classification mapping.
+- `GET/POST /api/statements/counterparty-codes/`: list recurring Citytouch and
+  bKash statement identifiers and save an explicitly verified party/classification mapping.
 - `DELETE /api/statements/counterparty-codes/{id}/`: forget a mapping while
   retaining the observed masked source rows.
 
@@ -717,6 +720,23 @@ explicit classification review before posting. Verified mappings only appear as
 editable suggestions on pending drafts; they do not rewrite posted transactions
 or original statement evidence. Apply migration
 `statements.0004_statementcounterpartycode` before deploying this API and web UI.
+
+For bKash, the importer distinguishes repeatable recipient/recharge phone
+numbers and merchant/biller names from the unique `TRX ID`. Typed identifiers
+are scoped to the reporting wallet and debit/credit direction; the saved row
+holds the full identifier in encrypted storage, and the mapping index holds a
+scoped digest. Public previews and extracted source rows keep numbers masked.
+The directory exposes identifiers only to their owner for explicit mapping;
+it does not infer that a recipient is an owned account. New debit `Pay Bill`
+and `Mobile Recharge` principal drafts use an active `Utilities & Bills`
+expense category when available. Migration `statements.0008_bkash_statement_identifiers`
+sets that category on matching older pending, unlinked drafts; confirmed rows
+and user-selected categories remain untouched. Older masked rows cannot yield
+full numbers without the original PDF, so upload that identical PDF again to
+enrich its identifiers. Password-protected PDFs need the password again.
+`Card to bKash` and `Bank to bKash` wallet credits start as unconfirmed
+transfer drafts. A trailing City/EBL label can suggest matching owned accounts,
+but never chooses one automatically.
 
 Matching uses reporting-account perspective, equal currency/amount/direction,
 and posting/value dates within three days. Reference and reported balance are

@@ -89,7 +89,7 @@ class CitytouchRefreshTests(TestCase):
         self.assertEqual(self.row.source_code, "12345675678")
         self.assertEqual(code_for_row(self.row), "12345675678")
         self.assertIn(
-            (self.account.id, "12345675678", "debit"), observed_codes(self.user)
+            (self.account.id, "city_bank", "12345675678", "debit"), observed_codes(self.user)
         )
         self.assertEqual(self.row.extracted, self.original)
         self.assertEqual(self.row.note, "Reviewed personal note")

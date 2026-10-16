@@ -20,7 +20,7 @@ from apps.transactions.models import Transaction
 from .parser import MAX_BYTES, StatementParseError, extract_statement
 
 
-def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_count=1, account_identifier="9876543210123", city_first_description="PURCHASE CARD SYNTH SHOP"):
+def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_count=1, account_identifier="9876543210123", city_first_description="PURCHASE CARD SYNTH SHOP", bkash_details=None, bkash_funding_type="Card to bKash"):
     stream = io.BytesIO()
     c = canvas.Canvas(
         stream,
@@ -109,15 +109,18 @@ def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_cou
             number(499, 650, "Charge/Fee")
             number(560, 650, "Balance")
             for y, label, out, inc, fee, balance in [
-                (620, "Card to bKash", None, "100.00", None, "1,100.00"),
+                (620, bkash_funding_type, None, "100.00", None, "1,100.00"),
                 (580, "Send Money", None, "25.00", None, "1,125.00"),
                 (540, "Pay Bill", "30.00", None, "-2.00", "1,093.00"),
             ]:
                 text(31, y, "02-Jan-26")
                 text(31, y - 10, "07:15:05 PM")
                 text(92, y, label)
-                text(194, y, "SYNTH MERCHANT / TRX ID:")
-                text(194, y - 10, f"SYNTH{y} / 01999990123")
+                first, second = (bkash_details or {}).get(
+                    label, ("SYNTH MERCHANT / TRX ID:", f"SYNTH{y} / 01999990123")
+                )
+                text(194, y, first)
+                text(194, y - 10, second)
                 for edge, value in [(387, out), (444, inc), (499, fee), (560, balance)]:
                     if value:
                         number(edge, y, value)
@@ -163,6 +166,19 @@ class StatementParserTests(SimpleTestCase):
         self.assertIsNone(result["opening_balance"])
         self.assertNotIn("01999990123", str(result))
         self.assertEqual(result["needs_review_count"], 0)
+
+    def test_bkash_private_identifiers_exclude_transaction_ids_and_public_preview(self):
+        pdf = synthetic_pdf("bkash", bkash_details={
+            "Send Money": ("01999990001 / TRX ID:", "SYNTHSEND"),
+            "Pay Bill": ("DOT INTERNET / TRX ID:", "SYNTHBILL"),
+        })
+        public = extract_statement(pdf)
+        private = extract_statement(pdf, include_private_identifiers=True)
+        self.assertNotIn("01999990001", str(public))
+        self.assertNotIn("bkash_identifier", str(public))
+        self.assertEqual(private["rows"][1]["bkash_identifier"], "send:phone:01999990001")
+        self.assertEqual(private["rows"][2]["bkash_identifier"], "bill:name:DOT INTERNET")
+        self.assertNotIn("SYNTHSEND", private["rows"][1]["bkash_identifier"])
 
     def test_mismatch_is_visible_without_overwriting_reported_amounts(self):
         result = extract_statement(synthetic_pdf("city_bank", bad_balance=True))

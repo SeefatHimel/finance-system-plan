@@ -13,7 +13,8 @@ def main():
     try:
         payload = json.loads(sys.stdin.buffer.read(MAX_BYTES * 2 + 4096))
         result = extract_statement(
-            base64.b64decode(payload["pdf"], validate=True), payload.get("password", "")
+            base64.b64decode(payload["pdf"], validate=True), payload.get("password", ""),
+            include_private_identifiers=payload.get("include_private_identifiers") is True,
         )
         print(json.dumps({"preview": result}))
     except StatementParseError as error:

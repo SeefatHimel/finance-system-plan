@@ -1282,10 +1282,11 @@ Transactions' Original SMS section also displays saved parsed amounts and report
 balances for attached confirmed SMS candidates, even after text retention redacts
 an original message. It distinguishes those values from the editable ledger balance.
 
-## Citytouch statement codes
+## Recurring statement identifiers
 
 The Statements page links to `/statement-counterparties`, an authenticated
-directory of recurring masked City Bank `CT-FT` codes. It separates debit and
+directory of recurring City Bank `CT-FT` codes and bKash recipient, recharge,
+merchant, and biller clues. It separates debit and
 credit observations per reporting account, shows recent masked statement rows,
 uses every visible digit of the second code when matching, and warns that a
 four-digit masked suffix can still refer to multiple parties. It displays the
@@ -1295,3 +1296,9 @@ code as an external party or link another owned account. Type and category
 suggestions are optional and remain editable in the
 statement-row review form. Saving a mapping does not post or change ledger data.
 The first varying reference segment is not matched as a party identifier.
+For bKash, the unique `TRX ID` is excluded. Full phone numbers are visible only
+to the signed-in owner in this directory; other source displays stay masked.
+New bKash `Pay Bill` and `Mobile Recharge` debit drafts use `Utilities & Bills`
+when that category is active. Older pending bills get the category after the
+backend migration; upload the identical PDF again to recover repeatable
+identifiers that older masked imports did not retain. Existing edits remain.

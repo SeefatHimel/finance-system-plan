@@ -15,6 +15,7 @@ import pdfplumber
 from pdfminer.pdfdocument import PDFPasswordIncorrect
 from pdfplumber.utils.exceptions import PdfminerException
 
+from .bkash_identifiers import identifier as bkash_identifier
 from .citytouch import citytouch_printed_code
 
 MAX_BYTES = 4 * 1024 * 1024
@@ -103,7 +104,7 @@ def money(value):
     return format(value, ".2f") if value is not None else None
 
 
-def extract_statement(data: bytes, password=""):
+def extract_statement(data: bytes, password="", *, include_private_identifiers=False):
     if len(data) > MAX_BYTES:
         raise StatementParseError(
             "file_too_large", "Choose a PDF no larger than 4 MiB."
@@ -363,6 +364,12 @@ def extract_statement(data: bytes, password=""):
                     for w in row_words
                     if details_left <= w["x0"] < numeric_left
                 )
+            printed_identifier = (
+                bkash_identifier(
+                    provider_type, description,
+                    reporting_number=identifier[1] if identifier else "",
+                ) if profile == "bkash" else None
+            ) if include_private_identifiers else None
             rows.append(
                 {
                     "id": f"{pi}:{ai + 1}",
@@ -374,6 +381,7 @@ def extract_statement(data: bytes, password=""):
                     "value_date": parse_date(value_match[1]) if value_match else None,
                     "description": mask_identifiers(description[:2000]),
                     "citytouch_printed_code": citytouch_printed_code(description[:2000]) if profile == "city_bank" else None,
+                    **({"bkash_identifier": printed_identifier} if printed_identifier else {}),
                     "provider_type": provider_type[:120],
                     "reference": reference_match[1][:120] if reference_match else "",
                     "direction": "debit" if values["out"] is not None else "credit",

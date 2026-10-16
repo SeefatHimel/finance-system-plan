@@ -15,13 +15,20 @@ import {
 
 function initialChoice(row: StatementCounterpartyCode): StatementCounterpartyCodeInput {
   return {
-    account: row.account, code: row.code, direction: row.direction,
+    account: row.account, profile: row.profile, code: row.code, direction: row.direction,
     party_kind: row.mapping?.party_kind ?? "external",
     label: row.mapping?.label ?? "",
     other_account: row.mapping?.other_account ?? null,
     suggested_type: row.mapping?.suggested_type ?? "",
     category: row.mapping?.category ?? null,
   };
+}
+
+function codeLabel(row: StatementCounterpartyCode) {
+  if (row.profile === "city_bank") return row.code;
+  const [kind, valueKind, ...value] = row.code.split(":");
+  const title: Record<string, string> = { recharge: "Mobile recharge", send: "Send money", payment: "Payment", bill: "Pay bill" };
+  return `${title[kind] ?? "bKash"} · ${value.join(":")}${valueKind === "phone" ? " (number)" : ""}`;
 }
 
 function compatibleCategory(category: Category, type: string) {
@@ -73,7 +80,7 @@ export function StatementCounterpartyDirectory() {
   const shownRows = visible.slice(0, shown);
 
   function open(row: StatementCounterpartyCode) {
-    setEditing(`${row.account}:${row.code}:${row.direction}`);
+    setEditing(`${row.account}:${row.profile}:${row.code}:${row.direction}`);
     setDraft(initialChoice(row));
     setError(null);
   }
@@ -108,10 +115,11 @@ export function StatementCounterpartyDirectory() {
   }
 
   return <div className="panel"><div className="panel__body statement-code-page">
-    <h2 className="section-title">Statement counterparty codes</h2>
-    <p className="section-subtitle">Name recurring Citytouch codes from your saved City Bank statements. Codes are scoped to the reporting account and debit or credit direction.</p>
+    <h2 className="section-title">Statement identifiers</h2>
+    <p className="section-subtitle">Identify repeatable Citytouch and bKash statement clues. Each mapping belongs to one reporting account and debit or credit direction.</p>
     <p className="inline-note">In <strong>CT-FT-***1234-***5678</strong>, the first part identifies a movement. We use every visible digit of the second part as a possible party clue. When only four digits are available, different parties can share that suffix. Verify it against your records before saving. Debit means money left the reporting account; credit means money arrived.</p>
     <p className="inline-note">Bank operation and ledger purpose are separate. A Citytouch fund transfer can be an internal transfer, a payment, or another type. Your choice suggests details for pending rows; it never posts or changes a transaction automatically.</p>
+    <p className="inline-note">For bKash, recipient/recharge numbers and merchant or biller labels can repeat. A TRX ID identifies just one movement, so it is never used as a recurring code. Verify any suggestion before recording.</p>
     <p><Link href="/statements">Back to statement reviews</Link></p>
     <div className="statement-code-filters">
       <label className="field"><span className="field__label">Search code or name</span><input className="field__control" type="search" value={query} onChange={(event) => { setQuery(event.target.value); setShown(50); }} /></label>
@@ -120,15 +128,15 @@ export function StatementCounterpartyDirectory() {
     </div>
     {loading ? <p role="status">Loading statement codes…</p> : null}
     {error ? <p role="alert" className="form-error">{error}</p> : null}
-    {!loading && !visible.length ? <p>No recurring Citytouch codes match these filters. Import a City Bank statement to discover them.</p> : null}
+    {!loading && !visible.length ? <p>No statement identifiers match these filters. Import a City Bank or bKash statement to discover them.</p> : null}
     <div className="statement-code-list">{shownRows.map((row) => {
-      const key = `${row.account}:${row.code}:${row.direction}`;
+      const key = `${row.account}:${row.profile}:${row.code}:${row.direction}`;
       const isEditing = editing === key && draft;
       const otherOptions = accounts.filter((account) => account.id !== row.account && account.is_active && account.currency === accounts.find((value) => value.id === row.account)?.currency);
       return <article className="statement-code-card" key={key}>
-        <div className="statement-code-card__heading"><div><h3>{row.account_name} · {row.code}</h3><p>{row.direction === "debit" ? "Money out" : "Money in"} · {row.count} observed · {row.pending_count} pending{row.last_seen ? ` · last seen ${row.last_seen}` : ""}{row.code.length === 4 ? " · only four digits available" : ""}</p></div><span className={row.mapping ? "status-badge status-badge--ok" : "status-badge status-badge--warning"}>{row.mapping ? "Saved" : "Unidentified"}</span></div>
+        <div className="statement-code-card__heading"><div><h3>{row.account_name} · {codeLabel(row)}</h3><p>{row.direction === "debit" ? "Money out" : "Money in"} · {row.count} observed · {row.pending_count} pending{row.last_seen ? ` · last seen ${row.last_seen}` : ""}{row.profile === "city_bank" && row.code.length === 4 ? " · only four digits available" : ""}</p></div><span className={row.mapping ? "status-badge status-badge--ok" : "status-badge status-badge--warning"}>{row.mapping ? "Saved" : "Unidentified"}</span></div>
         {row.examples.length ? <details className="statement-code-examples"><summary>Recent masked statement rows</summary><ul>{row.examples.map((example, index) => <li key={`${example.date}-${index}`}>{example.date ?? "Date unknown"} · {example.amount ?? "Amount unknown"} · {example.description}</li>)}</ul></details> : null}
-        {!isEditing ? <><p>{row.mapping ? `${row.mapping.label} · ${row.mapping.party_kind === "owned" ? "My account" : "External party"}${row.mapping.suggested_type ? ` · ${row.mapping.suggested_type.replaceAll("_", " ")}` : " · no type suggestion"}` : "Check who or what this code represents."}</p><button className="button" type="button" onClick={() => open(row)}>{row.mapping ? "Edit mapping" : "Identify code"}</button></> :
+        {!isEditing ? <><p>{row.mapping ? `${row.mapping.label} · ${row.mapping.party_kind === "owned" ? "My account" : "External party"}${row.mapping.suggested_type ? ` · ${row.mapping.suggested_type.replaceAll("_", " ")}` : " · no type suggestion"}` : "Check who or what this identifier represents."}</p><button className="button" type="button" onClick={() => open(row)}>{row.mapping ? "Edit mapping" : "Identify"}</button></> :
           <form className="statement-code-form" onSubmit={save}>
             <label className="field"><span className="field__label">Who is this?</span><select className="field__control" value={draft.party_kind} onChange={(event) => setDraft({ ...draft, party_kind: event.target.value as "owned" | "external", other_account: null, suggested_type: "", category: null })}><option value="external">External person, business, or bank</option><option value="owned">Another account I track</option></select></label>
             <label className="field"><span className="field__label">Display name</span><input className="field__control" required maxLength={120} value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} placeholder="e.g. Rent recipient" /></label>

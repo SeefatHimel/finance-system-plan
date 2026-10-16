@@ -76,8 +76,8 @@ def pattern(row):
 
 
 def bkash_funding_bank(description):
-    """Only a trailing bank label in card-funding details is an issuer hint."""
-    match = re.search(r"/\s*(city(?:\s+bank)?|ebl|eastern\s+bank(?:\s+limited)?)\s*$", description, re.I)
+    """Only a trailing bank label in funding details is an issuer hint."""
+    match = re.search(r"/\s*(city(?:\s+bank)?|ebl|eastern\s+bank(?:\s+limited)?)\s*$", description, re.IGNORECASE)
     if not match:
         return ""
     return "city_bank" if match[1].casefold().startswith("city") else "ebl"
@@ -98,7 +98,7 @@ def suggestions(rows):
     )
 
     from .counterparties import code_for_row, code_suggestions
-    from .services import bkash_card_funding, transfer_hint
+    from .services import bkash_funding_credit, transfer_hint
 
     methods = list(
         PaymentMethod.objects.filter(
@@ -107,7 +107,7 @@ def suggestions(rows):
     )
     accounts = []
     if batch.profile == "bkash" and any(
-        bkash_card_funding(row.extracted, batch.profile, row.component) for row in rows
+        bkash_funding_credit(row.extracted, batch.profile, row.component) for row in rows
     ):
         accounts = list(Account.objects.filter(
             user_id=batch.user_id, is_active=True, currency=batch.currency,
@@ -157,9 +157,10 @@ def suggestions(rows):
                     "reason": f"Matched a saved identifier for {method.account.name}. Verify the transfer path.",
                 }
                 continue
-        if bkash_card_funding(row.extracted, batch.profile, row.component):
+        if bkash_funding_credit(row.extracted, batch.profile, row.component):
             bank = bkash_funding_bank(row.extracted.get("description", ""))
             bank_label = "City Bank" if bank == "city_bank" else "EBL"
+            funding_kind = str(row.extracted.get("provider_type") or "").strip()
             candidates = [
                 {"account": str(account.id), "name": account.name}
                 for account in accounts
@@ -172,10 +173,10 @@ def suggestions(rows):
                 "type": "transfer", "category": None, "other_account": None,
                 "account_candidates": candidates,
                 "reason": (
-                    f"Card to bKash is a card-funded wallet credit. {bank_label} identifies the bank, "
-                    "not the exact card. Choose your own funding account, or change the type if someone else funded it."
+                    f"{funding_kind} is a funded wallet credit. {bank_label} identifies the bank, "
+                    "not the exact account. Choose your own funding account, or change the type if someone else funded it."
                     if bank else
-                    "Card to bKash is a card-funded wallet credit. Choose your own funding account, "
+                    f"{funding_kind} is a funded wallet credit. Choose your own funding account, "
                     "or change the type if someone else funded it."
                 ),
             }

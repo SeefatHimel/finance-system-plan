@@ -36,9 +36,12 @@ class StatementIdentifyThrottle(StatementPreviewThrottle):
     scope = "statement_identify"
 
 
-def extract_pdf_bytes(data, password=""):
+def extract_pdf_bytes(data, password="", *, include_private_identifiers=False):
     """Run the bounded PDF worker for imports and archived-source refreshes."""
-    payload = {"pdf": base64.b64encode(data).decode("ascii"), "password": password}
+    payload = {
+        "pdf": base64.b64encode(data).decode("ascii"), "password": password,
+        "include_private_identifiers": include_private_identifiers,
+    }
     try:
         result = subprocess.run(
             [sys.executable, "-m", "apps.statements.worker"],
@@ -75,7 +78,7 @@ class StatementPreviewView(APIView):
         request.upload_handlers.insert(0, BoundedStatementUploadHandler(request))
         return super().initialize_request(request, *args, **kwargs)
 
-    def extract(self, request, serializer=None):
+    def extract(self, request, serializer=None, *, include_private_identifiers=False):
         serializer = serializer or StatementPreviewRequestSerializer(
             data=request.data, context={"request": request}
         )
@@ -85,9 +88,13 @@ class StatementPreviewView(APIView):
         preview = extract_pdf_bytes(
             serializer.validated_data["file"].read(),
             serializer.validated_data.get("password", ""),
+            include_private_identifiers=include_private_identifiers,
         )
         if isinstance(preview, Response):
             return preview
+        if not include_private_identifiers:
+            for row in preview["rows"]:
+                row.pop("bkash_identifier", None)
         if account and (preview["profile"] == "bkash") != (
             account.type == "mobile_wallet"
         ):

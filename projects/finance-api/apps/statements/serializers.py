@@ -293,7 +293,7 @@ class SavedStatementRowSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_citytouch_printed_code(self, instance):
-        return instance.source_code or None
+        return (instance.source_code or None) if instance.batch.profile == "city_bank" else None
 
     @extend_schema_field(StatementReviewSerializer)
     def get_review(self, instance):

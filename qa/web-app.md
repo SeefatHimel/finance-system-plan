@@ -1081,6 +1081,15 @@ the raw bank reference. The reviewer may edit it or choose either source's
 wording. Saving the mapping alone does not alter stored statement drafts or
 existing ledger transactions.
 
+### How does the web app show bKash recurring statement identifiers?
+
+The directory shows bKash recipient, recharge, merchant, and biller clues
+alongside Citytouch codes. The user can verify a label, owned account, type, or
+category; these remain suggestions on pending drafts. bKash `TRX ID` values
+are excluded because they identify one movement. Older bKash imports can
+recover full recurring identifiers by uploading the identical original PDF
+again, while existing draft edits stay.
+
 ### How does the web app review bKash card-funded statement credits?
 
 For a bKash `Card to bKash` credit, the statement row form shows a transfer

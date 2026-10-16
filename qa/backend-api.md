@@ -1018,6 +1018,25 @@ generic description learning for these rows so unrelated recipients cannot
 inherit the same classification. Suggestions do not mutate drafts, posted
 transactions or source evidence. Migration `statements.0004_statementcounterpartycode`
 stores the user-scoped mapping.
+
+### How are bKash statement identifiers and bills classified?
+
+The importer keeps the original masked extraction and an encrypted recurring
+identifier for supported bKash `Send Money`, `Mobile Recharge`, `Payment`, and
+`Pay Bill` rows. It derives the identifier from a recipient/recharge number or
+merchant/biller label before `TRX ID`; that per-movement ID is never a mapping
+key. Verified mappings stay scoped to the reporting wallet and debit/credit
+direction and only suggest editable review details. Debit `Pay Bill` and
+`Mobile Recharge` principal drafts start with an active `Utilities & Bills`
+expense category; fee rows do not inherit it. Migration
+`statements.0008_bkash_statement_identifiers` updates only uncategorized,
+pending legacy bill/recharge drafts. Identical-PDF reupload can restore missing
+identifiers on older rows after exact fingerprint checks without overwriting
+reviews or posted transactions.
+`Bank to bKash` and `Card to bKash` wallet credits start as unconfirmed
+transfer drafts; a trailing City/EBL label suggests possible owned funding
+accounts without selecting one.
+
 ## How does batch SMS import avoid partial-failure and duplicate problems?
 
 The batch endpoint accepts at most 25 messages and returns an individual result

@@ -621,6 +621,15 @@ direction-compatible transaction type and category. Foreign account/category
 IDs, unobserved codes and external `transfer` suggestions return 400. This is
 review metadata only: no endpoint creates or edits a ledger transaction.
 
+The same endpoint now includes `profile` (`city_bank` or `bkash`) on each
+observed identifier and accepts it on mapping writes (omission defaults to
+`city_bank` for older clients). bKash codes are typed recipient/recharge phone
+or merchant/biller-name clues, scoped to a wallet and direction. Transaction
+IDs are never accepted as recurring codes. The raw bKash code is retained
+encrypted with its statement row; the mapping stores a digest. Re-uploading
+an identical older PDF can fill a missing code after source-fingerprint checks,
+without changing reviewed draft or ledger fields.
+
 New statement previews also expose optional `citytouch_printed_code` on each
 source row. It is the second Citytouch component exactly as printed, including
 all visible digits or the bank's mask; other profiles return null. The ordinary description remains

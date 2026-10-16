@@ -1641,13 +1641,13 @@ export async function getStatementSummary(token: string, id: string, signal?: Ab
 }
 
 const statementCounterpartyCodeSchema = z.object({
-  account: z.string(), account_name: z.string(), code: z.string(), printed_code: z.string().nullable(), direction: z.enum(["debit", "credit"]),
+  account: z.string(), account_name: z.string(), profile: z.enum(["city_bank", "bkash"]), code: z.string(), printed_code: z.string().nullable(), direction: z.enum(["debit", "credit"]),
   count: z.number(), pending_count: z.number(), last_seen: z.string().nullable(),
   examples: z.array(z.object({ date: z.string().nullable(), amount: z.string().nullable(), description: z.string() })),
   mapping: z.object({ id: z.string(), party_kind: z.enum(["owned", "external"]), label: z.string(), other_account: z.string().nullable(), suggested_type: z.string(), category: z.string().nullable(), updated_at: z.string() }).nullable()
 });
 export type StatementCounterpartyCode = z.infer<typeof statementCounterpartyCodeSchema>;
-export type StatementCounterpartyCodeInput = { account: string; code: string; direction: "debit" | "credit"; party_kind: "owned" | "external"; label: string; other_account: string | null; suggested_type: string; category: string | null };
+export type StatementCounterpartyCodeInput = { account: string; profile: "city_bank" | "bkash"; code: string; direction: "debit" | "credit"; party_kind: "owned" | "external"; label: string; other_account: string | null; suggested_type: string; category: string | null };
 export async function listStatementCounterpartyCodes(token: string, signal?: AbortSignal): Promise<StatementCounterpartyCode[]> {
   const payload = await (await authenticatedFetch("/api/statements/counterparty-codes/", token, { signal })).json();
   return z.object({ count: z.number(), results: z.array(statementCounterpartyCodeSchema) }).parse(payload).results;

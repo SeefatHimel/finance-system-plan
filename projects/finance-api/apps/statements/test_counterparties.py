@@ -10,6 +10,7 @@ from apps.accounts.models import Account
 from apps.categories.models import Category
 from apps.transactions.models import Transaction
 
+from .bkash_identifiers import identifier as bkash_identifier
 from .counterparties import citytouch_code, citytouch_printed_code
 from .insights import pattern, suggestions
 from .models import StatementImport, StatementRow
@@ -289,5 +290,66 @@ class CitytouchCounterpartyTests(APITestCase):
             ).status_code,
             400,
         )
+        self.client.force_authenticate(self.other_user)
+        self.assertEqual(self.client.get(url).data["count"], 0)
+
+    def test_bkash_repeatable_identifier_is_scoped_and_never_uses_trx_id(self):
+        self.assertEqual(
+            bkash_identifier("Mobile Recharge", "01999990001 / TRX ID: SYNTHONE"),
+            "recharge:phone:01999990001",
+        )
+        self.assertEqual(
+            bkash_identifier("Pay Bill", "DOT INTERNET / TRX ID: SYNTHTWO"),
+            "bill:name:DOT INTERNET",
+        )
+        self.assertEqual(
+            bkash_identifier("Payment", "SYNTH STORE / 01888880002 / TRX ID: SYNTHPAY"),
+            "payment:phone:01888880002",
+        )
+        self.assertEqual(
+            bkash_identifier("Payment", "SYNTH STORE / TRX ID: SYNTHPAY"),
+            "payment:name:SYNTH STORE",
+        )
+        self.assertIsNone(bkash_identifier("Bank to bKash", "TRX ID: SYNTHONLY"))
+        self.assertIsNone(bkash_identifier(
+            "Send Money", "01999990001 / TRX ID: SYNTHONE",
+            reporting_number="01999990001",
+        ))
+        self.assertIsNone(bkash_identifier(
+            "Send Money", "01999990001 / 01888880002 / TRX ID: SYNTHONE",
+        ))
+        batch = StatementImport.objects.create(
+            user=self.user, account=self.wallet, file_digest="b" * 64,
+            profile="bkash", parser_version="2", currency="BDT",
+            account_identity="synthetic", page_count=1,
+        )
+        code = "send:phone:01999990001"
+        row = StatementRow.objects.create(
+            batch=batch, position=1, component="principal",
+            extracted={"description": "***0001 / TRX ID: SYNTHONE", "provider_type": "Send Money"},
+            source_code=code, source_fingerprint="bkash-one", date=date(2026, 1, 1),
+            direction="debit", amount="100.00", type="expense",
+        )
+        url = reverse("statement-counterparty-codes")
+        listed = self.client.get(url)
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.data["results"][0]["profile"], "bkash")
+        self.assertEqual(listed.data["results"][0]["code"], code)
+        self.assertIsNone(listed.data["results"][0]["printed_code"])
+        self.assertEqual(self.client.post(
+            url, self.payload(profile="bkash", account=str(self.wallet.id), code="send:phone:01999990002"),
+            format="json",
+        ).status_code, 400)
+        saved = self.client.post(
+            url, self.payload(profile="bkash", account=str(self.wallet.id), code=code, label="Synthetic payee"),
+            format="json",
+        )
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.assertEqual(suggestions([row])[row.id]["counterparty_text"], "Synthetic payee")
+        from .models import StatementCounterpartyCode
+
+        mapping = StatementCounterpartyCode.objects.get(pk=saved.data["id"])
+        self.assertNotIn("01999990001", mapping.code)
+        self.assertEqual(len(mapping.code), 64)
         self.client.force_authenticate(self.other_user)
         self.assertEqual(self.client.get(url).data["count"], 0)
