@@ -61,6 +61,17 @@ def transfer_hint(row):
     )
 
 
+def bkash_card_funding(original, profile, component="principal"):
+    """A card-funded wallet credit is a transfer draft, pending ownership review."""
+    return (
+        profile == "bkash"
+        and component == "principal"
+        and original.get("direction") == "credit"
+        and re.fullmatch(r"card\s+to\s+bkash", str(original.get("provider_type") or "").strip(), re.I)
+        is not None
+    )
+
+
 def resolved(row):
     return row.state == "skipped" or row.transaction_id is not None
 
@@ -145,6 +156,8 @@ def save_import(*, user, account, digest, preview):
             r"reverse|refund|reversal", original["description"], re.IGNORECASE
         ):
             kind = "refund"
+        elif bkash_card_funding(original, batch.profile):
+            kind = "transfer"
         common = {
             "batch": batch,
             "position": position,

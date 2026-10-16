@@ -1580,6 +1580,59 @@ class StatementIdentitySuggestionTests(APITestCase):
     setUp = SavedStatementTests.setUp
     upload = SavedStatementTests.upload
 
+    def test_new_bkash_card_credit_is_unconfirmed_transfer_draft(self):
+        batch = self.upload(data=synthetic_pdf("bkash"), account=self.wallet)
+        row = batch.rows.get(position=1, component="principal")
+        self.assertEqual(row.extracted["provider_type"], "Card to bKash")
+        self.assertEqual(row.type, "transfer")
+        self.assertIsNone(row.other_account_id)
+        self.assertFalse(row.classification_confirmed)
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id]))
+        self.assertEqual(detail.status_code, 200, detail.data)
+        self.assertIn("Choose the other owned account", str(detail.data["review"]["issues"]))
+        self.assertTrue(StatementOriginalFile.objects.filter(batch=batch).exists())
+
+    def test_existing_bkash_card_credit_suggests_bank_accounts_without_editing(self):
+        from apps.payment_methods.models import PaymentMethod
+
+        batch = self.upload(data=synthetic_pdf("bkash"), account=self.wallet)
+        row = batch.rows.get(position=1, component="principal")
+        row.type = "income"  # An older saved import stays as it was.
+        row.extracted = {**row.extracted, "description": "TRX ID: SYNTHREF / City"}
+        row.save(update_fields=["type", "extracted"])
+        city = Account.objects.create(
+            user=self.user, name="Synthetic City savings", type="savings", currency="BDT"
+        )
+        another_city = Account.objects.create(
+            user=self.user, name="Synthetic City card", type="credit_card", currency="BDT"
+        )
+        ebl = Account.objects.create(
+            user=self.user, name="Synthetic EBL", type="bank", currency="BDT"
+        )
+        for account, provider in ((city, "city_bank"), (another_city, "city_bank"), (ebl, "ebl")):
+            PaymentMethod.objects.create(user=self.user, account=account, name=account.name, provider=provider)
+        detail = self.client.get(reverse("statement-row-detail", args=[row.id]))
+        self.assertEqual(detail.status_code, 200, detail.data)
+        hint = detail.data["review"]["suggestion"]
+        self.assertEqual(hint["type"], "transfer")
+        self.assertIsNone(hint["other_account"])
+        self.assertEqual({str(item["account"]) for item in hint["account_candidates"]}, {str(city.id), str(another_city.id)})
+        row.refresh_from_db()
+        self.assertEqual(row.type, "income")
+        self.assertIsNone(row.other_account_id)
+        row.extracted = {**row.extracted, "description": "TRX ID: SYNTHREF / ebl"}
+        row.save(update_fields=["extracted"])
+        ebl_hint = self.client.get(reverse("statement-row-detail", args=[row.id])).data["review"]["suggestion"]
+        self.assertEqual(ebl_hint["account_candidates"], [{"account": str(ebl.id), "name": ebl.name}])
+
+    def test_unrelated_bkash_credit_does_not_get_card_funding_hint(self):
+        from .insights import suggestions
+
+        batch = self.upload(data=synthetic_pdf("bkash"), account=self.wallet)
+        row = batch.rows.get(position=2, component="principal")
+        row.extracted = {**row.extracted, "description": "TRX ID: SYNTHREF / ebl"}
+        self.assertNotIn(row.id, suggestions([row]))
+
     def test_numeric_transfer_suggestion_is_read_only(self):
         from apps.payment_methods.models import PaymentMethod
 

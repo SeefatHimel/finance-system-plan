@@ -11,6 +11,11 @@ from django.db.models import prefetch_related_objects
 
 from .models import StatementMapping
 
+BKASH_BANK_ACCOUNT_NAMES = {
+    "city_bank": ("city bank", "citybank", "city touch"),
+    "ebl": ("ebl", "eastern bank"),
+}
+
 
 def merchant_text(value):
     value = re.sub(
@@ -70,10 +75,19 @@ def pattern(row):
     return hashlib.sha256(repr(source).encode()).hexdigest(), label
 
 
+def bkash_funding_bank(description):
+    """Only a trailing bank label in card-funding details is an issuer hint."""
+    match = re.search(r"/\s*(city(?:\s+bank)?|ebl|eastern\s+bank(?:\s+limited)?)\s*$", description, re.I)
+    if not match:
+        return ""
+    return "city_bank" if match[1].casefold().startswith("city") else "ebl"
+
+
 def suggestions(rows):
     if not rows:
         return {}
     batch = rows[0].batch
+    from apps.accounts.models import Account
     from apps.payment_methods.models import PaymentMethod
     from apps.payment_methods.resolution import (
         identifier_suffix,
@@ -84,12 +98,21 @@ def suggestions(rows):
     )
 
     from .counterparties import code_for_row, code_suggestions
+    from .services import bkash_card_funding, transfer_hint
 
     methods = list(
         PaymentMethod.objects.filter(
             user_id=batch.user_id, is_active=True, account__is_active=True
         ).select_related("account")
     )
+    accounts = []
+    if batch.profile == "bkash" and any(
+        bkash_card_funding(row.extracted, batch.profile, row.component) for row in rows
+    ):
+        accounts = list(Account.objects.filter(
+            user_id=batch.user_id, is_active=True, currency=batch.currency,
+            type__in=["bank", "savings", "credit_card"],
+        ).exclude(pk=batch.account_id))
     keys = {pattern(row)[0] for row in rows} - {None}
     mappings = {
         m.pattern_key: m
@@ -108,8 +131,6 @@ def suggestions(rows):
             continue
         # Numeric identity hints require transfer wording. Descriptions remain
         # immutable and the hint never changes a row or its ledger movement.
-        from .services import transfer_hint
-
         if transfer_hint(row):
             identity_matches = matching_methods(
                 user=batch.user_id,
@@ -136,6 +157,29 @@ def suggestions(rows):
                     "reason": f"Matched a saved identifier for {method.account.name}. Verify the transfer path.",
                 }
                 continue
+        if bkash_card_funding(row.extracted, batch.profile, row.component):
+            bank = bkash_funding_bank(row.extracted.get("description", ""))
+            bank_label = "City Bank" if bank == "city_bank" else "EBL"
+            candidates = [
+                {"account": str(account.id), "name": account.name}
+                for account in accounts
+                if bank and (
+                    any(method.account_id == account.id and method.provider == bank for method in methods)
+                    or any(name in account.name.casefold() for name in BKASH_BANK_ACCOUNT_NAMES[bank])
+                )
+            ]
+            result[row.id] = {
+                "type": "transfer", "category": None, "other_account": None,
+                "account_candidates": candidates,
+                "reason": (
+                    f"Card to bKash is a card-funded wallet credit. {bank_label} identifies the bank, "
+                    "not the exact card. Choose your own funding account, or change the type if someone else funded it."
+                    if bank else
+                    "Card to bKash is a card-funded wallet credit. Choose your own funding account, "
+                    "or change the type if someone else funded it."
+                ),
+            }
+            continue
         mapping = mappings.get(pattern(row)[0])
         if not mapping and transfer_hint(row):
             matches = named_methods(

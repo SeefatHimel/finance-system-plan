@@ -211,10 +211,16 @@ class StatementSummarySerializer(serializers.Serializer):
     remaining_count = serializers.IntegerField()
 
 
+class StatementAccountCandidateSerializer(serializers.Serializer):
+    account = serializers.UUIDField()
+    name = serializers.CharField()
+
+
 class StatementSuggestionSerializer(serializers.Serializer):
     type = serializers.CharField()
     category = serializers.UUIDField(allow_null=True)
     other_account = serializers.UUIDField(allow_null=True)
+    account_candidates = StatementAccountCandidateSerializer(many=True, required=False)
     counterparty_text = serializers.CharField(required=False)
     reason = serializers.CharField()
 
