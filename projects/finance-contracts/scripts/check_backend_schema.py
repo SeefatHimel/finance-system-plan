@@ -2,6 +2,7 @@
 """Gate backend schema changes and ensure published routes still exist."""
 
 import json
+import itertools
 import re
 import sys
 from pathlib import Path
@@ -47,28 +48,24 @@ def manifest(schema):
     }
 
 
-def first_difference(expected, actual, path="schema"):
-    """Identify the first drift without dumping the full generated contract."""
+def differences(expected, actual, path="schema"):
+    """Describe drift without dumping the full generated contract."""
     if isinstance(expected, dict) and isinstance(actual, dict):
         for key in sorted(expected.keys() | actual.keys()):
             location = f"{path}.{key}"
             if key not in expected:
-                return f"{location} was added"
-            if key not in actual:
-                return f"{location} was removed"
-            difference = first_difference(expected[key], actual[key], location)
-            if difference:
-                return difference
+                yield f"{location} was added: {actual[key]!r}"
+            elif key not in actual:
+                yield f"{location} was removed"
+            else:
+                yield from differences(expected[key], actual[key], location)
     elif isinstance(expected, list) and isinstance(actual, list):
         if len(expected) != len(actual):
-            return f"{path} has {len(actual)} items; snapshot has {len(expected)}"
+            yield f"{path} has {len(actual)} items; snapshot has {len(expected)}"
         for index, (old_item, new_item) in enumerate(zip(expected, actual)):
-            difference = first_difference(old_item, new_item, f"{path}[{index}]")
-            if difference:
-                return difference
+            yield from differences(old_item, new_item, f"{path}[{index}]")
     elif expected != actual:
-        return f"{path} changed from {expected!r} to {actual!r}"
-    return None
+        yield f"{path} changed from {expected!r} to {actual!r}"
 
 
 def main():
@@ -84,8 +81,12 @@ def main():
         return
     expected = json.loads(SNAPSHOT.read_text())
     if actual != expected:
+        changes = list(itertools.islice(differences(expected, actual), 51))
+        shown = changes[:50]
         raise SystemExit(
-            f"Backend API schema changed: {first_difference(expected, actual)}. "
+            "Backend API schema changed:\n- " + "\n- ".join(shown)
+            + ("\n- Further differences omitted." if len(changes) > 50 else "")
+            + "\n"
             "Review the generated schema, update "
             "openapi.yaml and generated types as needed, then run "
             "check_backend_schema.py <generated-schema> --update."
