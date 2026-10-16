@@ -373,7 +373,7 @@ the bank sender active so its financial notices continue to sync.
 ## Activity After Ledger Corrections
 
 Web/API corrections can reclassify a matched transfer while retaining its
-observations and source messages as history. Activity displays account-specific
+observations and source messages as history. Activity transaction details display account-specific
 transfer balances/references only when the entry's current `type` is `transfer`;
 historical observations on an expense or other type do not appear as active
 transfer balances. Its normal account and ledger amount continue to come from
@@ -576,8 +576,8 @@ No Android device or emulator was connected for the keyboard check.
 
 ### Session-scoped local data
 
-The advanced screen can check the current server-issued session but no longer
-accepts pasted access tokens. Local account, category, transaction and offline
+The app validates and refreshes the current server-issued session automatically;
+planning tools no longer expose login or token-entry controls. Local account, category, transaction and offline
 queue caches continue to use the signed-in session's backend/user scope; offline
 restoration reads the session saved in device secure storage. This removes the
 in-app path for choosing another user's cache with a fabricated token. Existing
@@ -633,3 +633,44 @@ app with the same key. Deploy the batch-capable API first; verify a long history
 sync, disconnect/reconnect, app restart, account switching and Quick Add on a
 physical phone. The legacy JavaScript fallback remains single-message sync;
 the installed Android module owns automatic/background batch sync.
+
+## Activity timeline and direct navigation
+
+Activity uses the authenticated `/api/transactions/activity/` endpoint in pages
+of 25. Search is debounced; account, category, type and transaction-date filters
+use an Apply/Cancel sheet with searchable account/category/type choices. Date
+modes are All, Daily, Monthly and Custom (inclusive, at most 366 days). Sorting
+supports transaction date, recently added and recently updated; date filters
+always refer to the transaction date. Added/updated grouping uses Asia/Dhaka.
+
+The virtualized timeline has pull-to-refresh, retry and explicit Load more.
+Duplicate page IDs are deduplicated; failed appends retain the loaded rows;
+filter changes and unmount abort in-flight work and ignore late responses.
+Opening/closing transaction details retains filters and the timeline position.
+Details are read-only; existing web editing remains available on the web app.
+Transfers show both account names, and an account-filtered view uses that
+account's debit/credit perspective. Details preserve reported balances by account.
+
+Home fetches/caches only the first 25 recent transactions and uses the API's
+count for its Activity total. Cached previews are not presented as a complete
+offline search result. Local caches and Activity filters reset on logout/user
+switch. Deploy the new API before distributing an APK with these changes; an
+older backend yields an actionable error rather than downloading an unbounded
+legacy list. No database migration is required.
+
+More groups Accounts, Planning and Settings. Debts, credit-card bills, recurring
+bills and reconciliation open only their respective existing forms and load
+that section's data. The drawer uses the same destination IDs. Accounts and SMS
+settings open their maintained native screens. Visible Back and Android hardware
+Back return to the prior screen. Quick Add's full-entry handoff opens the manual
+entry form directly. Redundant legacy login, connection and SMS panels are no
+longer mixed into every planning tool.
+
+Tapping a Home review card selects its candidate ID before opening SMS review.
+Selection follows that ID across queue reordering; removing the selected message
+falls back to the nearest available item. Each candidate keeps its own draft.
+
+Run `npm run typecheck` and `npm run test:activity` for the new timeline and
+selection regressions, or `node --test tests/*.test.cjs` for all JS checks.
+Physical-device checks still include keyboard behavior, large text, native Back,
+long-history scrolling, offline/reconnect and switching signed-in accounts.

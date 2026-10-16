@@ -12,7 +12,8 @@
     "test:network": "node --test tests/bounded-fetch.test.cjs",
     "test:quick-add": "node --test tests/quick-add.test.cjs",
     "test:quick-add-focus": "node --test tests/quick-add-focus.test.cjs",
-    "test:sms-sync": "node --test tests/sms-sync.test.cjs"
+    "test:sms-sync": "node --test tests/sms-sync.test.cjs",
+    "test:activity": "node --test tests/activity*.test.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",

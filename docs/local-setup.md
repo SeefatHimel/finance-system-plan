@@ -586,3 +586,31 @@ saved import in Statements and select **Refresh identifiers from saved PDF**.
 Supply the PDF password when needed. If that import has no saved original,
 reupload the identical PDF to attach it. Run migrations before testing the new
 Electricity, Internet, Mobile Recharge, and merchant-note fields.
+
+### Transaction activity and navigation checks
+
+For the compact web filters/review navigation and mobile Activity changes:
+
+```bash
+cd projects/finance-web
+npm run typecheck
+node --test tests/*.test.cjs
+cd ../finance-mobile
+npm run typecheck
+npm run test:activity
+# Full mobile JS regression suite:
+node --test tests/*.test.cjs
+cd ../finance-api
+python manage.py test apps.transactions
+```
+
+Run API tests against a disposable test database, never a production dump.
+Deploy the API exposing `GET /api/transactions/activity/` before distributing a
+mobile build containing the new Activity UI. No migration is added. The default
+page is 25 and the legacy transaction-list array contract remains unchanged.
+Verify web at desktop and phone widths: secondary filters retain values when
+collapsed, URLs reload correctly, review routes share navigation, Planning and
+Settings reveal their active item, and SMS focus mode preserves edits.
+On a physical Android device check Activity pagination/search/filter cancellation,
+transaction details/back, More/drawer destinations, candidate-specific review,
+keyboard behavior, offline recovery and account switching.

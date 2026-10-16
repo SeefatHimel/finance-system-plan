@@ -1,3 +1,6 @@
+import { TransactionActivity } from "./src/transaction-activity";
+import { initialActivityFilters } from "./src/activity-model";
+import { mobileDestinations, reviewIndex, reviewSelection, type MobileDestination, type AdvancedTool } from "./src/mobile-navigation";
 import { QuickAddHub, type QuickAddHandle } from "./src/quick-add-hub";
 import { quickSessionScope } from "./src/secure-document";
 import { transferComparison, transferBalanceConflicts } from "../finance-contracts/transfer-comparison";
@@ -11,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   AppState,
   Alert,
   Animated,
@@ -59,7 +63,7 @@ import {
   listPaymentMethods,
   listRecurringBills,
   listSenderRules,
-  listTransactions,
+  listTransactionActivity,
   login,
   logout as revokeLoginSession,
   refreshLogin,
@@ -114,7 +118,7 @@ type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
 type SmsScanMode = "new" | "history";
 type MainTab = "home" | "activity" | "capture" | "review" | "more";
 type HomeFeed = "review" | "captured";
-type MobilePanel = "sms-automation" | null;
+type MobilePanel = "sms-automation" | "accounts" | null;
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 type ReviewCandidateDraft = {
   direction: string;
@@ -808,6 +812,9 @@ function FinanceApp() {
   const [listState, setListState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [listMessage, setListMessage] = useState("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactionTotal, setTransactionTotal] = useState<number | null>(null);
+  const [activityFilters, setActivityFilters] = useState(initialActivityFilters);
+  const [activityRevision, setActivityRevision] = useState(0);
   const [debtState, setDebtState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [debtMessage, setDebtMessage] = useState("");
   const [debts, setDebts] = useState<Debt[]>([]);
@@ -912,10 +919,11 @@ function FinanceApp() {
   const [reviewActionCandidateId, setReviewActionCandidateId] = useState("");
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewCandidateDraft>>({});
   const [reviewCandidateIndex, setReviewCandidateIndex] = useState(0);
+  const [reviewCandidateId, setReviewCandidateId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<MainTab>("home");
   const [homeFeed, setHomeFeed] = useState<HomeFeed>("review");
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const [showAdvancedTools, setShowAdvancedTools] = useState(false);
+  const [advancedTool, setAdvancedTool] = useState<AdvancedTool | null>(null);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const drawerTranslateX = useRef(new Animated.Value(-320)).current;
   const contentOpacity = useRef(new Animated.Value(1)).current;
@@ -941,9 +949,12 @@ function FinanceApp() {
     setListState("loading");
     setListMessage("");
     try {
-      const payload = await listTransactions(accessToken.trim());
+      const page = await listTransactionActivity(accessToken.trim());
+      const payload = page.results;
       if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       setTransactions(payload);
+      setTransactionTotal(page.count);
+      setActivityRevision(current => current + 1);
       setListState("ok");
       try {
         const key = scopedLocalKey(transactionCacheKey, localDataScope);
@@ -1325,6 +1336,7 @@ function FinanceApp() {
       if (!localDataScope || accountScopeRef.current !== localDataScope) return;
       const candidates = page.results;
       setReviewCandidates(candidates);
+      setReviewCandidateId(current => candidates.some(candidate => candidate.id === current) ? current : null);
       setReviewCandidateCount(page.count);
       setReviewCandidateIndex((current) => Math.min(current, Math.max(0, candidates.length - 1)));
       if (!accounts.length) {
@@ -2096,6 +2108,8 @@ function FinanceApp() {
       const result = await resetSmsDevelopmentData(accessToken.trim());
       await saveRawQueue([]);
       setReviewCandidates([]);
+      setReviewCandidateId(null);
+      setReviewCandidateIndex(0);
       setSmsDevResetArmed(false);
       setSmsDevResetState("ok");
       setSmsDevResetMessage(
@@ -2441,11 +2455,16 @@ function FinanceApp() {
     setAccounts([]);
     setCategories([]);
     setTransactions([]);
+    setTransactionTotal(null);
+    setActivityFilters(initialActivityFilters());
+    setAdvancedTool(null);
     setTransactionQueue([]);
     setTxAccountId("");
     setTxTransferAccountId("");
     setTxCategoryId("");
     setReviewCandidates([]);
+    setReviewCandidateId(null);
+    setReviewCandidateIndex(0);
     setReviewCandidateCount(0);
     setReviewDrafts({});
     setDebts([]);
@@ -2807,6 +2826,8 @@ function FinanceApp() {
 
   const switchTab = (nextTab: MainTab) => {
     if (nextTab === activeTab) {
+      setMobilePanel(null);
+      setAdvancedTool(null);
       return;
     }
     Animated.timing(contentOpacity, {
@@ -2816,7 +2837,7 @@ function FinanceApp() {
     }).start(() => {
       setActiveTab(nextTab);
       setMobilePanel(null);
-      setShowAdvancedTools(false);
+      setAdvancedTool(null);
       Animated.timing(contentOpacity, {
         duration: 220,
         easing: Easing.out(Easing.cubic),
@@ -2861,7 +2882,7 @@ function FinanceApp() {
       setAuthMessage("");
       setActiveTab("home");
       setMobilePanel(null);
-      setShowAdvancedTools(false);
+      setAdvancedTool(null);
       closeDrawer();
     }
   };
@@ -2943,6 +2964,8 @@ function FinanceApp() {
 
   useEffect(() => {
     if (!localDataScope) return;
+    setActivityFilters(initialActivityFilters());
+    setTransactionTotal(null);
     let active = true;
     Promise.all([
       AsyncStorage.getItem(scopedLocalKey(accountCacheKey, localDataScope)!),
@@ -2955,7 +2978,7 @@ function FinanceApp() {
       const cachedCategories = normalizeCategoryCache(storedCategories);
       setAccounts(cachedAccounts);
       setCategories(cachedCategories);
-      setTransactions(normalizeTransactionCache(storedTransactions));
+      setTransactions(normalizeTransactionCache(storedTransactions).slice(0, 25));
       setTransactionQueue(normalizeManualTransactionQueue(storedQueue));
       setTxAccountId(cachedAccounts[0]?.id ?? "");
       setTxCategoryId(cachedCategories[0]?.id ?? "");
@@ -3124,7 +3147,27 @@ function FinanceApp() {
     setTxCounterparty(draft.counterparty_text);
     setTxState("idle");
     setTxMessage("");
-    setShowAdvancedTools(true);
+    setAdvancedTool("entry");
+  }
+
+  useEffect(() => {
+    if (!advancedTool && !mobilePanel) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      setAdvancedTool(null); setMobilePanel(null); return true;
+    });
+    return () => subscription.remove();
+  }, [advancedTool, mobilePanel]);
+
+  function openDestination(destination: MobileDestination) {
+    setDrawerVisible(false);
+    setAdvancedTool(null);
+    if (destination === "capture") { switchTab("capture"); return; }
+    if (destination === "accounts") { setMobilePanel("accounts"); void handleLoadReferenceData(); return; }
+    setMobilePanel(null); setAdvancedTool(destination);
+    if (destination === "debts") void handleLoadDebts();
+    if (destination === "credit-cards") void handleLoadCreditCardBills();
+    if (destination === "recurring-bills") void handleLoadRecurringBills();
+    if (destination === "reconciliation") void handleLoadReconciliation();
   }
 
   const renderAdvancedTools = () => (
@@ -3133,112 +3176,18 @@ function FinanceApp() {
       <View style={styles.advancedHeader}>
         <Pressable
           accessibilityLabel="Back to Finance Mobile"
-          onPress={() => setShowAdvancedTools(false)}
+          onPress={() => setAdvancedTool(null)}
           style={styles.advancedHeaderButton}
         >
           <MaterialCommunityIcons color="#f6f8fc" name="arrow-left" size={22} />
         </Pressable>
         <View>
-          <Text style={styles.advancedHeaderTitle}>Finance tools</Text>
-          <Text style={styles.advancedHeaderSubtitle}>Detailed records and maintenance</Text>
+          <Text style={styles.advancedHeaderTitle}>{advancedTool === "entry" ? "Manual entry" : mobileDestinations.find(item => item.id === advancedTool)?.section}</Text>
+          <Text style={styles.advancedHeaderSubtitle}>Finance tools</Text>
         </View>
       </View>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.card}>
-          <Text style={styles.title}>Finance Mobile</Text>
-          <Text style={styles.subtitle}>Phase 1 backend connection</Text>
-          <Text style={styles.meta}>API: {getApiBaseUrl()}</Text>
-
-          {state === "loading" ? (
-            <View style={styles.statusRow}>
-              <ActivityIndicator />
-              <Text style={styles.statusText}>Checking backend...</Text>
-            </View>
-          ) : null}
-
-          {state === "success" ? (
-            <Text style={styles.okText}>Backend status: {result?.status?.toUpperCase()}</Text>
-          ) : null}
-
-          {state === "error" ? (
-            <Text style={styles.errorText}>Health check failed: {result?.error ?? "Unknown error"}</Text>
-          ) : null}
-
-          <Pressable onPress={loadHealth} style={styles.button}>
-            <Text style={styles.buttonText}>Retry Health Check</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Login (JWT)</Text>
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setUsername}
-            placeholder="Username"
-            style={styles.input}
-            value={username}
-          />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setPassword}
-            placeholder="Password"
-            secureTextEntry
-            style={styles.input}
-            value={password}
-          />
-          <Pressable onPress={handleLogin} style={styles.button}>
-            <Text style={styles.buttonText}>Sign In</Text>
-          </Pressable>
-
-          <Text style={styles.sectionTitle}>Session</Text>
-          <Text style={styles.meta}>Your account data stays scoped to the signed-in session.</Text>
-          <Pressable onPress={handleTokenValidation} style={styles.buttonSecondary}>
-            <Text style={styles.buttonText}>Check session</Text>
-          </Pressable>
-
-          {refreshToken ? <Text style={styles.meta}>Refresh token received.</Text> : null}
-          {authState === "loading" ? <ActivityIndicator /> : null}
-          {authState === "ok" ? <Text style={styles.okText}>{authMessage}</Text> : null}
-          {authState === "error" ? <Text style={styles.errorText}>{authMessage}</Text> : null}
-
-          <Text style={styles.sectionTitle}>Reference Data</Text>
-          <Pressable onPress={handleLoadReferenceData} style={styles.buttonSecondary}>
-            <Text style={styles.buttonText}>Load Accounts & Categories</Text>
-          </Pressable>
-
-          {dataState === "loading" ? <ActivityIndicator /> : null}
-          {dataState === "ok" ? <Text style={styles.okText}>{dataMessage}</Text> : null}
-          {dataState === "error" ? <Text style={styles.errorText}>{dataMessage}</Text> : null}
-
-          {accounts.length ? (
-            <View style={styles.listSection}>
-              <Text style={styles.listTitle}>Accounts</Text>
-              {accounts.map((account) => (
-                <Pressable key={account.id} onPress={() => setTxAccountId(account.id)}>
-                  <Text style={styles.listItem}>
-                    {account.name} ({account.type})
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          {categories.length ? (
-            <View style={styles.listSection}>
-              <Text style={styles.listTitle}>Categories</Text>
-              {categories.map((category) => (
-                <Pressable key={category.id} onPress={() => setTxCategoryId(category.id)}>
-                  <Text style={styles.listItem}>
-                    {category.name} ({category.kind})
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          <Text style={styles.sectionTitle}>Quick Add Transaction</Text>
+      <ScrollView key={advancedTool} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {advancedTool === "entry" ? <View style={styles.card}>          <Text style={styles.sectionTitle}>Quick Add Transaction</Text>
           <TextInput
             autoCapitalize="none"
             autoCorrect={false}
@@ -3353,26 +3302,8 @@ function FinanceApp() {
             ))}
           </View>
 
-          <Text style={styles.sectionTitle}>Transactions</Text>
-          <Pressable onPress={handleLoadTransactions} style={styles.buttonSecondary}>
-            <Text style={styles.buttonText}>Load Transactions</Text>
-          </Pressable>
-          {listState === "loading" ? <ActivityIndicator /> : null}
-          {listState === "ok" ? <Text style={styles.okText}>{listMessage}</Text> : null}
-          {listState === "error" ? <Text style={styles.errorText}>{listMessage}</Text> : null}
-
-          {transactions.length ? (
-            <View style={styles.listSection}>
-              {transactions.map((transaction) => (
-                <Text key={transaction.id} style={styles.listItem}>
-                  {transaction.date}{transaction.time ? ` ${transaction.time.slice(0, 5)}` : ""} | {transaction.type} | {transaction.amount} | {transaction.note || "No note"}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-        </View>
-
-        <View style={styles.card}>
+        </View> : null}
+        {advancedTool === "debts" ? <View style={styles.card}>
           <Text style={styles.sectionTitle}>Debts & Lending</Text>
           <Text style={styles.meta}>
             Create money owed records and mark repayments while away from the web dashboard.
@@ -3516,7 +3447,8 @@ function FinanceApp() {
           ) : null}
         </View>
 
-        <View style={styles.card}>
+ : null}
+        {advancedTool === "credit-cards" ? <View style={styles.card}>
           <Text style={styles.sectionTitle}>Credit Card Bills</Text>
           <Text style={styles.meta}>
             Track statement balances, due dates, minimum dues, and card bill payments from mobile.
@@ -3668,7 +3600,8 @@ function FinanceApp() {
           ) : null}
         </View>
 
-        <View style={styles.card}>
+ : null}
+        {advancedTool === "recurring-bills" ? <View style={styles.card}>
           <Text style={styles.sectionTitle}>Recurring Bills</Text>
           <Text style={styles.meta}>
             Track repeating bills and advance the next due date after each payment.
@@ -3839,7 +3772,8 @@ function FinanceApp() {
           ) : null}
         </View>
 
-        <View style={styles.card}>
+ : null}
+        {advancedTool === "reconciliation" ? <View style={styles.card}>
           <Text style={styles.sectionTitle}>Balance Reconciliation</Text>
           <Text style={styles.meta}>
             Compare the expected ledger balance with the real balance you see in cash, wallet, bank, or card apps.
@@ -3918,282 +3852,12 @@ function FinanceApp() {
           </Pressable>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>SMS Tracking Settings</Text>
-          <Text style={styles.meta}>
-            Choose trusted backend sender rules before any future native SMS reader imports messages.
-          </Text>
-
-          <View style={styles.permissionBox}>
-            <Text style={styles.listTitle}>Permission gate</Text>
-            <Text style={styles.meta}>Status: {smsPermissionState}</Text>
-            <Text style={styles.meta}>{smsPermissionMessage}</Text>
-            <Pressable onPress={() => void handleRequestSmsPermission()} style={styles.buttonSecondary}>
-              <Text style={styles.buttonText}>Request Android SMS Permission</Text>
-            </Pressable>
-          </View>
-
-          <Pressable onPress={handleLoadSmsSettings} style={styles.button}>
-            <Text style={styles.buttonText}>Load Payment Methods & Sender Rules</Text>
-          </Pressable>
-          <Pressable onPress={() => void handleConfigureNativeSmsCapture()} style={styles.buttonSecondary}>
-            <Text style={styles.buttonText}>Sync Native Sender Rules</Text>
-          </Pressable>
-
-          {smsSettingsState === "loading" ? <ActivityIndicator /> : null}
-          {smsSettingsState === "ok" ? <Text style={styles.okText}>{smsSettingsMessage}</Text> : null}
-          {smsSettingsState === "error" ? <Text style={styles.errorText}>{smsSettingsMessage}</Text> : null}
-
-          {paymentMethods.length ? (
-            <View style={styles.listSection}>
-              <Text style={styles.listTitle}>Payment Methods</Text>
-              {paymentMethods.map((method) => (
-                <Text key={method.id} style={styles.listItem}>
-                  {method.name} ({method.provider}){method.identifier ? ` - ${method.identifier}` : ""}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-
-          {senderRules.length ? (
-            <View style={styles.listSection}>
-              <Text style={styles.listTitle}>Tracked Senders</Text>
-              {senderRules.map((rule) => {
-                const providerExcluded = smsCapturePreference.excluded_providers.includes(rule.provider);
-                const isEnabled = enabledSenderRuleIds.includes(rule.id) && !providerExcluded;
-                return (
-                  <Pressable
-                    key={rule.id}
-                    disabled={!rule.is_active || providerExcluded || updatingSenderRuleId === rule.id}
-                    onPress={() => void handleToggleSenderRule(rule.id)}
-                    style={isEnabled ? styles.senderRuleSelected : styles.senderRule}
-                  >
-                    <Text style={styles.listTitle}>{rule.sender}</Text>
-                    <Text style={styles.listItem}>
-                      {rule.name} | {rule.provider} | {rule.match_type} | priority {rule.priority}
-                    </Text>
-                    <Text style={isEnabled ? styles.okText : styles.meta}>
-                      {isEnabled ? "Enabled for future import" : "Tap to enable"}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
-
-          <Text style={styles.sectionTitle}>Local Raw Message Queue</Text>
-          <Text style={styles.meta}>
-            This is the offline-safe handoff point for future native SMS capture.
-          </Text>
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setRawSender}
-            placeholder="Sender (for example bKash)"
-            style={styles.input}
-            value={rawSender}
-          />
-          <TextInput
-            autoCapitalize="sentences"
-            multiline
-            onChangeText={setRawBody}
-            placeholder="Raw SMS body"
-            style={styles.inputMultiline}
-            value={rawBody}
-          />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setRawReceivedAt}
-            placeholder="Received at ISO time"
-            style={styles.input}
-            value={rawReceivedAt}
-          />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setRawDeviceMessageId}
-            placeholder="Device message ID (optional)"
-            style={styles.input}
-            value={rawDeviceMessageId}
-          />
-          <Pressable onPress={handleQueueRawMessage} style={styles.buttonSecondary}>
-            <Text style={styles.buttonText}>Queue Raw Message</Text>
-          </Pressable>
-          <Pressable onPress={handleSyncRawQueue} style={styles.button}>
-            <Text style={styles.buttonText}>Sync Queued Messages</Text>
-          </Pressable>
-          <Pressable onPress={() => void handleImportCapturedSmsMessages()} style={styles.buttonSecondary}>
-            <Text style={styles.buttonText}>Import Captured SMS</Text>
-          </Pressable>
-
-          {rawQueueState === "loading" ? <ActivityIndicator /> : null}
-          {rawQueueState === "ok" ? <Text style={styles.okText}>{rawQueueMessage}</Text> : null}
-          {rawQueueState === "error" ? <Text style={styles.errorText}>{rawQueueMessage}</Text> : null}
-
-          <View style={styles.listSection}>
-            <Text style={styles.listTitle}>{isNativeSmsCaptureAvailable() ? "Messages awaiting handoff" : "Queued Messages"} ({rawQueue.length})</Text>
-            {isNativeSmsCaptureAvailable() ? <Text style={styles.meta}>Native SMS upload queue: {pendingSmsCount} pending. Background sync uploads these messages.</Text> : null}
-            {rawQueue.map((queuedMessage) => (
-              <View key={queuedMessage.id} style={styles.queueItem}>
-                <Text style={styles.listItem}>
-                  {queuedMessage.sender} | {queuedMessage.receivedAt} | attempts {queuedMessage.attempts}
-                </Text>
-                <Text style={styles.meta}>{queuedMessage.body}</Text>
-                {queuedMessage.lastAttemptAt ? (
-                  <Text style={styles.meta}>Last sync attempt: {queuedMessage.lastAttemptAt}</Text>
-                ) : null}
-                {queuedMessage.nextRetryAt ? (
-                  <Text style={styles.meta}>Next retry after: {queuedMessage.nextRetryAt}</Text>
-                ) : null}
-                {queuedMessage.lastError ? <Text style={styles.errorText}>{queuedMessage.lastError}</Text> : null}
-                <Pressable onPress={() => void handleRemoveQueuedMessage(queuedMessage.id)} style={styles.buttonDanger}>
-                  <Text style={styles.buttonText}>Remove From Queue</Text>
-                </Pressable>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>SMS Review Inbox</Text>
-          <Text style={styles.meta}>
-            Review backend parser candidates before they become transactions. Choose source and destination accounts before confirming transfers.
-          </Text>
-          <Pressable onPress={handleLoadReviewCandidates} style={styles.button}>
-            <Text style={styles.buttonText}>Load SMS Review Inbox</Text>
-          </Pressable>
-          {reviewCandidates.length < reviewCandidateCount ? <Pressable disabled={reviewState === "loading"} onPress={() => void handleLoadMoreReviewCandidates()} style={styles.button}><Text style={styles.buttonText}>Load more ({reviewCandidates.length} of {reviewCandidateCount})</Text></Pressable> : null}
-
-          {reviewState === "loading" ? <ActivityIndicator /> : null}
-          {reviewState === "ok" ? <Text style={styles.okText}>{reviewMessage}</Text> : null}
-          {reviewState === "error" ? <Text style={styles.errorText}>{reviewMessage}</Text> : null}
-
-          {reviewCandidates.length ? (
-            <View style={styles.listSection}>
-              {reviewCandidates.map((candidate) => {
-                const isWorking = reviewActionCandidateId === candidate.id;
-                const draft = getReviewDraft(candidate);
-                return (
-                  <View key={candidate.id} style={styles.reviewCandidate}>
-                    <Text style={styles.listTitle}>
-                      {candidate.provider} / {candidate.message_kind} / BDT {candidate.amount ?? "missing"}
-                    </Text>
-                    <Text style={styles.listItem}>
-                      {candidate.raw_message.sender} | {candidate.transaction_type} | {confidenceLabel(candidate.confidence)} ({confidencePercent(candidate.confidence)})
-                    </Text>
-                    <Text style={styles.warningText}>{candidateReviewReason(candidate)}</Text>
-                    <Text style={styles.meta}>
-                      Counterparty: {candidate.counterparty_text || "Not detected"}
-                    </Text>
-                    <Text style={styles.meta}>
-                      Ref: {candidate.reference || "None"} | Balance: {candidate.balance_after ?? "missing"} | Fee: {candidate.fee_amount ?? "missing"}
-                    </Text>
-                    {candidate.possible_internal_transfer ? (
-                      <Text style={styles.warningText}>
-                        Possible internal transfer{candidate.possible_related_candidate ? ` linked to ${candidate.possible_related_candidate}` : ""}.
-                      </Text>
-                    ) : null}
-                    <View style={styles.reviewControls}>
-                      <Text style={styles.listTitle}>Type</Text>
-                      <View style={styles.choiceRow}>
-                        {["expense", "income", "transfer"].map((type) => (
-                          <Pressable
-                            key={type}
-                            onPress={() =>
-                              updateReviewDraft(candidate, {
-                                transactionType: type,
-                                transferAccountId: type === "transfer" ? draft.transferAccountId : ""
-                              })
-                            }
-                            style={draft.transactionType === type ? styles.choiceSelected : styles.choice}
-                          >
-                            <Text style={draft.transactionType === type ? styles.choiceTextSelected : styles.choiceText}>
-                              {type}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
-
-                      <Text style={styles.listTitle}>Direction for selected account</Text>
-                      <View style={styles.choiceRow}>{["debit", "credit"].map((direction) => <Pressable key={direction} onPress={() => updateReviewDraft(candidate, { direction })} style={draft.direction === direction ? styles.choiceSelected : styles.choice}><Text style={draft.direction === direction ? styles.choiceTextSelected : styles.choiceText}>{direction === "credit" ? "Credit / money received" : "Debit / money sent"}</Text></Pressable>)}</View>
-                      <Text style={styles.listTitle}>Account: {accountName(draft.accountId)}</Text>
-                      {accounts.length ? (
-                        <View style={styles.choiceRow}>
-                          {accounts.map((account) => (
-                            <Pressable
-                              key={account.id}
-                              onPress={() => updateReviewDraft(candidate, {
-                                accountId: account.id,
-                                paymentMethodId: draft.accountId === account.id ? draft.paymentMethodId : ""
-                              })}
-                              style={draft.accountId === account.id ? styles.choiceSelected : styles.choice}
-                            >
-                              <Text style={draft.accountId === account.id ? styles.choiceTextSelected : styles.choiceText}>
-                                {account.name}
-                              </Text>
-                            </Pressable>
-                          ))}
-                        </View>
-                      ) : (
-                        <Text style={styles.warningText}>Load accounts before confirming from mobile.</Text>
-                      )}
-
-                      {draft.transactionType === "transfer" ? (
-                        <>
-                          <Text style={styles.listTitle}>
-                            Other transfer account: {accountName(draft.transferAccountId)}
-                          </Text>
-                          {accounts.length ? (
-                            <View style={styles.choiceRow}>
-                              {accounts.map((account) => (
-                                <Pressable
-                                  key={account.id}
-                                  onPress={() => updateReviewDraft(candidate, { transferAccountId: account.id })}
-                                  style={draft.transferAccountId === account.id ? styles.choiceSelected : styles.choice}
-                                >
-                                  <Text
-                                    style={draft.transferAccountId === account.id ? styles.choiceTextSelected : styles.choiceText}
-                                  >
-                                    {account.name}
-                                  </Text>
-                                </Pressable>
-                              ))}
-                            </View>
-                          ) : null}
-                        </>
-                      ) : null}
-                    </View>
-                    <Text style={styles.rawSmsText}>{candidate.raw_message.body}</Text>
-                    <Text style={styles.meta}>{candidate.parser_notes}</Text>
-                    <Text style={styles.meta}>Raw message status: {candidate.raw_message.status}</Text>
-                    <View style={styles.actionRow}>
-                      <Pressable
-                        disabled={isWorking}
-                        onPress={() => void handleConfirmReviewCandidate(candidate)}
-                        style={isWorking ? styles.buttonDisabled : styles.button}
-                      >
-                        <Text style={styles.buttonText}>{isWorking ? "Working..." : "Confirm"}</Text>
-                      </Pressable>
-                      <Pressable
-                        disabled={isWorking}
-                        onPress={() => confirmRejectReviewCandidate(candidate)}
-                        style={isWorking ? styles.buttonDisabled : styles.buttonDanger}
-                      >
-                        <Text style={styles.buttonText}>Reject & redact</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          ) : null}
-        </View>
+ : null}
       </ScrollView>
     </SafeAreaView>
   );
 
-  if (showAdvancedTools) {
+  if (advancedTool) {
     return renderAdvancedTools();
   }
 
@@ -4204,13 +3868,7 @@ function FinanceApp() {
     { icon: "clipboard-text-outline", key: "review", label: "Review" },
     { icon: "dots-horizontal", key: "more", label: "More" }
   ];
-  const drawerItems: Array<{ icon: IconName; label: string }> = [
-    { icon: "handshake-outline", label: "Debts & lending" },
-    { icon: "credit-card-clock-outline", label: "Credit card bills" },
-    { icon: "calendar-sync-outline", label: "Recurring bills" },
-    { icon: "scale-balance", label: "Reconciliation" },
-    { icon: "message-processing-outline", label: "SMS capture settings" }
-  ];
+  const drawerItems = mobileDestinations;
   const primaryCandidate = reviewCandidates[0] ?? null;
   const additionalCandidates = reviewCandidates.slice(1, 3);
   const recentTransactions = transactions.slice(0, 8);
@@ -4239,6 +3897,14 @@ function FinanceApp() {
     );
   };
 
+  function openReviewCandidate(id: string) {
+    const index = reviewIndex(reviewCandidates, id);
+    if (index < 0) return;
+    setReviewCandidateId(id);
+    setReviewCandidateIndex(index);
+    switchTab("review");
+  }
+
   const renderCompactCandidate = (candidate: ParsedMessageCandidate) => {
     const confidence = confidencePercent(candidate.confidence);
     const confidenceScore = Number(candidate.confidence);
@@ -4246,7 +3912,7 @@ function FinanceApp() {
     return (
       <Pressable
         key={candidate.id}
-        onPress={() => switchTab("review")}
+        onPress={() => openReviewCandidate(candidate.id)}
         style={({ pressed }) => [styles.mobileQueueRow, pressed ? styles.mobilePressed : null]}
       >
         <View style={styles.mobileProviderIcon}>
@@ -4288,7 +3954,7 @@ function FinanceApp() {
         >
           <MaterialCommunityIcons color={homeFeed === "captured" ? "#06141f" : "#9eb0c7"} name="format-list-bulleted" size={20} />
           <Text style={[styles.mobileSegmentText, homeFeed === "captured" ? styles.mobileSegmentTextActive : null]}>
-            Captured ({transactions.length})
+            Activity ({transactionTotal ?? `${transactions.length} saved`})
           </Text>
         </Pressable>
       </View>
@@ -4357,7 +4023,7 @@ function FinanceApp() {
                   <Text style={styles.mobilePrimaryButtonText}>Confirm</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => switchTab("review")}
+                  onPress={() => openReviewCandidate(primaryCandidate.id)}
                   style={({ pressed }) => [styles.mobileOutlineButton, pressed ? styles.mobilePressed : null]}
                 >
                   <MaterialCommunityIcons color="#dce8f6" name="pencil-outline" size={20} />
@@ -4391,7 +4057,7 @@ function FinanceApp() {
       ) : (
         <View style={styles.mobileSection}>
           <View style={styles.mobileSectionHeader}>
-            <Text style={styles.mobileSectionTitle}>Captured activity</Text>
+            <Text style={styles.mobileSectionTitle}>Recent activity</Text>
             <Pressable onPress={handleLoadTransactions} style={styles.mobileIconAction}>
               <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
             </Pressable>
@@ -4406,46 +4072,12 @@ function FinanceApp() {
     </View>
   );
 
-  const renderActivity = () => (
-    <View style={styles.mobileSectionStack}>
-      <View style={styles.mobilePageIntro}>
-        <Text style={styles.mobilePageTitle}>Activity</Text>
-        <Text style={styles.mobilePageSubtitle}>Your imported and manually recorded ledger entries.</Text>
-      </View>
-      <View style={styles.mobileSummaryStrip}>
-        <View>
-          <Text style={styles.mobileSummaryValue}>{transactions.length}</Text>
-          <Text style={styles.mobileSummaryLabel}>captured</Text>
-        </View>
-        <View style={styles.mobileSummaryDivider} />
-        <View style={styles.mobileRowBody}>
-          <Text style={styles.mobileSummaryValue}>{transactionQueue.length + quickPendingCount}</Text>
-          <Text style={styles.mobileSummaryLabel}>manual pending</Text>
-        </View>
-        <Pressable onPress={handleLoadTransactions} style={styles.mobileIconAction}>
-          <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
-        </Pressable>
-      </View>
-      <InlineFeedback loadingLabel="Refreshing activity…" message={listMessage} state={listState} />
-      {recentTransactions.length ? (
-        <View style={styles.mobileGroupedList}>{recentTransactions.map(renderTransactionRow)}</View>
-      ) : (
-        <View style={styles.mobileEmptyState}>
-          <Text style={styles.mobileEmptyTitle}>No activity yet</Text>
-          <Text style={styles.mobileEmptyCopy}>Imported SMS transactions will build your timeline automatically.</Text>
-        </View>
-      )}
-      <Pressable onPress={() => quickHub.current?.open()} style={styles.mobileSecondaryAction}>
-        <MaterialCommunityIcons color="#dce8f6" name="plus" size={20} />
-        <Text style={styles.mobileSecondaryActionText}>Quick Add manual entry</Text>
-      </Pressable>
-    </View>
-  );
+  const renderActivity = () => <TransactionActivity key={localDataScope ?? "signed-out"} scope={localDataScope ?? ""} token={accessToken} accounts={accounts} categories={categories} filters={activityFilters} onFiltersChange={setActivityFilters} cached={transactions} revision={activityRevision} pendingCount={transactionQueue.length + quickPendingCount} onQuickAdd={() => quickHub.current?.open()} />;
 
   const renderReview = () => (
     <View style={styles.mobileSectionStack}>
       <View style={styles.mobilePageIntro}>
-        <Text style={styles.mobilePageTitle}>Review inbox</Text>
+        <Text style={styles.mobilePageTitle}>SMS review</Text>
         <Text style={styles.mobilePageSubtitle}>Verify uncertain fields before they enter your ledger.</Text>
       </View>
       <Pressable onPress={handleLoadReviewCandidates} style={styles.mobileSecondaryAction}>
@@ -4454,7 +4086,8 @@ function FinanceApp() {
       </Pressable>
       <InlineFeedback loadingLabel="Refreshing review inbox…" message={reviewMessage} state={reviewState} />
       {reviewCandidates.length ? (() => {
-        const candidate = reviewCandidates[Math.min(reviewCandidateIndex, reviewCandidates.length - 1)] ?? reviewCandidates[0];
+        const index = reviewSelection(reviewCandidates, reviewCandidateId, reviewCandidateIndex);
+        const candidate = reviewCandidates[index];
         const draft = getReviewDraft(candidate);
         const isWorking = reviewActionCandidateId === candidate.id;
         return (
@@ -4462,23 +4095,23 @@ function FinanceApp() {
           <View style={styles.mobileReviewPager}>
             <Pressable
               accessibilityLabel="Previous message"
-              disabled={reviewCandidateIndex === 0}
-              onPress={() => setReviewCandidateIndex((current) => Math.max(0, current - 1))}
+              disabled={index === 0}
+              onPress={() => openReviewCandidate(reviewCandidates[index - 1].id)}
               style={styles.mobileIconAction}
             >
-              <MaterialCommunityIcons color={reviewCandidateIndex === 0 ? "#50647e" : "#32d8f2"} name="chevron-left" size={23} />
+              <MaterialCommunityIcons color={index === 0 ? "#50647e" : "#32d8f2"} name="chevron-left" size={23} />
             </Pressable>
             <View style={styles.mobileRowBody}>
-              <Text style={styles.mobileRowTitle}>Message {reviewCandidateIndex + 1} of {reviewCandidateCount}</Text>
+              <Text style={styles.mobileRowTitle}>Message {index + 1} of {reviewCandidateCount}</Text>
               <Text style={styles.mobileRowMeta}>Confirm or reject before moving on</Text>
             </View>
             <Pressable
               accessibilityLabel="Next message"
-              disabled={reviewCandidateIndex >= reviewCandidates.length - 1}
-              onPress={() => setReviewCandidateIndex((current) => Math.min(reviewCandidates.length - 1, current + 1))}
+              disabled={index >= reviewCandidates.length - 1}
+              onPress={() => openReviewCandidate(reviewCandidates[index + 1].id)}
               style={styles.mobileIconAction}
             >
-              <MaterialCommunityIcons color={reviewCandidateIndex >= reviewCandidates.length - 1 ? "#50647e" : "#32d8f2"} name="chevron-right" size={23} />
+              <MaterialCommunityIcons color={index >= reviewCandidates.length - 1 ? "#50647e" : "#32d8f2"} name="chevron-right" size={23} />
             </Pressable>
           </View>
           {reviewCandidates.length < reviewCandidateCount ? <Pressable disabled={reviewState === "loading"} onPress={() => void handleLoadMoreReviewCandidates()} style={styles.mobileSecondaryAction}><Text style={styles.mobileSecondaryActionText}>Load more messages ({reviewCandidates.length} loaded)</Text></Pressable> : null}
@@ -4765,9 +4398,9 @@ function FinanceApp() {
               <Text style={styles.mobileRowTitle}>{account.name}</Text>
               <Text style={styles.mobileRowMeta}>{titleCase(account.type)}</Text>
             </View>
-            <View style={styles.mobileConnectedBadge}>
+            <View style={[styles.mobileConnectedBadge, account.is_active === false ? { opacity: 0.6 } : null]}>
               <View style={styles.mobileConnectedDot} />
-              <Text style={styles.mobileConnectedText}>Active</Text>
+              <Text style={styles.mobileConnectedText}>{account.is_active === false ? "Inactive" : account.is_active === true ? "Active" : "Saved"}</Text>
             </View>
           </View>
         ))}
@@ -5491,46 +5124,20 @@ function FinanceApp() {
     );
   };
 
+  const destinationRow = (item: typeof mobileDestinations[number]) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={item.label} onPress={() => openDestination(item.id)} style={({ pressed }) => [styles.mobileMenuRow, pressed ? styles.mobilePressed : null]}>
+    <MaterialCommunityIcons color="#91a7c2" name={item.icon} size={22} /><Text style={styles.mobileMenuLabel}>{item.label}</Text><MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} />
+  </Pressable>;
   const renderMore = () => (
     <View style={styles.mobileSectionStack}>
-      <Pressable accessibilityRole="button" onPress={() => quickHub.current?.manage()} style={styles.mobileSecondaryAction}><MaterialCommunityIcons color="#55e6a5" name="flash-outline" size={20} /><Text style={styles.mobileSecondaryActionText}>Quick Add presets</Text></Pressable>
-      <View style={styles.mobilePageIntro}>
-        <Text style={styles.mobilePageTitle}>More</Text>
-        <Text style={styles.mobilePageSubtitle}>Planning tools, automation settings, and account controls.</Text>
-      </View>
-      <Pressable
-        onPress={() => switchTab("capture")}
-        style={({ pressed }) => [styles.mobileAutomationCallout, pressed ? styles.mobilePressed : null]}
-      >
-        <View style={styles.mobileAutomationIconSmall}>
-          <MaterialCommunityIcons color="#06141f" name="message-flash-outline" size={24} />
-        </View>
-        <View style={styles.mobileRowBody}>
-          <Text style={styles.mobileRowTitle}>SMS automation</Text>
-          <Text style={styles.mobileRowMeta}>Scan history and import new transactions</Text>
-        </View>
-        <MaterialCommunityIcons color="#32d8f2" name="chevron-right" size={24} />
-      </Pressable>
+      <View style={styles.mobilePageIntro}><Text style={styles.mobilePageTitle}>More</Text><Text style={styles.mobilePageSubtitle}>Accounts, planning and settings.</Text></View>
+      <Text accessibilityRole="header" style={styles.mobileFieldLabel}>Accounts</Text>
+      <View style={styles.mobileGroupedList}>{mobileDestinations.filter(item => item.id === "accounts").map(destinationRow)}</View>
+      <Text accessibilityRole="header" style={styles.mobileFieldLabel}>Planning</Text>
+      <View style={styles.mobileGroupedList}>{mobileDestinations.filter(item => item.id !== "accounts" && item.id !== "capture").map(destinationRow)}</View>
+      <Text accessibilityRole="header" style={styles.mobileFieldLabel}>Settings</Text>
       <View style={styles.mobileGroupedList}>
-        <Pressable
-          onPress={() => setShowAdvancedTools(true)}
-          style={({ pressed }) => [styles.mobileMenuRow, pressed ? styles.mobilePressed : null]}
-        >
-          <MaterialCommunityIcons color="#91a7c2" name="credit-card-outline" size={22} />
-          <Text style={styles.mobileMenuLabel}>Accounts & manual tools</Text>
-          <MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} />
-        </Pressable>
-        {drawerItems.filter((item) => item.label !== "SMS capture settings").map((item) => (
-          <Pressable
-            key={item.label}
-            onPress={() => setShowAdvancedTools(true)}
-            style={({ pressed }) => [styles.mobileMenuRow, pressed ? styles.mobilePressed : null]}
-          >
-            <MaterialCommunityIcons color="#91a7c2" name={item.icon} size={22} />
-            <Text style={styles.mobileMenuLabel}>{item.label}</Text>
-            <MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} />
-          </Pressable>
-        ))}
+        <Pressable accessibilityRole="button" onPress={() => quickHub.current?.manage()} style={styles.mobileMenuRow}><MaterialCommunityIcons color="#55e6a5" name="flash-outline" size={22} /><Text style={styles.mobileMenuLabel}>Quick Add presets</Text><MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} /></Pressable>
+        {mobileDestinations.filter(item => item.id === "capture").map(destinationRow)}
       </View>
       <View style={styles.mobileSystemCard}>
         <View style={styles.mobileSystemHeader}>
@@ -5658,7 +5265,7 @@ function FinanceApp() {
     );
   }
 
-  const activeContent = mobilePanel === "sms-automation"
+  const activeContent = mobilePanel === "accounts" ? renderAccounts() : mobilePanel === "sms-automation"
     ? renderSmsAutomation()
     : activeTab === "home"
       ? renderHome()
@@ -5718,14 +5325,14 @@ function FinanceApp() {
       </View>
 
       <QuickAddHub key={quickScope ?? "signed-out"} ref={quickHub} scope={quickScope} token={accessToken} onFavorites={setQuickFavorites} onPendingCount={setQuickPendingCount} onReferences={(accounts, categories) => { setAccounts(accounts); setCategories(categories); }} onSaved={() => { void handleLoadTransactions(); void handleLoadReferenceData(); }} onFullEntry={handleQuickFullEntry} />
-      <Animated.ScrollView
+      {activeTab === "activity" && !mobilePanel ? <View style={{ flex: 1 }}>{activeContent}</View> : (      <Animated.ScrollView
         contentContainerStyle={styles.mobileScrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         style={{ opacity: contentOpacity }}
       >
         {activeContent}
-      </Animated.ScrollView>
+      </Animated.ScrollView>)}
 
       <View style={styles.mobileTabBar}>
         {tabItems.map((item) => {
@@ -5766,14 +5373,7 @@ function FinanceApp() {
               {drawerItems.map((item) => (
                 <Pressable
                   key={item.label}
-                  onPress={() => {
-                    closeDrawer();
-                    if (item.label === "SMS capture settings") {
-                      setTimeout(() => switchTab("capture"), 190);
-                    } else {
-                      setTimeout(() => setShowAdvancedTools(true), 190);
-                    }
-                  }}
+                  onPress={() => openDestination(item.id)}
                   style={({ pressed }) => [styles.mobileDrawerRow, pressed ? styles.mobilePressed : null]}
                 >
                   <MaterialCommunityIcons color="#91a7c2" name={item.icon} size={22} />

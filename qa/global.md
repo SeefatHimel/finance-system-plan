@@ -368,3 +368,11 @@ reported balances remain independently inspectable. Suggestions are reviewable
 and never themselves authorize posting or erase ambiguous repeat movements.
 Date filters are applied after reciprocal uniqueness is established, so they cannot
 hide a competing source and promote an ambiguous relationship.
+
+### How are frequent tasks separated from specialist tools?
+
+Web keeps five daily destinations visible and groups review sources behind one
+Review inbox, with Planning and Settings expandable. Mobile keeps its five tabs,
+adds a complete searchable Activity timeline, and routes More/drawer items to
+the named section. Existing deep links and ledger semantics are preserved; this
+changes navigation and reads, not automatic transaction confirmation or matching.

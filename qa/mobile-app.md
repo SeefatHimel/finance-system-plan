@@ -578,8 +578,8 @@ than silently assigned to the next login. Mobile SMS review fetches 100 records
 per page and exposes a load-more control.
 
 **Can an account switch be forced by pasting a fabricated token?** No. The
-advanced screen checks only the current server-issued session and no longer
-accepts pasted access tokens. Existing secure sessions still restore offline
+app validates the current server-issued session automatically and planning tools
+do not expose token-entry controls. Existing secure sessions still restore offline
 and retain their owner's queued work.
 
 ## Which APK includes session isolation, paged review and redacted-SMS restoration?
@@ -605,3 +605,24 @@ Batch 404/405 falls back to the existing endpoint for rollout compatibility.
 Repeated queue counting and full-queue writes now occur per batch instead of per
 SMS. Deploy the updated API to enable the speedup; real-phone smoke checks remain
 separate from unit and HTTP fault tests.
+
+### How does mobile browse the full ledger without loading every transaction?
+
+Activity requests 25 owned transactions at a time from the paginated activity
+endpoint, with server search/filtering, date grouping, retry and Load more. Home
+uses a bounded preview plus the exact API count. The timeline is a FlatList
+outside the outer ScrollView. Filter changes abort old work; generation checks
+reject late responses, duplicate IDs are merged, and failed appends preserve
+loaded rows. Cached previews are labeled incomplete, and user/backend scope
+changes clear local selection/filter state. Details are read-only and preserve
+the timeline position. Date filters use transaction date; added/updated grouping
+uses Asia/Dhaka. The API must be deployed before installing the updated APK.
+
+### Does each More item open a distinct screen, and which SMS opens from Home?
+
+More/drawer share stable destination IDs. Accounts and SMS settings use their
+native screens; each planning item displays only its own existing form, with
+visible and Android hardware Back navigation. Full Quick Add opens manual entry
+directly. A review card opens its exact candidate ID, preserves that selection
+across queue reordering and keeps drafts keyed by candidate, rather than opening
+whichever index happened to be selected previously.

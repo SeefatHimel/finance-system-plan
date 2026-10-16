@@ -2,7 +2,7 @@ import type { QuickPreset, PresetInput, QuickEntryInput } from "../../finance-co
 import { boundedFetch } from "./bounded-fetch";
 import { quickSessionScope } from "./secure-document";
 
-import type { IdentitySuggestion, TransferEvidence, TransferMatch } from "../../finance-contracts/generated/types";
+import type { IdentitySuggestion, TransferEvidence, TransferMatch, TransactionActivityPage as ContractActivityPage } from "../../finance-contracts/generated/types";
 export type { TransferMatch } from "../../finance-contracts/generated/types";
 
 declare const process: {
@@ -973,6 +973,30 @@ export async function resetSmsDevelopmentData(accessToken: string): Promise<{
 export async function listTransactions(accessToken: string): Promise<Transaction[]> {
   const response = await authenticatedFetch("/api/transactions/", accessToken);
   return (await response.json()) as Transaction[];
+}
+
+export type TransactionActivityQuery = {
+  search?: string; account?: string; category?: string; type?: string;
+  month?: string; start_date?: string; end_date?: string;
+  ordering?: "-date" | "-created_at" | "-updated_at";
+};
+export type TransactionActivityPage = Omit<ContractActivityPage, "results"> & { results: Transaction[] };
+
+export async function listTransactionActivity(accessToken: string, query: TransactionActivityQuery = {}, offset = 0, signal?: AbortSignal): Promise<TransactionActivityPage> {
+  const params = new URLSearchParams({ limit: "25", offset: String(offset) });
+  Object.entries(query).forEach(([key, value]) => { if (value) params.append(key, value); });
+  const response = await authenticatedFetch(`/api/transactions/activity/?${params}`, accessToken, { signal });
+  let page: TransactionActivityPage;
+  try { page = await response.json() as TransactionActivityPage; }
+  catch { throw new Error("The activity page could not be read. Refresh and try again."); }
+  if (!page || !Number.isSafeInteger(page.count) || page.count < 0 || !Array.isArray(page.results)
+    || page.results.length > 25 || page.results.some(row => typeof row?.id !== "string")
+    || new Set(page.results.map(row => row.id)).size !== page.results.length
+    || (page.next_offset !== null && (!Number.isSafeInteger(page.next_offset)
+      || page.next_offset !== offset + page.results.length || page.next_offset <= offset || page.next_offset >= page.count))) {
+    throw new Error("The activity page was incomplete. Refresh and try again.");
+  }
+  return page;
 }
 
 
