@@ -1,4 +1,5 @@
 "use client";
+import { displayLabel, formatCurrency, formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
 
 import { QuickTimePicker } from "./quick-time-picker";
 import { useQuickAdd } from "./quick-add";
@@ -119,7 +120,8 @@ function currentTime() {
 
 function formatTransactionTime(value: string | null) {
   if (!value) return "—";
-  return value.slice(0, 5);
+  const time = formatClockTime(value);
+  return time === "Not reported" ? time : time.slice(0, 5);
 }
 
 function persistVisibleColumns(columns: TransactionColumn[]) {
@@ -129,13 +131,6 @@ function persistVisibleColumns(columns: TransactionColumn[]) {
     // Column preferences are optional when browser storage is unavailable.
   }
 }
-
-const moneyFormatter = new Intl.NumberFormat("en-BD", {
-  currency: "BDT",
-  style: "currency"
-});
-
-const activityTimeFormatter = new Intl.DateTimeFormat("en-BD", { dateStyle: "medium", timeStyle: "short" });
 
 export function TransactionWorkspace() {
   const recovery = useTransactionRecovery();
@@ -522,7 +517,7 @@ export function TransactionWorkspace() {
     }
 
     const confirmed = window.confirm(
-      `Delete ${transaction.type.replaceAll("_", " ")} transaction on ${transaction.date}?`
+      `Delete ${displayLabel(transaction.type)} transaction on ${transaction.date}?`
     );
     if (!confirmed) {
       return;
@@ -631,6 +626,8 @@ export function TransactionWorkspace() {
     return new Map(loadState.accounts.map((account) => [account.id, account.name]));
   }, [loadState]);
 
+  const currencyByAccount = useMemo(() => new Map(loadState.status === "ready" ? loadState.accounts.map(account => [account.id, account.currency]) : []), [loadState]);
+
   const categoryNames = useMemo(() => {
     if (loadState.status !== "ready") {
       return new Map<string, string>();
@@ -675,19 +672,19 @@ export function TransactionWorkspace() {
   function columnContent(column: TransactionColumn, transaction: Transaction) {
     const methods = loadState.status === "ready" ? loadState.paymentMethods : [];
     switch (column) {
-      case "date": return <time dateTime={transaction.date}>{transaction.date}</time>;
+      case "date": return <time dateTime={transaction.date}>{formatCalendarDate(transaction.date)}</time>;
       case "time": return formatTransactionTime(transaction.time);
-      case "description": return <><span className="transaction-ledger-primary">{transaction.counterparty_text || transaction.reference || transaction.note || transaction.type.replaceAll("_", " ")}</span><span className="transaction-ledger-secondary">{transaction.type.replaceAll("_", " ")} · {transaction.type === "transfer" && !displayedFilters.account ? "Internal movement" : transaction.account_direction}{transaction.reference ? ` · ${transaction.reference}` : ""}</span>{transaction.needs_review ? <span className="status-badge status-badge--idle">Needs review</span> : null}</>;
+      case "description": return <><span className="transaction-ledger-primary">{transaction.counterparty_text || transaction.reference || transaction.note || displayLabel(transaction.type)}</span><span className="transaction-ledger-secondary">{displayLabel(transaction.type)} · {transaction.type === "transfer" && !displayedFilters.account ? "Internal movement" : displayLabel(transaction.account_direction)}{transaction.reference ? ` · ${transaction.reference}` : ""}</span>{transaction.needs_review ? <span className="status-badge status-badge--idle">Needs review</span> : null}</>;
       case "account": return <>{accountNames.get(transaction.account) ?? "Unknown"}{transaction.type === "transfer" ? ` → ${accountNames.get(transaction.transfer_account ?? "") ?? "Unknown"}` : ""}</>;
       case "category": return transaction.category ? categoryNames.get(transaction.category) ?? "Unknown" : "None";
-      case "source": return transaction.source;
-      case "balance": return transaction.type === "transfer" && transaction.transfer_evidence.length ? transaction.transfer_evidence.map(item => <span className="transaction-ledger-secondary" key={item.id}>{accountNames.get(item.account)}: {item.balance_after === null ? "No reported balance" : moneyFormatter.format(Number(item.balance_after))}{item.reference ? ` · ${item.reference}` : ""}</span>) : transaction.balance_after !== null ? moneyFormatter.format(Number(transaction.balance_after)) : "—";
+      case "source": return displayLabel(transaction.source);
+      case "balance": return transaction.type === "transfer" && transaction.transfer_evidence.length ? transaction.transfer_evidence.map(item => <span className="transaction-ledger-secondary" key={item.id}>{accountNames.get(item.account)}: {item.balance_after === null ? "No reported balance" : formatCurrency(item.balance_after, currencyByAccount.get(item.account))}{item.reference ? ` · ${item.reference}` : ""}</span>) : transaction.balance_after !== null ? formatCurrency(transaction.balance_after, currencyByAccount.get(transaction.account)) : "—";
       case "senderIdentifiers": return <><span>{identifierView.format(transaction.sender_account_identifier, identifierLabel(transaction.sender_account_identifier, "account", methods, accountNames, transaction.direction === "debit" ? transaction.account : undefined))}</span><span className="transaction-ledger-secondary">{transaction.sender_card_identifier ? `Card ${identifierView.format(transaction.sender_card_identifier, identifierLabel(transaction.sender_card_identifier, "card", methods, accountNames, transaction.direction === "debit" ? transaction.account : undefined))}` : "No card identifier"}</span></>;
       case "receiverIdentifiers": {
         const account = transaction.type === "transfer" ? transaction.transfer_account ?? undefined : transaction.direction === "credit" ? transaction.account : undefined;
         return <><span>{identifierView.format(transaction.receiver_account_identifier, identifierLabel(transaction.receiver_account_identifier, "account", methods, accountNames, account))}</span><span className="transaction-ledger-secondary">{transaction.receiver_card_identifier ? `Card ${identifierView.format(transaction.receiver_card_identifier, identifierLabel(transaction.receiver_card_identifier, "card", methods, accountNames, account))}` : "No card identifier"}</span></>;
       }
-      case "amount": return <>{transaction.type === "transfer" && !displayedFilters.account ? "" : transaction.account_direction === "credit" ? "+" : "−"}{moneyFormatter.format(Number(transaction.amount))}</>;
+      case "amount": return <>{transaction.type === "transfer" && !displayedFilters.account ? "" : transaction.account_direction === "credit" ? "+" : "−"}{formatCurrency(transaction.amount, currencyByAccount.get(transaction.account))}</>;
     }
   }
   function amountClass(transaction: Transaction) {
@@ -695,7 +692,7 @@ export function TransactionWorkspace() {
   }
   function activityTime(transaction: Transaction) {
     const stamp = displayedFilters.ordering === "-updated_at" ? transaction.updated_at : transaction.created_at;
-    return <time dateTime={stamp}>{activityTimeFormatter.format(new Date(stamp))}</time>;
+    return <time dateTime={stamp}>{formatTimestamp(stamp)}</time>;
   }
   function transactionActions(transaction: Transaction) {
     return <div className="list-row__actions">
@@ -757,7 +754,7 @@ export function TransactionWorkspace() {
               >
                 {transactionTypes.map((type) => (
                   <option key={type} value={type}>
-                    {type.replaceAll("_", " ")}
+                    {displayLabel(type)}
                   </option>
                 ))}
               </select><FieldError field="type" errors={fieldErrors} />
@@ -874,7 +871,7 @@ export function TransactionWorkspace() {
 
             {editingTransaction?.type === "transfer" && editingTransaction.transfer_evidence.length ? <details className="raw-message field--wide">
               <summary>Saved transfer reported balances</summary>
-              {editingTransaction.transfer_evidence.map((item) => <p key={item.id}><strong>{loadState.accounts.find((account) => account.id === item.account)?.name ?? "Unknown account"}</strong>: {item.balance_after === null ? "No reported balance" : moneyFormatter.format(Number(item.balance_after))}{item.is_primary ? " · Primary report" : " · Linked report"}</p>)}
+              {editingTransaction.transfer_evidence.map((item) => <p key={item.id}><strong>{loadState.accounts.find((account) => account.id === item.account)?.name ?? "Unknown account"}</strong>: {item.balance_after === null ? "No reported balance" : formatCurrency(item.balance_after, currencyByAccount.get(item.account))}{item.is_primary ? " · Primary report" : " · Linked report"}</p>)}
               <HelpTooltip label="About saved account reports">Original account reports remain attached to their accounts. Edit a balance or expand the other account balance to add a missing report. Neither creates another money movement.</HelpTooltip>
             </details> : null}
 
@@ -941,7 +938,7 @@ export function TransactionWorkspace() {
             <label className="field">
               <span className="field__label">Source</span>
               <select name="source" {...feedback("source")} className="field__control" onChange={(event) => setEditingSource(event.target.value as TransactionSource)} value={editingSource}>
-                {transactionSources.map((source) => <option key={source} value={source}>{source}</option>)}
+                {transactionSources.map((source) => <option key={source} value={source}>{displayLabel(source)}</option>)}
               </select><FieldError field="source" errors={fieldErrors} />
             </label>
             <fieldset className="transaction-identifier-fields field--wide">
@@ -1092,7 +1089,7 @@ export function TransactionWorkspace() {
                     <option value="">All types</option>
                     {transactionTypes.map((type) => (
                       <option key={type} value={type}>
-                        {type.replaceAll("_", " ")}
+                        {displayLabel(type)}
                       </option>
                     ))}
                   </select>

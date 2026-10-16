@@ -696,13 +696,13 @@ function QuickChoice({
       <div className="quick-choice__buttons">
         {shown.map((o) => (
           <button
-            className={`button ${o.id === value ? "button--primary" : "button--ghost"}`}
+            className="button button--ghost"
             aria-pressed={o.id === value}
             onClick={() => onChange(o.id)}
             key={o.id}
             type="button"
           >
-            {o.name}
+            {o.id === value ? <span aria-hidden="true">✓ </span> : null}{o.name}
           </button>
         ))}
         {allowEmpty ? (
@@ -712,7 +712,7 @@ function QuickChoice({
             aria-pressed={!value}
             onClick={() => onChange("")}
           >
-            Uncategorized
+            {!value ? <span aria-hidden="true">✓ </span> : null}Uncategorized
           </button>
         ) : null}
       </div>

@@ -1,4 +1,5 @@
 "use client";
+import { PRODUCT_NAME } from "../../finance-contracts/presentation";
 
 import {
   CalendarBlank,
@@ -264,9 +265,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <QuickAddProvider><div className={`app-frame${isSidebarCollapsed ? " app-frame--sidebar-collapsed" : ""}`}>
       <aside aria-hidden={isMobileViewport && !isMobileNavOpen ? true : undefined} ref={sidebar} role={isMobileNavOpen ? "dialog" : undefined} aria-modal={isMobileNavOpen ? true : undefined} aria-label={isMobileNavOpen ? "Navigation" : undefined} className={`app-sidebar${isMobileNavOpen ? " app-sidebar--open" : ""}`} id="primary-navigation">
         <button className="mobile-nav-close icon-button" aria-label="Close navigation" onClick={() => setIsMobileNavOpen(false)} type="button"><X aria-hidden="true" size={22} /></button>
-        <Link className="app-logo" href="/" aria-label="Finance dashboard" onClick={(event) => handleNavigation(event, "/")}>
+        <Link className="app-logo" href="/" aria-label={`${PRODUCT_NAME} dashboard`} onClick={(event) => handleNavigation(event, "/")}>
           <DiamondsFour aria-hidden="true" className="app-logo__mark" size={31} weight="fill" />
-          <span>Finance</span>
+          <span>{PRODUCT_NAME}</span>
         </Link>
 
         <nav className="app-nav" aria-label="Primary navigation">
@@ -293,7 +294,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="app-sidebar__footer">
-          <strong>Finance</strong>
+          <strong>{PRODUCT_NAME}</strong>
           <span>Simple money.<br />A clearer tomorrow.</span>
         </div>
       </aside>

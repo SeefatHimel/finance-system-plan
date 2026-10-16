@@ -45,7 +45,7 @@ export function dateRangeError(start: string, end: string) {
 
 export function periodLabel(period: DatePeriod) {
   if (period.mode === "all") return "All dates";
-  const format = (date: string) => new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(parseDate(date)!);
+  const format = (date: string) => new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(parseDate(date)!);
   return period.start === period.end ? format(period.start) : `${format(period.start)} – ${format(period.end)}`;
 }
 

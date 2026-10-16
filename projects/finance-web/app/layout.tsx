@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "../../finance-contracts/presentation";
 import type { Metadata, Viewport } from "next";
 
 import { TransactionRecoveryProvider } from "@/components/transaction-recovery";
@@ -9,8 +10,8 @@ import { BackendHeartbeat } from "@/components/backend-heartbeat";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  applicationName: "Finance",
-  title: "Finance System",
+  applicationName: PRODUCT_NAME,
+  title: PRODUCT_NAME,
   description: "Personal finance dashboard for transactions, balances, and SMS review."
 };
 

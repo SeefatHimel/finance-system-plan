@@ -1,4 +1,5 @@
 "use client";
+import { formatCurrency, formatTimestamp as formatDateTime, timestampFields } from "../../finance-contracts/presentation";
 
 import Link from "next/link";
 import { HelpTooltip } from "@/components/help-tooltip";
@@ -81,22 +82,11 @@ function formatLabel(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("en-BD", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-}
-
 const queueDayFormatter = new Intl.DateTimeFormat("en-BD", { month: "short", day: "numeric" });
-const queueTimeFormatter = new Intl.DateTimeFormat("en-BD", { hour: "numeric", minute: "2-digit" });
+const queueTimeFormatter = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
-function dateInputFromTimestamp(value: string) {
-  const date = new Date(value);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function timeInputFromTimestamp(value: string) {
-  const date = new Date(value);
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
+function dateInputFromTimestamp(value: string) { return timestampFields(value).date; }
+function timeInputFromTimestamp(value: string) { return timestampFields(value).time; }
 
 const confidenceFormatter = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
 
@@ -540,7 +530,7 @@ export function MessageReviewWorkspace() {
 
       <div className={`review-canvas${isFocused && !focusQueueOpen ? " review-canvas--queue-collapsed" : ""}`} ref={reviewSurface} role={isFocused ? "dialog" : undefined} aria-modal={isFocused || undefined} aria-label={isFocused ? "Focused SMS review" : undefined}>
         <div className="review-focus-header" hidden={!isFocused}>
-          <div><h2 className="review-focus-title" tabIndex={-1}>{activeCandidate ? `SMS review · BDT ${activeValues?.amount || "—"}` : "SMS review"}</h2><span aria-live="polite" aria-atomic="true">{activeCandidate ? `${accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"} · ${activeIndex + 1} / ${filteredCandidates.length}` : "No messages match these filters"}</span></div>
+          <div><h2 className="review-focus-title" tabIndex={-1}>{activeCandidate ? `SMS review · ${formatCurrency(activeValues?.amount)}` : "SMS review"}</h2><span aria-live="polite" aria-atomic="true">{activeCandidate ? `${accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"} · ${activeIndex + 1} / ${filteredCandidates.length}` : "No messages match these filters"}</span></div>
           <div className="review-focus-header__actions">
             {reviewState.candidates.length < reviewState.totalCount ? <button className="button button--ghost" disabled={loadingMore} onClick={() => void loadMoreCandidates()} type="button">{loadingMore ? "Loading…" : "Load more"}</button> : null}
             <button className="button button--ghost" type="button" aria-haspopup="dialog" onClick={() => setFiltersOpen(true)} aria-label={`Filters, ${activeFilters.length} active`} title="Filter pending messages"><FunnelSimple size={18} aria-hidden="true" /><span>Filters{activeFilters.length ? ` (${activeFilters.length})` : ""}</span></button>
@@ -577,7 +567,7 @@ export function MessageReviewWorkspace() {
                 const status = reviewSummary(candidate, valuesFor(candidate));
                 const selected = candidate.id === activeCandidate?.id;
                 return <button aria-current={selected ? "true" : undefined} className={`review-queue-item${selected ? " review-queue-item--active" : ""}`} key={candidate.id} onClick={() => setActiveCandidateId(candidate.id)} type="button">
-                  <span className="review-queue-item__top"><strong>{valuesFor(candidate).amount ? `BDT ${valuesFor(candidate).amount}` : "Amount needed"}</strong><small><time dateTime={candidate.raw_message.received_at} title={formatDateTime(candidate.raw_message.received_at)}><span>{queueDayFormatter.format(new Date(candidate.raw_message.received_at))}</span><span>{queueTimeFormatter.format(new Date(candidate.raw_message.received_at))}</span></time></small></span>
+                  <span className="review-queue-item__top"><strong>{valuesFor(candidate).amount ? formatCurrency(valuesFor(candidate).amount) : "Amount needed"}</strong><small><time dateTime={candidate.raw_message.received_at} title={formatDateTime(candidate.raw_message.received_at)}><span>{queueDayFormatter.format(new Date(candidate.raw_message.received_at))}</span><span>{queueTimeFormatter.format(new Date(candidate.raw_message.received_at))}</span></time></small></span>
                   <span className="review-queue-item__description"><span title={candidate.counterparty_text || formatLabel(candidate.message_kind)}>{candidate.counterparty_text || formatLabel(candidate.message_kind)}</span><small>· {formatLabel(candidate.provider)}</small></span>
                   <span className="review-queue-item__status"><span className={status.tone === "ready" ? "review-queue-item__ready" : status.tone === "warning" ? "review-queue-item__issue" : ""}>{status.title}</span><small title="Parser confidence">{confidencePercent(candidate.confidence)}</small></span>
                 </button>;
@@ -595,7 +585,7 @@ export function MessageReviewWorkspace() {
                   <div className="review-detail__summary">
                     <span className="review-card__eyebrow">{formatLabel(activeCandidate.provider)} / {formatLabel(activeCandidate.message_kind)}</span>
                     <div className="review-amount-row">
-                      <h2 className="review-card__amount">{(activeValues?.amount) ? `BDT ${activeValues?.amount}` : "Complete the amount"}</h2>
+                      <h2 className="review-card__amount">{(activeValues?.amount) ? formatCurrency(activeValues?.amount) : "Complete the amount"}</h2>
                       <button type="button" className={`review-direction-toggle review-direction-toggle--${accountDraft?.direction ?? "debit"}`}
                         aria-label={`Switch to ${accountDraft?.direction === "credit" ? "debit / money sent" : "credit / money received"}`}
                         aria-describedby="review-direction-context"

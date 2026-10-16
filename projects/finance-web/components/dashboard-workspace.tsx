@@ -1,4 +1,5 @@
 "use client";
+import { formatCurrency, formatCalendarDate as formatDate, formatTimestamp } from "../../finance-contracts/presentation";
 
 import {
   ArrowRight,
@@ -66,12 +67,6 @@ type CashFlowPoint = {
   outflow: number;
 };
 
-const money = new Intl.NumberFormat("en-BD", {
-  currency: "BDT",
-  maximumFractionDigits: 0,
-  style: "currency"
-});
-
 const compactNumber = new Intl.NumberFormat("en", {
   maximumFractionDigits: 0,
   notation: "compact"
@@ -83,14 +78,6 @@ function titleCase(value: string) {
   return value
     .replaceAll("_", " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "short",
-    year: "numeric"
-  }).format(new Date(`${value}T00:00:00`));
 }
 
 function sourceLabel(source: string) {
@@ -145,7 +132,7 @@ function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
           <YAxis axisLine={false} tick={{ fill: "#92a1ba", fontSize: 11 }} tickFormatter={(value) => compactNumber.format(value)} tickLine={false} width={58} />
           <Tooltip
             contentStyle={{ background: "#111f31", border: "1px solid #2c4059", borderRadius: 8, color: "#f7f9fc" }}
-            formatter={(value) => money.format(Number(value))}
+            formatter={(value) => formatCurrency(Number(value))}
           />
           <Area dataKey="outflow" fill="#6f7e99" fillOpacity={0.06} isAnimationActive={false} name="Outflow" stroke="#6f7e99" strokeWidth={2} type="monotone" />
           <Area dataKey="inflow" fill="#55e6a5" fillOpacity={0.12} isAnimationActive={false} name="Inflow" stroke="#55e6a5" strokeWidth={2.5} type="monotone" />
@@ -177,7 +164,7 @@ function SpendingChart({ categories }: { categories: MonthlyReport["categories"]
             </Pie>
             <Tooltip
               contentStyle={{ background: "#111f31", border: "1px solid #2c4059", borderRadius: 8, color: "#f7f9fc" }}
-              formatter={(value) => money.format(Number(value))}
+              formatter={(value) => formatCurrency(Number(value))}
             />
           </PieChart>
         </ResponsiveContainer>
@@ -189,7 +176,7 @@ function SpendingChart({ categories }: { categories: MonthlyReport["categories"]
             <span className="spending-legend__dot" style={{ backgroundColor: categoryColors[index] }} />
             <span className="spending-legend__name">{category.name}</span>
             <strong>{Math.round((category.amount / total) * 100)}%</strong>
-            <span>{money.format(category.amount)}</span>
+            <span>{formatCurrency(category.amount)}</span>
           </div>
         ))}
       </div>
@@ -254,7 +241,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
       cashFlow: buildCashFlowData(state.report.daily),
       categoryById,
       lastSyncLabel: state.deviceStatus.last_successful_sync_at
-        ? `Last successful sync ${new Intl.DateTimeFormat("en-US", { day: "numeric", hour: "numeric", minute: "2-digit", month: "short" }).format(new Date(state.deviceStatus.last_successful_sync_at))}`
+        ? `Last successful sync ${formatTimestamp(state.deviceStatus.last_successful_sync_at)}`
         : state.deviceStatus.health_label,
       netPosition: ledgerBalance,
       recentTransactions: state.summary.recent_transactions
@@ -293,18 +280,18 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
         {periodError ? <p className="form-error" role="alert">{periodError}</p> : null}
       </section>
       <section className="dashboard-period-totals" aria-label="Selected period totals" aria-busy={periodLoading}>
-        <article className="dashboard-panel"><span>Income</span><strong>{money.format(Number(state.report.income_total))}</strong></article>
-        <article className="dashboard-panel"><span>Spending</span><strong>{money.format(Number(state.report.expense_total))}</strong></article>
-        <article className="dashboard-panel"><span>Net movement</span><strong>{money.format(netMovement)}</strong></article>
+        <article className="dashboard-panel"><span>Income</span><strong>{formatCurrency(state.report.income_total)}</strong></article>
+        <article className="dashboard-panel"><span>Spending</span><strong>{formatCurrency(state.report.expense_total)}</strong></article>
+        <article className="dashboard-panel"><span>Net movement</span><strong>{formatCurrency(netMovement)}</strong></article>
       </section>
       <section className="dashboard-hero-grid">
         <article className="dashboard-panel net-position-panel">
           <div className="net-position-panel__summary">
             <div>
               <div className="panel-label">Current net position <HelpTooltip label="About current net position">Sum of current BDT ledger balances. Reported bank balances are separate in Accounts. The date filter changes activity totals and charts; balances and the review queue stay current.</HelpTooltip></div>
-              <strong className="net-position-value"><span>BDT</span> {new Intl.NumberFormat("en-BD", { maximumFractionDigits: 0 }).format(dashboardData.netPosition)}</strong>
+              <strong className="net-position-value"><span>BDT</span> {formatCurrency(dashboardData.netPosition).replace("BDT ", "")}</strong>
               <p className={`net-position-change${netMovement < 0 ? " net-position-change--negative" : ""}`}>
-                {netMovement >= 0 ? "+" : "-"}{money.format(Math.abs(netMovement))} <span>for {periodLabel}</span>
+                {netMovement >= 0 ? "+" : "-"}{formatCurrency(Math.abs(netMovement))} <span>for {periodLabel}</span>
               </p>
             </div>
             <div className="chart-heading">

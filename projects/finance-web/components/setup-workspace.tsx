@@ -1,4 +1,5 @@
 "use client";
+import { formatCurrency, formatCalendarDate, displayLabel } from "../../finance-contracts/presentation";
 
 import { useFeedbackMessage } from "@/components/toast-provider";
 
@@ -74,11 +75,7 @@ function sortByName<T extends { name: string }>(items: T[]) {
 }
 
 function formatAccountBalance(account: Account, balance: string) {
-  return new Intl.NumberFormat("en-BD", {
-    currency: account.currency,
-    maximumFractionDigits: 2,
-    style: "currency"
-  }).format(Number(balance));
+  return formatCurrency(balance, account.currency);
 }
 
 function LatestReportedBalance({ account }: { account: Account }) {
@@ -88,7 +85,7 @@ function LatestReportedBalance({ account }: { account: Account }) {
   const reference = account.type === "credit_card" || comparison === "credit_card_reference";
   return <div className="account-reported-balance">
     <span>{formatAccountBalance(account, account.latest_reported_balance)}</span>
-    {account.latest_reported_balance_date ? <time className="meta" dateTime={account.latest_reported_balance_date}>Reported {account.latest_reported_balance_date}</time> : null}
+    {account.latest_reported_balance_date ? <time className="meta" dateTime={account.latest_reported_balance_date}>Reported {formatCalendarDate(account.latest_reported_balance_date)}</time> : null}
     {reference ? <small className="meta">Card balance reference</small>
       : comparison === "mismatch" && difference !== null ? <>
         <small className="account-balance-gap">Report {Number(difference) > 0 ? "higher" : "lower"} by {formatAccountBalance(account, Math.abs(Number(difference)).toFixed(2))}</small>
@@ -463,7 +460,7 @@ export function SetupWorkspace() {
       <section className="metric-strip setup-summary" aria-label="Account summary">
         <div className="metric"><span className="metric__label">Total accounts</span><strong className="metric__value">{setupState.accounts.length}</strong></div>
         <div className="metric"><span className="metric__label">Active accounts</span><strong className="metric__value">{activeAccounts}</strong></div>
-        <div className="metric"><span className="metric__label">BDT ledger balance</span><strong className="metric__value">{new Intl.NumberFormat("en-BD", { currency: "BDT", maximumFractionDigits: 0, style: "currency" }).format(bdtLedgerBalance)}</strong></div>
+        <div className="metric"><span className="metric__label">BDT ledger balance</span><strong className="metric__value">{formatCurrency(bdtLedgerBalance)}</strong></div>
         <div className="metric"><span className="metric__label">Categories</span><strong className="metric__value">{setupState.categories.length}</strong></div>
       </section>
 
@@ -485,7 +482,7 @@ export function SetupWorkspace() {
                 <div className="data-toolbar account-table-toolbar">
                   <label className="search-control"><span aria-hidden="true">⌕</span><input aria-label="Search accounts" onChange={(event) => setAccountSearch(event.target.value)} placeholder="Search accounts" type="search" value={accountSearch} /></label>
                   <div className="data-toolbar__filters">
-                    <select aria-label="Filter accounts by type" className="compact-select" onChange={(event) => setAccountTypeFilter(event.target.value as AccountType | "all")} value={accountTypeFilter}><option value="all">All types</option>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select>
+                    <select aria-label="Filter accounts by type" className="compact-select" onChange={(event) => setAccountTypeFilter(event.target.value as AccountType | "all")} value={accountTypeFilter}><option value="all">All types</option>{accountTypes.map((type) => <option key={type} value={type}>{displayLabel(type)}</option>)}</select>
                     <select aria-label="Filter accounts by status" className="compact-select" onChange={(event) => setAccountStatusFilter(event.target.value as "active" | "all" | "inactive")} value={accountStatusFilter}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
                     <details className="column-picker account-column-picker">
                       <summary><SlidersHorizontal aria-hidden="true" size={17} />Columns <span>{visibleAccountColumns.length + 2}/{accountColumns.length + 2}</span></summary>
@@ -519,7 +516,7 @@ export function SetupWorkspace() {
                       </tr></thead>
                       <tbody>{visibleAccounts.map((account) => <tr key={account.id}>
                         <td><strong>{account.name}</strong>{account.identity?.is_active ? <small className="meta"> {account.identity.identifier || account.identity.additional_identifiers[0]?.value || "Aliases saved"}</small> : null}</td>
-                        {visibleAccountColumns.includes("type") ? <td><span className="type-label">{account.type.replaceAll("_", " ")}</span></td> : null}
+                        {visibleAccountColumns.includes("type") ? <td><span className="type-label">{displayLabel(account.type)}</span></td> : null}
                         {visibleAccountColumns.includes("currency") ? <td>{account.currency}</td> : null}
                         {visibleAccountColumns.includes("ledgerBalance") ? <td className="amount-cell">{formatAccountBalance(account, account.ledger_balance)}</td> : null}
                         {visibleAccountColumns.includes("reportedBalance") ? <td className="amount-cell"><LatestReportedBalance account={account} /></td> : null}
@@ -547,9 +544,9 @@ export function SetupWorkspace() {
 
           {drawer === "account-edit" && accountIdentity.enabled ? <button className="button button--ghost" type="button" onClick={() => void revealAccountNumbers()}>Show saved full numbers</button> : null}
 
-          {drawer === "account-create" ? <form className="drawer-form" onSubmit={handleAccountSubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" /></label><label className="field"><span className="field__label">Type</span><select className="field__control" name="type" required onChange={event => { if (!accountIdentity.identifier && !accountIdentity.additional_identifiers.length) setAccountIdentity(current => ({ ...current, identifier_kind: event.target.value === "credit_card" ? "card" : "account", provider: ["bank", "card", "other"].includes(current.provider) ? event.target.value === "credit_card" ? "card" : event.target.value === "mobile_wallet" ? "other" : "bank" : current.provider })); }}>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label><label className="field"><span className="field__label">Starting balance</span><input className="field__control" min="0" name="starting_balance" step="0.01" type="number" /></label><label className="field"><span className="field__label">Currency</span><select className="field__control" defaultValue="BDT" name="currency"><option value="BDT">BDT</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label><AccountIdentityFields value={accountIdentity} onChange={setAccountIdentity} disabled={isSavingAccount || isUpdatingAccount} />{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingAccount} type="submit">{isSavingAccount ? <ButtonBusy label="Saving" /> : "Add account"}</button></div></form> : null}
+          {drawer === "account-create" ? <form className="drawer-form" onSubmit={handleAccountSubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" /></label><label className="field"><span className="field__label">Type</span><select className="field__control" name="type" required onChange={event => { if (!accountIdentity.identifier && !accountIdentity.additional_identifiers.length) setAccountIdentity(current => ({ ...current, identifier_kind: event.target.value === "credit_card" ? "card" : "account", provider: ["bank", "card", "other"].includes(current.provider) ? event.target.value === "credit_card" ? "card" : event.target.value === "mobile_wallet" ? "other" : "bank" : current.provider })); }}>{accountTypes.map((type) => <option key={type} value={type}>{displayLabel(type)}</option>)}</select></label><label className="field"><span className="field__label">Starting balance</span><input className="field__control" min="0" name="starting_balance" step="0.01" type="number" /></label><label className="field"><span className="field__label">Currency</span><select className="field__control" defaultValue="BDT" name="currency"><option value="BDT">BDT</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label><AccountIdentityFields value={accountIdentity} onChange={setAccountIdentity} disabled={isSavingAccount || isUpdatingAccount} />{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingAccount} type="submit">{isSavingAccount ? <ButtonBusy label="Saving" /> : "Add account"}</button></div></form> : null}
 
-          {drawer === "account-edit" ? <form className="drawer-form" onSubmit={handleAccountUpdate}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" onChange={(event) => setEditingAccountName(event.target.value)} required type="text" value={editingAccountName} /></label><label className="field"><span className="field__label">Type</span><select className="field__control" onChange={(event) => setEditingAccountType(event.target.value as AccountType)} value={editingAccountType}>{accountTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label><AccountIdentityFields value={accountIdentity} onChange={setAccountIdentity} disabled={isSavingAccount || isUpdatingAccount} />{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isUpdatingAccount} type="submit">{isUpdatingAccount ? <ButtonBusy label="Updating" /> : "Save changes"}</button></div></form> : null}
+          {drawer === "account-edit" ? <form className="drawer-form" onSubmit={handleAccountUpdate}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" onChange={(event) => setEditingAccountName(event.target.value)} required type="text" value={editingAccountName} /></label><label className="field"><span className="field__label">Type</span><select className="field__control" onChange={(event) => setEditingAccountType(event.target.value as AccountType)} value={editingAccountType}>{accountTypes.map((type) => <option key={type} value={type}>{displayLabel(type)}</option>)}</select></label><AccountIdentityFields value={accountIdentity} onChange={setAccountIdentity} disabled={isSavingAccount || isUpdatingAccount} />{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isUpdatingAccount} type="submit">{isUpdatingAccount ? <ButtonBusy label="Updating" /> : "Save changes"}</button></div></form> : null}
 
           {drawer === "category-create" ? <form className="drawer-form" onSubmit={handleCategorySubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" /></label><label className="field"><span className="field__label">Kind</span><select className="field__control" name="kind" required>{categoryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></label>{categoryError ? <p className="form-error">{categoryError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingCategory} type="submit">{isSavingCategory ? <ButtonBusy label="Saving" /> : "Add category"}</button></div></form> : null}
 

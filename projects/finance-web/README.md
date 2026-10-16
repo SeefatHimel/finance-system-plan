@@ -1363,3 +1363,13 @@ Combined-source and ledger-match reviews show exact balance differences and
 calendar-day date gaps. Differences under BDT 1 are labeled small, without
 claiming that rounding caused them. Existing balance choices and acknowledgement
 rules are unchanged; neither original report is rounded or overwritten by the UI.
+
+## Shared presentation and accessibility
+
+See [shared interface conventions](../../docs/interface-conventions.md). Core
+transaction/account/report displays share exact decimal and date/time formatting
+with mobile; full dates use `dd MMM yyyy`, timestamps use local 24-hour time and
+calendar/clock inputs stay readable on dark surfaces. Quick Add selections use
+soft mint/check marks rather than competing with its primary Save button.
+Run `node --test tests/presentation.test.cjs` for exact-cent and timezone checks,
+and the complete web suite for transfer perspective, drafts and request races.

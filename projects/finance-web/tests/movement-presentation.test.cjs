@@ -21,7 +21,7 @@ execFileSync(
   { cwd: resolve(__dirname, "..") },
 );
 const { formatMovementAmount, movementPresentation } = require(
-  join(output, "movement-presentation.js"),
+  join(output, "finance-web/lib/movement-presentation.js"),
 );
 after(() => rmSync(output, { recursive: true, force: true }));
 const accounts = new Map([

@@ -1,4 +1,5 @@
 "use client";
+import { formatCurrency as formatMoney } from "../../finance-contracts/presentation";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -13,15 +14,6 @@ type ReportState =
   | { status: "loading" }
   | { message: string; status: "error" }
   | { report: MonthlyReport; status: "ready" };
-
-const moneyFormatter = new Intl.NumberFormat("en-BD", {
-  currency: "BDT",
-  style: "currency"
-});
-
-function formatMoney(value: string) {
-  return moneyFormatter.format(Number(value));
-}
 
 export function ReportWorkspace() {
   // Use a timezone-independent first render, then select the browser's current month.

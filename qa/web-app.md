@@ -1138,3 +1138,14 @@ does not remount the SMS form. Transfer paths and reporting accounts remain
 explicit, and reported balances stay with their accounts. Combined-source review
 shows the exact balance delta and calendar-day date gap, while the existing
 sub-taka acknowledgement and source-preservation rules remain unchanged.
+
+### How are dates, money and selection states shared with mobile?
+
+Core transaction/account/report displays import pure presentation helpers from
+finance-contracts. Decimal API values retain exact cents and currency codes;
+missing values are not invented as zero. Date-only values cannot shift through
+UTC conversion, while timestamps and SMS input fields use the viewer's local
+timezone. Date/month/time inputs declare a dark color scheme. Quick Add uses
+soft mint/check marks for selections, reserving filled mint for Save; clock tabs
+also expose a visibly selected state. Browser-native input rendering may still
+use the browser's locale. See [interface conventions](../docs/interface-conventions.md).

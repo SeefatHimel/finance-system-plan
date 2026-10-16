@@ -38,7 +38,7 @@ export function DatePeriodControls({ value, onChange, allowAll = true, label = "
       {allowAll ? <option value="all">All dates</option> : null}<option value="daily">Daily</option><option value="monthly">Monthly</option><option value="custom">Custom range</option>
     </select></label> : <div className="date-period-modes" role="group" aria-label={`${label} view`}>
       {([...(allowAll ? ["all"] as const : []), "daily", "monthly", "custom"] as const).map(choice => <button
-        className={`button${mode === choice ? " button--primary" : " button--ghost"}`} type="button" aria-pressed={mode === choice} key={choice}
+        className="button button--ghost" type="button" aria-pressed={mode === choice} key={choice}
         onClick={() => chooseMode(choice)}
       >{{ all: "All dates", daily: "Daily", monthly: "Monthly", custom: "Custom range" }[choice]}</button>)}
     </div>}

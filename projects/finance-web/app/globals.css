@@ -3710,3 +3710,8 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
   .statement-row-heading > .date-period-controls { flex-basis: 100%; }
   .statement-row-heading .date-period-caption { flex-basis: 100%; margin: 0; }
 }
+
+/* Native date/time affordances must remain visible on dark surfaces. */
+input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark; }
+
+.quick-choice__buttons .button[aria-pressed="true"], .quick-time-tabs .button[aria-pressed="true"], .date-period-modes .button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }

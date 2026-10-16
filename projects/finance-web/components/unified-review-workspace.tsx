@@ -1,4 +1,5 @@
 "use client";
+import { formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -25,13 +26,8 @@ import { calendarDayDifference, insignificantBdtBalanceDifference, reportedBalan
 
 type BalanceChoice = "" | "sms" | "statement";
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-BD", { dateStyle: "medium", timeStyle: "short" });
-
 function formatStatementDateTime(date: string | null, time: string | null) {
-  if (!date) return "Date unknown";
-  if (!time) return `${date} · time not reported`;
-  const value = new Date(`${date}T${time || "00:00:00"}`);
-  return Number.isNaN(value.getTime()) ? `${date}${time ? ` · ${time}` : ""}` : dateTimeFormatter.format(value);
+  return `${formatCalendarDate(date)} · ${formatClockTime(time)}`;
 }
 
 function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: { accounts: Account[]; categories: Category[]; pair: UnifiedPair; onCancel: () => void; onSaved: () => void; onEdit: () => void }) {
@@ -149,7 +145,7 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
       <div className="unified-pair-main">
       <section id="unified-pair-summary" tabIndex={-1} className="unified-pair-summary" aria-label="Source comparison">
         <strong>Same account, direction and amount</strong>
-        <span>Statement {formatStatementDateTime(row.date, row.time)} · SMS {dateTimeFormatter.format(new Date(pair.sms.raw_message.received_at))}</span>
+        <span>Statement {formatStatementDateTime(row.date, row.time)} · SMS {formatTimestamp(pair.sms.raw_message.received_at)}</span>
         {typeDiffers ? <span className="unified-pair-summary__difference">Type differs</span> : null}
         {sourceDateDifference ? <span className="unified-pair-summary__difference">Dates differ by {Math.abs(sourceDateDifference)} calendar day{Math.abs(sourceDateDifference) === 1 ? "" : "s"}</span> : null}
         {originalBalanceDifference !== null && originalBalanceDifference !== "0.00" ? <span className={originalBalanceNeedsReview ? "unified-pair-summary__difference" : "inline-note"}>Reported balance difference: {pair.batch.currency} {originalBalanceDifference} (statement minus SMS){smallSourceBalanceDifference ? " · Small difference under BDT 1" : ""}</span> : null}
@@ -164,7 +160,7 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
           <div className={originalBalanceNeedsReview ? "statement-balance-value--conflict" : undefined}><dt>Reported balance after</dt><dd>{row.balance_after ?? "Not reported"}</dd></div>
         </dl><details className="statement-match-reasons"><summary>Original PDF row · page {row.extracted.page}</summary><p className="statement-evidence-text">{row.extracted.description}</p>{row.citytouch_printed_code ? <p>Citytouch code printed in PDF: {row.citytouch_printed_code}</p> : null}</details><button className="button" type="button" disabled={busy} onClick={onEdit}>Edit statement draft</button></section>
         <section aria-label="SMS source"><h3>SMS</h3><dl>
-          <div><dt>Date / time</dt><dd>{dateTimeFormatter.format(new Date(pair.sms.raw_message.received_at))}</dd></div><div><dt>Amount / direction</dt><dd>{pair.sms_summary.currency} {pair.sms_summary.amount} · {pair.sms_summary.direction}</dd></div><div><dt>Account / path</dt><dd>{smsPath}</dd></div><div><dt>Parsed type</dt><dd>{pair.sms.transaction_type.replaceAll("_", " ")}</dd></div>
+          <div><dt>Date / time</dt><dd>{formatTimestamp(pair.sms.raw_message.received_at)}</dd></div><div><dt>Amount / direction</dt><dd>{pair.sms_summary.currency} {pair.sms_summary.amount} · {pair.sms_summary.direction}</dd></div><div><dt>Account / path</dt><dd>{smsPath}</dd></div><div><dt>Parsed type</dt><dd>{pair.sms.transaction_type.replaceAll("_", " ")}</dd></div>
           <div><dt>Description</dt><dd>{smsDescription}</dd>{smsDescription ? <button className="button button--ghost button--small unified-description-choice" type="button" disabled={busy || draft.note === smsDescription} aria-pressed={draft.note === smsDescription} onClick={() => updateDraft({ ...draft, note: smsDescription })}>{draft.note === smsDescription ? "Using as final note" : "Use as final note"}</button> : null}</div><div><dt>Reference</dt><dd>{pair.sms.reference || "Not reported"}</dd></div><div className={originalBalanceNeedsReview ? "statement-balance-value--conflict" : undefined}><dt>Reported balance after</dt><dd>{pair.sms.balance_after ?? "Not reported"}</dd></div>
         </dl><details className="statement-match-reasons"><summary>Original SMS</summary><p className="statement-evidence-text">{pair.sms.raw_message.body ?? "Original SMS unavailable under retention settings."}</p></details><Link className="button" href={`/messages/review?candidate=${pair.sms.id}&return=%2Freview`}>Correct SMS separately</Link></section>
       </div></details>
