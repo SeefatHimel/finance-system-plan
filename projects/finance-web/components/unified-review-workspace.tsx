@@ -245,6 +245,13 @@ export function UnifiedReviewWorkspace() {
   const resetPagination = () => { setCursor(""); setCursorHistory([]); };
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const statement = params.get("statement");
+    const sms = params.get("sms");
+    if (statement && sms) setSelection({ statement, sms });
+  }, []);
+
+  useEffect(() => {
     const token = getAccessToken(); if (!token) return;
     const controller = new AbortController();
     void Promise.all([listAccounts(token), listCategories(token)]).then(([a, c]) => { if (!controller.signal.aborted) { setAccounts(a); setCategories(c); setSettingsReady(true); setSettingsError(""); } }).catch(reason => { if (!controller.signal.aborted) setSettingsError(reason instanceof Error ? reason.message : "Could not load account settings."); });

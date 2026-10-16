@@ -961,6 +961,14 @@ suggestion remains, compare every suggestion and affirm that each is distinct
 before combining; a changed suggestion list requires a fresh review.
 ### Where can users review pending SMS and PDF rows together?
 
+The statement table distinguishes ledger comparison from source pairing:
+**Not in ledger** means no ledger transaction is linked or suggested, while
+**SMS pair available** links directly to the one-to-one Unified review pair.
+This also works when parsed transaction types disagree. Bulk approval excludes
+such pairs; the user reviews both sources once or explicitly chooses a separate
+movement. Search rows includes saved and extracted row details such as notes,
+codes, amounts, dates, category, and page/row within the selected import.
+
 Unified review (`/review`) lists only unique one-to-one pending pairs, one item per
 SMS + statement movement, with account, statement-date and combined-source search
 filters. Review condition also filters strong/possible matches, differing balances

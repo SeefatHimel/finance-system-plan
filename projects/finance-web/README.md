@@ -1120,6 +1120,17 @@ ledger suggestions also appear, compare them and acknowledge that each is a
 different movement before combining; a changed suggestion list requires reload.
 Already pending rows gain suggestions on refresh without a PDF re-upload or migration.
 
+The statement table labels an unmatched ledger entry **Not in ledger**. It also
+shows a unique Unified review pair even when the statement and SMS parsed types
+disagree (for example, expense versus transfer). **Review both sources** opens
+that exact pair. Bulk approval leaves these rows unresolved so the two sources
+are reviewed once; separate posting remains an explicit individual decision.
+Ambiguous pending sources are flagged for individual review, and an oversized
+queue is marked unavailable rather than shown as a confirmed non-match.
+Search rows covers saved and original extracted row fields, including merchant,
+description, note, reference/code, account/category, dates, amounts, direction,
+type, and page/row within the selected statement import.
+
 ### Unified matched SMS and statement review
 
 Open **Unified review** (`/review`) from the sidebar to compare all pending SMS
