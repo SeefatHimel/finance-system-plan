@@ -140,7 +140,9 @@ Production backup work must still add:
 - Encrypted off-machine backup storage.
 - Backup and upload failure alerts.
 - Restore drills against a separate database.
-- Attachment/media backup if uploads are added.
+- Verify that database backups include encrypted statement PDF archives and
+  that the matching `DJANGO_SECRET_KEY` (plus any fallback keys) can be restored
+  securely. A database backup alone cannot decrypt archived sources.
 - Documentation for who can access backups and how recovery is approved.
 
 ## Rollback Plan

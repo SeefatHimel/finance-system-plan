@@ -2,9 +2,12 @@
 
 ### How can a user recover full original financial source data?
 
-Statement imports show whether an encrypted original PDF is available and let
-the owner download it. For older imports, re-upload the identical PDF under the
-same account to attach it without new rows. Account settings now submit full
+Statement imports and linked transaction editors show whether an encrypted
+original PDF is available. The owner can open and download it on demand. For
+older imports, re-upload the identical PDF under the same account to attach it
+without new rows or ledger entries. Linked SMS remain visible beside statement
+evidence; older redacted text can be restored only by an explicit mobile history
+scan when the exact message is still on the phone. Account settings submit full
 numbers to the API for encrypted storage while showing safe suffixes in ordinary
 views. Previously truncated numbers must be entered again.
 

@@ -469,6 +469,16 @@ entry. SMS bodies are not saved to browser storage or copied into transaction
 notes, and reading them does not update the ledger timestamp. The cookie proxy
 preserves the API's private/no-store cache header for these responses.
 
+The adjacent Statement evidence section shows each linked extracted row and
+lets the owner open its archived PDF in the editor, then download or close it.
+The PDF is fetched only when requested and its temporary browser URL is revoked
+when closed. The same viewer is available from the statement import page. An
+older import without an archived PDF shows a recovery link: upload the identical
+PDF under the same account to attach it without changing review decisions or
+posting duplicate money. Re-uploading a different PDF creates a separate import.
+For older redacted transaction SMS, the editor points to Keep retention and the
+mobile History scan; restoration requires the exact original SMS on the phone.
+
 ## Skipping Promotional Messages
 
 Promotional offers are excluded by default, including recognized English/Bangla
