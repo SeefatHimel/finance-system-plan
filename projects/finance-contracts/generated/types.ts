@@ -1194,6 +1194,8 @@ export interface StatementReview {
   review_state: "new" | "possible_match" | "needs_correction" | "posted" | "linked" | "skipped";
   matches: StatementMatch[];
   pending_sms_match_count: number | null;
+  unified_pending_sms_pair_id: string | null;
+  unified_pending_sms_status: UnifiedPendingSmsStatusEnum;
   pending_sms_matches: PendingSmsStatementMatch[];
   matching_truncated: boolean;
   requires_acknowledgement: boolean;
@@ -1313,6 +1315,8 @@ export interface UnifiedPendingItem {
   match: UnifiedPendingMatch;
   needs_correction: boolean;
 }
+
+export type UnifiedPendingSmsStatusEnum = "none" | "unique" | "ambiguous" | "unavailable";
 
 export interface UnifiedPendingSource {
   source: UnifiedSourceEnum;

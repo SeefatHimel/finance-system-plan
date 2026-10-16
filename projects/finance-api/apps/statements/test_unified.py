@@ -122,6 +122,95 @@ class UnifiedReviewTests(APITestCase):
         candidate.refresh_from_db()
         return candidate
 
+    def test_statement_list_shows_type_different_unified_pair(self):
+        self.sms.transaction_type = "transfer"
+        self.sms.message_kind = "cash_out"
+        self.sms.save(update_fields=("transaction_type", "message_kind", "updated_at"))
+        url = reverse("statement-import-rows", args=[self.batch.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200, response.data)
+        review = response.data["results"][0]["review"]
+        self.assertEqual(review["pending_sms_match_count"], 0)
+        self.assertEqual(review["unified_pending_sms_pair_id"], str(self.sms.id))
+        self.assertEqual(review["unified_pending_sms_status"], "unique")
+        self.assertEqual(review["review_state"], "new")
+        detail = self.client.get(reverse("statement-row-detail", args=[self.row.id]))
+        self.assertEqual(
+            detail.data["review"]["unified_pending_sms_pair_id"], str(self.sms.id)
+        )
+        separate_without_confirmation = self.client.post(
+            reverse("statement-row-decide", args=[self.row.id]),
+            {"action": "create", "version": self.row.version},
+            format="json",
+        )
+        self.assertEqual(separate_without_confirmation.status_code, 400)
+        bulk = self.client.post(
+            reverse("statement-import-approve-new", args=[self.batch.id]),
+            {"rows": [{"id": str(self.row.id), "version": self.row.version}]},
+            format="json",
+        )
+        self.assertEqual(bulk.status_code, 200, bulk.data)
+        self.assertEqual(bulk.data["added"], 0)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_statement_list_marks_competing_sms_as_ambiguous(self):
+        self.sms.transaction_type = "transfer"
+        self.sms.message_kind = "cash_out"
+        self.sms.save(update_fields=("transaction_type", "message_kind", "updated_at"))
+        other = self.candidate(kind="cash_out", transaction_type="transfer")
+        url = reverse("statement-import-rows", args=[self.batch.id])
+        review = self.client.get(url).data["results"][0]["review"]
+        self.assertIsNone(review["unified_pending_sms_pair_id"])
+        self.assertEqual(review["unified_pending_sms_status"], "ambiguous")
+        self.assertNotEqual(other.id, self.sms.id)
+        response = self.client.post(
+            reverse("statement-row-decide", args=[self.row.id]),
+            {"action": "create", "version": self.row.version},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_statement_list_does_not_claim_sms_shared_by_two_rows(self):
+        StatementRow.objects.create(
+            batch=self.batch,
+            position=2,
+            component="principal",
+            source_fingerprint="synthetic-competing-row",
+            date=self.row.date,
+            direction=self.row.direction,
+            type=self.row.type,
+            amount=self.row.amount,
+            balance_after=self.row.balance_after,
+            counterparty_text=self.row.counterparty_text,
+            note=self.row.note,
+            classification_confirmed=True,
+            extracted={**self.row.extracted, "row": 2, "id": "synthetic-competing"},
+        )
+        response = self.client.get(reverse("statement-import-rows", args=[self.batch.id]))
+        self.assertEqual(response.status_code, 200, response.data)
+        for result in response.data["results"]:
+            self.assertEqual(result["review"]["unified_pending_sms_status"], "ambiguous")
+            self.assertIsNone(result["review"]["unified_pending_sms_pair_id"])
+
+    def test_statement_search_covers_saved_and_extracted_values(self):
+        url = reverse("statement-import-rows", args=[self.batch.id])
+        self.row.note = "Personal reminder"
+        self.row.reference = "SYNTH-REF"
+        self.row.source_code = "1234567890"
+        self.row.save(update_fields=("note", "reference", "source_code", "updated_at"))
+        for term in (
+            "Personal reminder", "SYNTH-REF", "1234567890", "Synthetic Cafe",
+            "Card purchase", "Synthetic bank", "2026-01-02", "100.00",
+            "900.07", "BDT 100.00", "02/01/2026", "debit", "expense",
+            "page 1 row 1", "1/1",
+        ):
+            with self.subTest(term=term):
+                result = self.client.get(url, {"search": term})
+                self.assertEqual(result.status_code, 200, result.data)
+                self.assertEqual(result.data["count"], 1)
+        self.assertEqual(self.client.get(url, {"search": "unrelated"}).data["count"], 0)
+
     def payload(self, **overrides):
         return {
             "statement": str(self.row.pk),

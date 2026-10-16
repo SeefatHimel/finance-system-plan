@@ -340,6 +340,69 @@ def unique_pair_signals(user, row, candidate):
     return signals
 
 
+def unique_pending_pairs_for_rows(rows):
+    """Find unified one-to-one SMS suggestions for one statement list page.
+
+    A list must use the same type-independent evidence as Unified review. Check
+    uniqueness against all pending sources, including other statement imports.
+    None means the bounded lookup could not make a reliable determination;
+    "ambiguous" means SMS evidence exists but is not one-to-one.
+    """
+    eligible = [
+        row for row in rows
+        if row.state == "pending" and not row.transaction_id
+        and row.component == "principal" and row.amount is not None
+        and dates_for(row)
+    ]
+    if not eligible:
+        return {}
+    amounts = {row.amount for row in eligible}
+    account_ids = {row.batch.account_id for row in eligible}
+    days = [day for row in eligible for day in dates_for(row)]
+    candidates = list(
+        ParsedMessageCandidate.objects.filter(
+            user_id=eligible[0].batch.user_id,
+            status="needs_review",
+            transaction__isnull=True,
+            amount__in=amounts,
+            raw_message__received_at__date__range=(
+                min(days) - timedelta(days=3), max(days) + timedelta(days=3)
+            ),
+        ).filter(
+            Q(account_id__in=account_ids) | Q(destination_account_id__in=account_ids)
+        ).select_related(
+            "account", "destination_account", "raw_message"
+        ).order_by("id")[:10001]
+    )
+    if len(candidates) > 10000:
+        return {row.pk: None for row in eligible}
+    buckets = defaultdict(list)
+    for candidate in candidates:
+        account, direction, _ = sms_observation(candidate)
+        if account and candidate.amount is not None:
+            buckets[(account.pk, direction, candidate.amount)].append(candidate)
+    if sum(
+        len(buckets[(row.batch.account_id, row.direction, row.amount)])
+        for row in eligible
+    ) > 50000:
+        return {row.pk: None for row in eligible}
+    result = {}
+    for row in eligible:
+        matches = [
+            candidate
+            for candidate in buckets[(row.batch.account_id, row.direction, row.amount)]
+            if pair_signals(row, candidate)
+        ]
+        if len(matches) == 1:
+            result[row.pk] = (
+                "ambiguous" if has_competing_sources(row, matches[0])
+                else str(matches[0].pk)
+            )
+        else:
+            result[row.pk] = "ambiguous" if matches else ""
+    return result
+
+
 def _item_key(item):
     return (
         item["statement"]["date"] or "",

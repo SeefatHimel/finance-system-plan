@@ -374,6 +374,7 @@ paths:
       - in: query
         name: search
         required: false
+        description: Search saved draft fields and original extracted row values within this statement import.
         schema:
           type: string
       - in: query
@@ -6028,6 +6029,13 @@ components:
           minimum: 0
           nullable: true
           description: Bounded list-level count. Null means the comparison window was too busy to check safely; never treat it as zero.
+        unified_pending_sms_pair_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Unique one-to-one Unified review SMS suggestion for a statement list row, including differing parsed types; null otherwise.
+        unified_pending_sms_status:
+          $ref: '#/components/schemas/UnifiedPendingSmsStatusEnum'
         pending_sms_matches:
           type: array
           description: Advisory pending SMS candidates. Populated on row detail; empty in paginated row lists.
@@ -6049,6 +6057,8 @@ components:
       - issues
       - matches
       - pending_sms_match_count
+      - unified_pending_sms_pair_id
+      - unified_pending_sms_status
       - pending_sms_matches
       - matching_truncated
       - requires_acknowledgement
@@ -6395,6 +6405,10 @@ components:
       - needs_correction
       - sms
       - statement
+    UnifiedPendingSmsStatusEnum:
+      type: string
+      enum: [none, unique, ambiguous, unavailable]
+      description: Unified SMS comparison for a statement row; ambiguous and unavailable rows cannot be bulk-approved.
     UnifiedPendingSource:
       type: object
       properties:

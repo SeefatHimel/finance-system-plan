@@ -271,6 +271,10 @@ class StatementReviewSerializer(serializers.Serializer):
     review_state = serializers.CharField()
     matches = StatementMatchSerializer(many=True)
     pending_sms_match_count = serializers.IntegerField(min_value=0, allow_null=True)
+    unified_pending_sms_pair_id = serializers.UUIDField(allow_null=True)
+    unified_pending_sms_status = serializers.ChoiceField(
+        choices=["none", "unique", "ambiguous", "unavailable"]
+    )
     pending_sms_matches = PendingSmsStatementMatchSerializer(many=True, required=False)
     matching_truncated = serializers.BooleanField()
     requires_acknowledgement = serializers.BooleanField()
@@ -296,6 +300,16 @@ class SavedStatementRowSerializer(serializers.ModelSerializer):
             self.context.get("pending_sms_match_counts", {}).get(instance.id, 0),
         )
         result["pending_sms_matches"] = self.context.get("pending_sms_matches", [])
+        pairs = self.context.get("unified_pending_pairs", {})
+        pair = pairs.get(instance.id, "")
+        result["unified_pending_sms_pair_id"] = (
+            pair if pair not in ("", "ambiguous", None) else None
+        )
+        result["unified_pending_sms_status"] = (
+            "unavailable" if instance.id in pairs and pair is None
+            else "ambiguous" if pair == "ambiguous"
+            else "unique" if pair else "none"
+        )
         return result
 
     class Meta:

@@ -625,3 +625,14 @@ temporary maintenance refresh; it never authorizes an automatic mapping.
 Saved row responses also include a read-only, nullable
 `citytouch_printed_code`; row search includes it. The masked `extracted`
 description and editable draft fields are unchanged.
+
+### How does the statement list expose a pending unified SMS pair?
+
+`GET /api/statements/imports/{id}/rows/` returns
+`review.unified_pending_sms_pair_id` for a unique reciprocal SMS suggestion,
+including pairs whose parsed types differ. `review.unified_pending_sms_status`
+distinguishes `none`, `unique`, `ambiguous`, and `unavailable`; the ID is null
+unless status is `unique`. The older `pending_sms_match_count` remains the
+stricter same-type counter and can be zero for such a pair. Search is scoped to
+the selected import and covers saved draft and extracted row values before
+pagination.

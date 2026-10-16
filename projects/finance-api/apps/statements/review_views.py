@@ -65,6 +65,38 @@ class NoStoreMixin:
         return response
 
 
+def searchable_row_text(row):
+    """Search the saved draft and its original extracted row, never the PDF."""
+    extracted = row.extracted or {}
+    page, source_row = extracted.get("page"), extracted.get("row")
+    values = [
+        row.batch.account.name, row.batch.profile, row.batch.currency,
+        row.component, row.state, row.type, row.direction,
+        row.category.name if row.category else "Uncategorized",
+        row.other_account.name if row.other_account else "",
+        row.date, row.time, row.value_date, row.amount, row.balance_after,
+        row.reference, row.counterparty_text, row.note, row.source_code,
+        page, source_row, f"{page}/{source_row}",
+        f"page {page} row {source_row}",
+    ]
+    for amount in (row.amount, row.balance_after):
+        if amount is not None:
+            values.append(f"{amount:,.2f}")
+            values.append(f"{row.batch.currency} {amount:,.2f}")
+            values.append(f"{row.batch.currency} {amount:.2f}")
+    for day in (row.date, row.value_date):
+        if day is not None:
+            values.append(day.strftime("%d/%m/%Y"))
+    for key in (
+        "date", "time", "posting_date", "value_date", "description",
+        "citytouch_printed_code", "provider_type", "reference", "direction",
+        "amount", "signed_fee", "balance_after",
+    ):
+        values.append(extracted.get(key))
+    values.extend(extracted.get("issues") or [])
+    return " ".join(str(value) for value in values if value is not None).casefold()
+
+
 @method_decorator(sensitive_post_parameters("password", "file"), name="dispatch")
 @extend_schema_view(list=extend_schema(parameters=[
     OpenApiParameter("date_field", str, enum=["created_at", "updated_at"], description="Import activity date; defaults to updated_at, in Asia/Dhaka."),
@@ -221,7 +253,7 @@ class StatementImportViewSet(
                 str,
                 description="Owned category UUID or none for uncategorized.",
             ),
-            OpenApiParameter("search", str),
+            OpenApiParameter("search", str, description="Search saved row fields and original extracted values within this import."),
             OpenApiParameter("date_from", OpenApiTypes.DATE),
             OpenApiParameter("date_to", OpenApiTypes.DATE),
         ],
@@ -327,23 +359,24 @@ class StatementImportViewSet(
                 and (row.date is None or row.date > end)
             ):
                 continue
-            if (
-                search
-                and search
-                not in f"{row.note} {row.reference} {row.counterparty_text} {row.source_code} {row.extracted.get('description', '')}".casefold()
-            ):
+            if search and search not in searchable_row_text(row):
                 continue
             filtered.append(row)
+        page = filtered[offset : offset + limit]
+        from .unified import unique_pending_pairs_for_rows
+
+        unified_pairs = unique_pending_pairs_for_rows(page)
         return Response(
             {
                 "count": len(filtered),
                 "offset": offset,
                 "limit": limit,
                 "results": SavedStatementRowSerializer(
-                    filtered[offset : offset + limit],
+                    page,
                     many=True,
                     context={"matches": matches, "matching_truncated": truncated,
-                             "pending_sms_match_counts": pending_counts},
+                             "pending_sms_match_counts": pending_counts,
+                             "unified_pending_pairs": unified_pairs},
                 ).data,
             }
         )
@@ -422,6 +455,9 @@ class StatementImportViewSet(
         }
         if len(rows) != len(wanted):
             raise ValidationError({"rows": "Choose rows from this statement only."})
+        from .unified import unique_pending_pairs_for_rows
+
+        unified_pairs = unique_pending_pairs_for_rows(list(rows.values())) if decision_action == "create" else {}
         added, skipped, unchanged, unresolved = 0, 0, 0, []
         for entry in wanted:
             row = rows[entry["id"]]
@@ -457,11 +493,14 @@ class StatementImportViewSet(
             review = review_context(row, matches[row.id], truncated)
             issues = posting_issues(row)
             pending_matches = pending_sms_matches(row)
+            unified_pair = unified_pairs.get(row.id, "")
             if (
                 entry["version"] != row.version
                 or matches[row.id]
                 or pending_matches is None
                 or pending_matches
+                or unified_pair is None
+                or bool(unified_pair)
                 or truncated
                 or issues
                 or review["requires_acknowledgement"]
@@ -514,12 +553,15 @@ class StatementRowViewSet(NoStoreMixin, viewsets.GenericViewSet):
         row._suggestion = suggestions([row]).get(row.id)
         matches, truncated = find_matches([row])
         pending_matches = pending_sms_matches(row)
+        from .unified import unique_pending_pairs_for_rows
+
         return SavedStatementRowSerializer(
             row, context={"matches": matches, "matching_truncated": truncated,
                           "pending_sms_matches": pending_matches or [],
                           "pending_sms_match_counts": {
                               row.id: len(pending_matches) if pending_matches is not None else None
-                          }}
+                          },
+                          "unified_pending_pairs": unique_pending_pairs_for_rows([row])}
         ).data
 
     def retrieve(self, request, pk=None):

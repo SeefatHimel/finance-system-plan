@@ -865,6 +865,18 @@ review and code search; the original masked description stays immutable.
 
 ### Can two pending sources be approved as one movement?
 
+Statement list responses include `review.unified_pending_sms_pair_id` when the
+same type-independent, reciprocal matcher used by Unified review finds one
+pending SMS. `unified_pending_sms_status` distinguishes no match, a unique pair,
+ambiguous sources, and an unavailable bounded check. The older same-type
+`pending_sms_match_count` can be zero while a pair ID is present. A bounded
+lookup checks uniqueness across other imports; bulk statement approval leaves
+unique, ambiguous, and unavailable rows unresolved. Individual posting with
+an identified or ambiguous pair requires explicit separate-movement confirmation.
+The row search examines saved draft fields and extracted row values within one
+import before pagination; it does not search the original PDF or other users'
+data.
+
 Yes. A statement row detail response offers eligible pending SMS candidates with
 the same owner, reporting account, type, direction, amount and a date within the
 three-day match window. `combine_sms` is an explicit, versioned decision. Under

@@ -887,6 +887,7 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
             )
         elif action == "create":
             from .pending_sms import pending_sms_matches
+            from .unified import unique_pending_pairs_for_rows
 
             if Transaction.objects.filter(
                 user=user, external_key=f"statement-row:{row.id}"
@@ -905,11 +906,22 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
                 raise ValidationError(
                     {"row": "Too many pending SMS to check safely. Narrow the review period or resolve other messages before adding this row."}
                 )
-            if (matches[row.id] or pending_sms) and not payload.get("allow_separate"):
+            unified_pairs = (
+                unique_pending_pairs_for_rows([row]) if not combining_pending_sms else {}
+            )
+            unified_pair = unified_pairs.get(row.id, "")
+            if (
+                (matches[row.id] or pending_sms or unified_pair)
+                and not payload.get("allow_separate")
+            ):
                 raise ValidationError(
                     {
                         "allow_separate": "Possible ledger or pending SMS matches exist. Review them or explicitly confirm a separate movement."
                     }
+                )
+            if unified_pair is None:
+                raise ValidationError(
+                    {"row": "Too many pending sources to check safely. Resolve or narrow the pending review before adding this row."}
                 )
             has_inline_fee = (
                 row.component == "principal"

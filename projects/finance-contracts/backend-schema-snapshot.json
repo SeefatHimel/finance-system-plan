@@ -9182,6 +9182,14 @@
             }
           ],
           "nullable": true
+        },
+        "unified_pending_sms_pair_id": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "unified_pending_sms_status": {
+          "$ref": "#/components/schemas/UnifiedPendingSmsStatusEnum"
         }
       },
       "required": [
@@ -9192,7 +9200,9 @@
         "pending_sms_match_count",
         "requires_acknowledgement",
         "review_state",
-        "suggestion"
+        "suggestion",
+        "unified_pending_sms_pair_id",
+        "unified_pending_sms_status"
       ],
       "type": "object"
     },
@@ -10238,6 +10248,15 @@
         "results"
       ],
       "type": "object"
+    },
+    "UnifiedPendingSmsStatusEnum": {
+      "enum": [
+        "none",
+        "unique",
+        "ambiguous",
+        "unavailable"
+      ],
+      "type": "string"
     },
     "UnifiedPendingSource": {
       "properties": {

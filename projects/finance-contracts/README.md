@@ -589,7 +589,15 @@ suggestions with date/time, account-side evidence, optional retained SMS text,
 reported balance and editable metadata proposals. Paginated row lists expose
 `pending_sms_match_count` through a bounded batched lookup; null means the list
 could not check the full candidate window, rather than zero matches. Detail fetches return
-the actual candidate list. `StatementDecision.action=combine_sms`
+the actual candidate list.
+Statement row list and detail responses also expose
+`review.unified_pending_sms_status` (`none`, `unique`, `ambiguous`, or
+`unavailable`) and a nullable `review.unified_pending_sms_pair_id` for a unique
+type-independent Unified review match. The stricter same-type SMS count can be
+zero while this pair ID is present. Row search covers saved drafts and original
+extracted values within the selected import before pagination.
+
+`StatementDecision.action=combine_sms`
 requires row `version` and a pending `candidate` UUID. Differing non-null balances
 require an exact-value `balance_choice`; optional `detail_choices` use the same
 reviewed-value contract as linking. The API locks and revalidates both sources,

@@ -653,12 +653,17 @@ remain unsupported pending separate extraction and accounting validation.
   file for the same user/account returns its existing review, preserving edits.
 - `GET /api/statements/imports/` and `/{id}/`: paginated history and counts.
 - `GET /api/statements/imports/{id}/rows/`: global state/search/direction/type/
-  category/date filters before pagination (default 50, maximum 100).
+  category/date filters before pagination (default 50, maximum 100). Search
+  covers saved and extracted description, merchant, note, reference, code,
+  account/category, dates, amounts, direction/type, and page/row. Returned rows
+  identify a unique pending SMS pair even when parsed types differ, and report
+  ambiguous or unavailable SMS comparisons separately from no match.
 - `GET/PATCH /api/statements/rows/{id}/`: review or correct a pending draft;
   PATCH requires its current `version` and preserves original extraction.
 - `POST /api/statements/rows/{id}/decide/`: create/link/skip/unlink/reopen.
 - `POST /api/statements/imports/{id}/approve_new/`: explicitly approve up to 50
-  IDs/versions; fresh matches, stale rows and discrepancies remain unresolved.
+  IDs/versions; fresh ledger or unified SMS pairs, stale rows and discrepancies
+  remain unresolved. Separate posting requires an explicit individual choice.
 - `GET /api/transactions/{id}/statement-evidence/`: on-demand masked sources.
 - `GET/POST /api/statements/counterparty-codes/`: list recurring Citytouch
   statement codes and save an explicitly verified party/classification mapping.
