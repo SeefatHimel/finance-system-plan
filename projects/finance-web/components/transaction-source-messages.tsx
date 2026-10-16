@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { listTransactionSourceMessages, type TransactionSourceMessage } from "@/lib/api";
@@ -48,6 +49,7 @@ export function TransactionSourceMessages({ transactionId }: { transactionId: st
           <p className="transaction-source-messages__body">{message.body ?? (message.status === "redacted" ? "Original SMS was redacted and is no longer available." : "Original SMS was removed or excluded and is no longer available.")}</p>
         </article>
       )) : null}
+      {state.status === "ready" && state.messages.some((message) => message.status === "redacted") ? <p className="inline-note">For an older redacted transaction SMS, choose Keep in <Link href="/sms-settings">SMS settings</Link>, then use the mobile History scan with Refresh previous imports. The original can return only if that exact SMS is still on your phone; manually redacted messages also require the explicit restore choice.</p> : null}
     </details>
   );
 }

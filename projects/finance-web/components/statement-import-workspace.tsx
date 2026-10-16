@@ -6,7 +6,7 @@ import { allDates, periodBounds, type DatePeriod } from "@/lib/date-period";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { identifyStatementAccount, type StatementIdentification, createStatementImport, downloadStatementOriginal, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
+import { identifyStatementAccount, type StatementIdentification, createStatementImport, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { transactionTypes } from "@/lib/category-type";
 import { LoadingState } from "@/components/loading-state";
@@ -14,6 +14,7 @@ import { ModalDialog } from "@/components/modal-dialog";
 import { StatementLedgerComparison } from "@/components/statement-comparison";
 import { StatementImportSummary } from "@/components/statement-summary";
 import { StatementRowDialog } from "@/components/statement-row-dialog";
+import { StatementOriginalViewer } from "@/components/statement-original-viewer";
 import { displayedStatementText } from "@/lib/statement-citytouch";
 import { useToast } from "@/components/toast-provider";
 
@@ -58,7 +59,6 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [downloadingOriginal, setDownloadingOriginal] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const uploadRequest = useRef<AbortController | null>(null);
   const identityRequest = useRef<AbortController | null>(null);
@@ -170,26 +170,6 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
     } catch (reason) { if (!controller.signal.aborted) setUploadError(fail(reason, "Could not read the statement.")); }
     finally { if (uploadRequest.current === controller) { uploadRequest.current = null; setUploading(false); } }
   }
-  async function downloadOriginal() {
-    const token = getAccessToken();
-    if (!token || !batch || !batch.has_original_file || downloadingOriginal) return;
-    setDownloadingOriginal(true);
-    try {
-      const blob = await downloadStatementOriginal(token, batch.id);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `statement-${batch.id}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (reason) {
-      fail(reason, "Could not download the original PDF.");
-    } finally {
-      setDownloadingOriginal(false);
-    }
-  }
   const reviewRow = useCallback(async (id: string) => {
     const token = getAccessToken(); if (!token) return;
     rowRequest.current?.abort(); const controller = new AbortController(); rowRequest.current = controller; setRowLoading(true); setSelectedRow(null);
@@ -278,7 +258,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
     {batchError ? <p role="alert" className="form-error">{batchError}</p> : null}
     {batchId && !batch && !batchError ? <LoadingState compact label="Loading statement" detail="Retrieving your saved review" /> : null}
     {batch ? <>
-      <section className="panel"><div className="panel__body"><h2 className="section-title">{batch.account_name} · {labels[batch.profile] ?? batch.profile}</h2><p>{batch.period_start ?? "Unknown"} → {batch.period_end ?? "Unknown"} · {batch.page_count} pages · Account ending {batch.account_hint || "unknown"}</p>{batch.has_original_file ? <button className="button" type="button" disabled={downloadingOriginal} onClick={() => void downloadOriginal()}>{downloadingOriginal ? "Downloading…" : "Download original PDF"}</button> : <p className="inline-note">Original PDF unavailable for this older import. Re-upload the same file for the same account to attach it without adding rows again.</p>}{batch.account_suggestion ? <p className="inline-note">{batch.account_suggestion.account ? `Saved identifier suggests ${batch.account_suggestion.name}. ` : ""}{batch.account_suggestion.reason}{batch.account_suggestion.account && batch.account_suggestion.account !== batch.account ? " This differs from the selected statement account; verify before approving." : ""}</p> : null}
+      <section className="panel"><div className="panel__body"><h2 className="section-title">{batch.account_name} · {labels[batch.profile] ?? batch.profile}</h2><p>{batch.period_start ?? "Unknown"} → {batch.period_end ?? "Unknown"} · {batch.page_count} pages · Account ending {batch.account_hint || "unknown"}</p>{batch.has_original_file ? <StatementOriginalViewer key={batch.id} batchId={batch.id} /> : <p className="inline-note">Original PDF unavailable for this older import. Re-upload the identical file under {batch.account_name} to attach it without adding rows or transactions again.</p>}{batch.account_suggestion ? <p className="inline-note">{batch.account_suggestion.account ? `Saved identifier suggests ${batch.account_suggestion.name}. ` : ""}{batch.account_suggestion.reason}{batch.account_suggestion.account && batch.account_suggestion.account !== batch.account ? " This differs from the selected statement account; verify before approving." : ""}</p> : null}
         <p>Verify this statement belongs to the selected account. A suffix match is a hint; it does not prove ownership.</p>
         <div className="metric-row">{[["Review rows", batch.counts.total], ["Pending", batch.counts.pending], ["Added", batch.counts.posted], ["Linked", batch.counts.linked], ["Skipped", batch.counts.skipped]].map(([name, value]) => <div className="metric" key={name}><span className="metric__label">{name}</span><strong className="metric__value">{value}</strong></div>)}</div>
         <details className="raw-message"><summary>Original extraction checks</summary><ul className="statement-checks">{batch.checks.map((check) => <li key={check.label}><strong>{check.passed === null ? "Unavailable" : check.passed ? "Passed" : "Needs review"}</strong> — {check.label}{check.expected !== null ? ` · Reported ${check.expected}, extracted ${check.observed ?? "unknown"}` : " · Not printed or readable"}</li>)}</ul><ul className="statement-warnings">{batch.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul><p>These checks describe the original extraction. Draft corrections are saved separately; source discrepancies require explicit review.</p></details>

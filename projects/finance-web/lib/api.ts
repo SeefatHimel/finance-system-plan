@@ -1588,8 +1588,8 @@ export async function createStatementImport(token: string, account: string, file
   const body = new FormData(); body.set("account", account); body.set("file", file); if (password) body.set("password", password);
   return savedStatementSchema.parse(await (await authenticatedFetch("/api/statements/imports/", token, { method: "POST", body, signal })).json());
 }
-export async function downloadStatementOriginal(token: string, id: string): Promise<Blob> {
-  return (await authenticatedFetch(`/api/statements/imports/${id}/original/`, token)).blob();
+export async function downloadStatementOriginal(token: string, id: string, signal?: AbortSignal): Promise<Blob> {
+  return (await authenticatedFetch(`/api/statements/imports/${id}/original/`, token, { signal })).blob();
 }
 const statementIdentificationSchema = z.object({
   profile: z.string(), account_hint: z.string(),
