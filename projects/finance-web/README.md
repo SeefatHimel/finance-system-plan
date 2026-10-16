@@ -626,11 +626,13 @@ The row dialog uses most of the viewport, with a scrolling review body and a
 fixed decision footer. Every match fills the available width and compares the
 saved statement draft with the existing ledger entry side by side; phones stack
 the comparison. Match reasons expand on demand. Differing reported balances are
-highlighted with an exact decimal difference, and acknowledgment belongs to that
-specific match. Accept stays disabled until draft changes are saved and any
-required source/balance acknowledgments are checked. Saving refreshes matches
-and clears acknowledgments. Linking keeps the existing ledger balance and both
-observations; it never replaces a ledger balance with the statement value.
+highlighted with an exact decimal difference, and the choice belongs to that
+specific match. When two BDT reports differ by less than Tk 1, the higher value
+is selected initially; the reviewer may choose the lower one. Larger differences
+still need a manual balance choice. Accept stays disabled until draft changes
+are saved and any required source acknowledgments are checked. Saving refreshes
+matches and clears choices. Linking retains both original observations and uses
+the selected reported balance without changing the movement amount.
 The other-owned-account field appears only for transfers. The classification
 review checkbox confirms review and does not change the transaction type.
 
@@ -1156,8 +1158,8 @@ reference and note suggestions remain individually editable. Amount stays tied
 to the matched source amounts and must be corrected in source review. The two
 originals, match reasons and reported balances remain expandable for comparison.
 A BDT statement/SMS balance difference below Tk 1 does not show the amber
-conflict banner or checkbox in unified review. The user still explicitly
-chooses SMS or statement as the ledger balance; both source values remain visible.
+conflict banner or checkbox in unified review. The higher balance is selected
+initially, and the user may choose the other; both source values remain visible.
 Larger differences and existing-ledger conflicts retain the warning.
 A compact comparison of source date/time, type and reported balance appears before
 the result form, and focus starts there when the dialog opens. When the statement

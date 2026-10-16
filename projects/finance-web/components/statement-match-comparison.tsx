@@ -6,10 +6,11 @@ import { selectedStatementDetails, type DetailSelections } from "@/lib/statement
 import { displayedStatementText } from "@/lib/statement-citytouch";
 import type { Account, Category, SavedStatement, SavedStatementRow, StatementDecision, StatementMatch } from "@/lib/api";
 
-export function StatementMatchComparison({ row, batch, match, accounts, categories, busy, dirty, issuesAcknowledged, balanceChoice, detailSelections, onBalanceChoice, onDetailChange, onAccept }: {
+export function StatementMatchComparison({ row, batch, match, accounts, categories, busy, dirty, issuesAcknowledged, balanceChoice, balanceAutoSelected, detailSelections, onBalanceChoice, onDetailChange, onAccept }: {
   row: SavedStatementRow; batch: SavedStatement; match: StatementMatch; accounts: Account[]; categories: Category[];
   busy: boolean; dirty: boolean; issuesAcknowledged: boolean;
   balanceChoice: StatementDecision["balance_choice"];
+  balanceAutoSelected: boolean;
   detailSelections: DetailSelections;
   onBalanceChoice: (keep: "existing" | "statement") => void;
   onDetailChange: (values: DetailSelections) => void;
@@ -42,6 +43,7 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
     {match.conflict ? <fieldset className="statement-match-conflict" disabled={busy || dirty || !match.can_link}>
       <legend>Which reported balance should the ledger use?</legend>
       <p>Difference{difference !== null ? `: ${batch.currency} ${difference}` : " requires review"}. The original statement and prior ledger value stay in the audit history.</p>
+      {balanceChoice && balanceAutoSelected ? <p>The higher balance is selected initially for a difference under BDT 1. You can choose the other.</p> : null}
       {match.balance_after !== match.effective_balance_after ? <p>The matched source observation reports {balanceText(match.balance_after)}; the current ledger report is shown above.</p> : null}
       <div className="statement-balance-options">
         <label><input type="radio" name={`balance-${row.id}-${match.id}`} checked={balanceChoice?.keep === "existing"} onChange={() => onBalanceChoice("existing")} /><span>Keep existing ledger balance<strong>{balanceText(match.effective_balance_after)}</strong></span></label>

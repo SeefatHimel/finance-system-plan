@@ -916,10 +916,12 @@ cannot establish actual mobile soft-keyboard behavior or other-browser coverage.
 ### How does statement review resolve conflicting reported balances?
 
 Each possible match compares the statement draft with the existing transaction.
-When balances differ, the user must choose the current ledger report or the
-statement report; Accept remains disabled until the choice and any required
-source acknowledgment are complete. Choices belong to one match and exact
-reviewed values/version, and reset after saving. The modal uses desktop space for
+When two BDT reports differ by less than Tk 1, the higher current ledger or
+statement report is preselected; the user can choose the other. Differences of
+Tk 1 or more and non-BDT differences still require a manual choice. Accept
+remains disabled until the choice and any required source acknowledgment are
+complete. Choices belong to one match and exact reviewed values/version, and
+reset after saving. The modal uses desktop space for
 a side-by-side comparison, stacks on phones, and keeps its decision footer visible.
 The choice changes a reported balance, never the movement amount or money count.
 If detailed pending-SMS matching reaches its safety limit, the row editor
@@ -1018,9 +1020,8 @@ the other source. A sub-Tk-1 BDT difference needs no extra balance checkbox;
 exact values remain in both sources. Larger differences and selected existing-ledger
 conflicts continue to require acknowledgment. Unmatched
 and ambiguous one-to-many sources remain in their individual review pages rather
-than appearing twice or implying a safe pair. Differing non-null balances start
-without a selected winner, and the disabled confirmation action lists every step
-still required. The statement editor opens in
+than appearing twice or implying a safe pair. The disabled confirmation action
+lists every step still required. The statement editor opens in
 save-only mode inside this workflow,
 returning to a freshly loaded comparison after saving or going back. The comparison
 shows extraction, statement-check and draft discrepancies before requesting an

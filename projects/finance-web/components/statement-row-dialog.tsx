@@ -65,7 +65,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     if (action === "combine_sms") return;
     const token = getAccessToken(); if (!token || busy) return;
     const match = row.review.matches.find((item) => item.id === transaction);
-    const balanceChoice = match ? currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version) : undefined;
+    const balanceChoice = match ? currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version, batch.currency) : undefined;
     const selections = match && detailSelections[match.id]?.version === row.version ? detailSelections[match.id].values : {};
     const detailResult = match ? selectedStatementDetails(match.detail_suggestions, selections) : { choices: [], error: null };
     if (action === "link") {
@@ -89,7 +89,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
       showError(new Error("Resolve the statement issues and acknowledge source discrepancies first.")); return;
     }
     const balanceChoice = currentStatementBalanceChoice(
-      balanceSelections[candidateId], { effective_balance_after: match.balance_after }, row.balance_after, row.version,
+      balanceSelections[candidateId], { effective_balance_after: match.balance_after }, row.balance_after, row.version, batch.currency,
     );
     const selections = detailSelections[candidateId]?.version === row.version ? detailSelections[candidateId].values : {};
     const details = selectedStatementDetails(match.detail_suggestions, selections);
@@ -170,7 +170,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
           {row.review.matches.length ? <div className="raw-message"><strong>Existing ledger suggestions also need a decision</strong><p>Compare each ledger entry in the Possible matches section below before combining the SMS and statement.</p><ul>{row.review.matches.map((item) => <li key={item.id}>{item.date} · {item.amount} · {item.note || item.reference || item.source}</li>)}</ul><label className="review-remember"><input type="checkbox" checked={distinctLedgerMatches} disabled={busy || dirty} onChange={(event) => setDistinctLedgerMatches(event.target.checked)} /><span>I compared every listed ledger entry and confirmed each is a different movement.</span></label></div> : null}
           <div className="statement-match-list">{row.review.pending_sms_matches.map((match) => {
             const conflict = match.balance_after !== null && row.balance_after !== null && match.balance_after !== row.balance_after;
-            const choice = currentStatementBalanceChoice(balanceSelections[match.id], { effective_balance_after: match.balance_after }, row.balance_after, row.version);
+            const choice = currentStatementBalanceChoice(balanceSelections[match.id], { effective_balance_after: match.balance_after }, row.balance_after, row.version, batch.currency);
             return <article className="statement-match-card" key={match.id}>
               <header className="statement-match-heading"><h4>Pending SMS · {match.sender}</h4><span>{batch.currency} {match.amount}</span></header>
               <div className="statement-match-comparison">
@@ -180,6 +180,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
               {match.sms_text ? <details className="raw-message"><summary>Original SMS</summary><p className="statement-evidence-text">{match.sms_text}</p></details> : null}
               {conflict ? <fieldset className="statement-match-conflict" disabled={busy || dirty}>
                 <legend>Which reported balance should this transaction use?</legend>
+                {choice && !balanceSelections[match.id] ? <p>The higher balance is selected initially for a difference under BDT 1. You can choose the other.</p> : null}
                 <div className="statement-balance-options">
                   <label><input type="radio" name={`pending-sms-balance-${match.id}`} checked={choice?.keep === "existing"} onChange={() => setBalanceSelections((old) => ({ ...old, [match.id]: { keep: "existing", version: row.version, existing_balance_after: match.balance_after, statement_balance_after: row.balance_after } }))} /><span>Keep SMS balance<strong>{match.balance_after}</strong></span></label>
                   <label><input type="radio" name={`pending-sms-balance-${match.id}`} checked={choice?.keep === "statement"} onChange={() => setBalanceSelections((old) => ({ ...old, [match.id]: { keep: "statement", version: row.version, existing_balance_after: match.balance_after, statement_balance_after: row.balance_after } }))} /><span>Use statement balance<strong>{row.balance_after}</strong></span></label>
@@ -197,7 +198,8 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
           <div className="statement-match-list">{row.review.matches.map((match) => <StatementMatchComparison key={match.id}
             row={row} batch={batch} match={match} accounts={accounts} categories={categories}
             busy={busy} dirty={dirty} issuesAcknowledged={ackIssues}
-            balanceChoice={currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version)}
+            balanceChoice={currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version, batch.currency)}
+            balanceAutoSelected={balanceSelections[match.id] === undefined}
             detailSelections={detailSelections[match.id]?.version === row.version ? detailSelections[match.id].values : {}}
             onBalanceChoice={(keep) => setBalanceSelections((old) => ({ ...old, [match.id]: { keep, version: row.version, existing_balance_after: match.effective_balance_after, statement_balance_after: row.balance_after } }))}
             onDetailChange={(values) => setDetailSelections((old) => ({ ...old, [match.id]: { version: row.version, values } }))}
