@@ -296,3 +296,16 @@ manual redactions stay respected unless restoration is explicitly selected.
 Counters may advance by up to 25 after each batch acknowledgement. For service
 outages, leave queued SMS intact and allow normal retry/backoff. Check keyboard,
 sign-in and regular background capture after upgrading as well.
+
+Release verification passed: 498 backend tests on isolated PostgreSQL (including
+concurrent imports), 38 native tests, 23 mobile JavaScript tests, Python lint,
+mobile/web/contract typechecks, schema drift and migration checks, and signed
+assembly. The APK reports 0.1.12/code 13, matches the 0.1.11 signing certificate,
+and contains the JavaScript bundle, production API URL, icon font and native
+batch route. The real-HTTP queue test uploaded 552 messages in 23 requests.
+Physical-phone performance and background smoke checks remain pending.
+
+After deployment, an unauthenticated request to `/api/messages/import/batch/`
+should resolve to the protected API (normally HTTP 401), rather than route-level
+404. A successful Git push or APK installation alone does not establish that the
+backend deployment has completed.
