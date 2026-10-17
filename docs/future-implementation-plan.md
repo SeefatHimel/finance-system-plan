@@ -1,6 +1,6 @@
 # Future Implementation And Upgrade Plan
 
-Last updated: 2026-10-08
+Last updated: 2026-10-17
 
 This plan lists the next implementation targets after the current local-first
 finance workflow. It is ordered to favor fast validation first, then reliability,
@@ -18,6 +18,22 @@ reason, dependency, and acceptance check.
 - Keep Android SMS capture sender-scoped. The app should never track all
   messages by default.
 - Update OpenAPI contracts, docs, and Q&A whenever API behavior changes.
+
+## Immediate priority: consistent evidence linking and historical repair
+
+The [evidence reconciliation and revalidation plan](evidence-reconciliation-plan.md)
+is the next implementation sequence, ahead of additional posting automation.
+It starts with the combined-review blank-balance correction, then unifies
+create/attach/enrich/correct decisions, shows per-account source coverage and
+adds preview-first historical revalidation with stale-decision checks and
+compensation. Existing transfer/statement/SMS endpoints remain compatible adapters.
+This is planned work, not a claim that historical revalidation is implemented.
+
+Improved mappings should trigger scoped proposals for confirmed history, not
+silently overwrite manually reviewed records. Missing balances must be distinct
+from intentional clears. Fees, reversals, genuinely repeated transactions and
+unsupported currency/settlement relationships must never be merged from
+amount/date similarity alone. See the plan for acceptance gates and rollout.
 
 ## Priority 1: Validation And Hardening
 

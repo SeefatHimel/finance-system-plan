@@ -387,3 +387,25 @@ Save/Confirm buttons and expose accessibility state. Optional details retain
 drafts while collapsed; conflicts and required corrections remain visible.
 These conventions do not change ledger maths or API semantics. Saved views and
 privacy controls are deferred. See [interface conventions](../docs/interface-conventions.md).
+
+## Will improved matching knowledge automatically rewrite old transactions?
+
+No. Current reprocessing is limited to pending SMS candidates. The proposed
+[reconciliation/revalidation plan](../docs/evidence-reconciliation-plan.md) adds
+scoped historical scans against versioned parser/matcher and user mappings. Scans
+produce source-linked repair proposals, not silent changes to posted movements.
+Manual decisions, explicit clears, genuine repeats and retained source evidence
+are preserved. Applying a reviewed proposal rechecks current versions and records
+an audited, retry-safe result. Historical compensation must work independently
+of the existing latest-action/24-hour Undo limit. This workflow is planned, not
+implemented by the documentation change.
+
+## What should late SMS or PDF evidence do to an existing movement?
+
+Find the existing movement, explain the match, and attach the missing evidence
+without posting money again. Source coverage is per account: SMS and statement
+from the receiving account do not prove the sending account has reported. A new
+balance may fill a genuinely missing same-account report; conflicts or deliberate
+clears need a visible choice. Create, attach, enrich, financial correction and
+merge are distinct decisions in the proposed shared backend service. Existing
+routes will adopt the service incrementally rather than creating a second ledger.

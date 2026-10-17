@@ -231,3 +231,9 @@ The longer-term backlog is tracked in
 prioritizes real-device/runtime validation first, then SMS parsing accuracy,
 ledger reliability, workflow polish, deployment/security, analytics, and a
 possible multi-user product path.
+
+The immediate reconciliation follow-up is specified in
+[Evidence reconciliation and historical revalidation](evidence-reconciliation-plan.md).
+It takes priority over additional posting automation: correct combined-link report
+selection, unify later-source attachment, expose per-account evidence coverage,
+and preview repairs for already recorded history before applying any changes.

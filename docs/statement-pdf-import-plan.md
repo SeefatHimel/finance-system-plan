@@ -7,6 +7,16 @@ import history, bulk approval and retry protection implemented for the initial
 BDT digital layouts. The preview endpoint remains stateless. OCR, credit-card
 billing layouts and automatic posting remain future work.
 
+## Next reconciliation implementation
+
+The cross-source follow-up is specified in the
+[evidence reconciliation and historical revalidation plan](evidence-reconciliation-plan.md).
+It addresses combined links retaining a missing effective report, the distinction
+between statement-draft edits and ledger corrections, evidence arriving after
+posting, account-side source coverage, and preview-first repair of existing data.
+Existing import/posting features remain in place; the new service and historical
+revalidation workflow are proposed work with explicit acceptance gates.
+
 ## Evidence And Initial Scope
 
 Private, user-provided EBL bank, City Bank savings, and bKash statement samples
