@@ -1170,8 +1170,9 @@ reference and note suggestions remain individually editable. Amount stays tied
 to the matched source amounts and must be corrected in source review. The two
 originals, match reasons and reported balances remain expandable for comparison.
 A BDT statement/SMS balance difference below Tk 1 does not show the amber
-conflict banner or checkbox in unified review. The higher balance is selected
-initially, and the user may choose the other; both source values remain visible.
+conflict banner or checkbox in unified review. For a new transaction, the higher balance is selected initially and the user may
+choose the other; both source values remain visible. Missing-report enrichment
+when linking an existing transfer follows the stricter rules below.
 Larger differences and existing-ledger conflicts retain the warning.
 A compact comparison of source date/time, type and reported balance appears before
 the result form, and focus starts there when the dialog opens. When the statement
@@ -1373,3 +1374,24 @@ calendar/clock inputs stay readable on dark surfaces. Quick Add selections use
 soft mint/check marks rather than competing with its primary Save button.
 Run `node --test tests/presentation.test.cjs` for exact-cent and timezone checks,
 and the complete web suite for transfer perspective, drafts and request races.
+
+### Filling a missing transfer balance in combined review
+
+Selecting an existing transfer with `can_fill_missing_balance=true` reveals
+**Missing balance to add · Account**. Agreeing reports or the sole available
+report are preselected. If the SMS and statement differ, neither is selected and
+linking stays disabled until the user chooses one; the larger report is not
+silently preferred for enrichment. The chosen source is submitted with the
+existing transaction ID. Reports from both sources remain preserved.
+
+Known reports (including zero), reviewed clears and ambiguous protected blanks
+retain their existing selection. The screen explains that correction belongs in
+Transactions. Filling a report changes neither the movement nor the other
+account's balance; the final link footer describes attaching sources rather than
+recording another entry. Fee-inclusive statement balances remain ineligible.
+
+Deploy the API first. Older-server responses default missing eligibility metadata
+to false. No APK rebuild or new database migration is needed for this API/web fix.
+Previously affected records are not automatically rewritten; the historical
+revalidation workflow is still planned. Run the statement-review regressions,
+web typecheck/lint/build and synthetic browser checks at desktop/phone widths.

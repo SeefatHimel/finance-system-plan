@@ -63,3 +63,14 @@ export function statementBalanceDifference(statement: string | null, ledger: str
   const absolute = difference < 0 ? -difference : difference;
   return `${difference > 0 ? "+" : difference < 0 ? "-" : ""}${absolute / BigInt(100)}.${String(absolute % BigInt(100)).padStart(2, "0")}`;
 }
+
+/** Link-time filling never chooses the larger of conflicting source reports. */
+export function suggestedLinkedBalanceSource(
+  sms: string | null,
+  statement: string | null,
+  statementIncludesFee = false,
+): "" | "sms" | "statement" {
+  if (sms !== null && statement !== null && statementBalanceDifference(sms, statement) !== "0.00") return "";
+  if (sms !== null) return "sms";
+  return statement !== null && !statementIncludesFee ? "statement" : "";
+}

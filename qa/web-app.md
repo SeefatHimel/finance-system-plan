@@ -1149,3 +1149,13 @@ timezone. Date/month/time inputs declare a dark color scheme. Quick Add uses
 soft mint/check marks for selections, reserving filled mint for Save; clock tabs
 also expose a visibly selected state. Browser-native input rendering may still
 use the browser's locale. See [interface conventions](../docs/interface-conventions.md).
+
+### Why does combined linking sometimes show a missing-balance source choice?
+
+A genuinely missing transfer-account report can be enriched from the linked SMS
+and statement. Agreeing/sole reports are preselected; differing reports require
+an explicit radio choice even when their difference is small. Known and protected
+blank reports retain their existing selection, with correction available in
+Transactions. The link confirmation sends the selected source and existing ledger
+ID without creating another movement. This first fix does not yet implement the
+larger intent-specific form or historical-revalidation workflow.

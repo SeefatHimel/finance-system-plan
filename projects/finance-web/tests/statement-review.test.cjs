@@ -65,3 +65,16 @@ test('source date differences are signed calendar days and reject unavailable or
   assert.equal(calendarDayDifference('2026-10-17', '2026-10-17'), 0);
   for (const value of [null, '', '2026-02-30', '2026-1-02', 'not a date']) assert.equal(calendarDayDifference(value, '2026-01-05'), null);
 });
+
+test('filling a linked missing balance selects an agreed or sole report, never the higher conflicting one', () => {
+  const { suggestedLinkedBalanceSource: choose } = require(join(output, 'statement-review.js'));
+  assert.equal(choose('450.07', '450.07'), 'sms');
+  assert.equal(choose('0.00', '0'), 'sms');
+  assert.equal(choose('-0.07', null), 'sms');
+  assert.equal(choose(null, '450.07'), 'statement');
+  assert.equal(choose(null, null), '');
+  assert.equal(choose('450.07', '450.14'), '');
+  assert.equal(choose('450.14', '450.07'), '');
+  assert.equal(choose(null, '450.07', true), '');
+  assert.equal(choose('450.07', null, true), 'sms');
+});

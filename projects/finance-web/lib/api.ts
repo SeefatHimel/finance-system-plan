@@ -1554,7 +1554,7 @@ const statementMatchSchema = z.object({
   strength: z.enum(["strong", "possible"]).default("possible"), merchant_similarity: z.number().default(0), time_difference_minutes: z.number().nullable().default(null),
   id: z.string(), date: z.string(), time: z.string().nullable(), type: z.string(), source: z.string(), amount: z.string(), account_name: z.string(),
   transfer_account_name: z.string().nullable(), category_name: z.string().nullable(), reference: z.string(), note: z.string(), balance_after: z.string().nullable(),
-  effective_balance_after: z.string().nullable(), detail_suggestions: z.array(statementDetailSuggestionSchema),
+  effective_balance_after: z.string().nullable(), can_fill_missing_balance: z.boolean().default(false), detail_suggestions: z.array(statementDetailSuggestionSchema),
   conflict: z.boolean(), can_link: z.boolean(), reasons: z.array(z.string())
 });
 const pendingStatementSmsMatchSchema = z.object({
