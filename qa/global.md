@@ -409,3 +409,14 @@ balance may fill a genuinely missing same-account report; conflicts or deliberat
 clears need a visible choice. Create, attach, enrich, financial correction and
 merge are distinct decisions in the proposed shared backend service. Existing
 routes will adopt the service incrementally rather than creating a second ledger.
+
+
+### Does evidence reconciliation now automatically repair old transactions?
+
+No. The backend attachment proposal/apply foundation is implemented for pending
+sources arriving after a movement was posted. It keeps one ledger entry and
+preserves source observations, with per-account coverage, explicit review,
+idempotent receipts and latest-action Undo. It shares policy with existing source
+routes without creating a second link authority. New web review UI is next;
+historical read-only scans, proposed corrections/merges and compensation remain
+separate planned work. Improved mappings never silently rewrite confirmed history.

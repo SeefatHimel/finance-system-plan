@@ -52,6 +52,7 @@ LABELS = {
     "update": "Transaction updated",
     "confirm": "SMS added",
     "link": "Transfer linked",
+    "evidence_link": "Evidence linked",
     "merge": "Transfers merged",
 }
 
@@ -120,10 +121,19 @@ def related_fingerprint(user, ids, *, lock=False):
 
 
 class ActionRecorder:
-    def __init__(self, user, *, transaction_ids=(), candidate_ids=(), remember=False):
+    def __init__(
+        self,
+        user,
+        *,
+        transaction_ids=(),
+        candidate_ids=(),
+        statement_ids=(),
+        remember=False,
+    ):
         self.user = user
         self.ids = {str(value) for value in transaction_ids if value}
         self.candidate_ids = {str(value) for value in candidate_ids if value}
+        self.statement_ids = {str(value) for value in statement_ids if value}
         self.rules = (
             list(
                 ParsedMessageCandidate.objects.filter(
@@ -167,7 +177,8 @@ class ActionRecorder:
             "statement_rows": rows(
                 protected(
                     StatementRow.objects.filter(
-                        batch__user=self.user, transaction_id__in=self.ids
+                        Q(transaction_id__in=self.ids) | Q(pk__in=self.statement_ids),
+                        batch__user=self.user,
                     )
                 )
             ),

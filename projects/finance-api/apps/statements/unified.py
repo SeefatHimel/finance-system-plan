@@ -16,8 +16,6 @@ from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
 from apps.messages.models import (
     ParsedMessageCandidate,
-    RawMessage,
-    SmsCapturePreference,
 )
 from apps.transactions.balance_reports import (
     account_reports,
@@ -764,39 +762,13 @@ def confirm_pair(*, user, row, candidate, payload, request):
         existing_report = account_reports(target)[0].get(row.batch.account_id)
         can_fill = can_fill_missing_transfer_balance(target, row.batch.account_id)
     if target:
-        if not can_fill and payload["balance_source"] != "existing":
-            raise ValidationError(
-                {
-                    "balance_source": "Linking retains the existing or previously reviewed balance. Correct it in Transactions before replacing it."
-                }
-            )
-        if can_fill:
-            incoming = {"sms": candidate.balance_after, "statement": row.balance_after}
-            if payload["balance_source"] == "existing":
-                if len({value for value in incoming.values() if value is not None}) > 1:
-                    raise ValidationError(
-                        {
-                            "balance_source": "This account has no saved balance and the incoming reports differ. Choose SMS or statement explicitly."
-                        }
-                    )
-                fill_source = next(
-                    (name for name, value in incoming.items() if value is not None),
-                    None,
-                )
-            else:
-                fill_source = payload["balance_source"]
-                if incoming[fill_source] is None:
-                    raise ValidationError(
-                        {
-                            "balance_source": "That source has no reported balance. Choose the source that reports one."
-                        }
-                    )
-            if fill_source == "statement" and has_fee:
-                raise ValidationError(
-                    {
-                        "balance_source": "This statement balance includes a separate fee. Choose the SMS report, or review the fee separately."
-                    }
-                )
+        from apps.reconciliation.evidence import missing_report_choice
+
+        fill_source = missing_report_choice(
+            target, row.batch.account_id,
+            {"sms": candidate.balance_after, "statement": row.balance_after},
+            payload["balance_source"], excluded={"statement"} if has_fee else (),
+        )
     balance_choice = None
     if target:
         matches, _ = find_matches([row])
@@ -908,9 +880,9 @@ def confirm_pair(*, user, row, candidate, payload, request):
             if primary and record.balance_after != primary.balance_after:
                 record.balance_after = primary.balance_after
                 record.save(update_fields=("balance_after", "updated_at"))
-    candidate.transaction = record
-    candidate.status = "confirmed"
-    candidate.save(update_fields=("transaction", "status", "updated_at"))
+    from apps.reconciliation.evidence import finish_sms_link
+
+    finish_sms_link(candidate, record)
     row.state = "linked"
     touch(
         row,
@@ -935,7 +907,4 @@ def confirm_pair(*, user, row, candidate, payload, request):
             "dismissed_ledger_matches": dismissed_ledger_matches,
         },
     )
-    preference = SmsCapturePreference.objects.filter(user=user).first()
-    if preference and preference.raw_sms_retention_days == 0:
-        candidate.raw_message.redact(reason=RawMessage.RedactionReason.RETENTION)
     return record, False

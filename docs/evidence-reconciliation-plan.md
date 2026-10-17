@@ -1,8 +1,9 @@
 # Evidence reconciliation and historical revalidation plan
 
 Date: 2026-10-17
-Status: first combined-transfer missing-report correction implemented; the shared
-decision service, coverage workflow and historical revalidation remain planned.
+Status: first combined-transfer correction and the phase-2 backend attachment
+boundary implemented. New web decision/coverage UI and historical revalidation
+remain planned. See [the shipped API boundary](evidence-reconciliation-api.md).
 
 ## Outcome
 
@@ -311,3 +312,27 @@ persistent clear-intent/knowledge models, shared proposal service, full link-mod
 redesign, coverage indicators or historical repair UI. Those remain the following
 implementation phases. Existing protected legacy blanks can still be corrected
 explicitly in Transactions while revalidation is developed.
+
+
+## Second delivery: shared attachment proposals
+
+The backend now offers persisted 15-minute attachment previews and an atomic,
+idempotent apply route for late SMS/statement evidence across expense, income,
+fee, refund and transfer entries. It preserves existing ledger identity and
+reports coverage per owned account. Canonical source observations support later
+matches even after a ledger date/report is reviewed. Combined missing-report
+selection, statement identity validation and SMS retention/link finalization
+share backend policy helpers. The legacy statement decision writer is reused;
+existing clients retain their current routes.
+
+This is an incremental attachment-only phase-2 boundary, not a generic financial
+correction/merge engine. Missing transfer reports can fill; known/cleared reports
+remain protected. A new attachment has latest-action Undo, including restoring
+pending statement components. Historical compensation remains phase 4. No old
+transaction is automatically scanned, reparsed or modified by the migration.
+
+Next implement phase 3: wire web intent-specific forms to proposal/apply, show the
+actual target and proposed changes, explain per-account coverage, and display the
+receipt/recovery action. Generic create/correct/merge adapters and historical
+repair proposals must retain their separate intent/approval gates; they are not
+implicitly supported by this attachment API. Mobile migration follows the web.

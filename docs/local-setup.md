@@ -641,3 +641,15 @@ than issuing a server request for every individual SMS.
 Review the physical-device checklist in the signed-release guide before calling
 keyboard, layout, TalkBack or real background SMS behavior verified. Install over
 the existing app to retain encrypted pending work.
+
+
+### Evidence proposal metadata
+
+After pulling the evidence proposal API, run the usual API `manage.py migrate`
+before enabling a client using it (`reconciliation.0002_evidenceproposal`). There
+is no financial data backfill. For optional metadata maintenance,
+`manage.py purge_evidence_proposals` previews one bounded page;
+`manage.py purge_evidence_proposals --apply --limit 1000` prunes only proposal
+metadata expired more than 30 days ago. Canonical source links stay intact.
+See [the evidence API guide](evidence-reconciliation-api.md) for synthetic tests
+and deployment/retention details.

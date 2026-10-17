@@ -1074,3 +1074,28 @@ the writer lock. Primary-report fallback uses evidence creation order so attachi
 an earlier-timestamped receiver report cannot move the sender's balance ownership.
 This changes account report selection, not ledger movement totals. No migration
 or historical bulk repair is included; broader revalidation remains planned.
+
+
+### How can a late SMS attach to a transaction originally recorded from PDF?
+
+The reconciliation proposal/apply service normalizes owned source components and
+suggests existing expense/income/fee/refund/transfer movements. Source order does
+not determine whether a second posting is needed. An explicit target produces a
+15-minute fingerprinted preview; apply rechecks sources, target/related state,
+accounts, matching candidates and policy under the shared user writer lock and
+row locks. Accepted attachments preserve financial identity and canonical links.
+A same-account balance/reference from one retained observation can corroborate a
+later source even after ledger details were reviewed. No amount/date auto-linking
+is enabled. Combined balance selection, statement identity checks and SMS link/
+retention share backend helpers; legacy routes are retained as incremental adapters.
+
+### What is saved for a decision and how can it be recovered?
+
+`EvidenceProposal` stores structured previews/hashes and accepted idempotent
+receipts, not raw source text or another authoritative link table. UUID target
+references avoid changing ledger Undo dependencies merely by previewing. Receipt
+replay cannot resurrect an undone/changed link. New attachments use the existing
+24-hour latest unchanged-action Undo; pending statement rows are captured before
+linking so Undo restores them rather than deleting them. Purge expired proposal
+metadata with the bounded dry-run-first management command after at least 30 days;
+canonical source links remain. Historical repair/compensation is still planned.

@@ -27,7 +27,12 @@ from apps.messages.views import (
 )
 from apps.payment_methods.views import PaymentMethodViewSet
 from apps.quick_add.views import QuickAddPresetViewSet, QuickEntryView
-from apps.reconciliation.views import AccountReconciliationView, BalanceSnapshotViewSet
+from apps.reconciliation.views import (
+    AccountReconciliationView,
+    BalanceSnapshotViewSet,
+    EvidenceApplyView,
+    EvidenceProposalView,
+)
 from apps.recurring_bills.views import (
     RecurringBillPaymentCreateView,
     RecurringBillViewSet,
@@ -58,6 +63,8 @@ router.register("statements/rows", StatementRowViewSet, basename="statement-row"
 
 
 urlpatterns = [
+    path("api/reconciliation/proposals/", EvidenceProposalView.as_view(), name="evidence-proposal"),
+    path("api/reconciliation/proposals/<uuid:proposal_id>/apply/", EvidenceApplyView.as_view(), name="evidence-apply"),
     path("admin/", admin.site.urls),
     path("api/auth/", include("apps.users.urls")),
     path("api/", include(router.urls)),

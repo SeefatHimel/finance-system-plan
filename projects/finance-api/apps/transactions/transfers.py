@@ -13,9 +13,7 @@ from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
 from apps.messages.models import (
     ParsedMessageCandidate,
-    RawMessage,
     SenderRuleMapping,
-    SmsCapturePreference,
 )
 
 from .balance_reports import (
@@ -477,9 +475,9 @@ def attach_candidate(candidate, record, observation, remember=False):
     if candidate.status != ParsedMessageCandidate.Status.NEEDS_REVIEW:
         raise ValidationError({"candidate": "Only pending messages can be linked."})
     add_transfer_evidence(record, observation, candidate)
-    candidate.transaction = record
-    candidate.status = ParsedMessageCandidate.Status.CONFIRMED
-    candidate.save(update_fields=("transaction", "status", "updated_at"))
+    from apps.reconciliation.evidence import finish_sms_link
+
+    finish_sms_link(candidate, record)
     if remember:
         from apps.messages.transfer_suggestions import remember_transfer_path
 
@@ -496,9 +494,7 @@ def attach_candidate(candidate, record, observation, remember=False):
                 "transaction_type": "transfer",
             },
         )
-    preference, _ = SmsCapturePreference.objects.get_or_create(user=record.user)
-    if preference.raw_sms_retention_days == 0:
-        candidate.raw_message.redact(reason=RawMessage.RedactionReason.RETENTION)
+
 
 
 @transaction.atomic

@@ -1,5 +1,6 @@
 import uuid
 from decimal import Decimal
+from typing import ClassVar
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
@@ -58,3 +59,31 @@ class BalanceSnapshot(models.Model):
 
     def __str__(self) -> str:
         return f"{self.account} {self.checked_at} {self.status}"
+
+
+class EvidenceProposal(models.Model):
+    """Expiring decisions/receipts only. Canonical links remain on source models."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    # UUID references deliberately do not add ledger relations or affect Undo.
+    sources = models.JSONField()
+    target_id = models.UUIDField(null=True)
+    fingerprint = models.CharField(max_length=64)
+    preview = models.JSONField()
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    applied_at = models.DateTimeField(null=True)
+    idempotency_key = models.UUIDField(null=True)
+    decision_hash = models.CharField(max_length=64, blank=True)
+    result = models.JSONField(null=True)
+    result_fingerprint = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        indexes: ClassVar = [models.Index(fields=("user", "created_at"))]
+        constraints: ClassVar = [
+            models.UniqueConstraint(
+                fields=("user", "idempotency_key"),
+                name="evidence_decision_key_per_user",
+            )
+        ]

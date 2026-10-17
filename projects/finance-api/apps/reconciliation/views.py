@@ -9,7 +9,14 @@ from rest_framework.viewsets import ModelViewSet
 from apps.accounts.models import Account
 
 from .models import BalanceSnapshot
-from .serializers import BalanceSnapshotSerializer
+from .proposals import apply, proposal_response, propose
+from .serializers import (
+    BalanceSnapshotSerializer,
+    EvidenceApplySerializer,
+    EvidenceProposalInputSerializer,
+    EvidenceProposalSerializer,
+    EvidenceReceiptSerializer,
+)
 from .services import calculate_expected_balance
 
 
@@ -18,7 +25,9 @@ class BalanceSnapshotViewSet(ModelViewSet):
     permission_classes = (IsAuthenticated,)
 
     def get_queryset(self):
-        queryset = BalanceSnapshot.objects.filter(user=self.request.user).select_related(
+        queryset = BalanceSnapshot.objects.filter(
+            user=self.request.user
+        ).select_related(
             "account",
             "adjustment_transaction",
         )
@@ -56,3 +65,49 @@ class AccountReconciliationView(APIView):
                 ),
             }
         )
+
+
+class EvidenceNoStoreMixin:
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response["Cache-Control"] = "no-store"
+        return response
+
+
+class EvidenceProposalView(EvidenceNoStoreMixin, APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(
+        request=EvidenceProposalInputSerializer,
+        responses={201: EvidenceProposalSerializer},
+        tags=["Reconciliation"],
+    )
+    def post(self, request):
+        serializer = EvidenceProposalInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        proposal = propose(user=request.user, payload=serializer.validated_data)
+        return Response(
+            proposal_response(proposal),
+            status=201,
+            headers={"Cache-Control": "no-store"},
+        )
+
+
+class EvidenceApplyView(EvidenceNoStoreMixin, APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(
+        request=EvidenceApplySerializer,
+        responses=EvidenceReceiptSerializer,
+        tags=["Reconciliation"],
+    )
+    def post(self, request, proposal_id):
+        serializer = EvidenceApplySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = apply(
+            user=request.user,
+            proposal_id=proposal_id,
+            payload=serializer.validated_data,
+            request=request,
+        )
+        return Response(result, headers={"Cache-Control": "no-store"})

@@ -316,7 +316,9 @@ def dates_for(row):
 def reporting_observations(record, account_id):
     """Keep reporting-account evidence intact; never borrow another side's fields."""
     if record.type != "transfer":
-        return [record]
+        from apps.reconciliation.evidence import ordinary_observations
+
+        return ordinary_observations(record, account_id)
     observations = [
         e
         for e in record.transfer_evidence.all()
@@ -431,34 +433,52 @@ def _find_statement_matches(rows):
     batch = pending[0].batch
     days = [d for r in pending for d in dates_for(r)]
     amounts = {r.amount for r in pending}
+    from apps.reconciliation.evidence import prefetch_source_observations
+
     history = list(
-        Transaction.objects.filter(
-            user_id=batch.user_id,
-            amount__in=amounts,
-        )
-        .filter(
-            Q(
-                date__range=(
-                    min(days) - timedelta(days=MATCH_DAYS),
-                    max(days) + timedelta(days=MATCH_DAYS),
+        prefetch_source_observations(
+            Transaction.objects.filter(
+                user_id=batch.user_id,
+                amount__in=amounts,
+            )
+            .filter(
+                Q(
+                    date__range=(
+                        min(days) - timedelta(days=MATCH_DAYS),
+                        max(days) + timedelta(days=MATCH_DAYS),
+                    )
+                )
+                | Q(
+                    transfer_evidence__account_id=batch.account_id,
+                    transfer_evidence__date__range=(
+                        min(days) - timedelta(days=MATCH_DAYS),
+                        max(days) + timedelta(days=MATCH_DAYS),
+                    ),
+                )
+                | Q(
+                    statement_rows__batch__account_id=batch.account_id,
+                    statement_rows__date__range=(
+                        min(days) - timedelta(days=MATCH_DAYS),
+                        max(days) + timedelta(days=MATCH_DAYS),
+                    ),
+                )
+                | Q(
+                    parsed_message_candidates__status="confirmed",
+                    parsed_message_candidates__raw_message__received_at__date__range=(
+                        min(days) - timedelta(days=MATCH_DAYS),
+                        max(days) + timedelta(days=MATCH_DAYS),
+                    ),
                 )
             )
-            | Q(
-                transfer_evidence__account_id=batch.account_id,
-                transfer_evidence__date__range=(
-                    min(days) - timedelta(days=MATCH_DAYS),
-                    max(days) + timedelta(days=MATCH_DAYS),
-                ),
+            .filter(
+                Q(account_id=batch.account_id)
+                | Q(type="transfer", transfer_account_id=batch.account_id)
             )
-        )
-        .filter(
-            Q(account_id=batch.account_id)
-            | Q(type="transfer", transfer_account_id=batch.account_id)
-        )
-        .select_related("account", "transfer_account", "category")
-        .prefetch_related("transfer_evidence")
-        .order_by("date", "id")
-        .distinct()[: MAX_MATCH_HISTORY + 1]
+            .select_related("account", "transfer_account", "category")
+            .prefetch_related("transfer_evidence")
+            .order_by("date", "id")
+            .distinct()
+        )[: MAX_MATCH_HISTORY + 1]
     )
     if len(history) > MAX_MATCH_HISTORY:
         return results, True
@@ -482,7 +502,7 @@ def _find_statement_matches(rows):
         .select_related("account", "transfer_account", "category")
         .prefetch_related("transfer_evidence")
     )
-    history.extend(additional)
+    history.extend(prefetch_source_observations(additional))
     by_id = {record.id: record for record in history}
     by_fingerprint = defaultdict(dict)
     for fingerprint, record_id in previous_sources:

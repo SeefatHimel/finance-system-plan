@@ -1332,3 +1332,22 @@ DATABASE_URL= DJANGO_DEBUG=true .venv/bin/python manage.py test \
   apps.statements apps.transactions apps.accounts.test_balance_comparison
 ```
 SQLite tests do not verify PostgreSQL lock/concurrency behavior.
+
+
+### Shared evidence attachment proposals
+
+The attachment-only backend foundation is available at
+`POST /api/reconciliation/proposals/` and
+`POST /api/reconciliation/proposals/{id}/apply/`. It supports late SMS, statement
+components, or both from one reporting account, attaching to an existing expense,
+income, fee, refund or transfer without reposting. Preview, explicit acknowledgment,
+version/policy fingerprints, user-scoped retry keys, source/account/target locks,
+coverage receipts and latest-action Undo keep decisions reviewable. The underlying
+candidate/statement/evidence records remain canonical.
+
+Run `manage.py migrate` for `reconciliation.0002_evidenceproposal` before enabling
+clients. Existing review routes/APKs remain compatible; the next web phase will
+consume the new boundary. This does not deliver historical revalidation or change
+ordinary null-balance provenance. See the full request/response, balance policy,
+synthetic test commands and dry-run metadata cleanup instructions in
+[the evidence API guide](../../docs/evidence-reconciliation-api.md).
