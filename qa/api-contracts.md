@@ -686,3 +686,23 @@ existing Quick Add/transfer helpers. Web and native import it directly; generate
 OpenAPI types, decimal strings, date/time payloads, evidence and ownership rules
 remain unchanged. Formatting belongs to clients; financial calculations and
 validation remain authoritative on the API.
+
+
+### What contract supports late evidence and future review clients?
+
+Authenticated `POST /api/reconciliation/proposals/` accepts up to one SMS principal
+and one statement component from the same reporting account, with an optional
+existing target. No target means discovery only; a new target-specific preview is
+required before apply. Typed coverage separates SMS candidate IDs, statement row
+IDs, legacy SMS and manual observations per account. It does not equate SMS+PDF
+on one side with both transfer accounts reporting.
+
+`POST /api/reconciliation/proposals/{id}/apply/` requires the preview fingerprint,
+a stable UUID retry key and acknowledgments. It returns an attachment receipt,
+zero added movements, selected account balances and latest-action Undo metadata.
+Known or uncertain/cleared reports stay intact; only eligible missing transfer
+reports can fill. HTTP 400 is a blocked/invalid decision, 404 an unavailable owned
+resource, 409 expired/stale/conflicting state. All responses are no-store.
+Unknown input fields are rejected. OpenAPI and generated TypeScript cover this
+boundary; web intent/coverage integration follows separately. Migration precedes
+client rollout; installed clients keep their old routes.

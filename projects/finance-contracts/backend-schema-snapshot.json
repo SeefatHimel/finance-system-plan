@@ -2614,6 +2614,103 @@
         ]
       }
     },
+    "/api/reconciliation/proposals/": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceProposalInput"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceProposalInput"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceProposalInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceProposal"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reconciliation/proposals/{proposal_id}/apply/": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceApply"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceApply"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceApply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceReceipt"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/reconciliation/snapshots/": {
       "get": {
         "responses": {
@@ -5469,11 +5566,11 @@
       ],
       "type": "string"
     },
-    "BalanceSourceEnum": {
+    "BalanceSource6ccEnum": {
       "enum": [
+        "existing",
         "sms",
-        "statement",
-        "existing"
+        "statement"
       ],
       "type": "string"
     },
@@ -5666,7 +5763,7 @@
       ],
       "type": "object"
     },
-    "ComponentEnum": {
+    "Component5b1Enum": {
       "enum": [
         "principal",
         "fee"
@@ -5983,17 +6080,572 @@
       ],
       "type": "string"
     },
-    "FieldEnum": {
+    "EvidenceApply": {
+      "properties": {
+        "acknowledge_conflict": {
+          "default": false,
+          "type": "boolean"
+        },
+        "acknowledge_issues": {
+          "default": false,
+          "type": "boolean"
+        },
+        "acknowledge_match": {
+          "default": false,
+          "type": "boolean"
+        },
+        "balance_source": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/BalanceSource6ccEnum"
+            }
+          ],
+          "default": "existing"
+        },
+        "fingerprint": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fingerprint",
+        "idempotency_key"
+      ],
+      "type": "object"
+    },
+    "EvidenceBalanceChoice": {
+      "properties": {
+        "source": {
+          "$ref": "#/components/schemas/Source6ccEnum"
+        },
+        "value": {
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "value"
+      ],
+      "type": "object"
+    },
+    "EvidenceCoverage": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "legacy_sms": {
+          "type": "boolean"
+        },
+        "manual": {
+          "type": "boolean"
+        },
+        "sms": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "statement": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "account",
+        "legacy_sms",
+        "manual",
+        "sms",
+        "statement"
+      ],
+      "type": "object"
+    },
+    "EvidenceFieldChange": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "current": {
+          "nullable": true,
+          "type": "string"
+        },
+        "field": {
+          "$ref": "#/components/schemas/EvidenceFieldChangeFieldEnum"
+        },
+        "origin": {
+          "$ref": "#/components/schemas/OriginEnum"
+        },
+        "proposed": {
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "account",
+        "current",
+        "field",
+        "origin",
+        "proposed"
+      ],
+      "type": "object"
+    },
+    "EvidenceFieldChangeFieldEnum": {
       "enum": [
-        "counterparty_text",
-        "reference",
-        "note",
-        "sender_account_identifier",
-        "sender_card_identifier",
-        "receiver_account_identifier",
-        "receiver_card_identifier"
+        "reported_balance"
       ],
       "type": "string"
+    },
+    "EvidenceImpact": {
+      "properties": {
+        "classification_changed": {
+          "type": "boolean"
+        },
+        "ledger_amount": {
+          "type": "string"
+        },
+        "ledger_movements": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "classification_changed",
+        "ledger_amount",
+        "ledger_movements"
+      ],
+      "type": "object"
+    },
+    "EvidenceMatch": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "amount": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "signals": {
+          "items": {
+            "$ref": "#/components/schemas/EvidenceMatchSignal"
+          },
+          "type": "array"
+        },
+        "time": {
+          "format": "time",
+          "nullable": true,
+          "type": "string"
+        },
+        "transfer_account": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "account",
+        "amount",
+        "currency",
+        "date",
+        "id",
+        "signals",
+        "time",
+        "transfer_account",
+        "type",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "EvidenceMatchSignal": {
+      "properties": {
+        "contradictions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "corroborated": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source": {
+          "$ref": "#/components/schemas/EvidenceSourceRef"
+        }
+      },
+      "required": [
+        "contradictions",
+        "corroborated",
+        "reasons",
+        "source"
+      ],
+      "type": "object"
+    },
+    "EvidenceProposal": {
+      "properties": {
+        "balance_choices": {
+          "items": {
+            "$ref": "#/components/schemas/EvidenceBalanceChoice"
+          },
+          "type": "array"
+        },
+        "blocked_reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "can_fill_missing_balance": {
+          "type": "boolean"
+        },
+        "coverage_after": {
+          "items": {
+            "$ref": "#/components/schemas/EvidenceCoverage"
+          },
+          "type": "array"
+        },
+        "coverage_before": {
+          "items": {
+            "$ref": "#/components/schemas/EvidenceCoverage"
+          },
+          "type": "array"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "field_changes": {
+          "items": {
+            "$ref": "#/components/schemas/EvidenceFieldChange"
+          },
+          "type": "array"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "impact": {
+          "$ref": "#/components/schemas/EvidenceImpact"
+        },
+        "intent": {
+          "$ref": "#/components/schemas/EvidenceProposalIntentEnum"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "matches": {
+          "items": {
+            "$ref": "#/components/schemas/EvidenceMatch"
+          },
+          "type": "array"
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "required_decisions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/components/schemas/EvidenceSourceSummary"
+          },
+          "type": "array"
+        },
+        "target": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/EvidenceTarget"
+            }
+          ],
+          "nullable": true
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "balance_choices",
+        "blocked_reasons",
+        "can_fill_missing_balance",
+        "coverage_after",
+        "coverage_before",
+        "expires_at",
+        "field_changes",
+        "fingerprint",
+        "id",
+        "impact",
+        "intent",
+        "limitations",
+        "matches",
+        "policy_version",
+        "required_decisions",
+        "sources",
+        "target",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "EvidenceProposalInput": {
+      "properties": {
+        "sources": {
+          "items": {
+            "$ref": "#/components/schemas/EvidenceSourceRef"
+          },
+          "type": "array"
+        },
+        "transaction": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sources"
+      ],
+      "type": "object"
+    },
+    "EvidenceProposalIntentEnum": {
+      "enum": [
+        "attach",
+        "blocked"
+      ],
+      "type": "string"
+    },
+    "EvidenceReceipt": {
+      "properties": {
+        "balances": {
+          "additionalProperties": {
+            "nullable": true,
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "coverage": {
+          "items": {
+            "$ref": "#/components/schemas/EvidenceCoverage"
+          },
+          "type": "array"
+        },
+        "intent": {
+          "$ref": "#/components/schemas/EvidenceReceiptIntentEnum"
+        },
+        "ledger_movements_added": {
+          "type": "integer"
+        },
+        "proposal": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/components/schemas/EvidenceSourceRef"
+          },
+          "type": "array"
+        },
+        "transaction": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "unchanged": {
+          "type": "boolean"
+        },
+        "undo_action": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/TransactionAction"
+            }
+          ],
+          "nullable": true
+        }
+      },
+      "required": [
+        "balances",
+        "coverage",
+        "intent",
+        "ledger_movements_added",
+        "proposal",
+        "sources",
+        "transaction",
+        "unchanged",
+        "undo_action"
+      ],
+      "type": "object"
+    },
+    "EvidenceReceiptIntentEnum": {
+      "enum": [
+        "attach"
+      ],
+      "type": "string"
+    },
+    "EvidenceSourceRef": {
+      "properties": {
+        "component": {
+          "$ref": "#/components/schemas/Component5b1Enum"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/components/schemas/OriginEnum"
+        }
+      },
+      "required": [
+        "component",
+        "id",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "EvidenceSourceSummary": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "amount": {
+          "nullable": true,
+          "type": "string"
+        },
+        "balance_after": {
+          "nullable": true,
+          "type": "string"
+        },
+        "component": {
+          "$ref": "#/components/schemas/Component5b1Enum"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "nullable": true,
+          "type": "string"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/components/schemas/OriginEnum"
+        },
+        "time": {
+          "format": "time",
+          "nullable": true,
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "account",
+        "amount",
+        "balance_after",
+        "component",
+        "currency",
+        "date",
+        "direction",
+        "id",
+        "kind",
+        "time",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "EvidenceTarget": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "amount": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "time": {
+          "format": "time",
+          "nullable": true,
+          "type": "string"
+        },
+        "transfer_account": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "account",
+        "amount",
+        "currency",
+        "date",
+        "id",
+        "time",
+        "transfer_account",
+        "type",
+        "updated_at"
+      ],
+      "type": "object"
     },
     "FrequencyEnum": {
       "enum": [
@@ -6218,6 +6870,13 @@
       ],
       "type": "object"
     },
+    "OriginEnum": {
+      "enum": [
+        "sms",
+        "statement"
+      ],
+      "type": "string"
+    },
     "OriginalIdentifiers": {
       "properties": {
         "additional_identifiers": {
@@ -6284,7 +6943,7 @@
           "type": "boolean"
         },
         "balance_source": {
-          "$ref": "#/components/schemas/BalanceSourceEnum"
+          "$ref": "#/components/schemas/PairDecisionBalanceSourceEnum"
         },
         "dismissed_ledger_matches": {
           "items": {
@@ -6334,6 +6993,14 @@
         "statement_version"
       ],
       "type": "object"
+    },
+    "PairDecisionBalanceSourceEnum": {
+      "enum": [
+        "sms",
+        "statement",
+        "existing"
+      ],
+      "type": "string"
     },
     "PairDetail": {
       "properties": {
@@ -8277,7 +8944,7 @@
         "component": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/ComponentEnum"
+              "$ref": "#/components/schemas/SavedStatementRowComponentEnum"
             }
           ],
           "readOnly": true
@@ -8416,6 +9083,13 @@
         "version"
       ],
       "type": "object"
+    },
+    "SavedStatementRowComponentEnum": {
+      "enum": [
+        "principal",
+        "fee"
+      ],
+      "type": "string"
     },
     "SenderRule": {
       "properties": {
@@ -8624,6 +9298,14 @@
         "unknown",
         "granted",
         "denied"
+      ],
+      "type": "string"
+    },
+    "Source6ccEnum": {
+      "enum": [
+        "existing",
+        "sms",
+        "statement"
       ],
       "type": "string"
     },
@@ -8978,7 +9660,7 @@
           "type": "string"
         },
         "field": {
-          "$ref": "#/components/schemas/FieldEnum"
+          "$ref": "#/components/schemas/StatementDetailChoiceFieldEnum"
         },
         "value": {
           "maxLength": 4000,
@@ -8991,6 +9673,18 @@
         "value"
       ],
       "type": "object"
+    },
+    "StatementDetailChoiceFieldEnum": {
+      "enum": [
+        "counterparty_text",
+        "reference",
+        "note",
+        "sender_account_identifier",
+        "sender_card_identifier",
+        "receiver_account_identifier",
+        "receiver_card_identifier"
+      ],
+      "type": "string"
     },
     "StatementDetailSuggestion": {
       "properties": {
@@ -10694,7 +11388,7 @@
           "type": "string"
         },
         "source": {
-          "$ref": "#/components/schemas/UnifiedPendingSourceSourceEnum"
+          "$ref": "#/components/schemas/OriginEnum"
         },
         "time": {
           "format": "time",
@@ -10733,13 +11427,6 @@
         "version"
       ],
       "type": "object"
-    },
-    "UnifiedPendingSourceSourceEnum": {
-      "enum": [
-        "sms",
-        "statement"
-      ],
-      "type": "string"
     },
     "User": {
       "properties": {

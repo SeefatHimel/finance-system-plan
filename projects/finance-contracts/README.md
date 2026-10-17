@@ -740,3 +740,26 @@ statement report cannot be selected. Existing link conflict, source-version,
 ownership, transaction-match and retry protections remain in force. No request
 shape or database migration changes; OpenAPI, generated types and the backend
 schema snapshot include the new response boolean.
+
+
+## Evidence proposal/apply boundary
+
+`EvidenceProposalInput`, `EvidenceProposal`, `EvidenceApply` and `EvidenceReceipt`
+now publish an attachment-only decision lifecycle. Sources are typed kind/UUID/
+component references; nested target, match-signal, balance, field-change, impact
+and per-account coverage types are generated. Requests never edit the ledger
+amount/type/path. Preview expires after 15 minutes. Apply needs its fingerprint,
+a stable user-scoped UUID idempotency key and required acknowledgments; expired
+or changed state returns 409 without partial writes. An unchanged accepted retry
+returns the receipt and refreshed latest-action Undo availability.
+
+Deploy `reconciliation.0002_evidenceproposal` before clients adopt these routes.
+Existing clients keep their current endpoints. See
+[the evidence API guide](../../docs/evidence-reconciliation-api.md) for limits,
+coverage semantics, retention and synthetic examples. Historical revalidation
+and automatic linking remain unavailable.
+
+Synthetic request examples are in `examples/evidence-proposal.create.json` and
+`examples/evidence-proposal.apply.json`; replace their illustrative UUIDs and
+fingerprint with the actual preview. Contradiction reasons remain explicit even
+when another report/reference corroborates a match.

@@ -24,6 +24,71 @@ tags:
   - name: Audit Logs
   - name: Statements
 paths:
+  /api/reconciliation/proposals/:
+    post:
+      operationId: reconciliation_proposals_create
+      tags:
+      - Reconciliation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvidenceProposalInput'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceProposal'
+          description: ''
+        '400':
+          description: Invalid, blocked or unacknowledged decision. No partial changes.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Owned proposal, source or target not found.
+        '409':
+          description: Expired, stale or conflicting decision. Refresh before approval.
+  /api/reconciliation/proposals/{proposal_id}/apply/:
+    post:
+      operationId: reconciliation_proposals_apply_create
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Reconciliation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvidenceApply'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceReceipt'
+          description: ''
+        '400':
+          description: Invalid, blocked or unacknowledged decision. No partial changes.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Owned proposal, source or target not found.
+        '409':
+          description: Expired, stale or conflicting decision. Refresh before approval.
   /api/statements/counterparty-codes/:
     get:
       operationId: statement_counterparty_codes_list
@@ -2970,6 +3035,457 @@ components:
                       items:
                         type: string
   schemas:
+    BalanceSource6ccEnum:
+      enum:
+      - existing
+      - sms
+      - statement
+      type: string
+      description: '* `existing` - existing
+
+        * `sms` - sms
+
+        * `statement` - statement'
+    Component5b1Enum:
+      enum:
+      - principal
+      - fee
+      type: string
+      description: '* `principal` - principal
+
+        * `fee` - fee'
+    EvidenceApply:
+      type: object
+      properties:
+        fingerprint:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        idempotency_key:
+          type: string
+          format: uuid
+        balance_source:
+          allOf:
+          - $ref: '#/components/schemas/BalanceSource6ccEnum'
+          default: existing
+        acknowledge_match:
+          type: boolean
+          default: false
+        acknowledge_conflict:
+          type: boolean
+          default: false
+        acknowledge_issues:
+          type: boolean
+          default: false
+      required:
+      - fingerprint
+      - idempotency_key
+    EvidenceBalanceChoice:
+      type: object
+      properties:
+        source:
+          $ref: '#/components/schemas/Source6ccEnum'
+        value:
+          type: string
+          nullable: true
+      required:
+      - source
+      - value
+    EvidenceCoverage:
+      type: object
+      properties:
+        account:
+          type: string
+          format: uuid
+        sms:
+          type: array
+          items:
+            type: string
+            format: uuid
+        statement:
+          type: array
+          items:
+            type: string
+            format: uuid
+        legacy_sms:
+          type: boolean
+        manual:
+          type: boolean
+      required:
+      - account
+      - legacy_sms
+      - manual
+      - sms
+      - statement
+    EvidenceFieldChange:
+      type: object
+      properties:
+        field:
+          $ref: '#/components/schemas/EvidenceFieldChangeFieldEnum'
+        account:
+          type: string
+          format: uuid
+        current:
+          type: string
+          nullable: true
+        proposed:
+          type: string
+          nullable: true
+        origin:
+          $ref: '#/components/schemas/OriginEnum'
+      required:
+      - account
+      - current
+      - field
+      - origin
+      - proposed
+    EvidenceFieldChangeFieldEnum:
+      enum:
+      - reported_balance
+      type: string
+      description: '* `reported_balance` - reported_balance'
+    EvidenceImpact:
+      type: object
+      properties:
+        ledger_movements:
+          type: integer
+        ledger_amount:
+          type: string
+        classification_changed:
+          type: boolean
+      required:
+      - classification_changed
+      - ledger_amount
+      - ledger_movements
+    EvidenceMatch:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        account:
+          type: string
+          format: uuid
+        transfer_account:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+        currency:
+          type: string
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          format: time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+        signals:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceMatchSignal'
+      required:
+      - account
+      - amount
+      - currency
+      - date
+      - id
+      - signals
+      - time
+      - transfer_account
+      - type
+      - updated_at
+    EvidenceMatchSignal:
+      type: object
+      properties:
+        source:
+          $ref: '#/components/schemas/EvidenceSourceRef'
+        corroborated:
+          type: boolean
+        contradictions:
+          type: array
+          items:
+            type: string
+        reasons:
+          type: array
+          items:
+            type: string
+      required:
+      - contradictions
+      - corroborated
+      - reasons
+      - source
+    EvidenceProposal:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        fingerprint:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        policy_version:
+          type: string
+        intent:
+          $ref: '#/components/schemas/EvidenceProposalIntentEnum'
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceSourceSummary'
+        target:
+          allOf:
+          - $ref: '#/components/schemas/EvidenceTarget'
+          nullable: true
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceMatch'
+        truncated:
+          type: boolean
+        blocked_reasons:
+          type: array
+          items:
+            type: string
+        required_decisions:
+          type: array
+          items:
+            type: string
+        balance_choices:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceBalanceChoice'
+        can_fill_missing_balance:
+          type: boolean
+        field_changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceFieldChange'
+        coverage_before:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceCoverage'
+        coverage_after:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceCoverage'
+        impact:
+          $ref: '#/components/schemas/EvidenceImpact'
+        limitations:
+          type: array
+          items:
+            type: string
+      required:
+      - balance_choices
+      - blocked_reasons
+      - can_fill_missing_balance
+      - coverage_after
+      - coverage_before
+      - expires_at
+      - field_changes
+      - fingerprint
+      - id
+      - impact
+      - intent
+      - limitations
+      - matches
+      - policy_version
+      - required_decisions
+      - sources
+      - target
+      - truncated
+    EvidenceProposalInput:
+      type: object
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceSourceRef'
+        transaction:
+          type: string
+          format: uuid
+      required:
+      - sources
+    EvidenceProposalIntentEnum:
+      enum:
+      - attach
+      - blocked
+      type: string
+      description: '* `attach` - attach
+
+        * `blocked` - blocked'
+    EvidenceReceipt:
+      type: object
+      properties:
+        undo_action:
+          allOf:
+          - $ref: '#/components/schemas/TransactionAction'
+          nullable: true
+        proposal:
+          type: string
+          format: uuid
+        transaction:
+          type: string
+          format: uuid
+        intent:
+          $ref: '#/components/schemas/EvidenceReceiptIntentEnum'
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceSourceRef'
+        coverage:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceCoverage'
+        balances:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+        ledger_movements_added:
+          type: integer
+        unchanged:
+          type: boolean
+      required:
+      - balances
+      - coverage
+      - intent
+      - ledger_movements_added
+      - proposal
+      - sources
+      - transaction
+      - unchanged
+      - undo_action
+    EvidenceReceiptIntentEnum:
+      enum:
+      - attach
+      type: string
+      description: '* `attach` - attach'
+    EvidenceSourceRef:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/OriginEnum'
+        id:
+          type: string
+          format: uuid
+        component:
+          $ref: '#/components/schemas/Component5b1Enum'
+      required:
+      - component
+      - id
+      - kind
+    EvidenceSourceSummary:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/OriginEnum'
+        id:
+          type: string
+          format: uuid
+        component:
+          $ref: '#/components/schemas/Component5b1Enum'
+        account:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+          nullable: true
+        currency:
+          type: string
+        direction:
+          type: string
+        date:
+          type: string
+          format: date
+          nullable: true
+        time:
+          type: string
+          format: time
+          nullable: true
+        balance_after:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - account
+      - amount
+      - balance_after
+      - component
+      - currency
+      - date
+      - direction
+      - id
+      - kind
+      - time
+      - updated_at
+    EvidenceTarget:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        account:
+          type: string
+          format: uuid
+        transfer_account:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+        currency:
+          type: string
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          format: time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - account
+      - amount
+      - currency
+      - date
+      - id
+      - time
+      - transfer_account
+      - type
+      - updated_at
+    OriginEnum:
+      enum:
+      - sms
+      - statement
+      type: string
+      description: '* `sms` - sms
+
+        * `statement` - statement'
+    Source6ccEnum:
+      enum:
+      - existing
+      - sms
+      - statement
+      type: string
+      description: '* `existing` - existing
+
+        * `sms` - sms
+
+        * `statement` - statement'
     PatchedQuickAddPreset:
       type: object
       properties:

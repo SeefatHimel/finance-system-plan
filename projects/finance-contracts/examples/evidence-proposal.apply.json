@@ -1,0 +1,8 @@
+{
+  "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "idempotency_key": "44444444-4444-4444-8444-444444444444",
+  "balance_source": "existing",
+  "acknowledge_match": true,
+  "acknowledge_conflict": false,
+  "acknowledge_issues": false
+}
