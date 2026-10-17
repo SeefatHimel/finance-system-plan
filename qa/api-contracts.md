@@ -65,6 +65,7 @@ covering current phase-1 backend endpoints:
 - Accounts CRUD
 - Categories CRUD
 - Owner-scoped category usage counts from posted ledger transactions, including unused categories
+- Category deletion returns 204 on success or a 400 validation error when linked records protect it
 - Payment methods CRUD
 - SMS sender rules CRUD
 - Raw SMS import with duplicate response shape

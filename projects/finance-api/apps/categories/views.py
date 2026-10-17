@@ -1,5 +1,8 @@
+from django.db import transaction
 from django.db.models import Count, Q
+from django.db.models.deletion import ProtectedError
 from drf_spectacular.utils import extend_schema
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -18,6 +21,15 @@ class CategoryViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    def perform_destroy(self, instance):
+        try:
+            with transaction.atomic():
+                instance.delete()
+        except ProtectedError as exc:
+            raise ValidationError({
+                "detail": "This category is used by transactions or other records. Remove those links before deleting it."
+            }) from exc
 
     @extend_schema(responses=CategoryUsageSerializer(many=True))
     @action(detail=False, methods=("get",), url_path="usage")

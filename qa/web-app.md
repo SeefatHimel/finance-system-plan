@@ -185,7 +185,9 @@ backend constraints still preventing deletion when records are referenced by
 transactions. The category table shows each category's all-time ledger entry
 count, linking nonzero counts to a matching all-dates transaction view. It
 does not sum amounts because categories can span currencies and movement types;
-unavailable counts display as unavailable rather than zero.
+unavailable counts display as unavailable rather than zero. The table sorts
+categories alphabetically, and a successful delete removes the row after the
+proxy forwards the backend's bodyless `204 No Content` response.
 
 ## Why does the page no longer flash a loading screen after every save?
 

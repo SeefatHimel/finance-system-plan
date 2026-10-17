@@ -1026,6 +1026,8 @@ paths:
       responses:
         '204':
           description: Category deleted
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':

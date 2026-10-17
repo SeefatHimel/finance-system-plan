@@ -451,11 +451,11 @@ export function SetupWorkspace() {
       || (accountStatusFilter === "active" ? account.is_active : !account.is_active);
     return matchesSearch && matchesType && matchesStatus;
   });
-  const visibleCategories = setupState.categories.filter((category) => {
+  const visibleCategories = sortByName(setupState.categories.filter((category) => {
     const matchesSearch = category.name.toLowerCase().includes(categorySearch.trim().toLowerCase());
     const matchesKind = categoryKindFilter === "all" || category.kind === categoryKindFilter;
     return matchesSearch && matchesKind;
-  });
+  }));
 
   return (
     <div className="workspace-grid">

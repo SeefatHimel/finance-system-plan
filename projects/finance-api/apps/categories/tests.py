@@ -85,6 +85,33 @@ class DefaultCategoryTests(TestCase):
 
 
 class CategoryApiTests(APITestCase):
+    def test_delete_unused_category_returns_no_content(self):
+        user = get_user_model().objects.create_user(username="delete-unused-category")
+        category = Category.objects.get(user=user, name="Entertainment")
+        self.client.force_authenticate(user)
+
+        response = self.client.delete(reverse("category-detail", args=[category.id]))
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Category.objects.filter(pk=category.id).exists())
+
+    def test_delete_used_category_returns_validation_error_without_removing_it(self):
+        user = get_user_model().objects.create_user(username="delete-used-category")
+        category = Category.objects.get(user=user, name="Food & Dining")
+        account = Account.objects.create(user=user, name="Synthetic cash", type="cash")
+        entry = Transaction.objects.create(
+            user=user, account=account, category=category, date="2026-01-01",
+            type="expense", direction="debit", amount="10.00",
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.delete(reverse("category-detail", args=[category.id]))
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("used by transactions", str(response.data["detail"]))
+        self.assertTrue(Category.objects.filter(pk=category.id).exists())
+        self.assertTrue(Transaction.objects.filter(pk=entry.id, category=category).exists())
+
     def test_usage_counts_only_own_ledger_transactions_and_includes_unused_categories(self):
         user = get_user_model().objects.create_user(username="category-usage-owner")
         other_user = get_user_model().objects.create_user(username="category-usage-other")

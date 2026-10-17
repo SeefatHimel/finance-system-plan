@@ -175,7 +175,10 @@ http://localhost:3000/accounts
 ```
 
 Create at least one account before using the transaction form. Categories are
-optional but recommended for useful monthly reports.
+optional but recommended for useful monthly reports. The category table sorts
+names alphabetically. Deleting an unused category returns a successful empty
+response and removes it from the table; categories linked to ledger transactions
+remain protected with a clear validation error.
 
 Monthly reports:
 

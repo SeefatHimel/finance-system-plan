@@ -144,6 +144,23 @@ test('proxy refresh does not drop replacement tokens when its retried fetch fail
   assert.equal(response.cookies.values.get('finance_refresh')[0], tokens.refresh);
 });
 
+test('a successful category deletion forwards its bodyless 204 response', async () => {
+  const h = harness(async url => {
+    if (url.endsWith('/refresh/')) return json(tokens);
+    if (url.endsWith('/api/categories/synthetic-category/')) return new Response(null, { status: 204 });
+    throw new Error('Unexpected synthetic route');
+  });
+  const route = h.load('app/api/backend/[...path]/route.js');
+  const request = new Request('https://finance.invalid/api/backend/api/categories/synthetic-category/', {
+    method: 'DELETE', headers: { origin: 'https://finance.invalid' }
+  });
+  request.nextUrl = new URL(request.url);
+  const response = await route.DELETE(request, { params: { path: ['api', 'categories', 'synthetic-category'] } });
+  assert.equal(response.status, 204);
+  assert.equal(await response.text(), '');
+  assert.equal(response.cookies.values.get('finance_refresh')[0], tokens.refresh);
+});
+
 test('browser verification shares checks and recovers a stale 401 before signing out', async () => {
   let calls = 0;
   const h = harness(async () => ++calls === 1 ? json({}, 401) : json(user));

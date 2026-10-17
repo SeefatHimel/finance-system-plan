@@ -84,7 +84,9 @@ user-owned records: users can rename, deactivate, delete, or extend them. The
 creation helper is idempotent, and saving an existing user does not recreate a
 category they intentionally removed. The data migration backfills only existing
 users with zero categories, avoiding changes to users who already customized
-their taxonomy.
+their taxonomy. Deleting an unused category returns 204; deleting one protected
+by a linked transaction or other record returns a 400 validation error without
+removing the category.
 
 ## What are the core backend apps?
 

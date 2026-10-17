@@ -35,10 +35,10 @@ async function proxyBackendRequest(request: NextRequest, context: RouteContext) 
       const refreshedSession = await refreshCookieBackedAccessToken();
       rotatedTokens = refreshedSession.rotatedTokens;
       const retryResponse = await fetchBackend(request, context.params.path, refreshedSession.accessToken, requestBody);
-      return buildProxyResponse(retryResponse, refreshedSession.rotatedTokens);
+      return await buildProxyResponse(retryResponse, refreshedSession.rotatedTokens);
     }
 
-    return buildProxyResponse(response, session.rotatedTokens);
+    return await buildProxyResponse(response, session.rotatedTokens);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Request failed.";
     const status = error instanceof StatementUploadLimitError ? 413 : isAuthenticationFailure(error) ? 401 : 502;
@@ -113,7 +113,9 @@ async function fetchBackend(
 }
 
 async function buildProxyResponse(response: Response, rotatedTokens: { access: string; refresh: string } | null) {
-  const body = await response.arrayBuffer();
+  // A 204 response means the mutation succeeded. Response constructors reject
+  // even an empty ArrayBuffer body for bodyless statuses.
+  const body = [204, 205, 304].includes(response.status) ? null : await response.arrayBuffer();
   const headers = new Headers();
 
   forwardedResponseHeaders.forEach((headerName) => {
