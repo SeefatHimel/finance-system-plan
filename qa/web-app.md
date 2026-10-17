@@ -1199,3 +1199,20 @@ semantics, and document passwords still clear on submission or hiding. Extension
 can override browser hints; synthetic browser tests reproduce background
 injection and verify normal typing remains usable without accessing saved real
 credentials.
+
+### How does the statement editor stay compact without losing review details?
+
+The standalone draft uses a dialog-width-responsive grid: three columns when
+there is enough room, two at intermediate widths and one on phones. Date and
+time share a grid slot and stack when needed. Key money/account/category fields
+stay visible. Source evidence, funding candidates and optional reference, value
+date and note fields expand on demand without remounting or resetting the draft.
+Required discrepancy warnings and review acknowledgements are not collapsed.
+Funding guidance is available through an info control that supports focus and tap.
+
+A missing transfer category can be proposed from the only active transfer
+category, but ambiguous category lists still need a user choice. Opening preserves
+saved categories; clearing a category remains possible. Type changes clear
+incompatible categories. These changes require saving the draft and refreshing
+matches before a posting/link decision; neither the source evidence nor existing
+ledger transactions is rewritten automatically.

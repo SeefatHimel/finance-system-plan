@@ -3715,3 +3715,27 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark; }
 
 .quick-choice__buttons .button[aria-pressed="true"], .quick-time-tabs .button[aria-pressed="true"], .date-period-modes .button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+/* The standalone statement draft grows with its dialog, not the page width. */
+.statement-row-body { container-type: inline-size; }
+.statement-draft-fields { gap: 16px; align-items: start; }
+.statement-draft-fields > *, .statement-draft-datetime > * { min-width: 0; }
+.statement-draft-datetime { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 12px; }
+.statement-draft-fields .field__control { min-width: 0; }
+.statement-funding-help { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.statement-funding-options { font-size: 12px; }
+.statement-funding-options summary, .statement-draft-more summary { cursor: pointer; padding-block: 8px; }
+.statement-funding-buttons { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
+.statement-funding-buttons .button { font-size: 12px; min-height: 44px; padding: 8px 10px; white-space: normal; }
+.statement-funding-buttons [aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.statement-draft-more { border-top: 1px solid var(--panel-border); padding-top: 4px; }
+.statement-draft-more summary { font-weight: 650; }
+.statement-draft-more summary span { color: var(--muted); font-size: 12px; font-weight: 400; margin-left: 8px; }
+.statement-draft-extra { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding-top: 12px; }
+@container (min-width: 900px) {
+  .statement-draft-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .statement-draft-extra, .statement-draft-datetime { grid-template-columns: minmax(0, 1fr); }
+  .statement-draft-more summary span { display: block; margin: 4px 0 0; }
+}

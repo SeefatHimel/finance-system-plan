@@ -1438,3 +1438,30 @@ remains process-local; this change does not introduce a distributed refresh cach
 or a grace period accepting blacklisted tokens. Production multi-instance races,
 actual credential-manager profiles and backend revocations need deployment/browser
 validation if symptoms persist. No backend migration or APK rebuild is required.
+
+### Compact statement draft editor
+
+The standalone statement-row dialog groups date/time into one grid slot and uses
+three columns when the dialog body is at least 900px wide, two at intermediate
+widths and one on phones. Date/time stack when their slot needs more space. Amount,
+reported balance, type, category, counterparty and the transfer account stay in
+the main form. Original extraction, funding-account candidates and optional
+reference/value-date/note fields use disclosures; a summary indicates saved
+optional values. Opening or closing a disclosure keeps the same controlled draft.
+Funding explanations use the existing keyboard/touch-accessible info tooltip.
+The other owned account is shown only for transfers. Source discrepancies and
+required acknowledgements remain visible.
+
+A pending statement transfer with no saved category proposes the sole active
+category of kind `transfer` (normally Account Transfer). No category is guessed
+when zero or several such categories exist. Saved category choices are preserved
+on opening; explicit clearing stays blank during the edit and after saving.
+Changing type drops an incompatible category and may propose the transfer
+category. The proposal remains an unsaved draft change: save and refresh matches
+before adding/linking. It neither guesses the funding account nor changes posted
+transactions or immutable PDF extraction. No API or database migration is needed.
+
+Category regressions: `node --test tests/statement-draft-category.test.cjs`.
+The editor was also checked with synthetic data at 1440px, 900px and 390px for
+category suggestions, explicit clearing, disclosure state, account selection and
+draft saving. These checks do not exercise a live statement import or backend.
