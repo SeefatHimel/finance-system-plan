@@ -9253,6 +9253,9 @@
           "nullable": true,
           "type": "string"
         },
+        "can_fill_missing_balance": {
+          "type": "boolean"
+        },
         "can_link": {
           "type": "boolean"
         },
@@ -9325,6 +9328,7 @@
         "account_name",
         "amount",
         "balance_after",
+        "can_fill_missing_balance",
         "can_link",
         "category_name",
         "conflict",

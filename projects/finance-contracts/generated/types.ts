@@ -1196,6 +1196,7 @@ export interface StatementMatch {
   note: string;
   balance_after: string | null;
   effective_balance_after: string | null;
+  can_fill_missing_balance: boolean;
   detail_suggestions: StatementDetailSuggestion[];
   conflict: boolean;
   can_link: boolean;

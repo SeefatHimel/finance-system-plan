@@ -1034,3 +1034,288 @@ class UnifiedReviewTests(APITestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("cursor", response.data)
+
+    def incoming_pair_and_existing_transfer(
+        self, *, sender_balance="1200.00", report_balance="450.07"
+    ):
+        self.row.direction = "credit"
+        self.row.type = "transfer"
+        self.row.other_account = self.wallet
+        self.row.balance_after = report_balance
+        self.row.save()
+        self.sms.transaction_type = "transfer"
+        self.sms.message_kind = "bank_transfer_in"
+        self.sms.suggested_transfer_direction = "credit"
+        self.sms.destination_account = self.account
+        self.sms.account = self.wallet
+        self.sms.balance_after = report_balance
+        self.sms.save()
+        return Transaction.objects.create(
+            user=self.user,
+            account=self.wallet,
+            transfer_account=self.account,
+            amount="100.00",
+            date=self.row.date,
+            type="transfer",
+            direction="debit",
+            balance_after=sender_balance,
+            source="sms",
+        )
+
+    def test_existing_transfer_fills_missing_receiving_report_without_moving_sender_balance(
+        self,
+    ):
+        record = self.incoming_pair_and_existing_transfer()
+        detail = self.client.get(
+            reverse("unified-pair"),
+            {"statement": str(self.row.pk), "sms": str(self.sms.pk)},
+        )
+        self.assertEqual(detail.status_code, 200, detail.data)
+        suggested = next(
+            item
+            for item in detail.data["row"]["review"]["matches"]
+            if item["id"] == str(record.pk)
+        )
+        self.assertTrue(suggested["can_fill_missing_balance"])
+        payload = self.payload(transaction=str(record.pk), balance_source="existing")
+        response = self.client.post(reverse("unified-pair"), payload, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertEqual(record.balance_after, Decimal("1200.00"))
+        self.assertEqual(reported_values(record)[self.wallet.pk], Decimal("1200.00"))
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("450.07"))
+        self.assertEqual(Transaction.objects.count(), 1)
+        self.assertEqual(
+            record.transfer_evidence.filter(account=self.account).count(), 2
+        )
+        self.assertEqual(
+            self.client.post(
+                reverse("unified-pair"), payload, format="json"
+            ).status_code,
+            200,
+        )
+        self.assertEqual(
+            record.transfer_evidence.filter(account=self.account).count(), 2
+        )
+
+    def test_missing_receiving_report_uses_sms_when_statement_has_no_balance(self):
+        record = self.incoming_pair_and_existing_transfer()
+        self.row.balance_after = None
+        self.row.save()
+        response = self.confirm(transaction=str(record.pk), balance_source="existing")
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("450.07"))
+        self.assertEqual(record.balance_after, Decimal("1200.00"))
+
+    def test_missing_receiving_report_uses_statement_when_sms_has_no_balance(self):
+        record = self.incoming_pair_and_existing_transfer()
+        self.sms.balance_after = None
+        self.sms.save()
+        response = self.confirm(transaction=str(record.pk), balance_source="existing")
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("450.07"))
+        self.assertEqual(record.balance_after, Decimal("1200.00"))
+
+    def test_missing_receiving_report_can_be_zero_or_negative(self):
+        for balance in ("0.00", "-0.07"):
+            with self.subTest(balance=balance):
+                record = self.incoming_pair_and_existing_transfer(
+                    report_balance=balance
+                )
+                response = self.confirm(
+                    transaction=str(record.pk), balance_source="existing"
+                )
+                self.assertEqual(response.status_code, 200, response.data)
+                record.refresh_from_db()
+                self.assertEqual(
+                    reported_values(record)[self.account.pk], Decimal(balance)
+                )
+                self.assertEqual(record.balance_after, Decimal("1200.00"))
+                # Recreate pending sources for the next independent scenario.
+                self.row.transaction = None
+                self.row.state = "pending"
+                self.row.save()
+                self.sms.transaction = None
+                self.sms.status = "needs_review"
+                self.sms.save()
+                record.delete()
+
+    def test_differing_incoming_reports_need_explicit_source_even_after_acknowledgement(
+        self,
+    ):
+        record = self.incoming_pair_and_existing_transfer()
+        self.row.balance_after = Decimal("450.14")
+        self.row.save()
+        before = self.row.version
+        response = self.confirm(transaction=str(record.pk), balance_source="existing")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("balance_source", response.data)
+        self.assertEqual(record.transfer_evidence.count(), 0)
+        self.row.refresh_from_db()
+        self.sms.refresh_from_db()
+        self.assertEqual(self.row.version, before)
+        self.assertIsNone(self.row.transaction_id)
+        self.assertEqual(self.sms.status, "needs_review")
+        response = self.confirm(transaction=str(record.pk), balance_source="sms")
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("450.07"))
+        self.assertEqual(
+            set(
+                record.transfer_evidence.filter(account=self.account).values_list(
+                    "balance_after", flat=True
+                )
+            ),
+            {Decimal("450.07"), Decimal("450.14")},
+        )
+
+    def test_explicit_statement_balance_for_missing_receiving_report(self):
+        record = self.incoming_pair_and_existing_transfer()
+        self.row.balance_after = Decimal("450.14")
+        self.row.save()
+        response = self.confirm(transaction=str(record.pk), balance_source="statement")
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("450.14"))
+        self.assertEqual(record.balance_after, Decimal("1200.00"))
+
+    def test_prior_reviewed_clear_and_unknown_effective_null_remain_protected(self):
+        from apps.transactions.balance_reports import (
+            reviewed_account_report,
+            select_effective_account_report,
+        )
+        from apps.transactions.transfers import ensure_transfer_evidence
+
+        record = self.incoming_pair_and_existing_transfer()
+        ensure_transfer_evidence(record)
+        cleared = reviewed_account_report(record, self.account, None)
+        select_effective_account_report(record, cleared)
+        response = self.confirm(transaction=str(record.pk), balance_source="sms")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIsNone(reported_values(record)[self.account.pk])
+        response = self.confirm(transaction=str(record.pk), balance_source="existing")
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertIsNone(reported_values(record)[self.account.pk])
+        self.assertTrue(
+            record.transfer_evidence.get(pk=cleared.pk).is_effective_balance
+        )
+        self.assertEqual(record.balance_after, Decimal("1200.00"))
+
+    def test_existing_zero_report_is_never_treated_as_missing(self):
+        from apps.transactions.balance_reports import (
+            reviewed_account_report,
+            select_effective_account_report,
+        )
+        from apps.transactions.transfers import ensure_transfer_evidence
+
+        record = self.incoming_pair_and_existing_transfer()
+        ensure_transfer_evidence(record)
+        zero = reviewed_account_report(record, self.account, Decimal("0.00"))
+        select_effective_account_report(record, zero)
+        response = self.confirm(transaction=str(record.pk), balance_source="existing")
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("0.00"))
+
+    def test_primary_missing_capture_report_fills_without_changing_ledger_totals(self):
+        from apps.transactions.services import calculate_account_balance_summaries
+
+        self.row.type = "transfer"
+        self.row.other_account = self.wallet
+        self.row.save()
+        self.sms.transaction_type = "transfer"
+        self.sms.destination_account = self.wallet
+        self.sms.balance_after = self.row.balance_after
+        self.sms.save()
+        record = Transaction.objects.create(
+            user=self.user,
+            account=self.account,
+            transfer_account=self.wallet,
+            type="transfer",
+            direction="debit",
+            amount="100.00",
+            date=self.row.date,
+            balance_after=None,
+            source="sms",
+        )
+        accounts = [self.account, self.wallet]
+        before = calculate_account_balance_summaries(accounts=accounts)
+        response = self.confirm(transaction=str(record.pk), balance_source="existing")
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertEqual(record.balance_after, Decimal("900.07"))
+        after = calculate_account_balance_summaries(accounts=accounts)
+        self.assertEqual(
+            {key: value.ledger_balance for key, value in before.items()},
+            {key: value.ledger_balance for key, value in after.items()},
+        )
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_no_incoming_balances_does_not_manufacture_a_reviewed_clear(self):
+        record = self.incoming_pair_and_existing_transfer(report_balance=None)
+        response = self.confirm(transaction=str(record.pk), balance_source="existing")
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertIsNone(reported_values(record)[self.account.pk])
+        self.assertFalse(
+            record.transfer_evidence.filter(
+                account=self.account, is_effective_balance=True
+            ).exists()
+        )
+        self.assertFalse(
+            record.transfer_evidence.filter(
+                external_key__startswith="balance:"
+            ).exists()
+        )
+
+    def test_earlier_receiving_timestamp_cannot_change_the_original_reporting_account(
+        self,
+    ):
+        record = self.incoming_pair_and_existing_transfer()
+        record.time = time(18, 0)
+        record.save()
+        response = self.confirm(transaction=str(record.pk), balance_source="existing")
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertEqual(record.balance_after, Decimal("1200.00"))
+        details = self.client.get(reverse("transaction-detail", args=[record.pk]))
+        self.assertEqual(details.data["balance_reporting_account"], str(self.wallet.pk))
+
+    def test_legacy_incoming_scalar_report_is_not_offered_as_missing(self):
+        from apps.transactions.balance_reports import can_fill_missing_transfer_balance
+
+        record = self.incoming_pair_and_existing_transfer(sender_balance="0.00")
+        existing = self.candidate(
+            account=self.wallet,
+            kind="bank_transfer_in",
+            destination_account=self.account,
+            transaction=record,
+            status="confirmed",
+            balance="0.00",
+        )
+        record.raw_message = existing.raw_message
+        record.save()
+        self.assertFalse(can_fill_missing_transfer_balance(record, self.account.pk))
+
+    def test_statement_fee_balance_cannot_fill_a_missing_transfer_report(self):
+        record = self.incoming_pair_and_existing_transfer()
+        self.sms.balance_after = None
+        self.sms.save()
+        StatementRow.objects.create(
+            batch=self.batch,
+            position=self.row.position,
+            component="fee",
+            date=self.row.date,
+            direction="debit",
+            type="fee",
+            amount="0.07",
+            balance_after=self.row.balance_after,
+            extracted=self.row.extracted,
+        )
+        response = self.confirm(transaction=str(record.pk), balance_source="statement")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("balance_source", response.data)
+        self.assertFalse(record.transfer_evidence.exists())

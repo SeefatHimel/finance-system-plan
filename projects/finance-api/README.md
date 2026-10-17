@@ -1254,7 +1254,8 @@ A new pair uses the reviewed draft classification/date/time, the selected scalar
 balance, masked SMS identifiers and one raw-message link. A source with no reported
 balance cannot replace the other source's available report. Transfer evidence
 marks the reviewed effective report per account without overwriting either
-original observation; linking an existing transfer keeps its effective report.
+original observation; linking an existing transfer keeps known or previously
+reviewed reports, with missing-report enrichment described below.
 An incoming transfer keeps reports on the receiving account through separate
 transfer observations. Candidate
 and statement relations retain their distinct dates/times/balances; the original
@@ -1295,3 +1296,39 @@ Offset pages are refreshed after ledger changes; clients must deduplicate IDs
 and refresh if records change while browsing. Mobile uses this endpoint for
 bounded Home previews and the complete paginated Activity timeline. Deploy API
 before distributing the updated mobile app.
+
+### Missing account reports during combined transfer linking
+
+For an existing transfer, Unified review can fill a genuinely missing report for
+its statement/SMS account. It selects the sole non-null report or an agreed exact
+value; zero and negative balances remain valid. Two different incoming reports
+require explicit `balance_source=sms` or `statement`, even for a difference below
+Tk 1. `balance_source=existing` remains backward compatible: it preserves known
+or protected reports, and fills only an eligible missing report when incoming
+values agree or only one source reports a value. A conflicting implicit choice
+returns HTTP 400 and rolls the entire link back.
+
+`StatementMatch.can_fill_missing_balance` reports eligibility. Effective nulls
+and non-captured nulls may represent reviewed clears or ambiguous legacy intent,
+so they are protected. Missing unselected capture reports can be enriched;
+unsupported non-transfer null provenance is unchanged by this focused fix.
+Statement balances including a separate fee cannot fill the report; use an
+available SMS report or review the fee separately.
+
+Both original observations remain attached. The selected source becomes the
+account's effective report, not another ledger transaction. Primary-report
+fallback uses stable evidence creation order, not event date/time ordering, and
+attaching an opposite-side SMS does not replace the existing transfer's primary
+raw-message pointer. Ledger amounts, account paths, totals and the other account's
+report remain unchanged. An audit records the selected fill source.
+
+No new model migration or historical data backfill is included. Existing affected
+records can be corrected with account-labelled balances in Transactions; the
+preview-first historical repair workflow remains planned. Deploy API before web.
+From `projects/finance-api`, verify with:
+
+```bash
+DATABASE_URL= DJANGO_DEBUG=true .venv/bin/python manage.py test \
+  apps.statements apps.transactions apps.accounts.test_balance_comparison
+```
+SQLite tests do not verify PostgreSQL lock/concurrency behavior.

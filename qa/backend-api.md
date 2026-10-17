@@ -1063,3 +1063,14 @@ list remains an array. Both use the same owned queryset, search, date filters,
 transfer account perspective and stable ordering. Bad paging/UUID inputs return
 400, unauthenticated requests return 401, and activity responses are private and
 non-cacheable. No new model or migration is required.
+
+### Can combined linking fill a transfer's missing receiving-account balance?
+
+Yes. The API selects the sole available or exactly agreeing source report for an
+eligible missing account balance; it preserves zero, protected null choices and
+original observations. Differing incoming reports require an explicit SMS or
+statement choice. The public eligibility boolean is advisory and recomputed under
+the writer lock. Primary-report fallback uses evidence creation order so attaching
+an earlier-timestamped receiver report cannot move the sender's balance ownership.
+This changes account report selection, not ledger movement totals. No migration
+or historical bulk repair is included; broader revalidation remains planned.

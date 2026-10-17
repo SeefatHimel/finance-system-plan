@@ -6144,6 +6144,9 @@ components:
           type: string
           nullable: true
           description: Current effective reported balance for the statement account; may differ from the matched historical observation.
+        can_fill_missing_balance:
+          type: boolean
+          description: True only for a genuinely unreported transfer-account balance; reviewed or ambiguous nulls are protected.
         detail_suggestions:
           type: array
           items:
@@ -6171,6 +6174,7 @@ components:
       - amount
       - balance_after
       - effective_balance_after
+      - can_fill_missing_balance
       - can_link
       - category_name
       - conflict

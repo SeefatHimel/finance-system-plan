@@ -261,6 +261,7 @@ class StatementMatchSerializer(serializers.Serializer):
     note = serializers.CharField()
     balance_after = serializers.CharField(allow_null=True)
     effective_balance_after = serializers.CharField(allow_null=True)
+    can_fill_missing_balance = serializers.BooleanField()
     detail_suggestions = StatementDetailSuggestionSerializer(many=True)
     conflict = serializers.BooleanField()
     can_link = serializers.BooleanField()

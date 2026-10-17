@@ -658,7 +658,8 @@ and amount corrections must preserve a unique source match; metadata and balance
 corrections retain the original source evidence that established the pair.
 evidence marks the reviewed effective balance per account without changing the
 original source reports. Existing ledger suggestions can be selected explicitly, with
-`balance_source=existing`, to retain their ledger balance. A separate pair
+`balance_source=existing`, to retain known/reviewed reports or fill a genuinely
+missing transfer report from agreeing/sole incoming evidence (see below). A separate pair
 requires `dismissed_ledger_matches` containing every current suggestion ID and
 `acknowledge_distinct_ledger_matches=true`; the server checks those IDs again
 before creating one transaction with both sources. HTTP 409 reports
@@ -720,3 +721,22 @@ It contains no React, storage, network or ledger mutation code and does not chan
 the generated HTTP contract. See [interface conventions](../../docs/interface-conventions.md).
 Regression coverage lives in web `tests/presentation.test.cjs` and
 `tests/movement-presentation.test.cjs`; both clients typecheck their imports.
+
+## Missing transfer reports in combined linking
+
+`StatementMatch.can_fill_missing_balance` is an additive boolean. It is true only
+when the reporting account has no report or only unselected, unreported captured
+evidence. Known values (including zero), effective null selections and ambiguous
+manual nulls are protected. Clients default the field to false on older servers.
+Eligibility is recomputed under the existing user lock; the client flag is not
+write authorization.
+
+When linking an existing transfer, `PairDecision.balance_source=existing` fills an
+eligible missing account report from agreeing or sole available evidence. If the
+incoming SMS and statement differ, the request must explicitly choose `sms` or
+`statement`; acknowledgement alone is insufficient. Those choices are rejected
+for existing known/protected reports. An unavailable source or fee-inclusive
+statement report cannot be selected. Existing link conflict, source-version,
+ownership, transaction-match and retry protections remain in force. No request
+shape or database migration changes; OpenAPI, generated types and the backend
+schema snapshot include the new response boolean.

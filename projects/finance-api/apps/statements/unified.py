@@ -21,6 +21,7 @@ from apps.messages.models import (
 )
 from apps.transactions.balance_reports import (
     account_reports,
+    can_fill_missing_transfer_balance,
     select_effective_account_report,
 )
 from apps.transactions.models import Transaction
@@ -715,10 +716,6 @@ def confirm_pair(*, user, row, candidate, payload, request):
         raise ValidationError(
             {"transaction": "Choose an existing suggested transaction."}
         )
-    if target and payload["balance_source"] != "existing":
-        raise ValidationError(
-            {"balance_source": "Linking retains the existing ledger balance."}
-        )
     if not target and payload["balance_source"] == "existing":
         raise ValidationError(
             {"balance_source": "Choose SMS or statement for a new transaction."}
@@ -759,9 +756,47 @@ def confirm_pair(*, user, row, candidate, payload, request):
             {"balance_source": "That source has no reported balance. Choose the source that reports one."}
         )
     existing_report = None
+    fill_source = None
+    can_fill = False
+    has_fee = row.batch.rows.filter(position=row.position, component="fee").exists()
     if target and target.type == "transfer":
         ensure_transfer_evidence(target)
         existing_report = account_reports(target)[0].get(row.batch.account_id)
+        can_fill = can_fill_missing_transfer_balance(target, row.batch.account_id)
+    if target:
+        if not can_fill and payload["balance_source"] != "existing":
+            raise ValidationError(
+                {
+                    "balance_source": "Linking retains the existing or previously reviewed balance. Correct it in Transactions before replacing it."
+                }
+            )
+        if can_fill:
+            incoming = {"sms": candidate.balance_after, "statement": row.balance_after}
+            if payload["balance_source"] == "existing":
+                if len({value for value in incoming.values() if value is not None}) > 1:
+                    raise ValidationError(
+                        {
+                            "balance_source": "This account has no saved balance and the incoming reports differ. Choose SMS or statement explicitly."
+                        }
+                    )
+                fill_source = next(
+                    (name for name, value in incoming.items() if value is not None),
+                    None,
+                )
+            else:
+                fill_source = payload["balance_source"]
+                if incoming[fill_source] is None:
+                    raise ValidationError(
+                        {
+                            "balance_source": "That source has no reported balance. Choose the source that reports one."
+                        }
+                    )
+            if fill_source == "statement" and has_fee:
+                raise ValidationError(
+                    {
+                        "balance_source": "This statement balance includes a separate fee. Choose the SMS report, or review the fee separately."
+                    }
+                )
     balance_choice = None
     if target:
         matches, _ = find_matches([row])
@@ -773,8 +808,8 @@ def confirm_pair(*, user, row, candidate, payload, request):
             if selected and selected["effective_balance_after"] is not None
             else None
         )
-        if selected:
-            # Unified linking preserves the current account report. Ordinary
+        if selected and not can_fill:
+            # Unified linking preserves known or reviewed account reports. Ordinary
             # statement review still offers explicit balance/detail replacement.
             balance_choice = {
                 "keep": "existing",
@@ -813,7 +848,6 @@ def confirm_pair(*, user, row, candidate, payload, request):
         combining_pending_sms=not target,
     )
     record = row.transaction
-    has_fee = row.batch.rows.filter(position=row.position, component="fee").exists()
     if has_fee and payload["balance_source"] == "statement" and not target:
         raise ValidationError(
             {
@@ -825,7 +859,8 @@ def confirm_pair(*, user, row, candidate, payload, request):
             selected_balance if record.account_id == row.batch.account_id else None
         )
         record.source = "sms"
-    if not record.raw_message_id:
+    if not record.raw_message_id and not (target and record.type == "transfer"):
+        # Attaching the other account's SMS must not move the primary report.
         record.raw_message = candidate.raw_message
     for field in (
         "sender_account_identifier",
@@ -852,15 +887,27 @@ def confirm_pair(*, user, row, candidate, payload, request):
             },
             candidate,
         )
-        selected_evidence = (
-            existing_report
-            if target
-            else sms_evidence
-            if payload["balance_source"] == "sms"
-            else record.transfer_evidence.get(external_key=f"statement-row:{row.pk}")
-        )
-        if selected_evidence and selected_evidence.account_id == row.batch.account_id:
+        report_source = fill_source if target else payload["balance_source"]
+        if report_source == "sms":
+            selected_evidence = sms_evidence
+        elif report_source == "statement":
+            selected_evidence = record.transfer_evidence.get(
+                external_key=f"statement-row:{row.pk}"
+            )
+        else:
+            selected_evidence = existing_report
+        # No reports means no reviewed null choice to manufacture either.
+        if (
+            selected_evidence
+            and selected_evidence.account_id == row.batch.account_id
+            and not (target and can_fill and fill_source is None)
+        ):
             select_effective_account_report(record, selected_evidence)
+        if target and fill_source:
+            _, primary = account_reports(record)
+            if primary and record.balance_after != primary.balance_after:
+                record.balance_after = primary.balance_after
+                record.save(update_fields=("balance_after", "updated_at"))
     candidate.transaction = record
     candidate.status = "confirmed"
     candidate.save(update_fields=("transaction", "status", "updated_at"))
@@ -873,6 +920,7 @@ def confirm_pair(*, user, row, candidate, payload, request):
             "decision": "unified_match",
             "sms_candidate": str(candidate.pk),
             "balance_source": payload["balance_source"],
+            "filled_report_from": fill_source,
         },
     )
     create_audit_log(

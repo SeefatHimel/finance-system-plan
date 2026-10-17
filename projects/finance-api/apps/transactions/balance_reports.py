@@ -29,9 +29,12 @@ def primary_transfer_evidence(record, items):
             (item for item in items if item.external_key == record.external_key), None
         )
     if not primary:
-        primary = next(
+        # Attachment order, not event timestamps, identifies the original report.
+        # A later-linked source can have an earlier printed/received timestamp.
+        primary = min(
             (item for item in items if not item.external_key.startswith("balance:")),
-            None,
+            key=lambda item: (item.created_at, str(item.pk)),
+            default=None,
         )
     # The captured sources keep their original balances. A reviewed choice can
     # select which observation supplies the effective report for this account.
@@ -57,6 +60,48 @@ def account_reports(record, items=None):
         if item.is_effective_balance:
             chosen[item.account_id] = item
     return chosen, primary
+
+
+def can_fill_missing_transfer_balance(record, account_id):
+    """Only absent/unreported capture evidence is eligible for link-time enrichment.
+
+    Effective nulls and non-captured nulls may be reviewed clears. Preserve them,
+    including legacy choices whose original intent cannot be reconstructed.
+    """
+    if record.type != Transaction.Type.TRANSFER or account_id not in {
+        record.account_id,
+        record.transfer_account_id,
+    }:
+        return False
+    items = list(record.transfer_evidence.all())
+    if has_unattributed_legacy_balance(record, items):
+        return False
+    reports = [
+        item
+        for item in items
+        if item.account_id == account_id and applies_to_transfer(record, item)
+    ]
+    if not reports:
+        # Match ensure_transfer_evidence's legacy attribution without writing.
+        legacy_account = record.account_id
+        if not items and record.raw_message_id:
+            from .transfers import INCOMING_KINDS
+
+            candidate = record.parsed_message_candidates.filter(
+                user=record.user, raw_message_id=record.raw_message_id
+            ).first()
+            if candidate and candidate.message_kind in INCOMING_KINDS:
+                legacy_account = record.transfer_account_id
+        return account_id != legacy_account or (
+            record.balance_after is None
+            and record.source in {Transaction.Source.SMS, Transaction.Source.IMPORT}
+        )
+    return all(
+        item.balance_after is None
+        and not item.is_effective_balance
+        and is_captured_report(item)
+        for item in reports
+    )
 
 
 def has_unattributed_legacy_balance(record, items=None):

@@ -18,6 +18,7 @@ from apps.audit_logs.services import create_audit_log, transaction_snapshot
 from apps.transactions.balance_reports import (
     account_reports,
     applies_to_transfer,
+    can_fill_missing_transfer_balance,
     has_unattributed_legacy_balance,
     primary_transfer_evidence,
     reported_values,
@@ -657,6 +658,7 @@ def _find_statement_matches(rows):
                         "balance_after": str(reported_balance)
                         if reported_balance is not None
                         else None,
+                        "can_fill_missing_balance": can_fill_missing_transfer_balance(record, batch.account_id),
                         "effective_balance_after": str(effective_balance)
                         if effective_balance is not None
                         else None,

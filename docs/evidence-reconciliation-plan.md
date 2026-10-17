@@ -1,7 +1,8 @@
 # Evidence reconciliation and historical revalidation plan
 
 Date: 2026-10-17
-Status: proposed implementation sequence; no runtime changes in this planning pass.
+Status: first combined-transfer missing-report correction implemented; the shared
+decision service, coverage workflow and historical revalidation remain planned.
 
 ## Outcome
 
@@ -295,3 +296,18 @@ inventory in preview mode and review representative proposals before applying an
 batch. Do not automatically backfill uncertain historical report choices during a
 schema migration. Keep reconciliation/auto-enrichment feature flags independently
 reversible and evidence automation off by default.
+
+## First delivery: combined transfer missing reports
+
+The focused first fix now selects agreeing/sole incoming reports for genuinely
+missing transfer-account balances, exposes eligibility to web review and requires
+an explicit source for differing reports. Known values and protected null choices
+are retained; no historical records are automatically rewritten. The primary
+report remains attached to the original account even if later-linked evidence
+has an earlier event timestamp. Regression fixtures are synthetic.
+
+This delivers the immediate correction, not the read-only production inventory,
+persistent clear-intent/knowledge models, shared proposal service, full link-mode
+redesign, coverage indicators or historical repair UI. Those remain the following
+implementation phases. Existing protected legacy blanks can still be corrected
+explicitly in Transactions while revalidation is developed.
