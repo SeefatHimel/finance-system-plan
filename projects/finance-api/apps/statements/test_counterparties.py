@@ -349,6 +349,10 @@ class CitytouchCounterpartyTests(APITestCase):
         self.assertEqual(suggestions([row])[row.id]["note"], "Reviewed payment note")
         from .models import StatementCounterpartyCode
 
+        saved_mapping = StatementCounterpartyCode.objects.get(pk=saved.data["id"])
+        saved_mapping.note_template = ""
+        saved_mapping.save(update_fields=["note_template"])
+        self.assertEqual(suggestions([row])[row.id]["note"], "Send Money · Synthetic payee")
         mapping = StatementCounterpartyCode.objects.get(pk=saved.data["id"])
         self.assertNotIn("01999990001", mapping.code)
         self.assertEqual(len(mapping.code), 64)

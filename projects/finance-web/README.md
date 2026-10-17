@@ -1313,7 +1313,11 @@ On a saved bKash import, **Refresh identifiers from saved PDF** can enrich
 older rows without reuploading the PDF. Enter its password only if the PDF was
 locked; a missing archive still needs an identical reupload. Exact full-number
 matches to another owned bKash wallet appear as review suggestions for Send
-Money, while verified merchant mappings can also offer a reusable note.
+Money, including that account's name. A verified phone-code mapping suggests
+its saved display name in Counterparty and a readable note containing the name;
+an explicit note template takes precedence. The combined review prefills these
+only while the saved fields still contain unedited source text. Manual edits
+and original statement evidence remain intact.
 Specific bKash bill categories appear only for recognized bill wording and
 remain editable during review.
 

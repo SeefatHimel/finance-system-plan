@@ -8,7 +8,7 @@ const source = readFileSync(resolve(__dirname, "../lib/unified-review-merchant.t
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } }).outputText;
 const shim = { exports: {} };
 new Function("module", "exports", compiled)(shim, shim.exports);
-const { initialUnifiedMerchant, merchantNoteSuggestion } = shim.exports;
+const { initialUnifiedMerchant, initialUnifiedNote, merchantNoteSuggestion } = shim.exports;
 
 const raw = "CT-FT-***8509-***9710";
 function row(counterparty, suggestion) {
@@ -28,6 +28,20 @@ test("manual merchant corrections and unmapped rows keep their current behavior"
   assert.equal(initialUnifiedMerchant(row("Chosen merchant", "HPL Board"), "Cash out"), "Chosen merchant");
   assert.equal(initialUnifiedMerchant(row(raw, null), "Cash out"), raw);
   assert.equal(initialUnifiedMerchant(row("", null), "Cash out"), "Cash out");
+});
+
+test("bKash recipient mapping suggests its verified name and note without replacing edits", () => {
+  const description = "01999990001 / TRX ID: SYNTHETIC";
+  const pending = {
+    counterparty_text: "01999990001",
+    note: description,
+    extracted: { description },
+    review: { suggestion: { counterparty_text: "Known recipient", note: "Send Money · Known recipient" } },
+  };
+  assert.equal(initialUnifiedMerchant(pending, "SMS detail"), "Known recipient");
+  assert.equal(initialUnifiedNote(pending, "SMS detail"), "Send Money · Known recipient");
+  assert.equal(initialUnifiedNote({ ...pending, note: "My edited note" }, "SMS detail"), "My edited note");
+  assert.equal(initialUnifiedMerchant({ ...pending, counterparty_text: "My edited name" }, "SMS detail"), "My edited name");
 });
 
 test("merchant note suggestion uses the current merchant without proposing a masked bank code", () => {

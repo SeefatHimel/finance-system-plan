@@ -126,7 +126,10 @@ def code_suggestions(rows):
             "category": str(category_id) if category_id else None,
             "other_account": str(other_account_id) if other_account_id else None,
             "counterparty_text": mapping.label,
-            "note": mapping.note_template,
+            "note": mapping.note_template or (
+                f"{row.extracted.get('provider_type') or 'bKash'} · {mapping.label}"
+                if row.batch.profile == "bkash" and ":phone:" in code else ""
+            ),
             "reason": f"Verified statement identifier for {mapping.label}. Check this transaction before applying.",
         }
     return result

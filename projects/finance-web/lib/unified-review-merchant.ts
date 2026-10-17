@@ -5,11 +5,20 @@ export function initialUnifiedMerchant(row: SavedStatementRow, smsMerchant: stri
   const savedMerchant = row.counterparty_text.trim();
   const sourceDescription = row.extracted.description.trim();
   const mappedMerchant = row.review.suggestion?.counterparty_text?.trim();
+  const sourceParty = sourceDescription.split(/\btrx\s*id\s*:/i, 1)[0].trim().replace(/[\s:/,-]+$/g, "");
 
-  if (mappedMerchant && (!savedMerchant || savedMerchant === sourceDescription)) {
+  if (mappedMerchant && (!savedMerchant || savedMerchant === sourceDescription || savedMerchant === sourceParty)) {
     return mappedMerchant;
   }
   return row.counterparty_text || smsMerchant;
+}
+
+/** A verified note may replace untouched source text in the combined draft. */
+export function initialUnifiedNote(row: SavedStatementRow, smsMerchant: string): string {
+  const savedNote = row.note.trim();
+  const mappedNote = row.review.suggestion?.note?.trim();
+  if (mappedNote && (!savedNote || savedNote === row.extracted.description.trim())) return mappedNote;
+  return row.note || smsMerchant;
 }
 
 /** Offer a readable merchant as the final note, never a masked bank reference. */

@@ -4,7 +4,7 @@ import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
 import { localDate } from "@/lib/date-period";
 import { proposedPairTime, timeAfterPairDateChange } from "@/lib/unified-review-time";
-import { initialUnifiedMerchant, merchantNoteSuggestion } from "@/lib/unified-review-merchant";
+import { initialUnifiedMerchant, initialUnifiedNote, merchantNoteSuggestion } from "@/lib/unified-review-merchant";
 import { categoryAfterPairTypeChoice, compatiblePairCategory, initialPairCategory, mappedPairCategory } from "@/lib/unified-review-category";
 import type { Account, Category, StatementRowEdit, TransactionType, UnifiedPair } from "@/lib/api";
 
@@ -35,7 +35,7 @@ export function initialPairDraft(pair: UnifiedPair, categories: Category[]): Sta
     category: initialPairCategory(row, sms, categories),
     reference: row.reference || sms.reference,
     counterparty_text: initialUnifiedMerchant(row, sms.counterparty_text),
-    note: row.note || sms.counterparty_text,
+    note: initialUnifiedNote(row, sms.counterparty_text),
   };
 }
 

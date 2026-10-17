@@ -1276,6 +1276,9 @@ an archived PDF still require an identical-file reupload. Passwords are never
 stored. A full Send Money recipient number matching exactly one active saved
 bKash wallet identifier suggests the other account for review; recharge and
 bill numbers never imply a transfer. Verified code mappings can suggest a note.
+For phone codes, a verified display name also supplies a readable note when no
+note template was entered. Exact owned-wallet matches suggest that account's
+name in both counterparty and note. Neither suggestion changes saved drafts.
 Explicitly remembered statement choices can also suggest a corrected note.
 New bKash bill drafts use Electricity, Internet, or Mobile Recharge for clear
 provider wording, with Utilities & Bills as the fallback. A migration refines

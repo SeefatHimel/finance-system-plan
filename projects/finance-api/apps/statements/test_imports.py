@@ -1723,6 +1723,8 @@ class StatementIdentitySuggestionTests(APITestCase):
         hint = suggestions([row])[row.id]
         self.assertEqual(hint["other_account"], str(owned.id))
         self.assertEqual(hint["type"], "transfer")
+        self.assertEqual(hint["counterparty_text"], "Other wallet")
+        self.assertEqual(hint["note"], "Send Money · Other wallet")
         self.assertEqual(row.type, "income")
         another = Account.objects.create(user=self.user, name="Third wallet", type="mobile_wallet", currency="BDT")
         second = PaymentMethod.objects.create(user=self.user, account=another, name="Third wallet method", provider="bkash")

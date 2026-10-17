@@ -141,6 +141,8 @@ def suggestions(rows):
                 result[row.id] = {
                     "type": "transfer", "category": None,
                     "other_account": str(account.id),
+                    "counterparty_text": account.name,
+                    "note": f"Send Money · {account.name}",
                     "reason": f"The full Send Money recipient matches a saved number for {account.name}. Verify ownership before applying.",
                 }
         if code:

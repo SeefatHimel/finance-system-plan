@@ -1054,6 +1054,10 @@ A password is supplied per request for locked PDFs. Clear Pay Bill and Mobile
 Recharge wording selects specific expense categories for new rows; a migration
 refines untouched pending generic bill rows. An exact full Send Money recipient
 match to one owned active bKash wallet suggests, but never posts, a transfer.
+Verified phone-code mappings suggest the saved name as counterparty and in a
+fallback note; an explicit note template overrides that fallback. An exact
+owned-wallet match likewise suggests its account name in both fields. These
+suggestions do not rewrite source evidence or saved drafts.
 
 ### Does pagination break existing transaction-list clients?
 
