@@ -8,8 +8,9 @@ import { getAccessToken } from "@/lib/auth-storage";
 import { directionForType, transactionTypes } from "@/lib/category-type";
 import {
   forgetStatementCounterpartyCode, listAccounts, listCategories,
-  listStatementCounterpartyCodes, saveStatementCounterpartyCode,
-  type Account, type Category, type StatementCounterpartyCode,
+  listStatementCounterpartyCodes, listStatementImports,
+  refreshStatementIdentifiers, saveStatementCounterpartyCode,
+  type Account, type Category, type SavedStatement, type StatementCounterpartyCode,
   type StatementCounterpartyCodeInput,
 } from "@/lib/api";
 
@@ -52,9 +53,14 @@ export function StatementCounterpartyDirectory() {
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [accountFilter, setAccountFilter] = useState("");
+  const [profileFilter, setProfileFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [shown, setShown] = useState(50);
   const [refresh, setRefresh] = useState(0);
+  const [recovering, setRecovering] = useState(false);
+  const [recoveryResult, setRecoveryResult] = useState<{
+    found: number; scanned: number; updated: number; issues: { id: string; label: string; reason: string }[];
+  } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -75,10 +81,51 @@ export function StatementCounterpartyDirectory() {
 
   const visible = useMemo(() => rows.filter((row) =>
     (!accountFilter || row.account === accountFilter)
+    && (!profileFilter || row.profile === profileFilter)
     && (!statusFilter || (statusFilter === "mapped" ? Boolean(row.mapping) : !row.mapping))
     && (!query || `${row.code} ${row.account_name} ${row.mapping?.label ?? ""}`.toLowerCase().includes(query.toLowerCase().trim()))
-  ), [rows, accountFilter, statusFilter, query]);
+  ), [rows, accountFilter, profileFilter, statusFilter, query]);
   const shownRows = visible.slice(0, shown);
+
+  async function recoverBkashIdentifiers() {
+    const token = getAccessToken();
+    if (!token || recovering) return;
+    setRecovering(true); setRecoveryResult(null); setError(null);
+    try {
+      let offset = 0;
+      const imports: SavedStatement[] = [];
+      while (true) {
+        const page = await listStatementImports(token, offset);
+        imports.push(...page.results.filter((item) => item.profile === "bkash"));
+        offset += page.results.length;
+        if (!page.next || !page.results.length) break;
+      }
+      let scanned = 0;
+      let updated = 0;
+      const issues: { id: string; label: string; reason: string }[] = [];
+      for (const item of imports) {
+        const label = `${item.account_name} · ${item.period_start ?? "unknown"}–${item.period_end ?? "unknown"}`;
+        if (!item.has_original_file) {
+          issues.push({ id: item.id, label, reason: "Saved PDF unavailable. Re-upload the identical statement." });
+          continue;
+        }
+        try {
+          updated += await refreshStatementIdentifiers(token, item.id);
+          scanned += 1;
+        } catch (reason) {
+          issues.push({ id: item.id, label, reason: reason instanceof Error ? reason.message : "Could not read this saved PDF. Open it to enter a PDF password if needed." });
+        }
+      }
+      setRecoveryResult({ found: imports.length, scanned, updated, issues });
+      setQuery(""); setAccountFilter(""); setStatusFilter(""); setProfileFilter("bkash"); setShown(50);
+      setRefresh((value) => value + 1);
+      notify(imports.length ? `Scanned ${scanned} saved bKash statement${scanned === 1 ? "" : "s"}; found ${updated} new identifier${updated === 1 ? "" : "s"}.` : "No saved bKash statements were found.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not list saved statements.");
+    } finally {
+      setRecovering(false);
+    }
+  }
 
   function open(row: StatementCounterpartyCode) {
     setEditing(`${row.account}:${row.profile}:${row.code}:${row.direction}`);
@@ -122,8 +169,14 @@ export function StatementCounterpartyDirectory() {
     <p className="inline-note">Bank operation and ledger purpose are separate. A Citytouch fund transfer can be an internal transfer, a payment, or another type. Your choice suggests details for pending rows; it never posts or changes a transaction automatically.</p>
     <p className="inline-note">For bKash, recipient/recharge numbers and merchant or biller labels can repeat. A TRX ID identifies just one movement, so it is never used as a recurring code. Verify any suggestion before recording.</p>
     <p><Link href="/statements">Back to statement reviews</Link></p>
+    <div className="statement-code-recovery">
+      <p>Only City Bank identifiers showing? Older bKash imports may need their saved PDFs scanned again. Reloading the import list does not extract identifiers. A password-protected PDF must be refreshed from its own statement review.</p>
+      <button className="button" type="button" disabled={recovering} onClick={() => void recoverBkashIdentifiers()}>{recovering ? "Scanning saved bKash PDFs…" : "Find identifiers in saved bKash PDFs"}</button>
+      {recoveryResult ? <div role="status"><p>{recoveryResult.found ? `Scanned ${recoveryResult.scanned} saved bKash PDFs and added identifiers to ${recoveryResult.updated} rows. If none were added, the rows may already have identifiers or lack a repeatable clue.` : "No saved bKash statements were found."}</p>{recoveryResult.issues.length ? <ul>{recoveryResult.issues.map((issue) => <li key={issue.id}><Link href={`/statements?import=${encodeURIComponent(issue.id)}`}>{issue.label}</Link>: {issue.reason}</li>)}</ul> : null}</div> : null}
+    </div>
     <div className="statement-code-filters">
       <label className="field"><span className="field__label">Search code or name</span><input className="field__control" type="search" value={query} onChange={(event) => { setQuery(event.target.value); setShown(50); }} /></label>
+      <label className="field"><span className="field__label">Statement type</span><select className="field__control" value={profileFilter} onChange={(event) => { setProfileFilter(event.target.value); setShown(50); }}><option value="">All statements</option><option value="city_bank">City Bank ({rows.filter((row) => row.profile === "city_bank").length})</option><option value="bkash">bKash ({rows.filter((row) => row.profile === "bkash").length})</option></select></label>
       <label className="field"><span className="field__label">Reporting account</span><select className="field__control" value={accountFilter} onChange={(event) => { setAccountFilter(event.target.value); setShown(50); }}><option value="">All accounts</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
       <label className="field"><span className="field__label">Mapping</span><select className="field__control" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setShown(50); }}><option value="">All</option><option value="unmapped">Needs identification</option><option value="mapped">Saved</option></select></label>
     </div>

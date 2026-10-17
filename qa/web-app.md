@@ -1097,8 +1097,12 @@ The directory shows bKash recipient, recharge, merchant, and biller clues
 alongside Citytouch codes. The user can verify a label, owned account, type, or
 category; these remain suggestions on pending drafts. bKash `TRX ID` values
 are excluded because they identify one movement. Older bKash imports can
-recover full recurring identifiers by uploading the identical original PDF
-again, while existing draft edits stay. A verified mapping presents its name
+recover full recurring identifiers from a saved PDF, while existing draft
+edits stay. The directory's explicit recovery action scans available archived
+bKash PDFs, then shows any import that needs its password or an identical
+reupload. It switches to a bKash-only view so recovered codes are easy to see.
+The Statements page's "Reload import list" only fetches history. A verified
+mapping presents its name
 beside Counterparty and in a suggested note. Combined review prefills both
 when the current values are still untouched source text; edited values win.
 The phone number itself cannot identify a person's name until the user saves

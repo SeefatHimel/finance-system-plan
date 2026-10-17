@@ -1315,12 +1315,16 @@ For bKash, the unique `TRX ID` is excluded. Full phone numbers are visible only
 to the signed-in owner in this directory; other source displays stay masked.
 New bKash `Pay Bill` and `Mobile Recharge` debit drafts use `Utilities & Bills`
 when that category is active. Older pending bills get the category after the
-backend migration; upload the identical PDF again to recover repeatable
-identifiers that older masked imports did not retain. Existing edits remain.
+backend migration. Existing edits remain.
 On a saved bKash import, **Refresh identifiers from saved PDF** can enrich
 older rows without reuploading the PDF. Enter its password only if the PDF was
-locked; a missing archive still needs an identical reupload. Exact full-number
-matches to another owned bKash wallet appear as review suggestions for Send
+locked; a missing archive still needs an identical reupload.
+The statement-identifier directory also offers **Find identifiers in saved
+bKash PDFs**. This scans available archives without a password, lists imports
+that need a PDF password or reupload, and switches to the bKash filter afterward.
+**Reload import list** on the Statements page only fetches the history; it does
+not extract identifiers.
+Exact full-number matches to another owned bKash wallet appear as review suggestions for Send
 Money, including that account's name. A verified phone-code mapping suggests
 its saved display name in Counterparty and a readable note containing the name;
 an explicit note template takes precedence. The combined review prefills these
