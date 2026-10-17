@@ -1219,3 +1219,20 @@ saved categories; clearing a category remains possible. Type changes clear
 incompatible categories. These changes require saving the draft and refreshing
 matches before a posting/link decision; neither the source evidence nor existing
 ledger transactions is rewritten automatically.
+
+### Is the compact layout shared by combined review and manual add/edit?
+
+Yes. A named CSS container measures the actual editor width, so the combined
+review's decision panel does not force three cramped columns into the form.
+Date/time share a grid slot, additional columns appear when there is room, and
+phone layouts stack. Add and edit use the same widened transaction dialog and
+fixed action footer. Optional notes/references and original evidence expand on
+demand; transfer accounts appear only for transfers. Conflicts and required
+linked-correction/review confirmations remain visible.
+
+The change only reorganizes the existing controlled inputs. Disclosure controls
+stay mounted and CSS resizing does not reinitialize the draft. Both account
+balances, optional fields and checked review decisions survive collapse/expand
+and resizing. Server validation of a collapsed field opens its disclosure and
+focuses it while retaining other edits. Existing account-bound balance rules,
+combined-source conflict decisions and save/undo APIs remain unchanged.

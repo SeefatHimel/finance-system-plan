@@ -1468,3 +1468,40 @@ Category regressions: `node --test tests/statement-draft-category.test.cjs`.
 The editor was also checked with synthetic data at 1440px, 900px and 390px for
 category suggestions, explicit clearing, disclosure state, account selection and
 draft saving. These checks do not exercise a live statement import or backend.
+
+### Compact combined review and transaction add/edit
+
+Combined SMS + statement review and the shared transaction add/edit dialog now
+use a named container grid. The available editor width determines one column at
+640px or below, two at intermediate widths, and three at 900px or above. Date and
+time occupy one grid slot, wrap when needed, and stack on phone viewports. The
+combined dialog may grow to 1640px while retaining its separate decision panel;
+the transaction dialog grows to 1240px. Both stay within the viewport.
+
+The combined result keeps type, category, direction, other account and merchant
+visible; its existing More transaction details disclosure now also holds the note
+and indicates when optional values exist. Source suggestions and all date/time
+rules still use the same controlled draft. Balance choices, conflicting reports,
+classification decisions and required acknowledgements stay in the decision
+panel, outside the optional fields.
+
+Transaction add and edit continue to share one form. Reference and note move into
+More details alongside payment method, source and masked identifiers. Original SMS
+and statement evidence start collapsed and remain available to expand. Account,
+amount, category, date/time and the reporting account's balance stay visible; the
+second transfer balance remains optional. Required linked-correction consent
+stays visible. The footer stays outside the scrolling field area.
+
+Disclosures keep their controls mounted. Collapse/expand and responsive resizing
+change presentation without resetting draft values, balance ownership or review
+checkboxes. Existing field validation still opens any containing disclosure,
+focuses the invalid control and preserves the other inputs. Submission handlers,
+duplicate checks, API payloads and undo behaviour are unchanged. No migration or
+APK rebuild is required.
+
+Verification includes the transaction-workflow, unified category/merchant/time,
+statement-review and review-feedback tests. Synthetic browser checks exercise
+combined review, create and edit at 1920px, 1440px, 900px and 390px, comparing
+inputs before/after collapse and resizing, checking account-bound balances and
+review confirmations, and validating the submitted values. Hidden-field server
+errors must expand the disclosure and focus its control without clearing edits.

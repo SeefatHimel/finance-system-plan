@@ -740,12 +740,31 @@ export function TransactionWorkspace() {
               const target = event.target as HTMLInputElement;
               if (target.name) setFieldErrors(current => { const next = { ...current }; delete next[target.name]; return next; });
             }}>
-            <div className="transaction-editor-fields">
+            <div className="transaction-editor-scroll compact-editor"><div className="transaction-editor-fields compact-editor-grid">
             {editorMode === "edit" ? <TransactionSourceMessages key={editingTransactionId} transactionId={editingTransactionId} /> : null}
             {editingTransaction?.statement_evidence_count ? <TransactionStatementEvidence key={`statement-${editingTransactionId}`} transactionId={editingTransactionId} /> : null}
-            <label className="field">
-              <span className="field__label">Type</span>
-              <select
+            <div className="transaction-datetime compact-editor-datetime" role="group" aria-label="Date and time">
+              <label className="field">
+                <span className="field__label">Date</span>
+                <input name="date" {...feedback("date")}
+                  className="field__control"
+                  onChange={(event) => setEditingDate(event.target.value)}
+                  required
+                  type="date"
+                  value={editingDate}
+                /><FieldError field="date" errors={fieldErrors} />
+              </label>
+
+              <div className="field">
+                <label className="field__label" htmlFor="edit-transaction-time">Time</label>
+                <input name="time" {...feedback("time")} id="edit-transaction-time" step="1" className="field__control" onChange={event => setEditingTime(event.target.value)} type="time" value={editingTime} /><FieldError field="time" errors={fieldErrors} />
+                <button className="quick-see-all" type="button" onClick={() => setClockEdit({ value: editingTime || currentTime() })}>Choose time on clock</button>
+              </div>
+            </div>
+
+            <div className="field">
+              <label className="field__label" htmlFor="edit-transaction-type">Type</label>
+              <select id="edit-transaction-type"
                 name="type" {...feedback("type")}
                 className="field__control"
                 onChange={(event) => changeEditingType(event.target.value as TransactionType)}
@@ -758,11 +777,11 @@ export function TransactionWorkspace() {
                   </option>
                 ))}
               </select><FieldError field="type" errors={fieldErrors} />
-            </label>
+            </div>
 
-            <label className="field">
-              <span className="field__label">Category</span>
-              <select
+            <div className="field">
+              <label className="field__label" htmlFor="edit-transaction-category">Category</label>
+              <select id="edit-transaction-category"
                 name="category" {...feedback("category")}
                 className="field__control"
                 disabled={isUpdating}
@@ -776,11 +795,11 @@ export function TransactionWorkspace() {
                   </option>
                 ))}
               </select><FieldError field="category" errors={fieldErrors} />
-            </label>
+            </div>
 
-            <label className="field">
-              <span className="field__label">{editingType === "transfer" ? "From account" : "Account"}</span>
-              <select
+            <div className="field">
+              <label className="field__label" htmlFor="edit-transaction-account">{editingType === "transfer" ? "From account" : "Account"}</label>
+              <select id="edit-transaction-account"
                 name="account" {...feedback("account")}
                 className="field__control"
                 onChange={(event) => {
@@ -798,11 +817,11 @@ export function TransactionWorkspace() {
                   </option>
                 ))}
               </select><FieldError field="account" errors={fieldErrors} />
-            </label>
+            </div>
 
-            {editingType === "transfer" ? <label className="field">
-              <span className="field__label">{editingType === "transfer" ? "To account" : "Transfer to"}</span>
-              <select
+            {editingType === "transfer" ? <div className="field">
+              <label className="field__label" htmlFor="edit-transaction-other-account">{editingType === "transfer" ? "To account" : "Transfer to"}</label>
+              <select id="edit-transaction-other-account"
                 name="transfer_account" {...feedback("transfer_account")}
                 className="field__control"
                 disabled={editingType !== "transfer"}
@@ -819,9 +838,9 @@ export function TransactionWorkspace() {
                   </option>
                 ))}
               </select><FieldError field="transfer_account" errors={fieldErrors} />
-            </label> : null}
+            </div> : null}
 
-            {editingType === "transfer" ? <div className="field field--wide transaction-direction-control">
+            {editingType === "transfer" ? <div className="field transaction-direction-control">
               <span className="field__label inline-help">Direction <HelpTooltip label="About transfer direction">Money moves from From (debit) to To (credit). Transfers between tracked accounts count as neither income nor expense.</HelpTooltip></span>
               <button className="button button--ghost" onClick={() => {
                 changeEditingContext({ account: editingTransferAccountId, transfer_account: editingAccountId });
@@ -829,9 +848,9 @@ export function TransactionWorkspace() {
                 setEditingPaymentMethodId("");
                 setAllowLinkedCorrection(false);
               }} type="button">Reverse transfer direction</button>
-            </div> : <label className="field">
-              <span className="field__label">Debit / credit</span>
-              <select
+            </div> : <div className="field">
+              <label className="field__label" htmlFor="edit-transaction-direction">Debit / credit</label>
+              <select id="edit-transaction-direction"
                 name="direction" {...feedback("direction")}
                 className="field__control"
                 onChange={(event) => setEditingDirection(event.target.value as TransactionDirection)}
@@ -841,7 +860,7 @@ export function TransactionWorkspace() {
                 <option value="debit">Debit</option>
                 <option value="credit">Credit</option>
               </select><FieldError field="direction" errors={fieldErrors} />
-            </label>}
+            </div>}
 
             <label className="field">
               <span className="field__label">Amount</span>
@@ -875,25 +894,6 @@ export function TransactionWorkspace() {
               <HelpTooltip label="About saved account reports">Original account reports remain attached to their accounts. Edit a balance or expand the other account balance to add a missing report. Neither creates another money movement.</HelpTooltip>
             </details> : null}
 
-            <div className="transaction-datetime" role="group" aria-label="Date and time">
-              <label className="field">
-                <span className="field__label">Date</span>
-                <input name="date" {...feedback("date")}
-                  className="field__control"
-                  onChange={(event) => setEditingDate(event.target.value)}
-                  required
-                  type="date"
-                  value={editingDate}
-                /><FieldError field="date" errors={fieldErrors} />
-              </label>
-
-              <div className="field">
-                <label className="field__label" htmlFor="edit-transaction-time">Time</label>
-                <input name="time" {...feedback("time")} id="edit-transaction-time" step="1" className="field__control" onChange={event => setEditingTime(event.target.value)} type="time" value={editingTime} /><FieldError field="time" errors={fieldErrors} />
-                <button className="quick-see-all" type="button" onClick={() => setClockEdit({ value: editingTime || currentTime() })}>Choose time on clock</button>
-              </div>
-            </div>
-
             <label className="field">
               <span className="field__label">Merchant / counterparty</span>
               <input name="counterparty_text" {...feedback("counterparty_text")}
@@ -904,6 +904,7 @@ export function TransactionWorkspace() {
               /><FieldError field="counterparty_text" errors={fieldErrors} />
             </label>
 
+            <details className="raw-message field--wide transaction-more-details"><summary>More details <span className="compact-editor-details-hint">Reference, note, payment method, identifiers{editingReference || editingNote || editingPaymentMethodId || editingSenderAccountIdentifier || editingSenderCardIdentifier || editingReceiverAccountIdentifier || editingReceiverCardIdentifier || editingNeedsReview ? " · contains values" : ""}</span>{editingPaymentMethodId ? ` · ${loadState.paymentMethods.find(method => method.id === editingPaymentMethodId)?.name ?? "Payment method selected"}` : ""}</summary><div className="transaction-more-details__fields">
             <div className="field">
               <div className="inline-help"><label className="field__label" htmlFor="edit-transaction-reference">Reference</label> <HelpTooltip label="About references">Optional bank or wallet reference. References may repeat.</HelpTooltip></div>
               <input name="reference" {...feedback("reference")} id="edit-transaction-reference"
@@ -926,7 +927,6 @@ export function TransactionWorkspace() {
               /><FieldError field="note" errors={fieldErrors} />
             </label>
 
-            <details className="raw-message field--wide transaction-more-details"><summary>More details{editingPaymentMethodId ? ` · ${loadState.paymentMethods.find(method => method.id === editingPaymentMethodId)?.name ?? "Payment method selected"}` : ""}</summary><div className="transaction-more-details__fields">
             <div className="field">
               <div className="inline-help"><label className="field__label" htmlFor="edit-payment-method">Payment method</label> <HelpTooltip label="About payment methods">Optional account-linked instrument, such as a debit card, credit card, wallet or cash. Saved identifiers and aliases help recognize SMS and statement accounts.</HelpTooltip></div>
               <select name="payment_method" {...feedback("payment_method")} id="edit-payment-method" className="field__control" onChange={(event) => setEditingPaymentMethodId(event.target.value)} value={editingPaymentMethodId}>
@@ -953,7 +953,7 @@ export function TransactionWorkspace() {
             <label className="review-remember field--wide"><input name="needs_review" {...feedback("needs_review")} checked={editingNeedsReview} onChange={(event) => setEditingNeedsReview(event.target.checked)} type="checkbox" /><FieldError field="needs_review" errors={fieldErrors} /><span><strong>Needs review</strong><small>Keep this ledger entry marked for further checking.</small></span></label>
             </div></details>
             {requiresLinkedCorrection ? <label className="review-remember field--wide"><input name="allow_linked_correction" {...feedback("allow_linked_correction")} checked={allowLinkedCorrection} onChange={(event) => setAllowLinkedCorrection(event.target.checked)} required type="checkbox" /><FieldError field="allow_linked_correction" errors={fieldErrors} /><span><strong>I reviewed the linked evidence and confirm this ledger correction</strong><small>Reversing direction keeps reports on the same accounts. Replacing an account clears the replaced account’s report before reassignment. Original SMS and statement snapshots stay unchanged as history.</small></span></label> : null}
-            </div>
+            </div></div>
             <div className="transaction-editor-actions">
               <span role="status">{Object.keys(fieldErrors).length ? "Check the highlighted fields." : ""}</span>
               <button className="button button--ghost" disabled={isUpdating || isSubmitting} onClick={closeEditor} type="button">Cancel</button>

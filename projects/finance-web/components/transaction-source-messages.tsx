@@ -38,7 +38,7 @@ export function TransactionSourceMessages({ transactionId }: { transactionId: st
   if (state.status === "ready" && state.messages.length === 0) return null;
 
   return (
-    <details className="raw-message field--wide transaction-source-messages" open>
+    <details className="raw-message field--wide transaction-source-messages">
       <summary>Original SMS{state.status === "ready" && state.messages.length > 1 ? ` (${state.messages.length} linked messages)` : ""}</summary>
       {state.status === "loading" ? <p role="status">Loading original SMS…</p> : null}
       {state.status === "error" ? <div><p role="alert">{state.message}</p><button className="button button--ghost button--small" onClick={() => setAttempt((current) => current + 1)} type="button">Retry loading SMS</button></div> : null}

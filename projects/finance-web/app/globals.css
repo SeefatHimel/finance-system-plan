@@ -3739,3 +3739,33 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
   .statement-draft-extra, .statement-draft-datetime { grid-template-columns: minmax(0, 1fr); }
   .statement-draft-more summary span { display: block; margin: 4px 0 0; }
 }
+
+/* Share a width-aware layout without changing or remounting editor drafts. */
+.compact-editor { container: compact-editor / inline-size; }
+.compact-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.compact-editor-grid > *, .compact-editor-datetime > .field { min-width: 0; }
+.compact-editor-datetime { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; min-width: 0; max-width: none; }
+.compact-editor-datetime > .field, .compact-editor-datetime > .field:first-child { flex: 1 1 140px; min-width: min(100%, 140px); }
+.compact-editor-datetime .field__control { min-width: 0; width: 100%; }
+.compact-editor-grid .field__control { min-width: 0; }
+.compact-editor-grid .field { grid-template-columns: minmax(0, 1fr); }
+.compact-editor-datetime .unified-suggestion { white-space: normal; overflow-wrap: anywhere; text-align: left; }
+.transaction-editor-fields > .raw-message { margin: 0; }
+.compact-editor-details-hint { color: var(--muted); font-size: 12px; font-weight: 400; margin-left: 8px; }
+.viewport-modal.transaction-editor-drawer { max-width: 1240px; }
+.transaction-editor-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; flex: 1; padding: 24px; }
+.transaction-editor-scroll > .transaction-editor-fields { padding: 0; overflow: visible; flex: none; }
+.transaction-direction-control .button { max-width: 100%; white-space: normal; }
+.viewport-modal.unified-pair-dialog { max-width: min(1640px, calc(100vw - 32px)); }
+@container compact-editor (min-width: 900px) {
+  .compact-editor-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container compact-editor (max-width: 640px) {
+  .compact-editor-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .compact-editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .transaction-editor-scroll { padding: 16px; }
+  .compact-editor-datetime > .field, .compact-editor-datetime > .field:first-child { flex-basis: 100%; }
+  .compact-editor-details-hint { display: block; margin: 4px 0 0; }
+}

@@ -28,7 +28,7 @@ export function TransactionStatementEvidence({ transactionId }: { transactionId:
   }, [transactionId, retry]);
   if (rows?.length === 0) return null;
   const batchIds = [...new Set(rows?.map((row) => row.batch) ?? [])];
-  return <details className="raw-message field--wide" open><summary>Statement evidence{rows ? ` (${rows.length})` : ""}</summary>
+  return <details className="raw-message field--wide"><summary>Statement evidence{rows ? ` (${rows.length})` : ""}</summary>
     {!rows && !error ? <p role="status">Loading statement evidence…</p> : null}
     {error ? <><p role="alert">{error}</p><button className="button button--small" type="button" onClick={() => setRetry((n) => n + 1)}>Retry statement evidence</button></> : null}
     {batchIds.map((id) => <div className="statement-original-source" key={id}>
