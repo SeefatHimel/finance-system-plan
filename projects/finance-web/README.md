@@ -1395,3 +1395,15 @@ to false. No APK rebuild or new database migration is needed for this API/web fi
 Previously affected records are not automatically rewritten; the historical
 revalidation workflow is still planned. Run the statement-review regressions,
 web typecheck/lint/build and synthetic browser checks at desktop/phone widths.
+
+### Statement search and PDF password autofill
+
+Statement row search has its own named search form, disables credential autofill
+hints and ignores background changes to an unfocused field. Only editing the
+search control changes its debounced API filter; reload starts empty. PDF unlock
+inputs are mounted only after choosing “PDF password (if needed)”, have distinct
+document-only names and `new-password` autocomplete semantics, and remain separate
+from login fields. Hiding the field clears its transient value; submission still
+clears passwords. Saved login/password-manager behaviour on the actual login form
+is unchanged. Browser extensions may ignore hints; validate the deployed browser
+if unwanted autofill recurs.

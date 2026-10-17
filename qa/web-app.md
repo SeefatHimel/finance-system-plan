@@ -1159,3 +1159,16 @@ blank reports retain their existing selection, with correction available in
 Transactions. The link confirmation sends the selected source and existing ledger
 ID without creating another movement. This first fix does not yet implement the
 larger intent-specific form or historical-revalidation workflow.
+
+### How is document unlock separated from saved login autofill?
+
+A PDF password is an optional transient document secret, not an account password.
+The input is absent until requested, uses a dedicated document name and
+`new-password` autocomplete hint, and is isolated from the statement row search.
+Search has a distinct search form/name, autocomplete off and a focus guard, so a
+background username injection cannot become a debounced search. Reload starts
+with no search filter. Actual login fields retain username/current-password
+semantics, and document passwords still clear on submission or hiding. Extensions
+can override browser hints; synthetic browser tests reproduce background
+injection and verify normal typing remains usable without accessing saved real
+credentials.
