@@ -1,3 +1,4 @@
+import { CompactFields } from "./compact-form";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import type { Category } from "./api";
@@ -60,24 +61,26 @@ export function ClassificationFields({
     }
   }
   return (
-    <View style={{ gap: 14 }}>
-      <SearchSelect
-        label="Transaction type"
-        value={type}
-        options={transactionTypes.map((id) => ({ id, name: displayLabel(id) }))}
-        onChange={chooseType}
-        disabled={disabled}
-      />
-      <SearchSelect
-        label="Category"
-        value={category}
-        options={categories
-          .filter((item) => item.is_active !== false || item.id === category)
-          .map((item) => ({ ...item, detail: displayLabel(item.kind) }))}
-        emptyLabel="No category"
-        onChange={chooseCategory}
-        disabled={disabled}
-      />
+    <View style={{ gap: 12 }}>
+      <CompactFields minFieldWidth={180} maxColumns={2}>
+        <SearchSelect
+          label="Transaction type"
+          value={type}
+          options={transactionTypes.map((id) => ({ id, name: displayLabel(id) }))}
+          onChange={chooseType}
+          disabled={disabled}
+        />
+        <SearchSelect
+          label="Category"
+          value={category}
+          options={categories
+            .filter((item) => item.is_active !== false || item.id === category)
+            .map((item) => ({ ...item, detail: displayLabel(item.kind) }))}
+          emptyLabel="No category"
+          onChange={chooseCategory}
+          disabled={disabled}
+        />
+      </CompactFields>
       {proposal ? (
         <View style={ui.card}>
           <Text accessibilityRole="alert" style={ui.text}>

@@ -1,6 +1,7 @@
 import { reviewDraftError } from "./src/review-validation";
 import { ActionButton, SourceMessage, ui } from "./src/mobile-ui";
 import { SyncSummary, useServerSyncStatus } from "./src/sync-summary";
+import { ManualEntryFields, type ManualEntryDraft } from "./src/manual-entry-fields";
 import { ReviewFields, type ReviewDraft } from "./src/review-fields";
 import { AccountSummary } from "./src/account-summary";
 import { TransactionEditor } from "./src/transaction-editor";
@@ -3206,72 +3207,18 @@ function FinanceApp() {
         </View>
       </View>
       <ScrollView key={advancedTool} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {advancedTool === "entry" ? <View style={styles.card}>          <Text style={styles.sectionTitle}>Quick Add Transaction</Text>
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setTxAccountId}
-            placeholder="Account ID"
-            style={styles.input}
-            value={txAccountId}
-          />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setTxCategoryId}
-            placeholder="Category ID (optional)"
-            style={styles.input}
-            value={txCategoryId}
-          />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setTxDate}
-            placeholder="Date (YYYY-MM-DD)"
-            style={styles.input}
-            value={txDate}
-          />
-          <NativeTimeField value={txTime} onChange={setTxTime} />
-          <TextInput placeholder="Merchant / counterparty" value={txCounterparty} onChangeText={setTxCounterparty} style={styles.input} />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setTxType}
-            placeholder="Type (expense/income/transfer...)"
-            style={styles.input}
-            value={txType}
-          />
-          {txType.trim() === "transfer" ? <View>
-            <Text style={styles.mobileStateText}>Choose debit when this account sends, or credit when it receives.</Text>
-            <View style={styles.mobileChoiceRow}>{["debit", "credit"].map((direction) => <Pressable key={direction} onPress={() => setTxDirection(direction)} style={styles.mobileChoice}><Text style={styles.mobileChoiceText}>{txDirection === direction ? "✓ " : ""}{direction}</Text></Pressable>)}</View>
-            <Text style={styles.mobileStateText}>Other transfer account</Text>
-            {accounts.filter((account) => account.id !== txAccountId).map((account) => <Pressable key={account.id} onPress={() => setTxTransferAccountId(account.id)} style={styles.mobileChoice}><Text style={styles.mobileChoiceText}>{txTransferAccountId === account.id ? "✓ " : ""}{account.name}</Text></Pressable>)}
-          </View> : null}
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="decimal-pad"
-            onChangeText={setTxAmount}
-            placeholder="Amount (e.g. 1200.00)"
-            style={styles.input}
-            value={txAmount}
-          />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="decimal-pad"
-            onChangeText={setTxBalanceAfter}
-            placeholder="Reported balance after (optional)"
-            style={styles.input}
-            value={txBalanceAfter}
-          />
-          <TextInput
-            autoCapitalize="sentences"
-            onChangeText={setTxNote}
-            placeholder="Note (optional)"
-            style={styles.input}
-            value={txNote}
-          />
+        {advancedTool === "entry" ? <View style={styles.card}>          <Text style={styles.sectionTitle}>Add transaction</Text>
+          <ManualEntryFields accounts={accounts} categories={categories} busy={txState === "loading" || transactionQueueState === "loading"}
+            error={txState === "error" ? txMessage : transactionQueueState === "error" ? transactionQueueMessage : ""}
+            draft={{ account: txAccountId, category: txCategoryId, type: txType, direction: txDirection, transfer_account: txTransferAccountId,
+              amount: txAmount, balance_after: txBalanceAfter, date: txDate, time: txTime, counterparty_text: txCounterparty, note: txNote }}
+            onChange={patch => {
+              const setters: { [K in keyof ManualEntryDraft]: (value: string) => void } = {
+                account: setTxAccountId, category: setTxCategoryId, type: setTxType, direction: setTxDirection, transfer_account: setTxTransferAccountId,
+                amount: setTxAmount, balance_after: setTxBalanceAfter, date: setTxDate, time: setTxTime, counterparty_text: setTxCounterparty, note: setTxNote,
+              };
+              for (const key of Object.keys(patch) as (keyof ManualEntryDraft)[]) if (patch[key] !== undefined) setters[key](patch[key]!);
+            }} />
           <Pressable onPress={handleQuickAddTransaction} style={styles.button}>
             <Text style={styles.buttonText}>Save transaction</Text>
           </Pressable>
@@ -4178,7 +4125,7 @@ function FinanceApp() {
               </View>;
             })}
 
-            <ReviewFields draft={draft} accounts={accounts} categories={categories} paymentMethods={paymentMethods} busy={isWorking} onChange={patch => updateReviewDraft(candidate, patch)} />
+            <ReviewFields error={reviewState === "error" ? reviewMessage : ""} draft={draft} accounts={accounts} categories={categories} paymentMethods={paymentMethods} busy={isWorking} onChange={patch => updateReviewDraft(candidate, patch)} />
 
           </View>
           </>

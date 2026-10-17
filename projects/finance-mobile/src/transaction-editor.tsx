@@ -28,7 +28,7 @@ import {
   ui,
 } from "./mobile-ui";
 import { ClassificationFields } from "./classification-fields";
-import { NativeDateField, NativeTimeField } from "./native-time-field";
+import { CompactFields, CompactDateTime } from "./compact-form";
 import { Disclosure } from "./disclosure";
 import {
   formatCalendarDate,
@@ -155,10 +155,10 @@ export function TransactionEditor({
       if (linked && (!ack || sourceError || sourcesLoading))
         throw new Error(
           sourceError ||
-            (sourcesLoading
-              ? "Wait for linked source evidence before confirming this correction."
-              : "") ||
-            "Review the linked sources and confirm the correction before saving.",
+          (sourcesLoading
+            ? "Wait for linked source evidence before confirming this correction."
+            : "") ||
+          "Review the linked sources and confirm the correction before saving.",
         );
       const selectedCategory = categories.find(
         (item) => item.id === draft.category,
@@ -308,73 +308,84 @@ export function TransactionEditor({
             disabled={busy}
             onChange={change}
           />
-          <SearchSelect
-            label={draft.type === "transfer" ? "From account" : "Account"}
-            value={draft.account}
-            options={accountOptions}
-            disabled={busy}
-            onChange={(account) => change({ account, payment_method: "" })}
-          />
-          {draft.type === "transfer" ? (
-            <>
-              <SearchSelect
-                label="To account"
-                value={draft.transfer_account}
-                options={accountOptions.filter(
-                  (item) => item.id !== draft.account,
-                )}
-                disabled={busy}
-                onChange={(transfer_account) => change({ transfer_account })}
-              />
-              <Text style={ui.text}>
-                {name(draft.account)} →{" "}
-                {draft.transfer_account
-                  ? name(draft.transfer_account)
-                  : "Choose destination"}
-              </Text>
-              <ActionButton
-                label="Reverse transfer direction"
-                disabled={busy}
-                onPress={() =>
-                  change({
-                    account: draft.transfer_account,
-                    transfer_account: draft.account,
-                    payment_method: "",
-                  })
-                }
-              />
-            </>
-          ) : (
+          <CompactFields>
             <SearchSelect
-              label="Debit / credit"
-              value={draft.direction}
-              options={[
-                { id: "debit", name: "Debit · money out" },
-                { id: "credit", name: "Credit · money in" },
-              ]}
+              label={draft.type === "transfer" ? "From account" : "Account"}
+              value={draft.account}
+              options={accountOptions}
               disabled={busy}
-              onChange={(direction) => change({ direction })}
+              onChange={(account) => change({ account, payment_method: "" })}
             />
-          )}
-          <InputField
-            label="Amount"
-            value={draft.amount}
-            keyboardType="decimal-pad"
-            editable={!busy}
-            onChangeText={(amount) => change({ amount })}
-          />
-          <InputField
-            label={`Reported balance after · ${name(primary)}`}
-            value={draft.balances[primary] ?? ""}
-            keyboardType="numbers-and-punctuation"
-            editable={!busy}
-            placeholder="Optional"
-            onChangeText={(value) =>
-              change({ balances: { ...draft.balances, [primary]: value } })
-            }
-          />
+            {draft.type === "transfer" ? (
+              <View style={{ gap: 8 }}>
+                <SearchSelect
+                  label="To account"
+                  value={draft.transfer_account}
+                  options={accountOptions.filter(
+                    (item) => item.id !== draft.account,
+                  )}
+                  disabled={busy}
+                  onChange={(transfer_account) => change({ transfer_account })}
+                />
+                <Text style={ui.text}>
+                  {name(draft.account)} →{" "}
+                  {draft.transfer_account
+                    ? name(draft.transfer_account)
+                    : "Choose destination"}
+                </Text>
+                <ActionButton
+                  label="Reverse transfer direction"
+                  disabled={busy}
+                  onPress={() =>
+                    change({
+                      account: draft.transfer_account,
+                      transfer_account: draft.account,
+                      payment_method: "",
+                    })
+                  }
+                />
+              </View>
+            ) : (
+              <SearchSelect
+                label="Debit / credit"
+                value={draft.direction}
+                options={[
+                  { id: "debit", name: "Debit · money out" },
+                  { id: "credit", name: "Credit · money in" },
+                ]}
+                disabled={busy}
+                onChange={(direction) => change({ direction })}
+              />
+            )}
+            <InputField
+              label="Amount"
+              value={draft.amount}
+              keyboardType="decimal-pad"
+              editable={!busy}
+              onChangeText={(amount) => change({ amount })}
+            />
+            <InputField
+              label={`Reported balance after · ${name(primary)}`}
+              value={draft.balances[primary] ?? ""}
+              keyboardType="numbers-and-punctuation"
+              editable={!busy}
+              placeholder="Optional"
+              onChangeText={(value) =>
+                change({ balances: { ...draft.balances, [primary]: value } })
+              }
+            />
+            <CompactDateTime date={draft.date} time={draft.time} disabled={busy}
+              onDate={date => change({ date })} onTime={time => change({ time })} />
+            <InputField
+              label="Merchant / counterparty"
+              value={draft.counterparty_text}
+              editable={!busy}
+              maxLength={255}
+              onChangeText={(counterparty_text) => change({ counterparty_text })}
+            />
+          </CompactFields>
           {other ? (
-            <Disclosure label={`Other reported balance · ${name(other)}`}>
+            <Disclosure label={`Other reported balance · ${name(other)}`} revealKey={/balance/i.test(error) ? error : ""}>
               <InputField
                 label={`Reported balance after · ${name(other)}`}
                 value={draft.balances[other] ?? ""}
@@ -391,77 +402,52 @@ export function TransactionEditor({
             Reported balances stay attached to their accounts; they do not move
             money.
           </Text>
-          {!busy ? (
-            <View style={ui.row}>
-              <View style={{ flex: 1, minWidth: 150, gap: 6 }}>
-                <Text style={ui.muted}>Date</Text>
-                <NativeDateField
-                  label="Transaction date"
-                  value={draft.date}
-                  onChange={(date) => change({ date })}
-                />
-              </View>
-              <View style={{ flex: 1, minWidth: 150, gap: 6 }}>
-                <Text style={ui.muted}>Time</Text>
-                <NativeTimeField
-                  label="Transaction time"
-                  value={draft.time}
-                  onChange={(time) => change({ time })}
-                />
-              </View>
-            </View>
-          ) : null}
-          <InputField
-            label="Merchant / counterparty"
-            value={draft.counterparty_text}
-            editable={!busy}
-            maxLength={255}
-            onChangeText={(counterparty_text) => change({ counterparty_text })}
-          />
-          <InputField
-            label="Reference"
-            value={draft.reference}
-            editable={!busy}
-            maxLength={160}
-            onChangeText={(reference) => change({ reference })}
-          />
-          <InputField
-            label="Note"
-            value={draft.note}
-            editable={!busy}
-            multiline
-            maxLength={4000}
-            onChangeText={(note) => change({ note })}
-          />
-          <Disclosure label="More details">
-            <SearchSelect
-              label="Payment method"
-              value={draft.payment_method}
-              emptyLabel="No payment method"
-              options={paymentMethods
-                .filter((item) => item.account === draft.account)
-                .map((item) => ({ id: item.id, name: item.name }))}
-              disabled={busy}
-              onChange={(payment_method) => change({ payment_method })}
-            />
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{
-                checked: draft.needs_review,
-                disabled: busy,
-              }}
-              disabled={busy}
-              onPress={() => change({ needs_review: !draft.needs_review })}
-              style={ui.button}
-            >
-              <Text style={ui.text}>
-                {draft.needs_review ? "☑" : "☐"} Needs review
+          <Disclosure label="More details" revealKey={error}>
+            <CompactFields>
+              <InputField
+                label="Reference"
+                value={draft.reference}
+                editable={!busy}
+                maxLength={160}
+                onChangeText={(reference) => change({ reference })}
+              />
+              <InputField
+                label="Note"
+                value={draft.note}
+                editable={!busy}
+                multiline
+                maxLength={4000}
+                onChangeText={(note) => change({ note })}
+              />
+              <SearchSelect
+                label="Payment method"
+                value={draft.payment_method}
+                emptyLabel="No payment method"
+                options={paymentMethods
+                  .filter((item) => item.account === draft.account)
+                  .map((item) => ({ id: item.id, name: item.name }))}
+                disabled={busy}
+                onChange={(payment_method) => change({ payment_method })}
+              />
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{
+                  checked: draft.needs_review,
+                  disabled: busy,
+                }}
+                disabled={busy}
+                onPress={() => change({ needs_review: !draft.needs_review })}
+                style={ui.button}
+              >
+                <Text style={ui.text}>
+                  {draft.needs_review ? "☑" : "☐"} Needs review
+                </Text>
+              </Pressable>
+              <Text style={ui.muted}>
+                Source: {row.source}. Original identifiers and evidence stay with
+                the saved record.
               </Text>
-            </Pressable>
-            <Text style={ui.muted}>
-              Source: {row.source}. Original identifiers and evidence stay with
-              the saved record.
-            </Text>
+            </CompactFields>
           </Disclosure>
           {linked ? (
             <View style={ui.card}>

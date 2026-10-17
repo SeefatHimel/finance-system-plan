@@ -1,14 +1,17 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 /** Keep optional controls mounted so opening help never resets a draft. */
 export function Disclosure({
   label,
   children,
+  revealKey,
 }: {
   label: string;
   children: ReactNode;
+  revealKey?: string;
 }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => { if (revealKey) setOpen(true); }, [revealKey]);
   return (
     <View style={{ gap: 8 }}>
       <Pressable

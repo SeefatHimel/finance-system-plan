@@ -754,3 +754,42 @@ of physical keyboard, TalkBack or visual layout behavior. No new database
 migration is added; the existing transaction Edit/Undo and account comparison
 endpoints must be deployed. A recovery status failure never disables ordinary
 review. Saved views and the privacy toggle remain deferred.
+
+### Compact review and transaction forms
+
+SMS review, full manual entry, saved-entry editing and Quick Add share native
+compact form layouts. The grid measures its own available width and permits up
+to three columns with a 260-point minimum field width. Larger system text raises
+that minimum, so narrow screens and enlarged fonts stack rather than squeeze
+controls. Classification and date/time groups may use two columns when they fit.
+Date/time share one main-grid slot; native picker buttons sit beside exact text
+inputs, with labelled 48-point targets. Seconds already present in a draft remain
+unchanged until the user explicitly picks or edits a time.
+
+Main account, type/category, amount, reporting-account balance, date/time and
+merchant stay visible. Reference, note and payment method are grouped in mounted
+More details disclosures where supported. Saved-entry source evidence and the
+second transfer balance retain their existing disclosures. Transfer account
+selectors appear only for transfers; balance-ownership notices and required
+linked-correction acknowledgement stay visible. Validation opens More details,
+and balance errors also open the secondary report in the saved-entry editor.
+
+The full manual-entry screen now uses the existing searchable account/category
+and type controls instead of asking users for raw IDs. It retains the existing
+online save/offline queue handlers. Quick Add keeps its preset and offline flow;
+its optional fields and date/time controls now stay mounted when hidden. Busy
+saved-entry editing disables date/time controls instead of unmounting them.
+
+Resizing, larger text, disclosures and reference/token refreshes change
+presentation without replacing inputs or resetting draft state. SMS drafts stay
+keyed by candidate in the current workspace; account-bound balance ownership,
+category/type confirmation, save/undo, duplicate checks and queue retry rules
+retain their existing behavior. This does not introduce draft persistence across
+logout/restart, an automatic save or a new backend migration.
+
+Run `npm run typecheck` and `npm test`. Added component regressions exercise
+container widths, enlarged text, open search sheets, stable input identity,
+optional-field disclosure, busy date/time retention, exact seconds, zero and dual
+transfer balances, linked consent and the outgoing edited PATCH. Native host
+mocks cannot verify Android IME, TalkBack, wrapping or physical window geometry;
+use the signed-release checklist on a phone before accepting those behaviors.

@@ -39,7 +39,8 @@ import {
   type PendingQuickEntry,
 } from "./quick-entry-queue";
 import { readSecureDocument, writeSecureDocument } from "./secure-document";
-import { NativeDateField, NativeTimeField } from "./native-time-field";
+import { CompactFields, CompactDateTime } from "./compact-form";
+import { Disclosure } from "./disclosure";
 import {
   applyQuickPreset,
   blankPreset,
@@ -99,7 +100,6 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
       { input: blankPreset() },
     );
     const [all, setAll] = useState(false),
-      [details, setDetails] = useState(false),
       [timeOpen, setTimeOpen] = useState(false);
     const [error, setError] = useState(""),
       [notice, setNotice] = useState(""),
@@ -140,7 +140,7 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
     const updateQueue = useCallback(
       (change: (previous: Pending[]) => Pending[]) => {
         const task = writing.current
-          .catch(() => {})
+          .catch(() => { })
           .then(async () => {
             if (!scope || !(await SecureStore.isAvailableAsync()))
               throw new Error(
@@ -200,16 +200,16 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                 items.map((item) =>
                   item.input.client_request_id === id
                     ? {
-                        ...item,
-                        attempts: item.attempts + 1,
-                        retryAt: quickRetryAt(item.attempts),
-                        error: message,
-                        blocked,
-                        status:
-                          err && typeof err === "object" && "status" in err
-                            ? Number(err.status)
-                            : undefined,
-                      }
+                      ...item,
+                      attempts: item.attempts + 1,
+                      retryAt: quickRetryAt(item.attempts),
+                      error: message,
+                      blocked,
+                      status:
+                        err && typeof err === "object" && "status" in err
+                          ? Number(err.status)
+                          : undefined,
+                    }
                     : item,
                 ),
               );
@@ -252,7 +252,7 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
         setData(next);
         setError("");
         const task = cacheWriting.current
-          .catch(() => {})
+          .catch(() => { })
           .then(async () => {
             if (alive.current && version === refreshVersion.current)
               await writeSecureDocument(
@@ -438,9 +438,9 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
     function edit(preset?: QuickPreset, duplicate = false) {
       const input = preset
         ? {
-            ...preset,
-            name: duplicate ? `${preset.name} copy`.slice(0, 120) : preset.name,
-          }
+          ...preset,
+          name: duplicate ? `${preset.name} copy`.slice(0, 120) : preset.name,
+        }
         : { ...blankPreset(), display_order: data.presets.length };
       setEditing({ id: duplicate ? undefined : preset?.id, input });
       setSurface("preset");
@@ -612,7 +612,7 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                               {entry.error || "Waiting to sync"}
                             </Text>
                             {entry.blocked &&
-                            isRejectedEntry({ status: entry.status }) ? (
+                              isRejectedEntry({ status: entry.status }) ? (
                               <Action
                                 label="Correct pending entry"
                                 onPress={() => editPending(entry)}
@@ -651,61 +651,65 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                 ) : null}
                 {surface === "entry" ? (
                   <>
-                    <Field
-                      label="Amount"
-                      value={draft.amount}
-                      onChange={(amount) => choose({ amount })}
-                      numeric
-                      inputRef={primaryInput}
-                    />
-                    <Choices
-                      label="Account"
-                      value={draft.account}
-                      options={activeAccounts}
-                      favorites={data.presets
-                        .filter((p) => p.is_enabled && p.is_favorite)
-                        .map((p) => p.account)
-                        .filter((id): id is string => Boolean(id))}
-                      onChange={(account) => choose({ account })}
-                      limit={4}
-                    />
-                    <Choices
-                      label="Category"
-                      value={draft.category}
-                      options={data.categories.filter(
-                        (c) =>
-                          c.is_active !== false &&
-                          categoryFits(c.kind, draft.type),
-                      )}
-                      favorites={data.presets
-                        .filter((p) => p.is_enabled && p.is_favorite)
-                        .map((p) => p.category)
-                        .filter((id): id is string => Boolean(id))}
-                      onChange={(category) => choose({ category })}
-                      allowEmpty
-                    />
-                    <Text style={s.muted}>
-                      {draft.type === "expense"
-                        ? "Expense · Money out"
-                        : "Income · Money in"}
-                    </Text>
-                    <Action
-                      label="Change entry type"
-                      onPress={() => {
-                        const type =
-                          draft.type === "expense" ? "income" : "expense";
-                        choose({
-                          type,
-                          category: data.categories.some(
-                            (c) =>
-                              c.id === draft.category &&
-                              categoryFits(c.kind, type),
-                          )
-                            ? draft.category
-                            : "",
-                        });
-                      }}
-                    />
+                    <CompactFields>
+                      <Field
+                        label="Amount"
+                        value={draft.amount}
+                        onChange={(amount) => choose({ amount })}
+                        numeric
+                        inputRef={primaryInput}
+                      />
+                      <Choices
+                        label="Account"
+                        value={draft.account}
+                        options={activeAccounts}
+                        favorites={data.presets
+                          .filter((p) => p.is_enabled && p.is_favorite)
+                          .map((p) => p.account)
+                          .filter((id): id is string => Boolean(id))}
+                        onChange={(account) => choose({ account })}
+                        limit={4}
+                      />
+                      <Choices
+                        label="Category"
+                        value={draft.category}
+                        options={data.categories.filter(
+                          (c) =>
+                            c.is_active !== false &&
+                            categoryFits(c.kind, draft.type),
+                        )}
+                        favorites={data.presets
+                          .filter((p) => p.is_enabled && p.is_favorite)
+                          .map((p) => p.category)
+                          .filter((id): id is string => Boolean(id))}
+                        onChange={(category) => choose({ category })}
+                        allowEmpty
+                      />
+                      <View style={{ gap: 8 }}>
+                        <Text style={s.muted}>
+                          {draft.type === "expense"
+                            ? "Expense · Money out"
+                            : "Income · Money in"}
+                        </Text>
+                        <Action
+                          label="Change entry type"
+                          onPress={() => {
+                            const type =
+                              draft.type === "expense" ? "income" : "expense";
+                            choose({
+                              type,
+                              category: data.categories.some(
+                                (c) =>
+                                  c.id === draft.category &&
+                                  categoryFits(c.kind, type),
+                              )
+                                ? draft.category
+                                : "",
+                            });
+                          }}
+                        />
+                      </View>
+                    </CompactFields>
                     <View style={s.row}>
                       <Action
                         label="Today"
@@ -741,50 +745,19 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                       label="Change date/time"
                       onPress={() => setTimeOpen(!timeOpen)}
                     />
-                    {timeOpen ? (
-                      <>
-                        <NativeDateField
-                          value={
-                            draft.dateMode === "today" ? localDay() : draft.date
-                          }
-                          onChange={(date) =>
-                            choose({ date, dateMode: "custom" })
-                          }
-                        />
-                        <NativeTimeField
-                          value={draft.time}
-                          onChange={(time) =>
-                            choose({ time, timeMode: "custom" })
-                          }
-                        />
-                        <Action
-                          label="Time unknown"
-                          onPress={() => choose({ timeMode: "none" })}
-                        />
-                      </>
-                    ) : null}
-                    <Action
-                      label={details ? "Fewer details" : "More details"}
-                      onPress={() => setDetails(!details)}
-                    />
-                    {details ? (
-                      <>
-                        <Field
-                          label="Merchant / counterparty"
-                          value={draft.counterparty_text}
-                          onChange={(counterparty_text) =>
-                            choose({ counterparty_text })
-                          }
-                          maxLength={255}
-                        />
-                        <Field
-                          label="Note"
-                          value={draft.note}
-                          onChange={(note) => choose({ note })}
-                          maxLength={2000}
-                        />
-                      </>
-                    ) : null}
+                    <View style={{ display: timeOpen ? "flex" : "none", gap: 8 }}
+                      accessibilityElementsHidden={!timeOpen} importantForAccessibility={timeOpen ? "auto" : "no-hide-descendants"}>
+                      <CompactDateTime date={draft.dateMode === "today" ? localDay() : draft.date} time={draft.time} disabled={busy}
+                        onDate={date => choose({ date, dateMode: "custom" })} onTime={time => choose({ time, timeMode: "custom" })} />
+                      <Action label="Time unknown" onPress={() => choose({ timeMode: "none" })} />
+                    </View>
+                    <Disclosure label="More details" revealKey={error}>
+                      <CompactFields>
+                        <Field label="Merchant / counterparty" value={draft.counterparty_text}
+                          onChange={counterparty_text => choose({ counterparty_text })} maxLength={255} />
+                        <Field label="Note" value={draft.note} onChange={note => choose({ note })} maxLength={2000} />
+                      </CompactFields>
+                    </Disclosure>
                     <Text style={s.muted}>
                       Apply another preset; typed amount/note are retained.
                     </Text>

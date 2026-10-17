@@ -18,6 +18,8 @@ function nativeHarness(api = {}, os = "android") {
       "View",
     ].map((name) => [name, name]),
   );
+  let dimensions = { width: 390, height: 844, scale: 1, fontScale: 1 };
+  native.useWindowDimensions = () => dimensions;
   native.Platform = { OS: os };
   native.StyleSheet = { create: (value) => value };
   native.AppState = {
@@ -78,6 +80,7 @@ function nativeHarness(api = {}, os = "android") {
   }
   return {
     load: (file) => load(resolve(__dirname, "../../src", file)),
+    resize: (patch) => { dimensions = { ...dimensions, ...patch }; },
     resume: () => listeners.forEach((callback) => callback("active")),
   };
 }

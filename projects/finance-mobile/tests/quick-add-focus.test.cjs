@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { readFileSync } = require("node:fs");
+const { readFileSync, existsSync } = require("node:fs");
 const { resolve } = require("node:path");
 const ts = require("typescript");
 const React = require("react");
@@ -27,6 +27,7 @@ function harness(os = "android") {
     listCategories: async () => [],
     listQuickPresets: async () => [preset],
   };
+  let dimensions = { width: 390, height: 844, fontScale: 1, scale: 1 };
   const native = {
     Alert: {},
     AppState: { currentState: "active", addEventListener: (_event, callback) => {
@@ -36,12 +37,14 @@ function harness(os = "android") {
     KeyboardAvoidingView: "KeyboardAvoidingView",
     Modal: ({ visible, ...props }) => visible ? React.createElement("Modal", props) : null,
     Platform: { OS: os },
+    useWindowDimensions: () => dimensions,
     Pressable: "Pressable", ScrollView: "ScrollView", Text: "Text",
     TextInput: "TextInput", View: "View", StyleSheet: { create: (value) => value },
   };
   const cache = new Map();
   function load(file) {
     file = resolve(file);
+    if (!existsSync(file)) file += existsSync(file + ".tsx") ? ".tsx" : ".ts";
     if (cache.has(file)) return cache.get(file).exports;
     const mod = { exports: {} };
     cache.set(file, mod);
@@ -58,7 +61,7 @@ function harness(os = "android") {
       };
       if (name === "./api") return api;
       if (name === "./native-time-field") return { NativeDateField: "NativeDateField", NativeTimeField: "NativeTimeField" };
-      return load(resolve(file, "..", `${name}.ts`));
+      return load(resolve(file, "..", name));
     });
     return mod.exports;
   }
@@ -82,6 +85,12 @@ function harness(os = "android") {
       const pending = [...frames.values()]; frames.clear(); pending.forEach((callback) => callback());
     }); },
     input(label) { return tree.root.findAllByType("TextInput").find((node) => node.props.accessibilityLabel === label); },
+    field(type) { return tree.root.findByType(type); },
+    async layout(width, fontScale = 1) { await act(async () => {
+      dimensions = { ...dimensions, width, fontScale };
+      tree.update(React.createElement(QuickAddHub, props));
+      for (const node of tree.root.findAllByType("View").filter(node => node.props.onLayout)) node.props.onLayout({ nativeEvent: { layout: { width } } });
+    }); },
     keyboardView() { return tree.root.findByType("KeyboardAvoidingView"); },
     async press(label) { await act(async () => {
       const button = tree.root.findAllByType("Pressable").find((node) =>
@@ -167,6 +176,34 @@ test("iOS retains padding-based keyboard avoidance and also waits until the moda
     assert.deepEqual(h.focused, []);
     await h.shown();
     await h.flushFrames();
+    assert.deepEqual(h.focused, ["Amount"]);
+  } finally { await h.dispose(); }
+});
+
+
+test("Quick Add keeps optional fields and exact date/time mounted through collapse, font scaling and refresh", async () => {
+  const h = harness();
+  await h.mount();
+  try {
+    await h.openEntry(); await h.shown(); await h.flushFrames();
+    await h.type("Amount", "125.50");
+    await h.press("More details");
+    await h.type("Note", "Keep the optional draft");
+    const note = h.input("Note"), amount = h.input("Amount");
+    await h.press("More details");
+    await h.press("Change date/time");
+    const date = h.field("NativeDateField"), time = h.field("NativeTimeField");
+    await act(async () => { date.props.onChange("2026-10-02"); time.props.onChange("17:08:29"); });
+    await h.press("Change date/time");
+    for (const [width, font] of [[280, 1], [580, 1], [900, 1], [900, 2]]) {
+      await h.layout(width, font);
+      assert.equal(h.input("Amount"), amount); assert.equal(h.input("Note"), note);
+      assert.equal(h.field("NativeDateField"), date); assert.equal(h.field("NativeTimeField"), time);
+    }
+    await h.refreshAndRerender();
+    await h.press("More details"); await h.press("Change date/time");
+    assert.equal(note.props.value, "Keep the optional draft"); assert.equal(amount.props.value, "125.50");
+    assert.equal(date.props.value, "2026-10-02"); assert.equal(time.props.value, "17:08:29");
     assert.deepEqual(h.focused, ["Amount"]);
   } finally { await h.dispose(); }
 });

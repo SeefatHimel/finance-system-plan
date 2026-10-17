@@ -20,13 +20,18 @@ export function NativeTimeField({
   value,
   onChange,
   label,
+  compact = false,
+  disabled = false,
 }: {
   value: string;
   label?: string;
+  compact?: boolean;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   const [ios, setIos] = useState<Date | null>(null);
   function open() {
+    if (disabled) return;
     const date = new Date();
     if (/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value))
       date.setHours(Number(value.slice(0, 2)), Number(value.slice(3, 5)), 0, 0);
@@ -43,33 +48,40 @@ export function NativeTimeField({
     else setIos(date);
   }
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: 8, ...(compact ? { flexDirection: "row-reverse", alignItems: "center" } as const : {}) }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={
-          label ? `Choose ${label.toLowerCase()} on clock` : undefined
+          `Choose ${(label ?? "time").toLowerCase()} on clock`
         }
+        disabled={disabled}
+        accessibilityState={{ disabled }}
         onPress={open}
         style={{
           backgroundColor: presentationColors.selected,
           borderRadius: 8,
           padding: 12,
           minHeight: 48,
+          minWidth: 48,
           justifyContent: "center",
         }}
       >
         <Text style={{ color: presentationColors.accent, fontWeight: "700" }}>
-          Choose time on clock
+          {compact ? "◷" : "Choose time on clock"}
         </Text>
       </Pressable>
       <TextInput
         accessibilityLabel={`${label ?? "Exact time"} HH:MM`}
         value={value}
+        editable={!disabled}
         onChangeText={onChange}
         keyboardType="numbers-and-punctuation"
         placeholder="HH:MM"
         placeholderTextColor="#91a7c2"
         style={{
+          ...(compact ? { flex: 1, minWidth: 0 } : {}),
+          minHeight: 48,
+          fontSize: 16,
           backgroundColor: "#0a1725",
           color: "white",
           borderWidth: 1,
@@ -139,13 +151,18 @@ export function NativeDateField({
   value,
   onChange,
   label,
+  compact = false,
+  disabled = false,
 }: {
   value: string;
   label?: string;
+  compact?: boolean;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   const [ios, setIos] = useState<Date | null>(null);
   function open() {
+    if (disabled) return;
     const date =
       formatCalendarDate(value) !== "Unknown date"
         ? new Date(`${value}T12:00:00`)
@@ -166,35 +183,39 @@ export function NativeDateField({
     else setIos(Number.isNaN(date.getTime()) ? new Date() : date);
   }
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: 8, ...(compact ? { flexDirection: "row-reverse", alignItems: "center" } as const : {}) }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={
-          label ? `Choose ${label.toLowerCase()} on calendar` : undefined
+          `Choose ${(label ?? "date").toLowerCase()} on calendar`
         }
+        disabled={disabled}
+        accessibilityState={{ disabled }}
         onPress={open}
         style={{
           backgroundColor: presentationColors.selected,
           borderRadius: 8,
           padding: 12,
           minHeight: 48,
+          minWidth: 48,
           justifyContent: "center",
         }}
       >
         <Text style={{ color: presentationColors.accent, fontWeight: "700" }}>
-          Choose date
-          {formatCalendarDate(value) !== "Unknown date"
-            ? ` · ${formatCalendarDate(value)}`
-            : ""}
+          {compact ? "▦" : `Choose date${formatCalendarDate(value) !== "Unknown date" ? ` · ${formatCalendarDate(value)}` : ""}`}
         </Text>
       </Pressable>
       <TextInput
         accessibilityLabel={`${label ?? "Exact date"} YYYY-MM-DD`}
         value={value}
+        editable={!disabled}
         onChangeText={onChange}
         placeholder="YYYY-MM-DD"
         placeholderTextColor="#91a7c2"
         style={{
+          ...(compact ? { flex: 1, minWidth: 0 } : {}),
+          minHeight: 48,
+          fontSize: 16,
           backgroundColor: "#0a1725",
           color: "white",
           borderWidth: 1,

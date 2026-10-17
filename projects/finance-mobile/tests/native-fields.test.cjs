@@ -214,3 +214,20 @@ test("a receiving report keeps its exact balance on its own account and cannot m
   assert.equal(reviewReportedBalance("12.34", "", "bank"), "12.34");
   assert.equal(reviewReportedBalance("12.34", "bank", ""), null);
 });
+
+
+test("compact native pickers retain exact inputs and expose disabled 48-point affordances", async () => {
+  const h = harness();
+  for (const [Component, value] of [[h.fields.NativeDateField, "2026-10-02"], [h.fields.NativeTimeField, "17:07:29"]]) {
+    let tree;
+    const render = disabled => React.createElement(Component, { compact: true, value, disabled, onChange() {} });
+    await act(async () => { tree = create(render(false)); });
+    const field = tree.root.findByType("TextInput"), picker = tree.root.findByType("Pressable");
+    assert.equal(field.props.value, value); assert.equal(picker.props.style.minWidth, 48); assert.equal(picker.props.style.minHeight, 48);
+    assert.match(picker.props.accessibilityLabel, /Choose .* on (calendar|clock)/);
+    await act(async () => tree.update(render(true)));
+    assert.equal(tree.root.findByType("TextInput"), field); assert.equal(field.props.editable, false);
+    assert.equal(picker.props.accessibilityState.disabled, true);
+    await act(async () => tree.unmount());
+  }
+});

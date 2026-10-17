@@ -687,3 +687,25 @@ check. Automated checks cover classification decisions, balance ownership, full
 SMS retention, stale edits/owners, repeated taps and lost Undo responses. Physical
 phone layout, keyboard, TalkBack and end-to-end SMS acceptance remain separate
 release smoke checks.
+
+### How do compact native forms avoid losing edits or squeezing small screens?
+
+A shared grid measures available form width and scales its minimum cell width
+with the system font size. Phones stack, and wider layouts can add columns.
+Date/time share a main slot with native calendar/clock affordances beside exact
+inputs; targets remain at least 48 points. Optional reference/note/payment details
+stay mounted behind an accessible disclosure, while transfer warnings and linked
+correction consent stay visible. Full entry uses searchable names instead of IDs.
+
+Column changes update wrapper widths without moving fields between parents.
+Disclosure and Quick Add date/time toggles hide their existing children instead
+of destroying them, and busy saved editing disables its pickers without removing
+them. Temporary drafts, exact seconds, zero values, both account-bound balances,
+search text and consent therefore survive layout/refresh changes. Validation
+reveals optional details. Existing confirmation, undo, matching and offline queue
+APIs stay unchanged; no migration or durable draft storage is added.
+
+Component regressions check input identity, selected values and outgoing patches
+at narrow/wide widths and enlarged font sizes, including Quick Add's native-window
+focus timing. They do not replace an installed-device keyboard, accessibility or
+visual layout check. Build and install the new signed APK to receive these changes.
