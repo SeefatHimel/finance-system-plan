@@ -79,15 +79,13 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.13**, Android version code **14**. It adds searchable
-native review choices, full SMS viewing, account-bound balance corrections,
-saved-transaction editing and latest-action Edit/Undo recovery. Capture separates
-queue/correction/retry counts and shows server-reported success times; Accounts
-show dated ledger/report comparisons. Batch upload, duplicate protection and the
-existing encrypted queues retain their earlier behavior. Install this APK to
-receive these native screens. The API must already provide transaction recovery,
-source evidence, Activity and account comparison endpoints; deploy existing API
-migrations first. This mobile change adds no migration.
+The current release is **0.1.14**, Android version code **15**. It adds compact,
+width-aware SMS review, full entry, saved-entry editing and Quick Add layouts.
+Optional details stay mounted, date/time use compact native affordances, and
+larger fonts reduce columns. Full entry uses searchable account/category names.
+Existing account-bound balances, category confirmations, linked consent, offline
+queues and batch SMS sync retain their behavior. No new API endpoint or migration
+is needed; use the existing deployed API required by release 0.1.13.
 
 ## 5. Build the signed APK
 
@@ -110,7 +108,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.13.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.14.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -214,7 +212,7 @@ Share diagnostics must contain no message body, sender, user or credential.
 Test slow responses, rejected records and a temporarily failing first record
 with synthetic data. A failing record must not block valid later records.
 
-Release 0.1.8 is superseded because its sign-in bridge failed. Use 0.1.13 with
+Release 0.1.8 is superseded because its sign-in bridge failed. Use 0.1.14 with
 the same signing key. Verify transfer comparison
 scrolling and fixed actions, local review date/time, direction changes retaining
 edited fields, required same-account balance choices, tap-to-open help, and
@@ -350,3 +348,42 @@ Physical-device acceptance remains required:
 
 Automated React Native host tests verify state, requests and ownership guards;
 they do not validate Android window layout, physical keyboard or TalkBack behavior.
+
+
+## Compact form release 0.1.14
+
+Use the same typecheck, JavaScript and Android module checks as above, then build
+`assembleRelease` with JDK 17 and the existing private signing configuration.
+Verify **0.1.14/code 15**, production API URL, embedded JavaScript and icon font,
+and compare its signing certificate with `finance-mobile-0.1.13.apk`. Copy to
+`dist/releases/finance-mobile-0.1.14.apk` and retain a SHA-256 checksum. Binaries
+and local verification output remain ignored. Upgrade in place with the same key.
+
+The automated gate is mobile typecheck, all **67 JavaScript tests** (including
+compact-form/Quick Add retention regressions) and **38 Android module tests**.
+Component host checks cover actual-container widths and enlarged text without
+remounting controls, open searchable selectors, collapse/expand, exact seconds,
+zero and dual transfer balances, linked consent and the submitted edit patch.
+The 48-point picker affordances retain accessible calendar/clock labels and exact
+text entry. No backend migration or queue reset is introduced.
+
+On the installed phone, test SMS review, Quick Add, full entry and Activity Edit:
+
+- Type amount, date/time, merchant, note and reference where offered. Expand and
+  collapse details, reopen search sheets, refresh lookups and background/resume;
+  verify the draft and keyboard remain usable. Do not reload/reset the app to
+  test temporary draft retention.
+- Check the narrowest screen and enlarged system text. Fields must stack, labels
+  must wrap and picker buttons remain reachable. Wider screens may add columns.
+- For transfers, verify both balances stay attached to their named accounts and
+  linked correction consent remains visible. Switch to a non-transfer and check
+  that the other account disappears; a layout change alone must alter no value.
+- Trigger validation while optional details are closed. The error must remain
+  visible and details must open without clearing other edits. Save once and
+  verify the ledger, Edit/Undo and retained offline queues.
+- Test TalkBack, Android Back, calendar/clock cancel, keyboard scrolling and the
+  previous sign-in/SMS sync smoke checks, especially on OnePlus 12R / Android 16.
+
+There is no attached physical device or configured emulator in the build
+environment. Automated state/build checks do not establish physical IME,
+TalkBack, native wrapping or end-to-end SMS acceptance behavior.

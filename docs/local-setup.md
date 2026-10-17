@@ -562,8 +562,9 @@ mobile typecheck and `test:sms-sync` before signed assembly. Phone-specific
 root-cause evidence comes from Show sync diagnostics in Capture; its operational
 metadata can be shared without SMS bodies or credentials.
 
-Mobile release 0.1.13 uses Android code 14 and adds native review editing,
-latest-action recovery and clearer sync/account summaries. It retains batch SMS sync. Deploy the
+Mobile release 0.1.14 uses Android code 15 and adds compact native review, full-entry,
+Quick Add and saved-edit forms that retain drafts across layout changes. It retains
+native review editing, latest-action recovery, sync/account summaries and batch SMS sync. Deploy the
 API with `/api/messages/import/batch/` for batches of up to 25; older servers
 remain usable through single-upload fallback. It includes session-scoped caches,
 paged review and explicit restoration of redacted SMS. It retains the
@@ -572,7 +573,7 @@ From `projects/finance-mobile`, run `npm run typecheck` and
 `node --test tests/*.test.cjs`, then from `android` run
 `NODE_ENV=production ./gradlew :finance-sms-capture:testReleaseUnitTest assembleRelease`.
 Keep the existing private signing key and upgrade in place to retain local SMS.
-The versioned output is `projects/finance-mobile/dist/releases/finance-mobile-0.1.13.apk`;
+The versioned output is `projects/finance-mobile/dist/releases/finance-mobile-0.1.14.apk`;
 release binaries remain ignored. Native tests, assembly and signature were
 verified; physical-device keyboard, sign-in and SMS checks remain separate.
 
@@ -632,7 +633,7 @@ From `projects/finance-mobile`, run `npm run typecheck` and `npm test` for all
 mobile JavaScript regressions; `npm run test:review` targets native editor,
 selection, balance, recovery and sync-status interaction tests. Then run the
 Android unit/assembly commands above with JDK 17 and the existing external
-signing configuration. The 0.1.13 APK consumes existing transaction PATCH,
+signing configuration. The 0.1.14 APK consumes existing transaction PATCH,
 source-messages, statement-evidence, recent-action and undo endpoints. There is no
 new database migration in this mobile pass. Recovery reads refresh on foreground
 and after accepted saves; status reads refresh after upload completion, rather

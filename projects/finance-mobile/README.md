@@ -793,3 +793,7 @@ optional-field disclosure, busy date/time retention, exact seconds, zero and dua
 transfer balances, linked consent and the outgoing edited PATCH. Native host
 mocks cannot verify Android IME, TalkBack, wrapping or physical window geometry;
 use the signed-release checklist on a phone before accepting those behaviors.
+
+Release **0.1.14 / Android code 15** includes the compact forms. Install the same-key
+upgrade from `dist/releases/finance-mobile-0.1.14.apk`; see the
+[signed release checklist](docs/signed-android-release.md#compact-form-release-0114).
