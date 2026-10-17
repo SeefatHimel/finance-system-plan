@@ -64,6 +64,7 @@ covering current phase-1 backend endpoints:
   `logout-all`, `me`)
 - Accounts CRUD
 - Categories CRUD
+- Owner-scoped category usage counts from posted ledger transactions, including unused categories
 - Payment methods CRUD
 - SMS sender rules CRUD
 - Raw SMS import with duplicate response shape

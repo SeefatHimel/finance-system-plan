@@ -32,3 +32,8 @@ class CategorySerializer(serializers.ModelSerializer):
             else Category.objects.none()
         )
         return fields
+
+
+class CategoryUsageSerializer(serializers.Serializer):
+    category = serializers.UUIDField()
+    transaction_count = serializers.IntegerField(min_value=0)

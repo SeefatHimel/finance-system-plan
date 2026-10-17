@@ -19,6 +19,7 @@ import {
   deleteCategory,
   listAccounts,
   listCategories,
+  listCategoryUsage,
   revealPaymentMethodIdentifiers,
   updateAccount,
   updateCategory
@@ -33,7 +34,7 @@ import { accountIdentityInput, emptyAccountIdentity, type AccountIdentityDraft }
 type SetupState =
   | { status: "loading" }
   | { message: string; status: "error" }
-  | { accounts: Account[]; categories: Category[]; status: "ready" };
+  | { accounts: Account[]; categories: Category[]; categoryUsage: Record<string, number> | null; status: "ready" };
 
 const accountTypes: AccountType[] = [
   "cash",
@@ -162,11 +163,12 @@ export function SetupWorkspace() {
     setSetupState({ status: "loading" });
 
     try {
-      const [accounts, categories] = await Promise.all([
+      const [accounts, categories, categoryUsage] = await Promise.all([
         listAccounts(accessToken),
-        listCategories(accessToken)
+        listCategories(accessToken),
+        listCategoryUsage(accessToken).catch(() => null)
       ]);
-      setSetupState({ accounts, categories, status: "ready" });
+      setSetupState({ accounts, categories, categoryUsage, status: "ready" });
     } catch (error) {
       setSetupState({
         message: error instanceof Error ? error.message : "Could not load setup data.",
@@ -238,7 +240,7 @@ export function SetupWorkspace() {
       });
       form.reset();
       setSetupState((current) => current.status === "ready"
-        ? { ...current, categories: sortByName([...current.categories, category]) }
+        ? { ...current, categories: sortByName([...current.categories, category]), categoryUsage: current.categoryUsage === null ? null : { ...current.categoryUsage, [category.id]: 0 } }
         : current);
       setDrawer(null);
       setNotice(`Category “${category.name}” added.`);
@@ -532,7 +534,24 @@ export function SetupWorkspace() {
             setupState.categories.length === 0 ? (
               <div className="empty-state empty-state--centered"><div className="empty-state__icon">◇</div><strong>No categories yet</strong><span>Create categories for expenses, income, transfers, and debt.</span><button className="button button--primary" onClick={() => setDrawer("category-create")} type="button">Add category</button></div>
             ) : (
-              <><div className="data-toolbar"><label className="search-control"><span aria-hidden="true">⌕</span><input aria-label="Search categories" onChange={(event) => setCategorySearch(event.target.value)} placeholder="Search categories" type="search" value={categorySearch} /></label><div className="data-toolbar__filters"><select aria-label="Filter categories by kind" className="compact-select" onChange={(event) => setCategoryKindFilter(event.target.value as CategoryKind | "all")} value={categoryKindFilter}><option value="all">All kinds</option>{categoryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></div></div>{visibleCategories.length === 0 ? <div className="empty-state empty-state--centered empty-state--compact"><strong>No matching categories</strong><span>Try a different search term or filter.</span><button className="button button--ghost" onClick={() => { setCategorySearch(""); setCategoryKindFilter("all"); }} type="button">Clear filters</button></div> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Name</th><th>Kind</th><th className="align-right">Actions</th></tr></thead><tbody>{visibleCategories.map((category) => <tr key={category.id}><td><strong>{category.name}</strong></td><td><span className="type-label">{category.kind}</span></td><td><div className="row-actions"><button className="button button--ghost button--small" onClick={() => handleSelectCategory(category.id)} type="button">Edit</button><button className="button button--danger button--small" disabled={deletingCategoryId === category.id} onClick={() => void handleDeleteCategory(category)} type="button">{deletingCategoryId === category.id ? "Deleting…" : "Delete"}</button></div></td></tr>)}</tbody></table></div>}</>
+              <>
+                <div className="data-toolbar">
+                  <label className="search-control"><span aria-hidden="true">⌕</span><input aria-label="Search categories" onChange={(event) => setCategorySearch(event.target.value)} placeholder="Search categories" type="search" value={categorySearch} /></label>
+                  <div className="data-toolbar__filters"><select aria-label="Filter categories by kind" className="compact-select" onChange={(event) => setCategoryKindFilter(event.target.value as CategoryKind | "all")} value={categoryKindFilter}><option value="all">All kinds</option>{categoryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></div>
+                </div>
+                {setupState.categoryUsage === null ? <p className="inline-note" role="status">Transaction counts are unavailable right now.</p> : null}
+                {visibleCategories.length === 0 ? <div className="empty-state empty-state--centered empty-state--compact"><strong>No matching categories</strong><span>Try a different search term or filter.</span><button className="button button--ghost" onClick={() => { setCategorySearch(""); setCategoryKindFilter("all"); }} type="button">Clear filters</button></div> : (
+                  <div className="table-wrap"><table className="data-table"><thead><tr><th>Name</th><th>Kind</th><th>Transactions</th><th className="align-right">Actions</th></tr></thead><tbody>{visibleCategories.map((category) => {
+                    const count = setupState.categoryUsage?.[category.id];
+                    return <tr key={category.id}>
+                      <td><strong>{category.name}</strong></td>
+                      <td><span className="type-label">{category.kind}</span></td>
+                      <td>{count === undefined ? "—" : count === 0 ? "0" : <Link aria-label={`View ${count} transactions in ${category.name}`} href={`/transactions?category=${encodeURIComponent(category.id)}&month=&date_view=all`}>{count}</Link>}</td>
+                      <td><div className="row-actions"><button className="button button--ghost button--small" onClick={() => handleSelectCategory(category.id)} type="button">Edit</button><button className="button button--danger button--small" disabled={deletingCategoryId === category.id} onClick={() => void handleDeleteCategory(category)} type="button">{deletingCategoryId === category.id ? "Deleting…" : "Delete"}</button></div></td>
+                    </tr>;
+                  })}</tbody></table></div>
+                )}
+              </>
             )
           )}
         </div>

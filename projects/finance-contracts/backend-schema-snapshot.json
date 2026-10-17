@@ -488,6 +488,32 @@
         ]
       }
     },
+    "/api/categories/usage/": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryUsage"
+                  },
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/categories/{id}/": {
       "delete": {
         "parameters": [
@@ -5634,6 +5660,23 @@
         "system"
       ],
       "type": "string"
+    },
+    "CategoryUsage": {
+      "properties": {
+        "category": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "transaction_count": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "category",
+        "transaction_count"
+      ],
+      "type": "object"
     },
     "CodeExample": {
       "properties": {

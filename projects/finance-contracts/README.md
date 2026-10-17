@@ -95,6 +95,9 @@ The generated files in `generated/` are produced from `openapi.yaml`:
 python3 scripts/generate_ts_client.py
 ```
 
+The category usage contract documents `GET /api/categories/usage/`, which
+returns owner-scoped ledger transaction counts for the Categories screen.
+
 The generator uses Python and PyYAML. If PyYAML is not already installed:
 
 ```bash
@@ -170,6 +173,7 @@ POST   /api/accounts/
 PATCH  /api/accounts/{id}/
 
 GET    /api/categories/
+GET    /api/categories/usage/
 POST   /api/categories/
 PATCH  /api/categories/{id}/
 

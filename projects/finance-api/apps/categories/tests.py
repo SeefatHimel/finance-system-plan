@@ -6,6 +6,9 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
+from apps.accounts.models import Account
+from apps.transactions.models import Transaction
+
 from .defaults import DEFAULT_CATEGORIES, create_default_categories
 from .models import Category
 
@@ -82,6 +85,33 @@ class DefaultCategoryTests(TestCase):
 
 
 class CategoryApiTests(APITestCase):
+    def test_usage_counts_only_own_ledger_transactions_and_includes_unused_categories(self):
+        user = get_user_model().objects.create_user(username="category-usage-owner")
+        other_user = get_user_model().objects.create_user(username="category-usage-other")
+        account = Account.objects.create(user=user, name="Synthetic cash", type="cash")
+        other_account = Account.objects.create(user=other_user, name="Other cash", type="cash")
+        used = Category.objects.get(user=user, name="Food & Dining")
+        unused = Category.objects.get(user=user, name="Entertainment")
+        other_category = Category.objects.get(user=other_user, name="Food & Dining")
+        for amount in ("10.00", "20.00"):
+            Transaction.objects.create(
+                user=user, account=account, category=used, date="2026-01-01",
+                type="expense", direction="debit", amount=amount,
+            )
+        Transaction.objects.create(
+            user=other_user, account=other_account, category=other_category,
+            date="2026-01-01", type="expense", direction="debit", amount="99.00",
+        )
+
+        self.client.force_authenticate(user)
+        response = self.client.get(reverse("category-usage"))
+
+        self.assertEqual(response.status_code, 200)
+        counts = {item["category"]: item["transaction_count"] for item in response.data}
+        self.assertEqual(counts[str(used.id)], 2)
+        self.assertEqual(counts[str(unused.id)], 0)
+        self.assertNotIn(str(other_category.id), counts)
+
     def test_authenticated_user_can_list_seeded_categories(self):
         user = get_user_model().objects.create_user(
             username="starter-user",

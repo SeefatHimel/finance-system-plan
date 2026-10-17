@@ -957,6 +957,24 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/categories/usage/:
+    get:
+      tags: [Categories]
+      summary: Count ledger transactions assigned to each category
+      description: Returns one count per category owned by the signed-in user, including unused categories. Draft statement and SMS rows are excluded.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Category transaction counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryUsage'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /api/categories/{id}/:
     parameters:
       - $ref: '#/components/parameters/UuidPathId'
@@ -5356,6 +5374,16 @@ components:
         updated_at:
           type: string
           format: date-time
+    CategoryUsage:
+      type: object
+      required: [category, transaction_count]
+      properties:
+        category:
+          type: string
+          format: uuid
+        transaction_count:
+          type: integer
+          minimum: 0
     CategoryCreateRequest:
       type: object
       required: [name]

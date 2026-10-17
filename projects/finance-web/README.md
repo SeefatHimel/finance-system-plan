@@ -30,7 +30,10 @@ The web app is scaffolded with:
 - Per-transaction history links into the audit log viewer, where updates show
   changed fields as before → after values and full JSON snapshots remain expandable
 - Accounts page with account and category creation/listing/updating/deletion,
-  derived ledger balances, and latest provider-reported balance evidence
+  derived ledger balances, latest provider-reported balance evidence, and
+  all-time ledger transaction counts per category. A count opens the matching
+  transactions; category totals are omitted because currencies and movement
+  types can differ.
 - SMS settings page with payment method and sender rule creation/listing/updating/deletion
 - SMS capture policy controls for provider, OTP/security, and balance-notice
   exclusions enforced by the API

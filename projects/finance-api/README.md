@@ -316,6 +316,7 @@ PATCH  /api/accounts/{id}/
 DELETE /api/accounts/{id}/
 
 GET    /api/categories/
+GET    /api/categories/usage/
 POST   /api/categories/
 GET    /api/categories/{id}/
 PATCH  /api/categories/{id}/
@@ -384,6 +385,10 @@ GET    /api/audit-logs/{id}/
 GET    /api/schema/
 GET    /api/docs/
 ```
+
+The authenticated category usage endpoint returns a ledger transaction count
+for each owned category, including zero for unused categories. Pending
+statement and SMS drafts are not counted.
 
 Transaction create, update, and delete actions write user-scoped audit entries
 with before/after snapshots of normalized ledger fields. Audit log entries are

@@ -99,6 +99,11 @@ const categorySchema = z.object({
   name: z.string()
 });
 
+const categoryUsageSchema = z.object({
+  category: z.string(),
+  transaction_count: z.number().int().nonnegative()
+});
+
 const paymentMethodSchema = z.object({
   identifier_kind: z.enum(["any", "account", "card"]).default("any"),
   additional_identifiers: z.array(z.object({ kind: z.enum(["account", "card"]), value: z.string(), label: z.string().default("") })).default([]),
@@ -857,6 +862,12 @@ export async function updateAccount(
 export async function listCategories(accessToken: string, signal?: AbortSignal): Promise<Category[]> {
   const response = await authenticatedFetch("/api/categories/", accessToken, { signal });
   return collectionSchema(categorySchema).parse(await response.json());
+}
+
+export async function listCategoryUsage(accessToken: string, signal?: AbortSignal): Promise<Record<string, number>> {
+  const response = await authenticatedFetch("/api/categories/usage/", accessToken, { signal });
+  const rows = z.array(categoryUsageSchema).parse(await response.json());
+  return Object.fromEntries(rows.map((row) => [row.category, row.transaction_count]));
 }
 
 export async function createCategory(

@@ -182,7 +182,10 @@ list accounts and categories. It supports full CRUD for accounts and categories
 in a tabbed workspace with summary metrics, structured data tables, and focused
 create/edit dialogs. Successful mutations update visible rows immediately, with
 backend constraints still preventing deletion when records are referenced by
-transactions.
+transactions. The category table shows each category's all-time ledger entry
+count, linking nonzero counts to a matching all-dates transaction view. It
+does not sum amounts because categories can span currencies and movement types;
+unavailable counts display as unavailable rather than zero.
 
 ## Why does the page no longer flash a loading screen after every save?
 

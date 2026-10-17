@@ -874,6 +874,11 @@ export interface Category {
   updated_at: string;
 }
 
+export interface CategoryUsage {
+  category: string;
+  transaction_count: number;
+}
+
 export interface CategoryCreateRequest {
   name: string;
   kind?: CategoryKind;

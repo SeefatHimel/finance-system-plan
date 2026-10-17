@@ -193,6 +193,7 @@ GET    /api/auth/me/
 GET    /api/accounts/
 POST   /api/accounts/
 GET    /api/categories/
+GET    /api/categories/usage/
 POST   /api/categories/
 GET    /api/payment-methods/
 POST   /api/payment-methods/
