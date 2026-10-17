@@ -598,7 +598,9 @@ same-file retries. Filters cover review state, search, debit/credit, type,
 category and dates across the entire batch; results paginate in groups of 50.
 Search/filter requests are debounced and stale responses aborted. Row actions
 wait for the displayed filters to finish loading. Tables scroll within their
-container on phones.
+container on phones. A filter with no rows shows an empty state and resets stale
+pagination. Statement details and reconciliation summary load independently, so
+a temporary summary failure does not hide the selected statement or its rows.
 
 The viewport-centered row editor shows immutable masked extraction alongside
 editable date/time/value date, type/direction, other owned account, category,

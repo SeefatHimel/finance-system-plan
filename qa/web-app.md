@@ -657,6 +657,9 @@ validation, with a 366-day inclusive limit. Date navigation remains enabled whil
 requests debounce/abort; previously loaded report/transaction data keeps its own
 period label until replacement succeeds. Paginated statements filter server-side,
 including ledger-only rows, without narrowing whole-statement coverage totals.
+An empty filtered page resets its offset. Statement details and reconciliation
+summary refresh independently, so a summary error leaves the selected review
+visible with a retry action.
 Browser-filtered timestamp histories use local days; API-filtered timestamps use
 Asia/Dhaka. Unknown dates are included only in All dates.
 

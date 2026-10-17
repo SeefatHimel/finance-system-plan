@@ -80,6 +80,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
   const checksRef = useRef<HTMLDetailsElement>(null);
   const [batch, setBatch] = useState<SavedStatement | null>(null);
   const [batchError, setBatchError] = useState<string | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [refreshPassword, setRefreshPassword] = useState("");
   const [refreshingIdentifiers, setRefreshingIdentifiers] = useState(false);
   const [rows, setRows] = useState<StatementRowPage | null>(null);
@@ -127,17 +128,32 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [historyOffset, historyPeriod, historyDateField, epoch, retry]);
   useEffect(() => {
-    const controller = new AbortController(); const token = getAccessToken(); setBatchError(null);
+    const controller = new AbortController(); const token = getAccessToken();
+    setBatchError(null); setSummaryError(null);
     if (!token || !batchId) { setBatch(null); setSummary(null); return; }
-    void Promise.all([getStatementImport(token, batchId, controller.signal), getStatementSummary(token, batchId, controller.signal)]).then(([result, analysis]) => { if (!controller.signal.aborted) { setBatch(result); setSummary(analysis); } }).catch((reason: unknown) => { if (!controller.signal.aborted) { setBatch(null); setBatchError(reason instanceof Error ? reason.message : "Could not load this statement."); } });
+    setBatch(current => current?.id === batchId ? current : null);
+    setSummary(null);
+    void getStatementImport(token, batchId, controller.signal).then(result => {
+      if (!controller.signal.aborted) setBatch(result);
+    }).catch((reason: unknown) => {
+      if (!controller.signal.aborted) setBatchError(reason instanceof Error ? reason.message : "Could not load this statement.");
+    });
+    void getStatementSummary(token, batchId, controller.signal).then(analysis => {
+      if (!controller.signal.aborted) setSummary(analysis);
+    }).catch((reason: unknown) => {
+      if (!controller.signal.aborted) setSummaryError(reason instanceof Error ? reason.message : "Could not load reconciliation details.");
+    });
     return () => controller.abort();
   }, [batchId, epoch, retry]);
   useEffect(() => {
     const controller = new AbortController(); const token = getAccessToken(); setRowsError(null);
     if (!token || !batchId) { setRows(null); return; }
-    setRowsLoading(true);
+    setRows(null); setRowsLoading(true);
     void listStatementRows(token, batchId, appliedFilters, offset, controller.signal).then((result) => {
-      if (!controller.signal.aborted) { setRows(result); if (result.count && offset >= result.count) setOffset(Math.floor((result.count - 1) / 50) * 50); }
+      if (!controller.signal.aborted) {
+        setRows(result);
+        if (offset > 0 && offset >= result.count) setOffset(result.count === 0 ? 0 : Math.floor((result.count - 1) / 50) * 50);
+      }
     }).catch((reason: unknown) => { if (!controller.signal.aborted) setRowsError(reason instanceof Error ? reason.message : "Could not load statement rows."); }).finally(() => { if (!controller.signal.aborted) setRowsLoading(false); });
     return () => controller.abort();
   }, [batchId, appliedFilters, offset, epoch, retry]);
@@ -277,9 +293,10 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
       <div className="statement-actions"><button className="button" type="button" disabled={historyLoading || !historyOffset} onClick={() => setHistoryOffset(Math.max(0, historyOffset - 20))}>Newer imports</button><button className="button" type="button" disabled={historyLoading || !history?.next} onClick={() => setHistoryOffset(historyOffset + 20)}>Older imports</button><button className="button button--ghost" type="button" onClick={() => setRetry((n) => n + 1)}>Refresh statements</button></div>
     </div></section>
     </div></details>
-    {batchError ? <p role="alert" className="form-error">{batchError}</p> : null}
+    {batchError ? <div role="alert" className="form-error">Could not refresh statement details: {batchError} <button className="button button--small" type="button" onClick={() => setRetry(n => n + 1)}>Retry</button></div> : null}
     {batchId && !batch && !batchError ? <LoadingState compact label="Loading statement" detail="Retrieving your saved review" /> : null}
     {batch ? <>
+      {summaryError ? <div role="alert" className="form-error">Could not refresh reconciliation details: {summaryError} Review rows remain available. <button className="button button--small" type="button" onClick={() => setRetry(n => n + 1)}>Retry</button></div> : null}
       <section className="panel statement-selected-heading" aria-label="Selected statement"><div><h2 className="section-title">{batch.account_name} · {labels[batch.profile] ?? batch.profile}</h2><p>{batch.period_start ?? "Unknown"} → {batch.period_end ?? "Unknown"} · {batch.counts.pending} pending of {batch.counts.total} rows</p></div><div className="statement-actions"><button className="button button--ghost button--small" type="button" aria-label="View checks & PDF" onClick={() => { setChecksOpen(true); requestAnimationFrame(() => checksRef.current?.scrollIntoView({ block: "start" })); }}>Checks & PDF</button><button className="button button--ghost button--small" type="button" aria-label="Back to import library" onClick={() => openBatch("")}>Import library</button></div>
         {batch.checks.some(check => check.passed !== true) || Boolean(summary?.discrepancy_count || summary?.incomplete_count) || batch.warnings.length ? <div className="statement-review-health"><span className="statement-error">{batch.checks.filter(check => check.passed === false).length} failed source checks · {summary?.discrepancy_count ?? "…"} draft discrepancies{batch.warnings.length ? ` · ${batch.warnings.length} source warnings` : ""}{batch.checks.some(check => check.passed === null) || summary?.incomplete_count ? ` · ${batch.checks.filter(check => check.passed === null).length + (summary?.incomplete_count ?? 0)} unavailable checks` : ""}</span></div> : null}
       </section>
@@ -309,10 +326,11 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
         </div></details>
         <details className="statement-bulk-actions"><summary>Bulk actions{selectedIds.length ? ` · ${selectedIds.length} selected` : ""}</summary><div className="statement-actions"><button className="button button--ghost" type="button" onClick={() => { setFilters(emptyFilters); setRowPeriod(allDates); }}>Clear filters</button><button className="button button--primary" type="button" disabled={filtersPending || rowsLoading || rowsError !== null || !eligible.length || setupLoading || bulkBusy} onClick={() => confirmRows("create", eligible)}>Approve {eligible.length} new rows on this page</button><button className="button" type="button" disabled={rowsLoading || filtersPending || bulkBusy || !selectedEligible.length} onClick={() => confirmRows("create", selectedEligible)}>Approve selected new rows ({selectedEligible.length})</button><button className="button" type="button" disabled={rowsLoading || filtersPending || bulkBusy || !selectedIds.length} onClick={() => confirmRows("skip", rows?.results.filter(row => selectedIds.includes(row.id)) ?? [])}>Skip selected ({selectedIds.length})</button></div></details>
         <button className="button button--ghost button--small" type="button" onClick={() => { setFilters(emptyFilters); setRowPeriod(allDates); }}>Clear row filters</button></div>
-        <p>{rows?.count ?? 0} matching rows · Page {Math.floor(offset / 50) + 1} of {Math.max(1, Math.ceil((rows?.count ?? 0) / 50))}. Suggestions are checked again before every decision.</p>
-        {rowsError ? <p role="alert" className="form-error">{rowsError}</p> : null}
+        {rows ? <p>{rows.count} matching rows{rows.count ? ` · Page ${Math.floor(offset / 50) + 1} of ${Math.ceil(rows.count / 50)}` : ""}. Suggestions are checked again before every decision.</p> : null}
+        {rowsError ? <div role="alert" className="form-error">{rowsError} <button className="button button--small" type="button" onClick={() => setRetry(n => n + 1)}>Retry</button></div> : null}
         {rowsLoading ? <p role="status">Loading matching rows…</p> : null}
-        <div className="statement-table-wrap" tabIndex={0} role="region" aria-label="Statement review rows" aria-busy={rowsLoading}>
+        {rows?.count === 0 && !rowsLoading ? <div className="empty-state empty-state--centered empty-state--compact"><strong>No rows match these filters</strong><span>Try another search or clear the row filters.</span><button className="button button--ghost" type="button" onClick={() => { setFilters(emptyFilters); setRowPeriod(allDates); }}>Clear filters</button></div> : null}
+        {rows?.results.length ? <div className="statement-table-wrap" tabIndex={0} role="region" aria-label="Statement review rows" aria-busy={rowsLoading}>
           <table className="statement-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="Select unresolved rows on this page" disabled={rowsLoading || filtersPending || bulkBusy} checked={Boolean(rows?.results.some(row => row.state === "pending")) && rows!.results.filter(row => row.state === "pending").every(row => selectedIds.includes(row.id))} onChange={event => setSelectedIds(event.target.checked ? rows?.results.filter(row => row.state === "pending" && !row.transaction).map(row => row.id) ?? [] : [])} /></th>{["Page / row", "Date / time", "Description", "Type / category", "Amount", "Balance after", "Ledger / SMS suggestions", "Review", "Actions"].map((name) => <th key={name} scope="col">{name}</th>)}</tr></thead><tbody>{rows?.results.map((row) => <tr key={row.id}>
             <td><input type="checkbox" aria-label={`Select source row ${row.position} ${row.component}`} checked={selectedIds.includes(row.id)} disabled={row.state !== "pending" || Boolean(row.transaction) || rowsLoading || filtersPending || bulkBusy} onChange={event => setSelectedIds(old => event.target.checked ? [...old, row.id] : old.filter(id => id !== row.id))} /></td><td>{row.extracted.page} / {row.extracted.row}<br /><small>{row.component}</small></td><td>{row.date ?? "Unknown date"}{row.time ? <><br />{row.time}</> : null}{row.value_date ? <><br /><small>Value: {row.value_date}</small></> : null}</td>
             <StatementDescriptionCell row={row} />
@@ -321,9 +339,8 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
             <StatementReviewCell row={row} />
             <td><button className="button button--small" type="button" disabled={filtersPending || rowsLoading || rowLoading || bulkBusy || setupLoading || setupError !== null} onClick={() => void reviewRow(row.id)}>Review row</button></td>
           </tr>)}</tbody></table>
-        </div>
-        {rows && !rows.results.length && !rowsLoading ? <p>No rows match these filters.</p> : null}
-        <div className="statement-actions"><button className="button" type="button" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous page</button><button className="button" type="button" disabled={!rows || offset + 50 >= rows.count} onClick={() => setOffset(offset + 50)}>Next page</button></div>
+        </div> : null}
+        {rows && rows.count > 0 ? <div className="statement-actions"><button className="button" type="button" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous page</button><button className="button" type="button" disabled={offset + 50 >= rows.count} onClick={() => setOffset(offset + 50)}>Next page</button></div> : null}
       </div></section>
       <details id="statement-checks" className="panel statement-review-checks" ref={checksRef} open={checksOpen} onToggle={event => setChecksOpen(event.currentTarget.open)}><summary>Statement details and reconciliation</summary><div className="panel__body"><h2 className="section-title">{batch.account_name} · {labels[batch.profile] ?? batch.profile}</h2><p>{batch.period_start ?? "Unknown"} → {batch.period_end ?? "Unknown"} · {batch.page_count} pages · Account ending {batch.account_hint || "unknown"}</p>{batch.has_original_file ? <StatementOriginalViewer key={`original-${batch.id}`} batchId={batch.id} /> : <p className="inline-note">Original PDF unavailable for this older import. Re-upload the identical file under {batch.account_name} to attach it without adding rows or transactions again.</p>}{batch.profile === "bkash" && batch.has_original_file ? <form className="statement-actions" autoComplete="off" onSubmit={event => { event.preventDefault(); if (!refreshingIdentifiers) void refreshIdentifiers(); }}><button className="button" type="submit" disabled={refreshingIdentifiers}>{refreshingIdentifiers ? "Refreshing…" : "Refresh identifiers from saved PDF"}</button><DocumentPasswordField id="archived-statement-document-unlock" disabled={refreshingIdentifiers} value={refreshPassword} onChange={setRefreshPassword} /><small>Only fills missing recurring identifiers. It does not change reviewed rows or ledger entries.</small></form> : null}{batch.account_suggestion ? <p className="inline-note">{batch.account_suggestion.account ? `Saved identifier suggests ${batch.account_suggestion.name}. ` : ""}{batch.account_suggestion.reason}{batch.account_suggestion.account && batch.account_suggestion.account !== batch.account ? " This differs from the selected statement account; verify before approving." : ""}</p> : null}
         <p>Verify this statement belongs to the selected account. A suffix match is a hint; it does not prove ownership.</p>
