@@ -2493,8 +2493,6 @@ textarea {
 .review-issue-chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 16px 22px 0; }
 .review-issue-chips span { background: #2b2414; border: 1px solid #4a3b1d; border-radius: 999px; color: var(--warning); font-size: 12px; font-weight: 750; padding: 6px 9px; }
 .review-issue-chips .review-issue-chip--ready { background: var(--accent-soft); border-color: #23654f; color: var(--accent); }
-.review-form--focused { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding: 18px 22px 22px; }
-.review-form--focused > .field { min-width: 0; }
 .review-remember { align-items: flex-start; background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; display: flex; gap: 10px; min-height: 58px; padding: 12px; }
 .review-remember input { margin-top: 3px; }
 .review-remember span { display: grid; gap: 3px; }
@@ -2565,7 +2563,6 @@ textarea {
 
 @media (max-width: 1000px) {
   .review-split { grid-template-columns: minmax(240px, 0.4fr) minmax(0, 1fr); }
-  .review-form--focused { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 760px) {
@@ -2580,7 +2577,6 @@ textarea {
   .review-detail__pager span { display: none; }
   .review-issue-bar { padding: 13px 18px; }
   .review-issue-chips { padding: 14px 18px 0; }
-  .review-form--focused { padding: 16px 18px 20px; }
   .review-detail .raw-message { margin: 0 18px 112px; }
   .review-sticky-actions { display: grid; grid-template-columns: 0.75fr 1.25fr; padding: 12px 18px; }
   .review-sticky-actions > div { grid-column: 1 / -1; }
@@ -3280,7 +3276,6 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
   .review-workspace--focus .review-queue__count { font-size: 11px; }
   .review-workspace--focus .review-date-toolbar { margin-inline: 8px; padding: 6px 8px; }
   .review-workspace--focus .date-period-caption { display: none; }
-  .review-workspace--focus .review-form--focused { grid-template-columns: minmax(0, 1fr); }
   .review-workspace--focus .review-sticky-actions { grid-template-columns: 1fr 1fr; }
   .review-workspace--focus .review-sticky-actions > .review-action-status { display: none; }
   .review-workspace--focus .review-sticky-actions > .review-detail__pager { grid-column: 1 / -1; justify-content: space-between; width: 100%; }
@@ -3664,7 +3659,6 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .review-payment-details > summary::after { content: "+"; margin-left: auto; }
 .review-payment-details[open] > summary::after { content: "−"; }
 .review-payment-details > summary span { color: var(--muted); font-size: 12px; }
-.review-payment-details > .field { margin-top: 12px; }
 .transaction-direction-control { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; }
 .statement-library > summary, .statement-review-checks > summary { cursor: pointer; min-height: 48px; padding: 14px 18px; font-weight: 600; }
 .statement-library > .workspace-grid { padding: 0 12px 12px; }
@@ -3752,6 +3746,12 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 .compact-editor-datetime .unified-suggestion { white-space: normal; overflow-wrap: anywhere; text-align: left; }
 .transaction-editor-fields > .raw-message { margin: 0; }
 .compact-editor-details-hint { color: var(--muted); font-size: 12px; font-weight: 400; margin-left: 8px; }
+.review-editor-layout { padding: 18px 22px 22px; }
+.review-editor-layout .field__label { align-items: center; display: flex; min-height: 28px; }
+.review-more-details > .compact-editor-grid { margin-top: 12px; }
+@media (pointer: coarse) {
+  .review-editor-layout .field__label { min-height: 44px; }
+}
 .viewport-modal.transaction-editor-drawer { max-width: 1240px; }
 .transaction-editor-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; flex: 1; padding: 24px; }
 .transaction-editor-scroll > .transaction-editor-fields { padding: 0; overflow: visible; flex: none; }
@@ -3765,6 +3765,8 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 }
 @media (max-width: 640px) {
   .compact-editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .review-editor-layout { padding: 16px; }
+  .review-more-details > summary { flex-wrap: wrap; }
   .transaction-editor-scroll { padding: 16px; }
   .compact-editor-datetime > .field, .compact-editor-datetime > .field:first-child { flex-basis: 100%; }
   .compact-editor-details-hint { display: block; margin: 4px 0 0; }

@@ -1510,3 +1510,34 @@ combined review, create and edit at 1920px, 1440px, 900px and 390px, comparing
 inputs before/after collapse and resizing, checking account-bound balances and
 review confirmations, and validating the submitted values. Hidden-field server
 errors must expand the disclosure and focus its control without clearing edits.
+
+### Compact SMS review editor
+
+SMS review uses the same named container grid as combined review and transaction
+add/edit. It measures the editor's available width, including when the Focus
+queue is shown or hidden: one column at 640px or below, two at intermediate
+widths, three at 900px or above. Date and time share one slot and stack on phone
+viewports. Labels and controls remain aligned when an info button is present.
+
+Account, amount, type/category, reported balance, date/time and merchant stay
+visible. Reference, ledger note and payment method expand under **More details**.
+Masked identifiers retain their own disclosure and open automatically for a
+missing reporting account or low parser confidence. Original SMS evidence keeps
+its existing low-confidence/duplicate auto-open behaviour. Account suggestions,
+transfer path, balance-ownership warnings and confirmation actions stay outside
+the optional details.
+
+The controls stay mounted when details close, Focus changes or the viewport
+resizes. Existing per-message native and controlled drafts retain all edits when
+moving between messages, including identifiers and the remember-choice checkbox.
+These are temporary workspace drafts, not storage across a reload or sign-out.
+Server validation opens the affected disclosure and focuses its field without
+clearing the rest of the draft. Confirmation, transfer matching, duplicate
+protection, learning and reported-balance ownership use the existing handlers.
+
+Verification: `npm run lint`, `npm run typecheck`, `npm run build`, and
+`node --test tests/review-feedback.test.cjs tests/review-focus.test.cjs tests/transaction-workflows.test.cjs`.
+Synthetic browser checks cover 1920px, 1440px, 900px and 390px: responsive columns,
+Focus/queue toggles, disclosure and message navigation retention, hidden-field
+validation, low-confidence corrections and confirmation payloads. These checks
+use a local synthetic API; they do not exercise a live account or SMS import.

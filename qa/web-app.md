@@ -1241,3 +1241,22 @@ balances, optional fields and checked review decisions survive collapse/expand
 and resizing. Server validation of a collapsed field opens its disclosure and
 focuses it while retaining other edits. Existing account-bound balance rules,
 combined-source conflict decisions and save/undo APIs remain unchanged.
+
+### Does compact SMS review preserve edits and keep corrections discoverable?
+
+Yes. It shares the editor-width container grid with combined review and add/edit,
+so hiding the Focus queue can add columns without remounting the form. Date/time
+share a slot and stack on phones. Reference, note and payment method live under
+More details; the main account, money, classification and date fields stay visible.
+Masked identifiers retain their separate automatic disclosure for a missing
+reporting account or low confidence. Source evidence, account suggestions and
+transfer/balance warnings retain their existing visibility rules.
+
+Closing details, entering/exiting Focus and resizing keep the same controls.
+Moving between messages restores each candidate's native text/date/time and
+checkbox drafts alongside its controlled selections, amount and account-bound
+balance. Nothing is persisted across reloads. A server field error expands its
+containing disclosure and focuses that field without discarding the other edits.
+The layout changes no confirmation/matching APIs, duplicate protection or learning
+rules. Local synthetic browser checks cover the retained drafts and submitted
+transfer details at desktop, tablet and phone widths.
