@@ -740,7 +740,7 @@ async function authenticatedFetch(path: string, accessToken: string, init?: Requ
 
     if (proxyResponse.status === 401) {
       notifySessionExpired();
-      throw new AuthRequestError("Your session expired. Sign in again.", 401);
+      throw new AuthRequestError("Could not verify your session. Please retry this request.", 401);
     }
 
     if (!proxyResponse.ok) {

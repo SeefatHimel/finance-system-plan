@@ -2,7 +2,6 @@ import { type NextRequest, NextResponse } from "next/server";
 import { isAuthenticationFailure } from "@/lib/auth-errors";
 
 import {
-  clearAuthCookies,
   getCookieBackedAccessToken,
   getServerApiBaseUrl,
   isSameOriginRequest,
@@ -23,8 +22,10 @@ async function proxyBackendRequest(request: NextRequest, context: RouteContext) 
     return NextResponse.json({ error: "Cross-origin request rejected." }, { status: 403 });
   }
 
+  let rotatedTokens: Parameters<typeof setAuthCookies>[1] | null = null;
   try {
     const session = await getCookieBackedAccessToken();
+    rotatedTokens = session.rotatedTokens;
     const isStatementUpload = ["api/statements/preview", "api/statements/imports"].includes(context.params.path.join("/")) && request.method === "POST";
     const requestBody = request.method === "GET" || request.method === "HEAD" ? undefined
       : isStatementUpload ? await readStatementBody(request) : await request.arrayBuffer();
@@ -32,6 +33,7 @@ async function proxyBackendRequest(request: NextRequest, context: RouteContext) 
 
     if (response.status === 401) {
       const refreshedSession = await refreshCookieBackedAccessToken();
+      rotatedTokens = refreshedSession.rotatedTokens;
       const retryResponse = await fetchBackend(request, context.params.path, refreshedSession.accessToken, requestBody);
       return buildProxyResponse(retryResponse, refreshedSession.rotatedTokens);
     }
@@ -48,9 +50,7 @@ async function proxyBackendRequest(request: NextRequest, context: RouteContext) 
         status
       }
     );
-    if (status === 401) {
-      clearAuthCookies(response);
-    }
+    if (rotatedTokens) setAuthCookies(response, rotatedTokens);
     return response;
   }
 }
@@ -129,9 +129,6 @@ async function buildProxyResponse(response: Response, rotatedTokens: { access: s
   });
   if (rotatedTokens) {
     setAuthCookies(proxyResponse, rotatedTokens);
-  }
-  if (response.status === 401) {
-    clearAuthCookies(proxyResponse);
   }
   return proxyResponse;
 }

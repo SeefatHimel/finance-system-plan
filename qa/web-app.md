@@ -352,7 +352,9 @@ credentials first attempt refresh; missing or rejected refresh credentials
 require login. Profile/refresh outages preserve credentials and offer retry,
 and 403 responses remain permission errors. Cookie auth routes return 502 for
 upstream failures and retain cookies, while definitive auth failures return 401
-and clear them. If cookie logout cannot reach the same-origin server, the UI
+without letting an old automatic response clear newer cookies. The browser
+rechecks its current session before declaring expiry. Explicit logout clears the
+credential cookies. If cookie logout cannot reach the same-origin server, the UI
 offers retry instead of falsely reporting success. Return-URL and error-status
 regressions are covered by `npm run test:auth`.
 
@@ -1159,6 +1161,27 @@ blank reports retain their existing selection, with correction available in
 Transactions. The link confirmation sends the selected source and existing ledger
 ID without creating another movement. This first fix does not yet implement the
 larger intent-specific form or historical-revalidation workflow.
+
+
+### Why did a temporary backend failure sometimes become a logout?
+
+Refresh rotates/blacklists the previous token. If the subsequent profile lookup
+or proxied request failed before the response set replacement cookies, the
+browser retained the now-invalid old refresh token. Cookie routes now preserve a
+successful rotation even when the following operation fails. Replacement tokens
+stay server-side and never appear in an error body. Pending refreshes share a
+promise for their whole lifetime; the five-second reuse window begins after
+success, not before a potentially slow backend call. Rejections remain retryable.
+
+Automatic failures no longer clear browser cookies because a slow response can
+refer to an older cookie generation. The shared guard revalidates current cookies
+before redirecting or clearing drafts; current-user reads are single-flight and
+retry a 401 once after 250 ms. Cross-tab expiry messages also revalidate without
+rebroadcasting; explicit sign-out remains immediate. Temporary upstream failures
+preserve a verified workspace. Explicit logout still revokes/clears credentials, while genuinely
+invalid or revoked sessions still require login. Backend token lifetimes and
+blacklisting remain unchanged. Deduplication is per server process, not a new
+distributed session store; live multi-instance failures require separate diagnosis.
 
 ### How is document unlock separated from saved login autofill?
 

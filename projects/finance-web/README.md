@@ -130,7 +130,9 @@ storage. In production, the shared session guard and login use
 same-origin Next.js auth routes that store access and refresh tokens in
 HTTP-only, Secure, SameSite=Strict cookies. Authenticated workspace API calls
 use a same-origin backend proxy, so refresh tokens stay out of browser
-JavaScript. Concurrent refresh attempts share one rotation result. For local
+JavaScript. Concurrent refresh attempts within one Next.js process share one
+rotation result, including slow in-flight requests. Successful results are reused
+for five seconds after completion; failures are not cached. For local
 development, authenticated web API calls use the stored refresh token to rotate
 tokens and retry once after an expired access token response.
 See `../../docs/auth-token-storage-plan.md`.
@@ -147,7 +149,11 @@ Temporary session-check/refresh outages keep credentials and offer Try again.
 Production middleware checks cookie presence early; the current-user endpoint
 and Django authorization verify identity and permissions. Cookie auth routes
 return 401 only for confirmed authentication failure and 502 for upstream
-outages, preserving cookies on the latter. Cross-tab logout uses session-only
+outages. Replacement cookies are preserved even if the first profile or proxied
+request after rotation fails. Automatic check/proxy failures do not erase cookies:
+a late response may belong to a superseded session. Explicit sign-out clears
+cookies; invalid/expired credentials still fail backend authorization and open
+login after a fresh check. Cross-tab logout uses session-only
 BroadcastChannel messages, with storage/focus checks as fallbacks.
 
 Run `npm run test:auth` for return-path and auth-error regression checks, alongside
@@ -1407,3 +1413,24 @@ from login fields. Hiding the field clears its transient value; submission still
 clears passwords. Saved login/password-manager behaviour on the actual login form
 is unchanged. Browser extensions may ignore hints; validate the deployed browser
 if unwanted autofill recurs.
+
+### Session continuity after refresh failures
+
+A request's late 401 now prompts fresh session verification before discarding the
+workspace or broadcasting expiry. Current-user checks share one browser request;
+a 401 is checked once more after 250 ms using the current cookie jar.
+Expiry notices from another tab are revalidated without rebroadcast loops; an
+explicit cross-tab sign-out still clears the workspace immediately. Network,
+429/5xx and malformed upstream responses do not declare logout. Verified sessions
+keep their forms during temporary failures; initial connection failures still
+show Try again. Invalid credentials, revoked sessions and explicit logout remain
+protected. Financial actions are not silently replayed after reauthentication.
+JWT lifetimes, refresh rotation/blacklisting, HttpOnly/Secure/SameSite settings
+and the production ban on JavaScript token storage are unchanged.
+
+`npm run test:auth` now covers pending/completed refresh deduplication, rotated
+cookie preservation, browser verification and explicit logout. Server deduplication
+remains process-local; this change does not introduce a distributed refresh cache
+or a grace period accepting blacklisted tokens. Production multi-instance races,
+actual credential-manager profiles and backend revocations need deployment/browser
+validation if symptoms persist. No backend migration or APK rebuild is required.

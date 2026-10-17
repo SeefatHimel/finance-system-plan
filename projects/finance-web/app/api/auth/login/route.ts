@@ -5,7 +5,6 @@ import { AuthRequestError, isAuthenticationFailure } from "@/lib/auth-errors";
 import {
   backendCurrentUser,
   backendLogin,
-  clearAuthCookies,
   isSameOriginRequest,
   setAuthCookies
 } from "@/lib/server-auth";
@@ -38,7 +37,6 @@ export async function POST(request: Request) {
           : error instanceof AuthRequestError && error.status === 429 ? 429 : 502
       }
     );
-    if (isAuthenticationFailure(error)) clearAuthCookies(response);
     return response;
   }
 }

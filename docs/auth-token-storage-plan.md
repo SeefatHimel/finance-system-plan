@@ -55,8 +55,10 @@ Implementation notes:
   checks, refresh, and logout for the web session panel.
 - Authenticated web workspace API calls now use a same-origin proxy when browser
   token storage is disabled, so refresh tokens stay out of browser JavaScript.
-- Concurrent web requests share one refresh operation and reuse its result
-  briefly, preventing normal request bursts from racing a rotated token.
+- Concurrent web requests within one Next.js process share a refresh operation
+  for its full pending lifetime and reuse success for five seconds after completion.
+  Refresh/current-user reads have 20-second upstream timeouts. This is not a
+  distributed rotation coordinator.
 - Cookie-authenticated mutations require a same-origin request, and production
   auth cookies use `SameSite=Strict`.
 - Never expose refresh tokens to browser JavaScript.
@@ -96,8 +98,8 @@ Implementation notes:
 - Logout/expiry notifications are shared across tabs using BroadcastChannel,
   with development storage events and focus/online revalidation as fallbacks.
   Cross-tab messages contain only the session reason, never credentials.
-- Session checks ignore superseded results. A refresh response cannot restore
-  credentials after they changed or were cleared. A financial mutation whose
+- Client session checks ignore superseded results and cannot restore visible
+  signed-in state after an explicit sign-out. A financial mutation whose
   credential changed before retry requires an explicit retry; it is not
   silently submitted under a different session.
 
@@ -193,3 +195,26 @@ new login or restore another user's session. Foreground SecureStore is a snapsho
 hydrated from native credentials; Expo Go keeps the JavaScript recovery path.
 JWT expiry decoding only avoids unnecessary refresh calls. The API still verifies
 signatures, expiry and user access. Token rotation/blacklisting remains enabled.
+
+
+## Web continuity corrections (2026-10-17)
+
+A completed rotation must survive failure of the following profile lookup or
+proxied request: its replacement credentials are committed to HttpOnly cookies
+even when that operation returns an upstream error. Raw replacement credentials
+are never placed in an error body/property. Automatic failed checks and late
+proxy responses do not clear the shared cookie jar; explicit logout clears it,
+and successful login replaces credentials. Backend authorization remains final.
+
+A late workspace 401 or cross-tab expiry notice triggers a current-session check
+before hiding edits or broadcasting expiry. Browser current-user checks share one
+flight and retry a 401 once after 250 ms; a received cross-tab expiry is not
+rebroadcast. Actual rejection still returns to login, and explicit cross-tab
+sign-out remains immediate. Temporary failures keep an already verified workspace.
+
+JWT lifetimes and backend rotation/blacklisting are unchanged. This focused web
+correction does not add a cross-worker session store, token-family revocation or
+a grace window accepting blacklisted refresh tokens. Cookie-response ordering
+across separate deployments/workers and real password-manager profiles require
+live validation if symptoms persist. Unit tests and production-mode synthetic
+browser checks cover the supported local flows without real credentials.

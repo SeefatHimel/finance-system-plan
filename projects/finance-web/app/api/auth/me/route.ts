@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { clearAuthCookies, getCookieBackedCurrentUser, setAuthCookies } from "@/lib/server-auth";
+import { preserveRotatedAuthCookies, getCookieBackedCurrentUser, setAuthCookies } from "@/lib/server-auth";
 import { isAuthenticationFailure } from "@/lib/auth-errors";
 
 export async function GET() {
@@ -20,7 +20,7 @@ export async function GET() {
         status: isAuthenticationFailure(error) ? 401 : 502
       }
     );
-    if (isAuthenticationFailure(error)) clearAuthCookies(response);
+    preserveRotatedAuthCookies(response, error);
     return response;
   }
 }

@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (broadcast) channel.current?.postMessage({ reason: nextReason });
   }, [dismiss]);
 
-  const checkSession = useCallback(() => {
+  const checkSession = useCallback((broadcastExpiry = true) => {
     if (signingOut.current) return Promise.resolve();
     const currentVersion = version.current;
     if (checkInFlight.current?.version === currentVersion) return checkInFlight.current.promise;
@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         if (currentVersion !== version.current) return;
         if (isAuthenticationFailure(error)) {
-          endSession("expired");
+          endSession("expired", broadcastExpiry);
         } else {
           // A temporary outage does not invalidate an already verified session.
           setSession((current) => current.status === "signed-in" ? current : {
@@ -81,12 +81,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       channel.current = new BroadcastChannel(sessionChannelName);
       channel.current.onmessage = (event) => {
-        if (event.data?.reason === "signed-out" || event.data?.reason === "expired") endSession(event.data.reason, false);
+        if (event.data?.reason === "signed-out") endSession("signed-out", false);
+        else if (event.data?.reason === "expired") {
+          invalidateChecks();
+          void checkSession(false);
+        }
       };
     } catch {
       // Storage events and focus revalidation remain available in older browsers.
     }
-    const expired = () => { if (!signingOut.current) endSession("expired"); };
+    const expired = () => {
+      if (signingOut.current) return;
+      // A late 401 may refer to cookies already replaced by another request/tab.
+      // Verify the current browser session before unmounting drafts or logging out.
+      setReason("expired");
+      invalidateChecks();
+      void checkSession();
+    };
     const storageChanged = (event: StorageEvent) => {
       if (!canUseLocalTokenStorage() || (event.key !== "finance.accessToken" && event.key !== null)) return;
       if (!event.newValue) endSession("signed-out", false);

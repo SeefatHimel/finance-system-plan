@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isAuthenticationFailure } from "@/lib/auth-errors";
 
 import {
-  clearAuthCookies,
+  preserveRotatedAuthCookies,
   isSameOriginRequest,
   refreshCookieBackedSession,
   setAuthCookies
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         status: isAuthenticationFailure(error) ? 401 : 502
       }
     );
-    if (isAuthenticationFailure(error)) clearAuthCookies(response);
+    preserveRotatedAuthCookies(response, error);
     return response;
   }
 }

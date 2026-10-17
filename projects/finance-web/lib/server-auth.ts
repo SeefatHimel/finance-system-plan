@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuthRequestError, isAuthenticationFailure } from "./auth-errors";
 import { accessCookieName, refreshCookieName } from "./auth-navigation";
+import { createRefreshCoordinator } from "./refresh-coordinator";
 const accessCookieMaxAgeSeconds = 15 * 60;
 const refreshCookieMaxAgeSeconds = 30 * 24 * 60 * 60;
 const refreshResultReuseMilliseconds = 5_000;
@@ -23,12 +24,23 @@ const currentUserSchema = z.object({
 });
 
 type TokenPair = z.infer<typeof tokenPairSchema>;
-type RefreshOperation = {
-  expiresAt: number;
-  promise: Promise<TokenPair>;
-};
+const coordinateRefresh = createRefreshCoordinator<TokenPair>(refreshResultReuseMilliseconds);
+// Keep replacement credentials out of error messages/properties and JSON bodies.
+const failedSessionRotations = new WeakMap<Error, TokenPair>();
 
-const refreshOperations = new Map<string, RefreshOperation>();
+export function preserveRotatedAuthCookies(response: NextResponse, error: unknown) {
+  const tokens = error instanceof Error ? failedSessionRotations.get(error) : null;
+  if (tokens) setAuthCookies(response, tokens);
+}
+
+async function currentUserAfterRotation(tokens: TokenPair) {
+  try {
+    return await backendCurrentUser(tokens.access);
+  } catch (error) {
+    if (error instanceof Error) failedSessionRotations.set(error, tokens);
+    throw error;
+  }
+}
 
 export function getServerApiBaseUrl() {
   const apiBaseUrl =
@@ -100,6 +112,8 @@ export async function backendLogin(username: string, password: string) {
 
 async function requestBackendRefresh(refreshToken: string) {
   const response = await fetch(`${getServerApiBaseUrl()}/api/auth/refresh/`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
     body: JSON.stringify({ refresh: refreshToken }),
     headers: {
       "Content-Type": "application/json"
@@ -116,27 +130,7 @@ async function requestBackendRefresh(refreshToken: string) {
 
 async function backendRefresh(refreshToken: string) {
   const refreshKey = createHash("sha256").update(refreshToken).digest("hex");
-  const now = Date.now();
-  const existingOperation = refreshOperations.get(refreshKey);
-  if (existingOperation && existingOperation.expiresAt > now) {
-    return existingOperation.promise;
-  }
-
-  for (const [key, operation] of refreshOperations) {
-    if (operation.expiresAt <= now) {
-      refreshOperations.delete(key);
-    }
-  }
-
-  const promise = requestBackendRefresh(refreshToken).catch((error) => {
-    refreshOperations.delete(refreshKey);
-    throw error;
-  });
-  refreshOperations.set(refreshKey, {
-    expiresAt: now + refreshResultReuseMilliseconds,
-    promise,
-  });
-  return promise;
+  return coordinateRefresh(refreshKey, () => requestBackendRefresh(refreshToken));
 }
 
 export async function revokeCookieBackedSession() {
@@ -182,6 +176,7 @@ export async function refreshCookieBackedAccessToken() {
 export async function backendCurrentUser(accessToken: string) {
   const response = await fetch(`${getServerApiBaseUrl()}/api/auth/me/`, {
     cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
     headers: {
       Authorization: `Bearer ${accessToken}`
     }
@@ -219,7 +214,7 @@ export async function getCookieBackedCurrentUser() {
   const rotatedTokens = await backendRefresh(refreshToken);
   return {
     rotatedTokens,
-    user: await backendCurrentUser(rotatedTokens.access)
+    user: await currentUserAfterRotation(rotatedTokens)
   };
 }
 
@@ -227,6 +222,6 @@ export async function refreshCookieBackedSession() {
   const { rotatedTokens } = await refreshCookieBackedAccessToken();
   return {
     rotatedTokens,
-    user: await backendCurrentUser(rotatedTokens.access)
+    user: await currentUserAfterRotation(rotatedTokens)
   };
 }

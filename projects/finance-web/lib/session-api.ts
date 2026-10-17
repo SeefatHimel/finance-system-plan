@@ -30,15 +30,27 @@ export async function loginWithCookieSession(username: string, password: string)
   return (await response.json()) as LoginResult;
 }
 
-export async function getCookieSessionUser(): Promise<CurrentUser> {
-  const response = await fetch("/api/auth/me", {
-    cache: "no-store"
-  });
+let sessionCheck: Promise<CurrentUser> | null = null;
 
+export function getCookieSessionUser(): Promise<CurrentUser> {
+  if (sessionCheck) return sessionCheck;
+  const promise = verifyCookieSession().finally(() => {
+    if (sessionCheck === promise) sessionCheck = null;
+  });
+  sessionCheck = promise;
+  return promise;
+}
+
+async function verifyCookieSession(): Promise<CurrentUser> {
+  let response = await fetch("/api/auth/me", { cache: "no-store" });
+  if (response.status === 401) {
+    // Let an overlapping rotation response reach the shared cookie jar first.
+    await new Promise(resolve => setTimeout(resolve, 250));
+    response = await fetch("/api/auth/me", { cache: "no-store" });
+  }
   if (!response.ok) {
     throw new AuthRequestError(await parseError(response, "Could not verify session."), response.status);
   }
-
   return (await response.json()) as CurrentUser;
 }
 
