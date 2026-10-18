@@ -3501,10 +3501,14 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .unified-result-editor { padding: 14px; }
 .unified-result-editor > header { align-items: center; }
 .unified-result-editor header p { font-size: 12px; margin-top: 2px; }
-.unified-amount-summary { align-items: center; background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: space-between; margin-top: 12px; padding: 10px 12px; }
-.unified-amount-summary > div { align-items: baseline; display: flex; flex-wrap: wrap; gap: 5px 10px; }
-.unified-amount-summary span, .unified-amount-summary small { color: var(--muted); font-size: 12px; }
-.unified-amount-summary strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.unified-primary-details { display: grid; gap: 12px; grid-template-columns: minmax(220px, .8fr) minmax(0, 1.4fr); margin-top: 12px; }
+.unified-amount-summary { align-items: flex-start; background: linear-gradient(135deg, rgba(85, 230, 165, .14), #0a1725 80%); border: 1px solid var(--accent); border-radius: 10px; display: flex; flex-direction: column; gap: 12px; justify-content: space-between; margin: 0; padding: 14px; }
+.unified-amount-summary > div { display: grid; gap: 6px; }
+.unified-amount-summary span { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.unified-amount-summary small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.unified-amount-summary strong { color: var(--accent); font-size: clamp(22px, 2vw, 30px); font-variant-numeric: tabular-nums; line-height: 1.15; overflow-wrap: anywhere; }
+.unified-note-field { background: #0a1725; border: 1px solid var(--panel-border); border-radius: 10px; min-width: 0; padding: 12px; }
+.unified-note-field textarea { min-height: 80px; resize: vertical; }
 .unified-result-editor .unified-core-fields { gap: 12px; margin: 12px 0 0; }
 .unified-result-editor .field__label { font-size: 13px; }
 .unified-result-editor .field__control { min-height: 42px; }
@@ -3766,9 +3770,11 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 }
 @container compact-editor (max-width: 640px) {
   .compact-editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .unified-primary-details { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
   .compact-editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .unified-primary-details { grid-template-columns: minmax(0, 1fr); }
   .review-editor-layout { padding: 16px; }
   .review-more-details > summary { flex-wrap: wrap; }
   .transaction-editor-scroll { padding: 16px; }

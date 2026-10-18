@@ -1487,9 +1487,11 @@ time occupy one grid slot, wrap when needed, and stack on phone viewports. The
 combined dialog may grow to 1640px while retaining its separate decision panel;
 the transaction dialog grows to 1240px. Both stay within the viewport.
 
-The combined result keeps type, category, direction, other account and merchant
-visible; its existing More transaction details disclosure now also holds the note
-and indicates when optional values exist. Source suggestions and all date/time
+The combined result keeps the final note open beside a highlighted amount on
+wide screens and below it on phones, followed by type, category, direction,
+other account and merchant. The More
+transaction details disclosure holds balance, reference and value date, and
+indicates when those optional values exist. Note suggestions and all date/time
 rules still use the same controlled draft. Balance choices, conflicting reports,
 classification decisions and required acknowledgements stay in the decision
 panel, outside the optional fields.

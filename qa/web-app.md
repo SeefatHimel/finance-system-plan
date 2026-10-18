@@ -1,5 +1,14 @@
 # Web App Q&A
 
+### Why are the amount and note prominent in combined SMS + statement review?
+
+The final amount is shown in a highlighted, read-only summary because the two
+sources must agree on it before combining. The final description/note is always
+visible and editable beside the amount on wide screens and below it on phones,
+with saved and merchant note suggestions nearby. Balance, reference, and value
+date remain under More transaction details.
+The originals remain attached as evidence when the user edits the final note.
+
 ### How does the statement review show shared category hints?
 
 The row list says a review suggestion is available, rather than calling every
