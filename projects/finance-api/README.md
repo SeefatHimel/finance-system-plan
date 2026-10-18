@@ -1289,6 +1289,20 @@ New bKash bill drafts use Electricity, Internet, or Mobile Recharge for clear
 provider wording, with Utilities & Bills as the fallback. A migration refines
 only untouched pending generic bill drafts, not posted or manually edited rows.
 
+Common bKash `Payment` merchant wording now offers a review-only category hint:
+Foodi Express Limited → Food & Dining, Shohoj Limited → Transport, and Daraz →
+Shopping & Personal. These broad hints use only the printed merchant name and
+the signed-in user's active expense categories. A verified code mapping or
+manually selected draft category takes priority. The hint never selects a
+recipient, owned account, transfer path, or transaction type, and it never
+rewrites an existing draft or ledger entry. New users can use the shared hints
+without copying anyone else's private rules; each user can replace a hint in
+review and save their own code mapping. This is a curated application rule, not
+a database-wide copy of personal mapping rows. Public provider descriptions are
+documented by [bKash](https://www.bkash.com/en/products-services), while
+[Foodi](https://foodibd.com/pickup), [Shohoz](https://www.shohoz.com/mhome),
+and [Daraz](https://www.daraz.com.bd/) describe their public services.
+
 ## Paginated transaction activity
 
 `GET /api/transactions/activity/` is an authenticated, read-only timeline using

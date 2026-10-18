@@ -1062,6 +1062,16 @@ fallback note; an explicit note template overrides that fallback. An exact
 owned-wallet match likewise suggests its account name in both fields. These
 suggestions do not rewrite source evidence or saved drafts.
 
+### Which statement suggestions are shared across users?
+
+The API has a small curated category-hint catalogue for clearly named bKash
+merchant payments. It looks up an active category belonging to the requesting
+user, then returns an editable review suggestion. Verified per-user code
+mappings and an already edited draft category win. Account ownership, phone
+numbers, code mappings, transfer paths, and transaction posting are never
+shared. A new user benefits from common wording without inheriting another
+person's financial data or classifications.
+
 ### Does pagination break existing transaction-list clients?
 
 No. The new authenticated read-only `/api/transactions/activity/` route returns

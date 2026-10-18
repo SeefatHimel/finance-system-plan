@@ -1,5 +1,14 @@
 # Web App Q&A
 
+### How does the statement review show shared category hints?
+
+The row list says a review suggestion is available, rather than calling every
+hint a remembered choice. Opening the row shows the suggested category and its
+reason, and applying it is an explicit action. Combined SMS + statement review
+can also prefill a compatible category from the statement suggestion. The user
+can change the result before recording; a verified personal mapping takes
+priority over the shared hint.
+
 ### How can a user recover full original financial source data?
 
 Statement imports and linked transaction editors show whether an encrypted

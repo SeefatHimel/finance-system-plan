@@ -10,6 +10,7 @@ from difflib import SequenceMatcher
 from django.db.models import prefetch_related_objects
 
 from .models import StatementMapping
+from .shared_suggestions import shared_category_name
 
 BKASH_BANK_ACCOUNT_NAMES = {
     "city_bank": ("city bank", "citybank", "city touch"),
@@ -88,6 +89,7 @@ def suggestions(rows):
         return {}
     batch = rows[0].batch
     from apps.accounts.models import Account
+    from apps.categories.models import Category
     from apps.payment_methods.models import PaymentMethod
     from apps.payment_methods.resolution import (
         exact_original_score,
@@ -125,6 +127,34 @@ def suggestions(rows):
         ).select_related("category", "other_account")
     }
     result = code_suggestions(rows)
+    shared_names = {shared_category_name(row) for row in rows} - {None}
+    shared_categories = (
+        {
+            category.name: category
+            for category in Category.objects.filter(
+                user_id=batch.user_id,
+                name__in=shared_names,
+                kind="expense",
+                is_active=True,
+            )
+        }
+        if shared_names else {}
+    )
+
+    def add_shared_category(row):
+        name = shared_category_name(row)
+        category = shared_categories.get(name)
+        if category and row.id not in result:
+            result[row.id] = {
+                "type": row.type,
+                "category": str(category.id),
+                "other_account": None,
+                "reason": (
+                    f"Shared {name} category hint from the printed bKash merchant. "
+                    "Check it before applying; your saved choices take priority."
+                ),
+            }
+
     for row in rows:
         code = code_for_row(row)
         if code and row.id not in result and batch.profile == "bkash" and code.startswith("send:phone:"):
@@ -148,6 +178,9 @@ def suggestions(rows):
         if code:
             # Unverified or unmapped Citytouch codes never fall through to
             # generic numeric/payment-method or merchant learning.
+            # Public bKash merchant wording can still offer a category, but
+            # never an identity or transfer path, after a user's code mapping.
+            add_shared_category(row)
             continue
         # Numeric identity hints require transfer wording. Descriptions remain
         # immutable and the hint never changes a row or its ledger movement.
@@ -218,6 +251,8 @@ def suggestions(rows):
                 }
             continue
         if not mapping or mapping.direction != row.direction:
+            if not mapping:
+                add_shared_category(row)
             continue
         if mapping.category and not mapping.category.is_active:
             continue
