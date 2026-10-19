@@ -18,6 +18,7 @@ import {
   MagnifyingGlass,
   PlusCircle,
   SidebarSimple,
+  UserCircle,
   X
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -48,6 +49,7 @@ const navItems: NavItem[] = [
   { href: "/transactions", icon: ListBullets, label: "Transactions", subtitle: "Record, review, and export money movement", title: "Transactions" },
   { href: "/quick-add", icon: PlusCircle, label: "Quick Add presets", subtitle: "Configure your manual-entry shortcuts", title: "Quick Add presets" },
   { href: "/accounts", icon: CreditCard, label: "Accounts", subtitle: "Manage accounts and transaction categories", title: "Accounts & categories" },
+  { href: "/profile", icon: UserCircle, label: "Profile", subtitle: "Your account details and appearance", title: "Your profile" },
   { href: "/review", icon: CheckCircle, label: "Review inbox", subtitle: "Review SMS, statements and matched sources", title: "Review inbox" },
   { href: "/messages/review", icon: ChatCenteredText, label: "SMS review", subtitle: "Review parsed messages before they enter your ledger", title: "SMS review" },
   { href: "/statements", icon: FileText, label: "Statements", subtitle: "Review statement imports, matches, and ledger evidence", title: "Statement PDFs" },
@@ -62,7 +64,7 @@ const navItems: NavItem[] = [
 ];
 
 const planningPaths = ["/debts", "/credit-cards", "/recurring-bills", "/reconciliation"];
-const settingsPaths = ["/quick-add", "/statement-counterparties", "/sms-settings", "/audit-logs"];
+const settingsPaths = ["/profile", "/quick-add", "/statement-counterparties", "/sms-settings", "/audit-logs"];
 const navigationGroups = [
   { label: "Overview", paths: ["/", "/transactions", "/review", "/accounts", "/reports"] },
   { label: "Planning", paths: planningPaths },
@@ -362,6 +364,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
             {isAccountMenuOpen ? <div className="account-menu" id="account-menu">
               <span className="session-card__label">Signed in as</span><strong>{displayName}</strong>
+              <Link className="account-menu__profile" href="/profile" onClick={() => setIsAccountMenuOpen(false)}><UserCircle aria-hidden="true" size={19} />View profile</Link>
               <button className="button button--ghost" disabled={isSigningOut} onClick={() => void signOut()} type="button">
                 {isSigningOut ? <ButtonBusy label="Signing out" /> : "Sign out"}
               </button>

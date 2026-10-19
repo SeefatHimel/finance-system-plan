@@ -1,5 +1,25 @@
 # Dashboard Design QA
 
+## Profile and appearance review — 19 October 2026
+
+- Selected direction: light profile concept at
+  `/Users/seefathossainhimel/.codex/generated_images/01a133e3-5f84-7193-9c6b-7a901b29a06b/exec-50d9a8e6-c0c0-43a8-aee6-53e45c5eefd7.png`.
+- Local implementation: authenticated `/profile` at `http://localhost:3100/profile`
+  with a synthetic local account. IAB viewport available for this pass was
+  approximately 319 CSS pixels wide; the desktop reference is 1487 pixels wide.
+- At the available mobile width, the identity card, appearance buttons and form
+  stack without horizontal overflow. Both Light and Dark selections were
+  captured in-browser. A synthetic name edit saved successfully and reloaded.
+- The image's profile-photo control is omitted because this API has no photo
+  storage or removal contract; initials remain the truthful identity treatment.
+- The selected concept's layout is adapted to the current app shell and the
+  existing first/last-name model. Backend tests, web build and TypeScript checks
+  cover behavior, but no physical Android screenshot was available for native QA.
+
+**Final result: blocked for same-viewport desktop fidelity comparison.** The
+in-app browser did not expose the reference's desktop width in this session.
+The mobile-width rendering and profile interactions passed their available checks.
+
 ## Reference and implementation evidence
 
 - Reference: `/Users/fullstackdev/.codex/generated_images/01a0e212-c35b-7d21-915a-109220d2ab02/exec-b9fedb8d-4305-4e31-a40b-4af904355792.png`

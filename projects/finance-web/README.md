@@ -2,6 +2,13 @@
 
 Next.js web dashboard for managing and reviewing the finance system.
 
+The avatar menu opens `/profile`, where users can edit their first name, last
+name, and email. The username is shown read-only because it is the sign-in
+identifier. Appearance can follow the operating system or be set to Light or
+Dark. That choice is saved in this browser under `finance.theme.v1` and applies
+to the web app; it does not change the separate mobile app. The light profile
+header uses the generated `public/profile/mint-contours.png` asset.
+
 The dashboard loads bounded activity previews with exact server counts. SMS
 review initially loads 100 candidates and offers “Load 100 more messages” for
 older work. Client-side review filters apply to the loaded portion and say so

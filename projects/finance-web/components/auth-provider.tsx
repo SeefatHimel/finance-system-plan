@@ -2,9 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getLocalSessionUser, login, revokeAuthSession, type CurrentUser } from "@/lib/api";
+import { getLocalSessionUser, login, revokeAuthSession, updateCurrentUser, type CurrentUser } from "@/lib/api";
 import { isAuthenticationFailure } from "@/lib/auth-errors";
-import { canUseLocalTokenStorage, clearTokens, getRefreshToken, saveTokens } from "@/lib/auth-storage";
+import { canUseLocalTokenStorage, clearTokens, getAccessToken, getRefreshToken, saveTokens } from "@/lib/auth-storage";
 import { loginHref, safeReturnPath, sessionChannelName, sessionExpiredEvent, type LoginReason } from "@/lib/auth-navigation";
 import { getCookieSessionUser, loginWithCookieSession, logoutCookieSession } from "@/lib/session-api";
 import { LoadingState } from "@/components/loading-state";
@@ -18,6 +18,7 @@ type AuthContextValue = {
   isSigningOut: boolean;
   signIn: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updateProfile: (profile: Pick<CurrentUser, "first_name" | "last_name" | "email">) => Promise<CurrentUser>;
 };
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -169,7 +170,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [dismiss, endSession, notify]);
 
-  const value = useMemo(() => ({ session, isSigningOut, signIn, signOut }), [session, isSigningOut, signIn, signOut]);
+  const updateProfile = useCallback(async (profile: Pick<CurrentUser, "first_name" | "last_name" | "email">) => {
+    const token = getAccessToken();
+    if (!token) throw new Error("Sign in again before updating your profile.");
+    const currentVersion = version.current;
+    const user = await updateCurrentUser(token, profile);
+    if (currentVersion !== version.current) throw new Error("Your session changed. Please reload your profile.");
+    setSession({ status: "signed-in", user });
+    return user;
+  }, []);
+
+  const value = useMemo(() => ({ session, isSigningOut, signIn, signOut, updateProfile }), [session, isSigningOut, signIn, signOut, updateProfile]);
   const showPage = !isSigningOut && ((pathname === "/login" && session.status === "signed-out")
     || (pathname !== "/login" && session.status === "signed-in"));
   return (

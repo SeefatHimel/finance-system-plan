@@ -1528,8 +1528,8 @@ textarea {
 }
 
 .dashboard-panel {
-  background: #0e1c2c;
-  border: 1px solid #263a52;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
   border-radius: 8px;
   box-shadow: var(--shadow);
   min-width: 0;
@@ -1561,7 +1561,7 @@ textarea {
 
 .panel-label {
   align-items: center;
-  color: #aab7c9;
+  color: var(--muted);
   display: flex;
   font-size: 14px;
   gap: 6px;
@@ -1577,7 +1577,7 @@ textarea {
 }
 
 .net-position-value span {
-  color: #f6f8fc;
+  color: var(--foreground);
   font-size: 0.72em;
   letter-spacing: -0.025em;
 }
@@ -1601,7 +1601,7 @@ textarea {
 
 .chart-heading {
   align-items: flex-end;
-  color: #c5d0df;
+  color: var(--muted);
   display: grid;
   font-size: 13px;
   gap: 12px;
@@ -1689,7 +1689,7 @@ textarea {
 }
 
 .automation-stats span {
-  color: #b5c1d2;
+  color: var(--muted);
   font-size: 11px;
   line-height: 1.35;
 }
@@ -1728,8 +1728,8 @@ textarea {
 .dashboard-button--review:hover { background: #ffc969; }
 
 .dashboard-button--secondary {
-  border-color: #3a506b;
-  color: #c6d5e8;
+  border-color: var(--panel-border);
+  color: var(--foreground);
 }
 
 .dashboard-button--secondary:hover { background: #15263a; }
@@ -1743,7 +1743,7 @@ textarea {
 .dashboard-panel__heading > a,
 .recent-transactions-heading > div > a:last-child {
   align-items: center;
-  color: #a9c9f6;
+  color: var(--info);
   display: inline-flex;
   font-size: 12px;
   gap: 6px;
@@ -1784,7 +1784,7 @@ textarea {
 }
 
 .spending-donut__label span {
-  color: #aebbd0;
+  color: var(--muted);
   font-size: 11px;
 }
 
@@ -1812,8 +1812,8 @@ textarea {
   width: 8px;
 }
 
-.spending-legend__name { color: #ced7e4; }
-.spending-legend__row > span:last-child { color: #b3bfd1; text-align: right; }
+.spending-legend__name { color: var(--foreground); }
+.spending-legend__row > span:last-child { color: var(--muted); text-align: right; }
 
 .chart-empty,
 .attention-empty,
@@ -1896,7 +1896,7 @@ textarea {
 .attention-row__reason--warning strong { color: var(--warning); }
 .attention-row__confidence--danger strong,
 .attention-row__reason--danger strong { color: var(--danger); }
-.attention-row__arrow { color: #cbd5e3; }
+.attention-row__arrow { color: var(--muted); }
 
 .recent-transactions-panel { overflow: hidden; }
 .recent-transactions-heading > div { align-items: center; display: flex; gap: 20px; }
@@ -1912,8 +1912,8 @@ textarea {
 }
 
 .dashboard-table th {
-  background: #101f31;
-  color: #a9b6c9;
+  background: var(--background);
+  color: var(--muted);
   font-size: 10px;
   font-weight: 600;
   padding: 8px 12px;
@@ -1922,7 +1922,7 @@ textarea {
 
 .dashboard-table td {
   border-top: 1px solid var(--panel-border);
-  color: #cad4e2;
+  color: var(--foreground);
   font-size: 11px;
   height: 52px;
   padding: 7px 12px;
@@ -1948,7 +1948,7 @@ textarea {
 }
 
 .dashboard-table td:nth-child(2) strong {
-  color: #f6f8fc;
+  color: var(--foreground);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1973,9 +1973,9 @@ textarea {
 
 .transaction-status {
   align-items: center;
-  border: 1px solid #33455a;
+  border: 1px solid var(--panel-border);
   border-radius: 5px;
-  color: #c5cfdd;
+  color: var(--foreground);
   display: inline-flex;
   font-size: 10px;
   gap: 5px;
@@ -1989,7 +1989,7 @@ textarea {
 }
 
 .dashboard-amount {
-  color: #f6f8fc !important;
+  color: var(--foreground) !important;
   font-size: 12px !important;
   font-variant-numeric: tabular-nums;
   font-weight: 750;
@@ -3724,6 +3724,103 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
   .statement-row-heading > .date-period-controls { flex-basis: 100%; }
   .statement-row-heading .date-period-caption { flex-basis: 100%; margin: 0; }
 }
+
+/* Profile and appearance */
+.account-menu__profile { align-items: center; border-radius: 8px; color: var(--foreground); display: flex; font-size: 14px; font-weight: 700; gap: 9px; min-height: 40px; padding: 8px; }
+.account-menu__profile:hover, .account-menu__profile:focus-visible { background: var(--accent-soft); color: var(--accent); outline: none; }
+.profile-page { display: grid; gap: 24px; max-width: 1320px; padding: 18px 0 40px; }
+.profile-hero { align-items: center; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 18px; display: flex; gap: 24px; justify-content: space-between; min-height: 214px; overflow: hidden; padding: 32px 40px; }
+.profile-identity { align-items: center; display: flex; gap: 24px; min-width: 0; }
+.profile-avatar { align-items: center; background: var(--accent-soft); border: 1px solid var(--panel-border); border-radius: 50%; color: var(--accent); display: inline-flex; flex: 0 0 auto; font-size: 32px; font-weight: 800; height: 112px; justify-content: center; letter-spacing: -.04em; width: 112px; }
+.profile-identity__text { min-width: 0; }
+.profile-identity__text h2 { font-size: clamp(26px, 3vw, 34px); letter-spacing: -.04em; line-height: 1.1; margin: 0 0 10px; overflow-wrap: anywhere; }
+.profile-identity__text p { color: var(--muted); margin: 4px 0; overflow-wrap: anywhere; }
+.profile-appearance { border: 0; flex: 0 0 336px; margin: 0; min-width: 0; padding: 0; }
+.profile-appearance legend { color: var(--foreground); font-size: 14px; font-weight: 750; margin-bottom: 12px; padding: 0; }
+.profile-appearance__options { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 11px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; padding: 3px; }
+.profile-appearance__option { align-items: center; background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--muted); cursor: pointer; display: grid; gap: 5px; justify-items: center; min-height: 72px; padding: 8px 6px; }
+.profile-appearance__option:hover { color: var(--foreground); }
+.profile-appearance__option--selected { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 750; }
+.profile-appearance__option:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.profile-details { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 18px; padding: 30px 36px 26px; }
+.profile-details__heading { border-bottom: 1px solid var(--panel-border); padding-bottom: 24px; }
+.profile-details__heading h2 { font-size: 23px; letter-spacing: -.025em; margin: 0 0 5px; }
+.profile-details__heading p, .profile-row p { color: var(--muted); font-size: 14px; line-height: 1.4; margin: 0; }
+.profile-row { align-items: center; border-bottom: 1px solid var(--panel-border); display: grid; gap: 24px; grid-template-columns: minmax(180px, .48fr) minmax(0, 1fr); min-height: 86px; padding: 15px 0; }
+.profile-row label, .profile-row__label { display: block; font-size: 14px; font-weight: 750; margin-bottom: 5px; }
+.profile-row input, .profile-row__static { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; color: var(--foreground); display: block; min-height: 46px; padding: 11px 14px; width: 100%; }
+.profile-row__static { background: var(--background); color: var(--muted); }
+.profile-row input:focus-visible { border-color: var(--accent); outline: 3px solid var(--accent-soft); }
+.profile-error { color: var(--danger); font-size: 14px; margin: 16px 0 0; }
+.profile-actions { align-items: center; display: flex; gap: 16px; justify-content: space-between; padding-top: 24px; }
+.profile-actions .button { min-height: 46px; }
+.profile-signout { display: inline-flex; gap: 8px; }
+
+@media (max-width: 760px) {
+  .profile-page { gap: 16px; padding: 8px 0 30px; }
+  .profile-hero { align-items: stretch; flex-direction: column; padding: 24px; }
+  .profile-avatar { font-size: 27px; height: 76px; width: 76px; }
+  .profile-appearance { flex-basis: auto; }
+  .profile-details { padding: 24px; }
+  .profile-row { gap: 10px; grid-template-columns: 1fr; padding: 16px 0; }
+  .profile-actions { align-items: stretch; flex-direction: column; }
+}
+
+/* Light appearance keeps the same layout and interaction patterns as dark mode. */
+html[data-theme="light"] {
+  --background: #f7faf8;
+  --foreground: #162438;
+  --muted: #536579;
+  --panel: #ffffff;
+  --panel-border: #d9e4e3;
+  --accent: #087c59;
+  --accent-strong: #05684b;
+  --accent-soft: #e6f5ed;
+  --info-soft: #e9f2ff;
+  --info: #265da8;
+  --warning: #936009;
+  --danger: #b42330;
+  --shadow: 0 12px 32px rgb(35 66 65 / 8%);
+}
+html[data-theme="light"] .app-sidebar { background: #ffffff; }
+html[data-theme="light"] .app-logo { color: var(--foreground); }
+html[data-theme="light"] .app-nav__item { color: #435468; }
+html[data-theme="light"] .app-nav__item:hover { background: #f0f6f3; color: var(--foreground); }
+html[data-theme="light"] .app-nav__item--active { background: var(--accent-soft); color: var(--accent); }
+html[data-theme="light"] .app-sidebar__footer strong { color: var(--foreground); }
+html[data-theme="light"] .app-topbar { background: rgb(255 255 255 / 96%); }
+html[data-theme="light"] .sidebar-toggle, html[data-theme="light"] .mobile-menu-button { background: var(--panel); color: var(--foreground); }
+html[data-theme="light"] .sidebar-toggle:hover { background: #f0f6f3; }
+html[data-theme="light"] .topbar-control, html[data-theme="light"] .topbar-search { background: var(--panel); border-color: var(--panel-border); color: var(--foreground); }
+html[data-theme="light"] .topbar-search input::placeholder { color: var(--muted); }
+html[data-theme="light"] .user-avatar { background: var(--accent-soft); border-color: #cce7db; color: var(--accent); }
+html[data-theme="light"] .user-avatar > span { border-color: #ffffff; }
+html[data-theme="light"] .profile-hero { background: #f8fcf9 url('/profile/mint-contours.png') center / cover no-repeat; }
+html[data-theme="light"] .profile-avatar { background: #c5eddd; color: #0b3542; }
+html[data-theme="light"] .profile-row__static { background: #f7faf8; }
+html[data-theme="light"] .button--primary { background: var(--accent); color: #ffffff; }
+html[data-theme="light"] .button--primary:hover { background: var(--accent-strong); }
+html[data-theme="light"] .button--ghost { background: var(--panel); border-color: var(--panel-border); color: var(--foreground); }
+html[data-theme="light"] .button--ghost:hover { background: #f0f6f3; }
+html[data-theme="light"] .panel, html[data-theme="light"] .dashboard-panel, html[data-theme="light"] .session-card,
+html[data-theme="light"] .data-table th, html[data-theme="light"] .raw-message, html[data-theme="light"] .audit-json,
+html[data-theme="light"] .search-control, html[data-theme="light"] .review-search,
+html[data-theme="light"] .review-remember, html[data-theme="light"] .review-identifiers,
+html[data-theme="light"] .review-detail .raw-message, html[data-theme="light"] .unified-note-field,
+html[data-theme="light"] .unified-ledger-suggestion, html[data-theme="light"] .unified-pair-checklist__item,
+html[data-theme="light"] .setup-checklist span, html[data-theme="light"] .quick-preset-tile,
+html[data-theme="light"] .column-picker__menu { background: var(--panel); }
+html[data-theme="light"] .field__control, html[data-theme="light"] .compact-select,
+html[data-theme="light"] .review-filter-row select, html[data-theme="light"] .review-detail__pager button,
+html[data-theme="light"] .month-navigator button, html[data-theme="light"] .column-picker summary,
+html[data-theme="light"] .unified-note-field textarea { background: var(--panel); border-color: var(--panel-border); color: var(--foreground); }
+html[data-theme="light"] .review-queue-item:hover, html[data-theme="light"] .data-table tbody tr:hover { background: #f0f7f3; }
+html[data-theme="light"] .review-queue-item--active { background: var(--accent-soft); border-color: #9ed5ba; }
+html[data-theme="light"] .review-sticky-actions { background: rgb(255 255 255 / 96%); }
+html[data-theme="light"] .status-badge--inactive { background: #f1f4f6; }
+html[data-theme="light"] .dashboard-table th { background: #f4f8f6; color: var(--muted); }
+html[data-theme="light"] .dashboard-table td { color: var(--foreground); }
+html[data-theme="light"] input[type="date"], html[data-theme="light"] input[type="time"], html[data-theme="light"] input[type="month"] { color-scheme: light; }
 
 /* Native date/time affordances must remain visible on dark surfaces. */
 input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark; }

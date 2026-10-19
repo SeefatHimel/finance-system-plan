@@ -695,6 +695,18 @@ export async function getCurrentUser(accessToken: string): Promise<CurrentUser> 
   return currentUserSchema.parse(await response.json());
 }
 
+export async function updateCurrentUser(
+  accessToken: string,
+  profile: Pick<CurrentUser, "first_name" | "last_name" | "email">
+): Promise<CurrentUser> {
+  const response = await authenticatedFetch("/api/auth/me/", accessToken, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(profile)
+  });
+  return currentUserSchema.parse(await response.json());
+}
+
 export async function getLocalSessionUser(): Promise<CurrentUser | null> {
   const accessToken = getAccessToken() || await refreshStoredLocalSession();
   return accessToken ? getCurrentUser(accessToken) : null;

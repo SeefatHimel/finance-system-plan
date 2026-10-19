@@ -1,5 +1,14 @@
 # Web App Q&A
 
+### How do profile editing and light/dark appearance work?
+
+The avatar menu opens a dedicated responsive profile page. Name and email are
+saved through the authenticated current-user API, then the shell updates its
+displayed name. Username remains read-only. System, Light, and Dark appearance
+choices apply across the web app immediately and persist in this browser; the
+System choice follows operating-system changes. The mobile app keeps its own
+appearance until it gets a separate implementation.
+
 ### What date format does the web app show?
 
 Parsed calendar dates, local timestamps, and typed date fields display
