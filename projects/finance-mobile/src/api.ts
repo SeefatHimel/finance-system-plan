@@ -592,6 +592,30 @@ export async function getCurrentUser(accessToken: string): Promise<CurrentUser> 
   return (await response.json()) as CurrentUser;
 }
 
+export async function getCurrentUserWithRecovery(accessToken: string): Promise<CurrentUser> {
+  const response = await authenticatedFetch("/api/auth/me/", accessToken);
+  if (!response.ok) throw new Error("Could not load user.");
+  return (await response.json()) as CurrentUser;
+}
+
+export async function updateCurrentUser(
+  accessToken: string,
+  changes: Pick<CurrentUser, "first_name" | "last_name" | "email">
+): Promise<CurrentUser> {
+  const response = await authenticatedFetch("/api/auth/me/", accessToken, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(changes)
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as Record<string, unknown> | null;
+    const firstError = body && Object.values(body).find(value => typeof value === "string" || Array.isArray(value));
+    const message = Array.isArray(firstError) ? String(firstError[0]) : typeof firstError === "string" ? firstError : null;
+    throw new Error(message || "Could not save profile. Please try again.");
+  }
+  return (await response.json()) as CurrentUser;
+}
+
 async function authenticatedFetch(path: string, accessToken: string, init?: RequestInit): Promise<Response> {
   const request = (token: string) => boundedFetch(`${getApiBaseUrl()}${path}`, {
     ...init,

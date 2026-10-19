@@ -1,5 +1,14 @@
 # Mobile App Q&A
 
+### How does mobile profile editing and appearance work?
+
+More → Profile & appearance reads the authenticated user and PATCHes only first
+name, last name and email. Username is shown but cannot be changed there. The
+form keeps unsaved edits when an access token refreshes; server validation stays
+visible if Save fails. System, Light and Dark are local device preferences in
+AsyncStorage, and System follows the OS appearance. They do not change ledger
+data, and web/mobile appearance preferences are independent.
+
 ### How are dates shown and stored on mobile?
 
 Read-only dates and local timestamps use `dd/mm/yyyy`. Native pickers still

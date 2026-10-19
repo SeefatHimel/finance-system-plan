@@ -79,12 +79,10 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.15**, Android version code **16**. Home shows up to
-three active accounts' ledger balances without adding different currencies.
-Activity and Home distinguish debit, credit and transfer rows, while Activity
-shows category and account context. Debts separate receivables from payables and
-offer a local name search. This is a presentation update; no new API endpoint or
-migration is needed. Use the existing deployed API required by release 0.1.13.
+The current release is **0.1.16**, Android version code **17**. It adds profile
+editing and device-local System, Light and Dark appearance choices. Deploy the
+API with `PATCH /api/auth/me/` before using profile edits in this APK. There is
+no database migration or queue reset.
 
 ## 5. Build the signed APK
 
@@ -107,7 +105,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.15.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.16.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -398,3 +396,14 @@ type/account labels, and account-filtered transfers retain their direction.
 In Debts & lending, verify owed-to-you and you-owe balances remain separate and
 searching a name only filters the loaded list. Confirm Quick Add, review, SMS
 sync and offline queues still behave as before.
+
+## Profile and appearance release 0.1.16
+
+Upgrade in place with the existing signing key. Verify **0.1.16/code 17** and
+compare the signing certificate with the preceding APK. Open More → Profile &
+appearance and check profile data loads, the username remains read-only, invalid
+email reports an error, and saving a synthetic name/email updates the web view.
+Switch System, Light and Dark, restart the app, and verify the selected appearance
+persists while System follows the OS. Check Home, Activity, Review, Quick Add and
+SMS capture in both modes on a physical phone, including enlarged text and
+TalkBack. No financial data should change when only appearance changes.

@@ -1,5 +1,13 @@
 # finance-mobile
 
+The **More → Profile & appearance** screen lets a signed-in user update their
+first name, last name and email through `PATCH /api/auth/me/`. Username stays
+read-only. Appearance offers System, Light and Dark; the device keeps this
+preference locally, so changing it does not alter financial records or another
+device's setting. The profile follows the same identity as the web app. The
+backend containing this endpoint must be deployed before using profile edits in
+the 0.1.16 APK.
+
 ## Recovering older transaction SMS originals
 
 After the API migration, transaction-related SMS uses **Keep** retention by
@@ -806,3 +814,7 @@ totals with a name search. Each balance card uses its own currency and is labell
 as a ledger balance. Install the same-key upgrade from
 `dist/releases/finance-mobile-0.1.15.apk`; see the
 [release checklist](docs/signed-android-release.md#balance-and-activity-release-0115).
+
+Release **0.1.16 / Android code 17** adds profile editing and mobile appearance
+controls. Install `dist/releases/finance-mobile-0.1.16.apk` over the existing
+same-key build after the matching API has deployed.

@@ -1,5 +1,5 @@
 import { reviewDraftError } from "./src/review-validation";
-import { ActionButton, SourceMessage, ui } from "./src/mobile-ui";
+import { ActionButton, SourceMessage, ui as darkUi } from "./src/mobile-ui";
 import { SyncSummary, useServerSyncStatus } from "./src/sync-summary";
 import { ManualEntryFields, type ManualEntryDraft } from "./src/manual-entry-fields";
 import { ReviewFields, type ReviewDraft } from "./src/review-fields";
@@ -29,6 +29,7 @@ import {
   AppState,
   Alert,
   Animated,
+  Appearance,
   Easing,
   Modal,
   PermissionsAndroid,
@@ -39,6 +40,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useColorScheme,
   View
 } from "react-native";
 
@@ -123,13 +125,16 @@ import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from "react-nati
 import { ChoicePressable } from "./src/choice-pressable";
 import { clearSession, loadSession, saveSession } from "./src/session";
 import { loadSecureSmsQueue, saveSecureSmsQueue } from "./src/secure-sms-queue";
+import { ProfileScreen } from "./src/profile-screen";
+import { loadThemePreference, saveThemePreference, type ThemePreference } from "./src/theme-preference";
+import { lightMobileStyles } from "./src/theme-styles";
 
 type ViewState = "idle" | "loading" | "success" | "error";
 type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
 type SmsScanMode = "new" | "history";
 type MainTab = "home" | "activity" | "capture" | "review" | "more";
 type HomeFeed = "review" | "captured";
-type MobilePanel = "sms-automation" | "accounts" | null;
+type MobilePanel = "sms-automation" | "accounts" | "profile" | null;
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 type ReviewCandidateDraft = ReviewDraft;
 function isIncomingReview(candidate: ParsedMessageCandidate) {
@@ -759,6 +764,21 @@ export default function App() {
 }
 
 function FinanceApp() {
+  const [themePreference, setThemePreference] = useState<ThemePreference>("system");
+  const systemScheme = useColorScheme();
+  const isLight = (themePreference === "system" ? systemScheme : themePreference) === "light";
+  const styles = isLight ? lightStyles : darkStyles;
+  const ui = isLight ? lightUi : darkUi;
+  useEffect(() => {
+    void loadThemePreference().then(setThemePreference).catch(() => {});
+  }, []);
+  useEffect(() => {
+    Appearance.setColorScheme(themePreference === "system" ? null : themePreference);
+  }, [themePreference]);
+  function chooseTheme(preference: ThemePreference) {
+    setThemePreference(preference);
+    void saveThemePreference(preference).catch(() => {});
+  }
   const quickHub = useRef<QuickAddHandle>(null);
   const [editingTransaction, setEditingTransaction] = useState<{ id: string; scope: string } | null>(null);
   const reviewSubmitting = useRef<object | null>(null);
@@ -1564,7 +1584,7 @@ function FinanceApp() {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.15",
+          app_version: "0.1.16",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1586,7 +1606,7 @@ function FinanceApp() {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.15",
+        app_version: "0.1.16",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1663,7 +1683,7 @@ function FinanceApp() {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.15",
+            app_version: "0.1.16",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1678,7 +1698,7 @@ function FinanceApp() {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.15",
+          app_version: "0.1.16",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -3197,7 +3217,7 @@ function FinanceApp() {
   const editorSurface = editingTransaction && editingTransaction.scope === localDataScope && accessToken ? <TransactionEditor key={`${editingTransaction.scope}.${editingTransaction.id}`} id={editingTransaction.id} token={accessToken} scope={localDataScope!} accounts={accounts} categories={categories} paymentMethods={paymentMethods} isCurrent={() => accountScopeRef.current === editingTransaction.scope} onClose={() => setEditingTransaction(current => current?.id === editingTransaction.id && current.scope === editingTransaction.scope ? null : current)} onSaved={() => { if (accountScopeRef.current !== editingTransaction.scope) return; setEditingTransaction(current => current?.id === editingTransaction.id && current.scope === editingTransaction.scope ? null : current); void recovery.announce(); }} /> : null;
   const renderAdvancedTools = () => (
     <SafeAreaView style={styles.screen}>
-      <StatusBar style="dark" />
+      <StatusBar style={isLight ? "dark" : "light"} />
       <View style={styles.advancedHeader}>
         <Pressable
           accessibilityLabel="Back to Finance"
@@ -4297,8 +4317,8 @@ function FinanceApp() {
           {showSmsDiagnostics ? (
             <View style={{ gap: 10 }}>
               <Text style={styles.mobileRowMeta}>Includes sync counts, stage and error codes. SMS text and login tokens are excluded.</Text>
-              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.15", getApiBaseUrl())}</Text>
-              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.15", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
+              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.16", getApiBaseUrl())}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.16", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
                 <Text style={styles.mobileSecondaryActionText}>Share diagnostics</Text>
               </Pressable>
             </View>
@@ -4912,6 +4932,7 @@ function FinanceApp() {
       <View style={styles.mobileGroupedList}>{mobileDestinations.filter(item => item.id !== "accounts" && item.id !== "capture").map(destinationRow)}</View>
       <Text accessibilityRole="header" style={styles.mobileFieldLabel}>Settings</Text>
       <View style={styles.mobileGroupedList}>
+        <Pressable accessibilityRole="button" onPress={() => setMobilePanel("profile")} style={styles.mobileMenuRow}><MaterialCommunityIcons color={isLight ? "#168c69" : "#55e6a5"} name="account-circle-outline" size={22} /><Text style={styles.mobileMenuLabel}>Profile & appearance</Text><MaterialCommunityIcons color={isLight ? "#6c808b" : "#647b98"} name="chevron-right" size={23} /></Pressable>
         <Pressable accessibilityRole="button" onPress={() => quickHub.current?.manage()} style={styles.mobileMenuRow}><MaterialCommunityIcons color="#55e6a5" name="flash-outline" size={22} /><Text style={styles.mobileMenuLabel}>Quick Add presets</Text><MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} /></Pressable>
         {mobileDestinations.filter(item => item.id === "capture").map(destinationRow)}
       </View>
@@ -4937,7 +4958,7 @@ function FinanceApp() {
   if (!iconsLoaded) {
     return (
       <SafeAreaView style={styles.mobileRoot}>
-        <StatusBar style="light" />
+        <StatusBar style={isLight ? "dark" : "light"} />
         <View style={styles.mobileSessionLoader}>
           {iconFontError ? null : <ActivityIndicator color="#55e6a5" size="large" />}
           <Text accessibilityRole={iconFontError ? "alert" : "text"} style={styles.mobileEmptyTitle}>
@@ -4956,7 +4977,7 @@ function FinanceApp() {
   if (sessionRestoring) {
     return (
       <SafeAreaView style={styles.mobileRoot}>
-        <StatusBar style="light" />
+        <StatusBar style={isLight ? "dark" : "light"} />
         <View style={styles.mobileSessionLoader}>
           <View style={styles.mobileBrandMark}>
             <MaterialCommunityIcons color="#06141f" name="message-processing-outline" size={30} />
@@ -4972,7 +4993,7 @@ function FinanceApp() {
   if (!accessToken.trim()) {
     return (
       <SafeAreaView style={styles.mobileRoot}>
-        <StatusBar style="light" />
+        <StatusBar style={isLight ? "dark" : "light"} />
         <ScrollView contentContainerStyle={styles.mobileLoginContent} keyboardShouldPersistTaps="handled">
           <View style={styles.mobileLoginBrand}>
             <View style={styles.mobileBrandMark}>
@@ -5044,7 +5065,7 @@ function FinanceApp() {
   const selectedReviewCandidate = activeTab === "review" && !mobilePanel && reviewCandidates.length ? reviewCandidates[reviewSelection(reviewCandidates, reviewCandidateId, reviewCandidateIndex)] : null;
   const selectedReviewDraft = selectedReviewCandidate ? getReviewDraft(selectedReviewCandidate) : null;
   const selectedReviewIssue = selectedReviewDraft ? reviewDraftError(selectedReviewDraft, accounts, categories, paymentMethods) : "";
-  const activeContent = mobilePanel === "accounts" ? renderAccounts() : mobilePanel === "sms-automation"
+  const activeContent = mobilePanel === "profile" ? <ProfileScreen key={username} accessToken={accessToken} isLight={isLight} onSignOut={() => void handleLogout()} preference={themePreference} setPreference={chooseTheme} username={username} /> : mobilePanel === "accounts" ? renderAccounts() : mobilePanel === "sms-automation"
     ? renderSmsAutomation()
     : activeTab === "home"
       ? renderHome()
@@ -5058,14 +5079,14 @@ function FinanceApp() {
 
   return (
     <SafeAreaView style={styles.mobileRoot}>
-      <StatusBar style="light" />
+      <StatusBar style={isLight ? "dark" : "light"} />
       <View style={styles.mobileAppHeader}>
         <Pressable
           accessibilityLabel={mobilePanel ? "Go back" : "Open menu"}
           onPress={mobilePanel ? () => setMobilePanel(null) : openDrawer}
           style={styles.mobileHeaderButton}
         >
-          <MaterialCommunityIcons color="#dce8f6" name={mobilePanel ? "arrow-left" : "menu"} size={27} />
+          <MaterialCommunityIcons color={isLight ? "#142b36" : "#dce8f6"} name={mobilePanel ? "arrow-left" : "menu"} size={27} />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Quick Add manual entry" onPress={() => quickHub.current?.open()} style={styles.mobileHeaderButton}><MaterialCommunityIcons color="#55e6a5" name="plus" size={24} /></Pressable>
         <View style={styles.mobileHeaderTitleWrap}>
@@ -5167,6 +5188,10 @@ function FinanceApp() {
             <View style={styles.mobileDrawerFooter}>
               <Text style={styles.mobileDrawerFooterLabel}>Signed in</Text>
               <Text style={styles.mobileDrawerFooterValue}>{username || "Finance user"}</Text>
+              <Pressable accessibilityRole="button" onPress={() => { closeDrawer(); setAdvancedTool(null); setMobilePanel("profile"); }} style={styles.mobileDrawerLogout}>
+                <MaterialCommunityIcons color={isLight ? "#168c69" : "#55e6a5"} name="account-circle-outline" size={20} />
+                <Text style={styles.mobileLogoutText}>Profile & appearance</Text>
+              </Pressable>
               <Pressable onPress={handleLogout} style={styles.mobileDrawerLogout}>
                 <MaterialCommunityIcons color="#ff7d84" name="logout" size={20} />
                 <Text style={styles.mobileLogoutText}>Sign out</Text>
@@ -6775,3 +6800,7 @@ const styles = StyleSheet.create({
     fontWeight: "600"
   }
 });
+
+const darkStyles = styles;
+const lightStyles = lightMobileStyles(styles);
+const lightUi = lightMobileStyles(darkUi);
