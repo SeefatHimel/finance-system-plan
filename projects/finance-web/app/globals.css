@@ -12,7 +12,7 @@
   --warning: #ffbd4a;
   --danger: #ff6d72;
   --shadow: 0 16px 44px rgb(1 7 13 / 18%);
-  --sidebar-width: 208px;
+  --sidebar-width: 224px;
 }
 
 * {
@@ -98,9 +98,9 @@ textarea {
   display: flex;
   font-size: 14px;
   font-weight: 560;
-  gap: 11px;
+  gap: 8px;
   min-height: 46px;
-  padding: 10px 12px;
+  padding: 9px 10px;
   transition: background 140ms ease, color 140ms ease;
 }
 
@@ -1411,13 +1411,14 @@ textarea {
   border-radius: 999px;
   color: #261600;
   display: inline-flex;
+  flex: 0 0 auto;
   font-size: 11px;
   font-weight: 800;
-  height: 24px;
+  height: 22px;
   justify-content: center;
   margin-left: auto;
-  min-width: 24px;
-  padding: 0 7px;
+  min-width: 32px;
+  padding: 0 6px;
 }
 
 .sync-heading {
@@ -3787,6 +3788,7 @@ html[data-theme="light"] .app-logo { color: var(--foreground); }
 html[data-theme="light"] .app-nav__item { color: #435468; }
 html[data-theme="light"] .app-nav__item:hover { background: #f0f6f3; color: var(--foreground); }
 html[data-theme="light"] .app-nav__item--active { background: var(--accent-soft); color: var(--accent); }
+html[data-theme="light"] .app-nav__count { background: #fff0cb; color: #745004; }
 html[data-theme="light"] .app-sidebar__footer strong { color: var(--foreground); }
 /* A solid sticky surface keeps scrolled page content from showing through the heading. */
 html[data-theme="light"] .app-topbar { background: var(--panel); box-shadow: 0 3px 14px rgb(30 60 52 / 5%); }
