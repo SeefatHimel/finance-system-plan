@@ -35,7 +35,7 @@ test("shared monetary presentation retains exact cents, grouping, signs and unkn
     assert.equal(p.formatCurrency(value), "Amount unavailable");
 });
 test("calendar dates validate actual days and absent times never acquire a guessed time", () => {
-  assert.equal(p.formatCalendarDate("2024-02-29"), "29 Feb 2024");
+  assert.equal(p.formatCalendarDate("2024-02-29"), "29/02/2024");
   for (const date of ["2026-02-29", "2026-02-30", "0000-01-01", "", null])
     assert.equal(p.formatCalendarDate(date), "Unknown date");
   assert.equal(p.formatClockTime("00:07:32"), "00:07:32");
@@ -58,12 +58,12 @@ test("SMS input date and time use the same local day across timezone boundaries;
   }
   assert.deepEqual(inZone("Asia/Dhaka"), {
     fields: { date: "2026-01-02", time: "02:15" },
-    calendar: "01 Jan 2026",
-    stamp: "02 Jan 2026, 02:15",
+    calendar: "01/01/2026",
+    stamp: "02/01/2026, 02:15",
   });
   assert.deepEqual(inZone("America/Los_Angeles"), {
     fields: { date: "2026-01-01", time: "12:15" },
-    calendar: "01 Jan 2026",
-    stamp: "01 Jan 2026, 12:15",
+    calendar: "01/01/2026",
+    stamp: "01/01/2026, 12:15",
   });
 });

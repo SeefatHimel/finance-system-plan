@@ -40,15 +40,19 @@ Important errors and financial conflicts must not live only in help text.
 presentation helpers, alongside the existing shared Quick Add and transfer
 comparison helpers. It is not an HTTP contract or ledger calculation layer.
 
-- Full read-only calendar dates use `dd MMM yyyy`; compact queue dates may omit
-  the year. Date-only values are validated and formatted without timezone shifts.
+- Web calendar dates, including typed entry fields, picker placeholders and compact
+  review queues, use `dd/mm/yyyy`. A calendar button is available alongside text
+  entry; valid typed dates are converted to ISO for form submission and API calls.
+  Date-only values are validated and formatted without timezone shifts.
 - Absolute timestamps use the viewer's local timezone and a 24-hour clock. SMS
   review resolves its input date and time from that same local timestamp, avoiding
   a UTC date paired with a local time. Mobile Today/history defaults also use the
   local day. API date/time strings, original evidence and stored timestamps retain
   their existing formats. Activity Added/Updated day grouping remains Asia/Dhaka.
-- Browser-native input rendering follows the browser locale; date/month/time
-  inputs declare a dark color scheme so native affordances remain visible.
+- The web calendar popup and time inputs remain native controls, so the popup's
+  internal labels and time rendering can follow the browser locale. The visible
+  web date field always uses day/month/year. Native controls declare a dark color
+  scheme so affordances remain visible.
   Android opens the system calendar/24-hour clock; iOS uses dark spinner dialogs.
   Opening or cancelling a picker never commits a value. Exact text inputs remain
   available. A blank time remains unreported until the user chooses a time.

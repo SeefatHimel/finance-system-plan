@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { ArrowCounterClockwise } from "@phosphor-icons/react";
+import { CalendarDateInput } from "@/components/calendar-date-input";
 import { allDates, dailyPeriod, dateRangeError, monthPeriod, periodLabel, shiftPeriod, type DatePeriod } from "@/lib/date-period";
 
 export function DatePeriodControls({ value, onChange, allowAll = true, label = "Date filter", description, children, compact = false }: {
@@ -45,13 +46,13 @@ export function DatePeriodControls({ value, onChange, allowAll = true, label = "
     {mode === "custom" ? <div className="date-period-fields" onKeyDown={event => {
       if (event.key === "Enter" && event.target instanceof HTMLInputElement) { event.preventDefault(); event.stopPropagation(); applyCustom(); }
     }}>
-      <label className="field" htmlFor={`${id}-start`}><span className="field__label">Start date</span><input id={`${id}-start`} className="field__control" type="date" value={custom.start} onChange={event => setCustom(old => ({ ...old, start: event.target.value }))} /></label>
-      <label className="field" htmlFor={`${id}-end`}><span className="field__label">End date</span><input id={`${id}-end`} className="field__control" type="date" min={custom.start} value={custom.end} onChange={event => setCustom(old => ({ ...old, end: event.target.value }))} /></label>
+      <label className="field" htmlFor={`${id}-start`}><span className="field__label">Start date</span><CalendarDateInput id={`${id}-start`} value={custom.start} onChange={start => setCustom(old => ({ ...old, start }))} /></label>
+      <label className="field" htmlFor={`${id}-end`}><span className="field__label">End date</span><CalendarDateInput id={`${id}-end`} min={custom.start} value={custom.end} onChange={end => setCustom(old => ({ ...old, end }))} /></label>
       <button className="button button--primary" type="button" onClick={applyCustom}>Apply dates</button>
     </div> : mode !== "all" ? <div className="date-period-fields date-period-fields--single">
       <button className="button button--ghost" type="button" aria-label={`Previous ${mode === "daily" ? "day" : "month"}`} onClick={() => onChange(shiftPeriod(value, -1))}>←</button>
-      <label className="field" htmlFor={`${id}-date`}><span className="field__label">{mode === "daily" ? "Day" : "Month"}</span><input id={`${id}-date`} className="field__control" type={mode === "daily" ? "date" : "month"} value={mode === "daily" ? value.start : value.start.slice(0, 7)} onChange={event => {
-        if (event.target.value) onChange(mode === "daily" ? dailyPeriod(event.target.value) : monthPeriod(event.target.value));
+      <label className="field" htmlFor={`${id}-date`}><span className="field__label">{mode === "daily" ? "Day" : "Month (choose any day)"}</span><CalendarDateInput id={`${id}-date`} value={value.start} onChange={date => {
+        if (date) onChange(mode === "daily" ? dailyPeriod(date) : monthPeriod(date.slice(0, 7)));
       }} /></label>
       <button className="button button--ghost" type="button" aria-label={`Next ${mode === "daily" ? "day" : "month"}`} onClick={() => onChange(shiftPeriod(value, 1))}>→</button>
       <button className="button button--ghost" type="button" aria-label={mode === "daily" ? "Today" : "Current month"} title={mode === "daily" ? "Today" : "Current month"} onClick={() => onChange(mode === "daily" ? dailyPeriod() : monthPeriod())}>{compact ? <ArrowCounterClockwise aria-hidden="true" size={18} /> : mode === "daily" ? "Today" : "Current month"}</button>

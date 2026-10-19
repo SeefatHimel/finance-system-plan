@@ -12,6 +12,8 @@ import { createReviewDrafts } from "@/lib/review-drafts";
 import { RecentTransactionAction, useTransactionRecovery } from "@/components/transaction-recovery";
 
 import { DatePeriodControls } from "@/components/date-period-controls";
+import { CalendarDateInput } from "@/components/calendar-date-input";
+import { parseCalendarDate } from "@/lib/calendar-date";
 import { allDates, dateInPeriod, type DatePeriod } from "@/lib/date-period";
 
 import { useFeedbackMessage } from "@/components/toast-provider";
@@ -82,7 +84,7 @@ function formatLabel(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-const queueDayFormatter = new Intl.DateTimeFormat("en-BD", { month: "short", day: "numeric" });
+const queueDayFormatter = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
 const queueTimeFormatter = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 function dateInputFromTimestamp(value: string) { return timestampFields(value).date; }
@@ -579,7 +581,7 @@ export function MessageReviewWorkspace() {
 
           {activeCandidate ? (
             <article className="panel review-detail">
-              <form noValidate ref={formRef} key={`${activeCandidate.id}:${formRevisions[activeCandidate.id] ?? 0}`} onChangeCapture={event => { const input = event.target as HTMLInputElement; const name = input.name; nativeDrafts.current.capture(activeCandidate.id, name, input.type === "checkbox" ? input.checked : input.value); setFieldErrors(current => { const next = { ...current }; delete next[name]; return next; }); }} onSubmit={(event) => void handleConfirm(activeCandidate, event)}>
+              <form noValidate ref={formRef} key={`${activeCandidate.id}:${formRevisions[activeCandidate.id] ?? 0}`} onChangeCapture={event => { const input = event.target as HTMLInputElement; const name = input.name; nativeDrafts.current.capture(activeCandidate.id, name, input.type === "checkbox" ? input.checked : name === "date" ? parseCalendarDate(input.value) ?? "" : input.value); setFieldErrors(current => { const next = { ...current }; delete next[name]; return next; }); }} onSubmit={(event) => void handleConfirm(activeCandidate, event)}>
                 <div className="review-detail__content">
                 <div className="review-detail__header">
                   <div className="review-detail__summary">
@@ -637,7 +639,7 @@ export function MessageReviewWorkspace() {
                   <label className="field"><span className="field__label">Amount</span><input className="field__control" value={activeValues?.amount ?? ""} onChange={event => setAmountDrafts(current => ({ ...current, [activeCandidate.id]: event.target.value }))} inputMode="decimal" name="amount" {...feedback("amount")} required /><FieldError prefix="review" field="amount" errors={fieldErrors} /></label>
                   <label className="field"><span className="field__label inline-help">Balance after<HelpTooltip label="About the reported balance">Reported for the selected account; kept when type changes.</HelpTooltip></span><input aria-label="Balance after" className="field__control" value={classification?.balanceAfter ?? ""} onChange={(event) => setClassificationDrafts((current) => ({ ...current, [activeCandidate.id]: { type: classification?.type ?? activeCandidate.transaction_type as TransactionType, category: classification?.category ?? "", balanceAfter: event.target.value } }))} inputMode="decimal" name="balance_after" {...feedback("balance_after")} />{classification && "balanceCleared" in classification && classification.balanceCleared ? <span className="field__hint" role="status">Reported balance cleared because its reporting account changed. Enter the balance for the new account if available.</span> : null}<FieldError prefix="review" field="balance_after" errors={fieldErrors} /></label>
                   <div className="transaction-datetime compact-editor-datetime" role="group" aria-label="Date and time">
-                    <label className="field"><span className="field__label">Date</span><input className="field__control" defaultValue={nativeDrafts.current.text(activeCandidate.id, "date", dateInputFromTimestamp(activeCandidate.raw_message.received_at))} name="date" {...feedback("date")} type="date" /><FieldError prefix="review" field="date" errors={fieldErrors} /></label>
+                    <label className="field"><span className="field__label">Date</span><CalendarDateInput defaultValue={nativeDrafts.current.text(activeCandidate.id, "date", dateInputFromTimestamp(activeCandidate.raw_message.received_at))} name="date" {...feedback("date")} /><FieldError prefix="review" field="date" errors={fieldErrors} /></label>
                     <label className="field"><span className="field__label">Time</span><input className="field__control" defaultValue={nativeDrafts.current.text(activeCandidate.id, "time", timeInputFromTimestamp(activeCandidate.raw_message.received_at))} name="time" {...feedback("time")} type="time" /><FieldError prefix="review" field="time" errors={fieldErrors} /></label>
                   </div>
                   <label className="field"><span className="field__label">Merchant / counterparty</span><input className="field__control" defaultValue={nativeDrafts.current.text(activeCandidate.id, "counterparty_text", activeCandidate.counterparty_text)} name="counterparty_text" {...feedback("counterparty_text")} /><FieldError prefix="review" field="counterparty_text" errors={fieldErrors} /></label>

@@ -1,5 +1,7 @@
 "use client";
 
+import { formatCalendarDate } from "../../finance-contracts/presentation";
+import { CalendarDateInput } from "@/components/calendar-date-input";
 import { useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { HelpTooltip } from "@/components/help-tooltip";
@@ -143,7 +145,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
           <fieldset className="statement-edit-fields statement-draft-fields" disabled={busy || isResolved}>
             <legend className="visually-hidden">Transaction draft</legend>
             <div className="statement-draft-datetime">
-            <label className="field"><span className="field__label">Date</span><input className="field__control" type="date" value={draft.date ?? ""} onChange={(e) => setField("date", e.target.value || null)} /></label>
+            <label className="field"><span className="field__label">Date</span><CalendarDateInput value={draft.date} onChange={value => setField("date", value || null)} /></label>
             <label className="field"><span className="field__label">Time (if known)</span><input className="field__control" type="time" step="1" value={draft.time ?? ""} onChange={(e) => setField("time", e.target.value || null)} /></label>
             </div>
             <div className="field"><label className="field__label" htmlFor="statement-draft-type">Type</label><select id="statement-draft-type" className="field__control" value={draft.type} onChange={(e) => applyType(e.target.value as TransactionType)}>{transactionTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></div>
@@ -161,7 +163,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
             <label className="field"><span className="field__label">Reported final balance after</span><input className="field__control" type="number" step="0.01" value={draft.balance_after ?? ""} onChange={(e) => setField("balance_after", e.target.value || null)} /></label>
             <div className="field"><label className="field__label" htmlFor="statement-counterparty">Counterparty</label><input id="statement-counterparty" className="field__control" maxLength={255} value={draft.counterparty_text} onChange={(e) => setField("counterparty_text", e.target.value)} />{suggestedName && suggestedName !== draft.counterparty_text ? <button className="unified-suggestion" type="button" onClick={() => setField("counterparty_text", suggestedName)}>Use verified name: {suggestedName}</button> : null}</div>
             <details className="statement-draft-more field--wide"><summary>More details <span>Reference, value date, note{draft.reference || draft.value_date || draft.note ? " · contains saved values" : ""}</span></summary><div className="statement-draft-extra">
-            <label className="field"><span className="field__label">Value date (if printed)</span><input className="field__control" type="date" value={draft.value_date ?? ""} onChange={(e) => setField("value_date", e.target.value || null)} /></label>
+            <label className="field"><span className="field__label">Value date (if printed)</span><CalendarDateInput value={draft.value_date} onChange={value => setField("value_date", value || null)} /></label>
             <label className="field"><span className="field__label">Reference</span><input className="field__control" maxLength={120} value={draft.reference} onChange={(e) => setField("reference", e.target.value)} /></label>
             <div className="field field--wide"><label className="field__label" htmlFor="statement-note">Note</label><textarea id="statement-note" className="field__control" maxLength={4000} rows={3} value={draft.note} onChange={(e) => setField("note", e.target.value)} />{suggestedNote && suggestedNote !== draft.note ? <button className="unified-suggestion" type="button" onClick={() => setField("note", suggestedNote)}>Use suggested note: {suggestedNote}</button> : null}</div>
             </div></details>
@@ -183,15 +185,15 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         {!editOnly && !isResolved && row.review.pending_sms_matches.length ? <section className="statement-matches" aria-labelledby="pending-sms-matches-title">
           <h3 id="pending-sms-matches-title">Pending SMS for this statement row</h3>
           <p className="inline-note">Review the same movement across both sources. This creates one SMS-dated transaction and links the statement; either queue can still be reviewed separately.</p>
-          {row.review.matches.length ? <div className="raw-message"><strong>Existing ledger suggestions also need a decision</strong><p>Compare each ledger entry in the Possible matches section below before combining the SMS and statement.</p><ul>{row.review.matches.map((item) => <li key={item.id}>{item.date} · {item.amount} · {item.note || item.reference || item.source}</li>)}</ul><label className="review-remember"><input type="checkbox" checked={distinctLedgerMatches} disabled={busy || dirty} onChange={(event) => setDistinctLedgerMatches(event.target.checked)} /><span>I compared every listed ledger entry and confirmed each is a different movement.</span></label></div> : null}
+          {row.review.matches.length ? <div className="raw-message"><strong>Existing ledger suggestions also need a decision</strong><p>Compare each ledger entry in the Possible matches section below before combining the SMS and statement.</p><ul>{row.review.matches.map((item) => <li key={item.id}>{formatCalendarDate(item.date)} · {item.amount} · {item.note || item.reference || item.source}</li>)}</ul><label className="review-remember"><input type="checkbox" checked={distinctLedgerMatches} disabled={busy || dirty} onChange={(event) => setDistinctLedgerMatches(event.target.checked)} /><span>I compared every listed ledger entry and confirmed each is a different movement.</span></label></div> : null}
           <div className="statement-match-list">{row.review.pending_sms_matches.map((match) => {
             const conflict = match.balance_after !== null && row.balance_after !== null && match.balance_after !== row.balance_after;
             const choice = currentStatementBalanceChoice(balanceSelections[match.id], { effective_balance_after: match.balance_after }, row.balance_after, row.version, batch.currency);
             return <article className="statement-match-card" key={match.id}>
               <header className="statement-match-heading"><h4>Pending SMS · {match.sender}</h4><span>{batch.currency} {match.amount}</span></header>
               <div className="statement-match-comparison">
-                <section><h5>Statement</h5><p>{row.date}{row.time ? ` · ${row.time}` : ""}</p><p>{displayedStatementText(row.counterparty_text || source.description, source.description, row.citytouch_printed_code)}</p><p>Balance after: {row.balance_after ?? "Not reported"}</p></section>
-                <section><h5>SMS</h5><p>{match.date} · {match.time}</p><p>{match.counterparty_text || "No counterparty parsed"}</p><p>Balance after: {match.balance_after ?? "Not reported"}</p><p>Parser confidence: {Math.round(Number(match.confidence) * 100)}%</p></section>
+                <section><h5>Statement</h5><p>{formatCalendarDate(row.date)}{row.time ? ` · ${row.time}` : ""}</p><p>{displayedStatementText(row.counterparty_text || source.description, source.description, row.citytouch_printed_code)}</p><p>Balance after: {row.balance_after ?? "Not reported"}</p></section>
+                <section><h5>SMS</h5><p>{formatCalendarDate(match.date)} · {match.time}</p><p>{match.counterparty_text || "No counterparty parsed"}</p><p>Balance after: {match.balance_after ?? "Not reported"}</p><p>Parser confidence: {Math.round(Number(match.confidence) * 100)}%</p></section>
               </div>
               {match.sms_text ? <details className="raw-message"><summary>Original SMS</summary><p className="statement-evidence-text">{match.sms_text}</p></details> : null}
               {conflict ? <fieldset className="statement-match-conflict" disabled={busy || dirty}>

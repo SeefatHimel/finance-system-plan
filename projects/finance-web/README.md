@@ -1391,8 +1391,11 @@ rules are unchanged; neither original report is rounded or overwritten by the UI
 
 See [shared interface conventions](../../docs/interface-conventions.md). Core
 transaction/account/report displays share exact decimal and date/time formatting
-with mobile; full dates use `dd MMM yyyy`, timestamps use local 24-hour time and
-calendar/clock inputs stay readable on dark surfaces. Quick Add selections use
+with mobile; displayed and typed date fields use `dd/mm/yyyy`, timestamps use local
+24-hour time, and calendar/clock inputs stay readable on dark surfaces. The date
+field accepts validated day/month/year text, eight digits on a numeric keyboard,
+or the calendar button and submits
+ISO dates to the existing API. Quick Add selections use
 soft mint/check marks rather than competing with its primary Save button.
 Run `node --test tests/presentation.test.cjs` for exact-cent and timezone checks,
 and the complete web suite for transfer perspective, drafts and request races.

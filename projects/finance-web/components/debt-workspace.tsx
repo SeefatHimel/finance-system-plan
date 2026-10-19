@@ -1,6 +1,8 @@
 "use client";
 
+import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { DatedList } from "@/components/dated-list";
+import { CalendarDateInput } from "@/components/calendar-date-input";
 
 import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
@@ -252,11 +254,11 @@ export function DebtWorkspace() {
             </label>
             <label className="field">
               <span className="field__label">Opened date</span>
-              <input className="field__control" defaultValue={today()} name="opened_at" required type="date" />
+              <CalendarDateInput defaultValue={today()} name="opened_at" required />
             </label>
             <label className="field">
               <span className="field__label">Due date</span>
-              <input className="field__control" name="due_date" type="date" />
+              <CalendarDateInput name="due_date" />
             </label>
             <label className="field">
               <span className="field__label">Note</span>
@@ -303,13 +305,7 @@ export function DebtWorkspace() {
             </label>
             <label className="field">
               <span className="field__label">Paid date</span>
-              <input
-                className="field__control"
-                onChange={(event) => setPaymentDate(event.target.value)}
-                required
-                type="date"
-                value={paymentDate}
-              />
+              <CalendarDateInput onChange={setPaymentDate} required value={paymentDate} />
             </label>
             <label className="field field--wide">
               <span className="field__label">Note</span>
@@ -356,8 +352,8 @@ export function DebtWorkspace() {
                       <td>{formatLabel(debt.direction)}</td>
                       <td>{formatMoney(debt.principal_amount)}</td>
                       <td>{formatMoney(debt.current_balance)}</td>
-                      <td>{debt.opened_at}</td>
-                      <td>{debt.due_date || "-"}</td>
+                      <td>{formatCalendarDate(debt.opened_at)}</td>
+                      <td>{debt.due_date ? formatCalendarDate(debt.due_date) : "-"}</td>
                       <td>{formatLabel(debt.status)}</td>
                       <td>{debt.note || "-"}</td>
                     </tr>

@@ -11,7 +11,7 @@ type MessageState =
   | { status: "error"; message: string }
   | { status: "ready"; messages: TransactionSourceMessage[] };
 
-const receivedTimeFormatter = new Intl.DateTimeFormat("en-BD", { dateStyle: "medium", timeStyle: "short" });
+const receivedTimeFormatter = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 export function TransactionSourceMessages({ transactionId }: { transactionId: string }) {
   const [state, setState] = useState<MessageState>({ status: "loading" });

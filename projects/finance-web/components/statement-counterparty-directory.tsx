@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCalendarDate } from "../../finance-contracts/presentation";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
@@ -104,7 +105,7 @@ export function StatementCounterpartyDirectory() {
       let updated = 0;
       const issues: { id: string; label: string; reason: string }[] = [];
       for (const item of imports) {
-        const label = `${item.account_name} · ${item.period_start ?? "unknown"}–${item.period_end ?? "unknown"}`;
+        const label = `${item.account_name} · ${item.period_start ? formatCalendarDate(item.period_start) : "unknown"}–${item.period_end ? formatCalendarDate(item.period_end) : "unknown"}`;
         if (!item.has_original_file) {
           issues.push({ id: item.id, label, reason: "Saved PDF unavailable. Re-upload the identical statement." });
           continue;
@@ -189,7 +190,7 @@ export function StatementCounterpartyDirectory() {
       const otherOptions = accounts.filter((account) => account.id !== row.account && account.is_active && account.currency === accounts.find((value) => value.id === row.account)?.currency);
       return <article className="statement-code-card" key={key}>
         <div className="statement-code-card__heading"><div><h3>{row.account_name} · {codeLabel(row)}</h3><p>{row.direction === "debit" ? "Money out" : "Money in"} · {row.count} observed · {row.pending_count} pending{row.last_seen ? ` · last seen ${row.last_seen}` : ""}{row.profile === "city_bank" && row.code.length === 4 ? " · only four digits available" : ""}</p></div><span className={row.mapping ? "status-badge status-badge--ok" : "status-badge status-badge--warning"}>{row.mapping ? "Saved" : "Unidentified"}</span></div>
-        {row.examples.length ? <details className="statement-code-examples"><summary>Recent masked statement rows</summary><ul>{row.examples.map((example, index) => <li key={`${example.date}-${index}`}>{example.date ?? "Date unknown"} · {example.amount ?? "Amount unknown"} · {example.description}</li>)}</ul></details> : null}
+        {row.examples.length ? <details className="statement-code-examples"><summary>Recent masked statement rows</summary><ul>{row.examples.map((example, index) => <li key={`${example.date}-${index}`}>{formatCalendarDate(example.date)} · {example.amount ?? "Amount unknown"} · {example.description}</li>)}</ul></details> : null}
         {!isEditing ? <><p>{row.mapping ? `${row.mapping.label} · ${row.mapping.party_kind === "owned" ? "My account" : "External party"}${row.mapping.suggested_type ? ` · ${row.mapping.suggested_type.replaceAll("_", " ")}` : " · no type suggestion"}` : "Check who or what this identifier represents."}</p><button className="button" type="button" onClick={() => open(row)}>{row.mapping ? "Edit mapping" : "Identify"}</button></> :
           <form className="statement-code-form" onSubmit={save}>
             <label className="field"><span className="field__label">Who is this?</span><select className="field__control" value={draft.party_kind} onChange={(event) => setDraft({ ...draft, party_kind: event.target.value as "owned" | "external", other_account: null, suggested_type: "", category: null })}><option value="external">External person, business, or bank</option><option value="owned">Another account I track</option></select></label>

@@ -1,6 +1,8 @@
 "use client";
 
+import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { DatedList } from "@/components/dated-list";
+import { CalendarDateInput } from "@/components/calendar-date-input";
 
 import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
@@ -305,11 +307,11 @@ export function CreditCardWorkspace() {
               </label>
               <label className="field">
                 <span className="field__label">Statement date</span>
-                <input className="field__control" defaultValue={today()} name="statement_date" required type="date" />
+                <CalendarDateInput defaultValue={today()} name="statement_date" required />
               </label>
               <label className="field">
                 <span className="field__label">Due date</span>
-                <input className="field__control" name="due_date" required type="date" />
+                <CalendarDateInput name="due_date" required />
               </label>
               <label className="field">
                 <span className="field__label">Reference</span>
@@ -342,7 +344,7 @@ export function CreditCardWorkspace() {
                 <option value="">Select open bill</option>
                 {openBills.map((bill) => (
                   <option key={bill.id} value={bill.id}>
-                    {accountNames.get(bill.account) ?? bill.account} | {bill.due_date} | {formatMoney(bill.remaining_balance)}
+                    {accountNames.get(bill.account) ?? bill.account} | {formatCalendarDate(bill.due_date)} | {formatMoney(bill.remaining_balance)}
                   </option>
                 ))}
               </select>
@@ -361,13 +363,7 @@ export function CreditCardWorkspace() {
             </label>
             <label className="field">
               <span className="field__label">Paid date</span>
-              <input
-                className="field__control"
-                onChange={(event) => setPaymentDate(event.target.value)}
-                required
-                type="date"
-                value={paymentDate}
-              />
+              <CalendarDateInput onChange={setPaymentDate} required value={paymentDate} />
             </label>
             <label className="field field--wide">
               <span className="field__label">Note</span>
@@ -413,7 +409,7 @@ export function CreditCardWorkspace() {
                   {bills.map((bill) => (
                     <tr key={bill.id}>
                       <td>{accountNames.get(bill.account) ?? bill.account}</td>
-                      <td>{bill.statement_date}</td>
+                      <td>{formatCalendarDate(bill.statement_date)}</td>
                       <td>{dueLabel(bill)}</td>
                       <td>{formatMoney(bill.statement_balance)}</td>
                       <td>{formatMoney(bill.minimum_due)}</td>

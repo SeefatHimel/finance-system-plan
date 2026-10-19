@@ -1,6 +1,8 @@
 "use client";
 
+import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { DatedList } from "@/components/dated-list";
+import { CalendarDateInput } from "@/components/calendar-date-input";
 
 import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
@@ -339,7 +341,7 @@ export function RecurringBillWorkspace() {
               </label>
               <label className="field">
                 <span className="field__label">Next due date</span>
-                <input className="field__control" defaultValue={today()} name="next_due_date" required type="date" />
+                <CalendarDateInput defaultValue={today()} name="next_due_date" required />
               </label>
               <label className="field">
                 <span className="field__label">Reminder days</span>
@@ -387,7 +389,7 @@ export function RecurringBillWorkspace() {
                 <option value="">Select active bill</option>
                 {activeBills.map((bill) => (
                   <option key={bill.id} value={bill.id}>
-                    {bill.name} | {bill.next_due_date} | {formatMoney(bill.amount)}
+                    {bill.name} | {formatCalendarDate(bill.next_due_date)} | {formatMoney(bill.amount)}
                   </option>
                 ))}
               </select>
@@ -406,13 +408,7 @@ export function RecurringBillWorkspace() {
             </label>
             <label className="field">
               <span className="field__label">Paid date</span>
-              <input
-                className="field__control"
-                onChange={(event) => setPaymentDate(event.target.value)}
-                required
-                type="date"
-                value={paymentDate}
-              />
+              <CalendarDateInput onChange={setPaymentDate} required value={paymentDate} />
             </label>
             <label className="field field--wide">
               <span className="field__label">Note</span>

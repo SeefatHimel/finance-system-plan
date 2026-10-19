@@ -5,10 +5,19 @@ const { mkdtempSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const output = mkdtempSync(join(tmpdir(), 'finance-date-health-'));
-execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/date-period.ts', 'lib/backend-heartbeat.ts'], { cwd: resolve(__dirname, '..') });
-const { allDates, dailyPeriod, monthPeriod, shiftPeriod, dateRangeError, dateInPeriod, periodFromFilters, periodBounds } = require(join(output, 'date-period.js'));
+execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/date-period.ts', 'lib/calendar-date.ts', 'lib/backend-heartbeat.ts'], { cwd: resolve(__dirname, '..') });
+const { allDates, dailyPeriod, monthPeriod, shiftPeriod, dateRangeError, dateInPeriod, periodFromFilters, periodBounds, periodLabel } = require(join(output, 'date-period.js'));
+const { parseCalendarDate, displayCalendarDate } = require(join(output, 'calendar-date.js'));
 const { startBackendHeartbeat, heartbeatIntervalMs } = require(join(output, 'backend-heartbeat.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
+
+test('typed day/month/year dates round-trip to ISO and reject impossible dates', () => {
+  assert.equal(displayCalendarDate('2024-02-29'), '29/02/2024');
+  assert.equal(parseCalendarDate('29/02/2024'), '2024-02-29');
+  assert.equal(parseCalendarDate('31/12/2026'), '2026-12-31');
+  for (const text of ['29/02/2026', '31/04/2026', '00/01/2026', '01/13/2026', '1/1/2026', '01/01/0000']) assert.equal(parseCalendarDate(text), null);
+  for (const iso of ['2026-02-29', '2026-04-31', '0000-01-01', '2026/01/01']) assert.equal(displayCalendarDate(iso), '');
+});
 
 test('calendar navigation handles leap days, month lengths and year boundaries', () => {
   assert.deepEqual(monthPeriod('2024-02'), { mode: 'monthly', start: '2024-02-01', end: '2024-02-29' });
@@ -35,6 +44,7 @@ test('URL filters restore daily/custom/monthly views and all-dates omits API bou
   assert.equal(periodFromFilters({ start_date: '2026-02-01', end_date: '2026-02-01' }, 'custom').mode, 'custom');
   assert.deepEqual(periodBounds(allDates), {});
   assert.deepEqual(periodBounds(dailyPeriod('2026-02-01')), { start_date: '2026-02-01', end_date: '2026-02-01' });
+  assert.equal(periodLabel(dailyPeriod('2026-02-01')), '01/02/2026');
 });
 
 test('heartbeat checks immediately and every ten minutes; recent successes suppress other tabs', async t => {

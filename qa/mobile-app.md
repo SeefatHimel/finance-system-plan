@@ -1,5 +1,11 @@
 # Mobile App Q&A
 
+### How are dates shown and stored on mobile?
+
+Read-only dates and local timestamps use `dd/mm/yyyy`. Native pickers still
+provide their platform calendar controls; the app submits ISO date values and
+does not rewrite original SMS text.
+
 ### Can a history rescan restore older redacted transaction SMS?
 
 Yes, if the SMS is still on the phone. Select its date range and enable

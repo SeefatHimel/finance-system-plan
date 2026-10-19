@@ -178,7 +178,7 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
         <div className="unified-ledger-suggestions">
           {row.review.matches.map(match => <article className="unified-ledger-suggestion" key={match.id}>
             <div className="unified-ledger-suggestion__heading"><strong>{match.account_name} · {pair.batch.currency} {match.amount}</strong><span className={`status-badge ${match.can_link ? "status-badge--idle" : "status-badge--warning"}`}>{match.can_link ? "Can link" : "Cannot link"}</span></div>
-            <p>{match.date}{match.time ? ` · ${match.time}` : ""} · {match.type.replaceAll("_", " ")} · {match.source}</p>
+            <p>{formatCalendarDate(match.date)}{match.time ? ` · ${match.time}` : ""} · {match.type.replaceAll("_", " ")} · {match.source}</p>
             <p>{match.note || match.reference || "No description"}{match.category_name ? ` · ${match.category_name}` : ""}</p>
             <p className="inline-note">Reported balance: {match.effective_balance_after ?? "Not reported"}</p>
             <details className="statement-match-reasons" open={!match.can_link}><summary>Why suggested{match.can_link ? "" : " and why linking is unavailable"}</summary><ul>{match.reasons.map((reason, index) => <li key={`${match.id}-${index}`}>{reason}</li>)}</ul></details>

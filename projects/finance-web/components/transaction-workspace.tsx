@@ -2,6 +2,7 @@
 import { displayLabel, formatCurrency, formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
 
 import { QuickTimePicker } from "./quick-time-picker";
+import { CalendarDateInput } from "@/components/calendar-date-input";
 import { useQuickAdd } from "./quick-add";
 import { localDay, localTime } from "../../finance-contracts/quick-add";
 
@@ -517,7 +518,7 @@ export function TransactionWorkspace() {
     }
 
     const confirmed = window.confirm(
-      `Delete ${displayLabel(transaction.type)} transaction on ${transaction.date}?`
+      `Delete ${displayLabel(transaction.type)} transaction on ${formatCalendarDate(transaction.date)}?`
     );
     if (!confirmed) {
       return;
@@ -746,11 +747,9 @@ export function TransactionWorkspace() {
             <div className="transaction-datetime compact-editor-datetime" role="group" aria-label="Date and time">
               <label className="field">
                 <span className="field__label">Date</span>
-                <input name="date" {...feedback("date")}
-                  className="field__control"
-                  onChange={(event) => setEditingDate(event.target.value)}
+                <CalendarDateInput name="date" {...feedback("date")}
+                  onChange={setEditingDate}
                   required
-                  type="date"
                   value={editingDate}
                 /><FieldError field="date" errors={fieldErrors} />
               </label>
@@ -1288,7 +1287,7 @@ export function TransactionWorkspace() {
             </div>
           ) : (<>
             <div className="transaction-mobile-list" aria-busy={isRefreshing}>
-              {loadState.transactions.map(transaction => <article className="transaction-card" key={transaction.id} aria-label={`Transaction on ${transaction.date}`}>
+              {loadState.transactions.map(transaction => <article className="transaction-card" key={transaction.id} aria-label={`Transaction on ${formatCalendarDate(transaction.date)}`}>
                 <div className="transaction-card__heading">
                   {visibleColumns.includes("description") ? <div>{columnContent("description", transaction)}</div> : null}
                   {visibleColumns.includes("amount") ? <strong className={amountClass(transaction)}>{columnContent("amount", transaction)}</strong> : null}

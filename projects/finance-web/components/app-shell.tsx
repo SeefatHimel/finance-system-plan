@@ -76,9 +76,9 @@ function isActive(item: NavItem, pathname: string) {
 }
 
 function currentDateLabel() {
-  return new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "short",
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
     weekday: "short",
     year: "numeric"
   }).format(new Date());

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { transferBalanceConflicts } from "../../finance-contracts/transfer-comparison";
 import { HelpTooltip } from "@/components/help-tooltip";
 import { ModalDialog } from "@/components/modal-dialog";
@@ -27,7 +28,7 @@ export function TransferMatchDialog({ original, originalSource, matches, busy, e
         <article aria-label="Entry being reviewed" className="transfer-match-card transfer-match-original">
           <h3>This entry</h3>
           <strong>{original.account_name} → {original.transfer_account_name}</strong>
-          <p>BDT {original.amount} · {original.date} · {original.time ? original.time.slice(0, 5) : "Time not provided"}</p>
+          <p>BDT {original.amount} · {formatCalendarDate(original.date)} · {original.time ? original.time.slice(0, 5) : "Time not provided"}</p>
           {original.counterparty_text || original.note ? <p className="transfer-match-description" title={[original.counterparty_text, original.note].filter(Boolean).join(" · ")}>{[original.counterparty_text, original.note].filter(Boolean).join(" · ")}</p> : null}
           <p className="transfer-match-source">{originalSource}</p>
           <BalanceList reports={original.reported_balances} />
@@ -62,7 +63,7 @@ function MatchCard({ match, original, busy, merging, onAccept }: {
   return <article className="transfer-match-card">
 <div className="inline-help"><h3>Suggested match</h3><HelpTooltip label="Why this match was suggested">{match.reason}</HelpTooltip></div>
     <strong>{match.account_name} → {match.transfer_account_name}</strong>
-    <p>BDT {match.amount} · {match.date} · {match.time ? match.time.slice(0, 5) : "Time not provided"}</p>
+    <p>BDT {match.amount} · {formatCalendarDate(match.date)} · {match.time ? match.time.slice(0, 5) : "Time not provided"}</p>
     <p className="transfer-match-source">{match.kind === "candidate" ? "Other account’s pending SMS" : "Already recorded transfer"}</p>
     <BalanceList reports={match.reported_balances.map(report => ({ ...report, account_name: name(report.account) }))} />
     {conflicts.length ? <div className="form-warning" role="alert">

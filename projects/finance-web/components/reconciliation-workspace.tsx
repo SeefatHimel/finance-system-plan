@@ -1,6 +1,7 @@
 "use client";
 
 import { DatedList } from "@/components/dated-list";
+import { CalendarDateInput } from "@/components/calendar-date-input";
 
 import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
@@ -35,9 +36,9 @@ function formatMoney(value: string) {
 }
 
 function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("en-BD", {
-    dateStyle: "medium",
-    timeStyle: "short"
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23"
   }).format(new Date(value));
 }
 
@@ -84,6 +85,8 @@ export function ReconciliationWorkspace() {
   const [accountCheck, setAccountCheck] = useState<AccountReconciliation | null>(null);
   const [formError, setFormError] = useFeedbackMessage("error");
   const [isSaving, setIsSaving] = useState(false);
+  const [checkedDate, setCheckedDate] = useState(() => nowLocalInputValue().slice(0, 10));
+  const [checkedTime, setCheckedTime] = useState(() => nowLocalInputValue().slice(11));
   const [isChecking, setIsChecking] = useState(false);
 
   const loadAccountCheck = useCallback(async (accessToken: string, accountId: string) => {
@@ -230,6 +233,9 @@ export function ReconciliationWorkspace() {
         note: String(formData.get("note") ?? "")
       });
       form.reset();
+      const resetTime = nowLocalInputValue();
+      setCheckedDate(resetTime.slice(0, 10));
+      setCheckedTime(resetTime.slice(11));
       await loadReconciliation(account, false);
       notify("Balance snapshot saved.");
     } catch (error) {
@@ -376,16 +382,14 @@ export function ReconciliationWorkspace() {
               <span className="field__label">Actual balance</span>
               <input className="field__control" inputMode="decimal" name="actual_balance" placeholder="72,308.00" required type="text" />
             </label>
-            <label className="field">
-              <span className="field__label">Checked time</span>
-              <input
-                className="field__control"
-                defaultValue={nowLocalInputValue()}
-                name="checked_at"
-                required
-                type="datetime-local"
-              />
-            </label>
+            <div className="field">
+              <span className="field__label">Checked date and time</span>
+              <div className="transaction-datetime">
+                <CalendarDateInput aria-label="Checked date" value={checkedDate} required onChange={setCheckedDate} />
+                <input aria-label="Checked time" className="field__control" type="time" required value={checkedTime} onChange={event => setCheckedTime(event.target.value)} />
+              </div>
+              <input type="hidden" name="checked_at" value={checkedDate && checkedTime ? `${checkedDate}T${checkedTime}` : ""} />
+            </div>
             <label className="field">
               <span className="field__label">Note</span>
               <input className="field__control" name="note" />

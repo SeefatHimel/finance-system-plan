@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { StatementDetailChoices } from "@/components/statement-detail-choices";
 import { calendarDayDifference, insignificantBdtBalanceDifference, statementBalanceDifference, statementLinkBlockReason } from "@/lib/statement-review";
 import { selectedStatementDetails, type DetailSelections } from "@/lib/statement-details";
@@ -29,7 +30,7 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
   const balanceText = (value: string | null) => value === null ? "Not reported" : `${batch.currency} ${value}`;
   const comparison = [
     { label: "Account / path", statement: path, ledger: `${match.account_name}${match.transfer_account_name ? ` → ${match.transfer_account_name}` : ""}` },
-    { label: "Date / time", statement: `${row.date ?? "Unknown date"}${row.time ? ` · ${row.time}` : ""}`, ledger: `${match.date}${match.time ? ` · ${match.time}` : ""}` },
+    { label: "Date / time", statement: `${formatCalendarDate(row.date)}${row.time ? ` · ${row.time}` : ""}`, ledger: `${formatCalendarDate(match.date)}${match.time ? ` · ${match.time}` : ""}` },
     { label: "Type / category", statement: `${row.type.replaceAll("_", " ")} · ${categories.find((category) => category.id === row.category)?.name ?? "Uncategorized"}`, ledger: `${match.type.replaceAll("_", " ")} · ${match.category_name ?? "Uncategorized"}` },
     { label: "Reported balance after", statement: balanceText(row.balance_after), ledger: balanceText(match.effective_balance_after), balance: true },
     { label: "Reference", statement: row.reference || "Not reported", ledger: match.reference || "Not reported" },

@@ -39,9 +39,9 @@ function filtersFromUrl() {
 }
 
 function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("en-BD", {
-    dateStyle: "medium",
-    timeStyle: "short"
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23"
   }).format(new Date(value));
 }
 

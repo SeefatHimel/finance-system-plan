@@ -685,8 +685,10 @@ button hierarchy and scope. SMS review follows the web field sequence, exposes
 calendar/clock controls, and keeps optional payment methods in a disclosure that
 retains edits. Selected review choices expose checked state and a visible check;
 Quick Add and Home/Capture selections use soft mint. SMS date/time and Today
-defaults use one local calendar interpretation. Core transaction amounts retain
-exact cents; missing candidate amounts are no longer displayed as zero.
+defaults use one local calendar interpretation; shared read-only dates now show
+`dd/mm/yyyy` while native picker values and API payloads remain ISO. Core
+transaction amounts retain exact cents; missing candidate amounts are no longer
+displayed as zero.
 
 Run `node --test tests/native-fields.test.cjs` for picker/draft regressions and
 `node --test tests/*.test.cjs` for all mobile checks. A JS bundle export does not

@@ -10,6 +10,8 @@ import {
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, X } from "@phosphor-icons/react";
+import { formatCalendarDate } from "../../finance-contracts/presentation";
+import { CalendarDateInput } from "@/components/calendar-date-input";
 import { useAuth } from "./auth-provider";
 import { useTransactionRecovery } from "./transaction-recovery";
 import { useToast } from "./toast-provider";
@@ -490,16 +492,14 @@ function QuickAddSession({
                     </button>
                     <label className="field">
                       <span className="field__label">Entry date</span>
-                      <input
-                        className="field__control"
-                        type="date"
+                      <CalendarDateInput
                         value={
                           draft.dateMode === "today" ? localDay() : draft.date
                         }
-                        onChange={(event) =>
+                        onChange={(date) =>
                           choose({
                             dateMode: "custom",
-                            date: event.target.value,
+                            date,
                           })
                         }
                       />
@@ -533,7 +533,7 @@ function QuickAddSession({
                     </button>
                   </div>
                   <small>
-                    {draft.dateMode === "today" ? "Today" : draft.date} ·{" "}
+                    {draft.dateMode === "today" ? "Today" : formatCalendarDate(draft.date)} ·{" "}
                     {draft.timeMode === "now"
                       ? "Current time at Save"
                       : draft.timeMode === "none"

@@ -1,5 +1,12 @@
 # Web App Q&A
 
+### What date format does the web app show?
+
+Parsed calendar dates, local timestamps, and typed date fields display
+`dd/mm/yyyy`. The picker button opens the browser calendar; ISO dates remain the
+form/API values. Invalid typed dates are not submitted. Original PDF and SMS
+text is preserved as evidence, including whatever format the source printed.
+
 ### Why are the amount and note prominent in combined SMS + statement review?
 
 The final amount is shown in a highlighted, read-only summary because the two
