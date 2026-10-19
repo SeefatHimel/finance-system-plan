@@ -3788,7 +3788,8 @@ html[data-theme="light"] .app-nav__item { color: #435468; }
 html[data-theme="light"] .app-nav__item:hover { background: #f0f6f3; color: var(--foreground); }
 html[data-theme="light"] .app-nav__item--active { background: var(--accent-soft); color: var(--accent); }
 html[data-theme="light"] .app-sidebar__footer strong { color: var(--foreground); }
-html[data-theme="light"] .app-topbar { background: rgb(255 255 255 / 96%); }
+/* A solid sticky surface keeps scrolled page content from showing through the heading. */
+html[data-theme="light"] .app-topbar { background: var(--panel); box-shadow: 0 3px 14px rgb(30 60 52 / 5%); }
 html[data-theme="light"] .sidebar-toggle, html[data-theme="light"] .mobile-menu-button { background: var(--panel); color: var(--foreground); }
 html[data-theme="light"] .sidebar-toggle:hover { background: #f0f6f3; }
 html[data-theme="light"] .topbar-control, html[data-theme="light"] .topbar-search { background: var(--panel); border-color: var(--panel-border); color: var(--foreground); }
@@ -3816,8 +3817,21 @@ html[data-theme="light"] .month-navigator button, html[data-theme="light"] .colu
 html[data-theme="light"] .unified-note-field textarea { background: var(--panel); border-color: var(--panel-border); color: var(--foreground); }
 html[data-theme="light"] .review-queue-item:hover, html[data-theme="light"] .data-table tbody tr:hover { background: #f0f7f3; }
 html[data-theme="light"] .review-queue-item--active { background: var(--accent-soft); border-color: #9ed5ba; }
-html[data-theme="light"] .review-sticky-actions { background: rgb(255 255 255 / 96%); }
-html[data-theme="light"] .status-badge--inactive { background: #f1f4f6; }
+html[data-theme="light"] .review-sticky-actions { background: var(--panel); }
+html[data-theme="light"] .status-badge--ok { background: #e8f6ee; border-color: #85c7a5; color: #096b4d; }
+html[data-theme="light"] .status-badge--idle,
+html[data-theme="light"] .status-badge--warning { background: #fff3dc; border-color: #e8c780; color: #805000; }
+html[data-theme="light"] .status-badge--error { background: #fff0f1; border-color: #e8a6ae; color: #a51d2d; }
+html[data-theme="light"] .status-badge--inactive { background: #f1f4f6; border-color: #d9e2e6; color: var(--muted); }
+html[data-theme="light"] .unified-type-choice,
+html[data-theme="light"] .statement-match-conflict,
+html[data-theme="light"] .review-identity-hint,
+html[data-theme="light"] .review-issue-bar:not(.review-issue-bar--ready):not(.review-issue-bar--info) { background: #fff8e9; border-color: #ebd29c; color: var(--foreground); }
+html[data-theme="light"] .review-issue-bar:not(.review-issue-bar--ready):not(.review-issue-bar--info) span { color: var(--muted); }
+html[data-theme="light"] .review-issue-bar--info { background: var(--info-soft); border-color: #bfd5f5; color: var(--info); }
+html[data-theme="light"] .unified-pair-summary__difference { border-color: #e8c780; }
+html[data-theme="light"] .unified-amount-summary { background: linear-gradient(135deg, #e7f7ee, #f8fcfa); }
+html[data-theme="light"] .unified-review-skeleton { background: linear-gradient(100deg, #f2f7f5 30%, #e4eee9 50%, #f2f7f5 70%); background-size: 200% 100%; }
 html[data-theme="light"] .dashboard-table th { background: #f4f8f6; color: var(--muted); }
 html[data-theme="light"] .dashboard-table td { color: var(--foreground); }
 html[data-theme="light"] input[type="date"], html[data-theme="light"] input[type="time"], html[data-theme="light"] input[type="month"] { color-scheme: light; }
