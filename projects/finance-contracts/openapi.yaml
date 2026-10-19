@@ -6731,6 +6731,29 @@ components:
           type: string
         note:
           type: string
+        ledger_date:
+          type: string
+          format: date
+          description: Date saved on the ledger transaction, which may come from a different account's source.
+        ledger_time:
+          type: string
+          format: time
+          nullable: true
+        ledger_source:
+          type: string
+        ledger_reference:
+          type: string
+        ledger_note:
+          type: string
+        ledger_counterparty_text:
+          type: string
+        ledger_source_balance_after:
+          type: string
+          nullable: true
+          description: Effective reported balance for the ledger transaction's source account, never the statement account unless they are the same.
+        reporting_observation_is_fallback:
+          type: boolean
+          description: True when the statement account has no observation and the ledger date is only a search hint.
         balance_after:
           type: string
           nullable: true
@@ -6776,6 +6799,14 @@ components:
       - date
       - id
       - note
+      - ledger_date
+      - ledger_time
+      - ledger_source
+      - ledger_reference
+      - ledger_note
+      - ledger_counterparty_text
+      - ledger_source_balance_after
+      - reporting_observation_is_fallback
       - reasons
       - reference
       - source

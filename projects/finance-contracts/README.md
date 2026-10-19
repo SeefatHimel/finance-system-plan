@@ -375,6 +375,11 @@ separately from the matched historical observation. Conflicts require a reviewed
 their current ledger snapshots. `SavedStatementRow` separates immutable extraction from draft edits
 and review metadata. Stale edits/decisions return 409. Bulk approval accepts 50
 IDs/versions and returns added/unchanged/unresolved counts.
+The `ledger_*` fields expose the saved candidate's own side of a movement for
+comparison. `reporting_observation_is_fallback` flags a date-only search hint when
+the statement account has no attached observation. Neither changes match or link
+eligibility; clients must keep source-side details distinct from statement-account
+evidence.
 `Transaction.statement_evidence_count` is read-only; full masked observations load
 through `GET /api/transactions/{id}/statement-evidence/`. Financial corrections to
 statement-linked entries also require `allow_linked_correction`. No original PDF

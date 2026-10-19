@@ -524,6 +524,11 @@ Clients display the current `StatementMatch.effective_balance_after`, rather tha
 assuming an historical observation is the effective report. Conflict links require
 a choice even if `acknowledge_conflict=true`; changed reviewed values return 409.
 Deploy the web and API changes together. No model or migration changes are needed.
+For equal-amount suggestions, `ledger_date`, `ledger_time`, `ledger_source`,
+`ledger_reference`, `ledger_note`, `ledger_counterparty_text` and
+`ledger_source_balance_after` describe the saved candidate's own account side.
+`reporting_observation_is_fallback` says the statement-account observation is
+missing; its date is then only a search hint, not corroborating evidence.
 
 
 ### What is the contract for filling missing statement details?

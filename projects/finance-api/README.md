@@ -1348,6 +1348,12 @@ unsupported non-transfer null provenance is unchanged by this focused fix.
 Statement balances including a separate fee cannot fill the report; use an
 available SMS report or review the fee separately.
 
+Ledger suggestions also return the saved transaction's date, time, source,
+reference, note, counterparty text and source-account reported balance. These
+fields help distinguish equal-amount candidates; they are separate from the
+statement-account observation used for matching. A fallback observation is
+marked explicitly when no statement-account evidence is attached.
+
 Both original observations remain attached. The selected source becomes the
 account's effective report, not another ledger transaction. Primary-report
 fallback uses stable evidence creation order, not event date/time ordering, and

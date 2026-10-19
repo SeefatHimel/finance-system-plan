@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DatePeriodControls } from "@/components/date-period-controls";
 import { ModalDialog } from "@/components/modal-dialog";
 import { StatementRowDialog } from "@/components/statement-row-dialog";
+import { TransactionSourceMessages } from "@/components/transaction-source-messages";
 import { UnifiedPairEditor, initialPairDraft, savedPairDraft, type PairTypeChoice } from "@/components/unified-pair-editor";
 import { useToast } from "@/components/toast-provider";
 import { getAccessToken } from "@/lib/auth-storage";
@@ -172,14 +173,19 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
       <h3>Finish review</h3>
       {row.review.matches.length ? <section className="unified-ledger-review" aria-labelledby="unified-ledger-title">
         <h4 id="unified-ledger-title">Could this already be in the ledger?</h4>
-        <p className="inline-note">Similar entries need a decision. Compare their date, description and reported balance with both sources before recording.</p>
+        <p className="inline-note">Compare the saved ledger side and its original SMS with this pair. Matching amount and date alone do not identify one movement.</p>
         {ledgerCleared ? <p role="status" className="inline-note">Your edit cleared the ledger decision. Review these suggestions again.</p> : null}
         <div className="unified-ledger-suggestions">
           {row.review.matches.map(match => <article className="unified-ledger-suggestion" key={match.id}>
-            <div className="unified-ledger-suggestion__heading"><strong>{match.account_name} · {pair.batch.currency} {match.amount}</strong><span className={`status-badge ${match.can_link ? "status-badge--idle" : "status-badge--warning"}`}>{match.can_link ? "Can link" : "Cannot link"}</span></div>
-            <p>{formatCalendarDate(match.date)}{match.time ? ` · ${match.time}` : ""} · {match.type.replaceAll("_", " ")} · {match.source}</p>
-            <p>{match.note || match.reference || "No description"}{match.category_name ? ` · ${match.category_name}` : ""}</p>
-            <p className="inline-note">Reported balance: {match.effective_balance_after ?? "Not reported"}</p>
+            <div className="unified-ledger-suggestion__heading"><strong>{match.account_name}{match.transfer_account_name ? ` → ${match.transfer_account_name}` : ""} · {pair.batch.currency} {match.amount}</strong><span className={`status-badge ${match.can_link ? "status-badge--idle" : "status-badge--warning"}`}>{match.can_link ? "Can link" : "Cannot link"}</span></div>
+            <p><strong>Saved ledger entry</strong> · {formatCalendarDate(match.ledger_date)}{match.ledger_time ? ` · ${formatClockTime(match.ledger_time)}` : " · time not recorded"} · {match.type.replaceAll("_", " ")}{match.category_name ? ` · ${match.category_name}` : ""} · {match.ledger_source}</p>
+            {match.ledger_counterparty_text ? <p>Counterparty: {match.ledger_counterparty_text}</p> : null}
+            {match.ledger_note ? <p>Ledger note: {match.ledger_note}</p> : null}
+            {match.ledger_reference ? <p>Ledger reference: {match.ledger_reference}</p> : null}
+            {match.ledger_source_balance_after !== null ? <p className="inline-note">{match.account_name} reported balance: {match.ledger_source_balance_after}</p> : null}
+            {match.reporting_observation_is_fallback ? <p className="inline-note">No {pair.batch.account_name} report is attached to this ledger entry yet. Its date above comes from {match.account_name}; it is only a search hint.</p> : <p className="inline-note">{pair.batch.account_name} report: {formatCalendarDate(match.date)}{match.time ? ` · ${formatClockTime(match.time)}` : ""} · balance {match.effective_balance_after ?? "not reported"}{match.reference ? ` · reference ${match.reference}` : ""}{match.note ? ` · ${match.note}` : ""}</p>}
+            <p className="unified-ledger-suggestion__id" title={match.id}>Ledger ID {match.id.slice(0, 8)}</p>
+            <TransactionSourceMessages key={match.id} transactionId={match.id} loadOnExpand showEmpty />
             <details className="statement-match-reasons" open={!match.can_link}><summary>Why suggested{match.can_link ? "" : " and why linking is unavailable"}</summary><ul>{match.reasons.map((reason, index) => <li key={`${match.id}-${index}`}>{reason}</li>)}</ul></details>
             {match.can_link ? <label className="unified-ledger-choice"><input type="radio" name="unified-ledger-decision" checked={ledger === match.id} disabled={busy} onChange={() => { setBalance(match.can_fill_missing_balance ? suggestedLinkedBalanceSource(pair.sms.balance_after, draft.balance_after, statementIncludesSeparateFee) : ""); setLedger(match.id); setSeparateLedgerMovement(false); setDismissedLedgerMatches([]); setAckDistinctLedgerMatches(false); setLedgerCleared(false); setAckConflict(false); }} /><span>This is the same movement · link both sources</span></label> : null}
             {separateLedgerMovement ? <label className="unified-ledger-choice"><input type="checkbox" checked={dismissedLedgerMatches.includes(match.id)} disabled={busy} onChange={event => { setDismissedLedgerMatches(current => event.target.checked ? [...current, match.id] : current.filter(id => id !== match.id)); setAckDistinctLedgerMatches(false); }} /><span>This is a different movement</span></label> : null}

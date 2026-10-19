@@ -3546,6 +3546,9 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .unified-ledger-suggestion { background: #0a1725; border: 1px solid var(--panel-border); border-radius: 8px; min-width: 0; padding: 10px; }
 .unified-ledger-suggestion__heading { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; }
 .unified-ledger-suggestion p { font-size: 13px; margin: 5px 0; overflow-wrap: anywhere; }
+.unified-ledger-suggestion p strong { color: var(--foreground); }
+.unified-ledger-suggestion .unified-ledger-suggestion__id { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.unified-ledger-suggestion .transaction-source-messages { background: var(--panel); margin: 10px 0; }
 .unified-ledger-suggestion .statement-match-reasons { margin: 8px 0; }
 .unified-ledger-suggestion .statement-match-reasons ul { margin: 6px 0; }
 .unified-ledger-choice { align-items: flex-start; border: 1px solid var(--panel-border); border-radius: 8px; cursor: pointer; display: flex; font-size: 13px; gap: 9px; margin-top: 9px; min-height: 42px; padding: 10px; }

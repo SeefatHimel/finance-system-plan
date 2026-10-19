@@ -598,8 +598,14 @@ def _find_statement_matches(rows):
             reference_matches = selected["reference_matches"]
             balance_matches = selected["balance_matches"]
             reported_balance = selected["reported_balance"]
+            ledger_balances = reported_values(record) if record.type == "transfer" else {}
+            ledger_source_balance = (
+                ledger_balances.get(record.account_id)
+                if record.type == "transfer"
+                else record.balance_after
+            )
             effective_balance = (
-                reported_values(record).get(batch.account_id)
+                ledger_balances.get(batch.account_id)
                 if record.type == "transfer"
                 else record.balance_after
             )
@@ -675,6 +681,21 @@ def _find_statement_matches(rows):
                         else None,
                         "reference": observation.reference,
                         "note": observation.note[:500],
+                        # Show the saved ledger side separately from the account
+                        # observation used for matching. A sender's details must
+                        # never masquerade as receiving-account evidence.
+                        "ledger_date": record.date.isoformat(),
+                        "ledger_time": record.time.isoformat() if record.time else None,
+                        "ledger_source": record.source,
+                        "ledger_reference": record.reference,
+                        "ledger_note": record.note[:500],
+                        "ledger_counterparty_text": record.counterparty_text,
+                        "ledger_source_balance_after": str(ledger_source_balance)
+                        if ledger_source_balance is not None
+                        else None,
+                        "reporting_observation_is_fallback": bool(
+                            getattr(observation, "date_is_fallback", False)
+                        ),
                         "balance_after": str(reported_balance)
                         if reported_balance is not None
                         else None,

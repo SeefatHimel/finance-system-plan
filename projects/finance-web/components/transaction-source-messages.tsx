@@ -13,12 +13,14 @@ type MessageState =
 
 const receivedTimeFormatter = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
-export function TransactionSourceMessages({ transactionId, expanded = false, showEmpty = false }: { transactionId: string; expanded?: boolean; showEmpty?: boolean }) {
+export function TransactionSourceMessages({ transactionId, expanded = false, showEmpty = false, loadOnExpand = false }: { transactionId: string; expanded?: boolean; showEmpty?: boolean; loadOnExpand?: boolean }) {
   const [state, setState] = useState<MessageState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState(expanded);
+  const [requested, setRequested] = useState(!loadOnExpand || expanded);
 
   useEffect(() => {
+    if (!requested) return;
     let active = true;
     setState({ status: "loading" });
     const accessToken = getAccessToken();
@@ -34,12 +36,12 @@ export function TransactionSourceMessages({ transactionId, expanded = false, sho
         if (active) setState({ status: "error", message: error instanceof Error ? error.message : "Could not load the original SMS." });
       });
     return () => { active = false; };
-  }, [transactionId, attempt]);
+  }, [transactionId, attempt, requested]);
 
   if (state.status === "ready" && state.messages.length === 0 && !showEmpty) return null;
 
   return (
-    <details className="raw-message field--wide transaction-source-messages" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
+    <details className="raw-message field--wide transaction-source-messages" open={open} onToggle={event => { setOpen(event.currentTarget.open); if (event.currentTarget.open) setRequested(true); }}>
       <summary>Original SMS{state.status === "ready" && state.messages.length > 1 ? ` (${state.messages.length} linked messages)` : ""}</summary>
       {state.status === "loading" ? <p role="status">Loading original SMS…</p> : null}
       {state.status === "error" ? <div><p role="alert">{state.message}</p><button className="button button--ghost button--small" onClick={() => setAttempt((current) => current + 1)} type="button">Retry loading SMS</button></div> : null}

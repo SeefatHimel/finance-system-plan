@@ -1415,9 +1415,41 @@ class StatementObservationMatchTests(APITestCase):
         self.assertIsNone(match["balance_after"])
         self.assertIsNone(match["time"])
         self.assertEqual(match["reference"], "")
+        self.assertTrue(match["reporting_observation_is_fallback"])
+        self.assertEqual(match["ledger_time"], "08:00:00")
+        self.assertEqual(match["ledger_reference"], "SENDER-REF")
+        self.assertEqual(match["ledger_source_balance_after"], "1000.00")
+        self.assertIsNone(match["effective_balance_after"])
         self.assertTrue(
             any("only a search hint" in reason for reason in match["reasons"])
         )
+
+    def test_identical_amount_candidates_show_distinct_saved_ledger_details(self):
+        from datetime import time
+
+        batch = self.upload()
+        first = self.incoming(
+            time=time(8, 15), reference="SYNTHETIC-A",
+            note="First synthetic transfer", counterparty_text="First source",
+        )
+        second = self.incoming(
+            time=time(9, 45), reference="SYNTHETIC-B",
+            note="Second synthetic transfer", counterparty_text="Second source",
+        )
+        _, matches = self.row_and_matches(batch)
+        by_id = {match["id"]: match for match in matches}
+        self.assertEqual(set(by_id), {str(first.id), str(second.id)})
+        self.assertEqual(by_id[str(first.id)]["ledger_time"], "08:15:00")
+        self.assertEqual(by_id[str(second.id)]["ledger_time"], "09:45:00")
+        self.assertEqual(by_id[str(first.id)]["ledger_reference"], "SYNTHETIC-A")
+        self.assertEqual(by_id[str(second.id)]["ledger_reference"], "SYNTHETIC-B")
+        self.assertEqual(by_id[str(first.id)]["ledger_note"], "First synthetic transfer")
+        self.assertEqual(by_id[str(second.id)]["ledger_counterparty_text"], "Second source")
+        for match in matches:
+            self.assertTrue(match["reporting_observation_is_fallback"])
+            self.assertIsNone(match["time"])
+            self.assertEqual(match["reference"], "")
+            self.assertIsNone(match["balance_after"])
 
 
 class StatementWideAmbiguityTests(APITestCase):

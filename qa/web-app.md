@@ -1072,6 +1072,10 @@ Verified code mappings prefill an active category only when it fits the current
 type. A mapping for another type waits for that type to be chosen. The saved
 category takes precedence on initial load, and reviewers can edit the result.
 Combined review lists each ledger suggestion with its match reasons. A reviewer
+sees its saved account path, time, reference, note, counterparty and source-side
+balance, and can open the attached original SMS only when needed. A missing
+statement-account observation is labeled to avoid confusing sender evidence with
+the receiving account. Equal date and amount alone do not establish identity. A reviewer
 can link a compatible entry and retain its balance, or mark each suggestion as
 a different movement and explicitly confirm one new transaction for the SMS
 and statement. Unlinkable candidates remain visible with the reason linking is

@@ -10021,6 +10021,31 @@
           "format": "uuid",
           "type": "string"
         },
+        "ledger_counterparty_text": {
+          "type": "string"
+        },
+        "ledger_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "ledger_note": {
+          "type": "string"
+        },
+        "ledger_reference": {
+          "type": "string"
+        },
+        "ledger_source": {
+          "type": "string"
+        },
+        "ledger_source_balance_after": {
+          "nullable": true,
+          "type": "string"
+        },
+        "ledger_time": {
+          "format": "time",
+          "nullable": true,
+          "type": "string"
+        },
         "merchant_similarity": {
           "format": "double",
           "type": "number"
@@ -10036,6 +10061,9 @@
         },
         "reference": {
           "type": "string"
+        },
+        "reporting_observation_is_fallback": {
+          "type": "boolean"
         },
         "source": {
           "type": "string"
@@ -10073,10 +10101,18 @@
         "detail_suggestions",
         "effective_balance_after",
         "id",
+        "ledger_counterparty_text",
+        "ledger_date",
+        "ledger_note",
+        "ledger_reference",
+        "ledger_source",
+        "ledger_source_balance_after",
+        "ledger_time",
         "merchant_similarity",
         "note",
         "reasons",
         "reference",
+        "reporting_observation_is_fallback",
         "source",
         "strength",
         "time",

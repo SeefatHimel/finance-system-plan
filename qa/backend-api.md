@@ -960,6 +960,10 @@ confirmation requires every current suggestion UUID plus an explicit
 distinct-movement acknowledgment. It recomputes suggestions under the user lock
 and rejects stale selections before reusing the statement create safeguard.
 The resulting SMS and statement share one new ledger entry.
+Suggestion responses include saved ledger-side time, reference, note, counterparty
+and balance so equal-amount candidates can be compared. A fallback flag identifies
+rows with no observation on the statement account; saved sender details never
+become receiving-account matching evidence.
 The queue, pair detail and confirmation endpoint all repeat reciprocal uniqueness
 checks. This prevents a stale or hand-crafted detail request from bypassing an
 ambiguity discovered after the queue loaded. Opaque cursors keep pagination stable

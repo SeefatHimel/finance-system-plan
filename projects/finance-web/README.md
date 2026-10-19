@@ -1265,7 +1265,10 @@ combined entry; if SMS reports no balance, review the fee separately.
 Both original reported balances remain in their source records; an unavailable
 balance is disabled when the other source reports one. Transfer account reports
 use the reviewed choice. If ledger suggestions already exist, the dialog shows
-each candidate's date, description, reported balance and match reasons. A
+each candidate's saved account path, date and time, source-side reference, note,
+counterparty and reported balance, plus its match reasons. An attached original
+SMS can be opened on demand. Missing receiving-account evidence is labeled as
+such, so sender details are not mistaken for a receiving-account report. A
 linkable candidate can be selected to keep its existing ledger balance. For a
 genuinely different movement, choose to record the SMS and statement as a
 separate transaction, mark every ledger suggestion as different, and explicitly

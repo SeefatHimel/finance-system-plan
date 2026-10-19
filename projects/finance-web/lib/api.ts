@@ -1577,6 +1577,8 @@ const statementMatchSchema = z.object({
   strength: z.enum(["strong", "possible"]).default("possible"), merchant_similarity: z.number().default(0), time_difference_minutes: z.number().nullable().default(null),
   id: z.string(), date: z.string(), time: z.string().nullable(), type: z.string(), source: z.string(), amount: z.string(), account_name: z.string(),
   transfer_account_name: z.string().nullable(), category_name: z.string().nullable(), reference: z.string(), note: z.string(), balance_after: z.string().nullable(),
+  ledger_date: z.string(), ledger_time: z.string().nullable(), ledger_source: z.string(), ledger_reference: z.string(), ledger_note: z.string(),
+  ledger_counterparty_text: z.string(), ledger_source_balance_after: z.string().nullable(), reporting_observation_is_fallback: z.boolean(),
   effective_balance_after: z.string().nullable(), can_fill_missing_balance: z.boolean().default(false), detail_suggestions: z.array(statementDetailSuggestionSchema),
   conflict: z.boolean(), can_link: z.boolean(), reasons: z.array(z.string())
 });

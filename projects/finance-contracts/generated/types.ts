@@ -1345,6 +1345,14 @@ export interface StatementMatch {
   category_name: string | null;
   reference: string;
   note: string;
+  ledger_date: string;
+  ledger_time: string | null;
+  ledger_source: string;
+  ledger_reference: string;
+  ledger_note: string;
+  ledger_counterparty_text: string;
+  ledger_source_balance_after: string | null;
+  reporting_observation_is_fallback: boolean;
   balance_after: string | null;
   effective_balance_after: string | null;
   can_fill_missing_balance: boolean;
