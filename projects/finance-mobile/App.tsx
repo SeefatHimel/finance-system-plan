@@ -811,6 +811,7 @@ function FinanceApp() {
   const [debtState, setDebtState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [debtMessage, setDebtMessage] = useState("");
   const [debts, setDebts] = useState<Debt[]>([]);
+  const [debtSearch, setDebtSearch] = useState("");
   const [debtCounterparty, setDebtCounterparty] = useState("");
   const [debtDirection, setDebtDirection] = useState("lent_by_me");
   const [debtPrincipal, setDebtPrincipal] = useState("");
@@ -1563,7 +1564,7 @@ function FinanceApp() {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.14",
+          app_version: "0.1.15",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1585,7 +1586,7 @@ function FinanceApp() {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.14",
+        app_version: "0.1.15",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1662,7 +1663,7 @@ function FinanceApp() {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.14",
+            app_version: "0.1.15",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1677,7 +1678,7 @@ function FinanceApp() {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.14",
+          app_version: "0.1.15",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -3130,11 +3131,15 @@ function FinanceApp() {
   }, [accessToken, refreshToken, username]);
 
   const openDebts = debts.filter((debt) => debt.status !== "paid");
+  const lentDebts = openDebts.filter((debt) => debt.direction === "lent_by_me");
+  const borrowedDebts = openDebts.filter((debt) => debt.direction === "borrowed_by_me");
+  const visibleDebts = debts.filter((debt) =>
+    debt.counterparty_name.toLocaleLowerCase().includes(debtSearch.trim().toLocaleLowerCase())
+  );
   const cardAccounts = accounts.filter((account) => account.type === "credit_card");
   const openCardBills = cardBills.filter((bill) => bill.status !== "paid");
   const activeRecurringBills = recurringBills.filter((bill) => bill.status === "active");
   const expenseCategories = categories.filter((category) => category.kind === "expense");
-  const openDebtTotal = sumMoney(openDebts, (debt) => debt.current_balance);
   const debtDueSoonCount = openDebts.filter((debt) => isDueSoon(debt.due_date)).length;
   const openCardBillTotal = sumMoney(openCardBills, (bill) => bill.remaining_balance);
   const cardBillsDueSoonCount = openCardBills.filter((bill) => isDueSoon(bill.due_date)).length;
@@ -3284,7 +3289,8 @@ function FinanceApp() {
 
           <View style={styles.summaryGrid}>
             <SummaryMetric label="Open debts" value={`${openDebts.length}`} />
-            <SummaryMetric label="Outstanding" tone={openDebtTotal > 0 ? "warning" : "success"} value={formatMoney(openDebtTotal)} />
+            <SummaryMetric label="Owed to you" value={formatMoney(sumMoney(lentDebts, (debt) => debt.current_balance))} />
+            <SummaryMetric label="You owe" tone={borrowedDebts.length ? "warning" : "success"} value={formatMoney(sumMoney(borrowedDebts, (debt) => debt.current_balance))} />
             <SummaryMetric label="Due soon" tone={debtDueSoonCount > 0 ? "warning" : "success"} value={`${debtDueSoonCount}`} />
           </View>
 
@@ -3397,7 +3403,17 @@ function FinanceApp() {
           {debts.length ? (
             <View style={styles.listSection}>
               <Text style={styles.listTitle}>People and balances</Text>
-              {debts.map((debt) => (
+              <TextInput
+                accessibilityLabel="Search debt records by person or business"
+                autoCorrect={false}
+                onChangeText={setDebtSearch}
+                placeholder="Search people or businesses"
+                placeholderTextColor="#91a7c2"
+                style={styles.input}
+                value={debtSearch}
+              />
+              {!visibleDebts.length ? <Text style={styles.meta}>No debt records match this search.</Text> : null}
+              {visibleDebts.map((debt) => (
                 <View key={debt.id} style={styles.compactRecord}>
                   <View style={styles.recordHeader}>
                     <Text style={styles.listTitle}>{debt.counterparty_name}</Text>
@@ -3838,25 +3854,31 @@ function FinanceApp() {
   const primaryCandidate = reviewCandidates[0] ?? null;
   const additionalCandidates = reviewCandidates.slice(1, 3);
   const recentTransactions = transactions.slice(0, 8);
+  const homeAccounts = accounts.filter(account => account.is_active !== false).slice(0, 3);
 
   const renderTransactionRow = (transaction: Transaction) => {
     const isIncome = transaction.type !== "transfer" && (transaction.type === "income" || transaction.direction === "credit");
     const icon: IconName = transaction.type === "transfer" ? "swap-horizontal" : isIncome ? "bank-transfer-in" : "cart-outline";
     const title = transaction.type === "transfer" ? `${accountName(transaction.account)} → ${accountName(transaction.transfer_account)}` : transaction.counterparty_text || transaction.note || titleCase(transaction.type);
+    const isTransfer = transaction.type === "transfer";
+    const categoryName = categories.find(category => category.id === transaction.category)?.name;
 
     return (
       <View key={transaction.id} style={styles.mobileListRow}>
-        <View style={[styles.mobileRowIcon, isIncome ? styles.mobileRowIconSuccess : null]}>
-          <MaterialCommunityIcons color={isIncome ? "#55e6a5" : "#75b8ff"} name={icon} size={21} />
+        <View style={[styles.mobileRowIcon, isTransfer ? null : isIncome ? styles.mobileRowIconSuccess : styles.mobileRowIconDebit]}>
+          <MaterialCommunityIcons color={isTransfer ? "#75b8ff" : isIncome ? "#55e6a5" : "#ff9399"} name={icon} size={21} />
         </View>
         <View style={styles.mobileRowBody}>
           <Text numberOfLines={1} style={styles.mobileRowTitle}>{title}</Text>
+          <Text numberOfLines={1} style={styles.mobileRowMeta}>
+            {titleCase(transaction.type)}{categoryName ? ` · ${categoryName}` : ""} · {accountName(transaction.account)}
+          </Text>
           <Text numberOfLines={1} style={styles.mobileRowMeta}>
             {formatMobileDate(transaction.date)}{transaction.time ? ` at ${transaction.time.slice(0, 5)}` : ""} · {transaction.source || "Ledger"}
           </Text>
           {transaction.type === "transfer" ? transaction.transfer_evidence?.map((item) => <Text key={item.id} style={styles.mobileRowMeta}>{accountName(item.account)} · {item.direction}{item.reference ? ` · ${item.reference}` : ""}{item.balance_after !== null ? ` · balance ${formatCurrency(item.balance_after, accounts.find(account => account.id === item.account)?.currency ?? "BDT")}` : ""}</Text>) : null}
         </View>
-        <Text style={[styles.mobileRowAmount, isIncome ? styles.mobileRowAmountSuccess : null]}>
+        <Text style={[styles.mobileRowAmount, isTransfer ? styles.mobileRowAmountTransfer : isIncome ? styles.mobileRowAmountSuccess : null]}>
           {transaction.type === "transfer" ? "↔" : isIncome ? "+" : "−"} {formatCurrency(transaction.amount, accounts.find(account => account.id === transaction.account)?.currency ?? "BDT")}
         </Text>
       </View>
@@ -3903,6 +3925,26 @@ function FinanceApp() {
 
   const renderHome = () => (
     <View style={styles.mobileSectionStack}>
+      {homeAccounts.length ? (
+        <View style={styles.mobileSection}>
+          <View style={styles.mobileSectionHeader}>
+            <Text accessibilityRole="header" style={styles.mobileSectionTitle}>Account balances</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="View all account balances" onPress={() => openDestination("accounts")} style={styles.mobileTextButton}>
+              <Text style={styles.mobileTextButtonText}>View all</Text>
+            </Pressable>
+          </View>
+          {dataState !== "ok" ? <Text style={styles.mobileSectionMeta}>Saved snapshot · refresh accounts for current balances</Text> : null}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mobileBalanceCards}>
+            {homeAccounts.map(account => (
+              <View key={account.id} style={styles.mobileBalanceCard}>
+                <Text numberOfLines={1} style={styles.mobileBalanceName}>{account.name}</Text>
+                <Text adjustsFontSizeToFit numberOfLines={1} style={styles.mobileBalanceAmount}>{formatCurrency(account.ledger_balance, account.currency)}</Text>
+                <Text style={styles.mobileRowMeta}>Ledger balance · {titleCase(account.type)}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
       <View><Text style={styles.mobileFieldLabel}>Quick Add</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>{quickFavorites.map(preset => <Pressable accessibilityRole="button" key={preset.id} onPress={() => quickHub.current?.open(preset.id)} style={styles.mobileChoice}><Text style={styles.mobileChoiceText}>{preset.name}</Text></Pressable>)}<Pressable accessibilityRole="button" onPress={() => quickHub.current?.open()} style={styles.mobileChoice}><Text style={styles.mobileChoiceText}>{quickFavorites.length ? "See all" : "Add manual entry"}</Text></Pressable></ScrollView></View>
       <View style={styles.mobileSegmentedControl}>
         <Pressable
@@ -4255,8 +4297,8 @@ function FinanceApp() {
           {showSmsDiagnostics ? (
             <View style={{ gap: 10 }}>
               <Text style={styles.mobileRowMeta}>Includes sync counts, stage and error codes. SMS text and login tokens are excluded.</Text>
-              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.14", getApiBaseUrl())}</Text>
-              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.14", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
+              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.15", getApiBaseUrl())}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.15", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
                 <Text style={styles.mobileSecondaryActionText}>Share diagnostics</Text>
               </Pressable>
             </View>
@@ -5576,6 +5618,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 18
   },
+  mobileBalanceCards: {
+    gap: 10,
+    paddingVertical: 2
+  },
+  mobileBalanceCard: {
+    backgroundColor: "#0e1c2c",
+    borderColor: "#294158",
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 4,
+    minWidth: 190,
+    padding: 14
+  },
+  mobileBalanceName: {
+    color: "#a8b8cc",
+    fontSize: 13,
+    fontWeight: "600"
+  },
+  mobileBalanceAmount: {
+    color: "#f6f8fc",
+    fontSize: 20,
+    fontWeight: "800"
+  },
   mobileHeroDate: {
     color: "#91a7c2",
     fontSize: 12,
@@ -6060,6 +6125,9 @@ const styles = StyleSheet.create({
   mobileRowAmountSuccess: {
     color: "#55e6a5"
   },
+  mobileRowAmountTransfer: {
+    color: "#75b8ff"
+  },
   mobileRowBody: {
     flex: 1,
     flexBasis: 0,
@@ -6077,6 +6145,9 @@ const styles = StyleSheet.create({
   },
   mobileRowIconSuccess: {
     backgroundColor: "#12382f"
+  },
+  mobileRowIconDebit: {
+    backgroundColor: "#3a232c"
   },
   mobileRowMeta: {
     color: "#91a7c2",

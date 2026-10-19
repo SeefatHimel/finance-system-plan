@@ -715,3 +715,13 @@ Component regressions check input identity, selected values and outgoing patches
 at narrow/wide widths and enlarged font sizes, including Quick Add's native-window
 focus timing. They do not replace an installed-device keyboard, accessibility or
 visual layout check. Build and install the new signed APK to receive these changes.
+
+### Why does Home show account balances instead of one total?
+
+Accounts may have different currencies, and adding them without conversion would
+be misleading. Home shows up to three active ledger balances with their currency
+codes and links to the full account comparison. Activity makes debit, credit and
+transfer rows scannable with text labels as well as color. Debts & lending keeps
+owed-to-you and you-owe totals separate; name search filters loaded records only.
+Release 0.1.15/code 16 changes presentation and needs no API migration. Physical
+device layout and SMS capture still require the signed-release smoke test.

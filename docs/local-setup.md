@@ -577,6 +577,13 @@ The versioned output is `projects/finance-mobile/dist/releases/finance-mobile-0.
 release binaries remain ignored. Native tests, assembly and signature were
 verified; physical-device keyboard, sign-in and SMS checks remain separate.
 
+Mobile release 0.1.15 uses Android code 16. It changes Home balances, Activity
+row presentation and debt browsing without a backend migration. Run mobile
+`npm run typecheck` and `npm test`, then follow the signed-release guide with
+the existing private key. Keep `app.json`, native Gradle, package metadata and
+SMS device-status version aligned. The ignored APK copy is
+`projects/finance-mobile/dist/releases/finance-mobile-0.1.15.apk`.
+
 ### Transaction recovery migration
 
 Before running web or mobile clients with Edit/Undo, run `python manage.py migrate` from

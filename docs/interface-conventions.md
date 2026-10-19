@@ -65,6 +65,11 @@ comparison helpers. It is not an HTTP contract or ledger calculation layer.
   names; account-filtered transactions retain that account's debit/credit sign.
   Reported balances retain their account's currency. These helpers do not perform
   currency conversion or change matching and balance calculations.
+- Native Home shows individual active-account ledger balances with a link to all
+  accounts. It never sums different currencies. Activity rows carry type, category
+  when known, account path, amount and a text direction alongside color: debit
+  rose, credit mint and transfer blue. Lending and borrowing totals stay separate;
+  debt name search filters only the loaded records.
 
 Saved filter views and an overview privacy toggle are deferred by product choice.
 Native Edit/Undo use existing authenticated transaction and recovery endpoints;

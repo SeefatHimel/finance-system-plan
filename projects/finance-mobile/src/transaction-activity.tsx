@@ -431,6 +431,10 @@ export function TransactionActivity({
     () => new Map(accounts.map((item) => [item.id, item.name])),
     [accounts],
   );
+  const categoryNames = useMemo(
+    () => new Map(categories.map((item) => [item.id, item.name])),
+    [categories],
+  );
   useEffect(() => {
     const version = ++generation.current;
     controller.current?.abort();
@@ -651,6 +655,8 @@ export function TransactionActivity({
               activityDay(rows[index - 1], filters.ordering) !== day,
             transfer = row.type === "transfer",
             receiving = row.account_direction === "credit";
+          const tone = transfer ? "transfer" : receiving ? "credit" : "debit";
+          const category = row.category ? categoryNames.get(row.category) : null;
           return (
             <View>
               {showDay ? (
@@ -662,26 +668,31 @@ export function TransactionActivity({
                 accessibilityRole="button"
                 accessibilityLabel={`View transaction: ${row.counterparty_text || title(row.type)}, ${money(row.amount, currency)}, ${row.date}`}
                 onPress={() => setSelected(row)}
-                style={s.row}
+                style={[s.row, tone === "transfer" ? s.transferRow : tone === "credit" ? s.creditRow : s.debitRow]}
               >
+                <View style={[s.typeIcon, tone === "transfer" ? s.transferIcon : tone === "credit" ? s.creditIcon : s.debitIcon]}>
+                  <Text style={[s.typeIconText, tone === "transfer" ? s.transferText : tone === "credit" ? s.credit : s.debitText]}>
+                    {transfer ? "↔" : receiving ? "↓" : "↑"}
+                  </Text>
+                </View>
                 <View style={s.rowBody}>
-                  <Text style={s.text}>
+                  <Text numberOfLines={2} style={s.rowTitle}>
                     {transfer
                       ? `${accountNames.get(row.account) ?? "Unknown"} → ${accountNames.get(row.transfer_account ?? "") ?? "Unknown"}`
                       : row.counterparty_text || row.note || title(row.type)}
                   </Text>
                   <Text style={s.muted}>
-                    {row.time?.slice(0, 5) || "Time not reported"} ·{" "}
-                    {title(row.source)} ·{" "}
+                    {title(row.type)}{category ? ` · ${category}` : ""} ·{" "}
                     {transfer
-                      ? "Internal transfer"
+                      ? "Between accounts"
                       : (accountNames.get(row.account) ?? "Unknown account")}
-                    {filters.ordering !== "-date"
-                      ? ` · Transaction ${row.date}`
-                      : ""}
+                  </Text>
+                  <Text style={s.muted}>
+                    {row.time?.slice(0, 5) || "Time not reported"} · {title(row.source)}
+                    {filters.ordering !== "-date" ? ` · ${dateLabel(row.date)}` : ""}
                   </Text>
                 </View>
-                <Text style={[s.rowAmount, receiving && s.credit]}>
+                <Text style={[s.rowAmount, tone === "transfer" ? s.transferText : receiving ? s.credit : s.debitText]}>
                   {transfer && !filters.account
                     ? "↔ "
                     : receiving
@@ -764,8 +775,21 @@ const s = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    alignItems: "center",
+    borderLeftWidth: 3,
   },
-  rowBody: { flexGrow: 1, flexShrink: 1, minWidth: 160, gap: 4 },
+  debitRow: { borderLeftColor: "#ff9399" },
+  creditRow: { borderLeftColor: "#55e6a5" },
+  transferRow: { borderLeftColor: "#75b8ff" },
+  rowBody: { flexGrow: 1, flexShrink: 1, minWidth: 140, gap: 4 },
+  rowTitle: { color: "#f6f8fc", fontSize: 15, fontWeight: "700" },
+  typeIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  typeIconText: { fontSize: 18, fontWeight: "700" },
+  debitIcon: { backgroundColor: "#3a232c" },
+  creditIcon: { backgroundColor: "#12382f" },
+  transferIcon: { backgroundColor: "#112d43" },
+  debitText: { color: "#ff9399" },
+  transferText: { color: "#75b8ff" },
   rowAmount: {
     color: "#d8e3f0",
     fontSize: 15,

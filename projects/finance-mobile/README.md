@@ -799,3 +799,10 @@ use the signed-release checklist on a phone before accepting those behaviors.
 Release **0.1.14 / Android code 15** includes the compact forms. Install the same-key
 upgrade from `dist/releases/finance-mobile-0.1.14.apk`; see the
 [signed release checklist](docs/signed-android-release.md#compact-form-release-0114).
+
+Release **0.1.15 / Android code 16** adds compact account balance cards on Home,
+clearer transaction direction and category labels, and separate lending/borrowing
+totals with a name search. Each balance card uses its own currency and is labelled
+as a ledger balance. Install the same-key upgrade from
+`dist/releases/finance-mobile-0.1.15.apk`; see the
+[release checklist](docs/signed-android-release.md#balance-and-activity-release-0115).

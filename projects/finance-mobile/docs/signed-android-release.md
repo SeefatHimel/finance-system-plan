@@ -79,13 +79,12 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.14**, Android version code **15**. It adds compact,
-width-aware SMS review, full entry, saved-entry editing and Quick Add layouts.
-Optional details stay mounted, date/time use compact native affordances, and
-larger fonts reduce columns. Full entry uses searchable account/category names.
-Existing account-bound balances, category confirmations, linked consent, offline
-queues and batch SMS sync retain their behavior. No new API endpoint or migration
-is needed; use the existing deployed API required by release 0.1.13.
+The current release is **0.1.15**, Android version code **16**. Home shows up to
+three active accounts' ledger balances without adding different currencies.
+Activity and Home distinguish debit, credit and transfer rows, while Activity
+shows category and account context. Debts separate receivables from payables and
+offer a local name search. This is a presentation update; no new API endpoint or
+migration is needed. Use the existing deployed API required by release 0.1.13.
 
 ## 5. Build the signed APK
 
@@ -108,7 +107,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.14.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.15.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -387,3 +386,15 @@ On the installed phone, test SMS review, Quick Add, full entry and Activity Edit
 There is no attached physical device or configured emulator in the build
 environment. Automated state/build checks do not establish physical IME,
 TalkBack, native wrapping or end-to-end SMS acceptance behavior.
+
+## Balance and activity release 0.1.15
+
+Upgrade in place using the same signing key. Verify the package reports
+**0.1.15/code 16** and its signing certificate matches the prior APK. Check
+Home account cards with mixed currencies and inactive accounts; they show
+individual ledger balances, never a cross-currency total. Check Activity at
+small and large text sizes: debit, credit and transfer colors must retain their
+type/account labels, and account-filtered transfers retain their direction.
+In Debts & lending, verify owed-to-you and you-owe balances remain separate and
+searching a name only filters the loaded list. Confirm Quick Add, review, SMS
+sync and offline queues still behave as before.
