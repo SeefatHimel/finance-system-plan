@@ -30,6 +30,14 @@ before releasing; SQLite cannot verify row-lock serialization.
 
 Django backend and source of truth for the finance system.
 
+## Profile editing
+
+Authenticated users can `GET /api/auth/me/` and `PATCH /api/auth/me/` to read
+and update their own first name, last name, and email. The PATCH endpoint
+validates email format and returns the refreshed user; username and credentials
+remain unchanged. Web appearance preference is stored in the browser, not in
+the API. Run `python manage.py test apps.users` after changing this behavior.
+
 ## Original-source retention and recovery
 
 New supported statement imports save the exact uploaded PDF in an encrypted,

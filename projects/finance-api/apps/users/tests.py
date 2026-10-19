@@ -33,6 +33,33 @@ class AuthApiTests(APITestCase):
         self.assertEqual(me_response.status_code, 200)
         self.assertEqual(me_response.data["username"], "himel")
 
+    def test_user_can_update_own_profile_without_changing_username(self):
+        user = get_user_model().objects.create_user(username="synthetic-profile", email="old@example.com")
+        self.client.force_authenticate(user)
+
+        response = self.client.patch(reverse("current-user"), {
+            "first_name": "  Alex  ",
+            "last_name": "  Morgan ",
+            "email": " alex@example.com ",
+            "username": "changed",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        user.refresh_from_db()
+        self.assertEqual((user.first_name, user.last_name, user.email), ("Alex", "Morgan", "alex@example.com"))
+        self.assertEqual(user.username, "synthetic-profile")
+        self.assertEqual(response.data["username"], "synthetic-profile")
+
+    def test_profile_update_rejects_invalid_email_and_requires_authentication(self):
+        user = get_user_model().objects.create_user(username="synthetic-profile", email="old@example.com")
+        self.client.force_authenticate(user)
+        response = self.client.patch(reverse("current-user"), {"email": "not-an-email"}, format="json")
+        self.assertEqual(response.status_code, 400)
+        user.refresh_from_db()
+        self.assertEqual(user.email, "old@example.com")
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.patch(reverse("current-user"), {"first_name": "Alex"}, format="json").status_code, 401)
+
     def test_refresh_token_rotates_and_old_refresh_token_is_rejected(self):
         get_user_model().objects.create_user(
             username="himel",

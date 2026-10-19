@@ -836,6 +836,28 @@ paths:
                 $ref: '#/components/schemas/User'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+    patch:
+      tags: [Auth]
+      summary: Update current user profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdate'
+      responses:
+        '200':
+          description: Updated current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /api/accounts/:
     get:
       tags: [Accounts]
@@ -3743,6 +3765,20 @@ components:
           type: string
         last_name:
           type: string
+    UserProfileUpdate:
+      type: object
+      description: All fields are optional. Username and credentials cannot be changed here.
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          description: May be empty.
     AccountType:
       type: string
       enum: [cash, home_cash, mobile_wallet, bank, credit_card, savings, other]

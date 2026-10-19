@@ -15,6 +15,20 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(allow_blank=True, required=False)
+
+    class Meta:
+        model = get_user_model()
+        fields = ("first_name", "last_name", "email")
+
+    def validate(self, attrs):
+        for field in ("first_name", "last_name", "email"):
+            if field in attrs:
+                attrs[field] = attrs[field].strip()
+        return attrs
+
+
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField(write_only=True)
 

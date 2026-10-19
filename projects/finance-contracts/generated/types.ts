@@ -228,6 +228,12 @@ export interface User {
   last_name: string;
 }
 
+export interface UserProfileUpdate {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+}
+
 export type AccountType = "cash" | "home_cash" | "mobile_wallet" | "bank" | "credit_card" | "savings" | "other";
 
 export type CategoryKind = "expense" | "income" | "transfer" | "debt" | "system";

@@ -1,5 +1,12 @@
 # Backend API Q&A
 
+### What can a signed-in user change on their profile?
+
+`PATCH /api/auth/me/` updates only the authenticated user's first name, last
+name, and email, validates email syntax, and returns the updated public user
+fields. Username and password are excluded from this endpoint. Appearance is a
+web-browser preference and does not require a database migration.
+
 ### How are exact statement, SMS, and account/card sources retained?
 
 The statement importer encrypts exact PDF bytes, keeps masked review rows, and

@@ -1,5 +1,12 @@
 # API Contracts Q&A
 
+### How does the profile editor cross the API boundary?
+
+`PATCH /api/auth/me/` accepts optional `first_name`, `last_name`, and `email`
+fields and returns the normal `User` response. It requires the current user's
+token; it cannot rename another user or change username/password. Web theme
+preference is local to the browser and is not part of the API contract.
+
 ### Which endpoints reveal original sources?
 
 Authenticated statement owners can GET `/api/statements/imports/{id}/original/`
