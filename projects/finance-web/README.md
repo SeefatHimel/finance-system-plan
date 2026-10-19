@@ -469,6 +469,11 @@ limited to the mounted workspace, with no persistent transaction cache.
 
 ## Original SMS in the Transaction Editor
 
+Transactions with attached SMS or statement evidence also offer **Sources** in
+the transaction list. This opens a read-only dialog with the saved messages and
+statement rows, including archived PDF access when available. Opening Sources
+does not start an edit or update the ledger.
+
 Edit transaction opens an expanded Original SMS section above the fields.
 It loads source messages on demand and shows the full plain text, sender and
 received date/time in the browser's timezone. Matched transfers show all linked
@@ -1177,12 +1182,23 @@ dates/account/amounts and non-financial SMS need their source editor first. SMS
 dates are received timestamps and statement dates are transaction dates, but both
 are formatted consistently. Statement fee rows remain independently reviewable.
 
+The statement table's More row filters includes SMS pairing status. It filters
+the full selected import before pagination, distinguishing a unique pair,
+several candidates, a possible same-type SMS suggestion, no suggestion, and an
+unavailable pairing check. Empty results offer Clear filters; failed row loads
+keep the selected filters and offer Retry.
+Unified review uses the same distinction: no pairs under active filters offers
+Clear filters, while a failed match request keeps the filters and offers Retry.
+
 Compare opens an editable transaction result, prefilled from the saved statement
 draft and missing SMS details. When types differ, the reviewer must choose the
 statement type, SMS type or a different type; date/time, category, merchant,
 reference and note suggestions remain individually editable. Amount stays tied
 to the matched source amounts and must be corrected in source review. The two
 originals, match reasons and reported balances remain expandable for comparison.
+**Check review items** can mark the type/account-path and applicable balance or
+source-review acknowledgments after the type choice. The reviewer still confirms
+the SMS and statement describe the same movement individually.
 A BDT statement/SMS balance difference below Tk 1 does not show the amber
 conflict banner or checkbox in unified review. For a new transaction, the higher balance is selected initially and the user may
 choose the other; both source values remain visible. Missing-report enrichment

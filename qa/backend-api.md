@@ -889,6 +889,9 @@ ambiguous sources, and an unavailable bounded check. The older same-type
 lookup checks uniqueness across other imports; bulk statement approval leaves
 unique, ambiguous, and unavailable rows unresolved. Individual posting with
 an identified or ambiguous pair requires explicit separate-movement confirmation.
+The optional `sms_status` list filter applies to all pending rows before
+pagination. `possible` means a same-type SMS candidate without a unique pair;
+an unavailable bounded check remains distinct from no SMS suggestion.
 The row search examines saved draft fields and extracted row values within one
 import before pagination; it does not search the original PDF or other users'
 data.

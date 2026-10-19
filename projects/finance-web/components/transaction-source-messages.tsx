@@ -13,9 +13,10 @@ type MessageState =
 
 const receivedTimeFormatter = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
-export function TransactionSourceMessages({ transactionId }: { transactionId: string }) {
+export function TransactionSourceMessages({ transactionId, expanded = false, showEmpty = false }: { transactionId: string; expanded?: boolean; showEmpty?: boolean }) {
   const [state, setState] = useState<MessageState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
+  const [open, setOpen] = useState(expanded);
 
   useEffect(() => {
     let active = true;
@@ -35,13 +36,14 @@ export function TransactionSourceMessages({ transactionId }: { transactionId: st
     return () => { active = false; };
   }, [transactionId, attempt]);
 
-  if (state.status === "ready" && state.messages.length === 0) return null;
+  if (state.status === "ready" && state.messages.length === 0 && !showEmpty) return null;
 
   return (
-    <details className="raw-message field--wide transaction-source-messages">
+    <details className="raw-message field--wide transaction-source-messages" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
       <summary>Original SMS{state.status === "ready" && state.messages.length > 1 ? ` (${state.messages.length} linked messages)` : ""}</summary>
       {state.status === "loading" ? <p role="status">Loading original SMS…</p> : null}
       {state.status === "error" ? <div><p role="alert">{state.message}</p><button className="button button--ghost button--small" onClick={() => setAttempt((current) => current + 1)} type="button">Retry loading SMS</button></div> : null}
+      {state.status === "ready" && state.messages.length === 0 ? <p>No SMS is attached to this transaction.</p> : null}
       {state.status === "ready" ? state.messages.map((message) => (
         <article key={message.id}>
           <p><strong>{message.sender}</strong> · Received <time dateTime={message.received_at}>{receivedTimeFormatter.format(new Date(message.received_at))}</time></p>

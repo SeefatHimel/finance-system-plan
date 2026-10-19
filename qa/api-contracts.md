@@ -651,6 +651,9 @@ unless status is `unique`. The older `pending_sms_match_count` remains the
 stricter same-type counter and can be zero for such a pair. Search is scoped to
 the selected import and covers saved draft and extracted row values before
 pagination.
+Optional `sms_status=unique|ambiguous|possible|none|unavailable` filters pending
+rows before pagination. `possible` denotes a same-type pending SMS suggestion
+when no unique pair is available; resolved rows are omitted.
 Optional `ordering` sorts filtered rows before pagination. Values are `source`
 (default), `date_desc`, `date_asc`, `amount_desc`, and `amount_asc`; missing
 values stay last and ties preserve statement order.

@@ -179,6 +179,7 @@ export function TransactionWorkspace() {
   const [formMessage, setFormMessage] = useFeedbackMessage("success");
   const [clockEdit, setClockEdit] = useState<{ value: string } | null>(null);
   const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
+  const [evidenceTransaction, setEvidenceTransaction] = useState<Transaction | null>(null);
   const [editingReportedBalances, setEditingReportedBalances] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -697,6 +698,7 @@ export function TransactionWorkspace() {
   }
   function transactionActions(transaction: Transaction) {
     return <div className="list-row__actions">
+      {transaction.statement_evidence_count > 0 || transaction.raw_message || transaction.transfer_evidence.some(item => item.raw_message) ? <button className="button button--ghost" onClick={() => setEvidenceTransaction(transaction)} type="button">Sources</button> : null}
       {transaction.type === "transfer" ? <button className="button button--ghost" disabled={isSubmitting} onClick={() => void handleFindPostedMatch(transaction)} type="button">Find match</button> : null}
       <button className="button button--ghost" onClick={() => void selectTransactionForEdit(transaction.id)} type="button">Edit</button>
       <Link className="button button--ghost" href={`/audit-logs?entity_type=transactions.transaction&entity_id=${transaction.id}`}>History</Link>
@@ -708,6 +710,13 @@ export function TransactionWorkspace() {
     <div className="workspace-grid">
       {categoryChoice.confirmation}
       {clockEdit ? <QuickTimePicker value={clockEdit.value} onCancel={() => setClockEdit(null)} onApply={time => { setEditingTime(time); setClockEdit(null); }} /> : null}
+      {evidenceTransaction ? <ModalDialog labelledBy="transaction-sources-title" className="form-drawer transaction-sources-dialog" onCancel={() => setEvidenceTransaction(null)}>
+        <div className="form-drawer__header"><div><h2 id="transaction-sources-title">Attached sources</h2><p>{formatCalendarDate(evidenceTransaction.date)} · {accountNames.get(evidenceTransaction.account) ?? "Account"} · {formatCurrency(evidenceTransaction.amount, currencyByAccount.get(evidenceTransaction.account))}</p></div><button className="icon-button" type="button" aria-label="Close attached sources" onClick={() => setEvidenceTransaction(null)}><X aria-hidden="true" size={20} /></button></div>
+        <div className="transaction-sources-dialog__body"><p className="inline-note">These are the saved source observations for this ledger entry. Viewing them does not change the transaction.</p>
+          {evidenceTransaction.raw_message || evidenceTransaction.transfer_evidence.some(item => item.raw_message) ? <TransactionSourceMessages key={`sources-${evidenceTransaction.id}`} transactionId={evidenceTransaction.id} expanded showEmpty /> : null}
+          {evidenceTransaction.statement_evidence_count > 0 ? <TransactionStatementEvidence key={`statement-sources-${evidenceTransaction.id}`} transactionId={evidenceTransaction.id} expanded /> : null}
+        </div>
+      </ModalDialog> : null}
       {editorMode ? (
         <ModalDialog labelledBy="transaction-editor-title" className="form-drawer transaction-editor-drawer" busy={isSubmitting || isUpdating} onCancel={closeEditor}>
             <div className="form-drawer__header">

@@ -171,6 +171,33 @@ class UnifiedReviewTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Transaction.objects.count(), 0)
 
+    def test_statement_sms_status_filter_applies_before_pagination(self):
+        url = reverse("statement-import-rows", args=[self.batch.id])
+        no_sms = StatementRow.objects.create(
+            batch=self.batch, position=0, component="principal",
+            source_fingerprint="synthetic-no-sms", date=self.row.date,
+            direction="debit", type="expense", amount="50.00",
+            balance_after="950.07", classification_confirmed=True,
+            extracted={**self.row.extracted, "id": "synthetic-no-sms", "row": 0,
+                       "amount": "50.00", "balance_after": "950.07"},
+        )
+        unique = self.client.get(url, {"sms_status": "unique", "limit": 1})
+        self.assertEqual(unique.status_code, 200, unique.data)
+        self.assertEqual(unique.data["count"], 1)
+        self.assertEqual(unique.data["results"][0]["id"], str(self.row.id))
+        without_sms = self.client.get(url, {"sms_status": "none", "limit": 1})
+        self.assertEqual(without_sms.data["count"], 1)
+        self.assertEqual(without_sms.data["results"][0]["id"], str(no_sms.id))
+
+        self.candidate()
+        ambiguous = self.client.get(url, {"sms_status": "ambiguous", "limit": 1})
+        self.assertEqual(ambiguous.status_code, 200, ambiguous.data)
+        self.assertEqual(ambiguous.data["count"], 1)
+        self.assertEqual(ambiguous.data["results"][0]["review"]["unified_pending_sms_status"], "ambiguous")
+        self.assertEqual(self.client.get(url, {"sms_status": "unique"}).data["count"], 0)
+        invalid = self.client.get(url, {"sms_status": "unknown"})
+        self.assertEqual(invalid.status_code, 400)
+
     def test_statement_list_does_not_claim_sms_shared_by_two_rows(self):
         StatementRow.objects.create(
             batch=self.batch,

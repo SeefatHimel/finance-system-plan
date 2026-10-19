@@ -526,7 +526,13 @@ than treated as a blanket skip category, and financial senders remain active.
 
 ## Can users see the original message while correcting a transaction?
 
-Yes. When linked SMS exists, the edit dialog loads an expanded Original SMS section with full plain text,
+Yes. Transactions with saved SMS or statement evidence expose a read-only
+**Sources** action from the ledger list, so source inspection does not require
+opening Edit. The dialog shows retained SMS text, masked statement rows and
+archived PDF access when available; redacted or missing originals remain
+explicitly labeled.
+
+When linked SMS exists, the edit dialog also loads an expanded Original SMS section with full plain text,
 sender and received time. It preserves line breaks, wraps long text and shows
 all linked transfer messages once. Users can collapse it while editing.
 Redacted/excluded SMS have explicit explanations. Entries without linked SMS hide
@@ -1011,6 +1017,12 @@ This also works when parsed transaction types disagree. Bulk approval excludes
 such pairs; the user reviews both sources once or explicitly chooses a separate
 movement. Search rows includes saved and extracted row details such as notes,
 codes, amounts, dates, category, and page/row within the selected import.
+The statement table also filters pending rows by SMS pairing before pagination:
+pair found, several candidates, possible same-type SMS, no suggestion, or
+pairing unavailable. Empty results offer Clear filters; load failures keep the
+selected filters and offer Retry.
+Unified review also separates an empty filtered result from a failed match
+request and retains the current filter choices on retry.
 
 Unified review (`/review`) lists only unique one-to-one pending pairs, one item per
 SMS + statement movement, with account, statement-date and combined-source search
@@ -1030,8 +1042,9 @@ them on smaller screens. A compact source strip receives initial focus. The note
 stays visible beside the main fields; less-used balance, reference, value date,
 and full source evidence open on demand without losing draft values or waiving
 the existing confirmation checks. Required acknowledgments, including
-the type and account-path check, share one Finish review checklist. Check required
-marks the applicable items after a differing type is chosen. The separate optional
+the type and account-path check, share one Finish review checklist. Check review items
+marks the applicable items after a differing type is chosen, while the reviewer
+must personally confirm that both sources describe the same movement. The separate optional
 Remember setting is excluded, and edits reset confirmations. Balance choice stays
 independent. The source comparison can copy either description into the editable
 Final description / note, which stays visible below the merchant for routine

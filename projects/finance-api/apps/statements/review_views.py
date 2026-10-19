@@ -311,6 +311,11 @@ class StatementImportViewSet(
                 description="Owned category UUID or none for uncategorized.",
             ),
             OpenApiParameter("search", str, description="Search saved row fields and original extracted values within this import."),
+            OpenApiParameter(
+                "sms_status", str,
+                enum=["unique", "ambiguous", "possible", "none", "unavailable"],
+                description="Filter pending statement rows by SMS pairing status before pagination.",
+            ),
             OpenApiParameter("date_from", OpenApiTypes.DATE),
             OpenApiParameter("date_to", OpenApiTypes.DATE),
             OpenApiParameter(
@@ -357,6 +362,11 @@ class StatementImportViewSet(
         direction = request.query_params.get("direction", "")
         kind = request.query_params.get("type", "")
         category = request.query_params.get("category", "")
+        sms_status = request.query_params.get("sms_status", "")
+        if sms_status and sms_status not in {"unique", "ambiguous", "possible", "none", "unavailable"}:
+            raise ValidationError({"sms_status": "Choose a valid SMS pairing status."})
+        from .unified import unique_pending_pairs_for_rows
+        sms_pairs = unique_pending_pairs_for_rows(records) if sms_status else {}
         ordering = request.query_params.get("ordering", "source")
         if ordering not in {"source", "date_desc", "date_asc", "amount_desc", "amount_asc"}:
             raise ValidationError({"ordering": "Choose a valid row order."})
@@ -396,6 +406,18 @@ class StatementImportViewSet(
         filtered = []
         for row in records:
             context = review_context(row, matches[row.id], truncated, pending_counts[row.id])
+            if sms_status:
+                if resolved(row):
+                    continue
+                pair = sms_pairs.get(row.id, "")
+                pair_status = (
+                    "unavailable" if row.id in sms_pairs and pair is None
+                    else "ambiguous" if pair == "ambiguous"
+                    else "unique" if pair else "possible" if pending_counts[row.id]
+                    else "unavailable" if pending_counts[row.id] is None else "none"
+                )
+                if pair_status != sms_status:
+                    continue
             if (
                 state == "pending"
                 and resolved(row)
@@ -438,9 +460,7 @@ class StatementImportViewSet(
         elif ordering == "amount_asc":
             filtered.sort(key=lambda row: (row.amount is None, row.amount if row.amount is not None else 0))
         page = filtered[offset : offset + limit]
-        from .unified import unique_pending_pairs_for_rows
-
-        unified_pairs = unique_pending_pairs_for_rows(page)
+        unified_pairs = {row.id: sms_pairs[row.id] for row in page if row.id in sms_pairs} if sms_status else unique_pending_pairs_for_rows(page)
         return Response(
             {
                 "count": len(filtered),

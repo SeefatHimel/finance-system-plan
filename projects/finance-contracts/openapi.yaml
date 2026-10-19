@@ -472,6 +472,18 @@ paths:
         schema:
           type: string
       - in: query
+        name: sms_status
+        required: false
+        description: Filter pending rows by SMS pairing status before pagination.
+        schema:
+          type: string
+          enum:
+          - unique
+          - ambiguous
+          - possible
+          - none
+          - unavailable
+      - in: query
         name: date_from
         required: false
         schema:

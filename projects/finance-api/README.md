@@ -694,6 +694,9 @@ remain unsupported pending separate extraction and accounting validation.
   account/category, dates, amounts, direction/type, and page/row. Returned rows
   identify a unique pending SMS pair even when parsed types differ, and report
   ambiguous or unavailable SMS comparisons separately from no match. Optional
+  `sms_status=unique|ambiguous|possible|none|unavailable` filters pending rows
+  by SMS pairing before pagination; `possible` uses the narrower same-type SMS
+  suggestion when no unique pair exists. Optional
   `ordering=source|date_desc|date_asc|amount_desc|amount_asc` sorts the filtered
   rows before pagination. Missing values stay last and ties retain source order.
 - `GET/PATCH /api/statements/rows/{id}/`: review or correct a pending draft;

@@ -6,8 +6,9 @@ import { getStatementImport, listTransactionStatementEvidence, type SavedStateme
 import { getAccessToken } from "@/lib/auth-storage";
 import { StatementOriginalViewer } from "@/components/statement-original-viewer";
 
-export function TransactionStatementEvidence({ transactionId }: { transactionId: string }) {
+export function TransactionStatementEvidence({ transactionId, expanded = false }: { transactionId: string; expanded?: boolean }) {
   const [rows, setRows] = useState<SavedStatementRow[] | null>(null);
+  const [open, setOpen] = useState(expanded);
   const [pdfAvailability, setPdfAvailability] = useState<Record<string, boolean | null>>({});
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -28,7 +29,7 @@ export function TransactionStatementEvidence({ transactionId }: { transactionId:
   }, [transactionId, retry]);
   if (rows?.length === 0) return null;
   const batchIds = [...new Set(rows?.map((row) => row.batch) ?? [])];
-  return <details className="raw-message field--wide"><summary>Statement evidence{rows ? ` (${rows.length})` : ""}</summary>
+  return <details className="raw-message field--wide" open={open} onToggle={event => setOpen(event.currentTarget.open)}><summary>Statement evidence{rows ? ` (${rows.length})` : ""}</summary>
     {!rows && !error ? <p role="status">Loading statement evidence…</p> : null}
     {error ? <><p role="alert">{error}</p><button className="button button--small" type="button" onClick={() => setRetry((n) => n + 1)}>Retry statement evidence</button></> : null}
     {batchIds.map((id) => <div className="statement-original-source" key={id}>

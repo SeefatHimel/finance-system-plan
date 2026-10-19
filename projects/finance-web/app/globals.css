@@ -2529,6 +2529,10 @@ textarea {
 .transaction-source-messages { min-width: 0; margin: 0; }
 .transaction-source-messages article + article { border-top: 1px solid var(--panel-border); margin-top: 14px; padding-top: 4px; }
 .transaction-source-messages__body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.viewport-modal.transaction-sources-dialog { max-width: 920px; }
+.transaction-sources-dialog__body { display: grid; gap: 14px; padding: 20px 24px 24px; }
+.transaction-sources-dialog__body > .inline-note { margin: 0; }
+.transaction-sources-dialog__body .raw-message { margin: 0; min-width: 0; }
 .transaction-identifier-fields { min-width: 0; margin: 0; border: 1px solid var(--panel-border); border-radius: 8px; padding: 14px; }
 .transaction-identifier-fields p { color: var(--muted); margin: 0 0 14px; font-size: 13px; line-height: 1.5; }
 .transaction-identifier-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
