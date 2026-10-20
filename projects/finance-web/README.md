@@ -1612,3 +1612,29 @@ Synthetic browser checks cover 1920px, 1440px, 900px and 390px: responsive colum
 Focus/queue toggles, disclosure and message navigation retention, hidden-field
 validation, low-confidence corrections and confirmation payloads. These checks
 use a local synthetic API; they do not exercise a live account or SMS import.
+
+### Possible rounding matches in statement review
+
+A corroborated BDT amount difference strictly below Tk 1.00 is shown as
+**Possible rounding match**, with both exact amounts, reported balances and
+signed differences. It never becomes an automatic match. Differing balances
+have no preselected choice for this flow. After checking discrepancies and
+choosing a balance, **Review correction & link** opens a viewport-bound dialog
+showing the old and proposed amounts and the balance to keep. The user must
+explicitly confirm the same movement before **Confirm correction & link**.
+Cancel restores the comparison with draft fields and choices intact. If the
+ledger amount is correct, cancel, correct the statement draft and save it to
+refresh exact matches instead.
+
+The API atomically corrects the amount and attaches the source to the existing
+entry. It does not add another transaction or alter original SMS/PDF values.
+Stale rows, transaction timestamps or reviewed amounts require reload/review;
+there are no partial updates. Transactions with linked statement/debt/bill
+records show a blocking reason and must be corrected separately. Exact matches
+keep their existing acceptance flow. This feature is in standalone statement
+review; pending SMS-to-statement pairing remains exact-amount only.
+
+Validation includes statement-review and statement-balance-choice Node tests,
+typecheck/lint/build, and synthetic browser interactions against the local API
+at desktop and phone widths.
+Deploy the API first; no migration or APK rebuild is needed.

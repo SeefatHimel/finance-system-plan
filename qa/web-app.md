@@ -1358,3 +1358,16 @@ containing disclosure and focuses that field without discarding the other edits.
 The layout changes no confirmation/matching APIs, duplicate protection or learning
 rules. Local synthetic browser checks cover the retained drafts and submitted
 transfer details at desktop, tablet and phone widths.
+
+### How does a user review a possible rounding match?
+
+Standalone statement review shows both exact amounts and reported balances,
+signed differences and a “Possible rounding match” label. No balance is
+preselected when this flow has a conflict. “Review correction & link” opens a
+second dialog describing the precise amount correction and selected balance.
+The final button needs an explicit same-movement confirmation. Cancel preserves
+the statement draft and choices. A stale ledger change asks for reload instead
+of partially saving. If the saved ledger amount is correct, edit/save the
+statement draft instead. Dependent statement/debt/bill records show why this
+shortcut is blocked. Exact match acceptance and pending SMS pairing keep their
+existing behavior; the feature never adds a second transaction.

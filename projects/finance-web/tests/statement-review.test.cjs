@@ -96,3 +96,11 @@ test('filling a linked missing balance selects an agreed or sole report, never t
   assert.equal(choose(null, '450.07', true), '');
   assert.equal(choose('450.07', null, true), 'sms');
 });
+
+test('a possible rounding match requires a separate explicit correction confirmation', () => {
+  assert.match(statementLinkBlockReason({ ...ready, amountCorrectionRequired: true }), /confirm/);
+  assert.equal(statementLinkBlockReason({ ...ready, amountCorrectionRequired: true, amountCorrectionConfirmed: true }), null);
+  assert.match(statementLinkBlockReason({ ...ready, amountCorrectionRequired: true, amountCorrectionConfirmed: true, conflict: true }), /Choose which reported balance/);
+  assert.match(statementLinkBlockReason({ ...ready, amountCorrectionRequired: true, amountCorrectionConfirmed: true, dirty: true }), /Save your draft/);
+  assert.match(statementLinkBlockReason({ ...ready, canLink: false, amountCorrectionRequired: true, amountCorrectionConfirmed: true }), /cannot be linked/);
+});

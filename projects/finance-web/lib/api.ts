@@ -1594,7 +1594,8 @@ const statementMatchSchema = z.object({
   ledger_date: z.string(), ledger_time: z.string().nullable(), ledger_source: z.string(), ledger_reference: z.string(), ledger_note: z.string(),
   ledger_counterparty_text: z.string(), ledger_source_balance_after: z.string().nullable(), reporting_observation_is_fallback: z.boolean(),
   effective_balance_after: z.string().nullable(), can_fill_missing_balance: z.boolean().default(false), detail_suggestions: z.array(statementDetailSuggestionSchema),
-  conflict: z.boolean(), can_link: z.boolean(), reasons: z.array(z.string())
+  conflict: z.boolean(), can_link: z.boolean(), reasons: z.array(z.string()),
+  rounding_correction: z.object({ existing_amount: z.string(), statement_amount: z.string(), difference: z.string(), transaction_updated_at: z.string(), can_correct: z.boolean(), blocked_reason: z.string() }).nullable().default(null)
 });
 const pendingStatementSmsMatchSchema = z.object({
   id: z.string(), date: z.string(), time: z.string(), sender: z.string(), sms_text: z.string().nullable(),
@@ -1622,7 +1623,7 @@ export type StatementRowPage = z.infer<typeof statementRowPageSchema>;
 export type StatementHistory = z.infer<typeof statementHistorySchema>;
 export type StatementRowEdit = Pick<SavedStatementRow, "version" | "date" | "time" | "value_date" | "direction" | "amount" | "balance_after" | "type" | "other_account" | "category" | "reference" | "counterparty_text" | "note" | "classification_confirmed">;
 export type StatementCategoryChoice = { keep: "existing" | "statement" | "custom"; existing_category: string | null; statement_category: string | null; category?: string | null };
-export type StatementDecision = { action: "create" | "link" | "combine_sms" | "skip" | "unlink" | "reopen"; version: number; transaction?: string; candidate?: string; dismissed_ledger_matches?: string[]; acknowledge_distinct_ledger_matches?: boolean; remember_choices?: boolean; allow_separate?: boolean; acknowledge_issues?: boolean; acknowledge_conflict?: boolean; balance_choice?: { keep: "existing" | "statement"; existing_balance_after: string | null; statement_balance_after: string | null }; category_choice?: StatementCategoryChoice; detail_choices?: StatementDetailChoice[] };
+export type StatementDecision = { action: "create" | "link" | "combine_sms" | "skip" | "unlink" | "reopen"; version: number; transaction?: string; candidate?: string; dismissed_ledger_matches?: string[]; acknowledge_distinct_ledger_matches?: boolean; remember_choices?: boolean; allow_separate?: boolean; acknowledge_issues?: boolean; acknowledge_conflict?: boolean; amount_correction?: { existing_amount: string; statement_amount: string; transaction_updated_at: string }; balance_choice?: { keep: "existing" | "statement"; existing_balance_after: string | null; statement_balance_after: string | null }; category_choice?: StatementCategoryChoice; detail_choices?: StatementDetailChoice[] };
 
 export async function createStatementImport(token: string, account: string, file: File, password: string, signal?: AbortSignal): Promise<SavedStatement> {
   const body = new FormData(); body.set("account", account); body.set("file", file); if (password) body.set("password", password);

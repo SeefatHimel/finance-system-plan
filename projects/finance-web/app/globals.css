@@ -3930,3 +3930,14 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
   .compact-editor-datetime > .field, .compact-editor-datetime > .field:first-child { flex-basis: 100%; }
   .compact-editor-details-hint { display: block; margin: 4px 0 0; }
 }
+
+/* The explicit rounding decision stays readable inside the viewport on phones. */
+.statement-rounding-dialog { max-width: 680px; }
+.statement-rounding-values { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 16px 0; }
+.statement-rounding-values caption { color: var(--muted); text-align: left; margin-bottom: 8px; }
+.statement-rounding-values th, .statement-rounding-values td { border-bottom: 1px solid var(--panel-border); padding: 10px 6px; text-align: left; overflow-wrap: anywhere; vertical-align: top; }
+.statement-rounding-dialog .decision-modal__actions { flex-wrap: wrap; margin-top: 16px; }
+@media (max-width: 480px) {
+  .statement-rounding-values { font-size: 13px; }
+  .statement-rounding-dialog .decision-modal__actions .button { flex: 1 1 100%; }
+}

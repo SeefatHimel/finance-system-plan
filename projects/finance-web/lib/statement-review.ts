@@ -7,6 +7,8 @@ type LinkReview = {
   balanceChosen: boolean;
   categoryConflict?: boolean;
   categoryChosen?: boolean;
+  amountCorrectionRequired?: boolean;
+  amountCorrectionConfirmed?: boolean;
 };
 
 /** Compare printed/received calendar dates without a timezone or DST shift. */
@@ -24,6 +26,7 @@ export function statementLinkBlockReason(review: LinkReview): string | null {
   if (review.dirty) return "Save your draft to refresh matches first.";
   if (!review.canLink) return "This entry cannot be linked. Refresh the match suggestions.";
   if (review.requiresAcknowledgement && !review.issuesAcknowledged) return "Review and acknowledge the source discrepancies above.";
+  if (review.amountCorrectionRequired && !review.amountCorrectionConfirmed) return "Review and confirm the exact amount correction before linking.";
   const choices = [
     review.conflict && !review.balanceChosen ? "Choose which reported balance to keep for this match." : null,
     review.categoryConflict && !review.categoryChosen ? "Choose which category the linked ledger transaction should use." : null,
