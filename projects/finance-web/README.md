@@ -1492,8 +1492,9 @@ The standalone statement-row dialog groups date/time into one grid slot and uses
 three columns when the dialog body is at least 900px wide, two at intermediate
 widths and one on phones. Date/time stack when their slot needs more space. Amount,
 reported balance, type, category, counterparty and the transfer account stay in
-the main form. Note and its saved-note suggestion are also always visible so
-reviewers can add context while checking each row. Original extraction,
+the main form. Amount and Note now lead the draft form, before date, type and
+other controls, so reviewers can see and edit context immediately. The saved-note
+suggestion stays beside the open Note field. Original extraction,
 funding-account candidates and optional reference/value-date fields use
 disclosures; a summary indicates when those optional values exist. Opening or
 closing a disclosure keeps the same controlled draft.

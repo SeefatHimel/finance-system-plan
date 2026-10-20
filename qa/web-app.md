@@ -1275,7 +1275,9 @@ time share a grid slot and stack when needed. Key money/account/category fields
 stay visible. Source evidence, funding candidates and optional reference, value
 date fields expand on demand without remounting or resetting the draft. Note and
 its saved-note suggestion stay in the open main form for every statement row,
-including when the draft editor opens from combined review.
+including when the draft editor opens from combined review. Amount and Note are
+first in the draft, before date and classification, so they are discoverable
+without scrolling through the rest of the fields.
 Required discrepancy warnings and review acknowledgements are not collapsed.
 Funding guidance is available through an info control that supports focus and tap.
 The fixed footer explains every condition disabling Add transaction. The
