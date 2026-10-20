@@ -29,6 +29,13 @@ timeline in memory. The Amount, Balance, and Both controls change the visible
 card values without editing ledger data. Transactions without a reported time
 stay in a separate disclosure for their day.
 
+The lane header, day labels, and time rail stay fixed through native CSS sticky
+positioning as the same viewport scrolls in both directions. Full screen expands
+the timeline over the app navigation and can be closed with its button or Escape.
+The A− and A+ controls adjust timeline card and label text in 0.5 px steps
+(from −2 to +2 px); smaller text also reduces minimum row height. These view
+controls do not change stored transactions.
+
 A transfer appears in each selected involved account lane but remains one ledger
 entry. If the other account is hidden, a “Show lane” link and the details panel
 make that connection visible. Selecting a card opens account-specific reported

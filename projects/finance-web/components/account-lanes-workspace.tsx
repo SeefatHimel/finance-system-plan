@@ -1,8 +1,9 @@
 "use client";
 
-import { CalendarBlank, CaretLeft, CaretRight, Eye, LinkSimple, SlidersHorizontal, X } from "@phosphor-icons/react";
+import { ArrowsIn, ArrowsOut, CalendarBlank, CaretLeft, CaretRight, Eye, LinkSimple, SlidersHorizontal, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { formatCalendarDate, formatClockTime, formatCurrency } from "../../finance-contracts/presentation";
 import { CalendarDateInput } from "./calendar-date-input";
 import { TransactionSourceMessages } from "./transaction-source-messages";
@@ -46,8 +47,10 @@ export function AccountLanesWorkspace() {
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [showEmptyDays, setShowEmptyDays] = useState(true);
   const [showGaps, setShowGaps] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fontAdjustment, setFontAdjustment] = useState(0);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const headScrollRef = useRef<HTMLDivElement>(null);
+  const viewPositionRef = useRef({ top: 0, left: 0 });
   const revealAccountRef = useRef<string | null>(null);
   const anchorRef = useRef<{ date: string; top: number } | null>(null);
   const initializedRef = useRef(false);
@@ -72,12 +75,35 @@ export function AccountLanesWorkspace() {
 
   useEffect(() => { void loadAccounts(); }, [loadAccounts]);
   useEffect(() => () => { for (const controller of requestsRef.current.values()) controller.abort(); requestsRef.current.clear(); }, []);
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const priorOverflow = document.body.style.overflow;
+    const appFrame = document.querySelector<HTMLElement>(".app-frame");
+    const priorInert = appFrame?.inert ?? false;
+    document.body.style.overflow = "hidden";
+    if (appFrame) appFrame.inert = true;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const viewport = viewportRef.current;
+      if (viewport) viewPositionRef.current = { top: viewport.scrollTop, left: viewport.scrollLeft };
+      setIsFullscreen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => { document.body.style.overflow = priorOverflow; if (appFrame) appFrame.inert = priorInert; window.removeEventListener("keydown", onKeyDown); };
+  }, [isFullscreen]);
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    viewport.scrollTop = viewPositionRef.current.top;
+    viewport.scrollLeft = viewPositionRef.current.left;
+  }, [isFullscreen]);
 
   const captureAnchor = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const viewportTop = viewport.getBoundingClientRect().top;
-    const day = Array.from(viewport.querySelectorAll<HTMLElement>("[data-lane-day]")).find(item => item.getBoundingClientRect().bottom > viewportTop + 4);
+    const visibleTop = viewportTop + (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0);
+    const day = Array.from(viewport.querySelectorAll<HTMLElement>("[data-lane-day]")).find(item => item.getBoundingClientRect().bottom > visibleTop + 4);
     if (day?.dataset.laneDay) anchorRef.current = { date: day.dataset.laneDay, top: day.getBoundingClientRect().top - viewportTop };
   }, []);
 
@@ -127,9 +153,8 @@ export function AccountLanesWorkspace() {
   useLayoutEffect(() => {
     const accountId = revealAccountRef.current;
     const viewport = viewportRef.current;
-    const head = headScrollRef.current;
-    if (!accountId || !viewport || !head) return;
-    const target = Array.from(head.querySelectorAll<HTMLElement>("[data-lane-account]")).find(item => item.dataset.laneAccount === accountId);
+    if (!accountId || !viewport) return;
+    const target = Array.from(viewport.querySelectorAll<HTMLElement>("[data-lane-account]")).find(item => item.dataset.laneAccount === accountId);
     if (target) { viewport.scrollTo({ left: Math.max(0, target.offsetLeft + target.offsetWidth - viewport.clientWidth), behavior: "smooth" }); revealAccountRef.current = null; }
   }, [selectedIds]);
   const categoryById = useMemo(() => new Map(categories.map(category => [category.id, category.name])), [categories]);
@@ -149,7 +174,7 @@ export function AccountLanesWorkspace() {
     if (!viewport) return;
     if (!initializedRef.current) {
       const target = viewport.querySelector<HTMLElement>(`[data-lane-day="${jumpTargetRef.current ?? today()}"]`);
-      if (target) { viewport.scrollTop = target.offsetTop - viewport.offsetTop - 16; initializedRef.current = true; jumpTargetRef.current = null; }
+      if (target) { viewport.scrollTop = target.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 64) - 8; initializedRef.current = true; jumpTargetRef.current = null; }
     } else if (anchorRef.current) {
       const anchor = anchorRef.current;
       const target = viewport.querySelector<HTMLElement>(`[data-lane-day="${anchor.date}"]`);
@@ -171,19 +196,14 @@ export function AccountLanesWorkspace() {
     } else {
       const viewport = viewportRef.current;
       const target = viewport?.querySelector<HTMLElement>(`[data-lane-day="${date}"]`);
-      if (viewport && target) viewport.scrollTo({ top: target.offsetTop - viewport.offsetTop - 16, behavior: "smooth" });
+      if (viewport && target) viewport.scrollTo({ top: target.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 64) - 8, behavior: "smooth" });
     }
   }, [windowStart]);
 
   const onScroll = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport || !initializedRef.current) return;
-    viewport.style.setProperty("--lanes-scroll-x", `${viewport.scrollLeft}px`);
-    if (headScrollRef.current) {
-      headScrollRef.current.scrollLeft = viewport.scrollLeft;
-      headScrollRef.current.style.setProperty("--lanes-scroll-x", `${viewport.scrollLeft}px`);
-    }
-    const middle = viewport.getBoundingClientRect().top + Math.min(viewport.clientHeight / 3, 180);
+    const middle = viewport.getBoundingClientRect().top + Math.min(viewport.clientHeight / 3, 180) + 56;
     const current = Array.from(viewport.querySelectorAll<HTMLElement>("[data-lane-day]")).find(day => day.getBoundingClientRect().bottom > middle);
     if (current?.dataset.laneDay) setVisibleDate(previous => previous === current.dataset.laneDay ? previous : current.dataset.laneDay!);
     if (shiftingRef.current) return;
@@ -196,31 +216,38 @@ export function AccountLanesWorkspace() {
 
   const toggleAccount = (id: string) => setSelectedIds(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
   const showAccount = (id: string) => { revealAccountRef.current = id; setSelectedIds(previous => previous.includes(id) ? previous : [...previous, id]); };
+  const toggleFullscreen = () => {
+    const viewport = viewportRef.current;
+    if (viewport) viewPositionRef.current = { top: viewport.scrollTop, left: viewport.scrollLeft };
+    setIsFullscreen(value => !value);
+  };
   const selected = selectedTransaction && allRows.find(row => row.id === selectedTransaction.id) || selectedTransaction;
   const selectedGapRows = selected ? selectedAccounts.flatMap(account => {
     const cents = gaps.get(account.id)?.get(selected.id);
     return cents === undefined ? [] : [{ account, cents }];
   }) : [];
 
-  return <main className="account-lanes-page" aria-label="Account transaction timeline">
+  const view = <main className={`account-lanes-page${isFullscreen ? " account-lanes-page--fullscreen" : ""}`} aria-label="Account transaction timeline" style={{ "--lanes-font-adjust": `${fontAdjustment}px`, "--lanes-row-min-height": `${Math.max(88, 100 + fontAdjustment * 6)}px` } as CSSProperties}>
     <div className="account-lanes-toolbar">
       <div className="account-lanes-date"><CalendarBlank aria-hidden="true" size={20} /><CalendarDateInput aria-label="Jump to date" value={visibleDate} onChange={value => { if (value) jumpTo(value); }} /><button type="button" aria-label="Previous day" onClick={() => jumpTo(addDays(visibleDate, -1))}><CaretLeft size={18} /></button><button type="button" aria-label="Next day" onClick={() => jumpTo(addDays(visibleDate, 1))}><CaretRight size={18} /></button><button type="button" onClick={() => jumpTo(today())}>Today</button></div>
       <div className="account-lanes-dropdown"><button className="account-lanes-control" aria-expanded={accountsOpen} onClick={() => { setAccountsOpen(!accountsOpen); setOptionsOpen(false); }} type="button">Accounts · {selectedAccounts.length} shown{accounts.length > selectedAccounts.length ? ` · ${accounts.length - selectedAccounts.length} hidden` : ""}</button>{accountsOpen ? <div className="account-lanes-menu" role="group" aria-label="Visible accounts">{accounts.map(account => <label key={account.id}><input checked={selectedIds.includes(account.id)} onChange={() => toggleAccount(account.id)} type="checkbox" />{account.name}{!account.is_active ? " (inactive)" : ""}</label>)}{!selectedAccounts.length ? <small>Select an account to show its lane.</small> : null}</div> : null}</div>
       <div className="account-lanes-mode" role="group" aria-label="Card values">{(["amount", "balance", "both"] as const).map(value => <button className={mode === value ? "is-active" : ""} key={value} onClick={() => setMode(value)} type="button" aria-pressed={mode === value}>{value[0].toUpperCase() + value.slice(1)}</button>)}</div>
       <div className="account-lanes-dropdown"><button className="account-lanes-control" aria-expanded={optionsOpen} onClick={() => { setOptionsOpen(!optionsOpen); setAccountsOpen(false); }} type="button"><SlidersHorizontal size={18} /> View options</button>{optionsOpen ? <div className="account-lanes-menu account-lanes-menu--right" role="group" aria-label="Timeline options"><label><input checked={showEmptyDays} onChange={event => setShowEmptyDays(event.target.checked)} type="checkbox" />Show quiet days</label><label><input checked={showGaps} onChange={event => setShowGaps(event.target.checked)} type="checkbox" />Show possible balance gaps</label></div> : null}</div>
+      <div className="account-lanes-text-size" role="group" aria-label="Timeline text size"><button type="button" aria-label="Decrease timeline text size by 0.5 pixels" disabled={fontAdjustment <= -2} onClick={() => setFontAdjustment(value => Math.max(-2, value - 0.5))}>A−</button><span aria-live="polite">{fontAdjustment > 0 ? "+" : ""}{fontAdjustment.toFixed(1)} px</span><button type="button" aria-label="Increase timeline text size by 0.5 pixels" disabled={fontAdjustment >= 2} onClick={() => setFontAdjustment(value => Math.min(2, value + 0.5))}>A+</button></div>
+      <button className="account-lanes-control account-lanes-fullscreen" type="button" aria-label={isFullscreen ? "Exit full screen timeline" : "Open full screen timeline"} aria-pressed={isFullscreen} onClick={toggleFullscreen}>{isFullscreen ? <ArrowsIn size={18} /> : <ArrowsOut size={18} />}{isFullscreen ? "Exit full screen" : "Full screen"}</button>
     </div>
     {accountsError ? <div className="account-lanes-error" role="alert">{accountsError} <button type="button" onClick={() => void loadAccounts()}>Retry</button></div> : null}
     <div className="account-lanes-layout">
       <div className="account-lanes-main" style={{ "--lane-count": Math.max(selectedAccounts.length, 1), "--lanes-min-width": `${88 + Math.max(selectedAccounts.length, 1) * 240}px` } as CSSProperties}>
-        <div className="account-lanes-head-scroll" ref={headScrollRef}><div className="account-lanes-head" style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}><span>Time</span>{selectedAccounts.length ? selectedAccounts.map(account => <div data-lane-account={account.id} key={account.id}><strong>{account.name}</strong><small>{account.currency} · latest reported {account.latest_reported_balance === null ? "unknown" : formatCurrency(account.latest_reported_balance, account.currency)}{account.latest_reported_balance_date ? ` on ${formatCalendarDate(account.latest_reported_balance_date)}` : ""}</small></div>) : <div><strong>Choose an account</strong></div>}</div></div>
         <div className="account-lanes-scroll" ref={viewportRef} onScroll={onScroll} tabIndex={0} aria-label="Timeline. Scroll up for earlier dates and down for later dates.">
+          <div className="account-lanes-head" style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}><span>Time</span>{selectedAccounts.length ? selectedAccounts.map(account => <div data-lane-account={account.id} key={account.id}><strong>{account.name}</strong><small>{account.currency} · latest reported {account.latest_reported_balance === null ? "unknown" : formatCurrency(account.latest_reported_balance, account.currency)}{account.latest_reported_balance_date ? ` on ${formatCalendarDate(account.latest_reported_balance_date)}` : ""}</small></div>) : <div><strong>Choose an account</strong></div>}</div>
           {dates.map(date => {
             const result = weekResults[weekStart(date)];
             const daily = result?.status === "ready" ? result.rows.filter(row => row.date === date && selectedAccounts.some(account => laneDirection(row, account.id))) : [];
             if (!showEmptyDays && result?.status === "ready" && daily.length === 0) return <div className="account-lanes-empty-day" data-lane-day={date} key={date}><time dateTime={date}>{dayLabel(date)}</time><span>No movements in selected accounts</span></div>;
             const timed = daily.filter(row => row.time).sort((a, b) => `${a.time}:${a.id}`.localeCompare(`${b.time}:${b.id}`));
             const untimed = daily.filter(row => !row.time);
-            return <section className="account-lanes-day" data-lane-day={date} key={date} aria-label={dayLabel(date)}><div className="account-lanes-day-title"><time dateTime={date}>{dayLabel(date)}</time><span>{daily.length} {daily.length === 1 ? "movement" : "movements"}</span></div>
+            return <section className="account-lanes-day" data-lane-day={date} key={date} aria-label={dayLabel(date)}><div className="account-lanes-day-title"><div className="account-lanes-day-title__content"><time dateTime={date}>{dayLabel(date)}</time><span>{daily.length} {daily.length === 1 ? "movement" : "movements"}</span></div></div>
               {result?.status === "error" ? <p className="account-lanes-status" role="alert">Could not load this week: {result.message} <button type="button" onClick={() => void loadWeek(weekStart(date), true)}>Retry</button></p> : result?.status !== "ready" ? <p className="account-lanes-status" role="status">Loading movements…</p> : daily.length === 0 ? <p className="account-lanes-status">No movements in selected accounts on this day.</p> : null}
               {timed.map(row => <div className={`account-lanes-row${row.type === "transfer" ? " account-lanes-row--transfer" : ""}`} key={row.id} style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}><time dateTime={`${date}T${row.time}`}>{formatClockTime(row.time!)}</time>{selectedAccounts.map(account => { const direction = laneDirection(row, account.id); if (!direction) return <div className="account-lanes-cell" key={account.id} />; const otherId = row.type === "transfer" ? row.account === account.id ? row.transfer_account : row.account : null; const other = otherId ? accountById.get(otherId) : null; const gap = gaps.get(account.id)?.get(row.id); return <div className="account-lanes-cell" key={account.id}><button className={`account-lanes-card${selected?.id === row.id ? " is-selected" : ""}`} type="button" onClick={() => setSelectedTransaction(row)}><span className="account-lanes-card__top"><strong>{title(row)}</strong>{row.type === "transfer" ? <LinkSimple aria-label="Transfer" size={16} /> : null}</span><small>{formatClockTime(row.time!)} · {row.type.replaceAll("_", " ")}{row.category && categoryById.get(row.category) ? ` · ${categoryById.get(row.category)}` : ""}</small><span className="account-lanes-card__numbers">{mode !== "balance" ? <b className={direction === "credit" ? "is-credit" : "is-debit"}>{amountLabel(row, account.id, account.currency)}</b> : null}{mode !== "amount" ? <span>Bal {laneBalance(row, account.id) === null ? "not reported" : formatCurrency(laneBalance(row, account.id)!, account.currency)}</span> : null}</span></button>{other && !selectedIds.includes(other.id) ? <button className="account-lanes-hidden-link" type="button" onClick={() => showAccount(other.id)}>{other.name} hidden · Show lane <Eye size={14} /></button> : null}{showGaps && gap !== undefined ? <button className="account-lanes-gap" type="button" onClick={() => setSelectedTransaction(row)}>Possible balance gap · {gap > 0 ? "+" : "−"}{formatCurrency(Math.abs(gap / 100).toFixed(2), account.currency)} <CaretRight size={14} /></button> : null}</div>; })}</div>)}
               {untimed.length ? <details className="account-lanes-untimed"><summary>Time not reported · {untimed.length} {untimed.length === 1 ? "movement" : "movements"}</summary>{untimed.map(row => <button type="button" key={row.id} onClick={() => setSelectedTransaction(row)}>{title(row)} · {formatCurrency(row.amount, accountById.get(row.account)?.currency)}{row.type === "transfer" ? " · transfer" : ""}</button>)}</details> : null}
@@ -232,4 +259,5 @@ export function AccountLanesWorkspace() {
     </div>
     {accountsLoading ? <span className="sr-only" role="status">Loading accounts…</span> : null}
   </main>;
+  return isFullscreen ? createPortal(view, document.body) : view;
 }

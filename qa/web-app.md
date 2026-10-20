@@ -1411,3 +1411,12 @@ fresh scan is required. Rescan also clears selections. Source values stay unchan
 History records corrections and Undo last group reverses only the latest successful
 group. All scans are temporary/read-only until apply; visible ledger filters do not
 limit their scope. Existing single-entry review and mobile apps keep working.
+
+### How can users fit more timeline movements on screen without losing the day and time context?
+
+Full screen expands `/timeline` over the navigation until the user exits or presses
+Escape. A− and A+ change timeline text in 0.5 px increments within a readable
+range and reduce row height when text gets smaller. The account header, day
+labels, and left time rail use CSS sticky positioning in the same two-axis
+scroll container, avoiding per-scroll JavaScript transforms that can lag and
+visually wobble. These are presentation-only controls.
