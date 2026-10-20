@@ -11,6 +11,21 @@ export function weekStart(day: string): string {
   return addDays(day, -(weekday + 6) % 7);
 }
 
+export type TimelineDayItem = { kind: "day"; date: string } | { kind: "quiet"; start: string; end: string; count: number };
+
+/** Only verified empty days are collapsed; unloaded days stay visible. */
+export function groupTimelineDays(dates: string[], movementDates: Set<string>, loadedDays: Set<string>, collapseQuiet: boolean): TimelineDayItem[] {
+  const items: TimelineDayItem[] = [];
+  for (const date of dates) {
+    if (collapseQuiet && loadedDays.has(date) && !movementDates.has(date)) {
+      const previous = items[items.length - 1];
+      if (previous?.kind === "quiet") { previous.end = date; previous.count++; }
+      else items.push({ kind: "quiet", start: date, end: date, count: 1 });
+    } else items.push({ kind: "day", date });
+  }
+  return items;
+}
+
 export function laneDirection(transaction: Transaction, accountId: string): "debit" | "credit" | null {
   if (transaction.type === "transfer") {
     if (transaction.account === accountId) return "debit";
@@ -39,12 +54,44 @@ export function laneMomentMatchesCanonical(transaction: Transaction, accountId: 
     .every(item => item.date === transaction.date && item.time === transaction.time);
 }
 
+export type ReportedBalanceAtDate =
+  | { status: "reported"; value: string; date: string; time: string | null }
+  | { status: "unavailable"; reason: "not_loaded" | "no_report" | "ambiguous_order" };
+
+/** A historical label uses a saved report, never an inferred running balance. */
+export function reportedBalanceAtDate(transactions: Transaction[], accountId: string, date: string, loadedDays: Set<string>): ReportedBalanceAtDate {
+  if (!loadedDays.has(date)) return { status: "unavailable", reason: "not_loaded" };
+  const reports = transactions
+    .filter(row => row.date <= date && laneDirection(row, accountId) && laneMomentMatchesCanonical(row, accountId) && laneBalance(row, accountId) !== null)
+    .sort((left, right) => `${right.date}T${right.time ?? ""}:${right.id}`.localeCompare(`${left.date}T${left.time ?? ""}:${left.id}`));
+  if (!reports.length) return { status: "unavailable", reason: "no_report" };
+  const latestDate = reports[0].date;
+  const sameDay = reports.filter(row => row.date === latestDate);
+  const values = new Set(sameDay.map(row => laneBalance(row, accountId)!));
+  if (values.size > 1 && (sameDay.some(row => !row.time) || (sameDay.length > 1 && sameDay[0].time === sameDay[1].time))) {
+    return { status: "unavailable", reason: "ambiguous_order" };
+  }
+  const latest = sameDay[0];
+  return { status: "reported", value: laneBalance(latest, accountId)!, date: latest.date, time: latest.time };
+}
+
+export type BalanceGapDetail = {
+  from: Transaction;
+  to: Transaction;
+  movements: Transaction[];
+  priorCents: number;
+  movementCents: number;
+  expectedCents: number;
+  actualCents: number;
+  differenceCents: number;
+};
+
 /** Compare only complete, ordered reporting intervals. Missing time makes order ambiguous. */
-export function balanceGaps(transactions: Transaction[], accountId: string, loadedDays: Set<string>) {
+export function balanceGapDetails(transactions: Transaction[], accountId: string, loadedDays: Set<string>) {
   const rows = transactions
     .filter(transaction => laneDirection(transaction, accountId))
     .sort((left, right) => `${left.date}T${left.time ?? ""}:${left.id}`.localeCompare(`${right.date}T${right.time ?? ""}:${right.id}`));
-  const gaps = new Map<string, number>();
+  const gaps = new Map<string, BalanceGapDetail>();
   let prior: { index: number; value: number } | null = null;
   for (let index = 0; index < rows.length; index++) {
     const balance = laneBalance(rows[index], accountId);
@@ -69,12 +116,21 @@ export function balanceGaps(transactions: Transaction[], accountId: string, load
         if (previous.date === current.date && previous.time === current.time) complete = false;
       }
       if (complete) {
-        const movement = rows.slice(prior.index + 1, index + 1).reduce((sum, row) => sum + signedCents(row, accountId), 0);
-        const difference = cents - (prior.value + movement);
-        if (difference !== 0) gaps.set(to.id, difference);
+        const movements = rows.slice(prior.index + 1, index + 1);
+        const movementCents = movements.reduce((sum, row) => sum + signedCents(row, accountId), 0);
+        const expectedCents = prior.value + movementCents;
+        const differenceCents = cents - expectedCents;
+        if (differenceCents !== 0) gaps.set(to.id, {
+          from, to, movements, priorCents: prior.value, movementCents,
+          expectedCents, actualCents: cents, differenceCents
+        });
       }
     }
     prior = { index, value: cents };
   }
   return gaps;
+}
+
+export function balanceGaps(transactions: Transaction[], accountId: string, loadedDays: Set<string>) {
+  return new Map([...balanceGapDetails(transactions, accountId, loadedDays)].map(([id, detail]) => [id, detail.differenceCents]));
 }

@@ -37,13 +37,25 @@ The A− and A+ controls adjust timeline card and label text in 0.5 px steps
 controls do not change stored transactions.
 
 A transfer appears in each selected involved account lane but remains one ledger
-entry. If the other account is hidden, a “Show lane” link and the details panel
-make that connection visible. Selecting a card opens account-specific reported
-balances, the note, and linked SMS/statement sources; “Open ledger entry” uses
-the existing editor. Possible balance gaps are advisory and are calculated only
-between ordered reports when every day in that interval is loaded and no
-time-unknown or differently dated account observation could change the order.
-No transaction or balance is created by the timeline.
+entry. A connector links its two visible cards; if the other account is hidden,
+an endpoint offers “Show lane.” The chronological List layout shows each
+movement once and supports keyboard navigation. Selecting a card moves keyboard
+focus to a separate inspector, and closing it returns focus to the card when it
+remains loaded. Quiet days collapse into dated bands with a next-movement jump;
+unloaded days are never presented as quiet. Next movement and Next gap navigation
+use only the loaded window. Earlier dates and Later dates load another date
+window even when quiet bands leave too little content to scroll.
+
+Lane headers distinguish the balance reported on or before the visible date
+from a current account balance. They show the report date, “No reported balance
+in loaded days,” or an order/loading explanation instead of calculating a
+historical value. Selecting a card opens account-specific reports, the note,
+and linked SMS/statement sources. A possible gap opens the previous report,
+included movements, expected balance, current report, and exact difference.
+Gap arithmetic is advisory and appears only when all intervening days and
+movement order are known; uncertain order suppresses the number. “Open ledger
+entry” uses the existing editor. No transaction or balance is created by the
+timeline.
 
 The avatar menu opens `/profile`, where users can edit their first name, last
 name, and email. The username is shown read-only because it is the sign-in

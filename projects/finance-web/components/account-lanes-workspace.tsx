@@ -10,10 +10,11 @@ import { TransactionSourceMessages } from "./transaction-source-messages";
 import { TransactionStatementEvidence } from "./transaction-statement-evidence";
 import { getAccessToken } from "@/lib/auth-storage";
 import { listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
-import { addDays, balanceGaps, laneBalance, laneDirection, weekStart } from "@/lib/account-lanes";
+import { addDays, balanceGapDetails, groupTimelineDays, laneBalance, laneDirection, reportedBalanceAtDate, weekStart } from "@/lib/account-lanes";
 
 type WeekResult = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; rows: Transaction[] };
 type ViewMode = "amount" | "balance" | "both";
+type LayoutMode = "lanes" | "list";
 const WINDOW_DAYS = 21;
 const today = () => {
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
@@ -22,6 +23,14 @@ const today = () => {
 };
 const initialWindow = () => addDays(weekStart(today()), -7);
 const dayLabel = (date: string) => new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
+const centsLabel = (cents: number, currency: string) => formatCurrency((Math.abs(cents) / 100).toFixed(2), currency);
+const balanceCentsLabel = (cents: number, currency: string) => `${cents < 0 ? "−" : ""}${centsLabel(cents, currency)}`;
+
+function findDayNode(viewport: HTMLElement, date: string) {
+  return Array.from(viewport.querySelectorAll<HTMLElement>("[data-lane-day]")).find(item =>
+    item.dataset.laneDay === date || (item.dataset.laneDay! <= date && date <= (item.dataset.laneEnd ?? item.dataset.laneDay!))
+  );
+}
 
 function amountLabel(transaction: Transaction, accountId: string, currency: string) {
   const amount = formatCurrency(transaction.amount, currency);
@@ -42,15 +51,18 @@ export function AccountLanesWorkspace() {
   const [windowStart, setWindowStart] = useState(initialWindow);
   const [visibleDate, setVisibleDate] = useState(today);
   const [mode, setMode] = useState<ViewMode>("both");
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("lanes");
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [showEmptyDays, setShowEmptyDays] = useState(true);
+  const [showEmptyDays, setShowEmptyDays] = useState(false);
   const [showGaps, setShowGaps] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fontAdjustment, setFontAdjustment] = useState(0);
   const viewportRef = useRef<HTMLDivElement>(null);
   const viewPositionRef = useRef({ top: 0, left: 0 });
+  const inspectorTitleRef = useRef<HTMLHeadingElement>(null);
+  const lastCardRef = useRef<string | null>(null);
   const revealAccountRef = useRef<string | null>(null);
   const anchorRef = useRef<{ date: string; top: number } | null>(null);
   const initializedRef = useRef(false);
@@ -167,22 +179,27 @@ export function AccountLanesWorkspace() {
     }
     return [...unique.values()];
   }, [dates, weekResults]);
-  const gaps = useMemo(() => new Map(selectedAccounts.map(account => [account.id, balanceGaps(allRows, account.id, loadedDays)])), [allRows, loadedDays, selectedAccounts]);
+  const gaps = useMemo(() => new Map(selectedAccounts.map(account => [account.id, balanceGapDetails(allRows, account.id, loadedDays)])), [allRows, loadedDays, selectedAccounts]);
+  const asOfReports = useMemo(() => new Map(selectedAccounts.map(account => [account.id, reportedBalanceAtDate(allRows, account.id, visibleDate, loadedDays)])), [allRows, loadedDays, selectedAccounts, visibleDate]);
+  const movementDates = useMemo(() => new Set(allRows.filter(row => selectedAccounts.some(account => laneDirection(row, account.id))).map(row => row.date)), [allRows, selectedAccounts]);
+  const displayedDays = useMemo(() => groupTimelineDays(dates, movementDates, loadedDays, !showEmptyDays), [dates, movementDates, loadedDays, showEmptyDays]);
+  const nextMovementDate = dates.find(date => date > visibleDate && loadedDays.has(date) && movementDates.has(date));
+  const nextGapDate = [...gaps.values()].flatMap(map => [...map.values()].map(detail => detail.to.date)).filter(date => date > visibleDate).sort()[0];
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     if (!initializedRef.current) {
-      const target = viewport.querySelector<HTMLElement>(`[data-lane-day="${jumpTargetRef.current ?? today()}"]`);
-      if (target) { viewport.scrollTop = target.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 64) - 8; initializedRef.current = true; jumpTargetRef.current = null; }
+      const target = findDayNode(viewport, jumpTargetRef.current ?? today());
+      if (target) { viewport.scrollTop = target.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0) - 8; initializedRef.current = true; jumpTargetRef.current = null; }
     } else if (anchorRef.current) {
       const anchor = anchorRef.current;
-      const target = viewport.querySelector<HTMLElement>(`[data-lane-day="${anchor.date}"]`);
+      const target = findDayNode(viewport, anchor.date);
       if (target) viewport.scrollTop += target.getBoundingClientRect().top - viewport.getBoundingClientRect().top - anchor.top;
     }
     anchorRef.current = null;
     shiftingRef.current = false;
-  }, [windowStart, weekResults]);
+  }, [windowStart, weekResults, layoutMode, showEmptyDays]);
 
   const jumpTo = useCallback((date: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
@@ -195,17 +212,17 @@ export function AccountLanesWorkspace() {
       setWindowStart(start);
     } else {
       const viewport = viewportRef.current;
-      const target = viewport?.querySelector<HTMLElement>(`[data-lane-day="${date}"]`);
-      if (viewport && target) viewport.scrollTo({ top: target.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 64) - 8, behavior: "smooth" });
+      const target = viewport ? findDayNode(viewport, date) : null;
+      if (viewport && target) viewport.scrollTo({ top: target.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0) - 8, behavior: "smooth" });
     }
   }, [windowStart]);
 
   const onScroll = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport || !initializedRef.current) return;
-    const middle = viewport.getBoundingClientRect().top + Math.min(viewport.clientHeight / 3, 180) + 56;
+    const middle = viewport.getBoundingClientRect().top + Math.min(viewport.clientHeight / 3, 180) + (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0);
     const current = Array.from(viewport.querySelectorAll<HTMLElement>("[data-lane-day]")).find(day => day.getBoundingClientRect().bottom > middle);
-    if (current?.dataset.laneDay) setVisibleDate(previous => previous === current.dataset.laneDay ? previous : current.dataset.laneDay!);
+    if (current?.dataset.laneDay) setVisibleDate(previous => previous >= current.dataset.laneDay! && previous <= (current.dataset.laneEnd ?? current.dataset.laneDay!) ? previous : current.dataset.laneDay!);
     if (shiftingRef.current) return;
     if (viewport.scrollTop < 260) {
       captureAnchor(); shiftingRef.current = true; setWindowStart(previous => addDays(previous, -7));
@@ -216,6 +233,19 @@ export function AccountLanesWorkspace() {
 
   const toggleAccount = (id: string) => setSelectedIds(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
   const showAccount = (id: string) => { revealAccountRef.current = id; setSelectedIds(previous => previous.includes(id) ? previous : [...previous, id]); };
+  const selectTransaction = (row: Transaction, keyboard = false) => {
+    lastCardRef.current = row.id;
+    setSelectedTransaction(row);
+    if (keyboard) requestAnimationFrame(() => inspectorTitleRef.current?.focus());
+  };
+  const closeDetails = () => {
+    const id = lastCardRef.current;
+    setSelectedTransaction(null);
+    requestAnimationFrame(() => {
+      const card = id ? Array.from(viewportRef.current?.querySelectorAll<HTMLElement>("[data-lane-card]") ?? []).find(item => item.dataset.laneCard === id) : null;
+      (card ?? viewportRef.current)?.focus();
+    });
+  };
   const toggleFullscreen = () => {
     const viewport = viewportRef.current;
     if (viewport) viewPositionRef.current = { top: viewport.scrollTop, left: viewport.scrollLeft };
@@ -223,39 +253,135 @@ export function AccountLanesWorkspace() {
   };
   const selected = selectedTransaction && allRows.find(row => row.id === selectedTransaction.id) || selectedTransaction;
   const selectedGapRows = selected ? selectedAccounts.flatMap(account => {
-    const cents = gaps.get(account.id)?.get(selected.id);
-    return cents === undefined ? [] : [{ account, cents }];
+    const detail = gaps.get(account.id)?.get(selected.id);
+    return detail === undefined ? [] : [{ account, detail }];
   }) : [];
+  const renderLaneRow = (row: Transaction, date: string) => {
+    const first = selectedIds.indexOf(row.account);
+    const second = row.transfer_account ? selectedIds.indexOf(row.transfer_account) : -1;
+    const bridge = row.type === "transfer" && first >= 0 && second >= 0;
+    return <div className={`account-lanes-row${bridge ? " account-lanes-row--transfer" : ""}`} key={row.id} style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}>
+      <time dateTime={`${date}T${row.time}`} style={{ gridColumn: 1, gridRow: 1 }}>{formatClockTime(row.time!)}</time>
+      {bridge ? <span aria-hidden="true" className="account-lanes-transfer-bridge" style={{ gridColumn: `${Math.min(first, second) + 2} / ${Math.max(first, second) + 3}`, gridRow: 1 }} /> : null}
+      {selectedAccounts.map((account, index) => {
+        const direction = laneDirection(row, account.id);
+        if (!direction) return <div className="account-lanes-cell" key={account.id} style={{ gridColumn: index + 2, gridRow: 1 }} />;
+        const otherId = row.type === "transfer" ? row.account === account.id ? row.transfer_account : row.account : null;
+        const other = otherId ? accountById.get(otherId) : null;
+        const gap = gaps.get(account.id)?.get(row.id);
+        return <div className="account-lanes-cell" key={account.id} style={{ gridColumn: index + 2, gridRow: 1 }}>
+          <button className={`account-lanes-card${selected?.id === row.id ? " is-selected" : ""}${bridge ? " account-lanes-card--paired" : ""}`} data-lane-card={row.id} type="button" onClick={event => selectTransaction(row, event.detail === 0)}>
+            <span className="account-lanes-card__top"><strong>{title(row)}</strong>{row.type === "transfer" ? <LinkSimple aria-hidden="true" size={16} /> : null}</span>
+            <small>{formatClockTime(row.time!)} · {row.type.replaceAll("_", " ")}{row.category && categoryById.get(row.category) ? ` · ${categoryById.get(row.category)}` : ""}</small>
+            {bridge ? <small className="account-lanes-pair-label">Same transfer · {other?.name ?? "other account"}</small> : null}
+            <span className="account-lanes-card__numbers">{mode !== "balance" ? <b className={direction === "credit" ? "is-credit" : "is-debit"}>{amountLabel(row, account.id, account.currency)}</b> : null}{mode !== "amount" ? <span>Bal {laneBalance(row, account.id) === null ? "not reported" : formatCurrency(laneBalance(row, account.id)!, account.currency)}</span> : null}</span>
+          </button>
+          {other && !selectedIds.includes(other.id) ? <button className="account-lanes-hidden-link" type="button" onClick={() => showAccount(other.id)}><LinkSimple aria-hidden="true" size={14} /> Other side: {other.name} hidden · Show lane <Eye aria-hidden="true" size={14} /></button> : null}
+          {showGaps && gap ? <button className="account-lanes-gap" type="button" onClick={event => selectTransaction(row, event.detail === 0)}>Possible balance gap · {gap.differenceCents > 0 ? "+" : "−"}{centsLabel(gap.differenceCents, account.currency)} <CaretRight size={14} /></button> : null}
+        </div>;
+      })}
+    </div>;
+  };
+  const renderListRow = (row: Transaction) => {
+    const accountId = selectedIds.includes(row.account) ? row.account : row.transfer_account ?? row.account;
+    const account = accountById.get(accountId);
+    const other = row.transfer_account ? accountById.get(row.transfer_account) : null;
+    const hiddenAccount = row.type === "transfer" ? accountById.get(accountId === row.account ? row.transfer_account ?? "" : row.account) : null;
+    return <li key={row.id}>
+      <button className={`account-lanes-list-card${selected?.id === row.id ? " is-selected" : ""}`} data-lane-card={row.id} type="button" onClick={event => selectTransaction(row, event.detail === 0)}>
+        <time dateTime={row.time ? `${row.date}T${row.time}` : row.date}>{row.time ? formatClockTime(row.time) : "Time unknown"}</time>
+        <span><strong>{title(row)}</strong><small>{row.type === "transfer" ? `${accountById.get(row.account)?.name ?? "Source"} → ${other?.name ?? "Destination"}` : account?.name ?? "Account"} · {row.type.replaceAll("_", " ")}</small></span>
+        <b className={laneDirection(row, accountId) === "credit" ? "is-credit" : "is-debit"}>{account ? amountLabel(row, accountId, account.currency) : row.amount}</b>
+      </button>
+      {hiddenAccount && !selectedIds.includes(hiddenAccount.id) ? <button className="account-lanes-hidden-link" type="button" onClick={() => showAccount(hiddenAccount.id)}>Other side: {hiddenAccount.name} hidden · Show lane</button> : null}
+    </li>;
+  };
+  const renderGapDetail = ({ account, detail }: (typeof selectedGapRows)[number]) => <div className="account-lanes-gap-case" key={account.id}>
+    <strong>{account.name}</strong>
+    <dl>
+      <div><dt>Previous report · {formatCalendarDate(detail.from.date)} {detail.from.time ? formatClockTime(detail.from.time) : ""}</dt><dd>{balanceCentsLabel(detail.priorCents, account.currency)}</dd></div>
+      <div><dt>Movements since</dt><dd>{detail.movementCents >= 0 ? "+" : "−"}{centsLabel(detail.movementCents, account.currency)}</dd></div>
+      <div><dt>Expected balance</dt><dd>{balanceCentsLabel(detail.expectedCents, account.currency)}</dd></div>
+      <div><dt>Current report · {formatCalendarDate(detail.to.date)} {detail.to.time ? formatClockTime(detail.to.time) : ""}</dt><dd>{balanceCentsLabel(detail.actualCents, account.currency)}</dd></div>
+      <div className="account-lanes-gap-case__difference"><dt>Difference (reported − expected)</dt><dd>{detail.differenceCents >= 0 ? "+" : "−"}{centsLabel(detail.differenceCents, account.currency)}</dd></div>
+    </dl>
+    <details><summary>{detail.movements.length} included {detail.movements.length === 1 ? "movement" : "movements"}</summary><ol>{detail.movements.map(row => <li key={row.id}>{formatCalendarDate(row.date)} {row.time ? formatClockTime(row.time) : ""} · {title(row)} · {amountLabel(row, account.id, account.currency)} <Link href={`/transactions?edit=${row.id}`}>Open entry and sources</Link></li>)}</ol></details>
+    <p>Only fully loaded days with an unambiguous order produce a numeric gap. Check missing movements or fees before reconciling.</p>
+    <Link href={`/transactions?edit=${detail.from.id}`}>Open previous report and sources</Link>
+  </div>;
 
   const view = <main className={`account-lanes-page${isFullscreen ? " account-lanes-page--fullscreen" : ""}`} aria-label="Account transaction timeline" style={{ "--lanes-font-adjust": `${fontAdjustment}px`, "--lanes-row-min-height": `${Math.max(88, 100 + fontAdjustment * 6)}px` } as CSSProperties}>
     <div className="account-lanes-toolbar">
       <div className="account-lanes-date"><CalendarBlank aria-hidden="true" size={20} /><CalendarDateInput aria-label="Jump to date" value={visibleDate} onChange={value => { if (value) jumpTo(value); }} /><button type="button" aria-label="Previous day" onClick={() => jumpTo(addDays(visibleDate, -1))}><CaretLeft size={18} /></button><button type="button" aria-label="Next day" onClick={() => jumpTo(addDays(visibleDate, 1))}><CaretRight size={18} /></button><button type="button" onClick={() => jumpTo(today())}>Today</button></div>
       <div className="account-lanes-dropdown"><button className="account-lanes-control" aria-expanded={accountsOpen} onClick={() => { setAccountsOpen(!accountsOpen); setOptionsOpen(false); }} type="button">Accounts · {selectedAccounts.length} shown{accounts.length > selectedAccounts.length ? ` · ${accounts.length - selectedAccounts.length} hidden` : ""}</button>{accountsOpen ? <div className="account-lanes-menu" role="group" aria-label="Visible accounts">{accounts.map(account => <label key={account.id}><input checked={selectedIds.includes(account.id)} onChange={() => toggleAccount(account.id)} type="checkbox" />{account.name}{!account.is_active ? " (inactive)" : ""}</label>)}{!selectedAccounts.length ? <small>Select an account to show its lane.</small> : null}</div> : null}</div>
       <div className="account-lanes-mode" role="group" aria-label="Card values">{(["amount", "balance", "both"] as const).map(value => <button className={mode === value ? "is-active" : ""} key={value} onClick={() => setMode(value)} type="button" aria-pressed={mode === value}>{value[0].toUpperCase() + value.slice(1)}</button>)}</div>
-      <div className="account-lanes-dropdown"><button className="account-lanes-control" aria-expanded={optionsOpen} onClick={() => { setOptionsOpen(!optionsOpen); setAccountsOpen(false); }} type="button"><SlidersHorizontal size={18} /> View options</button>{optionsOpen ? <div className="account-lanes-menu account-lanes-menu--right" role="group" aria-label="Timeline options"><label><input checked={showEmptyDays} onChange={event => setShowEmptyDays(event.target.checked)} type="checkbox" />Show quiet days</label><label><input checked={showGaps} onChange={event => setShowGaps(event.target.checked)} type="checkbox" />Show possible balance gaps</label></div> : null}</div>
+      <div className="account-lanes-dropdown"><button className="account-lanes-control" aria-expanded={optionsOpen} onClick={() => { setOptionsOpen(!optionsOpen); setAccountsOpen(false); }} type="button"><SlidersHorizontal size={18} /> View options</button>{optionsOpen ? <div className="account-lanes-menu account-lanes-menu--right" role="group" aria-label="Timeline options"><label><input checked={showEmptyDays} onChange={event => setShowEmptyDays(event.target.checked)} type="checkbox" />Show individual quiet days</label><label><input checked={showGaps} onChange={event => setShowGaps(event.target.checked)} type="checkbox" />Show possible balance gaps</label></div> : null}</div>
       <div className="account-lanes-text-size" role="group" aria-label="Timeline text size"><button type="button" aria-label="Decrease timeline text size by 0.5 pixels" disabled={fontAdjustment <= -2} onClick={() => setFontAdjustment(value => Math.max(-2, value - 0.5))}>A−</button><span aria-live="polite">{fontAdjustment > 0 ? "+" : ""}{fontAdjustment.toFixed(1)} px</span><button type="button" aria-label="Increase timeline text size by 0.5 pixels" disabled={fontAdjustment >= 2} onClick={() => setFontAdjustment(value => Math.min(2, value + 0.5))}>A+</button></div>
       <button className="account-lanes-control account-lanes-fullscreen" type="button" aria-label={isFullscreen ? "Exit full screen timeline" : "Open full screen timeline"} aria-pressed={isFullscreen} onClick={toggleFullscreen}>{isFullscreen ? <ArrowsIn size={18} /> : <ArrowsOut size={18} />}{isFullscreen ? "Exit full screen" : "Full screen"}</button>
     </div>
+    <div className="account-lanes-subtoolbar">
+      <div className="account-lanes-layout-switch" role="group" aria-label="Timeline layout"><button type="button" aria-pressed={layoutMode === "lanes"} className={layoutMode === "lanes" ? "is-active" : ""} onClick={() => setLayoutMode("lanes")}>Lanes</button><button type="button" aria-pressed={layoutMode === "list"} className={layoutMode === "list" ? "is-active" : ""} onClick={() => setLayoutMode("list")}>List</button></div>
+      <button type="button" onClick={() => jumpTo(addDays(windowStart, -7))}>Earlier dates</button>
+      <button type="button" onClick={() => jumpTo(addDays(windowStart, WINDOW_DAYS))}>Later dates</button>
+      <button type="button" disabled={!nextMovementDate} onClick={() => nextMovementDate && jumpTo(nextMovementDate)} title={nextMovementDate ? `Jump to ${formatCalendarDate(nextMovementDate)}` : "No later movement loaded"}>Next movement</button>
+      <button type="button" disabled={!nextGapDate} onClick={() => nextGapDate && jumpTo(nextGapDate)} title={nextGapDate ? `Jump to ${formatCalendarDate(nextGapDate)}` : "No later gap loaded"}>Next gap</button>
+      <small>Navigation uses loaded days.</small>
+    </div>
     {accountsError ? <div className="account-lanes-error" role="alert">{accountsError} <button type="button" onClick={() => void loadAccounts()}>Retry</button></div> : null}
     <div className="account-lanes-layout">
-      <div className="account-lanes-main" style={{ "--lane-count": Math.max(selectedAccounts.length, 1), "--lanes-min-width": `${88 + Math.max(selectedAccounts.length, 1) * 240}px` } as CSSProperties}>
+      <div className={`account-lanes-main${layoutMode === "list" ? " account-lanes-main--list" : ""}`} style={{ "--lane-count": Math.max(selectedAccounts.length, 1), "--lanes-min-width": `${88 + Math.max(selectedAccounts.length, 1) * 240}px` } as CSSProperties}>
         <div className="account-lanes-scroll" ref={viewportRef} onScroll={onScroll} tabIndex={0} aria-label="Timeline. Scroll up for earlier dates and down for later dates.">
-          <div className="account-lanes-head" style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}><span>Time</span>{selectedAccounts.length ? selectedAccounts.map(account => <div data-lane-account={account.id} key={account.id}><strong>{account.name}</strong><small>{account.currency} · latest reported {account.latest_reported_balance === null ? "unknown" : formatCurrency(account.latest_reported_balance, account.currency)}{account.latest_reported_balance_date ? ` on ${formatCalendarDate(account.latest_reported_balance_date)}` : ""}</small></div>) : <div><strong>Choose an account</strong></div>}</div>
-          {dates.map(date => {
+          {layoutMode === "lanes" ? <div className="account-lanes-head" style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}><span>Time</span>{selectedAccounts.length ? selectedAccounts.map(account => {
+            const report = asOfReports.get(account.id);
+            const context = report?.status === "reported"
+              ? `${formatCurrency(report.value, account.currency)} · last reported ${formatCalendarDate(report.date)}${report.time ? `, ${formatClockTime(report.time)}` : ""}`
+              : report?.status === "unavailable" && report.reason === "not_loaded" ? "Loading report context…"
+              : report?.status === "unavailable" && report.reason === "ambiguous_order" ? "Report order unclear"
+              : "No reported balance in loaded days";
+            return <div data-lane-account={account.id} key={account.id}><strong>{account.name}</strong><small>By {formatCalendarDate(visibleDate)} · {context}</small></div>;
+          }) : <div><strong>Choose an account</strong></div>}</div> : null}
+          {displayedDays.map(item => {
+            if (item.kind === "quiet") {
+              const nextActivity = dates.find(date => date > item.end && movementDates.has(date) && loadedDays.has(date));
+              return <div className="account-lanes-quiet-band" data-lane-day={item.start} data-lane-end={item.end} key={item.start}>
+                <span>{item.count === 1 ? dayLabel(item.start) : `${formatCalendarDate(item.start)} – ${formatCalendarDate(item.end)}`} · {item.count} {item.count === 1 ? "day" : "days"} without recorded activity</span>
+                {nextActivity ? <button type="button" onClick={() => jumpTo(nextActivity)}>Next movement <CaretRight aria-hidden="true" size={14} /></button> : null}
+              </div>;
+            }
+            const date = item.date;
             const result = weekResults[weekStart(date)];
             const daily = result?.status === "ready" ? result.rows.filter(row => row.date === date && selectedAccounts.some(account => laneDirection(row, account.id))) : [];
-            if (!showEmptyDays && result?.status === "ready" && daily.length === 0) return <div className="account-lanes-empty-day" data-lane-day={date} key={date}><time dateTime={date}>{dayLabel(date)}</time><span>No movements in selected accounts</span></div>;
             const timed = daily.filter(row => row.time).sort((a, b) => `${a.time}:${a.id}`.localeCompare(`${b.time}:${b.id}`));
             const untimed = daily.filter(row => !row.time);
-            return <section className="account-lanes-day" data-lane-day={date} key={date} aria-label={dayLabel(date)}><div className="account-lanes-day-title"><div className="account-lanes-day-title__content"><time dateTime={date}>{dayLabel(date)}</time><span>{daily.length} {daily.length === 1 ? "movement" : "movements"}</span></div></div>
+            return <section className={`account-lanes-day${layoutMode === "list" ? " account-lanes-day--list" : ""}`} data-lane-day={date} key={date} aria-label={dayLabel(date)}><div className="account-lanes-day-title"><div className="account-lanes-day-title__content"><time dateTime={date}>{dayLabel(date)}</time><span>{daily.length} {daily.length === 1 ? "movement" : "movements"}</span></div></div>
               {result?.status === "error" ? <p className="account-lanes-status" role="alert">Could not load this week: {result.message} <button type="button" onClick={() => void loadWeek(weekStart(date), true)}>Retry</button></p> : result?.status !== "ready" ? <p className="account-lanes-status" role="status">Loading movements…</p> : daily.length === 0 ? <p className="account-lanes-status">No movements in selected accounts on this day.</p> : null}
-              {timed.map(row => <div className={`account-lanes-row${row.type === "transfer" ? " account-lanes-row--transfer" : ""}`} key={row.id} style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}><time dateTime={`${date}T${row.time}`}>{formatClockTime(row.time!)}</time>{selectedAccounts.map(account => { const direction = laneDirection(row, account.id); if (!direction) return <div className="account-lanes-cell" key={account.id} />; const otherId = row.type === "transfer" ? row.account === account.id ? row.transfer_account : row.account : null; const other = otherId ? accountById.get(otherId) : null; const gap = gaps.get(account.id)?.get(row.id); return <div className="account-lanes-cell" key={account.id}><button className={`account-lanes-card${selected?.id === row.id ? " is-selected" : ""}`} type="button" onClick={() => setSelectedTransaction(row)}><span className="account-lanes-card__top"><strong>{title(row)}</strong>{row.type === "transfer" ? <LinkSimple aria-label="Transfer" size={16} /> : null}</span><small>{formatClockTime(row.time!)} · {row.type.replaceAll("_", " ")}{row.category && categoryById.get(row.category) ? ` · ${categoryById.get(row.category)}` : ""}</small><span className="account-lanes-card__numbers">{mode !== "balance" ? <b className={direction === "credit" ? "is-credit" : "is-debit"}>{amountLabel(row, account.id, account.currency)}</b> : null}{mode !== "amount" ? <span>Bal {laneBalance(row, account.id) === null ? "not reported" : formatCurrency(laneBalance(row, account.id)!, account.currency)}</span> : null}</span></button>{other && !selectedIds.includes(other.id) ? <button className="account-lanes-hidden-link" type="button" onClick={() => showAccount(other.id)}>{other.name} hidden · Show lane <Eye size={14} /></button> : null}{showGaps && gap !== undefined ? <button className="account-lanes-gap" type="button" onClick={() => setSelectedTransaction(row)}>Possible balance gap · {gap > 0 ? "+" : "−"}{formatCurrency(Math.abs(gap / 100).toFixed(2), account.currency)} <CaretRight size={14} /></button> : null}</div>; })}</div>)}
-              {untimed.length ? <details className="account-lanes-untimed"><summary>Time not reported · {untimed.length} {untimed.length === 1 ? "movement" : "movements"}</summary>{untimed.map(row => <button type="button" key={row.id} onClick={() => setSelectedTransaction(row)}>{title(row)} · {formatCurrency(row.amount, accountById.get(row.account)?.currency)}{row.type === "transfer" ? " · transfer" : ""}</button>)}</details> : null}
+              {layoutMode === "lanes" ? timed.map(row => renderLaneRow(row, date)) : <ul className="account-lanes-list">{[...timed, ...untimed].map(renderListRow)}</ul>}
+              {layoutMode === "lanes" && untimed.length ? <details className="account-lanes-untimed"><summary>Time not reported · {untimed.length} {untimed.length === 1 ? "movement" : "movements"}</summary>{untimed.map(row => <button type="button" data-lane-card={row.id} key={row.id} onClick={event => selectTransaction(row, event.detail === 0)}>{title(row)} · {formatCurrency(row.amount, accountById.get(row.account)?.currency)}{row.type === "transfer" ? " · transfer" : ""}</button>)}</details> : null}
             </section>;
           })}
         </div>
       </div>
-      <aside className="account-lanes-inspector" aria-label="Transaction details">{selected ? <><div className="account-lanes-inspector__title"><h2>Transaction details</h2><button type="button" aria-label="Close transaction details" onClick={() => setSelectedTransaction(null)}><X size={18} /></button></div><p className="account-lanes-inspector__date">{formatCalendarDate(selected.date)} · {selected.time ? formatClockTime(selected.time) : "time not reported"}</p><h3>{title(selected)}</h3><strong className="account-lanes-inspector__amount">{formatCurrency(selected.amount, accountById.get(selected.account)?.currency)}</strong><p>{selected.type.replaceAll("_", " ")}{selected.category && categoryById.get(selected.category) ? ` · ${categoryById.get(selected.category)}` : ""}</p><div className="account-lanes-observations"><h3>Account observations</h3>{[selected.account, selected.transfer_account].filter((id): id is string => Boolean(id)).map(id => { const account = accountById.get(id); if (!account) return null; const observation = selected.transfer_evidence.find(item => item.account === id); return <div key={id}><strong>{account.name}</strong><span className={laneDirection(selected, id) === "credit" ? "is-credit" : "is-debit"}>{amountLabel(selected, id, account.currency)}</span><small>Balance after · {laneBalance(selected, id) === null ? "not reported" : formatCurrency(laneBalance(selected, id)!, account.currency)}</small>{observation && (observation.date !== selected.date || observation.time !== selected.time) ? <small>Source observed {formatCalendarDate(observation.date)} · {observation.time ? formatClockTime(observation.time) : "time not reported"}; lane position uses the ledger date.</small> : null}{!selectedIds.includes(id) ? <button type="button" onClick={() => showAccount(id)}>Show {account.name} lane</button> : null}</div>; })}</div>{selectedGapRows.length ? <div className="account-lanes-gap-detail"><h3>Possible balance gap</h3>{selectedGapRows.map(({ account, cents }) => <p key={account.id}>{account.name}: {cents > 0 ? "+" : "−"}{formatCurrency(Math.abs(cents / 100).toFixed(2), account.currency)} between consecutive reported balances. Check missing movements, fees or ordering before reconciling.</p>)}</div> : null}{selected.note ? <div className="account-lanes-note"><h3>Note</h3><p>{selected.note}</p></div> : null}{selected.reference ? <p>Reference · {selected.reference}</p> : null}<div className="account-lanes-sources"><TransactionSourceMessages key={selected.id} transactionId={selected.id} loadOnExpand showEmpty /><TransactionStatementEvidence key={`statement-${selected.id}`} transactionId={selected.id} /></div><Link className="button button--ghost" href={`/transactions?edit=${selected.id}`}>Open ledger entry</Link><p className="account-lanes-inspector__hint">A transfer is one ledger transaction shown in each involved account.</p></> : <div className="account-lanes-inspector__empty"><h2>Transaction details</h2><p>Select a movement to inspect its account balances, note, and original sources.</p><p>Only reported balances are shown. A missing report is never treated as a calculated balance.</p></div>}</aside>
+      <aside className="account-lanes-inspector" aria-label="Transaction details">
+        {selected ? <>
+          <div className="account-lanes-inspector__title"><h2 ref={inspectorTitleRef} tabIndex={-1}>Transaction details</h2><button type="button" aria-label="Close transaction details" onClick={closeDetails}><X size={18} /></button></div>
+          <p className="account-lanes-inspector__date">{formatCalendarDate(selected.date)} · {selected.time ? formatClockTime(selected.time) : "time not reported"}</p>
+          <h3>{title(selected)}</h3>
+          <strong className="account-lanes-inspector__amount">{formatCurrency(selected.amount, accountById.get(selected.account)?.currency)}</strong>
+          <p>{selected.type.replaceAll("_", " ")}{selected.category && categoryById.get(selected.category) ? " · " + categoryById.get(selected.category) : ""}</p>
+          <div className="account-lanes-observations"><h3>Account observations</h3>{[selected.account, selected.transfer_account].filter((id): id is string => Boolean(id)).map(id => {
+            const account = accountById.get(id);
+            if (!account) return null;
+            const observation = selected.transfer_evidence.find(item => item.account === id);
+            return <div key={id}><strong>{account.name}</strong><span className={laneDirection(selected, id) === "credit" ? "is-credit" : "is-debit"}>{amountLabel(selected, id, account.currency)}</span><small>Balance after · {laneBalance(selected, id) === null ? "not reported" : formatCurrency(laneBalance(selected, id)!, account.currency)}</small>{observation && (observation.date !== selected.date || observation.time !== selected.time) ? <small>Source observed {formatCalendarDate(observation.date)} · {observation.time ? formatClockTime(observation.time) : "time not reported"}; lane position uses the ledger date.</small> : null}{!selectedIds.includes(id) ? <button type="button" onClick={() => showAccount(id)}>Show {account.name} lane</button> : null}</div>;
+          })}</div>
+          {selectedGapRows.length ? <div className="account-lanes-gap-detail"><h3>Possible balance gap</h3>{selectedGapRows.map(renderGapDetail)}</div> : null}
+          {selected.note ? <div className="account-lanes-note"><h3>Note</h3><p>{selected.note}</p></div> : null}
+          {selected.reference ? <p>Reference · {selected.reference}</p> : null}
+          <div className="account-lanes-sources"><TransactionSourceMessages key={selected.id} transactionId={selected.id} loadOnExpand showEmpty /><TransactionStatementEvidence key={"statement-" + selected.id} transactionId={selected.id} /></div>
+          <Link className="button button--ghost" href={"/transactions?edit=" + selected.id}>Open ledger entry</Link>
+          <p className="account-lanes-inspector__hint">A transfer is one ledger transaction shown in each involved account.</p>
+        </> : <div className="account-lanes-inspector__empty"><h2>Transaction details</h2><p>Select a movement to inspect its account balances, note, and original sources.</p><p>Only reported balances are shown. A missing report is never treated as a calculated balance.</p></div>}
+      </aside>
     </div>
     {accountsLoading ? <span className="sr-only" role="status">Loading accounts…</span> : null}
   </main>;

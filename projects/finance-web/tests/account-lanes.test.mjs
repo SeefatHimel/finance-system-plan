@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, balanceGaps, laneBalance, laneDirection, laneMomentMatchesCanonical, weekStart } from "../lib/account-lanes.ts";
+import { addDays, balanceGapDetails, balanceGaps, groupTimelineDays, laneBalance, laneDirection, laneMomentMatchesCanonical, reportedBalanceAtDate, weekStart } from "../lib/account-lanes.ts";
 
 const row = (id, date, time, amount, balance_after, extra = {}) => ({
   id, date, time, amount, balance_after, account: "city", transfer_account: null,
@@ -36,6 +36,28 @@ test("balance gaps use only fully loaded ordered intervals", () => {
   assert.equal(balanceGaps(rows, "city", new Set(["2026-10-20", "2026-10-21"])).get("last"), 300);
   assert.equal(balanceGaps(rows, "city", new Set(["2026-10-21"])).size, 0);
   assert.equal(balanceGaps([{ ...rows[1], time: null }, rows[2], rows[0]], "city", new Set(["2026-10-20", "2026-10-21"])).size, 0);
+  const detail = balanceGapDetails(rows, "city", new Set(["2026-10-20", "2026-10-21"])).get("last");
+  assert.equal(detail?.priorCents, 9000);
+  assert.equal(detail?.movementCents, -1000);
+  assert.equal(detail?.expectedCents, 8000);
+  assert.equal(detail?.actualCents, 8300);
+  assert.deepEqual(detail?.movements.map(movement => movement.id), ["middle", "last"]);
+});
+
+test("historical balance labels use only loaded, ordered saved reports", () => {
+  const rows = [row("earlier", "2026-10-20", "09:00:00", "10.00", "90.00"), row("later", "2026-10-21", "10:00:00", "5.00", "85.00")];
+  const loaded = new Set(["2026-10-19", "2026-10-20", "2026-10-21"]);
+  assert.deepEqual(reportedBalanceAtDate(rows, "city", "2026-10-20", loaded), { status: "reported", value: "90.00", date: "2026-10-20", time: "09:00:00" });
+  assert.deepEqual(reportedBalanceAtDate(rows, "city", "2026-10-19", loaded), { status: "unavailable", reason: "no_report" });
+  assert.deepEqual(reportedBalanceAtDate(rows, "city", "2026-10-21", new Set(["2026-10-20"])), { status: "unavailable", reason: "not_loaded" });
+  assert.deepEqual(reportedBalanceAtDate([...rows, row("unknown-time", "2026-10-21", null, "2.00", "87.00")], "city", "2026-10-21", loaded), { status: "unavailable", reason: "ambiguous_order" });
+});
+
+test("quiet days collapse only when loaded and consecutive", () => {
+  assert.deepEqual(groupTimelineDays(["2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23"], new Set(["2026-10-23"]), new Set(["2026-10-20", "2026-10-21", "2026-10-23"]), true), [
+    { kind: "quiet", start: "2026-10-20", end: "2026-10-21", count: 2 },
+    { kind: "day", date: "2026-10-22" }, { kind: "day", date: "2026-10-23" }
+  ]);
 });
 
 test("a transfer observed on another date cannot produce a precise lane gap", () => {

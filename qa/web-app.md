@@ -1377,16 +1377,30 @@ The `/timeline` view renders a moving 21-day window, loads complete seven-day
 activity pages as the user scrolls in either date direction, and retains at most
 five fetched weeks. The date field follows the day near the top of the viewport;
 choosing a date jumps there. Account selection controls visible lanes, while a
-transfer involving a hidden account shows a “Show lane” link and both account
-observations in the separate inspector. The same transfer is still one ledger
-transaction. Cards can show amount, reported balance, or both; entries without
-a trustworthy time remain in a separate day disclosure.
+transfer links both visible cards, or offers a “Show lane” endpoint when an
+account is hidden. The same transfer remains one ledger transaction. A
+chronological List layout shows each movement once and has ordinary keyboard
+buttons; opening a card focuses the separate inspector and closing it returns
+focus to the card if it is still loaded. Cards can show amount, reported
+balance, or both; entries without a trustworthy time remain in a separate day
+disclosure in Lanes and appear as “Time unknown” in List.
+
+The lane header labels the last saved report on or before the visible date and
+its actual report date. When that cannot be established from loaded data, it
+shows “No reported balance,” “Loading report context,” or “Report order unclear”
+instead of projecting a running balance. Loaded runs without selected-account
+activity collapse into dated bands. Next movement and Next gap jump among
+loaded dates; Earlier dates and Later dates load another window if there is too
+little content to scroll. Unloaded dates never count as verified quiet days.
 
 Gap markers compare consecutive reports only when all intervening days were
 loaded, every movement has a known order, and each relevant amount is valid.
 Unknown times, differently dated transfer observations and unloaded dates
 suppress a numeric gap; missing reported balances stay labeled “not reported.”
-The timeline is read-only and uses the existing activity and source-evidence APIs.
+Opening a marker explains the previous report, included movements, expected
+balance, current report, and signed difference, with links to the underlying
+entries. The timeline is read-only and uses the existing activity and
+source-evidence APIs.
 
 ### How does the user safely revalidate an already confirmed transaction?
 
