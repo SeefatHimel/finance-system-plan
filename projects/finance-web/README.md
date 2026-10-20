@@ -1680,3 +1680,33 @@ fresh preview; successful apply refreshes Transactions and displays a toast.
 Original evidence stays unchanged, corrections appear in History and latest-action
 Undo remains available. Desktop/phone layouts use the existing focus-trapped modal,
 scrolling body and visible action footer. Deploy API before web; no new APK needed.
+
+### Bulk revalidation review
+
+**Transactions → Bulk revalidate** opens one review screen for all confirmed ledger
+entries, independently of the visible list filters. Scanning advances in small API
+pages with progress; Pause/Continue retain collected findings and selections.
+Suggested corrections and warnings-only entries have separate views. Result pages
+keep the rendered list bounded while field selections persist across pages.
+Every suggestion displays current → proposed values, with source values/reasons
+and warnings available per entry. Nothing starts selected. Select individual
+fields, use Select all suggestions for the collected results, or Clear selection.
+
+Pause or finish the scan before Apply selected. Selections are submitted sequentially
+in groups of up to 25 transactions; each group is atomic. The screen reports confirmed
+successes and stops after a failed or uncertain group, clearing approval and requiring
+Rescan before continuing. It never blindly retries a mutation. Rescan also clears
+selections because rules/source values may have changed. Ledger changes elsewhere
+invalidate the displayed approvals; session changes/unmount stop further groups.
+
+Per-entry previews expire after 15 minutes. The signed scan cursor is resumable for
+one hour and excludes entries created after scanning starts. Its total is an initial
+count; deletion during scanning can reduce the final checked count. Source originals
+remain untouched and each correction appears in History. Latest-action Undo restores
+the entire latest successful group, while all its records remain unchanged; it does
+not undo every group in a large selection. A success toast offers Undo last group.
+Closing an unsubmitted scan writes nothing and discards its temporary selections.
+
+Existing single-entry Revalidate is unchanged. Deploy API before web; no APK needed.
+Verification includes bulk selection/grouping Node tests, web typecheck/lint/build,
+PostgreSQL atomicity/concurrency/Undo tests and desktop/phone browser interactions.

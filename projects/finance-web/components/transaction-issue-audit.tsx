@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 
 import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { getAccessToken } from "@/lib/auth-storage";
 import { scanTransactionIssues, type TransactionIssuePage } from "@/lib/api";
 
+const BulkTransactionRevalidationDialog = dynamic(() => import("@/components/bulk-transaction-revalidation").then(module => module.BulkTransactionRevalidationDialog));
+
 type Finding = TransactionIssuePage["results"][number];
 
 export function TransactionIssueAudit({ onEdit, onRevalidate }: { onEdit: (id: string) => void; onRevalidate: (id: string) => void }) {
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [scanned, setScanned] = useState(0);
   const [total, setTotal] = useState(0);
@@ -48,6 +52,8 @@ export function TransactionIssueAudit({ onEdit, onRevalidate }: { onEdit: (id: s
     <button className="button button--ghost" disabled={loading} onClick={() => void run(0)} type="button">
       {loading ? "Checking…" : "Check transactions"}
     </button>
+    <button className="button button--ghost" onClick={() => setBulkOpen(true)} type="button">Bulk revalidate</button>
+    {bulkOpen ? <BulkTransactionRevalidationDialog onClose={() => setBulkOpen(false)} /> : null}
     {open ? <section className="transaction-issue-audit__results" aria-label="Transaction issue check results">
       <div className="transaction-issue-audit__heading">
         <div><strong>Transaction check</strong><p>Check saved evidence and current rules. Revalidate an entry to preview corrections before applying them.</p></div>

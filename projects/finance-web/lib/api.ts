@@ -1195,6 +1195,29 @@ export async function applyTransactionRevalidation(token: string, id: string, pr
   })).json());
 }
 
+const bulkRevalidationEntrySchema = z.object({
+  date: z.string(), account_name: z.string(), amount: z.string(), description: z.string(), preview: transactionRevalidationSchema,
+});
+const bulkRevalidationPageSchema = z.object({
+  scanned: z.number(), total: z.number(), started_at: z.string(), next_cursor: z.string().nullable(), results: z.array(bulkRevalidationEntrySchema),
+});
+export type BulkRevalidationEntry = z.infer<typeof bulkRevalidationEntrySchema>;
+export type BulkRevalidationPage = z.infer<typeof bulkRevalidationPageSchema>;
+
+export async function scanTransactionRevalidation(token: string, cursor: string, signal?: AbortSignal): Promise<BulkRevalidationPage> {
+  const query = new URLSearchParams({ limit: "20" });
+  if (cursor) query.set("cursor", cursor);
+  return bulkRevalidationPageSchema.parse(await (await authenticatedFetch(`/api/transactions/revalidation/?${query}`, token, { signal })).json());
+}
+
+export async function applyBulkRevalidation(token: string, items: { transaction: string; token: string; selected: string[] }[]) {
+  return z.object({ applied: z.array(z.string().uuid()), batch: z.string().uuid(), undo_action: transactionActionSchema.nullable() }).parse(
+    await (await authenticatedFetch("/api/transactions/apply-revalidation/", token, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }),
+    })).json()
+  );
+}
+
 export async function scanTransactionIssues(accessToken: string, offset = 0): Promise<TransactionIssuePage> {
   const response = await authenticatedFetch(`/api/transactions/issues/?limit=50&offset=${offset}`, accessToken);
   return transactionIssuePageSchema.parse(await response.json());

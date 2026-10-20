@@ -1398,3 +1398,16 @@ fresh preview is required. Success refreshes the list, shows a toast and records
 History; latest-action Undo is available. Original SMS/PDF values stay intact.
 Revalidation uses already attached sources, so there is no re-import/resync, and
 it does not silently discover/merge unrelated transactions.
+
+### Can the user review and select many confirmed-transaction corrections together?
+
+Yes. Bulk revalidate scans all saved transactions in pages and gathers corrections
+in one dialog, with progress and Pause/Continue. Per-field checkboxes start clear;
+result pagination and finding filters preserve choices across pages. Current/proposed
+values, source observations, reasons and manual-review warnings remain inspectable.
+Apply selected uses atomic groups of up to 25 entries, with confirmed progress.
+After an error/uncertain result or external ledger change, approval clears and a
+fresh scan is required. Rescan also clears selections. Source values stay unchanged,
+History records corrections and Undo last group reverses only the latest successful
+group. All scans are temporary/read-only until apply; visible ledger filters do not
+limit their scope. Existing single-entry review and mobile apps keep working.
