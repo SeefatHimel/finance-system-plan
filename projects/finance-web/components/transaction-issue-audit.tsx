@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { getAccessToken } from "@/lib/auth-storage";
@@ -8,21 +8,28 @@ import { scanTransactionIssues, type TransactionIssuePage } from "@/lib/api";
 
 type Finding = TransactionIssuePage["results"][number];
 
-export function TransactionIssueAudit({ onEdit }: { onEdit: (id: string) => void }) {
+export function TransactionIssueAudit({ onEdit, onRevalidate }: { onEdit: (id: string) => void; onRevalidate: (id: string) => void }) {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [scanned, setScanned] = useState(0);
   const [total, setTotal] = useState(0);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
+  const [stale, setStale] = useState(false);
   const [hasResult, setHasResult] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const changed = () => setStale(true);
+    window.addEventListener("finance:transactions-changed", changed);
+    return () => window.removeEventListener("finance:transactions-changed", changed);
+  }, []);
 
   async function run(offset: number) {
     const token = getAccessToken();
     if (!token) { setError("Sign in before checking transactions."); return; }
     if (offset === 0) {
-      setFindings([]); setScanned(0); setTotal(0); setNextOffset(null); setHasResult(false);
+      setFindings([]); setScanned(0); setTotal(0); setNextOffset(null); setHasResult(false); setStale(false);
     }
     setLoading(true); setError(""); setOpen(true);
     try {
@@ -43,14 +50,16 @@ export function TransactionIssueAudit({ onEdit }: { onEdit: (id: string) => void
     </button>
     {open ? <section className="transaction-issue-audit__results" aria-label="Transaction issue check results">
       <div className="transaction-issue-audit__heading">
-        <div><strong>Transaction check</strong><p>Read-only checks against saved SMS and current rules. Suggestions never change your ledger.</p></div>
+        <div><strong>Transaction check</strong><p>Check saved evidence and current rules. Revalidate an entry to preview corrections before applying them.</p></div>
         <button className="button button--ghost button--small" onClick={() => setOpen(false)} type="button">Hide</button>
       </div>
       {error ? <p role="alert">{error}</p> : null}
+      {stale ? <p role="status">Transactions changed. Run Check transactions again to refresh these findings.</p> : null}
       <p role="status">Checked {scanned} of {total} transactions · {findings.length} with findings{nextOffset !== null ? " so far" : ""}.</p>
       {findings.map(finding => <article className="transaction-issue-audit__item" key={finding.transaction}>
         <div><strong>{finding.account} · BDT {finding.amount}</strong><span>{formatCalendarDate(finding.date)}</span></div>
         <ul>{finding.issues.map(issue => <li key={issue.code}>{issue.level === "suggestion" ? "Suggestion: " : "Check: "}{issue.text}</li>)}</ul>
+        <button className="button button--ghost button--small" onClick={() => onRevalidate(finding.transaction)} type="button">Revalidate</button>
         <button className="button button--ghost button--small" onClick={() => onEdit(finding.transaction)} type="button">Review entry</button>
       </article>)}
       {!loading && !error && hasResult && scanned === total && findings.length === 0 ? <p>No issues found by these checks. This does not verify every transaction detail.</p> : null}

@@ -1177,6 +1177,24 @@ export async function listTransactionSourceMessages(accessToken: string, id: str
   return z.array(transactionSourceMessageSchema).parse(await response.json());
 }
 
+const transactionRevalidationSchema = z.object({
+  transaction: z.string().uuid(), currency: z.string(), policy: z.string(), fingerprint: z.string(), token: z.string(), expires_in: z.number(),
+  suggestions: z.array(z.object({ key: z.string(), label: z.string(), current: z.string().nullable(), proposed: z.string(), reason: z.string(), value: z.string().optional() })),
+  sources: z.array(z.object({ kind: z.string(), id: z.string().uuid(), account: z.string().uuid().nullable(), account_name: z.string(), amount: z.string().nullable(), balance_after: z.string().nullable(), usable: z.boolean(), has_fee: z.boolean() })),
+  warnings: z.array(z.string()),
+});
+export type TransactionRevalidation = z.infer<typeof transactionRevalidationSchema>;
+
+export async function previewTransactionRevalidation(token: string, id: string, signal?: AbortSignal): Promise<TransactionRevalidation> {
+  return transactionRevalidationSchema.parse(await (await authenticatedFetch(`/api/transactions/${id}/revalidate/`, token, { signal })).json());
+}
+
+export async function applyTransactionRevalidation(token: string, id: string, previewToken: string, selected: string[]): Promise<Transaction> {
+  return transactionSchema.parse(await (await authenticatedFetch(`/api/transactions/${id}/apply-revalidation/`, token, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: previewToken, selected }),
+  })).json());
+}
+
 export async function scanTransactionIssues(accessToken: string, offset = 0): Promise<TransactionIssuePage> {
   const response = await authenticatedFetch(`/api/transactions/issues/?limit=50&offset=${offset}`, accessToken);
   return transactionIssuePageSchema.parse(await response.json());

@@ -3930,3 +3930,14 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
   .compact-editor-datetime > .field, .compact-editor-datetime > .field:first-child { flex-basis: 100%; }
   .compact-editor-details-hint { display: block; margin: 4px 0 0; }
 }
+
+.viewport-modal.transaction-revalidation { width: min(54rem, calc(100vw - 2rem)); max-width: 54rem; overflow: hidden; }
+.transaction-revalidation__body { padding: 1.25rem; overflow: auto; min-height: 0; display: grid; gap: 1rem; }
+.transaction-revalidation__choices { border: 0; padding: 0; margin: 0; display: grid; gap: .75rem; min-width: 0; }
+.transaction-revalidation__choice { display: flex; align-items: flex-start; gap: .75rem; padding: 1rem; border: 1px solid var(--panel-border); border-radius: .75rem; cursor: pointer; }
+.transaction-revalidation__choice input { flex: 0 0 auto; width: 1.25rem; height: 1.25rem; margin-top: .2rem; }
+.transaction-revalidation__choice > span, .transaction-revalidation__sources article { display: grid; gap: .4rem; min-width: 0; overflow-wrap: anywhere; }
+.transaction-revalidation__choice small { color: var(--muted); }
+.transaction-revalidation__sources { display: grid; gap: 1rem; padding-top: 1rem; }
+.transaction-revalidation .form-drawer__footer { flex: 0 0 auto; display: flex; justify-content: flex-end; gap: .75rem; padding: 1rem; border-top: 1px solid var(--panel-border); flex-wrap: wrap; }
+@media (max-width: 600px) { .transaction-revalidation { width: calc(100vw - 1rem); } }

@@ -1387,3 +1387,14 @@ loaded, every movement has a known order, and each relevant amount is valid.
 Unknown times, differently dated transfer observations and unloaded dates
 suppress a numeric gap; missing reported balances stay labeled “not reported.”
 The timeline is read-only and uses the existing activity and source-evidence APIs.
+
+### How does the user safely revalidate an already confirmed transaction?
+
+Choose Revalidate on the Transactions row or a Check transactions finding. The
+dialog shows source values, warnings and current → proposed corrections, with all
+checkboxes unchecked. Apply selected performs one reviewed update; Cancel and
+Refresh preview do not write. On errors or stale evidence, approval clears and a
+fresh preview is required. Success refreshes the list, shows a toast and records
+History; latest-action Undo is available. Original SMS/PDF values stay intact.
+Revalidation uses already attached sources, so there is no re-import/resync, and
+it does not silently discover/merge unrelated transactions.

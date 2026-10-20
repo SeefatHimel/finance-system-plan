@@ -1492,7 +1492,7 @@ recording another entry. Fee-inclusive statement balances remain ineligible.
 Deploy the API first. Older-server responses default missing eligibility metadata
 to false. No APK rebuild or new database migration is needed for this API/web fix.
 Previously affected records are not automatically rewritten; the historical
-revalidation workflow is still planned. Run the statement-review regressions,
+revalidation workflow is available from Transactions as described below. Run the statement-review regressions,
 web typecheck/lint/build and synthetic browser checks at desktop/phone widths.
 
 ### Statement search and PDF password autofill
@@ -1657,3 +1657,26 @@ and show the reason. No historical transactions are silently repaired.
 Run the statement Node tests, typecheck, lint/build and synthetic browser checks
 for both source orders, retries, ambiguity and desktop/phone layouts. Deploy the
 API first; no migration or APK rebuild is needed.
+
+### Revalidate confirmed transactions
+
+Transactions provides **Revalidate** on each entry and beside **Check transactions**
+findings. The dialog compares already attached SMS/PDF observations and current
+SMS rules without changing anything. It shows exact source values, each eligible
+current → proposed correction, and warnings that need manual Edit. All correction
+checkboxes start unchecked. Select individual suggestions and use **Apply selected**;
+Cancel, opening the preview and **Refresh preview** never write the ledger.
+
+Supported suggestions are higher BDT amounts/balances within a full span strictly
+below Tk 1, restoration of missing account-specific balances, and an unambiguous
+current category compatible with the saved type. Original text may be unavailable
+because of retention; saved observations remain inspectable. Conflicting or unsafe
+sources are flagged. Revalidation does not discover new matches, merge entries or
+change account paths/type/date automatically. No re-import or SMS resync is needed.
+
+The API binds a 15-minute signed preview to ledger/evidence/current suggestions.
+After an error or uncertain response the dialog clears approval and requires a
+fresh preview; successful apply refreshes Transactions and displays a toast.
+Original evidence stays unchanged, corrections appear in History and latest-action
+Undo remains available. Desktop/phone layouts use the existing focus-trapped modal,
+scrolling body and visible action footer. Deploy API before web; no new APK needed.

@@ -50,6 +50,7 @@ import { transferComparison } from "../../finance-contracts/transfer-comparison"
 import { getAccessToken } from "@/lib/auth-storage";
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
 import { TransactionSourceMessages } from "@/components/transaction-source-messages";
+import { TransactionRevalidationDialog } from "@/components/transaction-revalidation";
 import { TransactionIssueAudit } from "@/components/transaction-issue-audit";
 import { smsEvidenceWarnings } from "@/lib/sms-evidence-review";
 import { TransactionStatementEvidence } from "@/components/transaction-statement-evidence";
@@ -174,6 +175,7 @@ export function TransactionWorkspace() {
   const readyData = useRef<Extract<LoadState, { status: "ready" }> | null>(null);
   const [displayedFilters, setDisplayedFilters] = useState(filters);
   const [requestedFilters, setRequestedFilters] = useState(filters);
+  const [revalidationId, setRevalidationId] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useFeedbackMessage("error");
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [transferDecision, setTransferDecision] = useState<{ input: CreateTransactionInput; matches: TransferMatch[]; mergeId?: string } | null>(null);
@@ -728,6 +730,7 @@ export function TransactionWorkspace() {
       {transaction.statement_evidence_count > 0 || transaction.raw_message || transaction.transfer_evidence.some(item => item.raw_message) ? <button className="button button--ghost" onClick={() => setEvidenceTransaction(transaction)} type="button">Sources</button> : null}
       {transaction.type === "transfer" ? <button className="button button--ghost" disabled={isSubmitting} onClick={() => void handleFindPostedMatch(transaction)} type="button">Find match</button> : null}
       <button className="button button--ghost" onClick={() => void selectTransactionForEdit(transaction.id)} type="button">Edit</button>
+      <button className="button button--ghost" onClick={() => setRevalidationId(transaction.id)} type="button">Revalidate</button>
       <Link className="button button--ghost" href={`/audit-logs?entity_type=transactions.transaction&entity_id=${transaction.id}`}>History</Link>
       <button className="button button--danger" disabled={deletingTransactionId === transaction.id} onClick={() => void handleDeleteTransaction(transaction)} type="button">{deletingTransactionId === transaction.id ? <ButtonBusy label="Deleting" /> : "Delete"}</button>
     </div>;
@@ -735,6 +738,7 @@ export function TransactionWorkspace() {
 
   return (
     <div className="workspace-grid">
+      {revalidationId ? <TransactionRevalidationDialog key={revalidationId} transactionId={revalidationId} onClose={() => setRevalidationId(null)} /> : null}
       {categoryChoice.confirmation}
       {clockEdit ? <QuickTimePicker value={clockEdit.value} onCancel={() => setClockEdit(null)} onApply={time => { setEditingTime(time); setClockEdit(null); }} /> : null}
       {evidenceTransaction ? <ModalDialog labelledBy="transaction-sources-title" className="form-drawer transaction-sources-dialog" onCancel={() => setEvidenceTransaction(null)}>
@@ -1027,7 +1031,7 @@ export function TransactionWorkspace() {
           </div>
 
           <RecentTransactionAction />
-          <TransactionIssueAudit onEdit={transactionId => void selectTransactionForEdit(transactionId)} />
+          <TransactionIssueAudit onRevalidate={setRevalidationId} onEdit={transactionId => void selectTransactionForEdit(transactionId)} />
           {formMessage ? <p className="form-success">{formMessage}</p> : null}
 
           <form className="transaction-filters" onSubmit={handleFilterSubmit}>
