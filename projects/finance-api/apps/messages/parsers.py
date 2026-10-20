@@ -146,7 +146,13 @@ def parse_raw_message(raw_message, *, sender_rule=None):
         if sender_rule
         else None
     )
-    if mapping:
+    generic_bank_deposit = is_generic_bank_deposit(
+        provider=provider,
+        message_kind=parsed["message_kind"],
+        body=raw_message.body,
+        counterparty_text=parsed["counterparty_text"],
+    )
+    if mapping and not generic_bank_deposit:
         # A learned canonical source must not replace an explicitly identified receiver.
         identified_receiver = None
         if (
@@ -171,6 +177,11 @@ def parse_raw_message(raw_message, *, sender_rule=None):
         parsed["parser_notes"] = (
             f"{parsed['parser_notes']} Applied choices learned for this sender and message type."
         )
+    elif generic_bank_deposit:
+        parsed["parser_notes"] += (
+            " This deposit SMS does not identify its source or purpose;"
+            " review the account and category rather than reusing a broad learned choice."
+        )
     elif (
         sender_rule
         and sender_rule.default_transaction_type
@@ -187,6 +198,15 @@ def parse_raw_message(raw_message, *, sender_rule=None):
 
     require_short_identity_review(parsed, raw_message.user)
     return parsed
+
+
+def is_generic_bank_deposit(*, provider, message_kind, body, counterparty_text):
+    return (
+        provider in (SenderRule.Provider.CITY_BANK, SenderRule.Provider.EBL)
+        and message_kind == ParsedMessageCandidate.MessageKind.BANK_TRANSFER_IN
+        and _contains_any_phrase(_normalize_text(body), ("deposit", "deposited"))
+        and not counterparty_text
+    )
 
 
 def classify_message_kind_for_capture(body: str) -> str:
@@ -463,7 +483,12 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
             raw_identifiers["receiver_account_identifier"],
             raw_identifiers["receiver_card_identifier"],
         ),
-        provider="",
+        provider=provider if is_generic_bank_deposit(
+            provider=provider,
+            message_kind=message_kind,
+            body=body,
+            counterparty_text=counterparty_text,
+        ) else "",
     )
     if receiver_payment_method is None and message_kind in (
         ParsedMessageCandidate.MessageKind.BANK_TRANSFER_OUT,

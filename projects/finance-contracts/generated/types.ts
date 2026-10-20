@@ -982,6 +982,27 @@ export interface TransactionActivityPage {
   results: Transaction[];
 }
 
+export interface TransactionIssue {
+  code: string;
+  level: "check" | "suggestion";
+  text: string;
+}
+
+export interface TransactionIssueResult {
+  transaction: string;
+  date: string;
+  account: string;
+  amount: string;
+  issues: TransactionIssue[];
+}
+
+export interface TransactionIssuePage {
+  scanned: number;
+  total: number;
+  next_offset: number | null;
+  results: TransactionIssueResult[];
+}
+
 export interface Transaction {
   undo_action?: TransactionAction | null;
   reported_balances?: AccountReportedBalance[];

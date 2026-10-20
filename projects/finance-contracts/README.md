@@ -1,5 +1,11 @@
 # finance-contracts
 
+`GET /api/transactions/issues/?limit=50&offset=0` returns a read-only,
+user-scoped issue page. The response reports inspected count, total count,
+next offset, and findings with stable issue codes and advisory severity; it
+never includes SMS bodies or changes ledger entries. Clients must treat current
+rule differences as suggestions for human review.
+
 Batch SMS sync uses `POST /api/messages/import/batch/`, a 1–25-item envelope of
 single-import payloads plus distinct `client_id` correlation keys. HTTP 200 is
 an envelope acknowledgement, not success for every message: clients must inspect

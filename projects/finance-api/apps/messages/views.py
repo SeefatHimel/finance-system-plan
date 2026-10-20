@@ -39,6 +39,7 @@ from .parsers import (
     classify_message_kind_for_capture,
     find_sender_rule,
     has_numeric_content,
+    is_generic_bank_deposit,
     parse_raw_message,
 )
 from .serializers import (
@@ -789,7 +790,12 @@ class MessageCandidateConfirmView(APIView):
             from .transfer_suggestions import remember_transfer_path
             remember_transfer_path(candidate, transaction_record, observation)
 
-        if payload["remember_mapping"] and candidate.sender_rule and not (
+        if payload["remember_mapping"] and candidate.sender_rule and not is_generic_bank_deposit(
+            provider=candidate.provider,
+            message_kind=candidate.message_kind,
+            body=candidate.raw_message.body,
+            counterparty_text=candidate.counterparty_text,
+        ) and not (
             observation and counterparty_text
         ):
             sender_rule = candidate.sender_rule

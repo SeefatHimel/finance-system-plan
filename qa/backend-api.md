@@ -1,5 +1,14 @@
 # Backend API Q&A
 
+### How can users check older transactions after rules change?
+
+`GET /api/transactions/issues/` scans a bounded, user-owned page without
+writing to the ledger. It compares attached SMS senders and generic deposit
+wording with saved account and classification, and reruns the current parser
+for advisory category suggestions. Results omit raw SMS content and use
+`Cache-Control: private, no-store`. A changed rule is a suggestion, not proof
+that an older reviewed entry was wrong.
+
 ### What can a signed-in user change on their profile?
 
 `PATCH /api/auth/me/` updates only the authenticated user's first name, last
@@ -378,7 +387,11 @@ different choices for purchases, transfers, fees, and refunds. The choice is
 also applied immediately to matching pending candidates; future messages of the
 same kind start with those defaults, while amount, balance, date, reference,
 identifiers, and counterparty still come from each message. The learning is
-explicit and user-controlled rather than automatic. Transfers with a counterparty
+explicit and user-controlled rather than automatic. Generic City Bank and EBL
+deposit SMS do not identify a payer or purpose, so broad learned mappings do
+not override their account or category and confirming one does not teach that
+broad mapping. Existing confirmed transactions remain unchanged; pending ones
+can be reprocessed. Transfers with a counterparty
 use the more specific reporting-account/counterparty path described below.
 
 ## How is mobile SMS sync health represented?

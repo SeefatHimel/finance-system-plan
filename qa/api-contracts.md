@@ -1,5 +1,12 @@
 # API Contracts Q&A
 
+### What does the transaction issue-scan response contain?
+
+`GET /api/transactions/issues/?limit=50&offset=0` returns `scanned`, `total`,
+`next_offset`, and `results` with transaction ID, date, account, amount, and
+issue `code`, `level`, and `text`. It is authenticated, user-scoped, read-only,
+and omits original SMS bodies. `limit` is at most 100.
+
 ### How does the profile editor cross the API boundary?
 
 `PATCH /api/auth/me/` accepts optional `first_name`, `last_name`, and `email`

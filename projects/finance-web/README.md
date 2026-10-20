@@ -1,5 +1,20 @@
 # finance-web
 
+When editing a transaction with an attached bank SMS, the editor warns if the
+SMS sender conflicts with the selected account's known bank provider. The
+source check must finish before an edit can be saved; if it fails, the reviewer
+can retry loading the Original SMS. For a
+generic bank deposit, it also warns when a category, counterparty, or note
+claims details absent from the SMS. Reviewers must acknowledge visible warnings
+before saving; they can still keep a verified choice based on other evidence.
+The app does not alter existing ledger entries automatically.
+
+The Transactions page has a **Check transactions** action. It scans 50 entries
+at a time with the current rules, shows issues and advisory category suggestions,
+and opens any finding in the existing transaction editor. A further 50 can be
+checked from the result panel; checking again starts a fresh scan. This action
+does not update past entries automatically.
+
 Next.js web dashboard for managing and reviewing the finance system.
 
 The avatar menu opens `/profile`, where users can edit their first name, last

@@ -2245,6 +2245,28 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/transactions/issues/:
+    get:
+      tags: [Transactions]
+      summary: Check saved transactions against SMS evidence and current rules
+      description: Read-only, user-scoped, bounded scan. Suggestions do not update ledger entries.
+      security:
+      - bearerAuth: []
+      parameters:
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      - in: query
+        name: offset
+        schema: {type: integer, minimum: 0, default: 0}
+      responses:
+        '200':
+          description: Private, non-cacheable issue page without SMS bodies.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TransactionIssuePage'}
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/UnauthorizedError'}
   /api/transactions/activity/:
     get:
       tags:
@@ -5633,6 +5655,34 @@ components:
         results:
           type: array
           items: {$ref: '#/components/schemas/Transaction'}
+    TransactionIssue:
+      type: object
+      required: [code, level, text]
+      properties:
+        code: {type: string}
+        level: {type: string, enum: [check, suggestion]}
+        text: {type: string}
+    TransactionIssueResult:
+      type: object
+      required: [transaction, date, account, amount, issues]
+      properties:
+        transaction: {type: string, format: uuid}
+        date: {type: string, format: date}
+        account: {type: string}
+        amount: {type: string, format: decimal}
+        issues:
+          type: array
+          items: {$ref: '#/components/schemas/TransactionIssue'}
+    TransactionIssuePage:
+      type: object
+      required: [scanned, total, next_offset, results]
+      properties:
+        scanned: {type: integer}
+        total: {type: integer}
+        next_offset: {type: integer, nullable: true}
+        results:
+          type: array
+          items: {$ref: '#/components/schemas/TransactionIssueResult'}
     Transaction:
       type: object
       required:

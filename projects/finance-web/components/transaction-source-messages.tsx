@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 
 import { listTransactionSourceMessages, type TransactionSourceMessage } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
@@ -13,7 +13,7 @@ type MessageState =
 
 const receivedTimeFormatter = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
-export function TransactionSourceMessages({ transactionId, expanded = false, showEmpty = false, loadOnExpand = false }: { transactionId: string; expanded?: boolean; showEmpty?: boolean; loadOnExpand?: boolean }) {
+export function TransactionSourceMessages({ transactionId, expanded = false, showEmpty = false, loadOnExpand = false, onMessages, onLoadError }: { transactionId: string; expanded?: boolean; showEmpty?: boolean; loadOnExpand?: boolean; onMessages?: Dispatch<SetStateAction<TransactionSourceMessage[] | null>>; onLoadError?: Dispatch<SetStateAction<string>> }) {
   const [state, setState] = useState<MessageState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState(expanded);
@@ -30,13 +30,16 @@ export function TransactionSourceMessages({ transactionId, expanded = false, sho
     }
     void listTransactionSourceMessages(accessToken, transactionId)
       .then((messages) => {
-        if (active) setState({ status: "ready", messages });
+        if (active) { setState({ status: "ready", messages }); onMessages?.(messages); }
       })
       .catch((error: unknown) => {
-        if (active) setState({ status: "error", message: error instanceof Error ? error.message : "Could not load the original SMS." });
+        if (active) {
+          const message = error instanceof Error ? error.message : "Could not load the original SMS.";
+          setState({ status: "error", message }); onLoadError?.(message);
+        }
       });
     return () => { active = false; };
-  }, [transactionId, attempt, requested]);
+  }, [transactionId, attempt, requested, onMessages, onLoadError]);
 
   if (state.status === "ready" && state.messages.length === 0 && !showEmpty) return null;
 

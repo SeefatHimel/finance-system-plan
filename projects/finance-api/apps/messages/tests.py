@@ -157,6 +157,57 @@ class SenderRuleApiTests(APITestCase):
 
 
 class RawMessageImportApiTests(APITestCase):
+    def test_generic_city_deposit_does_not_inherit_unrelated_learned_account_or_category(self):
+        user = get_user_model().objects.create_user(username="testuser", password="password")
+        city = Account.objects.create(user=user, name="City Bank", type=Account.Type.BANK)
+        other = Account.objects.create(user=user, name="Other Bank", type=Account.Type.BANK)
+        PaymentMethod.objects.create(
+            user=user, account=other, name="Other bank account",
+            provider=PaymentMethod.Provider.EBL, identifier="****5678",
+        )
+        category = Category.objects.create(user=user, name="Investment profit", kind=Category.Kind.INCOME)
+        rule = SenderRule.objects.create(
+            user=user, account=city, name="City alerts",
+            provider=SenderRule.Provider.CITY_BANK, sender="CITYBANK",
+        )
+        SenderRuleMapping.objects.create(
+            user=user, sender_rule=rule,
+            message_kind=ParsedMessageCandidate.MessageKind.BANK_TRANSFER_IN,
+            account=other, category=category, transaction_type=Transaction.Type.INCOME,
+        )
+        self.client.force_authenticate(user)
+        response = self.client.post(reverse("raw-message-import"), {
+            "sender": "CITYBANK",
+            "body": "30-Sep-2026\nTk. 5,313 Deposit\nTk. 72,488 Balance\nA/C: 1234***5678",
+            "received_at": "2026-09-30T11:19:00+06:00",
+            "device_message_id": "generic-city-deposit-1",
+        }, format="json")
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["account"], city.id)
+        self.assertIsNone(candidate["category"])
+        self.assertEqual(candidate["transaction_type"], "income")
+        self.assertIn("review the account and category", candidate["parser_notes"])
+        second = self.client.post(reverse("raw-message-import"), {
+            "sender": "CITYBANK",
+            "body": "01-Oct-2026\nTk. 2,100 Deposit\nTk. 74,588 Balance\nA/C: 1234***5678",
+            "received_at": "2026-10-01T11:19:00+06:00",
+            "device_message_id": "generic-city-deposit-2",
+        }, format="json")
+        self.assertEqual(second.status_code, 201)
+        confirmed = self.client.post(
+            reverse("message-candidate-confirm", kwargs={"candidate_id": candidate["id"]}),
+            {"account": str(city.id), "category": str(category.id), "type": "income", "remember_mapping": True},
+            format="json",
+        )
+        self.assertEqual(confirmed.status_code, 200)
+        mapping = SenderRuleMapping.objects.get(sender_rule=rule, message_kind="bank_transfer_in")
+        self.assertEqual(mapping.account, other)
+        self.assertEqual(mapping.category, category)
+        pending = ParsedMessageCandidate.objects.get(id=second.data["candidate"]["id"])
+        self.assertEqual(pending.account, city)
+        self.assertIsNone(pending.category)
+
     def test_capture_preferences_default_to_excluding_security_messages(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         self.client.force_authenticate(user)

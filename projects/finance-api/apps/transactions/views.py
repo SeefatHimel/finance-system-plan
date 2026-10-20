@@ -19,6 +19,7 @@ from apps.messages.models import ParsedMessageCandidate, RawMessage
 from apps.statements.serializers import SavedStatementRowSerializer
 
 from .models import Transaction, TransactionAction
+from .issue_scan import scan_ledger_page
 from .recovery import ActionRecorder, describe, undo_action
 from .search import SEARCH_DESCRIPTION, filter_transaction_search
 from .serializers import (
@@ -62,6 +63,32 @@ class TransactionActivityPageSerializer(serializers.Serializer):
     results = TransactionSerializer(many=True)
 
 
+class TransactionIssueQuery(serializers.Serializer):
+    limit = serializers.IntegerField(default=50, min_value=1, max_value=100)
+    offset = serializers.IntegerField(default=0, min_value=0, max_value=2147483647)
+
+
+class TransactionIssueSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    level = serializers.ChoiceField(choices=("check", "suggestion"))
+    text = serializers.CharField()
+
+
+class TransactionIssueResultSerializer(serializers.Serializer):
+    transaction = serializers.UUIDField()
+    date = serializers.DateField()
+    account = serializers.CharField()
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2)
+    issues = TransactionIssueSerializer(many=True)
+
+
+class TransactionIssuePageSerializer(serializers.Serializer):
+    scanned = serializers.IntegerField()
+    total = serializers.IntegerField()
+    next_offset = serializers.IntegerField(allow_null=True)
+    results = TransactionIssueResultSerializer(many=True)
+
+
 def spreadsheet_safe_text(value):
     """Prevent user-controlled CSV text from becoming a spreadsheet formula."""
     if value and value.lstrip(" \t\r\n\ufeff").startswith(("=", "+", "-", "@")):
@@ -73,6 +100,22 @@ def spreadsheet_safe_text(value):
 class TransactionViewSet(ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = (IsAuthenticated,)
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("limit", int, description="Entries to inspect, 1–100 (default 50)."),
+            OpenApiParameter("offset", int, description="Zero-based ledger offset."),
+        ],
+        responses=TransactionIssuePageSerializer,
+    )
+    @action(detail=False, methods=("get",), url_path="issues")
+    def issues(self, request):
+        query = TransactionIssueQuery(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        return Response(
+            scan_ledger_page(user=request.user, **query.validated_data),
+            headers={"Cache-Control": "private, no-store"},
+        )
 
     @extend_schema(
         parameters=[*transaction_date_parameters,

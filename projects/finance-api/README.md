@@ -1,5 +1,22 @@
 # finance-api
 
+## Generic bank-deposit evidence
+
+City Bank and EBL SMS that only report a deposit, amount, balance, and account
+identifier do not disclose the payer or purpose. The parser keeps the bank
+sender-rule account as a starting point but does not apply broad saved
+sender/message-kind account or category mappings to these deposits. Confirming
+one with “remember choices” does not teach that broad mapping to other generic
+deposits. Existing pending messages can be reprocessed to obtain this safer
+draft; confirmed ledger transactions are not changed automatically.
+
+`GET /api/transactions/issues/?limit=50&offset=0` runs a user-scoped,
+read-only check of saved transactions in bounded pages. It flags known bank
+sender/account conflicts, generic deposit details absent from the SMS, entries
+already marked Needs review, and category suggestions produced by current
+parsing rules. Suggestions are advisory; the endpoint never edits ledger data
+or source evidence. The response contains no SMS body and uses `no-store`.
+
 ## Batch SMS import
 
 `POST /api/messages/import/batch/` accepts `{"messages": [...]}` with 1–25

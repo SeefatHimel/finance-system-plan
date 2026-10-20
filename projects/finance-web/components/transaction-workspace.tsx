@@ -21,6 +21,7 @@ import {
   type Account,
   type Category,
   type Transaction,
+  type TransactionSourceMessage,
   type TransactionDirection,
   createTransaction,
   findTransferMatches,
@@ -49,6 +50,8 @@ import { transferComparison } from "../../finance-contracts/transfer-comparison"
 import { getAccessToken } from "@/lib/auth-storage";
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
 import { TransactionSourceMessages } from "@/components/transaction-source-messages";
+import { TransactionIssueAudit } from "@/components/transaction-issue-audit";
+import { smsEvidenceWarnings } from "@/lib/sms-evidence-review";
 import { TransactionStatementEvidence } from "@/components/transaction-statement-evidence";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
@@ -187,6 +190,9 @@ export function TransactionWorkspace() {
   const [exportMessage, setExportMessage] = useFeedbackMessage("success");
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState("");
+  const [editingSourceMessages, setEditingSourceMessages] = useState<TransactionSourceMessage[] | null>(null);
+  const [editingSourceError, setEditingSourceError] = useState("");
+  const [sourceWarningsReviewed, setSourceWarningsReviewed] = useState(false);
   const [editingDate, setEditingDate] = useState("");
   const [editingTime, setEditingTime] = useState("");
   const [editingType, setEditingType] = useState<TransactionType>("expense");
@@ -343,6 +349,7 @@ export function TransactionWorkspace() {
     transferAccountDraft.current = null;
     saveKey.current = `manual-entry:${crypto.randomUUID()}`;
     setEditingRecord(null); setEditingTransactionId("");
+    setEditingSourceMessages(null); setEditingSourceError(""); setSourceWarningsReviewed(false);
     setEditingDate(defaults?.date ?? currentDate()); setEditingTime(defaults?.time ?? currentTime());
     setEditingType(defaults?.type ?? "expense"); setEditingDirection(directionForType(defaults?.type ?? "expense"));
     setEditingAccountId(defaults?.account ?? ""); setReportingAccount(defaults?.account ?? ""); setEditingTransferAccountId("");
@@ -546,6 +553,7 @@ export function TransactionWorkspace() {
     if (controller.signal.aborted) return;
     setEditingRecord(transaction);
     setEditingTransactionId(transactionId);
+    setEditingSourceMessages(null); setEditingSourceError(""); setSourceWarningsReviewed(false);
     transferAccountDraft.current = null;
     setEditingDate(transaction.date);
     setEditingTime(transaction.time ?? "");
@@ -583,6 +591,16 @@ export function TransactionWorkspace() {
     if (saveInFlight.current) return;
     const token = getAccessToken();
     if (!token) return setFormError("Sign in before saving a transaction.");
+    if (editorMode === "edit" && editingSourceMessages === null) {
+      setFormError(editingSourceError
+        ? "Could not check attached SMS. Open Original SMS and retry loading it before saving."
+        : "Wait for the attached SMS check to finish before saving.");
+      return;
+    }
+    if (sourceWarnings.length && !sourceWarningsReviewed) {
+      setFormError("Review the SMS evidence warnings and confirm your choice before saving.");
+      return;
+    }
     const errors = { ...nativeFieldErrors(event.currentTarget), ...reviewFieldErrors({ account: editingAccountId, other: editingTransferAccountId, amount: editingAmount, type: editingType, category: editingCategoryId }) };
     if (Object.keys(errors).length) {
       setFieldErrors(errors); setFormError("Check the highlighted fields."); focusFieldError(event.currentTarget, errors); return;
@@ -661,6 +679,15 @@ export function TransactionWorkspace() {
     displayedFilters.category ? categoryNames.get(displayedFilters.category) ?? "Selected category" : "", displayedFilters.date_field === "date" ? "" : displayedFilters.date_field === "created_at" ? "Added date" : "Updated date"].filter(Boolean).join(" · ");
 
   const editingTransaction = editingRecord ?? undefined;
+  const sourceWarnings = editorMode === "edit" && loadState.status === "ready" ? smsEvidenceWarnings({
+    account: loadState.accounts.find(account => account.id === editingAccountId),
+    categoryName: loadState.categories.find(category => category.id === editingCategoryId)?.name ?? "",
+    counterparty: editingCounterpartyText,
+    methods: loadState.paymentMethods,
+    note: editingNote,
+    sources: editingSourceMessages,
+    transactionType: editingType,
+  }) : [];
   const balanceAccountId = editingAccountId;
   const requiresLinkedCorrection = Boolean(editingTransaction && (
     editingTransaction.statement_evidence_count > 0 || (editingTransaction.transfer_evidence.length > 1 &&
@@ -749,9 +776,16 @@ export function TransactionWorkspace() {
             onChangeCapture={event => {
               const target = event.target as HTMLInputElement;
               if (target.name) setFieldErrors(current => { const next = { ...current }; delete next[target.name]; return next; });
+              if (["account", "category", "counterparty_text", "note"].includes(target.name)) setSourceWarningsReviewed(false);
             }}>
             <div className="transaction-editor-scroll compact-editor"><div className="transaction-editor-fields compact-editor-grid">
-            {editorMode === "edit" ? <TransactionSourceMessages key={editingTransactionId} transactionId={editingTransactionId} /> : null}
+            {editorMode === "edit" ? <TransactionSourceMessages key={editingTransactionId} transactionId={editingTransactionId} onMessages={setEditingSourceMessages} onLoadError={setEditingSourceError} /> : null}
+            {editorMode === "edit" && editingSourceMessages === null ? <p className="field--wide" role="status">{editingSourceError ? "SMS check failed. Open Original SMS and retry before saving." : "Checking attached SMS before this entry can be saved…"}</p> : null}
+            {sourceWarnings.length ? <div className="transaction-source-warning field--wide" role="alert">
+              <strong>Check this entry against its SMS</strong>
+              <ul>{sourceWarnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
+              <label><input checked={sourceWarningsReviewed} onChange={event => setSourceWarningsReviewed(event.target.checked)} type="checkbox" /> I checked the source and want to save these details</label>
+            </div> : null}
             {editingTransaction?.statement_evidence_count ? <TransactionStatementEvidence key={`statement-${editingTransactionId}`} transactionId={editingTransactionId} /> : null}
             <div className="transaction-datetime compact-editor-datetime" role="group" aria-label="Date and time">
               <label className="field">
@@ -993,6 +1027,7 @@ export function TransactionWorkspace() {
           </div>
 
           <RecentTransactionAction />
+          <TransactionIssueAudit onEdit={transactionId => void selectTransactionForEdit(transactionId)} />
           {formMessage ? <p className="form-success">{formMessage}</p> : null}
 
           <form className="transaction-filters" onSubmit={handleFilterSubmit}>

@@ -4803,6 +4803,45 @@
         ]
       }
     },
+    "/api/transactions/issues/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionIssuePage"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/transactions/link-transfer/": {
       "post": {
         "requestBody": {
@@ -6764,6 +6803,13 @@
         "role"
       ],
       "type": "object"
+    },
+    "LevelEnum": {
+      "enum": [
+        "check",
+        "suggestion"
+      ],
+      "type": "string"
     },
     "Logout": {
       "properties": {
@@ -10973,6 +11019,86 @@
         "count",
         "next_offset",
         "results"
+      ],
+      "type": "object"
+    },
+    "TransactionIssue": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "level": {
+          "$ref": "#/components/schemas/LevelEnum"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "level",
+        "text"
+      ],
+      "type": "object"
+    },
+    "TransactionIssuePage": {
+      "properties": {
+        "next_offset": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/components/schemas/TransactionIssueResult"
+          },
+          "type": "array"
+        },
+        "scanned": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "next_offset",
+        "results",
+        "scanned",
+        "total"
+      ],
+      "type": "object"
+    },
+    "TransactionIssueResult": {
+      "properties": {
+        "account": {
+          "type": "string"
+        },
+        "amount": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,12}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "type": "string"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/components/schemas/TransactionIssue"
+          },
+          "type": "array"
+        },
+        "transaction": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "account",
+        "amount",
+        "date",
+        "issues",
+        "transaction"
       ],
       "type": "object"
     },

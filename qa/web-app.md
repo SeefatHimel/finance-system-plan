@@ -1,5 +1,22 @@
 # Web App Q&A
 
+### What does Check transactions do?
+
+The Transactions action scans saved entries in pages of 50 and lists findings
+with a Review entry action. Current learned rules may suggest a different
+category, but the scan never applies it automatically. Reviewers use the
+existing editor and attached source evidence to decide what to change.
+
+### How does editing flag a mismatch with the original SMS?
+
+When a linked SMS shows a known bank sender that differs from the selected
+ledger account's known provider, transaction editing surfaces the conflict.
+A transaction edit waits for its SMS source check; a failed load can be retried
+from Original SMS before saving.
+A generic deposit SMS also prompts review of category, counterparty, and note
+because its purpose is not stated. Saving requires an explicit acknowledgment
+of these warnings, while preserving the option to use other evidence.
+
 ### How do profile editing and light/dark appearance work?
 
 The avatar menu opens a dedicated responsive profile page. Name and email are
