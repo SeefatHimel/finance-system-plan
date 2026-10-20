@@ -34,6 +34,15 @@ from apps.transactions.transfers import (
 
 from .insights import merchant_text
 from .link_validation import accepted_link_issues
+from .rounding import (
+    amount_candidates,
+    automatic_balance_choice,
+    equivalent_amount,
+    has_separate_fee,
+    mark_fee_rows,
+    nearby_amount,
+    nearby_candidates,
+)
 from .services import (
     ReviewConflict,
     dates_for,
@@ -48,7 +57,7 @@ NON_FINANCIAL = {"unknown", "otp_or_security", "balance_notice", "promotional"}
 
 
 def insignificant_bdt_balance_difference(left, right, currency):
-    """Sub-taka source differences still need a balance choice, not an extra acknowledgment."""
+    """Sub-taka BDT reports automatically use the higher exact value."""
     return (
         currency == "BDT"
         and left is not None
@@ -88,9 +97,12 @@ def pair_signals(row, candidate):
         or account.currency != row.batch.currency
         or direction != row.direction
         or not row.amount
-        or row.amount != candidate.amount
+        or not candidate.amount or candidate.amount <= 0 or row.amount <= 0
+        or not equivalent_amount(row.amount, candidate.amount, row.batch.currency)
         or not dates_for(row)
     ):
+        return None
+    if row.amount != candidate.amount and has_separate_fee(row):
         return None
     other_account = (
         candidate.account
@@ -140,15 +152,21 @@ def pair_signals(row, candidate):
         return None
     if distance > 1 and not (same_reference or same_balance or near_balance):
         return None
+    if nearby_amount(row.amount, candidate.amount, row.batch.currency) and (
+        row.balance_after is not None and candidate.balance_after is not None
+        and not equivalent_amount(row.balance_after, candidate.balance_after, row.batch.currency)
+    ):
+        return None
     conflict = (
-        row.balance_after is not None
-        and candidate.balance_after is not None
-        and row.balance_after != candidate.balance_after
+        row.balance_after is not None and candidate.balance_after is not None
+        and not equivalent_amount(row.balance_after, candidate.balance_after, row.batch.currency)
     )
     reasons = [
-        "Same reporting account, currency, amount and debit/credit direction.",
+        "Same reporting account, currency and debit/credit direction; amounts agree within the BDT rounding rule.",
         f"Date difference: {distance} days.",
     ]
+    if row.amount != candidate.amount:
+        reasons.append(f"Amounts: statement {row.amount}, SMS {candidate.amount}. Difference under BDT 1; using {max(row.amount, candidate.amount)} automatically.")
     if same_reference:
         reasons.append("Reference agrees.")
     if same_balance:
@@ -186,26 +204,24 @@ def has_competing_sources(row, candidate):
 
     days = dates_for(row)
     low, high = min(days) - timedelta(days=3), max(days) + timedelta(days=3)
-    candidates = ParsedMessageCandidate.objects.filter(
+    candidates = amount_candidates(ParsedMessageCandidate.objects.filter(
         user_id=row.batch.user_id,
         status="needs_review",
         transaction__isnull=True,
-        amount=row.amount,
         raw_message__received_at__date__range=(low, high),
-    ).exclude(pk=candidate.pk).select_related(
+    ), [row.amount], row.batch.currency).exclude(pk=candidate.pk).select_related(
         "account", "destination_account", "raw_message"
     )
     if any(pair_signals(row, item) for item in candidates.iterator()):
         return True
     received = timezone.localtime(candidate.raw_message.received_at).date()
     low, high = received - timedelta(days=3), received + timedelta(days=3)
-    rows = StatementRow.objects.filter(
+    rows = amount_candidates(StatementRow.objects.filter(
         batch__user_id=row.batch.user_id,
         batch__account_id=row.batch.account_id,
         state="pending",
         transaction__isnull=True,
-        amount=row.amount,
-    ).filter(
+    ), [candidate.amount], row.batch.currency).filter(
         Q(date__range=(low, high)) | Q(value_date__range=(low, high))
     ).exclude(pk=row.pk).select_related("batch__account", "other_account")
     return any(pair_signals(item, candidate) for item in rows.iterator())
@@ -244,7 +260,7 @@ def pending_sources(user, account_id=None, filters=None):
         rows = list(rows.order_by("id")[: MAX_PENDING + 1])
         amounts = {row.amount for row in rows if row.amount is not None}
         days = [day for row in rows for day in dates_for(row)]
-        candidates = candidates.filter(amount__in=amounts) if amounts else candidates.none()
+        candidates = amount_candidates(candidates, amounts)
         if days:
             candidates = candidates.filter(
                 raw_message__received_at__date__range=(
@@ -258,7 +274,7 @@ def pending_sources(user, account_id=None, filters=None):
         candidates = list(candidates.order_by("id")[: MAX_PENDING + 1])
         amounts = {candidate.amount for candidate in candidates if candidate.amount is not None}
         days = [timezone.localtime(candidate.raw_message.received_at).date() for candidate in candidates]
-        rows = rows.filter(amount__in=amounts) if amounts else rows.none()
+        rows = amount_candidates(rows, amounts)
         if days:
             low, high = min(days) - timedelta(days=3), max(days) + timedelta(days=3)
             rows = rows.filter(Q(date__range=(low, high)) | Q(value_date__range=(low, high)))
@@ -276,6 +292,7 @@ def pending_sources(user, account_id=None, filters=None):
                 "queue": "Too many pending sources to compare safely. Choose an account or shorter date range, or resolve some items first."
             }
         )
+    mark_fee_rows(rows)
     return rows, candidates
 
 
@@ -355,19 +372,19 @@ def unique_pending_pairs_for_rows(rows):
     ]
     if not eligible:
         return {}
+    mark_fee_rows(eligible)
     amounts = {row.amount for row in eligible}
     account_ids = {row.batch.account_id for row in eligible}
     days = [day for row in eligible for day in dates_for(row)]
     candidates = list(
-        ParsedMessageCandidate.objects.filter(
+        amount_candidates(ParsedMessageCandidate.objects.filter(
             user_id=eligible[0].batch.user_id,
             status="needs_review",
             transaction__isnull=True,
-            amount__in=amounts,
             raw_message__received_at__date__range=(
                 min(days) - timedelta(days=3), max(days) + timedelta(days=3)
             ),
-        ).filter(
+        ), amounts).filter(
             Q(account_id__in=account_ids) | Q(destination_account_id__in=account_ids)
         ).select_related(
             "account", "destination_account", "raw_message"
@@ -379,9 +396,9 @@ def unique_pending_pairs_for_rows(rows):
     for candidate in candidates:
         account, direction, _ = sms_observation(candidate)
         if account and candidate.amount is not None:
-            buckets[(account.pk, direction, candidate.amount)].append(candidate)
+            buckets[(account.pk, direction, int(candidate.amount))].append(candidate)
     if sum(
-        len(buckets[(row.batch.account_id, row.direction, row.amount)])
+        len(nearby_candidates(buckets, row.batch.account_id, row.direction, row.amount, row.batch.currency))
         for row in eligible
     ) > 50000:
         return {row.pk: None for row in eligible}
@@ -389,7 +406,7 @@ def unique_pending_pairs_for_rows(rows):
     for row in eligible:
         matches = [
             candidate
-            for candidate in buckets[(row.batch.account_id, row.direction, row.amount)]
+            for candidate in nearby_candidates(buckets, row.batch.account_id, row.direction, row.amount, row.batch.currency)
             if pair_signals(row, candidate)
         ]
         if len(matches) == 1:
@@ -456,10 +473,10 @@ def queue(user, filters):
     for candidate in candidates:
         account, direction, _ = sms_observation(candidate)
         if account and candidate.amount:
-            buckets[(account.pk, direction, candidate.amount)].append(candidate)
+            buckets[(account.pk, direction, int(candidate.amount))].append(candidate)
     if (
         sum(
-            len(buckets[(row.batch.account_id, row.direction, row.amount)])
+            len(nearby_candidates(buckets, row.batch.account_id, row.direction, row.amount, row.batch.currency))
             for row in rows
         )
         > 50000
@@ -472,7 +489,7 @@ def queue(user, filters):
     row_matches = defaultdict(list)
     candidate_matches = defaultdict(list)
     for row in rows:
-        for candidate in buckets[(row.batch.account_id, row.direction, row.amount)]:
+        for candidate in nearby_candidates(buckets, row.batch.account_id, row.direction, row.amount, row.batch.currency):
             signals = pair_signals(row, candidate)
             if signals:
                 row_matches[row.pk].append((candidate, signals))
@@ -740,23 +757,19 @@ def confirm_pair(*, user, row, candidate, payload, request):
             raise ValidationError(
                 {"acknowledge_distinct_ledger_matches": "Confirm that every suggested ledger entry is a different movement."}
             )
-    selected_balance = (
-        candidate.balance_after
-        if payload["balance_source"] == "sms"
-        else row.balance_after
-    )
-    if (
-        not target
-        and selected_balance is None
-        and (candidate.balance_after is not None or row.balance_after is not None)
-    ):
-        raise ValidationError(
-            {"balance_source": "That source has no reported balance. Choose the source that reports one."}
-        )
+    has_fee = row.batch.rows.filter(position=row.position, component="fee").exists()
+    incoming_balances = {"sms": candidate.balance_after, "statement": None if has_fee else row.balance_after}
+    automatic_source = automatic_balance_choice(incoming_balances, row.batch.currency)
+    balance_source = automatic_source or payload["balance_source"]
+    selected_balance = candidate.balance_after if balance_source == "sms" else row.balance_after
+    if not target and selected_balance is None and any(value is not None for value in incoming_balances.values()):
+        raise ValidationError({"balance_source": "That source has no reported balance. Choose the source that reports one."})
     existing_report = None
     fill_source = None
     can_fill = False
-    has_fee = row.batch.rows.filter(position=row.position, component="fee").exists()
+    automatic_target_source = None
+    balance_choice = None
+    ledger_before = transaction_snapshot(target) if target else None
     if target and target.type == "transfer":
         ensure_transfer_evidence(target)
         existing_report = account_reports(target)[0].get(row.batch.account_id)
@@ -764,41 +777,22 @@ def confirm_pair(*, user, row, candidate, payload, request):
     if target:
         from apps.reconciliation.evidence import missing_report_choice
 
-        fill_source = missing_report_choice(
-            target, row.batch.account_id,
-            {"sms": candidate.balance_after, "statement": row.balance_after},
-            payload["balance_source"], excluded={"statement"} if has_fee else (),
-        )
-    balance_choice = None
-    if target:
         matches, _ = find_matches([row])
-        selected = next(
-            (match for match in matches[row.pk] if match["id"] == str(target.pk)), None
-        )
-        effective_balance = (
-            Decimal(selected["effective_balance_after"])
-            if selected and selected["effective_balance_after"] is not None
-            else None
+        selected = next((match for match in matches[row.pk] if match["id"] == str(target.pk)), None)
+        effective_balance = Decimal(selected["effective_balance_after"]) if selected and selected["effective_balance_after"] is not None else None
+        automatic_target_source = automatic_balance_choice({**incoming_balances, "existing": effective_balance}, row.batch.currency)
+        # An intentionally cleared report remains protected. Unknown is not zero.
+        if target.type == "transfer" and effective_balance is None and not can_fill:
+            automatic_target_source = None
+        fill_source = missing_report_choice(
+            target, row.batch.account_id, incoming_balances,
+            (automatic_target_source or payload["balance_source"]) if can_fill else ("existing" if automatic_target_source else payload["balance_source"]),
+            excluded={"statement"} if has_fee else (),
         )
         if selected and not can_fill:
-            # Unified linking preserves known or reviewed account reports. Ordinary
-            # statement review still offers explicit balance/detail replacement.
-            balance_choice = {
-                "keep": "existing",
-                "existing_balance_after": effective_balance,
-                "statement_balance_after": row.balance_after,
-            }
-        if (
-            effective_balance is not None
-            and candidate.balance_after is not None
-            and candidate.balance_after != effective_balance
-            and not payload["acknowledge_conflict"]
-        ):
-            raise ValidationError(
-                {
-                    "acknowledge_conflict": "The SMS and existing ledger report different balances. Review both before linking."
-                }
-            )
+            balance_choice = {"keep": "existing", "existing_balance_after": effective_balance, "statement_balance_after": row.balance_after}
+        if effective_balance is not None and candidate.balance_after is not None and not equivalent_amount(effective_balance, candidate.balance_after, row.batch.currency) and not payload["acknowledge_conflict"]:
+            raise ValidationError({"acknowledge_conflict": "The SMS and existing ledger report different balances. Review both before linking."})
     before = row_snapshot(row)
     decide_locked(
         row=row,
@@ -821,10 +815,10 @@ def confirm_pair(*, user, row, candidate, payload, request):
         # Unified review confirms the final draft and any existing ledger
         # target together. Preserve the target's category when attaching its
         # statement evidence; direct statement links ask separately.
-        require_category_choice=False,
+        require_category_choice=False, source_amounts=(candidate.amount,),
     )
     record = row.transaction
-    if has_fee and payload["balance_source"] == "statement" and not target:
+    if has_fee and balance_source == "statement" and not target:
         raise ValidationError(
             {
                 "balance_source": "This statement balance includes a separate fee. Choose the SMS report, or review the fee separately."
@@ -835,6 +829,8 @@ def confirm_pair(*, user, row, candidate, payload, request):
             selected_balance if record.account_id == row.batch.account_id else None
         )
         record.source = "sms"
+    elif automatic_target_source and target.type != "transfer":
+        record.balance_after = {**incoming_balances, "existing": target.balance_after}[automatic_target_source]
     if not record.raw_message_id and not (target and record.type == "transfer"):
         # Attaching the other account's SMS must not move the primary report.
         record.raw_message = candidate.raw_message
@@ -863,7 +859,7 @@ def confirm_pair(*, user, row, candidate, payload, request):
             },
             candidate,
         )
-        report_source = fill_source if target else payload["balance_source"]
+        report_source = (automatic_target_source or fill_source) if target else balance_source
         if report_source == "sms":
             selected_evidence = sms_evidence
         elif report_source == "statement":
@@ -879,7 +875,7 @@ def confirm_pair(*, user, row, candidate, payload, request):
             and not (target and can_fill and fill_source is None)
         ):
             select_effective_account_report(record, selected_evidence)
-        if target and fill_source:
+        if target and (fill_source or automatic_target_source):
             _, primary = account_reports(record)
             if primary and record.balance_after != primary.balance_after:
                 record.balance_after = primary.balance_after
@@ -895,7 +891,7 @@ def confirm_pair(*, user, row, candidate, payload, request):
         {
             "decision": "unified_match",
             "sms_candidate": str(candidate.pk),
-            "balance_source": payload["balance_source"],
+            "balance_source": automatic_target_source or balance_source,
             "filled_report_from": fill_source,
         },
     )
@@ -903,8 +899,10 @@ def confirm_pair(*, user, row, candidate, payload, request):
         user=user,
         action=AuditLogEntry.Action.UPDATED,
         entity=record,
-        after=transaction_snapshot(record),
+        before=ledger_before, after=transaction_snapshot(record),
         metadata={
+            "rounding_policy": "higher_bdt_under_1",
+            "source_amounts": {"statement": str(row.amount), "sms": str(candidate.amount)},
             "statement_row": str(row.pk),
             "sms_candidate": str(candidate.pk),
             "decision": "unified_match",

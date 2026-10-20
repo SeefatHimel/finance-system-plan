@@ -290,7 +290,7 @@ class UnifiedReviewTests(APITestCase):
         pair = response.data["results"][0]
         self.assertEqual(pair["statement"]["id"], str(self.row.pk))
         self.assertEqual(pair["sms"]["id"], str(self.sms.pk))
-        self.assertTrue(pair["match"]["conflict"])
+        self.assertFalse(pair["match"]["conflict"])
         response = self.client.get(
             reverse("unified-pending"),
             {"search": "Synthetic Cafe", "limit": 1},
@@ -322,7 +322,7 @@ class UnifiedReviewTests(APITestCase):
             ("all", 1),
             ("possible", 1),
             ("strong", 0),
-            ("balance_differs", 1),
+            ("balance_differs", 0),
             ("type_differs", 0),
             ("needs_correction", 0),
         ):
@@ -351,7 +351,7 @@ class UnifiedReviewTests(APITestCase):
         self.assertEqual(self.sms.transaction_id, record.pk)
         self.assertEqual(self.sms.status, "confirmed")
         self.assertEqual(self.row.state, "linked")
-        self.assertEqual(record.balance_after, Decimal("900.00"))
+        self.assertEqual(record.balance_after, Decimal("900.07"))
         self.assertEqual(self.row.balance_after, Decimal("900.07"))
         self.assertEqual(self.sms.balance_after, Decimal("900.00"))
         self.assertEqual(record.raw_message_id, self.sms.raw_message_id)
@@ -558,8 +558,8 @@ class UnifiedReviewTests(APITestCase):
         response = self.confirm(transaction=str(record.pk), balance_source="existing")
         self.assertEqual(response.status_code, 200, response.data)
         record.refresh_from_db()
-        self.assertEqual(record.balance_after, Decimal("900.05"))
-        self.assertEqual(reported_values(record)[self.account.pk], Decimal("900.05"))
+        self.assertEqual(record.balance_after, Decimal("900.07"))
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("900.07"))
 
     def test_stale_changed_resolved_sources_and_ownership(self):
         self.assertEqual(
@@ -625,7 +625,7 @@ class UnifiedReviewTests(APITestCase):
         signals = pair_signals(self.row, self.sms)
         self.assertIsNotNone(signals)
         self.assertEqual(signals["strength"], "possible")
-        self.assertTrue(signals["conflict"])
+        self.assertFalse(signals["conflict"])
         self.assertIn("Reported balances differ by less than BDT 1.", signals["reasons"])
         response = self.client.get(reverse("unified-pending"))
         self.assertEqual(response.data["overview"]["matched"], 1)
@@ -797,7 +797,7 @@ class UnifiedReviewTests(APITestCase):
         response = self.confirm(transaction=str(record.pk), balance_source="existing")
         self.assertEqual(response.status_code, 200, response.data)
         record.refresh_from_db()
-        self.assertEqual(record.balance_after, Decimal("900.00"))
+        self.assertEqual(record.balance_after, Decimal("900.07"))
         self.assertEqual(record.raw_message_id, raw.pk)
         evidence = self.client.get(
             reverse("transaction-source-messages", args=[record.pk])
@@ -932,7 +932,7 @@ class UnifiedReviewTests(APITestCase):
             {item.balance_after for item in evidence},
             {Decimal("900.00"), Decimal("900.07")},
         )
-        self.assertEqual(reported_values(record)[self.account.pk], Decimal("900.00"))
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("900.07"))
 
     def test_sms_ledger_balance_conflict_is_reviewed_when_statement_has_no_balance(
         self,
@@ -1169,34 +1169,15 @@ class UnifiedReviewTests(APITestCase):
                 self.sms.save()
                 record.delete()
 
-    def test_differing_incoming_reports_need_explicit_source_even_after_acknowledgement(
-        self,
-    ):
+    def test_sub_taka_missing_report_uses_higher_source_without_extra_choice(self):
         record = self.incoming_pair_and_existing_transfer()
         self.row.balance_after = Decimal("450.14")
         self.row.save()
-        before = self.row.version
-        response = self.confirm(transaction=str(record.pk), balance_source="existing")
-        self.assertEqual(response.status_code, 400, response.data)
-        self.assertIn("balance_source", response.data)
-        self.assertEqual(record.transfer_evidence.count(), 0)
-        self.row.refresh_from_db()
-        self.sms.refresh_from_db()
-        self.assertEqual(self.row.version, before)
-        self.assertIsNone(self.row.transaction_id)
-        self.assertEqual(self.sms.status, "needs_review")
-        response = self.confirm(transaction=str(record.pk), balance_source="sms")
+        response = self.confirm(transaction=str(record.pk), balance_source="existing", acknowledge_conflict=False)
         self.assertEqual(response.status_code, 200, response.data)
         record.refresh_from_db()
-        self.assertEqual(reported_values(record)[self.account.pk], Decimal("450.07"))
-        self.assertEqual(
-            set(
-                record.transfer_evidence.filter(account=self.account).values_list(
-                    "balance_after", flat=True
-                )
-            ),
-            {Decimal("450.07"), Decimal("450.14")},
-        )
+        self.assertEqual(reported_values(record)[self.account.pk], Decimal("450.14"))
+        self.assertEqual(set(record.transfer_evidence.filter(account=self.account).values_list("balance_after", flat=True)), {Decimal("450.07"), Decimal("450.14")})
 
     def test_explicit_statement_balance_for_missing_receiving_report(self):
         record = self.incoming_pair_and_existing_transfer()

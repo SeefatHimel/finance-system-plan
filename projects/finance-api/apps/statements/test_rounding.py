@@ -1,4 +1,4 @@
-"""Synthetic sub-taka suggestions require explicit atomic correction decisions."""
+"""Synthetic sub-taka links use higher values atomically and validate supplied snapshots."""
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -65,7 +65,7 @@ class StatementRoundingTests(APITestCase):
             **fields,
         )
 
-    def test_possible_only_reading_changes_nothing_and_plain_link_requires_confirmation(
+    def test_possible_reading_is_read_only_and_link_automatically_uses_higher_values(
         self,
     ):
         row, record = self.pair()
@@ -73,18 +73,18 @@ class StatementRoundingTests(APITestCase):
         self.assertEqual(len(matches), 1)
         match = matches[0]
         self.assertEqual(match["strength"], "possible")
-        self.assertFalse(match["can_link"])
+        self.assertTrue(match["can_link"])
         self.assertTrue(match["rounding_correction"]["can_correct"])
         self.assertEqual(match["rounding_correction"]["difference"], "+0.37")
         response = self.decide(
             row, "link", transaction=str(record.pk), acknowledge_issues=True
         )
-        self.assertEqual(response.status_code, 400, response.data)
-        self.assertIn("amount_correction", response.data)
+        self.assertEqual(response.status_code, 200, response.data)
         record.refresh_from_db()
         row.refresh_from_db()
-        self.assertEqual(record.amount, Decimal("50.00"))
-        self.assertIsNone(row.transaction_id)
+        self.assertEqual(record.amount, Decimal("50.37"))
+        self.assertEqual(record.balance_after, Decimal("950.70"))
+        self.assertEqual(row.transaction_id, record.pk)
 
     def test_correction_links_once_audits_both_exact_amounts_and_preserves_source(self):
         row, record = self.pair()
@@ -110,17 +110,8 @@ class StatementRoundingTests(APITestCase):
         self.assertEqual(repeat.status_code, 200, repeat.data)
         self.assertEqual(Transaction.objects.count(), 1)
 
-    def test_missing_balance_choice_and_stale_amount_or_timestamp_do_not_write(self):
+    def test_stale_amount_or_timestamp_does_not_write(self):
         row, record = self.pair()
-        response = self.decide(
-            row,
-            "link",
-            transaction=str(record.pk),
-            acknowledge_issues=True,
-            amount_correction=self.correction(row, record),
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("balance_choice", response.data)
         for fields in (
             {"existing_amount": "50.01"},
             {"statement_amount": "50.38"},
@@ -163,7 +154,7 @@ class StatementRoundingTests(APITestCase):
         row, record = self.pair()
         for fields in (
             {"amount": Decimal("49.37")},
-            {"date": record.date + timedelta(days=1)},
+            {"date": record.date + timedelta(days=4)},
             {"balance_after": Decimal("949.70")},
             {"direction": "credit"},
             {"account": self.wallet},

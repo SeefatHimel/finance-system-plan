@@ -40,10 +40,13 @@ from .insights import analyze, match_signals, remember
 from .link_validation import accepted_link_issues
 from .models import StatementImport, StatementRow
 from .rounding import (
+    automatic_balance_choice,
     correction_guards,
     correction_metadata,
     corroborates,
+    mark_fee_rows,
     nearby_amount,
+    resolved_amount,
 )
 
 MAX_MATCH_HISTORY = 10000
@@ -378,6 +381,7 @@ def evaluate_observation(row, record, observation, compatible_fields, previously
         row.balance_after is not None
         and reported_balance is not None
         and not balance_matches
+        and not nearby_amount(row.balance_after, reported_balance, row.batch.currency)
     )
     signals, reasons, extra_score = match_signals(
         row,
@@ -440,6 +444,7 @@ def _find_statement_matches(rows):
         return results, False
     batch = pending[0].batch
     days = [d for r in pending for d in dates_for(r)]
+    mark_fee_rows(pending)
     amounts = {r.amount for r in pending}
     amount_query = Q(amount__in=amounts)
     if batch.currency == "BDT":
@@ -658,6 +663,7 @@ def _find_statement_matches(rows):
                 row.balance_after is not None
                 and effective_balance is not None
                 and row.balance_after != effective_balance
+                and not nearby_amount(row.balance_after, effective_balance, batch.currency)
             )
             if (
                 rounding
@@ -670,7 +676,7 @@ def _find_statement_matches(rows):
             reasons = [
                 "Same account perspective, currency, direction and amount."
                 if compatible_fields
-                else "Same account path, direction and date with a small BDT amount difference. Review both exact values before correcting or linking."
+                else "Same account path, direction and date with a small BDT amount difference. The higher amount is used automatically when linked; both exact sources are retained."
                 if rounding
                 else "This previously seen source has corrected ledger fields. Correct the draft to match its amount, account and direction before linking.",
                 f"Date difference: {distance} days.",
@@ -762,7 +768,7 @@ def _find_statement_matches(rows):
                         else None,
                         "detail_suggestions": detail_suggestions(row, record),
                         "conflict": conflict,
-                        "can_link": compatible_fields and record.id not in occupied,
+                        "can_link": (compatible_fields and record.id not in occupied) or (rounding and correction_metadata(row, record, occupied)["can_correct"]),
                         "rounding_correction": correction_metadata(
                             row, record, occupied
                         )
@@ -896,8 +902,10 @@ def touch(row, user, before, metadata=None):
 
 def decide_locked(
     *, row, user, payload, request, combining_pending_sms=False,
-    require_category_choice=True,
+    require_category_choice=True, source_amounts=(),
 ):
+    # Internal source amounts come only from locked, validated pending SMS/PDF
+    # decisions. This is not a public field permitting arbitrary ledger edits.
     action = payload["action"]
     target = payload.get("transaction")
     if resolved(row) and action not in {"unlink", "reopen"}:
@@ -1015,12 +1023,6 @@ def decide_locked(
                 raise ReviewConflict(
                     "The reviewed amounts or transaction changed. Reload the row and confirm the correction again."
                 )
-            if rounding and not correction:
-                raise ValidationError(
-                    {
-                        "amount_correction": "Amounts differ. Explicitly confirm the correction to the saved transaction before linking."
-                    }
-                )
             if correction and not rounding:
                 raise ValidationError(
                     {
@@ -1098,6 +1100,15 @@ def decide_locked(
                     target.category = selected_category
                     target.save(update_fields=("category", "updated_at"))
             choice = payload.get("balance_choice")
+            current_balance = Decimal(match["effective_balance_after"]) if match["effective_balance_after"] is not None else None
+            if choice and (choice["existing_balance_after"] != current_balance or choice["statement_balance_after"] != row.balance_after):
+                raise ReviewConflict("Reported balances changed. Reload the row and choose again.")
+            automatic = automatic_balance_choice({
+                "existing": Decimal(match["effective_balance_after"]) if match["effective_balance_after"] is not None else None,
+                "statement": row.balance_after,
+            }, row.batch.currency)
+            if automatic:
+                choice = {"keep": automatic, "existing_balance_after": Decimal(match["effective_balance_after"]), "statement_balance_after": row.balance_after}
             if match["conflict"] and not choice:
                 raise ValidationError(
                     {
@@ -1121,17 +1132,17 @@ def decide_locked(
                     {"balance_choice": "The statement has no reported balance to use."}
                 )
             row.transaction = target
-            if correction:
+            chosen_amount = resolved_amount([row.amount, target.amount, *source_amounts], row.batch.currency) if rounding or source_amounts else target.amount
+            if chosen_amount != target.amount:
                 amount_resolution = {
-                    "existing_amount": str(target.amount),
-                    "statement_amount": str(row.amount),
+                    "existing_amount": str(target.amount), "statement_amount": str(row.amount),
+                    "source_amounts": [str(value) for value in source_amounts],
+                    "selected_amount": str(chosen_amount), "policy": "higher_bdt_under_1",
                 }
-                serializer = TransactionSerializer(
-                    target,
-                    data={"amount": str(row.amount), "allow_linked_correction": True},
-                    partial=True,
-                    context={"request": request},
-                )
+                # Re-check dependencies if another incoming source raises the amount.
+                if correction_guards(Transaction.objects.filter(pk=target.pk)).get().rounding_has_dependencies:
+                    raise ValidationError({"amount": "This correction affects linked statement, debt or bill records. Review those records separately."})
+                serializer = TransactionSerializer(target, data={"amount": str(chosen_amount), "allow_linked_correction": True}, partial=True, context={"request": request})
                 serializer.is_valid(raise_exception=True)
                 target = serializer.save()
                 row.transaction = target
@@ -1141,6 +1152,7 @@ def decide_locked(
             if choice:
                 balance_resolution = {
                     "account": str(row.batch.account_id),
+                    "policy": "higher_bdt_under_1" if automatic else "reviewed",
                     "keep": choice["keep"],
                     "existing_balance_after": str(existing_balance)
                     if existing_balance is not None
@@ -1223,7 +1235,7 @@ def decide_locked(
                 "category": str(row.category_id) if row.category_id else None,
                 "type": row.type,
                 "direction": row.direction,
-                "amount": str(row.amount),
+                "amount": str(resolved_amount([row.amount, *source_amounts], row.batch.currency)) if source_amounts else str(row.amount),
                 "date": row.date.isoformat(),
                 "time": row.time.isoformat() if row.time else None,
                 "balance_after": None

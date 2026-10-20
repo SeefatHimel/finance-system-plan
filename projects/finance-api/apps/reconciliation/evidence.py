@@ -7,15 +7,20 @@ from apps.transactions.balance_reports import can_fill_missing_transfer_balance
 
 
 def identity_issues(
-    *, record, user_id, account, currency, amount, direction, other_id=None
+    *, record, user_id, account, currency, amount, direction, other_id=None, allow_rounding=False
 ):
+    from apps.statements.rounding import equivalent_amount
+    amount_agrees = record.amount == amount or (
+        allow_rounding and amount is not None and record.amount >= amount
+        and equivalent_amount(record.amount, amount, currency)
+    )
     incoming = record.type == "transfer" and record.transfer_account_id == account.pk
     counterpart = record.account_id if incoming else record.transfer_account_id
     if (
         record.user_id != user_id
         or account.user_id != user_id
         or record.account.user_id != user_id
-        or record.amount != amount
+        or not amount_agrees
         or ("credit" if incoming else record.direction) != direction
         or record.account.currency != currency
         or account.currency != currency
@@ -131,7 +136,7 @@ def ordinary_observations(record, account_id):
             account=account,
             currency=account.currency,
             amount=candidate.amount,
-            direction=direction,
+            direction=direction, allow_rounding=True,
         ):
             continue
         observations.append(
@@ -158,7 +163,7 @@ def ordinary_observations(record, account_id):
             account=row.batch.account,
             currency=row.batch.currency,
             amount=row.amount,
-            direction=row.direction,
+            direction=row.direction, allow_rounding=True,
         ):
             continue
         observations.append(

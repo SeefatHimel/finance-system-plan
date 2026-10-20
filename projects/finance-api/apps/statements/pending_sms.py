@@ -25,6 +25,13 @@ from apps.transactions.transfers import (
 )
 
 from .details import detail_suggestions, draft_merchant
+from .rounding import (
+    amount_candidates,
+    automatic_balance_choice,
+    equivalent_amount,
+    mark_fee_rows,
+    resolved_amount,
+)
 from .services import (
     MATCH_DAYS,
     ReviewConflict,
@@ -45,8 +52,12 @@ def _eligible(row, candidate):
         return False
     if candidate.status != ParsedMessageCandidate.Status.NEEDS_REVIEW or candidate.transaction_id:
         return False
-    if candidate.amount != row.amount or candidate.transaction_type != row.type:
+    if not equivalent_amount(candidate.amount, row.amount, row.batch.currency) or candidate.transaction_type != row.type:
         return False
+    if candidate.amount != row.amount:
+        from .unified import pair_signals
+        if not pair_signals(row, candidate):
+            return False
     if sms_reporting_account(candidate) != row.batch.account:
         return False
     received = timezone.localtime(candidate.raw_message.received_at).date()
@@ -82,16 +93,15 @@ def pending_sms_matches(row):
     start = min(dates_for(row)) - timedelta(days=MATCH_DAYS)
     end = max(dates_for(row)) + timedelta(days=MATCH_DAYS + 1)
     candidates = (
-        ParsedMessageCandidate.objects.filter(
+        amount_candidates(ParsedMessageCandidate.objects.filter(
             user_id=row.batch.user_id,
             status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
             transaction__isnull=True,
-            amount=row.amount,
             transaction_type=row.type,
             **({"account_id": row.batch.account_id} if row.type != Transaction.Type.TRANSFER else {}),
             raw_message__received_at__date__gte=start,
             raw_message__received_at__date__lt=end,
-        )
+        ), [row.amount], row.batch.currency)
         .select_related("raw_message", "account", "destination_account", "payment_method", "category")
         .order_by("raw_message__received_at", "id")
     )
@@ -152,25 +162,20 @@ def pending_sms_match_counts(rows):
     ]
     if not eligible:
         return counts
-    fee_positions = {
-        (row.batch_id, row.position) for row in rows if row.component == "fee"
-    }
-    for row in eligible:
-        row._has_inline_fee = (row.batch_id, row.position) in fee_positions
+    mark_fee_rows(eligible)
     eligible = [row for row in eligible if not row._has_inline_fee]
     if not eligible:
         return counts
     days = [day for row in eligible for day in dates_for(row)]
     candidates = list(
-        ParsedMessageCandidate.objects.filter(
+        amount_candidates(ParsedMessageCandidate.objects.filter(
             user_id=eligible[0].batch.user_id,
             status=ParsedMessageCandidate.Status.NEEDS_REVIEW,
             transaction__isnull=True,
-            amount__in={row.amount for row in eligible},
             transaction_type__in={row.type for row in eligible},
             raw_message__received_at__date__gte=min(days) - timedelta(days=MATCH_DAYS + 1),
             raw_message__received_at__date__lte=max(days) + timedelta(days=MATCH_DAYS + 1),
-        )
+        ), {row.amount for row in eligible})
         .select_related("raw_message", "account", "destination_account", "payment_method")
         .order_by("id")[:10001]
     )
@@ -180,7 +185,7 @@ def pending_sms_match_counts(rows):
     by_day = defaultdict(list)
     for candidate in candidates:
         key = (
-            candidate.amount,
+            int(candidate.amount),
             candidate.transaction_type,
             timezone.localtime(candidate.raw_message.received_at).date(),
         )
@@ -189,8 +194,9 @@ def pending_sms_match_counts(rows):
         possible = {}
         for date in dates_for(row):
             for offset in range(-MATCH_DAYS, MATCH_DAYS + 1):
-                for candidate in by_day[(row.amount, row.type, date + timedelta(days=offset))]:
-                    possible[candidate.id] = candidate
+                for step in ((-1, 0, 1) if row.batch.currency == "BDT" else (0,)):
+                    for candidate in by_day[(int(row.amount) + step, row.type, date + timedelta(days=offset))]:
+                        possible[candidate.id] = candidate
         matching_count = sum(_eligible(row, candidate) for candidate in possible.values())
         counts[row.id] = matching_count if matching_count <= 200 else None
     return counts
@@ -249,6 +255,11 @@ def combine_pending_sms(*, row, user, payload, request):
         raise ValidationError({"account": "Transfer accounts must use the statement currency."})
     choice = payload.get("balance_choice")
     conflict = reported_balance is not None and row.balance_after is not None and reported_balance != row.balance_after
+    if choice and (choice["existing_balance_after"] != reported_balance or choice["statement_balance_after"] != row.balance_after):
+        raise ReviewConflict("Reported balances changed. Reload and choose again.")
+    automatic = automatic_balance_choice({"existing": reported_balance, "statement": row.balance_after}, row.batch.currency)
+    if automatic:
+        choice = {"keep": automatic, "existing_balance_after": reported_balance, "statement_balance_after": row.balance_after}
     if conflict and not choice:
         raise ValidationError({"balance_choice": "The SMS and statement balances differ. Choose which reported balance to keep."})
     if choice and (choice["existing_balance_after"] != reported_balance or choice["statement_balance_after"] != row.balance_after):
@@ -262,7 +273,7 @@ def combine_pending_sms(*, row, user, payload, request):
         payment_method=candidate.payment_method if candidate.payment_method and candidate.payment_method.account_id == account.id else None,
         raw_message=candidate.raw_message, date=received.date(),
         time=received.time().replace(tzinfo=None, microsecond=0),
-        type=row.type, direction=direction, amount=candidate.amount,
+        type=row.type, direction=direction, amount=resolved_amount([row.amount, candidate.amount], row.batch.currency),
         balance_after=reported_balance if reported_balance is not None else row.balance_after,
         reference=candidate.reference or row.reference,
         counterparty_text=candidate.counterparty_text or draft_merchant(row),
@@ -294,7 +305,7 @@ def combine_pending_sms(*, row, user, payload, request):
     # decision while attaching the same statement evidence.
     linked, _ = decide_locked(
         row=row, user=user, payload=link_payload, request=request,
-        require_category_choice=False,
+        require_category_choice=False, source_amounts=(candidate.amount,),
     )
     candidate.transaction = record
     candidate.status = ParsedMessageCandidate.Status.CONFIRMED

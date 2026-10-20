@@ -1240,9 +1240,9 @@ Matching first requires reporting-account perspective, amount, currency, directi
 and a date within three days. It then requires an independent corroborator:
 matching reference, reported balance, normalized counterparty, or a known transfer
 counterpart account. Amount and date alone never produce a unified-review pair.
-For matching only, reported balances less than BDT 1 apart count as corroborating
-evidence. Their original values remain distinct: the pair stays a possible match
-with a balance conflict, and confirmation still requires an explicit balance choice.
+Reported balances less than BDT 1 apart count as corroborating evidence and
+automatically use the higher report at confirmation, without an extra choice.
+Both original values remain distinct evidence.
 Conflicting nonempty references are rejected, and differing counterparty wording
 is exposed as negative evidence rather than presented as a strong match. Exact
 counterparty wording by itself produces a possible match; a strong label requires
@@ -1270,9 +1270,8 @@ draft and confirms the pair in one database transaction. Date, direction and
 amount corrections must still support a unique match; metadata and balance
 corrections retain the original evidence that established the pair.
 An edited draft requires explicit source-review acknowledgment. A BDT
-statement/SMS balance difference strictly below Tk 1 still requires the user
-to choose which report the ledger uses, but does not require a second conflict
-acknowledgment. Differences of Tk 1 or more and non-BDT differences retain the
+statement/SMS balance difference strictly below Tk 1 automatically uses the
+higher report, without an extra choice or conflict acknowledgment. Differences of Tk 1 or more and non-BDT differences retain the
 acknowledgment requirement. Both original reports remain exact.
 It serializes writers through the shared user lock, locks both sources, rechecks
 pending state and matches, and reuses statement posting/link validation. Any failure
@@ -1359,11 +1358,13 @@ before distributing the updated mobile app.
 
 For an existing transfer, Unified review can fill a genuinely missing report for
 its statement/SMS account. It selects the sole non-null report or an agreed exact
-value; zero and negative balances remain valid. Two different incoming reports
-require explicit `balance_source=sms` or `statement`, even for a difference below
-Tk 1. `balance_source=existing` remains backward compatible: it preserves known
+value; zero and negative balances remain valid. BDT reports less than Tk 1
+apart automatically use the higher value. Larger or non-BDT differences require
+explicit `balance_source=sms` or `statement`. `balance_source=existing` remains backward compatible: it preserves known
 or protected reports, and fills only an eligible missing report when incoming
-values agree or only one source reports a value. A conflicting implicit choice
+values agree, differ by less than Tk 1 in BDT, or only one source reports a value.
+Known same-account reports also use the higher value for a sub-taka BDT difference;
+protected blanks remain unchanged. A larger conflicting implicit choice
 returns HTTP 400 and rolls the entire link back.
 
 `StatementMatch.can_fill_missing_balance` reports eligibility. Effective nulls
@@ -1416,38 +1417,40 @@ ordinary null-balance provenance. See the full request/response, balance policy,
 synthetic test commands and dry-run metadata cleanup instructions in
 [the evidence API guide](../../docs/evidence-reconciliation-api.md).
 
-## Reviewed small amount differences in statement matching
+## Automatic sub-taka source reconciliation
 
-Saved statement rows can suggest an existing ledger movement when the BDT amount
-is different by strictly less than Tk 1.00. These are always **possible** matches,
-never automatic links or equal amounts. Account path, currency and debit/credit
-must agree, and one reporting-account observation must have the same posting or
-value date. Independent evidence is required: both balances within Tk 1.00,
-an exact nonblank reference when a balance is absent, or merchant similarity at
-least 0.8 together with known times within ten minutes. Contradictory known
-balances of Tk 1.00 or more exclude the suggestion. Exact amount suggestions
-rank first; existing history limits still fail closed.
+For BDT only, a nonzero amount or same-account balance difference strictly below
+Tk 1.00 is treated as a rounding difference. SMS/PDF pairs, standalone statement
+links and legacy combined SMS review use the higher exact value automatically
+when the user performs the normal Record/Link action. No additional rounding
+confirmation or balance choice is required. Tk 1.00 and larger differences and
+other currencies retain their existing rejection/review behavior. Compare the
+full range of all participating values; two small differences cannot chain into
+a total difference of Tk 1.00 or more.
 
-`StatementMatch.rounding_correction` supplies both amounts, signed difference,
-transaction update timestamp and correction eligibility. `can_link` remains false.
-An explicit `action=link` with `amount_correction` must echo both exact amounts
-and the reviewed timestamp. Differing balances require a separate exact-value
-`balance_choice`; a category disagreement also retains its explicit category
-choice. The existing row version, ownership, user/transaction locks,
-fresh matching and atomicity checks apply; changed snapshots return 409 without
-partial writes. The API corrects the canonical amount and links the statement
-in one transaction. Repeated accepted requests are idempotent. Audit history
-records both amounts, the balance decision and selected detail changes; original
-PDF extraction and confirmed SMS values remain unchanged.
+Account ownership, reporting perspective, direction, date windows, independent
+corroboration and reciprocal source uniqueness still apply. An amount difference
+with contradictory known balances cannot form a pending SMS/PDF pair. Queue,
+list counts, detail, source filters and confirmation share the same bounded
+candidate discovery. Ambiguous sources stay in individual review; bulk approval
+cannot duplicate a pending pair. Fee-inclusive statement balances remain excluded.
 
-The shortcut is blocked when the ledger transaction already has statement, debt
-or bill dependencies. Correct it through Transactions and revalidate those
-records first. Larger/other-currency differences and pending SMS-to-PDF pairing
-retain their previous exact-amount rules. Bulk approval never accepts a rounding
-suggestion. This is not a financial tolerance or automatic historical repair.
-Deploy the API before the web client; no migration is required. Verify using
-PostgreSQL for row-lock/concurrency coverage:
+Source amounts and balances are immutable evidence: the saved statement draft,
+original extraction, SMS and per-account transfer reports retain both values.
+Only the canonical ledger uses the higher amount/effective balance. Audit entries
+record the sources and selected value. Accepted PDF identity tolerates the lower
+BDT source value so retries and later evidence reads remain consistent. Statement
+link snapshots in optional `amount_correction` and `balance_choice` still reject
+stale reviewed values, even though no extra confirmation is needed. Existing
+statement/debt/bill dependencies block an amount increase; linking a lower source
+to an already higher ledger amount needs no monetary correction. Reviewed null
+transfer reports remain protected and unknown balances are never treated as zero.
+
+Normal review, source versions, ownership locks, atomic rollback and duplicate
+protection remain in force. This does not auto-post, backfill or reprocess saved
+transactions. No migration or APK rebuild is required; deploy API before web.
+Verify with PostgreSQL for concurrent retry coverage:
 
 ```sh
-.venv/bin/python manage.py test apps.statements.test_rounding --noinput
+.venv/bin/python manage.py test apps.statements apps.reconciliation apps.transactions.test_transfers --noinput
 ```

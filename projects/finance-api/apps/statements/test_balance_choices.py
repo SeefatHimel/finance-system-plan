@@ -20,7 +20,7 @@ class StatementBalanceChoiceTests(APITestCase):
     decide = fixtures.SavedStatementTests.decide
     ledger_purchase = fixtures.SavedStatementTests.ledger_purchase
 
-    def choice(self, keep="statement", existing="949.93", incoming="950.00"):
+    def choice(self, keep="statement", existing="948.93", incoming="950.00"):
         return {
             "keep": keep,
             "existing_balance_after": existing,
@@ -28,7 +28,7 @@ class StatementBalanceChoiceTests(APITestCase):
         }
 
     def conflict(self):
-        record = self.ledger_purchase(balance_after="949.93")
+        record = self.ledger_purchase(balance_after="948.93")
         row = self.upload().rows.first()
         return row, record
 
@@ -44,7 +44,7 @@ class StatementBalanceChoiceTests(APITestCase):
         self.assertEqual(Transaction.objects.count(), 1)
 
     def test_each_choice_counts_once_and_preserves_draft_source_and_audit_values(self):
-        for keep, expected in (("existing", "949.93"), ("statement", "950.00")):
+        for keep, expected in (("existing", "948.93"), ("statement", "950.00")):
             with self.subTest(keep=keep):
                 row, record = self.conflict()
                 source = row.extracted
@@ -76,7 +76,7 @@ class StatementBalanceChoiceTests(APITestCase):
                 audit = AuditLogEntry.objects.get(
                     entity_id=str(record.id), metadata__statement_row=str(row.id)
                 )
-                self.assertEqual(audit.before["balance_after"], "949.93")
+                self.assertEqual(audit.before["balance_after"], "948.93")
                 self.assertEqual(audit.after["balance_after"], expected)
                 self.assertEqual(audit.metadata["balance_resolution"]["keep"], keep)
                 self.assertEqual(
@@ -102,7 +102,7 @@ class StatementBalanceChoiceTests(APITestCase):
 
     def test_changed_ledger_or_statement_values_are_rejected_atomically(self):
         row, record = self.conflict()
-        Transaction.objects.filter(pk=record.pk).update(balance_after="949.94")
+        Transaction.objects.filter(pk=record.pk).update(balance_after="948.94")
         response = self.decide(
             row, "link", transaction=str(record.id), balance_choice=self.choice()
         )
@@ -110,12 +110,12 @@ class StatementBalanceChoiceTests(APITestCase):
         row.refresh_from_db()
         self.assertIsNone(row.transaction_id)
         record.refresh_from_db()
-        self.assertEqual(record.balance_after, Decimal("949.94"))
+        self.assertEqual(record.balance_after, Decimal("948.94"))
         response = self.decide(
             row,
             "link",
             transaction=str(record.id),
-            balance_choice=self.choice(existing="949.94", incoming="951.00"),
+            balance_choice=self.choice(existing="948.94", incoming="951.00"),
         )
         self.assertEqual(response.status_code, 409)
         self.assertFalse(
@@ -162,7 +162,7 @@ class StatementBalanceChoiceTests(APITestCase):
         self.assertEqual(record.balance_after, Decimal(0))
 
     def test_receiving_transfer_choice_preserves_sender_and_source_observations(self):
-        for keep, expected in (("existing", "999.93"), ("statement", "1000.00")):
+        for keep, expected in (("existing", "998.93"), ("statement", "1000.00")):
             with self.subTest(keep=keep):
                 row = self.upload().rows.get(direction="credit")
                 record = self.ledger_purchase(
@@ -189,21 +189,21 @@ class StatementBalanceChoiceTests(APITestCase):
                     direction="credit",
                     date=record.date,
                     source="sms",
-                    balance_after="999.93",
+                    balance_after="998.93",
                 )
                 response = self.decide(
                     row,
                     "link",
                     transaction=str(record.id),
                     balance_choice=self.choice(
-                        keep, existing="999.93", incoming="1000.00"
+                        keep, existing="998.93", incoming="1000.00"
                     ),
                 )
                 self.assertEqual(response.status_code, 200, response.data)
                 record.refresh_from_db()
                 observation.refresh_from_db()
                 self.assertEqual(record.balance_after, Decimal("42.00"))
-                self.assertEqual(observation.balance_after, Decimal("999.93"))
+                self.assertEqual(observation.balance_after, Decimal("998.93"))
                 statement_evidence = record.transfer_evidence.get(
                     external_key=f"statement-row:{row.pk}"
                 )
@@ -222,7 +222,7 @@ class StatementBalanceChoiceTests(APITestCase):
                     reported_values(record)[self.bank.id], Decimal(expected)
                 )
                 observation.refresh_from_db()
-                self.assertEqual(observation.balance_after, Decimal("999.93"))
+                self.assertEqual(observation.balance_after, Decimal("998.93"))
                 self.assertFalse(
                     record.transfer_evidence.filter(
                         external_key=f"statement-row:{row.pk}"
@@ -237,7 +237,7 @@ class StatementBalanceChoiceTests(APITestCase):
             type="transfer",
             account=self.wallet,
             transfer_account=self.bank,
-            balance_after="999.93",
+            balance_after="998.93",
             external_key="synthetic-receiving",
         )
         sender = TransferEvidence.objects.create(
@@ -257,14 +257,14 @@ class StatementBalanceChoiceTests(APITestCase):
             direction="credit",
             date=record.date,
             source="sms",
-            balance_after="999.93",
+            balance_after="998.93",
             external_key="synthetic-receiving",
         )
         response = self.decide(
             row,
             "link",
             transaction=str(record.id),
-            balance_choice=self.choice(existing="999.93", incoming="1000.00"),
+            balance_choice=self.choice(existing="998.93", incoming="1000.00"),
         )
         self.assertEqual(response.status_code, 200, response.data)
         record.refresh_from_db()
@@ -272,7 +272,7 @@ class StatementBalanceChoiceTests(APITestCase):
         receiver.refresh_from_db()
         self.assertEqual(record.balance_after, Decimal("1000.00"))
         self.assertEqual(sender.balance_after, Decimal("42.00"))
-        self.assertEqual(receiver.balance_after, Decimal("999.93"))
+        self.assertEqual(receiver.balance_after, Decimal("998.93"))
         self.assertEqual(reported_values(record)[self.wallet.id], Decimal("42.00"))
         row.refresh_from_db()
         self.assertEqual(self.decide(row, "unlink").status_code, 200)
@@ -289,7 +289,7 @@ class StatementBalanceChoiceTests(APITestCase):
         )
         payload = {
             "sender": "CITYBANK",
-            "body": "02-Jan-2026 Tk. 50 Withdrawal Tk. 949.93 Balance",
+            "body": "02-Jan-2026 Tk. 50 Withdrawal Tk. 948.93 Balance",
             "received_at": "2026-01-02T12:00:00+06:00",
             "device_message_id": "synthetic-balance-rescan",
         }
@@ -297,11 +297,11 @@ class StatementBalanceChoiceTests(APITestCase):
         self.assertEqual(first.status_code, 201, first.data)
         candidate = ParsedMessageCandidate.objects.get(id=first.data["candidate"]["id"])
         record = self.ledger_purchase(
-            balance_after="949.93", raw_message=candidate.raw_message
+            balance_after="948.93", raw_message=candidate.raw_message
         )
         candidate.status = "confirmed"
         candidate.transaction = record
-        candidate.balance_after = Decimal("949.93")
+        candidate.balance_after = Decimal("948.93")
         candidate.save()
         row = self.upload().rows.first()
         response = self.decide(
@@ -320,6 +320,6 @@ class StatementBalanceChoiceTests(APITestCase):
             record.refresh_from_db()
             candidate.refresh_from_db()
             self.assertEqual(record.balance_after, Decimal("950.00"))
-            self.assertEqual(candidate.balance_after, Decimal("949.93"))
+            self.assertEqual(candidate.balance_after, Decimal("948.93"))
             self.assertEqual(candidate.transaction_id, record.pk)
         self.assertEqual(Transaction.objects.count(), 1)

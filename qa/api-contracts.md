@@ -583,9 +583,8 @@ returns `next_cursor` plus matched/ambiguous/statement-only/SMS-only overview
 counts, which stay scoped to account and date but are independent of search and
 condition. Unmatched sources and one-to-many ambiguities remain in their individual
 workflows. Legacy offset remains accepted.
-Reported balances less than BDT 1 apart may corroborate a pending pair, but
-the API still reports the exact difference as a conflict and requires the usual
-explicit balance choice before confirmation. The unified confirm endpoint does
+Reported balances less than BDT 1 apart may corroborate a pending pair and
+automatically use the higher exact report, without an extra balance choice. The unified confirm endpoint does
 not require `acknowledge_conflict` solely for that sub-Tk-1 source difference;
 Tk 1 or more and separate ledger conflicts still require it. Neither source
 report is rounded.
@@ -740,16 +739,14 @@ Unknown input fields are rejected. OpenAPI and generated TypeScript cover this
 boundary; web intent/coverage integration follows separately. Migration precedes
 client rollout; installed clients keep their old routes.
 
-### Can clients link statement rows with a slightly different amount?
+### What does a sub-taka difference mean at the API boundary?
 
-Only through the new explicit correction decision. Optional nullable
-`StatementMatch.rounding_correction` describes a review-only, corroborated BDT
-difference below Tk 1.00. Its `can_link` stays false. A reviewed `action=link`
-request must echo both amounts and `transaction_updated_at` in
-`amount_correction`, alongside the row version and any exact balance choice.
-Fresh server validation and dependency checks authorize the atomic correction;
-response flags alone do not. Missing confirmation is 400, stale snapshots 409,
-and retries of an accepted link are idempotent. Other actions cannot supply the
-correction. Old clients safely ignore the additive metadata. Deploy API first;
-no schema migration is needed. OpenAPI, generated TypeScript and the PostgreSQL
-backend schema snapshot describe this boundary.
+For BDT, a strictly sub-Tk-1 difference in eligible SMS/PDF or statement/ledger
+amounts and same-account balances automatically uses the higher exact value at
+link time. Existing shapes remain: `rounding_correction` is comparison metadata,
+`can_link` reports eligibility, optional amount/timestamp snapshots retain stale
+write protection, and normal source versions/ownership checks remain mandatory.
+Supplied balance snapshots are validated before the automatic choice. Larger
+spans and other currencies retain existing rules. Originals remain evidence;
+audit history records the canonical result. This does not auto-post or broaden
+the attachment-only proposal API into financial corrections. No migration.

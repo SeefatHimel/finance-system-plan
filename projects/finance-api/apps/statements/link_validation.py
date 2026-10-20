@@ -15,7 +15,7 @@ def accepted_link_issues(row, record=None):
         currency=batch.currency,
         amount=row.amount,
         direction=row.direction,
-        other_id=row.other_account_id,
+        other_id=row.other_account_id, allow_rounding=True,
     )
     if compatible:
         return []

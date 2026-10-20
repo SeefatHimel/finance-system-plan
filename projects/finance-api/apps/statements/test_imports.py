@@ -221,12 +221,12 @@ class SavedStatementTests(APITestCase):
     def test_pending_sms_balance_conflict_requires_explicit_choice(self):
         batch = self.upload()
         row = batch.rows.filter(component="principal", direction="debit").first()
-        candidate = self.pending_sms(row, balance_after="949.93")
+        candidate = self.pending_sms(row, balance_after="948.93")
         denied = self.decide(row, "combine_sms", candidate=str(candidate.id))
         self.assertEqual(denied.status_code, 400, denied.data)
         self.assertEqual(Transaction.objects.count(), 0)
         chosen = self.decide(row, "combine_sms", candidate=str(candidate.id), balance_choice={
-            "keep": "statement", "existing_balance_after": "949.93",
+            "keep": "statement", "existing_balance_after": "948.93",
             "statement_balance_after": str(row.balance_after),
         })
         self.assertEqual(chosen.status_code, 200, chosen.data)
@@ -1179,18 +1179,17 @@ class StatementComparisonTests(APITestCase):
         self.assertFalse(result["complete"])
         self.assertEqual(result["results"], [])
 
-    def test_small_balance_difference_still_requires_explicit_review(self):
+    def test_small_balance_difference_is_compatible_and_keeps_exact_reports(self):
         from .services import find_matches
 
         batch = self.upload()
         self.ledger_purchase(balance_after="949.67", reference="", note="")
         row = batch.rows.filter(amount="50.00").first()
         match = find_matches([row])[0][row.id][0]
-        self.assertTrue(match["conflict"])
-        self.assertEqual(match["strength"], "possible")
-        self.assertTrue(
-            any("difference +0.33" in reason for reason in match["reasons"])
-        )
+        self.assertFalse(match["conflict"])
+        self.assertTrue(match["can_link"])
+        self.assertEqual(match["effective_balance_after"], "949.67")
+        self.assertEqual(row.balance_after, Decimal("950.00"))
 
     def test_skipped_pdf_rows_still_count_as_statement_coverage(self):
         batch = self.upload()

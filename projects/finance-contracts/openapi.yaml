@@ -6684,7 +6684,7 @@ components:
         amount_correction:
           allOf:
           - $ref: '#/components/schemas/StatementAmountCorrection'
-          description: Explicit link-only correction to the statement amount. Exact reviewed amounts and transaction timestamp must still agree. Never inferred from a normal link request.
+          description: Optional link-only reviewed snapshots. Exact amounts and transaction timestamp must still agree. Eligible sub-taka BDT differences automatically use the higher value.
         balance_choice:
           $ref: '#/components/schemas/StatementBalanceChoice'
         category_choice:
@@ -6900,7 +6900,7 @@ components:
           allOf:
           - $ref: '#/components/schemas/StatementRoundingMatch'
           nullable: true
-          description: Review-only BDT difference strictly below one taka with independent same-day evidence. can_link stays false until a separate explicit correction decision; can_correct may be blocked by dependent records.
+          description: BDT difference strictly below one taka with independent evidence. An eligible link automatically uses the higher exact amount; dependencies may block an amount increase.
         reasons:
           type: array
           items:

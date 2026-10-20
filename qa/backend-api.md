@@ -1159,16 +1159,16 @@ linking so Undo restores them rather than deleting them. Purge expired proposal
 metadata with the bounded dry-run-first management command after at least 30 days;
 canonical source links remain. Historical repair/compensation is still planned.
 
-### How are small statement-versus-ledger amount differences handled safely?
+### How are sub-taka SMS/PDF and ledger differences resolved?
 
-They are possible suggestions rather than equivalent amounts. Only BDT
-nonzero differences below Tk 1.00 qualify, with the same account path, direction
-and observation date plus a close known balance, matching reference, or close
-merchant/time evidence. Contradictory known balances exclude them. Exact matches
-rank first and bounded history checks still fail closed. Normal link and bulk
-approval cannot silently correct money. Explicit reviewed amount/timestamp
-snapshots, the row version and any differing-balance choice are rechecked under
-locks. Correction and linking share one atomic transaction and an audited
-before/after; original sources remain intact. Existing statement/debt/bill
-relationships block the shortcut. Stale requests return 409 and accepted retries
-are idempotent; PostgreSQL tests cover simultaneous submissions. No migration.
+For BDT only, a difference strictly below Tk 1.00 uses the higher exact amount or
+same-account balance at the normal reviewed link action, without an additional
+rounding confirmation. Matching still requires the correct owned account,
+direction, dates, independent evidence and reciprocal uniqueness. The full
+multi-source span must be below Tk 1.00; tolerances cannot chain. Contradictory
+known balances block a fuzzy amount pair. Source filters, list counts, detail and
+confirmation use the same bounded discovery. Larger/non-BDT differences keep
+normal review rules. Canonical values change atomically while original SMS/PDF
+and account-specific reports stay attached. Stale snapshots fail, accepted retries
+are idempotent, fee balances and reviewed nulls stay protected, and dependencies
+block unsafe amount increases. No historical backfill or automatic posting.

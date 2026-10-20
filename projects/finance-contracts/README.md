@@ -755,8 +755,9 @@ write authorization.
 
 When linking an existing transfer, `PairDecision.balance_source=existing` fills an
 eligible missing account report from agreeing or sole available evidence. If the
-incoming SMS and statement differ, the request must explicitly choose `sms` or
-`statement`; acknowledgement alone is insufficient. Those choices are rejected
+incoming SMS and statement differ by Tk 1 or more (or use another currency),
+the request must explicitly choose `sms` or `statement`; sub-taka BDT differences
+automatically use the higher report; acknowledgement alone is insufficient. Those choices are rejected
 for existing known/protected reports. An unavailable source or fee-inclusive
 statement report cannot be selected. Existing link conflict, source-version,
 ownership, transaction-match and retry protections remain in force. No request
@@ -786,23 +787,23 @@ Synthetic request examples are in `examples/evidence-proposal.create.json` and
 fingerprint with the actual preview. Contradiction reasons remain explicit even
 when another report/reference corroborates a match.
 
-## Reviewed statement amount correction
+## Sub-taka reconciliation policy
 
-`StatementMatch` optionally returns nullable `rounding_correction` with exact
-`existing_amount`, `statement_amount`, signed `difference`,
-`transaction_updated_at`, `can_correct` and `blocked_reason`. A possible BDT
-rounding suggestion has `can_link=false`; older clients cannot accidentally link
-it as an equal amount. Same-day account/direction evidence plus independent
-corroboration is required for a strictly sub-taka difference.
+Request/response shapes stay compatible. For BDT differences strictly below
+Tk 1.00, SMS-to-statement and statement-to-ledger matching use the higher exact
+amount/effective same-account balance during the normal reviewed link action.
+No extra rounding acknowledgment is required; Tk 1.00+, non-BDT and unknown
+values keep their existing handling. Full multi-source spans are checked rather
+than chaining pairwise tolerances. Independent evidence, reciprocal uniqueness,
+source versions, ownership, fee exclusions and retry protections still apply.
 
-`StatementDecision.amount_correction` is optional and allowed only with
-`action=link`. Its two exact decimal amounts and transaction timestamp must echo
-the reviewed values. The API recomputes eligibility under locks and corrects the
-canonical amount plus attaches the statement atomically. Existing row version,
-issue acknowledgment, balance-choice and detail-choice checks still apply.
-Missing explicit correction returns 400; stale reviewed amounts/timestamps
-return 409. Dependencies on prior statements, debts or bills block this shortcut.
-An identical accepted retry stays idempotent. Original SMS and PDF values are
-retained; before/after amounts and chosen balance are audited. No migrations;
-deploy API before web. Generated types and the PostgreSQL schema snapshot are
-updated with the existing scripts.
+`StatementMatch.rounding_correction` remains optional nullable comparison
+metadata. Eligible suggestions now have `can_link=true`; dependencies blocking
+an amount increase retain a readable reason. Optional `amount_correction` still
+echoes reviewed amounts/timestamp for stale-write protection, but is no longer
+required solely because amounts differ. Supplied balance snapshots must also
+remain current; an under-Tk-1 choice automatically uses the higher value even
+if an older client requests the lower one. Original SMS/PDF amounts and balances
+remain attached; the selected ledger value is audited. No migrations; deploy
+API before clients. Evidence proposal/apply remains attachment-only and does
+not gain automatic financial mutation through this policy.
