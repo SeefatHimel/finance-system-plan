@@ -785,3 +785,24 @@ Synthetic request examples are in `examples/evidence-proposal.create.json` and
 `examples/evidence-proposal.apply.json`; replace their illustrative UUIDs and
 fingerprint with the actual preview. Contradiction reasons remain explicit even
 when another report/reference corroborates a match.
+
+## Reviewed statement amount correction
+
+`StatementMatch` optionally returns nullable `rounding_correction` with exact
+`existing_amount`, `statement_amount`, signed `difference`,
+`transaction_updated_at`, `can_correct` and `blocked_reason`. A possible BDT
+rounding suggestion has `can_link=false`; older clients cannot accidentally link
+it as an equal amount. Same-day account/direction evidence plus independent
+corroboration is required for a strictly sub-taka difference.
+
+`StatementDecision.amount_correction` is optional and allowed only with
+`action=link`. Its two exact decimal amounts and transaction timestamp must echo
+the reviewed values. The API recomputes eligibility under locks and corrects the
+canonical amount plus attaches the statement atomically. Existing row version,
+issue acknowledgment, balance-choice and detail-choice checks still apply.
+Missing explicit correction returns 400; stale reviewed amounts/timestamps
+return 409. Dependencies on prior statements, debts or bills block this shortcut.
+An identical accepted retry stays idempotent. Original SMS and PDF values are
+retained; before/after amounts and chosen balance are audited. No migrations;
+deploy API before web. Generated types and the PostgreSQL schema snapshot are
+updated with the existing scripts.

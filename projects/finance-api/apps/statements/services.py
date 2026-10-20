@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 from django.db import transaction as db_transaction
 from django.db.models import Q
+from django.db.models.functions import Floor
 from django.utils import timezone
 from rest_framework.exceptions import APIException, ValidationError
 
@@ -38,6 +39,12 @@ from .details import apply_detail_choices, clean_merchant, detail_suggestions
 from .insights import analyze, match_signals, remember
 from .link_validation import accepted_link_issues
 from .models import StatementImport, StatementRow
+from .rounding import (
+    correction_guards,
+    correction_metadata,
+    corroborates,
+    nearby_amount,
+)
 
 MAX_MATCH_HISTORY = 10000
 MATCH_DAYS = 3
@@ -434,14 +441,21 @@ def _find_statement_matches(rows):
     batch = pending[0].batch
     days = [d for r in pending for d in dates_for(r)]
     amounts = {r.amount for r in pending}
+    amount_query = Q(amount__in=amounts)
+    if batch.currency == "BDT":
+        # Coarse integer buckets bound candidate discovery; Decimal evidence
+        # checks below still enforce a strictly sub-taka difference.
+        rounding_buckets = {
+            int(value) + step for value in amounts for step in (-1, 0, 1)
+        }
+        amount_query |= Q(rounding_bucket__in=rounding_buckets)
     from apps.reconciliation.evidence import prefetch_source_observations
 
     history = list(
         prefetch_source_observations(
-            Transaction.objects.filter(
-                user_id=batch.user_id,
-                amount__in=amounts,
-            )
+            correction_guards(Transaction.objects.filter(user_id=batch.user_id))
+            .alias(rounding_bucket=Floor("amount"))
+            .filter(amount_query)
             .filter(
                 Q(
                     date__range=(
@@ -499,7 +513,9 @@ def _find_statement_matches(rows):
     known_ids = {record_id for _, record_id in previous_sources}
     seen = {record.id for record in history}
     additional = (
-        Transaction.objects.filter(user_id=batch.user_id, id__in=known_ids - seen)
+        correction_guards(
+            Transaction.objects.filter(user_id=batch.user_id, id__in=known_ids - seen)
+        )
         .select_related("account", "transfer_account", "category")
         .prefetch_related("transfer_evidence")
     )
@@ -515,6 +531,7 @@ def _find_statement_matches(rows):
         )
     )
     buckets = defaultdict(list)
+    nearby_buckets = defaultdict(list)
     for record in history:
         if record.account.currency != batch.currency:
             continue
@@ -525,11 +542,17 @@ def _find_statement_matches(rows):
             else record.direction
         )
         buckets[(record.amount, perspective)].append(record)
+        nearby_buckets[(int(record.amount), perspective)].append(record)
     for row in pending:
         candidates = []
         possible = {
             record.id: record for record in buckets[(row.amount, row.direction)]
         }
+        if batch.currency == "BDT":
+            for step in (-1, 0, 1):
+                for record in nearby_buckets[(int(row.amount) + step, row.direction)]:
+                    if abs(record.amount - row.amount) < Decimal("1.00"):
+                        possible[record.id] = record
         possible.update(by_fingerprint[row.source_fingerprint])
         for record in possible.values():
             previously_seen = record.id in by_fingerprint[row.source_fingerprint]
@@ -551,6 +574,18 @@ def _find_statement_matches(rows):
                     )
                 )
             )
+            compatible_path = compatible_fields or (
+                record.amount != row.amount
+                and perspective == row.direction
+                and record.account.currency == batch.currency
+                and (
+                    record.account_id == batch.account_id
+                    or (
+                        record.type == "transfer"
+                        and record.transfer_account_id == batch.account_id
+                    )
+                )
+            )
             if record.type == "transfer":
                 if (
                     record.transfer_account is None
@@ -558,7 +593,7 @@ def _find_statement_matches(rows):
                 ):
                     if not previously_seen:
                         continue
-                    compatible_fields = False
+                    compatible_fields = compatible_path = False
                 other_id = (
                     record.account_id
                     if row.direction == "credit"
@@ -567,11 +602,14 @@ def _find_statement_matches(rows):
                 if row.other_account_id and other_id != row.other_account_id:
                     if not previously_seen:
                         continue
-                    compatible_fields = False
+                    compatible_fields = compatible_path = False
             elif row.other_account_id:
                 if not previously_seen:
                     continue
-                compatible_fields = False
+                compatible_fields = compatible_path = False
+            rounding = compatible_path and nearby_amount(
+                row.amount, record.amount, batch.currency
+            )
             evaluations = [
                 result
                 for observation in reporting_observations(record, batch.account_id)
@@ -582,6 +620,12 @@ def _find_statement_matches(rows):
                 )
                 is not None
             ]
+            if rounding:
+                evaluations = [
+                    result
+                    for result in evaluations
+                    if compatible_path and corroborates(row, record, result)
+                ]
             if not evaluations:
                 continue
             selected = max(
@@ -615,10 +659,19 @@ def _find_statement_matches(rows):
                 and effective_balance is not None
                 and row.balance_after != effective_balance
             )
+            if (
+                rounding
+                and row.balance_after is not None
+                and effective_balance is not None
+                and abs(row.balance_after - effective_balance) >= Decimal("1.00")
+            ):
+                continue
             conflict = selected["conflict"] or effective_conflict
             reasons = [
                 "Same account perspective, currency, direction and amount."
                 if compatible_fields
+                else "Same account path, direction and date with a small BDT amount difference. Review both exact values before correcting or linking."
+                if rounding
                 else "This previously seen source has corrected ledger fields. Correct the draft to match its amount, account and direction before linking.",
                 f"Date difference: {distance} days.",
             ]
@@ -643,7 +696,7 @@ def _find_statement_matches(rows):
                     "Another row in this statement is already attached to this movement."
                 )
             signals = selected["signals"]
-            if effective_conflict:
+            if effective_conflict or rounding:
                 signals = {**signals, "strength": "possible"}
             reasons.extend(selected["extra_reasons"])
             if getattr(observation, "date_is_fallback", False):
@@ -701,20 +754,35 @@ def _find_statement_matches(rows):
                         "balance_after": str(reported_balance)
                         if reported_balance is not None
                         else None,
-                        "can_fill_missing_balance": can_fill_missing_transfer_balance(record, batch.account_id),
+                        "can_fill_missing_balance": can_fill_missing_transfer_balance(
+                            record, batch.account_id
+                        ),
                         "effective_balance_after": str(effective_balance)
                         if effective_balance is not None
                         else None,
                         "detail_suggestions": detail_suggestions(row, record),
                         "conflict": conflict,
                         "can_link": compatible_fields and record.id not in occupied,
+                        "rounding_correction": correction_metadata(
+                            row, record, occupied
+                        )
+                        if rounding
+                        else None,
                         "reasons": reasons,
                     },
                 )
             )
         results[row.id] = [
             item[2]
-            for item in sorted(candidates, key=lambda item: (-item[0], item[1]))[:8]
+            # Exact amount suggestions always precede a correction proposal.
+            for item in sorted(
+                candidates,
+                key=lambda item: (
+                    item[2]["rounding_correction"] is not None,
+                    -item[0],
+                    item[1],
+                ),
+            )[:8]
         ]
     # A corroborated candidate shared by two source rows is still ambiguous.
     claims = defaultdict(set)
@@ -851,6 +919,7 @@ def decide_locked(
     before = row_snapshot(row)
     balance_resolution = None
     category_resolution = None
+    amount_resolution = None
     ledger_before = None
     transfer_existing_report = None
     transfer_balance_choice = None
@@ -936,7 +1005,32 @@ def decide_locked(
                 (m for m in matches[row.id] if target and m["id"] == str(target.pk)),
                 None,
             )
-            if not match or not match["can_link"]:
+            correction = payload.get("amount_correction")
+            rounding = match.get("rounding_correction") if match else None
+            if correction and (
+                correction["existing_amount"] != target.amount
+                or correction["statement_amount"] != row.amount
+                or correction["transaction_updated_at"] != target.updated_at
+            ):
+                raise ReviewConflict(
+                    "The reviewed amounts or transaction changed. Reload the row and confirm the correction again."
+                )
+            if rounding and not correction:
+                raise ValidationError(
+                    {
+                        "amount_correction": "Amounts differ. Explicitly confirm the correction to the saved transaction before linking."
+                    }
+                )
+            if correction and not rounding:
+                raise ValidationError(
+                    {
+                        "amount_correction": "This is no longer an eligible small-rounding suggestion. Refresh the row."
+                    }
+                )
+            if not match or not (
+                match["can_link"]
+                or (correction and rounding and rounding["can_correct"])
+            ):
                 raise ValidationError(
                     {
                         "transaction": "This movement no longer matches or is already attached to another row in this statement. Refresh the suggestions."
@@ -1023,6 +1117,20 @@ def decide_locked(
                     {"balance_choice": "The statement has no reported balance to use."}
                 )
             row.transaction = target
+            if correction:
+                amount_resolution = {
+                    "existing_amount": str(target.amount),
+                    "statement_amount": str(row.amount),
+                }
+                serializer = TransactionSerializer(
+                    target,
+                    data={"amount": str(row.amount), "allow_linked_correction": True},
+                    partial=True,
+                    context={"request": request},
+                )
+                serializer.is_valid(raise_exception=True)
+                target = serializer.save()
+                row.transaction = target
             updated_details = apply_detail_choices(
                 row, target, payload.get("detail_choices", [])
             )
@@ -1178,6 +1286,7 @@ def decide_locked(
                     "statement_row": str(row.id),
                     "balance_resolution": balance_resolution,
                     "category_resolution": category_resolution,
+                    "amount_resolution": amount_resolution,
                     "updated_details": updated_details,
                 },
             )
@@ -1196,6 +1305,7 @@ def decide_locked(
             "remember_choices": payload.get("remember_choices", False),
             "balance_resolution": balance_resolution,
             "category_resolution": category_resolution,
+            "amount_resolution": amount_resolution,
             "updated_details": updated_details,
             "dismissed_ledger_matches": [str(item) for item in payload.get("dismissed_ledger_matches", [])],
         },

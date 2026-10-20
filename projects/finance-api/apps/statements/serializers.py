@@ -244,6 +244,15 @@ class StatementDetailSuggestionSerializer(serializers.Serializer):
     suggested_value = serializers.CharField(allow_blank=True)
 
 
+class StatementRoundingMatchSerializer(serializers.Serializer):
+    existing_amount = serializers.CharField()
+    statement_amount = serializers.CharField()
+    difference = serializers.CharField()
+    transaction_updated_at = serializers.DateTimeField()
+    can_correct = serializers.BooleanField()
+    blocked_reason = serializers.CharField(allow_blank=True)
+
+
 class StatementMatchSerializer(serializers.Serializer):
     strength = serializers.ChoiceField(choices=["strong", "possible"])
     merchant_similarity = serializers.FloatField()
@@ -274,6 +283,7 @@ class StatementMatchSerializer(serializers.Serializer):
     detail_suggestions = StatementDetailSuggestionSerializer(many=True)
     conflict = serializers.BooleanField()
     can_link = serializers.BooleanField()
+    rounding_correction = StatementRoundingMatchSerializer(allow_null=True, required=False)
     reasons = serializers.ListField(child=serializers.CharField())
 
 
@@ -468,6 +478,16 @@ class StatementDetailChoiceSerializer(serializers.Serializer):
     value = serializers.CharField(max_length=4000, allow_blank=False)
 
 
+class StatementAmountCorrectionSerializer(serializers.Serializer):
+    existing_amount = serializers.DecimalField(
+        max_digits=14, decimal_places=2, min_value=Decimal("0.01")
+    )
+    statement_amount = serializers.DecimalField(
+        max_digits=14, decimal_places=2, min_value=Decimal("0.01")
+    )
+    transaction_updated_at = serializers.DateTimeField()
+
+
 class StatementDecisionSerializer(serializers.Serializer):
     action = serializers.ChoiceField(
         choices=("create", "link", "combine_sms", "skip", "unlink", "reopen")
@@ -485,6 +505,7 @@ class StatementDecisionSerializer(serializers.Serializer):
     allow_separate = serializers.BooleanField(default=False)
     acknowledge_issues = serializers.BooleanField(default=False)
     acknowledge_conflict = serializers.BooleanField(default=False)
+    amount_correction = StatementAmountCorrectionSerializer(required=False)
     balance_choice = StatementBalanceChoiceSerializer(required=False)
     category_choice = StatementCategoryChoiceSerializer(required=False)
     detail_choices = StatementDetailChoiceSerializer(
@@ -500,6 +521,12 @@ class StatementDecisionSerializer(serializers.Serializer):
             )
 
     def validate(self, attrs):
+        if "amount_correction" in attrs and attrs["action"] != "link":
+            raise serializers.ValidationError(
+                {
+                    "amount_correction": "Amount corrections require an explicit ledger link decision."
+                }
+            )
         if attrs["action"] == "link" and "transaction" not in attrs:
             raise serializers.ValidationError(
                 {"transaction": "Choose a matching transaction."}
@@ -508,9 +535,20 @@ class StatementDecisionSerializer(serializers.Serializer):
             raise serializers.ValidationError({"candidate": "Choose a pending SMS."})
         dismissed = attrs.get("dismissed_ledger_matches", [])
         if dismissed and attrs["action"] != "combine_sms":
-            raise serializers.ValidationError({"dismissed_ledger_matches": "Only combined review can dismiss ledger suggestions."})
-        if attrs["acknowledge_distinct_ledger_matches"] and attrs["action"] != "combine_sms":
-            raise serializers.ValidationError({"acknowledge_distinct_ledger_matches": "Only combined review uses this acknowledgement."})
+            raise serializers.ValidationError(
+                {
+                    "dismissed_ledger_matches": "Only combined review can dismiss ledger suggestions."
+                }
+            )
+        if (
+            attrs["acknowledge_distinct_ledger_matches"]
+            and attrs["action"] != "combine_sms"
+        ):
+            raise serializers.ValidationError(
+                {
+                    "acknowledge_distinct_ledger_matches": "Only combined review uses this acknowledgement."
+                }
+            )
         if len(set(dismissed)) != len(dismissed):
             raise serializers.ValidationError({"dismissed_ledger_matches": "Review each ledger suggestion only once."})
         if "balance_choice" in attrs and attrs["action"] not in {"link", "combine_sms"}:

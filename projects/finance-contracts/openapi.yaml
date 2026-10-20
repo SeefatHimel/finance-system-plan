@@ -6600,6 +6600,47 @@ components:
       - field
       - existing_value
       - value
+    StatementAmountCorrection:
+      type: object
+      properties:
+        existing_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        statement_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        transaction_updated_at:
+          type: string
+          format: date-time
+      required:
+      - existing_amount
+      - statement_amount
+      - transaction_updated_at
+    StatementRoundingMatch:
+      type: object
+      properties:
+        existing_amount:
+          type: string
+        statement_amount:
+          type: string
+        difference:
+          type: string
+        transaction_updated_at:
+          type: string
+          format: date-time
+        can_correct:
+          type: boolean
+        blocked_reason:
+          type: string
+      required:
+      - blocked_reason
+      - can_correct
+      - difference
+      - existing_amount
+      - statement_amount
+      - transaction_updated_at
     StatementDecision:
       type: object
       properties:
@@ -6640,6 +6681,10 @@ components:
           type: boolean
           default: false
           description: Explicitly remember classification choices only after create/link.
+        amount_correction:
+          allOf:
+          - $ref: '#/components/schemas/StatementAmountCorrection'
+          description: Explicit link-only correction to the statement amount. Exact reviewed amounts and transaction timestamp must still agree. Never inferred from a normal link request.
         balance_choice:
           $ref: '#/components/schemas/StatementBalanceChoice'
         category_choice:
@@ -6851,6 +6896,11 @@ components:
           type: boolean
         can_link:
           type: boolean
+        rounding_correction:
+          allOf:
+          - $ref: '#/components/schemas/StatementRoundingMatch'
+          nullable: true
+          description: Review-only BDT difference strictly below one taka with independent same-day evidence. can_link stays false until a separate explicit correction decision; can_correct may be blocked by dependent records.
         reasons:
           type: array
           items:

@@ -739,3 +739,17 @@ resource, 409 expired/stale/conflicting state. All responses are no-store.
 Unknown input fields are rejected. OpenAPI and generated TypeScript cover this
 boundary; web intent/coverage integration follows separately. Migration precedes
 client rollout; installed clients keep their old routes.
+
+### Can clients link statement rows with a slightly different amount?
+
+Only through the new explicit correction decision. Optional nullable
+`StatementMatch.rounding_correction` describes a review-only, corroborated BDT
+difference below Tk 1.00. Its `can_link` stays false. A reviewed `action=link`
+request must echo both amounts and `transaction_updated_at` in
+`amount_correction`, alongside the row version and any exact balance choice.
+Fresh server validation and dependency checks authorize the atomic correction;
+response flags alone do not. Missing confirmation is 400, stale snapshots 409,
+and retries of an accepted link are idempotent. Other actions cannot supply the
+correction. Old clients safely ignore the additive metadata. Deploy API first;
+no schema migration is needed. OpenAPI, generated TypeScript and the PostgreSQL
+backend schema snapshot describe this boundary.

@@ -1415,3 +1415,38 @@ consume the new boundary. This does not deliver historical revalidation or chang
 ordinary null-balance provenance. See the full request/response, balance policy,
 synthetic test commands and dry-run metadata cleanup instructions in
 [the evidence API guide](../../docs/evidence-reconciliation-api.md).
+
+## Reviewed small amount differences in statement matching
+
+Saved statement rows can suggest an existing ledger movement when the BDT amount
+is different by strictly less than Tk 1.00. These are always **possible** matches,
+never automatic links or equal amounts. Account path, currency and debit/credit
+must agree, and one reporting-account observation must have the same posting or
+value date. Independent evidence is required: both balances within Tk 1.00,
+an exact nonblank reference when a balance is absent, or merchant similarity at
+least 0.8 together with known times within ten minutes. Contradictory known
+balances of Tk 1.00 or more exclude the suggestion. Exact amount suggestions
+rank first; existing history limits still fail closed.
+
+`StatementMatch.rounding_correction` supplies both amounts, signed difference,
+transaction update timestamp and correction eligibility. `can_link` remains false.
+An explicit `action=link` with `amount_correction` must echo both exact amounts
+and the reviewed timestamp. Differing balances require a separate exact-value
+`balance_choice`. The existing row version, ownership, user/transaction locks,
+fresh matching and atomicity checks apply; changed snapshots return 409 without
+partial writes. The API corrects the canonical amount and links the statement
+in one transaction. Repeated accepted requests are idempotent. Audit history
+records both amounts, the balance decision and selected detail changes; original
+PDF extraction and confirmed SMS values remain unchanged.
+
+The shortcut is blocked when the ledger transaction already has statement, debt
+or bill dependencies. Correct it through Transactions and revalidate those
+records first. Larger/other-currency differences and pending SMS-to-PDF pairing
+retain their previous exact-amount rules. Bulk approval never accepts a rounding
+suggestion. This is not a financial tolerance or automatic historical repair.
+Deploy the API before the web client; no migration is required. Verify using
+PostgreSQL for row-lock/concurrency coverage:
+
+```sh
+.venv/bin/python manage.py test apps.statements.test_rounding --noinput
+```

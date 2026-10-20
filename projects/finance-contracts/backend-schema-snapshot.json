@@ -384,6 +384,46 @@
             "cookieAuth": []
           }
         ]
+      },
+      "patch": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedUserProfileUpdate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedUserProfileUpdate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedUserProfileUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/auth/refresh/": {
@@ -4230,6 +4270,20 @@
             "in": "query",
             "name": "search",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sms_status",
+            "schema": {
+              "enum": [
+                "ambiguous",
+                "none",
+                "possible",
+                "unavailable",
+                "unique"
+              ],
               "type": "string"
             }
           },
@@ -8302,6 +8356,23 @@
       },
       "type": "object"
     },
+    "PatchedUserProfileUpdate": {
+      "properties": {
+        "email": {
+          "format": "email",
+          "type": "string"
+        },
+        "first_name": {
+          "maxLength": 150,
+          "type": "string"
+        },
+        "last_name": {
+          "maxLength": 150,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "PaymentMethod": {
       "properties": {
         "account": {
@@ -9468,6 +9539,30 @@
       ],
       "type": "object"
     },
+    "StatementAmountCorrection": {
+      "properties": {
+        "existing_amount": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,12}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "statement_amount": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,12}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "transaction_updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "existing_amount",
+        "statement_amount",
+        "transaction_updated_at"
+      ],
+      "type": "object"
+    },
     "StatementBalanceChoice": {
       "properties": {
         "existing_balance_after": {
@@ -9727,6 +9822,9 @@
         "allow_separate": {
           "default": false,
           "type": "boolean"
+        },
+        "amount_correction": {
+          "$ref": "#/components/schemas/StatementAmountCorrection"
         },
         "balance_choice": {
           "$ref": "#/components/schemas/StatementBalanceChoice"
@@ -10155,6 +10253,14 @@
         "reporting_observation_is_fallback": {
           "type": "boolean"
         },
+        "rounding_correction": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/StatementRoundingMatch"
+            }
+          ],
+          "nullable": true
+        },
         "source": {
           "type": "string"
         },
@@ -10424,6 +10530,38 @@
         "suggestion",
         "unified_pending_sms_pair_id",
         "unified_pending_sms_status"
+      ],
+      "type": "object"
+    },
+    "StatementRoundingMatch": {
+      "properties": {
+        "blocked_reason": {
+          "type": "string"
+        },
+        "can_correct": {
+          "type": "boolean"
+        },
+        "difference": {
+          "type": "string"
+        },
+        "existing_amount": {
+          "type": "string"
+        },
+        "statement_amount": {
+          "type": "string"
+        },
+        "transaction_updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "blocked_reason",
+        "can_correct",
+        "difference",
+        "existing_amount",
+        "statement_amount",
+        "transaction_updated_at"
       ],
       "type": "object"
     },

@@ -1316,6 +1316,21 @@ export interface StatementDetailChoice {
   value: string;
 }
 
+export interface StatementAmountCorrection {
+  existing_amount: string;
+  statement_amount: string;
+  transaction_updated_at: string;
+}
+
+export interface StatementRoundingMatch {
+  existing_amount: string;
+  statement_amount: string;
+  difference: string;
+  transaction_updated_at: string;
+  can_correct: boolean;
+  blocked_reason: string;
+}
+
 export interface StatementDecision {
   action: StatementAction;
   version: number;
@@ -1327,6 +1342,7 @@ export interface StatementDecision {
   acknowledge_issues?: boolean;
   acknowledge_conflict?: boolean;
   remember_choices?: boolean;
+  amount_correction?: StatementAmountCorrection;
   balance_choice?: StatementBalanceChoice;
   category_choice?: StatementCategoryChoice;
   detail_choices?: StatementDetailChoice[];
@@ -1389,6 +1405,7 @@ export interface StatementMatch {
   detail_suggestions: StatementDetailSuggestion[];
   conflict: boolean;
   can_link: boolean;
+  rounding_correction?: StatementRoundingMatch | null;
   reasons: string[];
   strength: "strong" | "possible";
   merchant_similarity: number;
