@@ -2989,9 +2989,10 @@ textarea {
 @media (max-width: 620px) { .statement-preview .form-grid, .statement-preview .statement-filter-grid { grid-template-columns: minmax(0, 1fr); } }
 .statement-preview .form-grid > .field { align-self: start; }
 .statement-history { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); margin: 20px 0; }
-.statement-history-item { display: flex; flex-direction: column; gap: 8px; text-align: left; border: 1px solid var(--panel-border); border-radius: 10px; padding: 16px; background: #0a1724; color: var(--foreground); cursor: pointer; overflow-wrap: anywhere; }
+.statement-history-item { display: flex; flex-direction: column; gap: 8px; text-align: left; border: 1px solid var(--panel-border); border-radius: 10px; padding: 16px; background: var(--background); color: var(--foreground); cursor: pointer; overflow-wrap: anywhere; }
 .statement-history-item small { color: var(--muted); }
-.statement-history-item:hover, .statement-history-item--active { border-color: var(--accent); }
+.statement-history-item:hover, .statement-history-item--active { background: var(--accent-soft); border-color: var(--accent); }
+.statement-history-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .statement-date-range { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .viewport-modal.statement-row-dialog { height: calc(100dvh - 32px); max-width: 1240px; overflow: hidden; }
 .statement-row-dialog .form-drawer__header > div { min-width: 0; }

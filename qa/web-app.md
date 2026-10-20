@@ -661,6 +661,10 @@ decimal differences remain reviewable even at one cent. Linking preserves the
 existing ledger balance and both observations instead of silently reconciling
 them. Source-discrepancy acknowledgment still applies to all posting/linking
 decisions, and the API repeats validation at decision time.
+When a saved choice suggestion already matches the draft's type, category,
+other account and suggested counterparty, the editor shows Applied instead of
+an Apply button. A suggestion that changes type or other account clears the
+reviewed-type confirmation; matching values do not reset it.
 
 ### How does statement review show a ledger edit that breaks an accepted match?
 

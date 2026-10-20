@@ -11,7 +11,7 @@ function load(path, dependencies = {}) {
   return mod.exports;
 }
 const categoryType = load('../lib/category-type.ts');
-const { statementDraftCategory: choose } = load('../lib/statement-draft-category.ts', { './category-type': categoryType });
+const { statementDraftCategory: choose, statementSuggestionAlreadyApplied: applied } = load('../lib/statement-draft-category.ts', { './category-type': categoryType });
 const categories = [
   { id: 'transfer', kind: 'transfer', is_active: true },
   { id: 'food', kind: 'expense', is_active: true },
@@ -33,4 +33,14 @@ test('type changes replace incompatible categories but keep compatible or unknow
   assert.equal(choose('expense', 'transfer', categories), null);
   assert.equal(choose('fee', 'food', categories), 'food');
   assert.equal(choose('transfer', 'custom-saved', categories), 'custom-saved');
+});
+test('matching suggested choices are marked applied without resetting the draft', () => {
+  const suggestion = { type: 'transfer', category: null, other_account: 'bank', counterparty_text: 'Bank' };
+  const draft = { type: 'transfer', category: 'transfer', other_account: 'bank', counterparty_text: 'Bank' };
+  assert.equal(applied(draft, suggestion, categories), true);
+  assert.equal(applied({ ...draft, category: 'food' }, suggestion, categories), false);
+  assert.equal(applied({ ...draft, other_account: 'other' }, suggestion, categories), false);
+  assert.equal(applied({ ...draft, counterparty_text: 'My bank' }, suggestion, categories), false);
+  assert.equal(applied({ ...draft, type: 'expense' }, suggestion, categories), false);
+  assert.equal(applied(draft, { ...suggestion, counterparty_text: undefined }, categories), true);
 });

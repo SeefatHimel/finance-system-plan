@@ -5,7 +5,7 @@ import { CalendarDateInput } from "@/components/calendar-date-input";
 import { useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { HelpTooltip } from "@/components/help-tooltip";
-import { statementDraftCategory } from "@/lib/statement-draft-category";
+import { statementDraftCategory, statementSuggestionAlreadyApplied } from "@/lib/statement-draft-category";
 import { StatementMatchComparison } from "@/components/statement-match-comparison";
 import { StatementDetailChoices } from "@/components/statement-detail-choices";
 import { statementAddBlockers, statementLinkBlockReason } from "@/lib/statement-review";
@@ -52,6 +52,8 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
   const bkashFundingSuggestion = batch.profile === "bkash" && row.component === "principal" && /^(?:card|bank)\s+to\s+bkash$/i.test(source.provider_type?.trim() ?? "") && row.review.suggestion?.type === "transfer" ? row.review.suggestion : null;
   const suggestedName = row.review.suggestion?.counterparty_text;
   const suggestedNote = row.review.suggestion?.note;
+  const suggestionApplied = row.review.suggestion ? statementSuggestionAlreadyApplied(draft, row.review.suggestion, categories) : false;
+  const suggestionSaved = row.review.suggestion ? statementSuggestionAlreadyApplied(editable(row), row.review.suggestion, categories) : false;
   function setField<K extends keyof StatementRowEdit>(key: K, value: StatementRowEdit[K]) { setDraft((old) => ({ ...old, [key]: value })); }
   function applyType(type: TransactionType, category = type === draft.type ? draft.category : statementDraftCategory(type, draft.category, categories)) {
     setDraft((old) => ({ ...old, category, type, direction: type === "transfer" || type === "adjustment" ? old.direction : directionForType(type), other_account: type === "transfer" ? old.other_account : null, classification_confirmed: old.type === type ? old.classification_confirmed : false }));
@@ -146,7 +148,29 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         {row.component === "fee" ? <p className="inline-note">This is the separate charge from the source row. Approving the principal does not approve this fee.</p> : source.signed_fee !== "0.00" ? <p className="inline-note">The inline fee has its own review row. The final reported balance is saved on the fee entry when you add new movements.</p> : null}
         {isResolved ? <p>This row is {row.state === "posted" ? "added" : row.state}. {row.transaction ? <>Ledger entry: {row.transaction}. Make ledger corrections in <Link href="/transactions">Transactions</Link>.</> : "You can reopen it below."}</p> : null}
         {!row.transaction && ["posted", "linked"].includes(row.state) ? <p>The previous ledger entry was deleted. Review this source row before recording it again.</p> : null}
-        {!isResolved && row.review.suggestion && !bkashFundingSuggestion ? <section className="raw-message"><strong>Suggested choices</strong><p>{row.review.suggestion.reason}</p><p>{row.review.suggestion.type} · {categories.find(c => c.id === row.review.suggestion?.category)?.name ?? "Uncategorized"}{row.review.suggestion.other_account ? ` · ${accounts.find(a => a.id === row.review.suggestion?.other_account)?.name ?? "Other account"}` : ""}{suggestedName ? ` · ${suggestedName}` : ""}</p><button className="button" type="button" disabled={busy || dirty} onClick={() => { const choice = row.review.suggestion; if (choice) setDraft(old => ({ ...old, type: choice.type, category: statementDraftCategory(choice.type, choice.category, categories), other_account: choice.other_account, counterparty_text: choice.counterparty_text ?? old.counterparty_text, classification_confirmed: false })); }}>Apply suggested choices</button></section> : null}
+        {!isResolved && row.review.suggestion && !bkashFundingSuggestion ? (
+          <section className="raw-message">
+            <strong>Suggested choices</strong>
+            <p>{row.review.suggestion.reason}</p>
+            <p>{row.review.suggestion.type} · {categories.find(c => c.id === row.review.suggestion?.category)?.name ?? "Uncategorized"}{row.review.suggestion.other_account ? ` · ${accounts.find(a => a.id === row.review.suggestion?.other_account)?.name ?? "Other account"}` : ""}{suggestedName ? ` · ${suggestedName}` : ""}</p>
+            {suggestionApplied ? (
+              <span className="status-badge status-badge--ok" role="status">{suggestionSaved ? "Applied" : "Applied to draft · save to keep"}</span>
+            ) : (
+              <button className="button" type="button" disabled={busy || dirty} onClick={() => {
+                const choice = row.review.suggestion;
+                if (!choice) return;
+                setDraft(old => ({
+                  ...old,
+                  type: choice.type,
+                  category: statementDraftCategory(choice.type, choice.category, categories),
+                  other_account: choice.other_account,
+                  counterparty_text: choice.counterparty_text ?? old.counterparty_text,
+                  classification_confirmed: old.type === choice.type && old.other_account === choice.other_account ? old.classification_confirmed : false,
+                }));
+              }}>Apply suggested choices</button>
+            )}
+          </section>
+        ) : null}
         <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
           <fieldset className="statement-edit-fields statement-draft-fields" disabled={busy || isResolved}>
             <legend className="visually-hidden">Transaction draft</legend>

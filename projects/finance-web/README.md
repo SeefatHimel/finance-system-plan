@@ -677,6 +677,10 @@ review checkbox confirms review and does not change the transaction type.
 Remember my choices is explicit on individual add/link decisions. A later matching
 source pattern offers Apply suggested choices for type/category/other owned account;
 applying it creates an unsaved draft change and preserves reported financial fields.
+When those suggested values already match the draft, the control shows Applied
+instead of offering a redundant action. If applying a suggestion changes only
+the category or counterparty, it keeps the existing transaction-type review;
+changing the type or other owned account requires that review again.
 Save and review before posting. Generic transfer descriptions are not learned.
 
 The statement review table displays PDF rows alongside ledger suggestions, with
@@ -1350,6 +1354,8 @@ bKash PDFs**. This scans available archives without a password, lists imports
 that need a PDF password or reupload, and switches to the bKash filter afterward.
 **Reload import list** on the Statements page only fetches the history; it does
 not extract identifiers.
+Import history cards follow the selected light or dark appearance, with a
+visible active, hover and keyboard-focus state.
 Exact full-number matches to another owned bKash wallet appear as review suggestions for Send
 Money, including that account's name. A verified phone-code mapping suggests
 its saved display name in Counterparty and a readable note containing the name;
