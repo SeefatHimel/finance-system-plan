@@ -281,7 +281,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
       </footer>
     </ModalDialog>
     {roundingMatch?.rounding_correction ? <StatementRoundingConfirmation
-      key={`${row.version}:${roundingMatch.id}`} row={row} match={roundingMatch} currency={batch.currency} busy={busy}
+      key={`${row.version}:${roundingMatch.id}:${roundingMatch.rounding_correction.transaction_updated_at}`} row={row} match={roundingMatch} currency={batch.currency} busy={busy}
       balanceChoice={balanceSelections[roundingMatch.id] ? currentStatementBalanceChoice(balanceSelections[roundingMatch.id], roundingMatch, row.balance_after, row.version, batch.currency) : undefined}
       onCancel={() => setRoundingMatchId(null)} onConfirm={() => {
         const correction = roundingMatch.rounding_correction!;

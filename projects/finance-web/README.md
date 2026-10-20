@@ -1622,7 +1622,8 @@ have no preselected choice for this flow. After checking discrepancies and
 choosing a balance, **Review correction & link** opens a viewport-bound dialog
 showing the old and proposed amounts and the balance to keep. The user must
 explicitly confirm the same movement before **Confirm correction & link**.
-Cancel restores the comparison with draft fields and choices intact. If the
+Cancel restores the comparison with draft fields and choices intact. A refreshed
+ledger timestamp resets the final confirmation checkbox. If the
 ledger amount is correct, cancel, correct the statement draft and save it to
 refresh exact matches instead.
 

@@ -1366,7 +1366,8 @@ signed differences and a “Possible rounding match” label. No balance is
 preselected when this flow has a conflict. “Review correction & link” opens a
 second dialog describing the precise amount correction and selected balance.
 The final button needs an explicit same-movement confirmation. Cancel preserves
-the statement draft and choices. A stale ledger change asks for reload instead
+the statement draft and choices. Refreshing the reviewed ledger version resets
+the final checkbox. A stale ledger change asks for reload instead
 of partially saving. If the saved ledger amount is correct, edit/save the
 statement draft instead. Dependent statement/debt/bill records show why this
 shortcut is blocked. Exact match acceptance and pending SMS pairing keep their
