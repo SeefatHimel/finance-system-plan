@@ -2,7 +2,7 @@
 
 import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { StatementDetailChoices } from "@/components/statement-detail-choices";
-import { calendarDayDifference, insignificantBdtBalanceDifference, statementBalanceDifference, statementLinkBlockReason } from "@/lib/statement-review";
+import { calendarDayDifference, insignificantBdtBalanceDifference, statementBalanceDifference, statementLinkBlockReason, coalescedSourceAmount } from "@/lib/statement-review";
 import { selectedStatementDetails, type DetailSelections } from "@/lib/statement-details";
 import { displayedStatementText } from "@/lib/statement-citytouch";
 import { categoryTypeProposal } from "@/lib/category-type";
@@ -53,9 +53,9 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
   ];
   const hintId = `statement-match-hint-${match.id}`;
   return <article className="statement-match-card">
-    <header className="statement-match-heading"><h4>{rounding ? "Possible rounding match" : match.strength === "strong" ? "Strong match" : "Possible match"}{categoryConflict ? <span className="status-badge status-badge--warning">Categories differ</span> : null}</h4><span>{batch.currency} {match.amount}</span></header>
+    <header className="statement-match-heading"><h4>{rounding ? "Small rounding difference" : match.strength === "strong" ? "Strong match" : "Possible match"}{categoryConflict ? <span className="status-badge status-badge--warning">Categories differ</span> : null}</h4><span>{batch.currency} {match.amount}</span></header>
     {rounding || Boolean(dateDifference) || (difference !== null && difference !== "0.00") ? <div className="source-differences" aria-label="Statement and ledger differences">
-      {rounding ? <p>Amount difference: {batch.currency} {rounding.difference} (statement minus ledger). These amounts are different; confirmation is required to correct the saved transaction and link this source.</p> : null}
+      {rounding ? <p>Amount difference: {batch.currency} {rounding.difference} (statement minus ledger). Using the higher amount automatically when linked. Both original values remain attached.</p> : null}
       {dateDifference ? <p>Dates differ by {Math.abs(dateDifference)} calendar day{Math.abs(dateDifference) === 1 ? "" : "s"}.</p> : null}
       {difference !== null && difference !== "0.00" ? <p className={smallDifference ? "inline-note" : "form-error"}>Reported balance difference: {batch.currency} {difference} (statement minus ledger).{smallDifference ? " Small difference under BDT 1; both exact reports remain saved." : " Review the balance choice below."}</p> : null}
     </div> : null}
@@ -89,7 +89,7 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
     </fieldset> : null}
     <StatementDetailChoices matchId={match.id} suggestions={match.detail_suggestions} selections={detailSelections} disabled={busy || dirty || !canAccept} onChange={onDetailChange} />
     <details className="statement-match-reasons"><summary>Why this match was suggested</summary><ul>{match.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></details>
-    <div className="statement-match-decision"><button className="button button--primary" type="button" disabled={busy || Boolean(blocked)} aria-describedby={hintId} onClick={onAccept}>{rounding ? "Review correction & link" : categoryConflict && finalCategory && categoryChosen ? `Link once · use ${finalCategory}` : "Accept match · count once"}</button>
+    <div className="statement-match-decision"><button className="button button--primary" type="button" disabled={busy || Boolean(blocked)} aria-describedby={hintId} onClick={onAccept}>{rounding ? `Link match · use ${batch.currency} ${coalescedSourceAmount([row.amount, match.amount], batch.currency)}` : categoryConflict && finalCategory && categoryChosen ? `Link once · use ${finalCategory}` : "Accept match · count once"}</button>
       {rounding?.blocked_reason ? <p className="form-error">{rounding.blocked_reason}</p> : null}
       <p className="inline-note" id={hintId}>{blocked ?? `One ledger transaction. Category: ${finalCategory ?? categoryName(match.category_id)}.${balanceChoice ? ` Reported balance: ${balanceText(balanceChoice.keep === "statement" ? row.balance_after : match.effective_balance_after)}.` : ""}`}</p>
     </div>

@@ -1105,8 +1105,8 @@ and statement. Unlinkable candidates remain visible with the reason linking is
 unavailable. No navigation to statement review is needed for a verified
 separate movement.
 Balance/source discrepancies need review; nothing posts automatically. Combined
-review initially selects the higher reported balance, but the reviewer may choose
-the other source. A sub-Tk-1 BDT difference needs no extra balance checkbox;
+review uses the higher reported balance automatically for sub-Tk-1 BDT
+differences, without an extra balance choice or checkbox;
 exact values remain in both sources. Larger differences and selected existing-ledger
 conflicts continue to require acknowledgment. Unmatched
 and ambiguous one-to-many sources remain in their individual review pages rather
@@ -1256,7 +1256,7 @@ use the browser's locale. See [interface conventions](../docs/interface-conventi
 
 A genuinely missing transfer-account report can be enriched from the linked SMS
 and statement. Agreeing/sole reports are preselected; differing reports require
-an explicit radio choice even when their difference is small. Known and protected
+an explicit radio choice except for sub-taka BDT differences, which use the higher value automatically. Known and protected
 blank reports retain their existing selection, with correction available in
 Transactions. The link confirmation sends the selected source and existing ledger
 ID without creating another movement. This first fix does not yet implement the
@@ -1359,16 +1359,14 @@ The layout changes no confirmation/matching APIs, duplicate protection or learni
 rules. Local synthetic browser checks cover the retained drafts and submitted
 transfer details at desktop, tablet and phone widths.
 
-### How does a user review a possible rounding match?
+### Does a small source difference need another confirmation?
 
-Standalone statement review shows both exact amounts and reported balances,
-signed differences and a “Possible rounding match” label. No balance is
-preselected when this flow has a conflict. “Review correction & link” opens a
-second dialog describing the precise amount correction and selected balance.
-The final button needs an explicit same-movement confirmation. Cancel preserves
-the statement draft and choices. Refreshing the reviewed ledger version resets
-the final checkbox. A stale ledger change asks for reload instead
-of partially saving. If the saved ledger amount is correct, edit/save the
-statement draft instead. Dependent statement/debt/bill records show why this
-shortcut is blocked. Exact match acceptance and pending SMS pairing keep their
-existing behavior; the feature never adds a second transaction.
+No. SMS/PDF review and standalone statement matching display both exact amounts
+and balances and automatically use the higher value for BDT differences strictly
+below Tk 1.00. The normal Record/Link action remains; no extra rounding modal,
+checkbox or lower-value choice is shown. Larger differences retain their review
+controls. Unsaved fields, category decisions, account paths and source evidence
+are preserved. The UI uses exact decimal cents and checks the complete range
+across all selected sources. Ambiguous pairs stay unresolved and a stale request
+cannot partially save. API deployment must precede the web update; no APK is
+needed for this web/API feature.

@@ -7,8 +7,6 @@ type LinkReview = {
   balanceChosen: boolean;
   categoryConflict?: boolean;
   categoryChosen?: boolean;
-  amountCorrectionRequired?: boolean;
-  amountCorrectionConfirmed?: boolean;
 };
 
 /** Compare printed/received calendar dates without a timezone or DST shift. */
@@ -26,7 +24,6 @@ export function statementLinkBlockReason(review: LinkReview): string | null {
   if (review.dirty) return "Save your draft to refresh matches first.";
   if (!review.canLink) return "This entry cannot be linked. Refresh the match suggestions.";
   if (review.requiresAcknowledgement && !review.issuesAcknowledged) return "Review and acknowledge the source discrepancies above.";
-  if (review.amountCorrectionRequired && !review.amountCorrectionConfirmed) return "Review and confirm the exact amount correction before linking.";
   const choices = [
     review.conflict && !review.balanceChosen ? "Choose which reported balance to keep for this match." : null,
     review.categoryConflict && !review.categoryChosen ? "Choose which category the linked ledger transaction should use." : null,
@@ -71,7 +68,7 @@ function cents(value: string | null): bigint | null {
   return value.startsWith("-") ? -amount : amount;
 }
 
-// A suggestion only: the reviewer can still choose either eligible source.
+// Default for larger conflicts; sub-taka BDT selection is enforced by the API.
 export function suggestedBalanceSource(statement: string | null, sms: string | null, statementIncludesSeparateFee = false): "statement" | "sms" | "" {
   const statementCents = cents(statement), smsCents = cents(sms);
   if (statementIncludesSeparateFee) return smsCents === null && statementCents !== null ? "" : "sms";
@@ -102,13 +99,33 @@ export function statementBalanceDifference(statement: string | null, ledger: str
   return `${difference > 0 ? "+" : difference < 0 ? "-" : ""}${absolute / BigInt(100)}.${String(absolute % BigInt(100)).padStart(2, "0")}`;
 }
 
-/** Link-time filling never chooses the larger of conflicting source reports. */
+/** Larger conflicts require a choice; sub-taka BDT reports use the higher value. */
 export function suggestedLinkedBalanceSource(
   sms: string | null,
   statement: string | null,
   statementIncludesFee = false,
+  currency = "",
 ): "" | "sms" | "statement" {
+  const automatic = automaticBdtBalanceSource({ sms, statement: statementIncludesFee ? null : statement }, currency);
+  if (automatic) return automatic as "sms" | "statement";
   if (sms !== null && statement !== null && statementBalanceDifference(sms, statement) !== "0.00") return "";
   if (sms !== null) return "sms";
   return statement !== null && !statementIncludesFee ? "statement" : "";
+}
+
+/** Exact cents; only a full BDT span strictly below one taka may coalesce. */
+export function coalescedSourceAmount(values: (string | null)[], currency: string): string | null {
+  const parsed = values.map(value => cents(value));
+  if (!parsed.length || parsed.some(value => value === null)) return null;
+  let low = parsed[0]!, high = parsed[0]!, winner = 0;
+  parsed.forEach((value, index) => { if (value! < low) low = value!; if (value! > high) { high = value!; winner = index; } });
+  return low === high || (currency === "BDT" && high - low < BigInt(100)) ? values[winner] : null;
+}
+
+export function automaticBdtBalanceSource(values: Record<string, string | null>, currency: string): string | null {
+  const known = Object.entries(values).filter((entry): entry is [string, string] => cents(entry[1]) !== null);
+  if (known.length < 2 || currency !== "BDT") return null;
+  const selected = coalescedSourceAmount(known.map(([, value]) => value), currency);
+  if (selected === null || known.every(([, value]) => cents(value) === cents(selected))) return null;
+  return known.find(([, value]) => cents(value) === cents(selected))![0];
 }

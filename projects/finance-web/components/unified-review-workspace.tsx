@@ -23,7 +23,7 @@ import {
   type UnifiedPair,
   type UnifiedPendingPage,
 } from "@/lib/api";
-import { calendarDayDifference, insignificantBdtBalanceDifference, reportedBalanceNeedsAcknowledgment, statementBalanceDifference, suggestedBalanceSource, suggestedLinkedBalanceSource } from "@/lib/statement-review";
+import { automaticBdtBalanceSource, coalescedSourceAmount, calendarDayDifference, insignificantBdtBalanceDifference, reportedBalanceNeedsAcknowledgment, statementBalanceDifference, suggestedBalanceSource, suggestedLinkedBalanceSource } from "@/lib/statement-review";
 
 type BalanceChoice = "" | "sms" | "statement";
 
@@ -72,7 +72,7 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
   const smallSourceBalanceDifference = insignificantBdtBalanceDifference(row.balance_after, pair.sms.balance_after, pair.batch.currency);
   const originalBalanceNeedsReview = pair.match.conflict && reportedBalanceNeedsAcknowledgment(row.balance_after, pair.sms.balance_after, pair.batch.currency);
   const editedBalanceNeedsReview = reportedBalanceNeedsAcknowledgment(draft.balance_after, pair.sms.balance_after, pair.batch.currency);
-  const needsConflict = originalBalanceNeedsReview || editedBalanceNeedsReview || Boolean(ledgerMatch?.conflict) || (smsLedgerDifference !== null && smsLedgerDifference !== "0.00");
+  const needsConflict = originalBalanceNeedsReview || editedBalanceNeedsReview || Boolean(ledgerMatch?.conflict) || reportedBalanceNeedsAcknowledgment(pair.sms.balance_after, ledgerMatch?.effective_balance_after ?? null, pair.batch.currency);
   const reviewChecksComplete = draft.classification_confirmed && (!needsConflict || ackConflict) && (!needsDraftReview || ackIssues);
   const typeDecisionReady = !typeDiffers || (Boolean(typeChoice) && !(typeChoice === "custom" && (draft.type === row.type || draft.type === pair.sms.transaction_type)));
   const accountNames = useMemo(() => new Map(accounts.map(account => [account.id, account.name])), [accounts]);
@@ -106,6 +106,9 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
     ...(!draftChanged && !ledger && row.review.issues.length > 0 ? ["Correct the blocking statement issues before confirming."] : []),
     ...(row.review.matching_truncated ? ["Narrow the statement ledger search before confirming."] : []),
   ];
+  const automaticLedgerBalance = ledgerMatch && ledgerMatch.effective_balance_after !== null ? automaticBdtBalanceSource({ sms: pair.sms.balance_after, statement: statementIncludesSeparateFee ? null : draft.balance_after, existing: ledgerMatch.effective_balance_after }, pair.batch.currency) : null;
+  const automaticBalance = automaticBdtBalanceSource({ sms: pair.sms.balance_after, statement: statementIncludesSeparateFee ? null : draft.balance_after }, pair.batch.currency);
+  if (ledgerMatch && coalescedSourceAmount([draft.amount, pair.sms.amount, ledgerMatch.amount], pair.batch.currency) === null) requirements.push("The full amount difference across these sources is at least one taka. Review them separately.");
   const blocked = busy || requirements.length > 0;
 
   function checkRequiredConfirmations() {
@@ -147,14 +150,14 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
       <div className="unified-pair-grid">
       <div className="unified-pair-main">
       <section id="unified-pair-summary" tabIndex={-1} className="unified-pair-summary" aria-label="Source comparison">
-        <strong>Same account, direction and amount</strong>
+        <strong>Same account and direction · amounts match within the rounding rule</strong>
         <span>Statement {formatStatementDateTime(row.date, row.time)} · SMS {formatTimestamp(pair.sms.raw_message.received_at)}</span>
         {typeDiffers ? <span className="unified-pair-summary__difference">Type differs</span> : null}
         {sourceDateDifference ? <span className="unified-pair-summary__difference">Dates differ by {Math.abs(sourceDateDifference)} calendar day{Math.abs(sourceDateDifference) === 1 ? "" : "s"}</span> : null}
         {originalBalanceDifference !== null && originalBalanceDifference !== "0.00" ? <span className={originalBalanceNeedsReview ? "unified-pair-summary__difference" : "inline-note"}>Reported balance difference: {pair.batch.currency} {originalBalanceDifference} (statement minus SMS){smallSourceBalanceDifference ? " · Small difference under BDT 1" : ""}</span> : null}
         <span>Reported balances · Statement: {row.balance_after ?? "Not reported"} · SMS: {pair.sms.balance_after ?? "Not reported"}</span>
       </section>
-      <UnifiedPairEditor pair={pair} accounts={accounts} categories={categories} draft={draft} onDraftChange={updateDraft} typeChoice={typeChoice} onTypeChoice={choice => { setTypeChoice(choice); setAckMatch(false); }} busy={busy} />
+      <UnifiedPairEditor ledgerAmount={ledgerMatch?.amount} pair={pair} accounts={accounts} categories={categories} draft={draft} onDraftChange={updateDraft} typeChoice={typeChoice} onTypeChoice={choice => { setTypeChoice(choice); setAckMatch(false); }} busy={busy} />
       <details className="unified-source-evidence"><summary>Compare original sources and parsed values</summary>
       <div className="statement-match-comparison">
         <section aria-label="Statement source"><h3>Statement</h3><dl>
@@ -187,7 +190,7 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
             <p className="unified-ledger-suggestion__id" title={match.id}>Ledger ID {match.id.slice(0, 8)}</p>
             <TransactionSourceMessages key={match.id} transactionId={match.id} loadOnExpand showEmpty />
             <details className="statement-match-reasons" open={!match.can_link}><summary>Why suggested{match.can_link ? "" : " and why linking is unavailable"}</summary><ul>{match.reasons.map((reason, index) => <li key={`${match.id}-${index}`}>{reason}</li>)}</ul></details>
-            {match.can_link ? <label className="unified-ledger-choice"><input type="radio" name="unified-ledger-decision" checked={ledger === match.id} disabled={busy} onChange={() => { setBalance(match.can_fill_missing_balance ? suggestedLinkedBalanceSource(pair.sms.balance_after, draft.balance_after, statementIncludesSeparateFee) : ""); setLedger(match.id); setSeparateLedgerMovement(false); setDismissedLedgerMatches([]); setAckDistinctLedgerMatches(false); setLedgerCleared(false); setAckConflict(false); }} /><span>This is the same movement · link both sources</span></label> : null}
+            {match.can_link ? <label className="unified-ledger-choice"><input type="radio" name="unified-ledger-decision" checked={ledger === match.id} disabled={busy} onChange={() => { setBalance(match.can_fill_missing_balance ? suggestedLinkedBalanceSource(pair.sms.balance_after, draft.balance_after, statementIncludesSeparateFee, pair.batch.currency) : ""); setLedger(match.id); setSeparateLedgerMovement(false); setDismissedLedgerMatches([]); setAckDistinctLedgerMatches(false); setLedgerCleared(false); setAckConflict(false); }} /><span>This is the same movement · link both sources</span></label> : null}
             {separateLedgerMovement ? <label className="unified-ledger-choice"><input type="checkbox" checked={dismissedLedgerMatches.includes(match.id)} disabled={busy} onChange={event => { setDismissedLedgerMatches(current => event.target.checked ? [...current, match.id] : current.filter(id => id !== match.id)); setAckDistinctLedgerMatches(false); }} /><span>This is a different movement</span></label> : null}
           </article>)}
         </div>
@@ -195,14 +198,14 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
         {separateLedgerMovement && ledgerSuggestionsReviewed ? <label className="review-remember"><input type="checkbox" checked={ackDistinctLedgerMatches} disabled={busy} onChange={event => setAckDistinctLedgerMatches(event.target.checked)} /><span>I verified that every ledger suggestion above is a different movement. Record this pair once as a new transaction.</span></label> : null}
         <small className="field__hint">If one suggestion is the same movement but cannot be linked, review its statement evidence before recording another transaction.</small>
       </section> : null}
-      {ledger && !fillingMissingBalance ? <p role="status" className="inline-note">The saved balance selection for {pair.batch.account_name} will be retained. Use Transactions to correct a known balance or a previously reviewed blank.</p> : null}
+      {ledger && !fillingMissingBalance ? <p role="status" className="inline-note">{automaticLedgerBalance ? `Small rounding difference · using the higher balance automatically: ${automaticLedgerBalance === "sms" ? pair.sms.balance_after : automaticLedgerBalance === "statement" ? draft.balance_after : ledgerMatch?.effective_balance_after}. Both exact source values remain attached.` : `The saved balance selection for ${pair.batch.account_name} will be retained. Use Transactions to correct a known balance or a previously reviewed blank.`}</p> : null}
       {!ledger || fillingMissingBalance ? <fieldset className="statement-balance-choice">
         <legend>{fillingMissingBalance ? `Missing balance to add · ${pair.batch.account_name}` : "Balance to use in the ledger"}</legend>
-        <div className="statement-balance-options">
+        {automaticBalance ? <p role="status">Small rounding difference · using the higher balance automatically: {automaticBalance === "sms" ? pair.sms.balance_after : draft.balance_after}. SMS: {pair.sms.balance_after} · Statement: {draft.balance_after}.</p> : <div className="statement-balance-options">
           <label><input type="radio" name="unified-balance" value="sms" checked={balance === "sms"} disabled={busy || (pair.sms.balance_after === null && draft.balance_after !== null)} onChange={() => { setBalance("sms"); setAckConflict(false); }} /><span>SMS<strong>{pair.sms.balance_after ?? "Not reported"}</strong></span></label>
           <label><input type="radio" name="unified-balance" value="statement" checked={balance === "statement"} disabled={busy || statementIncludesSeparateFee || (draft.balance_after === null && pair.sms.balance_after !== null)} onChange={() => { setBalance("statement"); setAckConflict(false); }} /><span>Statement draft<strong>{draft.balance_after ?? "Not reported"}</strong></span></label>
-        </div>
-        <span className="field__hint">{fillingMissingBalance ? "Fills only this account’s missing report. Other account balances and the money movement stay unchanged. Differing reports require an explicit source choice." : balanceHint} Edit the statement draft in More transaction details. Both originals remain attached.</span>
+        </div>}
+        <span className="field__hint">{automaticBalance ? "The higher exact balance is used automatically." : fillingMissingBalance ? "Fills only this account’s missing report. Other account balances and the money movement stay unchanged. Differences under BDT 1 use the higher report automatically; larger differences require a source choice." : balanceHint} Edit the statement draft in More transaction details. Both originals remain attached.</span>
         {statementIncludesSeparateFee && pair.sms.balance_after === null && draft.balance_after !== null ? <Link className="button button--ghost" href={`/statements?import=${pair.batch.id}&row=${row.id}`}>Review fee separately</Link> : null}
       </fieldset> : null}
       {!draftChanged && row.review.issues.length ? <ul className="statement-error">{row.review.issues.map(issue => <li key={issue}>{issue}</li>)}</ul> : null}

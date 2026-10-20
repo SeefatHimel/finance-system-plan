@@ -93,14 +93,20 @@ test('filling a linked missing balance selects an agreed or sole report, never t
   assert.equal(choose(null, null), '');
   assert.equal(choose('450.07', '450.14'), '');
   assert.equal(choose('450.14', '450.07'), '');
+  assert.equal(choose('450.07', '450.14', false, 'BDT'), 'statement');
+  assert.equal(choose('450.07', '450.14', false, 'USD'), '');
   assert.equal(choose(null, '450.07', true), '');
   assert.equal(choose('450.07', null, true), 'sms');
 });
 
-test('a possible rounding match requires a separate explicit correction confirmation', () => {
-  assert.match(statementLinkBlockReason({ ...ready, amountCorrectionRequired: true }), /confirm/);
-  assert.equal(statementLinkBlockReason({ ...ready, amountCorrectionRequired: true, amountCorrectionConfirmed: true }), null);
-  assert.match(statementLinkBlockReason({ ...ready, amountCorrectionRequired: true, amountCorrectionConfirmed: true, conflict: true }), /Choose which reported balance/);
-  assert.match(statementLinkBlockReason({ ...ready, amountCorrectionRequired: true, amountCorrectionConfirmed: true, dirty: true }), /Save your draft/);
-  assert.match(statementLinkBlockReason({ ...ready, canLink: false, amountCorrectionRequired: true, amountCorrectionConfirmed: true }), /cannot be linked/);
+test('sub-taka source amounts use exact higher cents without chaining differences', () => {
+  const { coalescedSourceAmount: choose, automaticBdtBalanceSource: balance } = require(join(output, 'statement-review.js'));
+  assert.equal(choose(['100.00', '100.99'], 'BDT'), '100.99');
+  assert.equal(choose(['100.99', '100.00'], 'BDT'), '100.99');
+  assert.equal(choose(['100.00', '101.00'], 'BDT'), null);
+  assert.equal(choose(['100.00', '100.90', '101.80'], 'BDT'), null);
+  assert.equal(choose(['100.00', '100.01'], 'USD'), null);
+  assert.equal(choose(['999999999999.99', '999999999999.98'], 'BDT'), '999999999999.99');
+  assert.equal(balance({sms:'-0.50', statement:'-0.07'}, 'BDT'), 'statement');
+  assert.equal(balance({sms:null, statement:'0.00'}, 'BDT'), null);
 });

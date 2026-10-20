@@ -29,7 +29,7 @@ test('a balance choice expires when the draft version, ledger report or statemen
 
 test('zero and absent balances remain distinct in review choices', () => {
   const choice = { keep: 'existing', existing_balance_after: '0.00', statement_balance_after: '0.07', version: 1 };
-  assert.equal(currentStatementBalanceChoice(choice, { effective_balance_after: '0.00' }, '0.07', 1, 'BDT').keep, 'existing');
+  assert.equal(currentStatementBalanceChoice(choice, { effective_balance_after: '0.00' }, '0.07', 1, 'BDT').keep, 'statement');
   assert.equal(currentStatementBalanceChoice(choice, { effective_balance_after: null }, '0.07', 1, 'BDT'), undefined);
 });
 
@@ -52,7 +52,7 @@ test('larger, equal, unknown or non-BDT reports still need no automatic conflict
   ]) assert.equal(currentStatementBalanceChoice(undefined, { effective_balance_after: existing }, statement, 1, currency), undefined);
 });
 
-test('a manual lower choice overrides the default higher report', () => {
+test('a sub-taka BDT difference always uses the higher report', () => {
   const choice = { keep: 'existing', existing_balance_after: '22520.00', statement_balance_after: '22520.33', version: 1 };
-  assert.equal(currentStatementBalanceChoice(choice, { effective_balance_after: '22520.00' }, '22520.33', 1, 'BDT').keep, 'existing');
+  assert.equal(currentStatementBalanceChoice(choice, { effective_balance_after: '22520.00' }, '22520.33', 1, 'BDT').keep, 'statement');
 });

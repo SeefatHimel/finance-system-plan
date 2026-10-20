@@ -6,10 +6,9 @@ import { useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { HelpTooltip } from "@/components/help-tooltip";
 import { statementDraftCategory, statementSuggestionAlreadyApplied } from "@/lib/statement-draft-category";
-import { StatementRoundingConfirmation } from "@/components/statement-rounding-confirmation";
 import { StatementMatchComparison } from "@/components/statement-match-comparison";
 import { StatementDetailChoices } from "@/components/statement-detail-choices";
-import { statementAddBlockers, statementLinkBlockReason } from "@/lib/statement-review";
+import { statementAddBlockers, statementLinkBlockReason, reportedBalanceNeedsAcknowledgment } from "@/lib/statement-review";
 import { currentStatementBalanceChoice, type StatementBalanceSelection } from "@/lib/statement-balance-choice";
 import { selectedStatementDetails, type DetailSelections } from "@/lib/statement-details";
 import { displayedStatementText } from "@/lib/statement-citytouch";
@@ -38,8 +37,6 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
   const [balanceSelections, setBalanceSelections] = useState<Record<string, StatementBalanceSelection>>({});
   const [categorySelections, setCategorySelections] = useState<Record<string, { version: number; choice: StatementCategoryChoice }>>({});
   const [detailSelections, setDetailSelections] = useState<Record<string, { version: number; values: DetailSelections }>>({});
-  const [roundingMatchId, setRoundingMatchId] = useState<string | null>(null);
-  const roundingMatch = row.review.matches.find(item => item.id === roundingMatchId);
   const [confirmSeparate, setConfirmSeparate] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [verifiedSms, setVerifiedSms] = useState<string | null>(null);
@@ -84,7 +81,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     if (action === "combine_sms") return;
     const token = getAccessToken(); if (!token || busy) return;
     const match = row.review.matches.find((item) => item.id === transaction);
-    const balanceChoice = match ? (match.rounding_correction && !balanceSelections[match.id] ? undefined : currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version, batch.currency)) : undefined;
+    const balanceChoice = match ? currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version, batch.currency) : undefined;
     const categorySelection = match && categorySelections[match.id];
     const categoryChoice = match && categorySelection?.version === row.version
       && categorySelection.choice.existing_category === match.category_id
@@ -95,7 +92,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     const selections = match && detailSelections[match.id]?.version === row.version ? detailSelections[match.id].values : {};
     const detailResult = match ? selectedStatementDetails(match.detail_suggestions, selections) : { choices: [], error: null };
     if (action === "link") {
-      const blocked = match ? detailResult.error ?? statementLinkBlockReason({ dirty, canLink: match.can_link || Boolean(amountCorrection && match.rounding_correction?.can_correct), amountCorrectionRequired: Boolean(match.rounding_correction), amountCorrectionConfirmed: Boolean(amountCorrection), requiresAcknowledgement: row.review.requires_acknowledgement, issuesAcknowledged: ackIssues, conflict: match.conflict, balanceChosen: Boolean(balanceChoice), categoryConflict, categoryChosen }) : "Refresh the match suggestions.";
+      const blocked = match ? detailResult.error ?? statementLinkBlockReason({ dirty, canLink: match.can_link, requiresAcknowledgement: row.review.requires_acknowledgement, issuesAcknowledged: ackIssues, conflict: match.conflict, balanceChosen: Boolean(balanceChoice), categoryConflict, categoryChosen }) : "Refresh the match suggestions.";
       if (blocked) { showError(new Error(blocked)); return; }
     }
     setBusy(true); setError(null);
@@ -104,7 +101,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
       onChange(result, true);
       const messages = { create: "Transaction added from the statement.", link: "Statement evidence linked. The transaction is counted once.", skip: "Statement row skipped.", unlink: "Statement evidence unlinked. The ledger transaction was kept.", reopen: "Skipped row reopened for review." };
       notify(messages[action]);
-    } catch (reason) { showError(reason); } finally { setBusy(false); setConfirmSeparate(false); setConfirmUnlink(false); setRoundingMatchId(null); }
+    } catch (reason) { showError(reason); } finally { setBusy(false); setConfirmSeparate(false); setConfirmUnlink(false); }
   }
   async function combineSms(candidateId: string) {
     const token = getAccessToken(); if (!token || busy || dirty) return;
@@ -138,7 +135,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     } catch (reason) { showError(reason); } finally { setBusy(false); }
   }
   function handleShortcuts(event: KeyboardEvent<HTMLElement>) {
-    if (!event.altKey || busy || confirmSeparate || confirmUnlink || roundingMatchId) return;
+    if (!event.altKey || busy || confirmSeparate || confirmUnlink) return;
     if (event.key.toLowerCase() === "s" && !isResolved && dirty) { event.preventDefault(); void save(!editOnly && event.shiftKey); }
     if (!editOnly && event.key === "ArrowRight") { event.preventDefault(); if (dirty) showError(new Error("Save your changes before moving to the next row.")); else void advance(); }
   }
@@ -228,7 +225,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
           <p className="inline-note">Review the same movement across both sources. This creates one SMS-dated transaction and links the statement; either queue can still be reviewed separately.</p>
           {row.review.matches.length ? <div className="raw-message"><strong>Existing ledger suggestions also need a decision</strong><p>Compare each ledger entry in the Possible matches section below before combining the SMS and statement.</p><ul>{row.review.matches.map((item) => <li key={item.id}>{formatCalendarDate(item.date)} · {item.amount} · {item.note || item.reference || item.source}</li>)}</ul><label className="review-remember"><input type="checkbox" checked={distinctLedgerMatches} disabled={busy || dirty} onChange={(event) => setDistinctLedgerMatches(event.target.checked)} /><span>I compared every listed ledger entry and confirmed each is a different movement.</span></label></div> : null}
           <div className="statement-match-list">{row.review.pending_sms_matches.map((match) => {
-            const conflict = match.balance_after !== null && row.balance_after !== null && match.balance_after !== row.balance_after;
+            const conflict = reportedBalanceNeedsAcknowledgment(match.balance_after, row.balance_after, batch.currency);
             const choice = currentStatementBalanceChoice(balanceSelections[match.id], { effective_balance_after: match.balance_after }, row.balance_after, row.version, batch.currency);
             return <article className="statement-match-card" key={match.id}>
               <header className="statement-match-heading"><h4>Pending SMS · {match.sender}</h4><span>{batch.currency} {match.amount}</span></header>
@@ -257,14 +254,14 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
           <div className="statement-match-list">{row.review.matches.map((match) => <StatementMatchComparison key={match.id}
             row={row} batch={batch} match={match} accounts={accounts} categories={categories}
             busy={busy} dirty={dirty} issuesAcknowledged={ackIssues}
-            balanceChoice={match.rounding_correction && !balanceSelections[match.id] ? undefined : currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version, batch.currency)}
+            balanceChoice={currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version, batch.currency)}
             balanceAutoSelected={balanceSelections[match.id] === undefined}
             categoryChoice={categorySelections[match.id]?.version === row.version && categorySelections[match.id]?.choice.existing_category === match.category_id && categorySelections[match.id]?.choice.statement_category === row.category ? categorySelections[match.id]?.choice : undefined}
             detailSelections={detailSelections[match.id]?.version === row.version ? detailSelections[match.id].values : {}}
             onBalanceChoice={(keep) => setBalanceSelections((old) => ({ ...old, [match.id]: { keep, version: row.version, existing_balance_after: match.effective_balance_after, statement_balance_after: row.balance_after } }))}
             onCategoryChoice={(choice) => setCategorySelections((old) => ({ ...old, [match.id]: { version: row.version, choice } }))}
             onDetailChange={(values) => setDetailSelections((old) => ({ ...old, [match.id]: { version: row.version, values } }))}
-            onAccept={() => match.rounding_correction ? setRoundingMatchId(match.id) : void decide("link", match.id)} />)}</div>
+            onAccept={() => void decide("link", match.id, false, match.rounding_correction ? { existing_amount: match.rounding_correction.existing_amount, statement_amount: match.rounding_correction.statement_amount, transaction_updated_at: match.rounding_correction.transaction_updated_at } : undefined)} />)}</div>
         </section> : null}
         {error ? <div><p role="alert" className="form-error">{error}</p><button className="button" type="button" disabled={busy} onClick={() => { dismiss(); setDraft(editable(row)); setBalanceSelections({}); setCategorySelections({}); setDetailSelections({}); setAckIssues(false); setDistinctLedgerMatches(false); setError(null); onReload(); }}>Reload row · discard unsaved changes</button></div> : null}
       </div>
@@ -280,13 +277,6 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         </div>
       </footer>
     </ModalDialog>
-    {roundingMatch?.rounding_correction ? <StatementRoundingConfirmation
-      key={`${row.version}:${roundingMatch.id}:${roundingMatch.rounding_correction.transaction_updated_at}`} row={row} match={roundingMatch} currency={batch.currency} busy={busy}
-      balanceChoice={balanceSelections[roundingMatch.id] ? currentStatementBalanceChoice(balanceSelections[roundingMatch.id], roundingMatch, row.balance_after, row.version, batch.currency) : undefined}
-      onCancel={() => setRoundingMatchId(null)} onConfirm={() => {
-        const correction = roundingMatch.rounding_correction!;
-        void decide("link", roundingMatch.id, false, { existing_amount: correction.existing_amount, statement_amount: correction.statement_amount, transaction_updated_at: correction.transaction_updated_at });
-      }} /> : null}
     {categoryChoice.confirmation}
     {confirmSeparate ? <ModalDialog labelledBy="statement-separate-title" busy={busy} onCancel={() => setConfirmSeparate(false)}><h2 id="statement-separate-title">Add a separate movement?</h2><p>A ledger entry or pending SMS may describe this row. Continue only if you have checked that this is another transaction, such as a genuine repeat purchase.</p><div className="decision-modal__actions"><button className="button" type="button" disabled={busy} onClick={() => setConfirmSeparate(false)}>Back to matches</button><button className="button button--primary" type="button" disabled={busy} onClick={() => void decide("create", undefined, true)}>Confirm separate movement</button></div></ModalDialog> : null}
     {confirmUnlink ? <ModalDialog labelledBy="statement-unlink-title" busy={busy} onCancel={() => setConfirmUnlink(false)}><h2 id="statement-unlink-title">Unlink this evidence?</h2><p>The transaction stays in your ledger. This row returns to review, where it may suggest that transaction again.</p><div className="decision-modal__actions"><button className="button" type="button" disabled={busy} onClick={() => setConfirmUnlink(false)}>Cancel</button><button className="button button--primary" type="button" disabled={busy} onClick={() => void decide("unlink")}>Unlink evidence only</button></div></ModalDialog> : null}

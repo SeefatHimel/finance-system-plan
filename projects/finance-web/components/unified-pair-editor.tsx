@@ -1,5 +1,6 @@
 "use client";
 
+import { coalescedSourceAmount } from "@/lib/statement-review";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { CalendarDateInput } from "@/components/calendar-date-input";
 import { directionForType, transactionTypes } from "@/lib/category-type";
@@ -45,7 +46,7 @@ function Suggestion({ label, value, onUse, disabled }: { label: string; value: s
   return <button className="unified-suggestion" type="button" disabled={disabled} onClick={onUse} title={value}>Use {label}: {value}</button>;
 }
 
-export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftChange, typeChoice, onTypeChoice, busy }: {
+export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftChange, typeChoice, onTypeChoice, busy, ledgerAmount }: {
   pair: UnifiedPair;
   accounts: Account[];
   categories: Category[];
@@ -54,6 +55,7 @@ export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftCh
   typeChoice: PairTypeChoice;
   onTypeChoice: (choice: PairTypeChoice) => void;
   busy: boolean;
+  ledgerAmount?: string;
 }) {
   const categoryChoice = useCategoryTypeChoice(categories);
   const received = receivedParts(pair);
@@ -103,7 +105,7 @@ export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftCh
   return <section className="unified-result-editor compact-editor" aria-labelledby="unified-result-title">
     <header><div><h3 id="unified-result-title">Final transaction</h3><p>One entry, with both sources attached.</p></div><span className="status-badge status-badge--idle">Draft</span></header>
     <div className="unified-primary-details">
-      <div className="unified-amount-summary"><div><span>Amount to record</span><strong>{pair.batch.currency} {draft.amount ?? "Not reported"}</strong></div><small>Both sources agree. Correct a source before combining if the amount is wrong.</small></div>
+      <div className="unified-amount-summary"><div><span>Amount to record</span><strong>{pair.batch.currency} {coalescedSourceAmount([draft.amount, pair.sms.amount, ...(ledgerAmount ? [ledgerAmount] : [])], pair.batch.currency) ?? draft.amount ?? "Not reported"}</strong></div><small>Statement: {draft.amount} · SMS: {pair.sms.amount}{ledgerAmount ? ` · Ledger: ${ledgerAmount}` : ""}. Differences under BDT 1 use the higher amount automatically. Both originals are kept.</small></div>
       <div className="field unified-note-field"><label className="field__label" htmlFor="unified-note">Final description / note</label><textarea id="unified-note" className="field__control" maxLength={4000} rows={3} value={draft.note} disabled={busy} onChange={event => setField("note", event.target.value)} /><div className="unified-suggestions">{pair.row.review.suggestion?.note && pair.row.review.suggestion.note !== draft.note ? <Suggestion label="saved note" value={pair.row.review.suggestion.note} disabled={busy} onUse={() => setField("note", pair.row.review.suggestion?.note ?? "")} /> : null}{merchantNote ? <Suggestion label="merchant as note" value={merchantNote} disabled={busy} onUse={() => setField("note", merchantNote)} /> : null}</div><small className="field__hint">Edit this note before recording. Both original descriptions remain attached.</small></div>
     </div>
     {typeDiffers ? <fieldset className="unified-type-choice" aria-describedby="unified-type-help"><legend>Choose the transaction type</legend><p id="unified-type-help" className="visually-hidden">The statement and SMS classify this movement differently. Choose a source or set your own type below.</p><div className="unified-type-options"><label><input type="radio" name="pair-type-choice" checked={typeChoice === "statement"} disabled={busy} onChange={() => applyType(pair.row.type, "statement")} /> Statement · {pair.row.type.replaceAll("_", " ")}</label><label><input type="radio" name="pair-type-choice" checked={typeChoice === "sms"} disabled={busy} onChange={() => applyType(pair.sms.transaction_type as TransactionType, "sms")} /> SMS · {pair.sms.transaction_type.replaceAll("_", " ")}</label><label><input type="radio" name="pair-type-choice" checked={typeChoice === "custom"} disabled={busy} onChange={() => onTypeChoice("custom")} /> My choice</label></div></fieldset> : null}
