@@ -750,3 +750,13 @@ Supplied balance snapshots are validated before the automatic choice. Larger
 spans and other currencies retain existing rules. Originals remain evidence;
 audit history records the canonical result. This does not auto-post or broaden
 the attachment-only proposal API into financial corrections. No migration.
+
+### What is the confirmed-transaction correction boundary?
+
+GET transactions/{id}/revalidate returns a private no-store, user-scoped preview
+and a signed 900-second token. POST apply-revalidation accepts token and selected
+offered keys only; the server recomputes corrections under locks. Ownership is 404,
+invalid selections 400 and expired/stale/replayed previews 409. The atomic response
+is the existing Transaction shape, with audit and Undo. No migration or mandatory
+old-client changes; deploy API before web. Source evidence is never rewritten and
+no new movement is posted.

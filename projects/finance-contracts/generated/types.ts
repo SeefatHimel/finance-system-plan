@@ -982,6 +982,43 @@ export interface TransactionActivityPage {
   results: Transaction[];
 }
 
+export interface RevalidationApply {
+  token: string;
+  selected: string[];
+}
+
+export interface RevalidationPreview {
+  transaction: string;
+  currency: string;
+  policy: string;
+  fingerprint: string;
+  token: string;
+  expires_in: number;
+  suggestions: RevalidationSuggestion[];
+  sources: RevalidationSource[];
+  warnings: string[];
+}
+
+export interface RevalidationSource {
+  kind: string;
+  id: string;
+  account: string | null;
+  account_name: string;
+  amount: string | null;
+  balance_after: string | null;
+  usable: boolean;
+  has_fee: boolean;
+}
+
+export interface RevalidationSuggestion {
+  key: string;
+  label: string;
+  current: string | null;
+  proposed: string;
+  reason: string;
+  value?: string;
+}
+
 export interface TransactionIssue {
   code: string;
   level: "check" | "suggestion";

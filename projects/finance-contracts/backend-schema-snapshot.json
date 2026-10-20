@@ -5206,6 +5206,60 @@
         ]
       }
     },
+    "/api/transactions/{id}/apply-revalidation/": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevalidationApply"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/RevalidationApply"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/RevalidationApply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/transactions/{id}/merge-transfer/": {
       "post": {
         "parameters": [
@@ -5244,6 +5298,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/transactions/{id}/revalidate/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevalidationPreview"
                 }
               }
             }
@@ -9057,6 +9145,156 @@
         "other"
       ],
       "type": "string"
+    },
+    "RevalidationApply": {
+      "properties": {
+        "selected": {
+          "items": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array"
+        },
+        "token": {
+          "maxLength": 2048,
+          "type": "string"
+        }
+      },
+      "required": [
+        "selected",
+        "token"
+      ],
+      "type": "object"
+    },
+    "RevalidationPreview": {
+      "properties": {
+        "currency": {
+          "type": "string"
+        },
+        "expires_in": {
+          "type": "integer"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "policy": {
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/components/schemas/RevalidationSource"
+          },
+          "type": "array"
+        },
+        "suggestions": {
+          "items": {
+            "$ref": "#/components/schemas/RevalidationSuggestion"
+          },
+          "type": "array"
+        },
+        "token": {
+          "type": "string"
+        },
+        "transaction": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "currency",
+        "expires_in",
+        "fingerprint",
+        "policy",
+        "sources",
+        "suggestions",
+        "token",
+        "transaction",
+        "warnings"
+      ],
+      "type": "object"
+    },
+    "RevalidationSource": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "account_name": {
+          "type": "string"
+        },
+        "amount": {
+          "nullable": true,
+          "type": "string"
+        },
+        "balance_after": {
+          "nullable": true,
+          "type": "string"
+        },
+        "has_fee": {
+          "type": "boolean"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "usable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "account",
+        "account_name",
+        "amount",
+        "balance_after",
+        "has_fee",
+        "id",
+        "kind",
+        "usable"
+      ],
+      "type": "object"
+    },
+    "RevalidationSuggestion": {
+      "properties": {
+        "current": {
+          "nullable": true,
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "proposed": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "current",
+        "key",
+        "label",
+        "proposed",
+        "reason"
+      ],
+      "type": "object"
     },
     "RoleEnum": {
       "enum": [

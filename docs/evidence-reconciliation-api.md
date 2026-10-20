@@ -157,3 +157,27 @@ DATABASE_URL= DJANGO_DEBUG=true .venv/bin/python manage.py makemigrations --chec
 SQLite skips row-lock tests. Run the same suite with `DATABASE_URL` pointing to a
 throwaway PostgreSQL instance to verify concurrent identical retries and competing
 proposals. Never point these tests at a live finance database.
+
+
+## Confirmed transaction correction boundary
+
+Attachment proposals above remain attachment-only. Confirmed ledger entries can
+now be reviewed separately using `GET /api/transactions/{id}/revalidate/`, followed
+by `POST /api/transactions/{id}/apply-revalidation/` with the signed `token` and
+explicitly `selected` suggestion keys. The web Transactions screen exposes this
+as Revalidate on each entry and beside Check transactions findings.
+
+The read-only preview compares attached confirmed sources and current retained-SMS
+rules. It shows source values, current/proposed corrections and manual-review
+warnings. Eligible corrections include higher BDT values within a full span below
+Tk 1, optional restoration of missing account-bound balances, and compatible current
+SMS category suggestions. Larger conflicts, account-path changes, ambiguous fees,
+and debt/bill amount dependencies require manual review. It does not find new
+links, merge duplicates or perform bulk historical compensation.
+
+Signed previews expire after 15 minutes and bind to the current policy, ledger,
+evidence and suggestions. Apply rechecks under locks; stale/expired/replayed
+previews return 409. Only selected server-offered values are written atomically,
+with audit history and latest-action Undo. Originals are retained unchanged.
+Preview/refresh/cancel never mutate data, so no import/resync is required. This
+boundary needs API then web deployment, with no new database migration or APK.

@@ -1132,7 +1132,7 @@ statement choice. The public eligibility boolean is advisory and recomputed unde
 the writer lock. Primary-report fallback uses evidence creation order so attaching
 an earlier-timestamped receiver report cannot move the sender's balance ownership.
 This changes account report selection, not ledger movement totals. No migration
-or historical bulk repair is included; broader revalidation remains planned.
+or historical bulk repair is included; reviewed per-transaction revalidation is available separately (see below).
 
 
 ### How can a late SMS attach to a transaction originally recorded from PDF?
@@ -1157,7 +1157,8 @@ replay cannot resurrect an undone/changed link. New attachments use the existing
 24-hour latest unchanged-action Undo; pending statement rows are captured before
 linking so Undo restores them rather than deleting them. Purge expired proposal
 metadata with the bounded dry-run-first management command after at least 30 days;
-canonical source links remain. Historical repair/compensation is still planned.
+canonical source links remain. Historical per-transaction repair now has a separate
+reviewed revalidation boundary (below); bulk compensation remains future work.
 
 ### How are sub-taka SMS/PDF and ledger differences resolved?
 
@@ -1172,3 +1173,17 @@ normal review rules. Canonical values change atomically while original SMS/PDF
 and account-specific reports stay attached. Stale snapshots fail, accepted retries
 are idempotent, fee balances and reviewed nulls stay protected, and dependencies
 block unsafe amount increases. No historical backfill or automatic posting.
+
+### Can confirmed transactions be revalidated as rules improve?
+
+Yes. The per-transaction revalidate GET compares attached confirmed SMS, accepted
+PDF rows, account reports and current retained-SMS parsing without writes. It
+returns exact before/after suggestions and manual-review warnings. A signed,
+15-minute token plus explicitly selected server-offered fields authorizes the
+apply POST. It recomputes the policy/evidence/ledger fingerprint under locks,
+rejects stale/replayed previews, updates through the existing serializer, audits
+changes and supports latest-action Undo. It can repair sub-taka BDT values, restore
+missing per-account balances and offer compatible current-rule categories. It
+does not automatically merge, relink, change account paths or repair larger
+conflicts/debt and bill amounts. Original observations remain unchanged; no
+historical import/resync or migration is required.

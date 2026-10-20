@@ -18,8 +18,9 @@ from apps.audit_logs.services import create_audit_log, transaction_snapshot
 from apps.messages.models import ParsedMessageCandidate, RawMessage
 from apps.statements.serializers import SavedStatementRowSerializer
 
-from .models import Transaction, TransactionAction
+from . import revalidation
 from .issue_scan import scan_ledger_page
+from .models import Transaction, TransactionAction
 from .recovery import ActionRecorder, describe, undo_action
 from .search import SEARCH_DESCRIPTION, filter_transaction_search
 from .serializers import (
@@ -89,6 +90,43 @@ class TransactionIssuePageSerializer(serializers.Serializer):
     results = TransactionIssueResultSerializer(many=True)
 
 
+class RevalidationSuggestionSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    label = serializers.CharField()
+    current = serializers.CharField(allow_null=True)
+    proposed = serializers.CharField()
+    reason = serializers.CharField()
+    value = serializers.CharField(required=False)
+
+
+class RevalidationSourceSerializer(serializers.Serializer):
+    kind = serializers.CharField()
+    id = serializers.UUIDField()
+    account = serializers.UUIDField(allow_null=True)
+    account_name = serializers.CharField()
+    amount = serializers.CharField(allow_null=True)
+    balance_after = serializers.CharField(allow_null=True)
+    usable = serializers.BooleanField()
+    has_fee = serializers.BooleanField()
+
+
+class RevalidationPreviewSerializer(serializers.Serializer):
+    transaction = serializers.UUIDField()
+    currency = serializers.CharField()
+    policy = serializers.CharField()
+    fingerprint = serializers.CharField()
+    token = serializers.CharField()
+    expires_in = serializers.IntegerField()
+    suggestions = RevalidationSuggestionSerializer(many=True)
+    sources = RevalidationSourceSerializer(many=True)
+    warnings = serializers.ListField(child=serializers.CharField())
+
+
+class RevalidationApplySerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=2048)
+    selected = serializers.ListField(child=serializers.CharField(max_length=80), min_length=1, max_length=4)
+
+
 def spreadsheet_safe_text(value):
     """Prevent user-controlled CSV text from becoming a spreadsheet formula."""
     if value and value.lstrip(" \t\r\n\ufeff").startswith(("=", "+", "-", "@")):
@@ -100,6 +138,20 @@ def spreadsheet_safe_text(value):
 class TransactionViewSet(ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = (IsAuthenticated,)
+
+    @extend_schema(parameters=[OpenApiParameter("id", OpenApiTypes.UUID, OpenApiParameter.PATH)], responses=RevalidationPreviewSerializer)
+    @action(detail=True, methods=("get",), url_path="revalidate")
+    def revalidate(self, request, pk=None):
+        return Response(revalidation.preview(self.get_object()), headers={"Cache-Control": "private, no-store"})
+
+    @extend_schema(parameters=[OpenApiParameter("id", OpenApiTypes.UUID, OpenApiParameter.PATH)], request=RevalidationApplySerializer, responses=TransactionSerializer)
+    @action(detail=True, methods=("post",), url_path="apply-revalidation")
+    def apply_revalidation(self, request, pk=None):
+        self.get_object()  # Enforce the same ownership/404 boundary on both routes.
+        serializer = RevalidationApplySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        record = revalidation.apply(user=request.user, record_id=pk, request=request, **serializer.validated_data)
+        return Response(self.get_serializer(record).data, headers={"Cache-Control": "private, no-store"})
 
     @extend_schema(
         parameters=[

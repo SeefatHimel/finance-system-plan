@@ -5,7 +5,11 @@ from collections import defaultdict
 from apps.messages.models import ParsedMessageCandidate, RawMessage
 from apps.messages.parsers import is_generic_bank_deposit, parse_raw_message
 from apps.payment_methods.models import PaymentMethod
+from apps.statements.models import StatementRow
+from apps.statements.rounding import equivalent_amount
+from apps.statements.unified import sms_observation
 
+from .balance_reports import reported_values
 from .models import Transaction, TransferEvidence
 
 
@@ -23,17 +27,20 @@ def _account_provider(account, methods):
 
 
 def scan_ledger_page(*, user, limit, offset):
-    queryset = Transaction.objects.filter(user=user).select_related("account", "category", "raw_message").order_by("-date", "-id")
+    queryset = Transaction.objects.filter(user=user).select_related("account", "category", "raw_message").prefetch_related("transfer_evidence").order_by("-date", "-id")
     total = queryset.count()
     records = list(queryset[offset:offset + limit])
     record_ids = [record.pk for record in records]
     sources = defaultdict(dict)
+    financials = defaultdict(list)
     for record in records:
         if record.raw_message_id:
             sources[record.pk][record.raw_message_id] = (record.raw_message, record.account, False)
     for candidate in ParsedMessageCandidate.objects.filter(
         user=user, transaction_id__in=record_ids, status=ParsedMessageCandidate.Status.CONFIRMED,
-    ).select_related("raw_message", "account"):
+    ).select_related("raw_message", "account", "destination_account"):
+        account, _, _ = sms_observation(candidate)
+        financials[candidate.transaction_id].append((account.pk if account else None, candidate.amount, candidate.balance_after))
         sources[candidate.transaction_id].setdefault(
             candidate.raw_message_id, (candidate.raw_message, candidate.account, False)
         )
@@ -43,10 +50,18 @@ def scan_ledger_page(*, user, limit, offset):
         # Linked transfers attribute each SMS to the reporting account, not
         # necessarily the canonical transfer source.
         sources[evidence.transaction_id][evidence.raw_message_id] = (evidence.raw_message, evidence.account, True)
+    for row in StatementRow.objects.filter(batch__user=user, transaction_id__in=record_ids, state__in=("posted", "linked")).select_related("batch"):
+        financials[row.transaction_id].append((row.batch.account_id, row.amount, row.balance_after))
     methods = list(PaymentMethod.objects.filter(user=user, is_active=True, account__is_active=True))
     findings = []
     for record in records:
         warnings = []
+        balances = reported_values(record) if record.type == "transfer" else {record.account_id: record.balance_after}
+        if any((amount is not None and not (record.amount >= amount and equivalent_amount(record.amount, amount, record.account.currency))) or
+               (balance is not None and not (balances.get(account_id) is not None and balances[account_id] >= balance and equivalent_amount(balances[account_id], balance, record.account.currency)))
+               for account_id, amount, balance in financials[record.pk]):
+            warnings.append({"code": "saved_source_difference", "level": "suggestion",
+                             "text": "Attached evidence differs from the saved amount or reported balance. Revalidate to preview eligible corrections; conflicts may require manual review."})
         for message, reporting_account, attributed in sources[record.pk].values():
             if message.user_id != user.pk:
                 continue

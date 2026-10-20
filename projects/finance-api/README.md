@@ -1389,7 +1389,7 @@ report remain unchanged. An audit records the selected fill source.
 
 No new model migration or historical data backfill is included. Existing affected
 records can be corrected with account-labelled balances in Transactions; the
-preview-first historical repair workflow remains planned. Deploy API before web.
+preview-first historical repair workflow is available through Revalidate below. Deploy API before web.
 From `projects/finance-api`, verify with:
 
 ```bash
@@ -1412,8 +1412,9 @@ candidate/statement/evidence records remain canonical.
 
 Run `manage.py migrate` for `reconciliation.0002_evidenceproposal` before enabling
 clients. Existing review routes/APKs remain compatible; the next web phase will
-consume the new boundary. This does not deliver historical revalidation or change
-ordinary null-balance provenance. See the full request/response, balance policy,
+consume the new boundary. This attachment boundary does not perform financial corrections or change
+ordinary null-balance provenance; reviewed historical repair uses the separate
+transaction revalidation actions below. See the full request/response, balance policy,
 synthetic test commands and dry-run metadata cleanup instructions in
 [the evidence API guide](../../docs/evidence-reconciliation-api.md).
 
@@ -1453,4 +1454,48 @@ Verify with PostgreSQL for concurrent retry coverage:
 
 ```sh
 .venv/bin/python manage.py test apps.statements apps.reconciliation apps.transactions.test_transfers --noinput
+```
+
+## Reviewed revalidation of confirmed transactions
+
+In Transactions, **Revalidate** checks an existing ledger movement against its
+attached confirmed SMS, accepted statement rows and transfer observations. Current
+SMS parsing/learned category rules run read-only when the original text remains
+available. Re-importing statements or resyncing SMS is not required.
+
+`GET /api/transactions/{id}/revalidate/` returns the current/proposed values,
+source values, manual-review warnings, policy version and a signed preview token
+valid for 15 minutes. It does not persist parser output or change the ledger.
+`POST /api/transactions/{id}/apply-revalidation/` takes that `token` and a nonempty
+`selected` array of offered keys (`amount`, `category`, `balance:{account_uuid}`).
+Nothing is preapproved. Values are derived by the server, never supplied by the
+client. Apply is user-scoped, atomic and serialized with existing ledger writers;
+changed ledger/evidence/rules, expired tokens and replayed successful previews
+return 409 and require a fresh review. Retrying cannot create another movement.
+
+Eligible corrections use the higher exact BDT value only when the full amount or
+same-account balance span is strictly below Tk 1. Missing balances can be restored
+by explicitly selecting the suggestion, including a previously reviewed blank;
+ordinary source linking still protects such blanks. A compatible, unambiguous
+current SMS category can be selected without changing type. Larger/non-BDT amount
+differences, incompatible account/direction/currency/date evidence, separate fees,
+unattributed legacy transfer balances and ambiguous categories require manual
+review. Debt and bill dependencies block amount corrections. Accepted statements
+may remain attached during this reviewed sub-taka repair; their originals stay
+unchanged. Source dates are checked within three days of the movement; revalidation
+does not search for or attach new sources, merge duplicates, change account paths
+or automatically correct type/date/reference.
+
+Checks cap each source relation at 100; excess disables corrections. Preview
+responses omit SMS bodies and use private `no-store`. Apply uses the transaction
+serializer and account-bound effective reports, preserves source candidates/PDF
+extractions, records before/after plus selected keys/policy in audit History, and
+participates in latest-action Undo. The bounded **Check transactions** scan also
+flags saved amount/balance discrepancies and current category suggestions, then
+opens the same preview per entry. It is a limited diagnostic, not a verification
+of every field. No migration, automatic background repair or APK rebuild is needed.
+Deploy API before web. Verify with PostgreSQL:
+
+```sh
+.venv/bin/python manage.py test apps.transactions.test_revalidation apps.transactions.test_issue_scan --noinput
 ```

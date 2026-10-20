@@ -807,3 +807,24 @@ if an older client requests the lower one. Original SMS/PDF amounts and balances
 remain attached; the selected ledger value is audited. No migrations; deploy
 API before clients. Evidence proposal/apply remains attachment-only and does
 not gain automatic financial mutation through this policy.
+
+### Confirmed transaction revalidation
+
+`GET /api/transactions/{id}/revalidate/` is a private, read-only preview against
+attached confirmed evidence/current SMS rules. It returns `suggestions` with stable
+selection keys, exact current/proposed text, `sources`, `warnings`, policy/fingerprint,
+`token` and `expires_in: 900`. No SMS body is returned. All suggestions require explicit
+selection; opening/refreshing never applies corrections.
+
+`POST /api/transactions/{id}/apply-revalidation/` accepts only a preview `token` and
+`selected` keys (1–4). It returns the updated Transaction. Invalid selections are
+400; other users' records are 404; invalid/expired/stale or previously consumed
+successful previews are 409. Source/ledger state is recomputed under locks before
+applying an atomic, audited update with latest-action Undo. No client-authored money
+values, account changes, automatic posting or new evidence links are accepted.
+Eligible financial repairs use the higher BDT value for a full span < Tk 1, or
+explicitly restore a missing reported balance. Compatible current-rule category
+suggestions are optional. Larger conflicts, fees, unsafe source identity and
+business dependencies stay manual. Sources remain unchanged. No migration required;
+API deployment must precede the web client. Generated TypeScript/schema snapshot
+include both additive actions; older clients continue to work.

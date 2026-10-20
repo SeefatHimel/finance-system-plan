@@ -2245,6 +2245,75 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/transactions/{id}/apply-revalidation/:
+    post:
+      operationId: transactions_apply_revalidation_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Transactions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevalidationApply'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Preview expired, invalid, stale or previously applied. Refresh
+            and review again.
+      summary: Apply selected confirmed transaction corrections
+      description: Apply only offered keys from a signed 15-minute preview. Recompute
+        current evidence/policy under locks, preserve originals, audit the update and
+        support latest-action Undo. Stale, expired or replayed previews return 409.
+  /api/transactions/{id}/revalidate/:
+    get:
+      operationId: transactions_revalidate_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Transactions
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevalidationPreview'
+          description: ''
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+      summary: Preview confirmed transaction corrections
+      description: User-scoped read-only comparison against attached confirmed evidence
+        and current SMS rules. No changes until explicit selection and apply; no source
+        SMS body is returned.
   /api/transactions/issues/:
     get:
       tags: [Transactions]
@@ -5655,6 +5724,115 @@ components:
         results:
           type: array
           items: {$ref: '#/components/schemas/Transaction'}
+    RevalidationApply:
+      type: object
+      properties:
+        token:
+          type: string
+          maxLength: 2048
+        selected:
+          type: array
+          items:
+            type: string
+            maxLength: 80
+          maxItems: 4
+          minItems: 1
+      required:
+      - selected
+      - token
+    RevalidationPreview:
+      type: object
+      properties:
+        transaction:
+          type: string
+          format: uuid
+        currency:
+          type: string
+        policy:
+          type: string
+        fingerprint:
+          type: string
+        token:
+          type: string
+        expires_in:
+          type: integer
+        suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RevalidationSuggestion'
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/RevalidationSource'
+        warnings:
+          type: array
+          items:
+            type: string
+      required:
+      - currency
+      - expires_in
+      - fingerprint
+      - policy
+      - sources
+      - suggestions
+      - token
+      - transaction
+      - warnings
+    RevalidationSource:
+      type: object
+      properties:
+        kind:
+          type: string
+        id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+          nullable: true
+        account_name:
+          type: string
+        amount:
+          type: string
+          nullable: true
+        balance_after:
+          type: string
+          nullable: true
+        usable:
+          type: boolean
+        has_fee:
+          type: boolean
+      required:
+      - account
+      - account_name
+      - amount
+      - balance_after
+      - has_fee
+      - id
+      - kind
+      - usable
+    RevalidationSuggestion:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        current:
+          type: string
+          nullable: true
+        proposed:
+          type: string
+        reason:
+          type: string
+        value:
+          type: string
+      required:
+      - current
+      - key
+      - label
+      - proposed
+      - reason
     TransactionIssue:
       type: object
       required: [code, level, text]
