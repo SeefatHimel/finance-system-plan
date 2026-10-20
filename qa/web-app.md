@@ -1269,7 +1269,9 @@ The standalone draft uses a dialog-width-responsive grid: three columns when
 there is enough room, two at intermediate widths and one on phones. Date and
 time share a grid slot and stack when needed. Key money/account/category fields
 stay visible. Source evidence, funding candidates and optional reference, value
-date and note fields expand on demand without remounting or resetting the draft.
+date fields expand on demand without remounting or resetting the draft. Note and
+its saved-note suggestion stay in the open main form for every statement row,
+including when the draft editor opens from combined review.
 Required discrepancy warnings and review acknowledgements are not collapsed.
 Funding guidance is available through an info control that supports focus and tap.
 

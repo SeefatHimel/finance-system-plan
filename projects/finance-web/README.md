@@ -1486,9 +1486,11 @@ The standalone statement-row dialog groups date/time into one grid slot and uses
 three columns when the dialog body is at least 900px wide, two at intermediate
 widths and one on phones. Date/time stack when their slot needs more space. Amount,
 reported balance, type, category, counterparty and the transfer account stay in
-the main form. Original extraction, funding-account candidates and optional
-reference/value-date/note fields use disclosures; a summary indicates saved
-optional values. Opening or closing a disclosure keeps the same controlled draft.
+the main form. Note and its saved-note suggestion are also always visible so
+reviewers can add context while checking each row. Original extraction,
+funding-account candidates and optional reference/value-date fields use
+disclosures; a summary indicates when those optional values exist. Opening or
+closing a disclosure keeps the same controlled draft.
 Funding explanations use the existing keyboard/touch-accessible info tooltip.
 The other owned account is shown only for transfers. Source discrepancies and
 required acknowledgements remain visible.
