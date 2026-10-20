@@ -1540,8 +1540,9 @@ rules still use the same controlled draft. Balance choices, conflicting reports,
 classification decisions and required acknowledgements stay in the decision
 panel, outside the optional fields.
 
-Transaction add and edit continue to share one form. Reference and note move into
-More details alongside payment method, source and masked identifiers. Original SMS
+Transaction add and edit continue to share one form. Note stays visible below the
+merchant/counterparty for routine edits. Reference, payment method, source and
+masked identifiers remain under More details. Original SMS
 and statement evidence start collapsed and remain available to expand. Account,
 amount, category, date/time and the reporting account's balance stay visible; the
 second transfer balance remains optional. Required linked-correction consent

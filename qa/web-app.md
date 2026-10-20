@@ -909,7 +909,9 @@ wording describes SMS/mobile origin rather than claiming every entry was auto-po
 
 Add/Edit use a scrollable field area with persistent Save/Cancel. More details
 contains source, masked identifiers and review flags, without removing fields
-from submission. Empty SMS evidence sections disappear; retained/redacted sources
+from submission. Note stays visible below the merchant/counterparty in both modes;
+its edit and validation use the same save path. Empty SMS evidence sections
+disappear; retained/redacted sources
 remain inspectable. Field validation preserves backend messages, highlights the
 control, opens collapsed details and focuses the first problem. A linked-evidence
 acknowledgement cannot be bypassed by the new footer. Overall feedback still uses

@@ -912,7 +912,17 @@ export function TransactionWorkspace() {
               /><FieldError field="counterparty_text" errors={fieldErrors} />
             </label>
 
-            <details className="raw-message field--wide transaction-more-details"><summary>More details <span className="compact-editor-details-hint">Reference, note, payment method, identifiers{editingReference || editingNote || editingPaymentMethodId || editingSenderAccountIdentifier || editingSenderCardIdentifier || editingReceiverAccountIdentifier || editingReceiverCardIdentifier || editingNeedsReview ? " · contains values" : ""}</span>{editingPaymentMethodId ? ` · ${loadState.paymentMethods.find(method => method.id === editingPaymentMethodId)?.name ?? "Payment method selected"}` : ""}</summary><div className="transaction-more-details__fields">
+            <label className="field field--wide">
+              <span className="field__label">Note</span>
+              <input name="note" {...feedback("note")}
+                className="field__control"
+                onChange={(event) => setEditingNote(event.target.value)}
+                type="text"
+                value={editingNote}
+              /><FieldError field="note" errors={fieldErrors} />
+            </label>
+
+            <details className="raw-message field--wide transaction-more-details"><summary>More details <span className="compact-editor-details-hint">Reference, payment method, identifiers{editingReference || editingPaymentMethodId || editingSenderAccountIdentifier || editingSenderCardIdentifier || editingReceiverAccountIdentifier || editingReceiverCardIdentifier || editingNeedsReview ? " · contains values" : ""}</span>{editingPaymentMethodId ? ` · ${loadState.paymentMethods.find(method => method.id === editingPaymentMethodId)?.name ?? "Payment method selected"}` : ""}</summary><div className="transaction-more-details__fields">
             <div className="field">
               <div className="inline-help"><label className="field__label" htmlFor="edit-transaction-reference">Reference</label> <HelpTooltip label="About references">Optional bank or wallet reference. References may repeat.</HelpTooltip></div>
               <input name="reference" {...feedback("reference")} id="edit-transaction-reference"
@@ -924,16 +934,6 @@ export function TransactionWorkspace() {
                 value={editingReference}
               /><FieldError field="reference" errors={fieldErrors} />
             </div>
-
-            <label className="field field--wide">
-              <span className="field__label">Note</span>
-              <input name="note" {...feedback("note")}
-                className="field__control"
-                onChange={(event) => setEditingNote(event.target.value)}
-                type="text"
-                value={editingNote}
-              /><FieldError field="note" errors={fieldErrors} />
-            </label>
 
             <div className="field">
               <div className="inline-help"><label className="field__label" htmlFor="edit-payment-method">Payment method</label> <HelpTooltip label="About payment methods">Optional account-linked instrument, such as a debit card, credit card, wallet or cash. Saved identifiers and aliases help recognize SMS and statement accounts.</HelpTooltip></div>
