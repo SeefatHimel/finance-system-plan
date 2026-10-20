@@ -17,6 +17,27 @@ does not update past entries automatically.
 
 Next.js web dashboard for managing and reviewing the finance system.
 
+## Account Lanes timeline
+
+`/timeline` shows selected accounts as parallel lanes. Scroll upward for earlier
+days or downward for later days; the date control follows the visible day and
+can jump to another date. The view keeps 21 days mounted and fetches complete
+seven-day transaction activity windows on demand, paging through the existing
+`GET /api/transactions/activity/` endpoint. It retains at most five fetched
+weeks around the viewport, so long browsing does not keep an ever-growing
+timeline in memory. The Amount, Balance, and Both controls change the visible
+card values without editing ledger data. Transactions without a reported time
+stay in a separate disclosure for their day.
+
+A transfer appears in each selected involved account lane but remains one ledger
+entry. If the other account is hidden, a “Show lane” link and the details panel
+make that connection visible. Selecting a card opens account-specific reported
+balances, the note, and linked SMS/statement sources; “Open ledger entry” uses
+the existing editor. Possible balance gaps are advisory and are calculated only
+between ordered reports when every day in that interval is loaded and no
+time-unknown or differently dated account observation could change the order.
+No transaction or balance is created by the timeline.
+
 The avatar menu opens `/profile`, where users can edit their first name, last
 name, and email. The username is shown read-only because it is the sign-in
 identifier. Appearance can follow the operating system or be set to Light or

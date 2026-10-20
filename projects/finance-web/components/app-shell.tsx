@@ -15,6 +15,7 @@ import {
   House,
   List,
   ListBullets,
+  ListDashes,
   MagnifyingGlass,
   PlusCircle,
   SidebarSimple,
@@ -47,6 +48,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/", icon: House, label: "Dashboard", subtitle: "Your financial position at a glance", title: "Dashboard" },
   { href: "/transactions", icon: ListBullets, label: "Transactions", subtitle: "Record, review, and export money movement", title: "Transactions" },
+  { href: "/timeline", icon: ListDashes, label: "Account Lanes", subtitle: "Follow movements and reported balances across accounts", title: "Account Lanes" },
   { href: "/quick-add", icon: PlusCircle, label: "Quick Add presets", subtitle: "Configure your manual-entry shortcuts", title: "Quick Add presets" },
   { href: "/accounts", icon: CreditCard, label: "Accounts", subtitle: "Manage accounts and transaction categories", title: "Accounts & categories" },
   { href: "/profile", icon: UserCircle, label: "Profile", subtitle: "Your account details and appearance", title: "Your profile" },
@@ -66,7 +68,7 @@ const navItems: NavItem[] = [
 const planningPaths = ["/debts", "/credit-cards", "/recurring-bills", "/reconciliation"];
 const settingsPaths = ["/profile", "/quick-add", "/statement-counterparties", "/sms-settings", "/audit-logs"];
 const navigationGroups = [
-  { label: "Overview", paths: ["/", "/transactions", "/review", "/accounts", "/reports"] },
+  { label: "Overview", paths: ["/", "/transactions", "/timeline", "/review", "/accounts", "/reports"] },
   { label: "Planning", paths: planningPaths },
   { label: "Settings", paths: settingsPaths }
 ];

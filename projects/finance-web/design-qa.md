@@ -141,3 +141,23 @@ filter retention, source-check access, both combined and ledger balance-conflict
 reviews, SMS focus/draft preservation, and manual add followed by edit. The saved
 synthetic entry reloaded its exact balance and payment method after saving with
 More details collapsed. TypeScript and all 78 web regression tests passed.
+
+---
+
+# Account Lanes design QA
+
+Reference: the selected dark account-lane mockup from the product-design discussion. Compared with the rendered `/timeline` page using synthetic City Bank, EBL and bKash transactions at desktop and phone widths.
+
+## Review
+
+| Area | Result |
+| --- | --- |
+| Structure | Parallel account lanes, a separate transaction inspector, an account picker, value controls and a date control are present. The inspector stays outside the scrolling lane canvas. |
+| Hidden account relationship | A transfer to a hidden account shows a “Show lane” control. Revealing it displays the same ledger transaction in the other lane, with the opposite direction and account-specific reported balance. |
+| Responsive behavior | The lanes scroll horizontally on narrow screens while the time rail and date controls remain visible. The inspector becomes a dismissible bottom panel. |
+| Time and evidence | The timeline orders known times and groups unknown times separately. Source evidence remains available from the inspector. A gap appears only when the underlying order and loaded range support it. |
+| Visual differences | The implementation uses the application's existing light/dark tokens and plain account labels. The concept image uses custom bank icons, a continuous connection line and denser hour markers. These illustrative details were not inferred from real account data. |
+
+Fixed during QA: aborted requests left development-mode weeks loading, the mobile date field clipped, revealing a third lane hid the time rail, and an overly tall page allowed the outer document to scroll. The current build passes, and the date control follows bidirectional timeline scrolling.
+
+Final result: passed. No known blocking layout or interaction issue in the tested desktop and phone views. The visual differences above are intentional constraints of the shipped data and design system.

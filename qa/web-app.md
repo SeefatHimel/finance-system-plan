@@ -1370,3 +1370,20 @@ are preserved. The UI uses exact decimal cents and checks the complete range
 across all selected sources. Ambiguous pairs stay unresolved and a stale request
 cannot partially save. API deployment must precede the web update; no APK is
 needed for this web/API feature.
+
+### How does the Account Lanes timeline stay responsive and handle hidden accounts?
+
+The `/timeline` view renders a moving 21-day window, loads complete seven-day
+activity pages as the user scrolls in either date direction, and retains at most
+five fetched weeks. The date field follows the day near the top of the viewport;
+choosing a date jumps there. Account selection controls visible lanes, while a
+transfer involving a hidden account shows a “Show lane” link and both account
+observations in the separate inspector. The same transfer is still one ledger
+transaction. Cards can show amount, reported balance, or both; entries without
+a trustworthy time remain in a separate day disclosure.
+
+Gap markers compare consecutive reports only when all intervening days were
+loaded, every movement has a known order, and each relevant amount is valid.
+Unknown times, differently dated transfer observations and unloaded dates
+suppress a numeric gap; missing reported balances stay labeled “not reported.”
+The timeline is read-only and uses the existing activity and source-evidence APIs.

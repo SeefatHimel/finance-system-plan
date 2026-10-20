@@ -464,6 +464,7 @@ export type TransactionIssuePage = z.infer<typeof transactionIssuePageSchema>;
 export type SmsCapturePreference = z.infer<typeof smsCapturePreferenceSchema>;
 export type SmsDeviceStatus = z.infer<typeof smsDeviceStatusSchema>;
 export type Transaction = z.infer<typeof transactionSchema>;
+export type TransactionActivityPage = { count: number; next_offset: number | null; results: Transaction[] };
 export type MonthlyReport = z.infer<typeof monthlyReportSchema>;
 export type Debt = z.infer<typeof debtSchema>;
 export type DebtPayment = z.infer<typeof debtPaymentSchema>;
@@ -1198,6 +1199,19 @@ export async function listTransactions(
   const path = query ? `/api/transactions/?${query}` : "/api/transactions/";
   const response = await authenticatedFetch(path, accessToken, { signal });
   return collectionSchema(transactionSchema).parse(await response.json());
+}
+
+/** Fetch one bounded page for date-windowed views. Transfers appear once in this feed. */
+export async function listTransactionActivityPage(
+  accessToken: string,
+  startDate: string,
+  endDate: string,
+  offset = 0,
+  signal?: AbortSignal
+): Promise<TransactionActivityPage> {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate, limit: "100", offset: String(offset) });
+  const response = await authenticatedFetch(`/api/transactions/activity/?${params}`, accessToken, { signal });
+  return z.object({ count: z.number(), next_offset: z.number().nullable(), results: z.array(transactionSchema) }).parse(await response.json());
 }
 
 export async function exportTransactionsCsv(
