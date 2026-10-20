@@ -50,6 +50,7 @@ MODELS = {
 LABELS = {
     "create": "Transaction added",
     "update": "Transaction updated",
+    "bulk_revalidate": "Transactions corrected",
     "confirm": "SMS added",
     "link": "Transfer linked",
     "evidence_link": "Evidence linked",

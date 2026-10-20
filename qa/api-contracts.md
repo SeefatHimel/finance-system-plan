@@ -760,3 +760,14 @@ invalid selections 400 and expired/stale/replayed previews 409. The atomic respo
 is the existing Transaction shape, with audit and Undo. No migration or mandatory
 old-client changes; deploy API before web. Source evidence is never rewritten and
 no new movement is posted.
+
+### What should a client do with bulk correction previews?
+
+Consume the signed all-ledger scan cursor in pages, using next_cursor null rather
+than checked == total to detect completion. Keep each transaction's own 900-second
+preview token with its displayed fields. Apply only explicitly selected keys in
+groups of 1–25 unique entries. Each group is atomic and returns applied IDs plus a
+whole-group Undo action. Stop on failed/uncertain responses; refresh and obtain a
+new explicit selection, never silently retry mutations. Cursor user/policy scope,
+source ownership and fresh financial fingerprints are verified server-side.
+New entries after scan start appear on a new scan. No import, resync or migration.

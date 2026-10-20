@@ -828,3 +828,29 @@ suggestions are optional. Larger conflicts, fees, unsafe source identity and
 business dependencies stay manual. Sources remain unchanged. No migration required;
 API deployment must precede the web client. Generated TypeScript/schema snapshot
 include both additive actions; older clients continue to work.
+
+### Bulk revalidation API boundary
+
+`GET /api/transactions/revalidation/` accepts `limit` (1–25, default 20) and an
+optional opaque signed `cursor` (max 4096 characters). It returns initial `total`,
+cumulative `scanned`, `started_at`, nullable `next_cursor`, and `results` containing
+context plus a standard RevalidationPreview. Entries with neither corrections nor
+warnings are omitted. `next_cursor: null` marks completion even if deletions made
+the checked count lower than the original total. Cursor scope is all owned saved
+transactions, not list filters. It binds user/policy, a creation cutoff and keyset
+position for one hour; new entries require a fresh scan. Each preview separately
+expires after 900 seconds and must be rechecked when applying.
+
+`POST /api/transactions/apply-revalidation/` accepts `items` (1–25), each with a
+unique `transaction`, signed `token`, and nonempty selected offered keys. It returns
+`applied` IDs, a server `batch` UUID and nullable `undo_action`. Every preview is
+validated before writes; the complete group commits or rolls back together.
+Invalid envelopes/selections are 400, unavailable/foreign records 404, and
+expired/changed/replayed previews 409. Both routes require auth and use private
+no-store. They never accept client-authored corrected money or reassign sources.
+
+TransactionAction additionally supports `kind: bulk_revalidate`; labels drive the
+existing recovery UI, and Undo covers all entries in that latest group. Multiple
+groups are independent. On an uncertain response, refresh and review instead of
+blindly retrying. No schema migration is required. Deploy API first, regenerate
+TypeScript and check the backend structural snapshot with the documented commands.

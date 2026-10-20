@@ -1499,3 +1499,48 @@ Deploy API before web. Verify with PostgreSQL:
 ```sh
 .venv/bin/python manage.py test apps.transactions.test_revalidation apps.transactions.test_issue_scan --noinput
 ```
+
+### Bulk confirmed-transaction revalidation
+
+`GET /api/transactions/revalidation/?limit=20&cursor=...` scans all owned ledger
+entries, independently of Transactions list filters. It returns `scanned`, the
+initial `total`, `started_at`, an opaque `next_cursor`, and entries containing
+transaction context plus the same signed per-entry `preview` used by Revalidate.
+Entries with no suggestions or warnings count toward progress but are omitted
+from results. Manual entries without attached evidence produce a review warning.
+
+Scan pages contain 1–25 transactions (20 by default). Source relations are loaded
+in bounded batches with per-parent caps and dependency EXISTS flags; retained SMS
+is still parsed with current rules. Effective transfer-report ordering is identical
+to single-entry review. A signed user/policy-bound cursor expires after one hour
+from scan start and uses `(created_at, id)` keyset ordering with a creation cutoff.
+Updates do not reorder the scan and newly created entries wait for a new scan.
+Deleted entries can make completed `scanned` lower than the initial `total`;
+`next_cursor: null` is the completion signal. This is not a frozen ledger snapshot;
+each preview still has its own 15-minute expiry and apply-time freshness check.
+
+`POST /api/transactions/apply-revalidation/` accepts `items` with 1–25 distinct
+transactions, each carrying `transaction`, `token` and selected offered keys.
+All ownership, signed previews, source/policy fingerprints and selected fields
+are checked under writer locks before any correction is written. A group commits
+all selected fields or rolls back entirely, including audits/recovery if a later
+write fails. Existing source immutability, fee guards, account-bound balances and
+business-dependency restrictions remain. A 409 requires refreshed review; replay
+cannot duplicate a movement or partially reapply an accepted group. Responses
+return applied IDs, a server batch UUID and `undo_action`.
+
+Each entry receives its normal before/after audit plus the shared batch UUID.
+One `bulk_revalidate` latest-action record covers the entire group for 24 hours;
+Undo restores all its entries only while every entry and linked record is unchanged.
+If a selection requires several groups, earlier groups commit independently and
+only the latest successful group remains undoable. Clients must stop after a failed
+or uncertain group, retain known successes and require a new preview/selection
+before retrying. They must not silently retry financial mutations.
+
+Preview/scanning/rescanning never writes the ledger. Both endpoints are authenticated
+and private `no-store`; original SMS bodies are omitted. No model migration, APK
+rebuild, source re-import or SMS resync is required. Deploy API before web. Verify:
+
+```sh
+.venv/bin/python manage.py test apps.transactions.test_bulk_revalidation apps.transactions.test_revalidation apps.transactions.test_recovery --noinput
+```

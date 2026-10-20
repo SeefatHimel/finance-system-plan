@@ -18,7 +18,7 @@ from apps.audit_logs.services import create_audit_log, transaction_snapshot
 from apps.messages.models import ParsedMessageCandidate, RawMessage
 from apps.statements.serializers import SavedStatementRowSerializer
 
-from . import revalidation
+from . import bulk_revalidation, revalidation
 from .issue_scan import scan_ledger_page
 from .models import Transaction, TransactionAction
 from .recovery import ActionRecorder, describe, undo_action
@@ -127,6 +127,41 @@ class RevalidationApplySerializer(serializers.Serializer):
     selected = serializers.ListField(child=serializers.CharField(max_length=80), min_length=1, max_length=4)
 
 
+class BulkRevalidationQuery(serializers.Serializer):
+    limit = serializers.IntegerField(default=20, min_value=1, max_value=25)
+    cursor = serializers.CharField(required=False, default="", max_length=4096)
+
+
+class BulkRevalidationEntrySerializer(serializers.Serializer):
+    date = serializers.DateField()
+    account_name = serializers.CharField()
+    amount = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
+    preview = RevalidationPreviewSerializer()
+
+
+class BulkRevalidationPageSerializer(serializers.Serializer):
+    scanned = serializers.IntegerField()
+    total = serializers.IntegerField()
+    started_at = serializers.DateTimeField()
+    next_cursor = serializers.CharField(allow_null=True)
+    results = BulkRevalidationEntrySerializer(many=True)
+
+
+class BulkRevalidationItemSerializer(RevalidationApplySerializer):
+    transaction = serializers.UUIDField()
+
+
+class BulkRevalidationApplySerializer(serializers.Serializer):
+    items = BulkRevalidationItemSerializer(many=True, min_length=1, max_length=25)
+
+
+class BulkRevalidationResultSerializer(serializers.Serializer):
+    applied = serializers.ListField(child=serializers.UUIDField())
+    batch = serializers.UUIDField()
+    undo_action = TransactionActionSerializer(allow_null=True)
+
+
 def spreadsheet_safe_text(value):
     """Prevent user-controlled CSV text from becoming a spreadsheet formula."""
     if value and value.lstrip(" \t\r\n\ufeff").startswith(("=", "+", "-", "@")):
@@ -138,6 +173,20 @@ def spreadsheet_safe_text(value):
 class TransactionViewSet(ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = (IsAuthenticated,)
+
+    @extend_schema(parameters=[OpenApiParameter("limit", int), OpenApiParameter("cursor", str)], responses=BulkRevalidationPageSerializer)
+    @action(detail=False, methods=("get",), url_path="revalidation")
+    def bulk_revalidation(self, request):
+        query = BulkRevalidationQuery(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        return Response(bulk_revalidation.scan_page(user=request.user, **query.validated_data), headers={"Cache-Control": "private, no-store"})
+
+    @extend_schema(operation_id="transactions_bulk_apply_revalidation", request=BulkRevalidationApplySerializer, responses=BulkRevalidationResultSerializer)
+    @action(detail=False, methods=("post",), url_path="apply-revalidation")
+    def bulk_apply_revalidation(self, request):
+        serializer = BulkRevalidationApplySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(bulk_revalidation.apply_group(user=request.user, request=request, **serializer.validated_data), headers={"Cache-Control": "private, no-store"})
 
     @extend_schema(parameters=[OpenApiParameter("id", OpenApiTypes.UUID, OpenApiParameter.PATH)], responses=RevalidationPreviewSerializer)
     @action(detail=True, methods=("get",), url_path="revalidate")

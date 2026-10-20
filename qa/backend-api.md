@@ -1187,3 +1187,17 @@ missing per-account balances and offer compatible current-rule categories. It
 does not automatically merge, relink, change account paths or repair larger
 conflicts/debt and bill amounts. Original observations remain unchanged; no
 historical import/resync or migration is required.
+
+### How does bulk revalidation avoid partial financial corrections?
+
+A signed keyset cursor scans owned ledger entries in bounded pages, batch-loading
+source relations/dependency flags and returning the same per-entry correction
+previews as single review. Each group accepts at most 25 distinct transactions.
+Under the user writer lock, all current previews/selections are validated before
+writes; corrections, audit logs and one recovery record commit atomically. A stale
+entry or later write failure rolls back the whole group. Replay cannot duplicate
+movements. Source evidence is unchanged. The existing recovery fingerprint covers
+all group entries, so Undo restores the whole latest group only while unchanged.
+Large selections use multiple independent groups; only the latest remains undoable.
+The one-hour scan cursor fixes creation cutoff/order, not mutable source state;
+15-minute preview fingerprints still enforce current knowledge on apply.

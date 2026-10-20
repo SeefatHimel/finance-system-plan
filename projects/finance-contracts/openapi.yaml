@@ -2245,6 +2245,80 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/transactions/apply-revalidation/:
+    post:
+      operationId: transactions_bulk_apply_revalidation
+      tags:
+      - Transactions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkRevalidationApply'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkRevalidationResult'
+          description: ''
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          description: The scan cursor or selected previews expired, changed or were
+            already applied. Start a fresh review.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+      summary: Apply an atomic group of confirmed transaction corrections
+      description: Preflight 1–25 distinct selected signed previews under locks, then
+        commit all fields/audits plus one whole-group Undo action atomically. Expired
+        or changed previews return 409 with no group writes. Larger selections require
+        separate groups; only the latest is undoable. Never blindly retry uncertain
+        mutations.
+  /api/transactions/revalidation/:
+    get:
+      operationId: transactions_revalidation_retrieve
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+          maxLength: 4096
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 25
+          default: 20
+      tags:
+      - Transactions
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkRevalidationPage'
+          description: ''
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          description: The scan cursor or selected previews expired, changed or were
+            already applied. Start a fresh review.
+      summary: Scan confirmed transactions for suggested corrections
+      description: Read-only all-ledger scan using a signed one-hour creation-cutoff
+        keyset cursor. Returns bounded findings and per-entry 15-minute previews. No
+        source SMS bodies. next_cursor null means complete even if deletions reduce
+        the initial total.
   /api/transactions/{id}/apply-revalidation/:
     post:
       operationId: transactions_apply_revalidation_create
@@ -5703,7 +5777,7 @@ components:
       required: [id, kind, label, transaction, created_at, expires_at, can_undo, undone]
       properties:
         id: {type: string, format: uuid}
-        kind: {type: string, enum: [create, update, confirm, link, merge]}
+        kind: {type: string, enum: [create, update, confirm, link, merge, bulk_revalidate]}
         label: {type: string}
         transaction: {type: string, format: uuid, nullable: true}
         created_at: {type: string, format: date-time}
@@ -5724,6 +5798,97 @@ components:
         results:
           type: array
           items: {$ref: '#/components/schemas/Transaction'}
+    BulkRevalidationApply:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkRevalidationItem'
+      required:
+      - items
+    BulkRevalidationEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        account_name:
+          type: string
+        amount:
+          type: string
+        description:
+          type: string
+        preview:
+          $ref: '#/components/schemas/RevalidationPreview'
+      required:
+      - account_name
+      - amount
+      - date
+      - description
+      - preview
+    BulkRevalidationItem:
+      type: object
+      properties:
+        token:
+          type: string
+          maxLength: 2048
+        selected:
+          type: array
+          items:
+            type: string
+            maxLength: 80
+          maxItems: 4
+          minItems: 1
+        transaction:
+          type: string
+          format: uuid
+      required:
+      - selected
+      - token
+      - transaction
+    BulkRevalidationPage:
+      type: object
+      properties:
+        scanned:
+          type: integer
+        total:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+        next_cursor:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkRevalidationEntry'
+      required:
+      - next_cursor
+      - results
+      - scanned
+      - started_at
+      - total
+    BulkRevalidationResult:
+      type: object
+      properties:
+        applied:
+          type: array
+          items:
+            type: string
+            format: uuid
+        batch:
+          type: string
+          format: uuid
+        undo_action:
+          allOf:
+          - $ref: '#/components/schemas/TransactionAction'
+          nullable: true
+      required:
+      - applied
+      - batch
+      - undo_action
     RevalidationApply:
       type: object
       properties:

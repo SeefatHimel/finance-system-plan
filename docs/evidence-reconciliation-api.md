@@ -181,3 +181,21 @@ previews return 409. Only selected server-offered values are written atomically,
 with audit history and latest-action Undo. Originals are retained unchanged.
 Preview/refresh/cancel never mutate data, so no import/resync is required. This
 boundary needs API then web deployment, with no new database migration or APK.
+
+### Bulk confirmed correction review
+
+`GET /api/transactions/revalidation/` extends confirmed revalidation to a resumable,
+read-only all-ledger scan. Signed cursors use a creation cutoff and stable keyset
+order, expire after one hour, and return per-entry previews in pages of at most 25.
+Each preview retains its own 15-minute lifetime; this is not a frozen financial
+snapshot. Source originals are not rewritten. Clean records count toward progress
+without appearing in findings; warnings-only records remain reviewable.
+
+`POST /api/transactions/apply-revalidation/` takes explicitly selected preview fields
+for 1–25 unique transactions. All previews are checked under locks before any writes;
+the group either commits every correction/audit/recovery record or none. A shared
+batch UUID correlates entry audits. One latest-action Undo covers the whole group
+and checks every entry's linked state. The web can submit larger selections in
+sequential independent groups, stopping on failure and requiring fresh review.
+Only the latest successful group is undoable. Automatic relinking, duplicate merges
+and general compensating entries remain outside this boundary. No migration or APK.

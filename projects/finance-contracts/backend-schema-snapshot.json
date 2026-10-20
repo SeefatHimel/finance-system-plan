@@ -4790,6 +4790,49 @@
         ]
       }
     },
+    "/api/transactions/apply-revalidation/": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkRevalidationApply"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkRevalidationApply"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkRevalidationApply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkRevalidationResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/transactions/export/": {
       "get": {
         "parameters": [
@@ -4946,6 +4989,45 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TransactionAction"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/transactions/revalidation/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkRevalidationPage"
                 }
               }
             }
@@ -5785,6 +5867,133 @@
       "enum": [
         ""
       ]
+    },
+    "BulkRevalidationApply": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/BulkRevalidationItem"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    },
+    "BulkRevalidationEntry": {
+      "properties": {
+        "account_name": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "type": "string"
+        },
+        "preview": {
+          "$ref": "#/components/schemas/RevalidationPreview"
+        }
+      },
+      "required": [
+        "account_name",
+        "amount",
+        "date",
+        "description",
+        "preview"
+      ],
+      "type": "object"
+    },
+    "BulkRevalidationItem": {
+      "properties": {
+        "selected": {
+          "items": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array"
+        },
+        "token": {
+          "maxLength": 2048,
+          "type": "string"
+        },
+        "transaction": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selected",
+        "token",
+        "transaction"
+      ],
+      "type": "object"
+    },
+    "BulkRevalidationPage": {
+      "properties": {
+        "next_cursor": {
+          "nullable": true,
+          "type": "string"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/components/schemas/BulkRevalidationEntry"
+          },
+          "type": "array"
+        },
+        "scanned": {
+          "type": "integer"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "next_cursor",
+        "results",
+        "scanned",
+        "started_at",
+        "total"
+      ],
+      "type": "object"
+    },
+    "BulkRevalidationResult": {
+      "properties": {
+        "applied": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "batch": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "undo_action": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/TransactionAction"
+            }
+          ],
+          "nullable": true
+        }
+      },
+      "required": [
+        "applied",
+        "batch",
+        "undo_action"
+      ],
+      "type": "object"
     },
     "Category": {
       "properties": {

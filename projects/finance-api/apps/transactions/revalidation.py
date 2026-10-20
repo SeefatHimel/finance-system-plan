@@ -39,6 +39,8 @@ def money(value):
 
 
 def _dependencies(record):
+    if hasattr(record, "revalidation_has_dependencies"):
+        return record.revalidation_has_dependencies
     return any(
         (
             Debt.objects.filter(opened_transaction=record).exists(),
@@ -50,52 +52,62 @@ def _dependencies(record):
     )
 
 
-def inspect(record, *, lock=False):
+def inspect(record, *, lock=False, prepared=None):
     """No writes or parser-result persistence. Bounded sources, no private SMS text."""
     user = record.user
 
     def protected(query):
         return query.select_for_update(of=("self",)) if lock else query
 
-    candidates = list(
-        protected(
-            ParsedMessageCandidate.objects.filter(
-                user=user,
-                transaction=record,
-                status="confirmed",
+    if prepared is None:
+        candidates = list(
+            protected(
+                ParsedMessageCandidate.objects.filter(
+                    user=user,
+                    transaction=record,
+                    status="confirmed",
+                )
             )
+            .select_related("raw_message", "account", "destination_account")
+            .order_by("pk")[: MAX_SOURCES + 1]
         )
-        .select_related("raw_message", "account", "destination_account")
-        .order_by("pk")[: MAX_SOURCES + 1]
-    )
-    rows = list(
-        protected(
-            StatementRow.objects.filter(
-                batch__user=user,
-                transaction=record,
-                state__in=("posted", "linked"),
+        rows = list(
+            protected(
+                StatementRow.objects.filter(
+                    batch__user=user,
+                    transaction=record,
+                    state__in=("posted", "linked"),
+                )
             )
+            .select_related("batch__account")
+            .order_by("pk")[: MAX_SOURCES + 1]
         )
-        .select_related("batch__account")
-        .order_by("pk")[: MAX_SOURCES + 1]
-    )
-    evidence = list(
-        protected(
-            TransferEvidence.objects.filter(
-                user=user,
-                transaction=record,
+        evidence = list(
+            protected(
+                TransferEvidence.objects.filter(
+                    user=user,
+                    transaction=record,
+                )
             )
+            .select_related("account", "raw_message")
+            .order_by("pk")[: MAX_SOURCES + 1]
         )
-        .select_related("account", "raw_message")
-        .order_by("pk")[: MAX_SOURCES + 1]
-    )
+    else:
+        candidates, rows, evidence = prepared
+        # These are bounded, already user-scoped source lists from the bulk page.
+        # Account-report helpers must use the same bounded evidence, not refetch it.
+        record._prefetched_objects_cache = {"transfer_evidence": evidence}
+        # Effective reports use the model's event ordering; fingerprints and
+        # source comparisons use the same stable PK order as single previews.
+        evidence = sorted(evidence, key=lambda item: item.pk)
     sources, warnings, categories, parser_state = [], [], {}, []
     source_versions = {
         "sms": [(str(item.pk), str(item.updated_at)) for item in candidates],
         "statement": [(str(item.pk), item.version) for item in rows],
     }
     capped = any(len(items) > MAX_SOURCES for items in (candidates, rows, evidence))
-    mark_fee_rows(rows)
+    if prepared is None:
+        mark_fee_rows(rows)
     endpoints = {record.account_id: record.account}
     if record.type == "transfer" and record.transfer_account:
         endpoints[record.transfer_account_id] = record.transfer_account
@@ -232,6 +244,7 @@ def inspect(record, *, lock=False):
                 "Original SMS is unavailable; only saved observations can be checked."
             )
             continue
+        message.user = user  # Avoid one user fetch for each retained SMS.
         parsed = parse_raw_message(message)
         parser_state.append(
             {
@@ -465,8 +478,8 @@ def inspect(record, *, lock=False):
     }
 
 
-def preview(record):
-    result = inspect(record)
+def preview(record, *, prepared=None):
+    result = inspect(record, prepared=prepared)
     result["token"] = signing.dumps(
         {
             "user": str(record.user_id),
@@ -480,8 +493,8 @@ def preview(record):
     return result
 
 
-@transaction.atomic
-def apply(*, user, record_id, token, selected, request):
+def _reviewed_decision(*, user, record_id, token, selected):
+    """Validate a signed choice under the caller's atomic writer lock; no writes."""
     try:
         signed = signing.loads(token, salt=SALT, max_age=PREVIEW_SECONDS)
     except signing.BadSignature as error:
@@ -516,6 +529,21 @@ def apply(*, user, record_id, token, selected, request):
         raise ValidationError(
             {"selected": "Select only corrections offered in this preview, once each."}
         )
+    return record, choices, signed["fingerprint"]
+
+
+def _write_corrections(
+    *,
+    user,
+    record,
+    choices,
+    selected,
+    request,
+    fingerprint,
+    record_recovery=True,
+    batch_id=None,
+):
+    """Only called after every selected preview has passed validation."""
     data, reports = {}, []
     for key in selected:
         item = choices[key]
@@ -537,7 +565,9 @@ def apply(*, user, record_id, token, selected, request):
             True  # Explicit preview approval, not a caller override.
         )
     before = transaction_snapshot(record)
-    recovery = ActionRecorder(user, transaction_ids=[record.pk])
+    recovery = (
+        ActionRecorder(user, transaction_ids=[record.pk]) if record_recovery else None
+    )
     serializer = TransactionSerializer(
         record, data=data, partial=True, context={"request": request}
     )
@@ -551,10 +581,27 @@ def apply(*, user, record_id, token, selected, request):
         after=transaction_snapshot(record),
         metadata={
             "operation": "revalidate",
+            **({"bulk_batch": str(batch_id)} if batch_id else {}),
             "policy": POLICY_VERSION,
             "selected": selected,
-            "preview_fingerprint": signed["fingerprint"],
+            "preview_fingerprint": fingerprint,
         },
     )
-    recovery.finish(record, "update")
+    if recovery:
+        recovery.finish(record, "update")
     return record
+
+
+@transaction.atomic
+def apply(*, user, record_id, token, selected, request):
+    record, choices, fingerprint = _reviewed_decision(
+        user=user, record_id=record_id, token=token, selected=selected
+    )
+    return _write_corrections(
+        user=user,
+        record=record,
+        choices=choices,
+        selected=selected,
+        request=request,
+        fingerprint=fingerprint,
+    )

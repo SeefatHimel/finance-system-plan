@@ -963,7 +963,7 @@ export interface AccountReportedBalance {
 
 export interface TransactionAction {
   id: string;
-  kind: "create" | "update" | "confirm" | "link" | "merge";
+  kind: "create" | "update" | "confirm" | "link" | "merge" | "bulk_revalidate";
   label: string;
   transaction: string | null;
   created_at: string;
@@ -980,6 +980,38 @@ export interface TransactionActivityPage {
   count: number;
   next_offset: number | null;
   results: Transaction[];
+}
+
+export interface BulkRevalidationApply {
+  items: BulkRevalidationItem[];
+}
+
+export interface BulkRevalidationEntry {
+  date: string;
+  account_name: string;
+  amount: string;
+  description: string;
+  preview: RevalidationPreview;
+}
+
+export interface BulkRevalidationItem {
+  token: string;
+  selected: string[];
+  transaction: string;
+}
+
+export interface BulkRevalidationPage {
+  scanned: number;
+  total: number;
+  started_at: string;
+  next_cursor: string | null;
+  results: BulkRevalidationEntry[];
+}
+
+export interface BulkRevalidationResult {
+  applied: string[];
+  batch: string;
+  undo_action: TransactionAction | null;
 }
 
 export interface RevalidationApply {
