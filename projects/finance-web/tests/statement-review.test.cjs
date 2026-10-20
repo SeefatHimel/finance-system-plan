@@ -6,7 +6,7 @@ const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const output = mkdtempSync(join(tmpdir(), 'finance-statement-review-'));
 execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/statement-review.ts'], { cwd: resolve(__dirname, '..') });
-const { calendarDayDifference, statementLinkBlockReason, statementBalanceDifference, insignificantBdtBalanceDifference, reportedBalanceNeedsAcknowledgment, suggestedBalanceSource } = require(join(output, 'statement-review.js'));
+const { calendarDayDifference, statementAddBlockers, statementLinkBlockReason, statementBalanceDifference, insignificantBdtBalanceDifference, reportedBalanceNeedsAcknowledgment, suggestedBalanceSource } = require(join(output, 'statement-review.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
 const ready = { dirty: false, canLink: true, requiresAcknowledgement: false, issuesAcknowledged: false, conflict: false, balanceChosen: false };
 
@@ -19,6 +19,21 @@ test('linking requires fresh saved matches, source acknowledgement and a balance
   assert.equal(statementLinkBlockReason({ ...ready, requiresAcknowledgement: true, issuesAcknowledged: true, conflict: true, balanceChosen: true }), null);
   // A non-conflicting alternative needs no balance choice.
   assert.equal(statementLinkBlockReason({ ...ready, issuesAcknowledged: true }), null);
+});
+
+test('disabled Add explains the saved-row gates and the next action', () => {
+  const addReady = { dirty: false, issues: [], pendingSmsMatchCount: 0, unifiedPendingSmsStatus: 'none', requiresAcknowledgement: false, issuesAcknowledged: false, classificationConfirmed: false };
+  assert.deepEqual(statementAddBlockers(addReady), []);
+  assert.deepEqual(statementAddBlockers({ ...addReady, issues: ['Review the transfer wording and confirm whether this involves your own accounts.'] }), [
+    'Check Reviewed transaction type to confirm whether this involves your own accounts, then save the draft.',
+  ]);
+  assert.deepEqual(statementAddBlockers({ ...addReady, dirty: true }), ['Save draft & refresh matches before adding.']);
+  assert.deepEqual(statementAddBlockers({ ...addReady, dirty: true, classificationConfirmed: true, issues: ['Review the transfer wording and confirm whether this involves your own accounts.'] }), ['Save draft & refresh matches before adding.']);
+  assert.deepEqual(statementAddBlockers({ ...addReady, issues: ['Choose the other owned account for this transfer.'] }), ['Choose the other owned account for this transfer.']);
+  assert.deepEqual(statementAddBlockers({ ...addReady, pendingSmsMatchCount: null, unifiedPendingSmsStatus: 'unavailable', requiresAcknowledgement: true }), [
+    'Pending SMS matching is unavailable. Resolve pending messages or narrow the review period, then reopen this row.',
+    'Check the source and draft discrepancy confirmation in the form.',
+  ]);
 });
 
 test('reported balance differences retain exact cents, sign, zero and unknown values', () => {

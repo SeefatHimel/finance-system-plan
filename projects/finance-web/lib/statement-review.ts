@@ -26,6 +26,36 @@ export function statementLinkBlockReason(review: LinkReview): string | null {
   return null;
 }
 
+type AddReview = {
+  dirty: boolean;
+  issues: string[];
+  pendingSmsMatchCount: number | null;
+  unifiedPendingSmsStatus: "none" | "unique" | "ambiguous" | "unavailable";
+  requiresAcknowledgement: boolean;
+  issuesAcknowledged: boolean;
+  classificationConfirmed: boolean;
+};
+
+/** Mirror the saved-row posting gates so a disabled Add button explains the next action. */
+export function statementAddBlockers(review: AddReview): string[] {
+  const transferIssue = review.issues.some((issue) => issue.includes("Review the transfer wording"));
+  const blockers: string[] = [];
+  if (transferIssue && !review.classificationConfirmed) {
+    blockers.push("Check Reviewed transaction type to confirm whether this involves your own accounts, then save the draft.");
+  }
+  if (review.dirty || (transferIssue && review.classificationConfirmed)) blockers.push("Save draft & refresh matches before adding.");
+  for (const issue of review.issues) {
+    if (!issue.includes("Review the transfer wording") && !(review.pendingSmsMatchCount === null && issue.includes("Too many pending SMS"))) blockers.push(issue);
+  }
+  if (review.pendingSmsMatchCount === null || review.unifiedPendingSmsStatus === "unavailable") {
+    blockers.push("Pending SMS matching is unavailable. Resolve pending messages or narrow the review period, then reopen this row.");
+  }
+  if (review.requiresAcknowledgement && !review.issuesAcknowledged) {
+    blockers.push("Check the source and draft discrepancy confirmation in the form.");
+  }
+  return [...new Set(blockers)];
+}
+
 function cents(value: string | null): bigint | null {
   if (value === null || !/^-?\d+(?:\.\d{1,2})?$/.test(value)) return null;
   const [whole, fraction = ""] = value.replace(/^-/, "").split(".");

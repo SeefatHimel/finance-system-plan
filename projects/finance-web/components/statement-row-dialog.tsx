@@ -8,7 +8,7 @@ import { HelpTooltip } from "@/components/help-tooltip";
 import { statementDraftCategory } from "@/lib/statement-draft-category";
 import { StatementMatchComparison } from "@/components/statement-match-comparison";
 import { StatementDetailChoices } from "@/components/statement-detail-choices";
-import { statementLinkBlockReason } from "@/lib/statement-review";
+import { statementAddBlockers, statementLinkBlockReason } from "@/lib/statement-review";
 import { currentStatementBalanceChoice, type StatementBalanceSelection } from "@/lib/statement-balance-choice";
 import { selectedStatementDetails, type DetailSelections } from "@/lib/statement-details";
 import { displayedStatementText } from "@/lib/statement-citytouch";
@@ -42,6 +42,12 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
   const [distinctLedgerMatches, setDistinctLedgerMatches] = useState(false);
   const isResolved = Boolean(row.transaction) || row.state === "skipped";
   const dirty = JSON.stringify(draft) !== JSON.stringify(editable(row));
+  const addBlockers = statementAddBlockers({
+    dirty, issues: row.review.issues, pendingSmsMatchCount: row.review.pending_sms_match_count,
+    unifiedPendingSmsStatus: row.review.unified_pending_sms_status,
+    requiresAcknowledgement: row.review.requires_acknowledgement,
+    issuesAcknowledged: ackIssues, classificationConfirmed: draft.classification_confirmed,
+  });
   const source = row.extracted;
   const bkashFundingSuggestion = batch.profile === "bkash" && row.component === "principal" && /^(?:card|bank)\s+to\s+bkash$/i.test(source.provider_type?.trim() ?? "") && row.review.suggestion?.type === "transfer" ? row.review.suggestion : null;
   const suggestedName = row.review.suggestion?.counterparty_text;
@@ -226,10 +232,14 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         {error ? <div><p role="alert" className="form-error">{error}</p><button className="button" type="button" disabled={busy} onClick={() => { dismiss(); setDraft(editable(row)); setBalanceSelections({}); setDetailSelections({}); setAckIssues(false); setDistinctLedgerMatches(false); setError(null); onReload(); }}>Reload row · discard unsaved changes</button></div> : null}
       </div>
       <footer className="statement-row-footer" onKeyDown={handleShortcuts}>
-        {dirty ? <p className="inline-note" role="status">Save draft changes before deciding.</p> : null}
+        {!editOnly && !isResolved && addBlockers.length ? <div className="statement-add-status" id="statement-add-status" role="status">
+          <strong>{addBlockers.length === 1 ? "To add this transaction:" : "Before adding this transaction:"}</strong>
+          <ul>{addBlockers.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+        </div> : dirty ? <p className="inline-note" role="status">Save draft changes before deciding.</p> : null}
+        {error ? <p className="form-error statement-footer-error">{error}</p> : null}
         <div className="statement-actions">
           <button className="button button--ghost" type="button" disabled={busy} onClick={onCancel}>{editOnly ? "Back to comparison" : "Close"}</button>{editOnly ? <button className="button button--primary" type="button" disabled={busy || !dirty || isResolved} onClick={() => void save()}>Save draft & compare</button> : <button className="button" type="button" disabled={busy || dirty} onClick={() => void advance()}>Next unresolved row</button>}
-          {!editOnly && !isResolved ? <><button className="button" type="button" disabled={busy || dirty} onClick={() => void decide("skip")}>Skip this row</button><button className="button button--primary" type="button" disabled={busy || dirty || row.review.pending_sms_match_count === null || row.review.unified_pending_sms_status === "unavailable" || row.review.issues.length > 0 || (row.review.requires_acknowledgement && !ackIssues)} onClick={() => (row.review.matches.length || row.review.pending_sms_matches.length || row.review.unified_pending_sms_status === "unique" || row.review.unified_pending_sms_status === "ambiguous") ? setConfirmSeparate(true) : void decide("create")}>Add {row.component === "fee" ? "fee" : "transaction"}{(row.review.matches.length || row.review.pending_sms_matches.length || row.review.unified_pending_sms_status === "unique" || row.review.unified_pending_sms_status === "ambiguous") ? " as separate" : ""}</button></> : !editOnly && row.transaction ? <button className="button" type="button" disabled={busy} onClick={() => setConfirmUnlink(true)}>Unlink statement evidence</button> : !editOnly && isResolved ? <button className="button" type="button" disabled={busy} onClick={() => void decide("reopen")}>Reopen skipped row</button> : null}
+          {!editOnly && !isResolved ? <><button className="button" type="button" disabled={busy || dirty} onClick={() => void decide("skip")}>Skip this row</button><button className="button button--primary" type="button" disabled={busy || addBlockers.length > 0} aria-describedby={addBlockers.length ? "statement-add-status" : undefined} onClick={() => (row.review.matches.length || row.review.pending_sms_matches.length || row.review.unified_pending_sms_status === "unique" || row.review.unified_pending_sms_status === "ambiguous") ? setConfirmSeparate(true) : void decide("create")}>{busy ? "Working…" : `Add ${row.component === "fee" ? "fee" : "transaction"}${(row.review.matches.length || row.review.pending_sms_matches.length || row.review.unified_pending_sms_status === "unique" || row.review.unified_pending_sms_status === "ambiguous") ? " as separate" : ""}`}</button></> : !editOnly && row.transaction ? <button className="button" type="button" disabled={busy} onClick={() => setConfirmUnlink(true)}>Unlink statement evidence</button> : !editOnly && isResolved ? <button className="button" type="button" disabled={busy} onClick={() => void decide("reopen")}>Reopen skipped row</button> : null}
         </div>
       </footer>
     </ModalDialog>

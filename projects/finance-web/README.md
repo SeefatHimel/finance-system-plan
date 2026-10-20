@@ -1494,6 +1494,12 @@ closing a disclosure keeps the same controlled draft.
 Funding explanations use the existing keyboard/touch-accessible info tooltip.
 The other owned account is shown only for transfers. Source discrepancies and
 required acknowledgements remain visible.
+When Add transaction is unavailable, its fixed footer lists each outstanding
+action from the saved-row posting checks: confirm transfer-like wording, save
+draft edits, resolve posting issues, restore pending-source matching, or
+acknowledge source discrepancies. The disabled button references that list for
+assistive technology. A failed save/posting request also appears in the footer,
+so the reason remains visible without scrolling through a long row review.
 
 A pending statement transfer with no saved category proposes the sole active
 category of kind `transfer` (normally Account Transfer). No category is guessed

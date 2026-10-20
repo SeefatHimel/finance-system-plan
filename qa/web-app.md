@@ -1274,6 +1274,12 @@ its saved-note suggestion stay in the open main form for every statement row,
 including when the draft editor opens from combined review.
 Required discrepancy warnings and review acknowledgements are not collapsed.
 Funding guidance is available through an info control that supports focus and tap.
+The fixed footer explains every condition disabling Add transaction. The
+transfer-wording issue directs the reviewer to check Reviewed transaction
+type, then save to refresh matches. It also names unsaved edits, posting
+issues, unavailable pending-source checks and missing discrepancy
+acknowledgement. Submission errors are repeated next to the action buttons,
+so they remain visible even when the review body has been scrolled away.
 
 A missing transfer category can be proposed from the only active transfer
 category, but ambiguous category lists still need a user choice. Opening preserves
