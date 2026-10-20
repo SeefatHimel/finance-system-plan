@@ -530,6 +530,15 @@ For equal-amount suggestions, `ledger_date`, `ledger_time`, `ledger_source`,
 `reporting_observation_is_fallback` says the statement-account observation is
 missing; its date is then only a search hint, not corroborating evidence.
 
+`StatementMatch.category_id` carries the ledger category ID, including null.
+When a saved statement draft is linked directly with a different nonempty category, `link` requires
+`category_choice` with `keep` (`existing`, `statement`, or `custom`) and the
+reviewed `existing_category` and `statement_category` IDs (or null). `custom`
+also requires `category`, an active owned category ID or null for Uncategorized.
+Choices for another action return 400; stale reviewed IDs return 409. The selected
+category updates the one ledger entry atomically with the statement link. Clients
+must not assume a balance choice also decides the category.
+
 
 ### What is the contract for filling missing statement details?
 

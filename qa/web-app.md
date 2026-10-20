@@ -1109,6 +1109,16 @@ avoids skipping pairs after earlier rows are resolved. SMS dates are received da
 statement dates are transaction/value dates. Both evidence sets are available from
 Transactions.
 
+### What happens when a statement match has a different category?
+
+The comparison highlights both categories and asks which single category the
+linked ledger entry should use. No option is preselected. Reviewers can keep the
+ledger value, use a compatible active statement category, or choose another
+compatible active category (including Uncategorized). The action states the
+chosen outcome and stays disabled until the choice is complete. A stale choice
+must be reviewed again after reloading; both sources and the previous ledger
+category remain in audit history.
+
 ## Bounded review and dashboard loading
 
 **Why does SMS review say a filter applies to loaded messages?** The web client

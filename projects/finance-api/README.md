@@ -710,6 +710,14 @@ remain unsupported pending separate extraction and accounting validation.
 - `GET/PATCH /api/statements/rows/{id}/`: review or correct a pending draft;
   PATCH requires its current `version` and preserves original extraction.
 - `POST /api/statements/rows/{id}/decide/`: create/link/skip/unlink/reopen.
+  Directly linking a statement draft with a different nonempty category to a ledger
+  transaction requires `category_choice` (`existing`, `statement`, or `custom`).
+  The server checks the reviewed category IDs, ownership, active status and type
+  compatibility under the transaction lock. It updates the one ledger entry,
+  aligns the linked row, and records the prior and chosen categories in audit.
+  SMS + statement confirmation keeps the category of its created or selected
+  ledger entry while attaching the statement; it does not ask for a second
+  category choice during that confirmation.
 - `POST /api/statements/imports/{id}/approve_new/`: explicitly approve up to 50
   IDs/versions; fresh ledger or unified SMS pairs, stale rows and discrepancies
   remain unresolved. Separate posting requires an explicit individual choice.

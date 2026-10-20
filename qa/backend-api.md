@@ -847,6 +847,21 @@ before/after snapshots and decision metadata preserve the previous values; the
 PDF extraction stays immutable. Linking counts once, and unlinking or rescanning
 confirmed SMS does not undo an explicit reviewed balance choice.
 
+### How does a linked statement resolve a category difference?
+
+When a saved statement draft is linked directly and has a nonempty category
+different from the candidate ledger category, the action requires an explicit
+`category_choice`. The
+locked decision compares both reviewed category IDs with current values. It can
+keep the ledger category, use an active compatible statement category, or choose
+another active category owned by the user. A stale choice returns 409; an absent
+or incompatible choice returns 400 before any money or evidence changes. The
+selected category is stored on the one ledger transaction and linked row, with
+before/after snapshots and choice metadata in audit. Original extraction remains
+unchanged.
+SMS + statement confirmation preserves its created or chosen ledger category
+while attaching the statement, without a second category prompt.
+
 ### What happens to captured transfer reports when the ledger is edited?
 
 Editing a ledger date, time, reference, note, or account-bound reported balance

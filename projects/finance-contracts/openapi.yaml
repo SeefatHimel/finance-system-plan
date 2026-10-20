@@ -6592,6 +6592,8 @@ components:
           description: Explicitly remember classification choices only after create/link.
         balance_choice:
           $ref: '#/components/schemas/StatementBalanceChoice'
+        category_choice:
+          $ref: '#/components/schemas/StatementCategoryChoice'
         detail_choices:
           type: array
           maxItems: 7
@@ -6601,6 +6603,29 @@ components:
       required:
       - action
       - version
+    StatementCategoryChoice:
+      type: object
+      properties:
+        keep:
+          type: string
+          enum: [existing, statement, custom]
+        existing_category:
+          type: string
+          format: uuid
+          nullable: true
+        statement_category:
+          type: string
+          format: uuid
+          nullable: true
+        category:
+          type: string
+          format: uuid
+          nullable: true
+          description: Required when keep is custom; null chooses Uncategorized.
+      required:
+      - keep
+      - existing_category
+      - statement_category
     StatementImport:
       type: object
       properties:
@@ -6724,6 +6749,10 @@ components:
         transfer_account_name:
           type: string
           nullable: true
+        category_id:
+          type: string
+          format: uuid
+          nullable: true
         category_name:
           type: string
           nullable: true
@@ -6793,6 +6822,7 @@ components:
       - effective_balance_after
       - can_fill_missing_balance
       - can_link
+      - category_id
       - category_name
       - conflict
       - detail_suggestions

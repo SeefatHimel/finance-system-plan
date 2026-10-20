@@ -1307,7 +1307,15 @@ export interface StatementDecision {
   acknowledge_conflict?: boolean;
   remember_choices?: boolean;
   balance_choice?: StatementBalanceChoice;
+  category_choice?: StatementCategoryChoice;
   detail_choices?: StatementDetailChoice[];
+}
+
+export interface StatementCategoryChoice {
+  keep: "existing" | "statement" | "custom";
+  existing_category: string | null;
+  statement_category: string | null;
+  category?: string | null;
 }
 
 export interface StatementImport {
@@ -1342,6 +1350,7 @@ export interface StatementMatch {
   amount: string;
   account_name: string;
   transfer_account_name: string | null;
+  category_id: string | null;
   category_name: string | null;
   reference: string;
   note: string;

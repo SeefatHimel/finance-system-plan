@@ -5,6 +5,8 @@ type LinkReview = {
   issuesAcknowledged: boolean;
   conflict: boolean;
   balanceChosen: boolean;
+  categoryConflict?: boolean;
+  categoryChosen?: boolean;
 };
 
 /** Compare printed/received calendar dates without a timezone or DST shift. */
@@ -22,8 +24,11 @@ export function statementLinkBlockReason(review: LinkReview): string | null {
   if (review.dirty) return "Save your draft to refresh matches first.";
   if (!review.canLink) return "This entry cannot be linked. Refresh the match suggestions.";
   if (review.requiresAcknowledgement && !review.issuesAcknowledged) return "Review and acknowledge the source discrepancies above.";
-  if (review.conflict && !review.balanceChosen) return "Choose which reported balance to keep for this match.";
-  return null;
+  const choices = [
+    review.conflict && !review.balanceChosen ? "Choose which reported balance to keep for this match." : null,
+    review.categoryConflict && !review.categoryChosen ? "Choose which category the linked ledger transaction should use." : null,
+  ].filter(Boolean);
+  return choices.length ? choices.join(" ") : null;
 }
 
 type AddReview = {

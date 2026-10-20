@@ -289,7 +289,13 @@ def combine_pending_sms(*, row, user, payload, request):
     }
     # The existing link engine rechecks eligibility, statement-wide ambiguity,
     # discrepancy acknowledgement and transfer evidence within this transaction.
-    linked, _ = decide_locked(row=row, user=user, payload=link_payload, request=request)
+    # The new ledger entry already uses the SMS category (or the statement
+    # fallback) chosen by this confirmation. Do not request a second category
+    # decision while attaching the same statement evidence.
+    linked, _ = decide_locked(
+        row=row, user=user, payload=link_payload, request=request,
+        require_category_choice=False,
+    )
     candidate.transaction = record
     candidate.status = ParsedMessageCandidate.Status.CONFIRMED
     candidate.save(update_fields=("transaction", "status", "updated_at"))

@@ -16,6 +16,9 @@ test('linking requires fresh saved matches, source acknowledgement and a balance
   assert.match(statementLinkBlockReason({ ...ready, canLink: false, balanceChosen: true }), /cannot be linked/);
   assert.match(statementLinkBlockReason({ ...ready, requiresAcknowledgement: true, balanceChosen: true }), /source discrepancies/);
   assert.match(statementLinkBlockReason({ ...ready, conflict: true, issuesAcknowledged: true }), /Choose which reported balance/);
+  assert.match(statementLinkBlockReason({ ...ready, categoryConflict: true }), /Choose which category/);
+  assert.equal(statementLinkBlockReason({ ...ready, categoryConflict: true, categoryChosen: true }), null);
+  assert.match(statementLinkBlockReason({ ...ready, conflict: true, categoryConflict: true }), /reported balance.*Choose which category/);
   assert.equal(statementLinkBlockReason({ ...ready, requiresAcknowledgement: true, issuesAcknowledged: true, conflict: true, balanceChosen: true }), null);
   // A non-conflicting alternative needs no balance choice.
   assert.equal(statementLinkBlockReason({ ...ready, issuesAcknowledged: true }), null);

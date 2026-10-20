@@ -15,6 +15,7 @@ from rest_framework.exceptions import APIException, ValidationError
 
 from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
+from apps.categories.models import Category
 from apps.transactions.balance_reports import (
     account_reports,
     applies_to_transfer,
@@ -676,6 +677,7 @@ def _find_statement_matches(rows):
                         "transfer_account_name": record.transfer_account.name
                         if record.transfer_account
                         else None,
+                        "category_id": str(record.category_id) if record.category_id else None,
                         "category_name": record.category.name
                         if record.category
                         else None,
@@ -824,7 +826,10 @@ def touch(row, user, before, metadata=None):
     )
 
 
-def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
+def decide_locked(
+    *, row, user, payload, request, combining_pending_sms=False,
+    require_category_choice=True,
+):
     action = payload["action"]
     target = payload.get("transaction")
     if resolved(row) and action not in {"unlink", "reopen"}:
@@ -845,6 +850,7 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
         raise ReviewConflict()
     before = row_snapshot(row)
     balance_resolution = None
+    category_resolution = None
     ledger_before = None
     transfer_existing_report = None
     transfer_balance_choice = None
@@ -936,6 +942,63 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
                         "transaction": "This movement no longer matches or is already attached to another row in this statement. Refresh the suggestions."
                     }
                 )
+            ledger_before = transaction_snapshot(target)
+            category_choice = payload.get("category_choice")
+            if (
+                require_category_choice
+                and row.category_id is not None
+                and row.category_id != target.category_id
+                and not category_choice
+            ):
+                raise ValidationError(
+                    {"category_choice": "Choose which category the linked ledger transaction should use."}
+                )
+            if category_choice:
+                if (
+                    category_choice["existing_category"] != target.category_id
+                    or category_choice["statement_category"] != row.category_id
+                ):
+                    raise ReviewConflict(
+                        "A reviewed category changed. Reload the row and choose again."
+                    )
+                keep = category_choice["keep"]
+                if keep == "custom" and category_choice["category"] is not None:
+                    selected_category = Category.objects.filter(
+                        pk=category_choice["category"], user=user, is_active=True
+                    ).first()
+                    if selected_category is None:
+                        raise ValidationError(
+                            {"category_choice": "Choose an active category from your categories."}
+                        )
+                else:
+                    selected_category = (
+                        target.category if keep == "existing"
+                        else row.category if keep == "statement"
+                        else None
+                    )
+                if keep != "existing" and selected_category:
+                    compatible = {
+                        Category.Kind.EXPENSE: {"expense", "fee"},
+                        Category.Kind.INCOME: {"income", "refund"},
+                        Category.Kind.TRANSFER: {"transfer"},
+                        Category.Kind.DEBT: {"lend", "borrow", "repayment_received", "repayment_paid"},
+                    }
+                    if not selected_category.is_active or (
+                        selected_category.kind in compatible
+                        and target.type not in compatible[selected_category.kind]
+                    ):
+                        raise ValidationError(
+                            {"category_choice": "Choose an active category compatible with the existing transaction type."}
+                        )
+                category_resolution = {
+                    "keep": keep,
+                    "existing_category": str(target.category_id) if target.category_id else None,
+                    "statement_category": str(row.category_id) if row.category_id else None,
+                    "selected_category": str(selected_category.pk) if selected_category else None,
+                }
+                if selected_category != target.category:
+                    target.category = selected_category
+                    target.save(update_fields=("category", "updated_at"))
             choice = payload.get("balance_choice")
             if match["conflict"] and not choice:
                 raise ValidationError(
@@ -960,7 +1023,6 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
                     {"balance_choice": "The statement has no reported balance to use."}
                 )
             row.transaction = target
-            ledger_before = transaction_snapshot(target)
             updated_details = apply_detail_choices(
                 row, target, payload.get("detail_choices", [])
             )
@@ -1115,6 +1177,7 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
                 metadata={
                     "statement_row": str(row.id),
                     "balance_resolution": balance_resolution,
+                    "category_resolution": category_resolution,
                     "updated_details": updated_details,
                 },
             )
@@ -1132,6 +1195,7 @@ def decide_locked(*, row, user, payload, request, combining_pending_sms=False):
             "allow_separate": payload.get("allow_separate", False),
             "remember_choices": payload.get("remember_choices", False),
             "balance_resolution": balance_resolution,
+            "category_resolution": category_resolution,
             "updated_details": updated_details,
             "dismissed_ledger_matches": [str(item) for item in payload.get("dismissed_ledger_matches", [])],
         },

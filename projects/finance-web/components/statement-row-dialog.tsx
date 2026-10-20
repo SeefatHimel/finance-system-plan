@@ -17,7 +17,7 @@ import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { useToast } from "@/components/toast-provider";
 import { getAccessToken } from "@/lib/auth-storage";
 import { directionForType, transactionTypes } from "@/lib/category-type";
-import { decideStatementRow, updateStatementRow, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementDecision, type StatementRowEdit, type TransactionType } from "@/lib/api";
+import { decideStatementRow, updateStatementRow, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementCategoryChoice, type StatementDecision, type StatementRowEdit, type TransactionType } from "@/lib/api";
 
 function editable(row: SavedStatementRow): StatementRowEdit {
   return { version: row.version, date: row.date, time: row.time, value_date: row.value_date, direction: row.direction, amount: row.amount, balance_after: row.balance_after, type: row.type, other_account: row.other_account, category: row.category, reference: row.reference, counterparty_text: row.counterparty_text, note: row.note, classification_confirmed: row.classification_confirmed };
@@ -35,6 +35,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
   const [error, setError] = useState<string | null>(null);
   const [ackIssues, setAckIssues] = useState(false);
   const [balanceSelections, setBalanceSelections] = useState<Record<string, StatementBalanceSelection>>({});
+  const [categorySelections, setCategorySelections] = useState<Record<string, { version: number; choice: StatementCategoryChoice }>>({});
   const [detailSelections, setDetailSelections] = useState<Record<string, { version: number; values: DetailSelections }>>({});
   const [confirmSeparate, setConfirmSeparate] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
@@ -67,7 +68,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     setBusy(true); setError(null);
     try {
       const result = await updateStatementRow(token, row.id, draft);
-      setDraft(editable(result)); setAckIssues(false); setBalanceSelections({}); setDetailSelections({}); setDistinctLedgerMatches(false);
+      setDraft(editable(result)); setAckIssues(false); setBalanceSelections({}); setCategorySelections({}); setDetailSelections({}); setDistinctLedgerMatches(false);
       onChange(result, false); if (next) await onNext(); notify("Draft saved. Match suggestions refreshed; no ledger changes yet.");
     } catch (reason) { showError(reason); } finally { setBusy(false); }
   }
@@ -81,15 +82,22 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     const token = getAccessToken(); if (!token || busy) return;
     const match = row.review.matches.find((item) => item.id === transaction);
     const balanceChoice = match ? currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version, batch.currency) : undefined;
+    const categorySelection = match && categorySelections[match.id];
+    const categoryChoice = match && categorySelection?.version === row.version
+      && categorySelection.choice.existing_category === match.category_id
+      && categorySelection.choice.statement_category === row.category
+      ? categorySelection.choice : undefined;
+    const categoryConflict = Boolean(match && row.category !== null && row.category !== match.category_id);
+    const categoryChosen = Boolean(categoryChoice && (categoryChoice.keep !== "custom" || categoryChoice.category !== undefined));
     const selections = match && detailSelections[match.id]?.version === row.version ? detailSelections[match.id].values : {};
     const detailResult = match ? selectedStatementDetails(match.detail_suggestions, selections) : { choices: [], error: null };
     if (action === "link") {
-      const blocked = match ? detailResult.error ?? statementLinkBlockReason({ dirty, canLink: match.can_link, requiresAcknowledgement: row.review.requires_acknowledgement, issuesAcknowledged: ackIssues, conflict: match.conflict, balanceChosen: Boolean(balanceChoice) }) : "Refresh the match suggestions.";
+      const blocked = match ? detailResult.error ?? statementLinkBlockReason({ dirty, canLink: match.can_link, requiresAcknowledgement: row.review.requires_acknowledgement, issuesAcknowledged: ackIssues, conflict: match.conflict, balanceChosen: Boolean(balanceChoice), categoryConflict, categoryChosen }) : "Refresh the match suggestions.";
       if (blocked) { showError(new Error(blocked)); return; }
     }
     setBusy(true); setError(null);
     try {
-      const result = await decideStatementRow(token, row.id, { action, version: row.version, transaction, remember_choices: rememberChoices, allow_separate: separate, acknowledge_issues: ackIssues, acknowledge_conflict: Boolean(balanceChoice), balance_choice: action === "link" ? balanceChoice : undefined, detail_choices: action === "link" ? detailResult.choices : undefined });
+      const result = await decideStatementRow(token, row.id, { action, version: row.version, transaction, remember_choices: rememberChoices, allow_separate: separate, acknowledge_issues: ackIssues, acknowledge_conflict: Boolean(balanceChoice), balance_choice: action === "link" ? balanceChoice : undefined, category_choice: action === "link" ? categoryChoice : undefined, detail_choices: action === "link" ? detailResult.choices : undefined });
       onChange(result, true);
       const messages = { create: "Transaction added from the statement.", link: "Statement evidence linked. The transaction is counted once.", skip: "Statement row skipped.", unlink: "Statement evidence unlinked. The ledger transaction was kept.", reopen: "Skipped row reopened for review." };
       notify(messages[action]);
@@ -248,12 +256,14 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
             busy={busy} dirty={dirty} issuesAcknowledged={ackIssues}
             balanceChoice={currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version, batch.currency)}
             balanceAutoSelected={balanceSelections[match.id] === undefined}
+            categoryChoice={categorySelections[match.id]?.version === row.version && categorySelections[match.id]?.choice.existing_category === match.category_id && categorySelections[match.id]?.choice.statement_category === row.category ? categorySelections[match.id]?.choice : undefined}
             detailSelections={detailSelections[match.id]?.version === row.version ? detailSelections[match.id].values : {}}
             onBalanceChoice={(keep) => setBalanceSelections((old) => ({ ...old, [match.id]: { keep, version: row.version, existing_balance_after: match.effective_balance_after, statement_balance_after: row.balance_after } }))}
+            onCategoryChoice={(choice) => setCategorySelections((old) => ({ ...old, [match.id]: { version: row.version, choice } }))}
             onDetailChange={(values) => setDetailSelections((old) => ({ ...old, [match.id]: { version: row.version, values } }))}
             onAccept={() => void decide("link", match.id)} />)}</div>
         </section> : null}
-        {error ? <div><p role="alert" className="form-error">{error}</p><button className="button" type="button" disabled={busy} onClick={() => { dismiss(); setDraft(editable(row)); setBalanceSelections({}); setDetailSelections({}); setAckIssues(false); setDistinctLedgerMatches(false); setError(null); onReload(); }}>Reload row · discard unsaved changes</button></div> : null}
+        {error ? <div><p role="alert" className="form-error">{error}</p><button className="button" type="button" disabled={busy} onClick={() => { dismiss(); setDraft(editable(row)); setBalanceSelections({}); setCategorySelections({}); setDetailSelections({}); setAckIssues(false); setDistinctLedgerMatches(false); setError(null); onReload(); }}>Reload row · discard unsaved changes</button></div> : null}
       </div>
       <footer className="statement-row-footer" onKeyDown={handleShortcuts}>
         {!editOnly && !isResolved && addBlockers.length ? <div className="statement-add-status" id="statement-add-status" role="status">

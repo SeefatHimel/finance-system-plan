@@ -24,6 +24,12 @@ another transaction.
 
 Shared API contract and integration documentation.
 
+Statement match suggestions expose the ledger `category_id` alongside its name.
+Link decisions with a different saved statement category submit an explicit
+`category_choice`: keep the ledger category, use the statement draft category,
+or choose another active category. Reviewed IDs protect against stale decisions;
+the selected category and original observations are captured in audit history.
+
 Statement preview rows may contain `citytouch_printed_code`, the second
 component exactly as printed in a City Bank Citytouch reference. It is nullable
 and does not authorize an automatic counterparty mapping. General descriptions

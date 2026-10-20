@@ -670,7 +670,12 @@ is selected initially; the reviewer may choose the lower one. Larger differences
 still need a manual balance choice. Accept stays disabled until draft changes
 are saved and any required source acknowledgments are checked. Saving refreshes
 matches and clears choices. Linking retains both original observations and uses
-the selected reported balance without changing the movement amount.
+the selected reported balance without changing the movement amount. If a saved
+statement category differs from the ledger category, a visible radio group
+requires Keep ledger, Use statement, or Choose another before linking. The
+chosen category and count-once result appear beside the action. Incompatible or
+inactive statement categories cannot replace the ledger category; another
+active category of the ledger transaction's type can be selected instead.
 The other-owned-account field appears only for transfers. The classification
 review checkbox confirms review and does not change the transaction type.
 

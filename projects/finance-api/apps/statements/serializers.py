@@ -256,6 +256,7 @@ class StatementMatchSerializer(serializers.Serializer):
     amount = serializers.CharField()
     account_name = serializers.CharField()
     transfer_account_name = serializers.CharField(allow_null=True)
+    category_id = serializers.UUIDField(allow_null=True)
     category_name = serializers.CharField(allow_null=True)
     reference = serializers.CharField()
     note = serializers.CharField()
@@ -443,6 +444,24 @@ class StatementBalanceChoiceSerializer(serializers.Serializer):
     )
 
 
+class StatementCategoryChoiceSerializer(serializers.Serializer):
+    keep = serializers.ChoiceField(choices=("existing", "statement", "custom"))
+    existing_category = serializers.UUIDField(allow_null=True)
+    statement_category = serializers.UUIDField(allow_null=True)
+    category = serializers.UUIDField(allow_null=True, required=False)
+
+    def validate(self, attrs):
+        if attrs["keep"] == "custom" and "category" not in attrs:
+            raise serializers.ValidationError(
+                {"category": "Choose a category or Uncategorized."}
+            )
+        if attrs["keep"] != "custom" and "category" in attrs:
+            raise serializers.ValidationError(
+                {"category": "A custom category is only available with Choose another."}
+            )
+        return attrs
+
+
 class StatementDetailChoiceSerializer(serializers.Serializer):
     field = serializers.ChoiceField(choices=tuple(DETAIL_FIELDS))
     existing_value = serializers.CharField(allow_blank=True, trim_whitespace=False)
@@ -467,6 +486,7 @@ class StatementDecisionSerializer(serializers.Serializer):
     acknowledge_issues = serializers.BooleanField(default=False)
     acknowledge_conflict = serializers.BooleanField(default=False)
     balance_choice = StatementBalanceChoiceSerializer(required=False)
+    category_choice = StatementCategoryChoiceSerializer(required=False)
     detail_choices = StatementDetailChoiceSerializer(
         many=True, required=False, max_length=7
     )
@@ -498,6 +518,10 @@ class StatementDecisionSerializer(serializers.Serializer):
                 {
                     "balance_choice": "Balance choices are only available when linking a match."
                 }
+            )
+        if "category_choice" in attrs and attrs["action"] != "link":
+            raise serializers.ValidationError(
+                {"category_choice": "Choose a ledger category only when linking an existing transaction."}
             )
         details = attrs.get("detail_choices", [])
         if details and attrs["action"] not in {"link", "combine_sms"}:

@@ -818,6 +818,10 @@ def confirm_pair(*, user, row, candidate, payload, request):
         # This source was verified above and will be attached in the same atomic
         # operation. Ledger-match safeguards remain enabled in decide_locked.
         combining_pending_sms=not target,
+        # Unified review confirms the final draft and any existing ledger
+        # target together. Preserve the target's category when attaching its
+        # statement evidence; direct statement links ask separately.
+        require_category_choice=False,
     )
     record = row.transaction
     if has_fee and payload["balance_source"] == "statement" and not target:

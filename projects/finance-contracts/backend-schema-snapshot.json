@@ -9512,6 +9512,42 @@
       ],
       "type": "object"
     },
+    "StatementCategoryChoice": {
+      "properties": {
+        "category": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "existing_category": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "keep": {
+          "$ref": "#/components/schemas/StatementCategoryChoiceKeepEnum"
+        },
+        "statement_category": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "existing_category",
+        "keep",
+        "statement_category"
+      ],
+      "type": "object"
+    },
+    "StatementCategoryChoiceKeepEnum": {
+      "enum": [
+        "existing",
+        "statement",
+        "custom"
+      ],
+      "type": "string"
+    },
     "StatementCheck": {
       "properties": {
         "expected": {
@@ -9652,6 +9688,9 @@
         "candidate": {
           "format": "uuid",
           "type": "string"
+        },
+        "category_choice": {
+          "$ref": "#/components/schemas/StatementCategoryChoice"
         },
         "detail_choices": {
           "items": {
@@ -9996,6 +10035,11 @@
         "can_link": {
           "type": "boolean"
         },
+        "category_id": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
         "category_name": {
           "nullable": true,
           "type": "string"
@@ -10095,6 +10139,7 @@
         "balance_after",
         "can_fill_missing_balance",
         "can_link",
+        "category_id",
         "category_name",
         "conflict",
         "date",
