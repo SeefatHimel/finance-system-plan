@@ -206,7 +206,9 @@ class StatementRoundingTests(APITestCase):
         self,
     ):
         row, record = self.pair()
-        other = self.upload(data=self.pdf + b"\n%Synthetic second document").rows.first()
+        other = self.upload(
+            data=self.pdf + b"\n%Synthetic second document"
+        ).rows.first()
         other.transaction = record
         other.state = "linked"
         other.save()
@@ -276,7 +278,9 @@ class StatementRoundingTests(APITestCase):
         )
         match = self.matches(row)[0]
         self.assertFalse(match["rounding_correction"]["can_correct"])
-        self.assertEqual(self.link(row, record).status_code, 400)
+        blocked = self.link(row, record)
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn("debt or bill", str(blocked.data))
 
     def test_bulk_posting_does_not_add_a_near_match(self):
         row, _record = self.pair()
@@ -344,6 +348,40 @@ class StatementRoundingTests(APITestCase):
         self.assertEqual(record.amount, Decimal("50.37"))
         self.assertEqual(record.balance_after, Decimal("17.00"))
         self.assertEqual(receiving.balance_after, Decimal("950.00"))
+
+    def test_amount_and_category_choices_share_one_audited_atomic_decision(self):
+        from apps.categories.models import Category
+
+        row, record = self.pair()
+        old_category = record.category_id
+        row.category = Category.objects.create(
+            user=self.user, name="Synthetic reviewed category", kind="expense"
+        )
+        row.save()
+        self.assertEqual(self.link(row, record).status_code, 400)
+        record.refresh_from_db()
+        self.assertEqual(record.amount, Decimal("50.00"))
+        response = self.link(
+            row,
+            record,
+            category_choice={
+                "keep": "statement",
+                "existing_category": str(old_category),
+                "statement_category": str(row.category_id),
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        record.refresh_from_db()
+        self.assertEqual(record.amount, Decimal("50.37"))
+        self.assertEqual(record.category_id, row.category_id)
+        audit = AuditLogEntry.objects.filter(
+            entity_id=str(record.pk), action="updated"
+        ).latest("created_at")
+        self.assertEqual(audit.before["category"], str(old_category))
+        self.assertEqual(audit.before["amount"], "50.00")
+        self.assertEqual(audit.after["category"], str(row.category_id))
+        self.assertIn("category_resolution", audit.metadata)
+        self.assertIn("amount_resolution", audit.metadata)
 
     def test_busy_history_fails_closed_and_exact_suggestions_rank_before_nearby(self):
         from unittest.mock import patch

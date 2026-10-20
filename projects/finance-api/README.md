@@ -1432,7 +1432,8 @@ rank first; existing history limits still fail closed.
 transaction update timestamp and correction eligibility. `can_link` remains false.
 An explicit `action=link` with `amount_correction` must echo both exact amounts
 and the reviewed timestamp. Differing balances require a separate exact-value
-`balance_choice`. The existing row version, ownership, user/transaction locks,
+`balance_choice`; a category disagreement also retains its explicit category
+choice. The existing row version, ownership, user/transaction locks,
 fresh matching and atomicity checks apply; changed snapshots return 409 without
 partial writes. The API corrects the canonical amount and links the statement
 in one transaction. Repeated accepted requests are idempotent. Audit history

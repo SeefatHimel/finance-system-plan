@@ -1027,6 +1027,10 @@ def decide_locked(
                         "amount_correction": "This is no longer an eligible small-rounding suggestion. Refresh the row."
                     }
                 )
+            if rounding and not rounding["can_correct"]:
+                raise ValidationError(
+                    {"amount_correction": rounding["blocked_reason"]}
+                )
             if not match or not (
                 match["can_link"]
                 or (correction and rounding and rounding["can_correct"])
