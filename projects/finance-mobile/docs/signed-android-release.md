@@ -11,6 +11,14 @@ unsaved review/manual/profile forms, stale/offline background refresh and
 logout/relogin. The automated navigation tests and Metro export do not replace
 these physical-device checks.
 
+For immediate SMS review updates, also follow the
+[save/retry acceptance checklist](review-save-recovery.md#verification): slow
+approval/rejection, both pending transfer sources, exact draft rollback, editing
+the next message, lost responses, repeated taps, shifted pages, Undo, and logout
+during a save. This JavaScript change requires a new APK but no new native module
+or migration. Do not call phone/network/TalkBack behavior verified from the
+automated host tests or Metro export alone.
+
 ## Prerequisites
 
 - Android Studio with the Android SDK and command-line tools.

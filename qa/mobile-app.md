@@ -667,6 +667,32 @@ write or API migration is added. Tests use real router/query libraries with
 native host mocks; phone Back gestures, keyboard, TalkBack and scroll geometry
 still need the [device checklist](../projects/finance-mobile/docs/navigation-state.md).
 
+### How do immediate review updates recover failures without duplicate transactions?
+
+After final approval/rejection or accepting a transfer match, a hidden-ID overlay
+removes the affected pending SMS and count immediately. The next form stays
+editable. The app snapshots only the affected drafts/positions; a definite failure
+restores those entries without replacing another candidate's newer edits or
+stealing its selection. Editing a restored draft discards the old Retry payload.
+
+A lost response or 5xx might follow a committed write. Authenticated candidate
+detail GETs check every affected source before any further write. Confirmed or
+ignored messages stay out of the queue; unresolved outcomes retain their exact
+payload and show **Check save status** and **Retry same decision**. Check is
+read-only. Retry requires a successful status check and repeats the original
+IDs/fields/balance choices with the latest token, never an automatic POST loop.
+Server candidate locks, SMS identity guards and idempotent transfer linking
+remain the final duplicate protection. Partially resolved pairs restore only
+the pending counterpart for a fresh decision.
+
+One saving/unconfirmed review decision blocks further review writes and Undo,
+while navigation and next-message edits remain available. Older refreshes cannot
+reinsert hidden entries; shifted offset pagination waits for a fresh retained
+window. Successful Undo can reopen a source on a later authoritative refresh.
+State is session memory, cleared on logout/restart. Existing candidate-detail and
+review APIs suffice; no contract, migration or native module is added. See the
+[implementation and device checks](../projects/finance-mobile/docs/review-save-recovery.md).
+
 ### What shared interface improvements are implemented on native?
 
 Finance is the visible product name, including the installed Android label after

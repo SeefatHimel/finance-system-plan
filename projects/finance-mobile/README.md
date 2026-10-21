@@ -124,6 +124,9 @@ Phase 1 scaffold now includes:
   - lets the user correct amount, date, type, accounts, payment method,
     category, counterparty, reference, and note before confirmation
   - confirms or rejects candidates through the review endpoints
+  - immediately removes decided messages/counts, keeps next-message edits, and
+    restores affected rows/drafts after definite failure; uncertain saves expose
+    status checks and explicit safe retry ([details](docs/review-save-recovery.md))
   - remembers corrected account, payment method, category, and transaction type
     for later messages from the same sender rule
   - records a rejection reason and can redact the body, disable the matched

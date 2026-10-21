@@ -658,6 +658,15 @@ Review the physical-device checklist in the signed-release guide before calling
 keyboard, layout, TalkBack or real background SMS behavior verified. Install over
 the existing app to retain encrypted pending work.
 
+Immediate mobile SMS review updates use existing candidate-detail GET,
+confirm/reject and transfer-link endpoints. `npm run test:review` includes full-App
+optimistic removal, draft rollback, uncertain receipts and explicit retry tests;
+`npm test` also checks status-response validation. Run
+`CI=1 npx expo export --platform android --output-dir dist/review-update-check`
+for a bundle check. No new migration/native dependency is added; follow the
+[save/retry phone checklist](../projects/finance-mobile/docs/review-save-recovery.md#verification)
+before distributing a newly built APK.
+
 
 ### Evidence proposal metadata
 

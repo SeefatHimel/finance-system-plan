@@ -49,8 +49,10 @@ candidate ID; refresh now rereads enough pages to retain the previously loaded
 window instead of replacing it with the first 100 messages. It commits only
 after the full window loads, preserves drafts for still-pending IDs and ignores
 superseded responses. A message resolved elsewhere can disappear after refresh.
-Other workspaces retain their explicit/load-on-open refreshes. Immediate
-optimistic queue removal remains a separate change.
+Other workspaces retain their explicit/load-on-open refreshes. SMS decisions now
+use [immediate queue updates and save recovery](review-save-recovery.md): affected
+rows disappear before the write finishes, failed decisions restore their drafts,
+and unresolved outcomes remain visible for status checking and explicit retry.
 
 ## Session boundary
 
