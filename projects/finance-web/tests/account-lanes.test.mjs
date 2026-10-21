@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, groupTimelineDays, laneBalance, laneDirection, laneMomentMatchesCanonical, reportedBalanceAtDate, timelineScrollShift, weekStart } from "../lib/account-lanes.ts";
+import { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, laneMomentMatchesCanonical, reportedBalanceAtDate, timelineScrollShift, weekStart } from "../lib/account-lanes.ts";
 
 const row = (id, date, time, amount, balance_after, extra = {}) => ({
   id, date, time, amount, balance_after, account: "city", transfer_account: null,
@@ -14,12 +14,18 @@ test("date window crosses month and leap-day boundaries", () => {
 });
 
 test("a short timeline advances only toward the user's gesture", () => {
+  assert.equal(isVerticalTimelineGesture(30, 3, 2), false);
+  assert.equal(isVerticalTimelineGesture(3, 30, 2), true);
+  assert.equal(isVerticalTimelineGesture(30, 40, 45), false);
   assert.equal(atTimelineEdge(-1, 0, 300, 500, 4), true);
   assert.equal(atTimelineEdge(1, 0, 300, 500, 4), true);
   assert.equal(timelineScrollShift(-20, 0, 300, 500, true, true), -1);
   assert.equal(timelineScrollShift(20, 0, 300, 500, true, true), 1);
   assert.equal(timelineScrollShift(0, 0, 300, 500, true, true), 0);
   assert.equal(timelineScrollShift(20, 0, 300, 500, true, false), 0);
+  assert.equal(timelineScrollShift(-20, 20, 1500, 500, true, true), 0);
+  assert.equal(timelineScrollShift(20, 976, 1500, 500, true, true), 0);
+  assert.equal(timelineScrollShift(20, 996, 1500, 500, true, true), 1);
   assert.equal(atTimelineEdge(-1, 150, 1000, 500, 4), false);
   assert.equal(atTimelineEdge(1, 150, 1000, 500, 4), false);
   assert.equal(atTimelineEdge(-1, 0, 1000, 500, 4), true);

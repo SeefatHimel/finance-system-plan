@@ -11,14 +11,18 @@ export function weekStart(day: string): string {
   return addDays(day, -(weekday + 6) % 7);
 }
 
+export function isVerticalTimelineGesture(deltaX: number, deltaY: number, minimumDistance: number): boolean {
+  return Math.abs(deltaY) > minimumDistance && Math.abs(deltaY) > Math.abs(deltaX);
+}
+
 /** Use gesture direction when a short window touches both scroll edges. */
 export function atTimelineEdge(direction: -1 | 1, scrollTop: number, scrollHeight: number, viewportHeight: number, threshold: number): boolean {
   return direction < 0 ? scrollTop <= threshold : scrollHeight - viewportHeight - scrollTop <= threshold;
 }
 
 export function timelineScrollShift(movement: number, scrollTop: number, scrollHeight: number, viewportHeight: number, earlierReady: boolean, laterReady: boolean): -1 | 0 | 1 {
-  if (movement < 0 && earlierReady && atTimelineEdge(-1, scrollTop, scrollHeight, viewportHeight, 260)) return -1;
-  if (movement > 0 && laterReady && atTimelineEdge(1, scrollTop, scrollHeight, viewportHeight, 260)) return 1;
+  if (movement < 0 && earlierReady && atTimelineEdge(-1, scrollTop, scrollHeight, viewportHeight, 4)) return -1;
+  if (movement > 0 && laterReady && atTimelineEdge(1, scrollTop, scrollHeight, viewportHeight, 4)) return 1;
   return 0;
 }
 

@@ -34,12 +34,17 @@ shows that initial fetch and the number of movements received across multi-page
 weeks, while a compact progress indicator and edge loaders
 show subsequent weeks. Failed weeks show Retry. When collapsed quiet days make
 the viewport too short to scroll, a wheel or touch gesture at an edge still
-advances by one week; explicit edge buttons offer the same navigation. The
-timeline only auto-advances in the direction of the user's scroll, so loading
-and layout changes cannot silently move it to another week.
+advances by one week; explicit edge buttons offer the same navigation. A wheel
+vertical gesture advances at most one week when it reaches a true edge; sideways
+lane scrolling never changes weeks. Arriving near an
+edge or loading data never moves the date window. The visible-date label updates
+after scrolling settles, keeping the lane cards stable during a gesture.
 
 The lane header, day labels, and time rail stay fixed through native CSS sticky
-positioning as the same viewport scrolls in both directions. Full screen expands
+positioning as the same viewport scrolls in both directions. The header has a
+stable height when its historical balance label changes. Manual anchoring keeps
+the visible day in place when a fetched week expands or collapses, without the
+browser applying a second automatic scroll adjustment. Full screen expands
 the timeline over the app navigation and can be closed with its button or Escape.
 The lanes use the full available width in either mode. Selecting a transaction
 opens a nonmodal right-side drawer on desktop or a bottom sheet on phones, rather

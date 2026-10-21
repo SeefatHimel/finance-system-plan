@@ -1405,8 +1405,13 @@ placeholders. A centered loader reports received movement counts during
 multi-page fetches; per-window progress, edge status and Retry
 controls make network work visible. Short runs of collapsed quiet days may leave
 no scroll range; wheel and touch gestures at the edge still advance a week, and
-explicit edge controls remain available. Automatic shifts follow actual scroll
-direction and ignore programmatic position restoration after data loads.
+explicit edge controls remain available. A continuous trackpad gesture advances
+at most once, only at a true edge; horizontal swipes do not change weeks.
+Loading and near-edge scrolling cannot shift the date window. The visible-date
+label waits until scrolling settles before
+updating, which avoids repainting every card during a gesture. The lane header
+keeps a fixed height as historical report text changes, and manual scroll
+anchoring avoids competing with the browser's automatic anchoring when weeks load.
 
 The lane header labels the last saved report on or before the visible date and
 its actual report date. When that cannot be established from loaded data, it

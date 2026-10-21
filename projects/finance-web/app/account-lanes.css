@@ -15,6 +15,12 @@
 .account-lanes-layout{display:grid;grid-template-columns:minmax(0,1fr);flex:1;min-height:0;border:1px solid var(--panel-border);border-radius:12px;overflow:hidden;background:var(--panel)}
 .account-lanes-main{position:relative;display:flex;flex-direction:column;min-width:0;overflow:hidden}.account-lanes-head{display:grid;position:sticky;top:0;z-index:4;min-width:var(--lanes-min-width);width:100%;border-bottom:1px solid var(--panel-border);background:var(--panel)}.account-lanes-head>span{padding:16px;color:var(--muted)}.account-lanes-head>div{display:grid;gap:3px;padding:15px 18px;border-left:1px solid var(--panel-border)}.account-lanes-head strong{font-size:calc(15px + var(--lanes-font-adjust))}.account-lanes-head small{font-size:max(11px,calc(11px + var(--lanes-font-adjust)));color:var(--muted);overflow-wrap:anywhere}
 .account-lanes-scroll{position:relative;flex:1;min-height:0;min-width:0;overflow-x:auto;overflow-y:auto;overscroll-behavior:contain;scrollbar-color:var(--panel-border) transparent}
+.account-lanes-scroll{overflow-anchor:none}
+.account-lanes-head{height:76px;min-height:76px}
+.account-lanes-head>span{display:flex;align-items:center}
+.account-lanes-head>div{grid-template-rows:auto minmax(0,2.8em);align-content:center;gap:2px;padding-top:7px;padding-bottom:7px;min-height:0}
+.account-lanes-head strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-lanes-head small{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4}
 .account-lanes-progress{display:inline-flex;align-items:center;gap:8px;margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
 .account-lanes-progress button{padding:4px 7px;border:1px solid var(--panel-border);border-radius:6px;background:var(--panel);color:var(--accent);cursor:pointer}
 .account-lanes-spinner{display:inline-block;width:15px;height:15px;flex:none;border:2px solid var(--panel-border);border-top-color:var(--accent);border-radius:50%;animation:account-lanes-spin .8s linear infinite}

@@ -2,7 +2,7 @@
 
 import { ArrowsIn, ArrowsOut, CalendarBlank, CaretLeft, CaretRight, Eye, LinkSimple, SlidersHorizontal, X } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type TouchEvent as ReactTouchEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { createPortal } from "react-dom";
 import { formatCalendarDate, formatClockTime, formatCurrency } from "../../finance-contracts/presentation";
 import { CalendarDateInput } from "./calendar-date-input";
@@ -10,7 +10,7 @@ import { TransactionSourceMessages } from "./transaction-source-messages";
 import { TransactionStatementEvidence } from "./transaction-statement-evidence";
 import { getAccessToken } from "@/lib/auth-storage";
 import { listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
-import { addDays, atTimelineEdge, balanceGapDetails, groupTimelineDays, laneBalance, laneDirection, reportedBalanceAtDate, timelineScrollShift, weekStart } from "@/lib/account-lanes";
+import { addDays, atTimelineEdge, balanceGapDetails, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, reportedBalanceAtDate, timelineScrollShift, weekStart } from "@/lib/account-lanes";
 
 type WeekResult = { status: "loading"; loaded: number; total: number | null } | { status: "error"; message: string } | { status: "ready"; rows: Transaction[] };
 type ViewMode = "amount" | "balance" | "both";
@@ -68,8 +68,10 @@ export function AccountLanesWorkspace() {
   const initializedRef = useRef(false);
   const jumpTargetRef = useRef<string | null>(null);
   const shiftingRef = useRef(false);
-  const touchStartRef = useRef<number | null>(null);
-  const lastScrollInputRef = useRef(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const visibleDateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const edgeGestureRef = useRef<-1 | 1 | null>(null);
+  const lastWheelAtRef = useRef(0);
   const lastScrollTopRef = useRef(0);
   const requestsRef = useRef(new Map<string, AbortController>());
   const closeDetails = useCallback(() => {
@@ -98,6 +100,7 @@ export function AccountLanesWorkspace() {
 
   useEffect(() => { void loadAccounts(); }, [loadAccounts]);
   useEffect(() => () => { for (const controller of requestsRef.current.values()) controller.abort(); requestsRef.current.clear(); }, []);
+  useEffect(() => () => { if (visibleDateTimerRef.current) clearTimeout(visibleDateTimerRef.current); }, []);
   useEffect(() => {
     if (!isFullscreen) return;
     const priorOverflow = document.body.style.overflow;
@@ -150,7 +153,9 @@ export function AccountLanesWorkspace() {
       while (offset !== null) {
         const page = await listTransactionActivityPage(token, start, addDays(start, 6), offset, controller.signal);
         rows.push(...page.results);
-        if (!controller.signal.aborted && page.next_offset !== null) {
+        // Progress is useful under the initial overlay. Once the timeline is
+        // interactive, updating every page would redraw all visible cards.
+        if (!controller.signal.aborted && page.next_offset !== null && !initializedRef.current) {
           setWeekResults(current => ({ ...current, [start]: { status: "loading", loaded: rows.length, total: page.count } }));
         }
         offset = page.next_offset;
@@ -222,11 +227,11 @@ export function AccountLanesWorkspace() {
       const target = jumpTargetRef.current ?? today();
       if (weekResults[weekStart(target)]?.status !== "ready") return;
       const day = findDayNode(viewport, target);
-      if (day) { lastScrollInputRef.current = 0; viewport.scrollTop = day.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0) - 8; lastScrollTopRef.current = viewport.scrollTop; initializedRef.current = true; jumpTargetRef.current = null; }
+      if (day) { viewport.scrollTop = day.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0) - 8; lastScrollTopRef.current = viewport.scrollTop; initializedRef.current = true; jumpTargetRef.current = null; }
     } else if (anchorRef.current) {
       const anchor = anchorRef.current;
       const target = findDayNode(viewport, anchor.date);
-      if (target) { lastScrollInputRef.current = 0; viewport.scrollTop += target.getBoundingClientRect().top - viewport.getBoundingClientRect().top - anchor.top; lastScrollTopRef.current = viewport.scrollTop; }
+      if (target) { viewport.scrollTop += target.getBoundingClientRect().top - viewport.getBoundingClientRect().top - anchor.top; lastScrollTopRef.current = viewport.scrollTop; }
     }
     anchorRef.current = null;
     shiftingRef.current = false;
@@ -248,34 +253,69 @@ export function AccountLanesWorkspace() {
     }
   }, [windowStart]);
 
-  const onScroll = useCallback(() => {
-    const viewport = viewportRef.current;
-    if (!viewport || !initializedRef.current) return;
-    const movement = viewport.scrollTop - lastScrollTopRef.current;
-    lastScrollTopRef.current = viewport.scrollTop;
-    const middle = viewport.getBoundingClientRect().top + Math.min(viewport.clientHeight / 3, 180) + (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0);
-    const current = Array.from(viewport.querySelectorAll<HTMLElement>("[data-lane-day]")).find(day => day.getBoundingClientRect().bottom > middle);
-    if (current?.dataset.laneDay) setVisibleDate(previous => previous >= current.dataset.laneDay! && previous <= (current.dataset.laneEnd ?? current.dataset.laneDay!) ? previous : current.dataset.laneDay!);
-    if (shiftingRef.current || Date.now() - lastScrollInputRef.current > 2000) return;
-    const shift = timelineScrollShift(movement, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, weekResults[windowStart]?.status === "ready", weekResults[addDays(windowStart, 14)]?.status === "ready");
-    if (shift < 0) {
-      captureAnchor(); shiftingRef.current = true; setWindowStart(previous => addDays(previous, -7));
-    } else if (shift > 0) {
-      captureAnchor(); shiftingRef.current = true; setWindowStart(previous => addDays(previous, 7));
-    }
-  }, [captureAnchor, weekResults, windowStart]);
-
   const shiftAtEdge = useCallback((direction: -1 | 1) => {
     const viewport = viewportRef.current;
     if (!viewport || !initializedRef.current || shiftingRef.current) return;
+    // A trackpad emits many wheel events for one swipe. Shift only once per
+    // gesture, including when collapsed quiet days leave no scroll range.
+    if (edgeGestureRef.current === direction) return;
     const edgeWeek = direction < 0 ? windowStart : addDays(windowStart, 14);
     if (weekResults[edgeWeek]?.status !== "ready") return;
     const atEdge = atTimelineEdge(direction, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, 4);
     if (!atEdge) return;
     captureAnchor();
+    edgeGestureRef.current = direction;
     shiftingRef.current = true;
     setWindowStart(previous => addDays(previous, direction * 7));
   }, [captureAnchor, weekResults, windowStart]);
+
+  const onScroll = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || !initializedRef.current) return;
+    const movement = viewport.scrollTop - lastScrollTopRef.current;
+    lastScrollTopRef.current = viewport.scrollTop;
+    // Update after the gesture rather than repainting every card per pixel.
+    if (visibleDateTimerRef.current) clearTimeout(visibleDateTimerRef.current);
+    visibleDateTimerRef.current = setTimeout(() => {
+      const currentViewport = viewportRef.current;
+      if (!currentViewport) return;
+      const middle = currentViewport.getBoundingClientRect().top + Math.min(currentViewport.clientHeight / 3, 180) + (currentViewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0);
+      const current = Array.from(currentViewport.querySelectorAll<HTMLElement>("[data-lane-day]")).find(day => day.getBoundingClientRect().bottom > middle);
+      if (current?.dataset.laneDay) setVisibleDate(previous => previous >= current.dataset.laneDay! && previous <= (current.dataset.laneEnd ?? current.dataset.laneDay!) ? previous : current.dataset.laneDay!);
+      visibleDateTimerRef.current = null;
+    }, 120);
+    if (Date.now() - lastWheelAtRef.current < 1000) {
+      const direction = timelineScrollShift(movement, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, weekResults[windowStart]?.status === "ready", weekResults[addDays(windowStart, 14)]?.status === "ready");
+      if (direction) shiftAtEdge(direction);
+    }
+  }, [shiftAtEdge, weekResults, windowStart]);
+
+  const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    // Trackpad horizontal swipes often include a small vertical delta.
+    if (!isVerticalTimelineGesture(event.deltaX, event.deltaY, 2)) return;
+    const now = Date.now();
+    if (now - lastWheelAtRef.current > 300) edgeGestureRef.current = null;
+    lastWheelAtRef.current = now;
+    shiftAtEdge(event.deltaY < 0 ? -1 : 1);
+  };
+  const onTouchStart = (event: ReactTouchEvent<HTMLDivElement>) => {
+    edgeGestureRef.current = null;
+    const touch = event.touches[0];
+    touchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  };
+  const onTouchEnd = (event: ReactTouchEvent<HTMLDivElement>) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch) return;
+    const x = touch.clientX - start.x;
+    const y = touch.clientY - start.y;
+    if (isVerticalTimelineGesture(x, y, 45)) shiftAtEdge(y > 0 ? -1 : 1);
+  };
+  const onViewportKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "ArrowUp" || event.key === "PageUp") { edgeGestureRef.current = null; shiftAtEdge(-1); }
+    else if (event.key === "ArrowDown" || event.key === "PageDown") { edgeGestureRef.current = null; shiftAtEdge(1); }
+  };
 
   const toggleAccount = (id: string) => setSelectedIds(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
   const showAccount = (id: string) => { revealAccountRef.current = id; setSelectedIds(previous => previous.includes(id) ? previous : [...previous, id]); };
@@ -369,7 +409,7 @@ export function AccountLanesWorkspace() {
     {accountsError ? <div className="account-lanes-error" role="alert">{accountsError} <button type="button" onClick={() => void loadAccounts()}>Retry</button></div> : null}
     <div className="account-lanes-layout">
       <div className={`account-lanes-main${layoutMode === "list" ? " account-lanes-main--list" : ""}`} style={{ "--lane-count": Math.max(selectedAccounts.length, 1), "--lanes-min-width": `${88 + Math.max(selectedAccounts.length, 1) * 240}px` } as CSSProperties}>
-        <div className="account-lanes-scroll" ref={viewportRef} onScroll={onScroll} onWheel={event => { lastScrollInputRef.current = Date.now(); if (Math.abs(event.deltaY) > 2) shiftAtEdge(event.deltaY < 0 ? -1 : 1); }} onTouchStart={event => { lastScrollInputRef.current = Date.now(); touchStartRef.current = event.touches[0]?.clientY ?? null; }} onTouchEnd={event => { const start = touchStartRef.current; touchStartRef.current = null; if (start !== null && Math.abs(start - event.changedTouches[0].clientY) > 45) shiftAtEdge(start < event.changedTouches[0].clientY ? -1 : 1); }} onPointerDown={() => { lastScrollInputRef.current = Date.now(); }} onKeyDown={event => { if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(event.key)) lastScrollInputRef.current = Date.now(); }} tabIndex={0} aria-label="Timeline. Scroll up for earlier dates and down for later dates.">
+        <div className="account-lanes-scroll" ref={viewportRef} onScroll={onScroll} onWheel={onWheel} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onKeyDown={onViewportKeyDown} tabIndex={0} aria-label="Timeline. Scroll up for earlier dates and down for later dates.">
           {layoutMode === "lanes" ? <div className="account-lanes-head" style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}><span>Time</span>{selectedAccounts.length ? selectedAccounts.map(account => {
             const report = asOfReports.get(account.id);
             const context = report?.status === "reported"
