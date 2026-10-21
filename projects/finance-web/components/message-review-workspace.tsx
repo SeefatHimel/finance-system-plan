@@ -112,6 +112,7 @@ export function MessageReviewWorkspace() {
   const loadedLimit = useRef(100);
   const [loadingMore, setLoadingMore] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const messageActionsRef = useRef<HTMLDetailsElement>(null);
   const nativeDrafts = useRef(createReviewDrafts());
   const [formRevisions, setFormRevisions] = useState<Record<string, number>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -151,6 +152,24 @@ export function MessageReviewWorkspace() {
   const [rejectDraft, setRejectDraft] = useState<RejectDraft | null>(null);
   const [classificationDrafts, setClassificationDrafts] = useState<Record<string, { type: TransactionType; category: string; balanceAfter: string; balanceCleared?: boolean }>>({});
   const categoryChoice = useCategoryTypeChoice(reviewState.status === "ready" ? reviewState.categories : []);
+
+  const closeMessageActions = useCallback(() => {
+    const actions = messageActionsRef.current;
+    if (!actions?.open) return;
+    actions.open = false;
+    requestAnimationFrame(() => {
+      if (actions.contains(document.activeElement)) actions.querySelector("summary")?.focus();
+    });
+  }, []);
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const actions = messageActionsRef.current;
+      if (actions?.open && !actions.contains(event.target as Node)) closeMessageActions();
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [closeMessageActions]);
 
   useEffect(() => {
     const requestedReturn = new URLSearchParams(window.location.search).get("return");
@@ -605,7 +624,9 @@ export function MessageReviewWorkspace() {
                 <div className={`review-issue-bar review-issue-bar--${summary?.tone}`}>
                   {summary?.tone === "ready" ? <CheckCircle aria-hidden="true" size={19} weight="fill" /> : summary?.tone === "info" ? <Info aria-hidden="true" size={19} /> : <Warning aria-hidden="true" size={19} weight="fill" />}
                   <div><strong className="inline-help">{summary?.title}{summary?.details.length ? <HelpTooltip label="Review details" warning={summary.tone === "warning"}>{summary.details.join(" · ")}</HelpTooltip> : null}</strong><span>{formatDateTime(activeCandidate.raw_message.received_at)} · {activeCandidate.raw_message.sender}</span></div>
-                  <details className="review-message-actions"><summary aria-label="Message actions" title="Message actions"><DotsThree size={20} aria-hidden="true" /><span>Message actions</span></summary><div>
+                  <details className="review-message-actions" ref={messageActionsRef} onKeyDown={event => { if (event.key === "Escape" && event.currentTarget.open) { event.stopPropagation(); closeMessageActions(); } }}>
+                    <summary aria-label="Message actions" title="Message actions"><DotsThree size={20} aria-hidden="true" /><span>Message actions</span></summary>
+                    <div className="review-message-actions__menu" onClick={event => { if ((event.target as HTMLElement).closest("button:not(:disabled)")) closeMessageActions(); }}>
                     {activeValues && canFindTransferMatch(activeCandidate, activeValues) ? <button className="button button--ghost" type="button" disabled={workingCandidateId !== null || reprocessingCandidateId !== null} onClick={() => void handleConfirm(activeCandidate, null, true)}>Find transfer match</button> : null}
                     {hasOriginalSms(activeCandidate) ? <><button className="button button--ghost" type="button" disabled={workingCandidateId !== null || reprocessingCandidateId !== null} onClick={() => void handleReprocess(activeCandidate)}>Re-run parser</button><button className="button button--ghost" type="button" disabled={workingCandidateId !== null || reprocessingCandidateId !== null} onClick={() => void handleRedact(activeCandidate)}>Redact original SMS</button></> : null}
                     <button className="button button--ghost" type="button" disabled={workingCandidateId !== null} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })}>Reject / save skip rule</button>

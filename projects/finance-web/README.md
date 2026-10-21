@@ -1152,8 +1152,10 @@ filters. Edited entries remain visible through changing correction conditions;
 explicit condition selection honors the new filter. Action-eligibility filters
 indicate an available action, not proof that a matching entry exists.
 
-Message actions near the status expose Find transfer match when eligible, parser
-re-run, source redaction and rejection/skip-rule options. A direct match lookup
+The Message actions button opens a compact anchored menu over the review form,
+without expanding the status banner; it closes on an outside click or Escape.
+It exposes Find transfer match when eligible, parser re-run, source redaction
+and rejection/skip-rule options. A direct match lookup
 uses the current draft and never adds an entry merely by searching or returning
 to review. Accepting a match is an explicit confirmation. Existing confirmation
 and per-account conflicting-balance choices remain unchanged.

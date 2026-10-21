@@ -292,6 +292,8 @@ identifiers and parser evidence collapse to reduce form height; low confidence
 opens both, a missing account opens identifiers, and duplicates open evidence.
 The editable ledger note remains visible beside the main review fields, even
 when More details is closed; that disclosure holds reference and payment method.
+The Message actions button opens an anchored dropdown over the form rather than
+stretching the status banner, and an outside click or Escape closes it.
 Collapsed inputs remain mounted and included in confirmation. Synthetic browser
 checks cover filtering, search/empty states, navigation, disclosure, collapsed
 identifier submission, focus return and desktop/phone overflow.
