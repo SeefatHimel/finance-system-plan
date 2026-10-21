@@ -322,7 +322,12 @@ merchant/counterparty text, and possible internal transfers for cash-in/cash-out
 and bank/card transfer-style messages. Counterparty extraction strips common
 confirmation noise such as trailing `successful`, and bKash payment parser
 notes surface detected till/counter and provider timestamp text when present.
-bKash
+bKash bill receipts with explicit paid-bill wording have a distinct
+`bill_payment` kind. A `Biller:` label supplies the counterparty, and an active
+Electricity, Internet, or fallback Utilities & Bills category is suggested.
+This keeps a learned generic purchase mapping from overriding a bill, and the
+biller's customer `A/C` is not misread as a wallet identifier. Reprocessing
+updates older pending receipts only; confirmed entries remain untouched. bKash
 transfer-like messages also try to match masked account or wallet identifiers
 against the user's configured payment methods so known source/destination
 accounts can be prefilled. Bank account transfer messages now use the same

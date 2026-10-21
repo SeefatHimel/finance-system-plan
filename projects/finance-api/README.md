@@ -1308,6 +1308,20 @@ confirmed candidates, preserving additional SMS sources on existing entries. SMS
 raw-text retention is honored. Unified review does not learn SMS mappings implicitly,
 and never runs a data backfill. Apply `transactions.0008_transferevidence_effective_balance`
 before deploying the updated API.
+
+# bKash SMS bill receipts
+
+bKash SMS receipts confirming a paid bill now parse as `bill_payment` rather
+than a generic purchase. The biller label fills the review counterparty, and an
+active Electricity or Internet category is suggested when the biller is clear;
+otherwise the active Utilities & Bills category is used. A separate bill kind
+keeps broad purchase mappings from recategorizing bills. Biller customer account
+numbers are not treated as wallet or bank account identifiers. Existing pending
+receipts can use **Re-run parser** in SMS review to receive these suggestions;
+confirmed transactions are not changed. Apply migration
+`finance_messages.0015_alter_parsedmessagecandidate_message_kind` before the
+updated API serves these receipts.
+
 # Recurring bKash statement clues
 
 Saved bKash imports with an archived PDF can call

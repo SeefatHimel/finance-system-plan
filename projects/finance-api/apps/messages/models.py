@@ -292,6 +292,7 @@ class ParsedMessageCandidate(models.Model):
 
     class MessageKind(models.TextChoices):
         PURCHASE = "purchase", "Purchase"
+        BILL_PAYMENT = "bill_payment", "Bill payment"
         CASH_IN = "cash_in", "Cash in"
         CASH_OUT = "cash_out", "Cash out"
         SEND_MONEY = "send_money", "Send money"

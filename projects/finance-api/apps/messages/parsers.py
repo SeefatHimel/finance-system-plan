@@ -50,6 +50,14 @@ _CARD_IDENTIFIER_PATTERN = re.compile(
     r"([0-9x*•…][0-9x*•… -]{1,}[0-9x*•…])",
     re.IGNORECASE,
 )
+_BKASH_BILL_PAYMENT_PATTERN = re.compile(
+    r"\b(?:bill\s+(?:successfully\s+)?paid|bill\s+payment\s+(?:successful|completed)|pay\s+bill\s+(?:successful|completed))\b",
+    re.IGNORECASE,
+)
+_BKASH_BILLER_PATTERN = re.compile(
+    r"\bbiller(?:\s+name)?\s*:\s*(.+?)(?=\s+(?:mm\s*/\s*yyyy|a\s*/\s*c|amount|fee|trxid|txn(?:\s+id)?|balance)\s*:|[.;]|$)",
+    re.IGNORECASE,
+)
 
 
 def has_numeric_content(body: str) -> bool:
@@ -177,6 +185,10 @@ def parse_raw_message(raw_message, *, sender_rule=None):
         parsed["parser_notes"] = (
             f"{parsed['parser_notes']} Applied choices learned for this sender and message type."
         )
+    elif parsed["message_kind"] == ParsedMessageCandidate.MessageKind.BILL_PAYMENT:
+        parsed["category"] = _bkash_bill_category(raw_message.user, parsed["counterparty_text"])
+        if parsed["category"]:
+            parsed["parser_notes"] += f" Suggested {parsed['category'].name} from the biller; review before adding."
     elif generic_bank_deposit:
         parsed["parser_notes"] += (
             " This deposit SMS does not identify its source or purpose;"
@@ -303,7 +315,12 @@ def _parse_bkash_message(*, raw_message, sender_rule):
     else:
         notes.append("No active sender rule matched this bKash-like message.")
 
-    if _contains_any_phrase(normalized, ("cash in", "cash-in", "add money")):
+    if _BKASH_BILL_PAYMENT_PATTERN.search(body):
+        message_kind = ParsedMessageCandidate.MessageKind.BILL_PAYMENT
+        transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
+        confidence = Decimal("0.86") if amount is not None else Decimal("0.52")
+        notes.append("Detected bKash bill-payment confirmation.")
+    elif _contains_any_phrase(normalized, ("cash in", "cash-in", "add money")):
         message_kind = ParsedMessageCandidate.MessageKind.CASH_IN
         transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
         possible_internal_transfer = True
@@ -332,6 +349,8 @@ def _parse_bkash_message(*, raw_message, sender_rule):
         notes.append("Detected bKash payment/purchase wording.")
 
     counterparty_text = _extract_counterparty_text(body)
+    if message_kind == ParsedMessageCandidate.MessageKind.BILL_PAYMENT:
+        counterparty_text = _extract_bkash_biller(body) or counterparty_text
     till_or_counter = _extract_till_or_counter(body)
     provider_timestamp = _extract_provider_timestamp_text(body)
     if till_or_counter:
@@ -698,6 +717,27 @@ def _extract_counterparty_text(body: str) -> str:
     return match.group(1).strip()[:255]
 
 
+def _extract_bkash_biller(body: str) -> str:
+    match = _BKASH_BILLER_PATTERN.search(body)
+    return match.group(1).strip()[:255] if match else ""
+
+
+def _bkash_bill_category(user, biller: str):
+    from apps.categories.models import Category
+
+    if re.search(r"\b(?:desco|dpdc|bpdb|palli\s+bidyut|electric(?:ity)?|power\s+(?:supply|distribution))\b", biller, re.IGNORECASE):
+        preferred = ("Electricity", "Utilities & Bills")
+    elif re.search(r"\b(?:internet|broadband|wifi|wi-fi|isp)\b", biller, re.IGNORECASE):
+        preferred = ("Internet", "Utilities & Bills")
+    else:
+        preferred = ("Utilities & Bills",)
+    for name in preferred:
+        category = Category.objects.filter(user=user, kind=Category.Kind.EXPENSE, is_active=True, name=name).first()
+        if category:
+            return category
+    return None
+
+
 def _extract_provider_timestamp_text(body: str) -> str:
     match = _PROVIDER_TIMESTAMP_PATTERN.search(body)
     return match.group(1).strip()[:120] if match else ""
@@ -734,6 +774,9 @@ def _extract_identifier_evidence(body: str, message_kind: str, *, sanitize=True)
         "receiver_account_identifier": "",
         "receiver_card_identifier": "",
     }
+    if message_kind == ParsedMessageCandidate.MessageKind.BILL_PAYMENT:
+        # A/C in a bill receipt belongs to the biller, not to a wallet or bank.
+        return identifiers
     incoming_kinds = {
         ParsedMessageCandidate.MessageKind.BANK_TRANSFER_IN,
         ParsedMessageCandidate.MessageKind.CASH_IN,

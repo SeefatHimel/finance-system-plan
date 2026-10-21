@@ -132,6 +132,9 @@ kinds plus nullable raw-text retention days. Sender rules can store fallback
 category and transaction type, and confirmation can opt into `remember_mapping`.
 Learned mappings are scoped to both sender rule and detected message kind,
 avoiding one global choice for every SMS from a bank.
+`ParsedMessageKind` includes `bill_payment` for confirmed bKash bill receipts;
+their active category and biller are suggestions returned on the candidate,
+and ordinary purchase mappings do not apply to that kind.
 Rejected candidates expose reason, note, and timestamp; the reject
 request can additionally redact the body, disable its sender rule, or exclude
 the provider.

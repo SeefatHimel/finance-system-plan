@@ -4012,6 +4012,7 @@ components:
       type: string
       enum:
         - purchase
+        - bill_payment
         - cash_in
         - cash_out
         - send_money

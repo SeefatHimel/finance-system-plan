@@ -729,6 +729,83 @@ class RawMessageImportApiTests(APITestCase):
         self.assertEqual(candidate["counterparty_text"], "SAMPLE MERCHANT")
         self.assertFalse(candidate["possible_internal_transfer"])
 
+    def test_bkash_bill_receipt_is_distinct_from_purchase_and_can_reprocess(self):
+        user = get_user_model().objects.create_user(username="bill-reviewer", password="password")
+        account = Account.objects.create(user=user, name="Wallet", type=Account.Type.MOBILE_WALLET)
+        rule = SenderRule.objects.create(
+            user=user, account=account, name="Wallet sender",
+            provider=SenderRule.Provider.BKASH, sender="bKash",
+        )
+        purchase_category = Category.objects.get(user=user, name="Food & Dining")
+        electricity = Category.objects.get(user=user, name="Electricity")
+        SenderRuleMapping.objects.create(
+            user=user, sender_rule=rule,
+            message_kind=ParsedMessageCandidate.MessageKind.PURCHASE,
+            account=account, category=purchase_category, transaction_type="expense",
+        )
+        self.client.force_authenticate(user)
+        response = self.client.post(
+            reverse("raw-message-import"),
+            {
+                "sender": "bKash",
+                "body": (
+                    "Bill successfully paid. Biller: DESCO (POSTPAID) MM/YYYY: 072026 "
+                    "A/C: 00000000 Amount: Tk 1,234.00 Fee: Tk 0.00 "
+                    "TrxID: SYNTHBILL001 at 01/08/2026 11:14"
+                ),
+                "received_at": "2026-08-01T11:14:00+06:00",
+                "device_message_id": "synthetic-bill-receipt-1",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        candidate = response.data["candidate"]
+        self.assertEqual(candidate["message_kind"], "bill_payment")
+        self.assertEqual(candidate["transaction_type"], "expense")
+        self.assertEqual(str(candidate["category"]), str(electricity.id))
+        self.assertEqual(candidate["amount"], "1234.00")
+        self.assertEqual(candidate["counterparty_text"], "DESCO (POSTPAID)")
+        self.assertEqual(candidate["reference"], "SYNTHBILL001")
+        self.assertEqual(candidate["sender_account_identifier"], "")
+        self.assertEqual(candidate["receiver_account_identifier"], "")
+
+        # An older pending draft can adopt the improved parser without posting money.
+        saved = ParsedMessageCandidate.objects.get(id=candidate["id"])
+        saved.message_kind = ParsedMessageCandidate.MessageKind.PURCHASE
+        saved.category = purchase_category
+        saved.counterparty_text = ""
+        saved.save(update_fields=("message_kind", "category", "counterparty_text"))
+        refreshed = self.client.post(
+            reverse("message-candidate-reprocess", kwargs={"candidate_id": saved.id}),
+            {}, format="json",
+        )
+        self.assertEqual(refreshed.status_code, 200)
+        self.assertEqual(refreshed.data["message_kind"], "bill_payment")
+        self.assertEqual(str(refreshed.data["category"]), str(electricity.id))
+        self.assertEqual(refreshed.data["counterparty_text"], "DESCO (POSTPAID)")
+
+        electricity.is_active = False
+        electricity.save(update_fields=("is_active",))
+        fallback = Category.objects.get(user=user, name="Utilities & Bills")
+        refreshed = self.client.post(
+            reverse("message-candidate-reprocess", kwargs={"candidate_id": saved.id}),
+            {}, format="json",
+        )
+        self.assertEqual(str(refreshed.data["category"]), str(fallback.id))
+
+        internet = Category.objects.get(user=user, name="Internet")
+        SenderRuleMapping.objects.create(
+            user=user, sender_rule=rule,
+            message_kind=ParsedMessageCandidate.MessageKind.BILL_PAYMENT,
+            account=account, category=internet, transaction_type="expense",
+        )
+        refreshed = self.client.post(
+            reverse("message-candidate-reprocess", kwargs={"candidate_id": saved.id}),
+            {}, format="json",
+        )
+        self.assertEqual(str(refreshed.data["category"]), str(internet.id))
+
     def test_bkash_payment_extracts_till_counter_and_provider_timestamp_notes(self):
         user = get_user_model().objects.create_user(username="himel", password="password")
         account = Account.objects.create(
