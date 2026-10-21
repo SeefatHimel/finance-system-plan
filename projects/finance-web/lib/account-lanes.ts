@@ -26,6 +26,12 @@ export function timelineScrollShift(movement: number, scrollTop: number, scrollH
   return 0;
 }
 
+/** Never replace the visible window until the newly exposed week is ready. */
+export function readyTimelineWindowStart(windowStart: string, direction: -1 | 1, readyWeeks: Set<string>): string | null {
+  const enteringWeek = addDays(windowStart, direction < 0 ? -7 : 21);
+  return readyWeeks.has(enteringWeek) ? addDays(windowStart, direction * 7) : null;
+}
+
 export type TimelineDayItem = { kind: "day"; date: string } | { kind: "quiet"; start: string; end: string; count: number };
 
 /** Keep the visible timeline continuous while weeks finish out of order. */

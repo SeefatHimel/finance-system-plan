@@ -1388,8 +1388,10 @@ needed for this web/API feature.
 The `/timeline` view renders only the contiguous loaded portion of a moving
 21-day window, loads complete seven-day activity pages in either date direction,
 prefetches neighboring weeks once the current window is ready, and retains at
-most five fetched weeks. The date field follows the day near the top of the viewport;
-choosing a date jumps there. Account selection controls visible lanes, while a
+most five fetched weeks. Edge gestures and date jumps keep the current days
+visible while their target week loads, with one compact progress indicator;
+the window moves only after the entering week is ready. The date field follows
+the day near the top of the viewport. Account selection controls visible lanes, while a
 transfer links both visible cards, or offers a “Show lane” endpoint when an
 account is hidden. The same transfer remains one ledger transaction. A
 chronological List layout shows each movement once and has ordinary keyboard

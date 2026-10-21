@@ -10,7 +10,7 @@ import { TransactionSourceMessages } from "./transaction-source-messages";
 import { TransactionStatementEvidence } from "./transaction-statement-evidence";
 import { getAccessToken } from "@/lib/auth-storage";
 import { listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
-import { addDays, atTimelineEdge, balanceGapDetails, contiguousReadyDates, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, reportedBalanceAtDate, timelineScrollShift, weekStart } from "@/lib/account-lanes";
+import { addDays, atTimelineEdge, balanceGapDetails, contiguousReadyDates, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, readyTimelineWindowStart, reportedBalanceAtDate, timelineScrollShift, weekStart } from "@/lib/account-lanes";
 
 type WeekResult = { status: "loading"; loaded: number; total: number | null } | { status: "error"; message: string } | { status: "ready"; rows: Transaction[] };
 type ViewMode = "amount" | "balance" | "both";
@@ -49,6 +49,8 @@ export function AccountLanesWorkspace() {
   const [accountsError, setAccountsError] = useState<string | null>(null);
   const [weekResults, setWeekResults] = useState<Record<string, WeekResult>>({});
   const [windowStart, setWindowStart] = useState(initialWindow);
+  const [pendingEdge, setPendingEdge] = useState<-1 | 1 | null>(null);
+  const [pendingJump, setPendingJump] = useState<string | null>(null);
   const windowStartRef = useRef(windowStart);
   windowStartRef.current = windowStart;
   const [visibleDate, setVisibleDate] = useState(today);
@@ -203,7 +205,7 @@ export function AccountLanesWorkspace() {
   const targetDate = jumpTargetRef.current ?? today();
   const targetWeek = weekResults[weekStart(targetDate)];
   const waitingForTarget = !initializedRef.current && targetWeek?.status !== "ready" && targetWeek?.status !== "error";
-  const targetError = targetWeek?.status === "error" ? targetWeek.message : null;
+  const targetError = !initializedRef.current && targetWeek?.status === "error" ? targetWeek.message : null;
   const accountById = useMemo(() => new Map(accounts.map(account => [account.id, account])), [accounts]);
   const selectedAccounts = useMemo(() => selectedIds.map(id => accountById.get(id)).filter((account): account is Account => Boolean(account)), [accountById, selectedIds]);
   useLayoutEffect(() => {
@@ -217,6 +219,9 @@ export function AccountLanesWorkspace() {
   const renderedDates = useMemo(() => contiguousReadyDates(dates, new Set(windowWeeks.filter(start => weekResults[start]?.status === "ready")), jumpTargetRef.current ?? visibleDate), [dates, visibleDate, weekResults, windowWeeks]);
   const earlierMissingWeek = renderedDates.length && renderedDates[0] !== dates[0] ? addDays(weekStart(renderedDates[0]), -7) : null;
   const laterMissingWeek = renderedDates.length && renderedDates[renderedDates.length - 1] !== dates[dates.length - 1] ? addDays(weekStart(renderedDates[renderedDates.length - 1]), 7) : null;
+  const earlierEdgeWeek = earlierMissingWeek || (pendingEdge === -1 ? addDays(windowStart, -7) : null);
+  const laterEdgeWeek = laterMissingWeek || (pendingEdge === 1 ? addDays(windowStart, WINDOW_DAYS) : null);
+  const pendingJumpResult = pendingJump ? weekResults[weekStart(pendingJump)] : null;
   const loadedDays = useMemo(() => new Set(renderedDates), [renderedDates]);
   const allRows = useMemo(() => {
     const unique = new Map<string, Transaction>();
@@ -252,6 +257,14 @@ export function AccountLanesWorkspace() {
 
   const jumpTo = useCallback((date: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    const targetWeekStart = weekStart(date);
+    if (weekResults[targetWeekStart]?.status !== "ready") {
+      setPendingJump(date);
+      if (weekResults[targetWeekStart]?.status !== "error") void loadWeek(targetWeekStart);
+      return;
+    }
+    setPendingJump(null);
+    setPendingEdge(null);
     setVisibleDate(date);
     const start = addDays(weekStart(date), -7);
     if (start !== windowStart) {
@@ -265,7 +278,26 @@ export function AccountLanesWorkspace() {
       if (viewport && target) viewport.scrollTo({ top: target.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0) - 8, behavior: "smooth" });
       else { initializedRef.current = false; jumpTargetRef.current = date; anchorRef.current = null; }
     }
-  }, [windowStart]);
+  }, [loadWeek, weekResults, windowStart]);
+
+  useEffect(() => {
+    if (pendingJump && weekResults[weekStart(pendingJump)]?.status === "ready") jumpTo(pendingJump);
+  }, [jumpTo, pendingJump, weekResults]);
+
+  const performEdgeShift = useCallback((direction: -1 | 1, nextWindowStart: string) => {
+    const viewport = viewportRef.current;
+    if (!viewport || !renderedDates.length) return;
+    // Keep the day at the edge in the next window, even if a collapsed quiet
+    // band covers the whole viewport and its DOM start is weeks earlier.
+    const anchorDate = direction < 0 ? renderedDates[0] : renderedDates[renderedDates.length - 1];
+    const node = findDayNode(viewport, anchorDate);
+    if (node) anchorRef.current = { date: anchorDate, top: node.getBoundingClientRect().top - viewport.getBoundingClientRect().top };
+    setVisibleDate(anchorDate);
+    setPendingEdge(null);
+    edgeGestureRef.current = direction;
+    shiftingRef.current = true;
+    setWindowStart(nextWindowStart);
+  }, [renderedDates]);
 
   const shiftAtEdge = useCallback((direction: -1 | 1) => {
     const viewport = viewportRef.current;
@@ -277,11 +309,24 @@ export function AccountLanesWorkspace() {
     if (!edgeLoaded) return;
     const atEdge = atTimelineEdge(direction, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, 4);
     if (!atEdge) return;
-    captureAnchor();
-    edgeGestureRef.current = direction;
-    shiftingRef.current = true;
-    setWindowStart(previous => addDays(previous, direction * 7));
-  }, [captureAnchor, dates, renderedDates]);
+    const nextWindowStart = readyTimelineWindowStart(windowStart, direction, new Set(Object.keys(weekResults).filter(start => weekResults[start].status === "ready")));
+    if (!nextWindowStart) {
+      const incomingWeek = addDays(windowStart, direction < 0 ? -7 : WINDOW_DAYS);
+      setPendingEdge(direction);
+      if (weekResults[incomingWeek]?.status !== "error") void loadWeek(incomingWeek);
+      return;
+    }
+    performEdgeShift(direction, nextWindowStart);
+  }, [dates, loadWeek, performEdgeShift, renderedDates, weekResults, windowStart]);
+
+  useEffect(() => {
+    if (pendingEdge === null) return;
+    const nextWindowStart = readyTimelineWindowStart(windowStart, pendingEdge, new Set(Object.keys(weekResults).filter(start => weekResults[start].status === "ready")));
+    if (!nextWindowStart) return;
+    const viewport = viewportRef.current;
+    if (viewport && atTimelineEdge(pendingEdge, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, 4)) performEdgeShift(pendingEdge, nextWindowStart);
+    else setPendingEdge(null);
+  }, [pendingEdge, performEdgeShift, weekResults, windowStart]);
 
   const onScroll = useCallback(() => {
     const viewport = viewportRef.current;
@@ -421,7 +466,7 @@ export function AccountLanesWorkspace() {
       <button type="button" disabled={!nextMovementDate} onClick={() => nextMovementDate && jumpTo(nextMovementDate)} title={nextMovementDate ? `Jump to ${formatCalendarDate(nextMovementDate)}` : "No later movement loaded"}>Next movement</button>
       <button type="button" disabled={!nextGapDate} onClick={() => nextGapDate && jumpTo(nextGapDate)} title={nextGapDate ? `Jump to ${formatCalendarDate(nextGapDate)}` : "No later gap loaded"}>Next gap</button>
       <small>Navigation uses loaded days.</small>
-      {!accountsError && readyWeeks < 3 && !waitingForTarget ? <span className="account-lanes-progress" role="status">{readyWeeks + failedWeeks < 3 ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}{readyWeeks} of 3 weeks ready{failedWeeks ? ` · ${failedWeeks} failed` : ""}{failedWeeks ? <button type="button" onClick={() => windowWeeks.filter(start => weekResults[start]?.status === "error").forEach(start => void loadWeek(start, true))}>Retry failed {failedWeeks === 1 ? "week" : "weeks"}</button> : null}</span> : null}
+      {pendingJump ? <span className="account-lanes-progress" role={pendingJumpResult?.status === "error" ? "alert" : "status"}>{pendingJumpResult?.status !== "error" ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}{pendingJumpResult?.status === "error" ? `Could not load ${formatCalendarDate(pendingJump)}` : `Loading ${formatCalendarDate(pendingJump)}…`}{pendingJumpResult?.status === "error" ? <button type="button" onClick={() => void loadWeek(weekStart(pendingJump), true)}>Retry</button> : null}<button type="button" onClick={() => setPendingJump(null)}>Cancel</button></span> : !accountsError && readyWeeks < 3 && !waitingForTarget ? <span className="account-lanes-progress" role="status">{pendingEdge === null && readyWeeks + failedWeeks < 3 ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}{readyWeeks} of 3 weeks ready{failedWeeks ? ` · ${failedWeeks} failed` : ""}{failedWeeks ? <button type="button" onClick={() => windowWeeks.filter(start => weekResults[start]?.status === "error").forEach(start => void loadWeek(start, true))}>Retry failed {failedWeeks === 1 ? "week" : "weeks"}</button> : null}</span> : null}
     </div>
     {accountsError ? <div className="account-lanes-error" role="alert">{accountsError} <button type="button" onClick={() => void loadAccounts()}>Retry</button></div> : null}
     <div className="account-lanes-layout">
@@ -436,7 +481,7 @@ export function AccountLanesWorkspace() {
               : "No reported balance in loaded days";
             return <div data-lane-account={account.id} key={account.id}><strong>{account.name}</strong><small>By {formatCalendarDate(visibleDate)} · {context}</small></div>;
           }) : <div><strong>Choose an account</strong></div>}</div> : null}
-          <div className="account-lanes-edge">{earlierMissingWeek ? weekResults[earlierMissingWeek]?.status === "error" ? <button type="button" onClick={() => void loadWeek(earlierMissingWeek, true)}>Retry earlier dates</button> : "Loading earlier dates…" : <button type="button" onClick={() => jumpTo(addDays(windowStart, -7))}>Load earlier dates</button>}</div>
+          <div className="account-lanes-edge">{earlierEdgeWeek ? weekResults[earlierEdgeWeek]?.status === "error" ? <button type="button" onClick={() => void loadWeek(earlierEdgeWeek, true)}>Retry earlier dates</button> : <>{pendingEdge === -1 && !pendingJump ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}<span role="status">Loading earlier dates…</span></> : <button type="button" onClick={() => jumpTo(addDays(windowStart, -7))}>Load earlier dates</button>}</div>
           {displayedDays.map(item => {
             if (item.kind === "quiet") {
               const nextActivity = renderedDates.find(date => date > item.end && movementDates.has(date));
@@ -456,7 +501,7 @@ export function AccountLanesWorkspace() {
               {layoutMode === "lanes" && untimed.length ? <details className="account-lanes-untimed"><summary>Time not reported · {untimed.length} {untimed.length === 1 ? "movement" : "movements"}</summary>{untimed.map(row => <button type="button" data-lane-card={row.id} key={row.id} onClick={event => selectTransaction(row, event.detail === 0)}>{title(row)} · {formatCurrency(row.amount, accountById.get(row.account)?.currency)}{row.type === "transfer" ? " · transfer" : ""}</button>)}</details> : null}
             </section>;
           })}
-          <div className="account-lanes-edge">{laterMissingWeek ? weekResults[laterMissingWeek]?.status === "error" ? <button type="button" onClick={() => void loadWeek(laterMissingWeek, true)}>Retry later dates</button> : "Loading later dates…" : <button type="button" onClick={() => jumpTo(addDays(windowStart, WINDOW_DAYS))}>Load later dates</button>}</div>
+          <div className="account-lanes-edge">{laterEdgeWeek ? weekResults[laterEdgeWeek]?.status === "error" ? <button type="button" onClick={() => void loadWeek(laterEdgeWeek, true)}>Retry later dates</button> : <>{pendingEdge === 1 && !pendingJump ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}<span role="status">Loading later dates…</span></> : <button type="button" onClick={() => jumpTo(addDays(windowStart, WINDOW_DAYS))}>Load later dates</button>}</div>
         </div>
         {!accountsError && (waitingForTarget || targetError) ? <div className="account-lanes-initial-loading" role={targetError ? "alert" : "status"}>{targetError ? <><strong>Could not load {formatCalendarDate(targetDate)}</strong><span>{targetError}</span><button type="button" onClick={() => void loadWeek(weekStart(targetDate), true)}>Retry</button></> : <><span className="account-lanes-spinner" aria-hidden="true" /><strong>Loading timeline</strong><span>{targetWeek?.status === "loading" && targetWeek.loaded ? `${targetWeek.loaded} of ${targetWeek.total ?? "more"} movements loaded around ${formatCalendarDate(targetDate)}…` : `Fetching movements around ${formatCalendarDate(targetDate)}…`}</span></>}</div> : null}
       </div>

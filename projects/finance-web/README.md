@@ -35,7 +35,10 @@ The first date is positioned only after its week has loaded. A centered loader
 shows that initial fetch and the number of movements received across multi-page
 weeks. Later fetches show one compact spinner and edge status; unloaded days
 never appear as placeholder rows. Weeks that finish out of order wait offscreen
-until the days between them are ready. Failed weeks show Retry. When collapsed
+until the days between them are ready. A scroll at an unloaded edge keeps the
+current cards visible and advances only when the entering week is complete;
+choosing an unloaded date also keeps the current view until that date is ready.
+Failed weeks show Retry without clearing the view. When collapsed
 quiet days leave too little room to scroll, a wheel or touch gesture at an edge
 still
 advances by one week; explicit edge buttons offer the same navigation. Wheel,
