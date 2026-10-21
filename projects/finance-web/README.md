@@ -34,8 +34,9 @@ shows that initial fetch and the number of movements received across multi-page
 weeks, while a compact progress indicator and edge loaders
 show subsequent weeks. Failed weeks show Retry. When collapsed quiet days make
 the viewport too short to scroll, a wheel or touch gesture at an edge still
-advances by one week; explicit edge buttons offer the same navigation. A wheel
-vertical gesture advances at most one week when it reaches a true edge; sideways
+advances by one week; explicit edge buttons offer the same navigation. Wheel,
+touch, keyboard, and scrollbar gestures can advance at a true edge. A vertical
+wheel swipe advances at most one week per gesture; sideways
 lane scrolling never changes weeks. Arriving near an
 edge or loading data never moves the date window. The visible-date label updates
 after scrolling settles, keeping the lane cards stable during a gesture.

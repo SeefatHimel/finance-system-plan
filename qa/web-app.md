@@ -1405,7 +1405,8 @@ placeholders. A centered loader reports received movement counts during
 multi-page fetches; per-window progress, edge status and Retry
 controls make network work visible. Short runs of collapsed quiet days may leave
 no scroll range; wheel and touch gestures at the edge still advance a week, and
-explicit edge controls remain available. A continuous trackpad gesture advances
+explicit edge controls remain available. Keyboard and scrollbar movement also
+advance at a true edge. A continuous trackpad gesture advances
 at most once, only at a true edge; horizontal swipes do not change weeks.
 Loading and near-edge scrolling cannot shift the date window. The visible-date
 label waits until scrolling settles before

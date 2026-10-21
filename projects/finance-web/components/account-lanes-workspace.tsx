@@ -72,6 +72,7 @@ export function AccountLanesWorkspace() {
   const visibleDateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const edgeGestureRef = useRef<-1 | 1 | null>(null);
   const lastWheelAtRef = useRef(0);
+  const lastScrollInputAtRef = useRef(0);
   const lastScrollTopRef = useRef(0);
   const requestsRef = useRef(new Map<string, AbortController>());
   const closeDetails = useCallback(() => {
@@ -284,7 +285,7 @@ export function AccountLanesWorkspace() {
       if (current?.dataset.laneDay) setVisibleDate(previous => previous >= current.dataset.laneDay! && previous <= (current.dataset.laneEnd ?? current.dataset.laneDay!) ? previous : current.dataset.laneDay!);
       visibleDateTimerRef.current = null;
     }, 120);
-    if (Date.now() - lastWheelAtRef.current < 1000) {
+    if (Date.now() - lastScrollInputAtRef.current < 1000) {
       const direction = timelineScrollShift(movement, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, weekResults[windowStart]?.status === "ready", weekResults[addDays(windowStart, 14)]?.status === "ready");
       if (direction) shiftAtEdge(direction);
     }
@@ -296,14 +297,17 @@ export function AccountLanesWorkspace() {
     const now = Date.now();
     if (now - lastWheelAtRef.current > 300) edgeGestureRef.current = null;
     lastWheelAtRef.current = now;
+    lastScrollInputAtRef.current = now;
     shiftAtEdge(event.deltaY < 0 ? -1 : 1);
   };
   const onTouchStart = (event: ReactTouchEvent<HTMLDivElement>) => {
     edgeGestureRef.current = null;
+    lastScrollInputAtRef.current = Date.now();
     const touch = event.touches[0];
     touchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
   };
   const onTouchEnd = (event: ReactTouchEvent<HTMLDivElement>) => {
+    lastScrollInputAtRef.current = Date.now();
     const start = touchStartRef.current;
     touchStartRef.current = null;
     const touch = event.changedTouches[0];
@@ -313,8 +317,8 @@ export function AccountLanesWorkspace() {
     if (isVerticalTimelineGesture(x, y, 45)) shiftAtEdge(y > 0 ? -1 : 1);
   };
   const onViewportKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "ArrowUp" || event.key === "PageUp") { edgeGestureRef.current = null; shiftAtEdge(-1); }
-    else if (event.key === "ArrowDown" || event.key === "PageDown") { edgeGestureRef.current = null; shiftAtEdge(1); }
+    if (event.key === "ArrowUp" || event.key === "PageUp") { edgeGestureRef.current = null; lastScrollInputAtRef.current = Date.now(); shiftAtEdge(-1); }
+    else if (event.key === "ArrowDown" || event.key === "PageDown") { edgeGestureRef.current = null; lastScrollInputAtRef.current = Date.now(); shiftAtEdge(1); }
   };
 
   const toggleAccount = (id: string) => setSelectedIds(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
@@ -409,7 +413,7 @@ export function AccountLanesWorkspace() {
     {accountsError ? <div className="account-lanes-error" role="alert">{accountsError} <button type="button" onClick={() => void loadAccounts()}>Retry</button></div> : null}
     <div className="account-lanes-layout">
       <div className={`account-lanes-main${layoutMode === "list" ? " account-lanes-main--list" : ""}`} style={{ "--lane-count": Math.max(selectedAccounts.length, 1), "--lanes-min-width": `${88 + Math.max(selectedAccounts.length, 1) * 240}px` } as CSSProperties}>
-        <div className="account-lanes-scroll" ref={viewportRef} onScroll={onScroll} onWheel={onWheel} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onKeyDown={onViewportKeyDown} tabIndex={0} aria-label="Timeline. Scroll up for earlier dates and down for later dates.">
+        <div className="account-lanes-scroll" ref={viewportRef} onScroll={onScroll} onWheel={onWheel} onTouchStart={onTouchStart} onTouchMove={() => { lastScrollInputAtRef.current = Date.now(); }} onTouchEnd={onTouchEnd} onPointerDown={() => { edgeGestureRef.current = null; lastScrollInputAtRef.current = Date.now(); }} onPointerMove={event => { if (event.buttons) lastScrollInputAtRef.current = Date.now(); }} onKeyDown={onViewportKeyDown} tabIndex={0} aria-label="Timeline. Scroll up for earlier dates and down for later dates.">
           {layoutMode === "lanes" ? <div className="account-lanes-head" style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}><span>Time</span>{selectedAccounts.length ? selectedAccounts.map(account => {
             const report = asOfReports.get(account.id);
             const context = report?.status === "reported"
