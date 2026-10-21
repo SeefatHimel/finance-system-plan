@@ -854,3 +854,12 @@ existing recovery UI, and Undo covers all entries in that latest group. Multiple
 groups are independent. On an uncertain response, refresh and review instead of
 blindly retrying. No schema migration is required. Deploy API first, regenerate
 TypeScript and check the backend structural snapshot with the documented commands.
+
+### EBL delayed-posting review flag
+
+`StatementMatch`, `PendingSmsStatementMatch` and `UnifiedPendingMatch` include
+`late_posting`. It is true only when SMS time aligns with the EBL printed value
+date but precedes posting by at least two days. Clients label the two reported
+balances by source time and omit a cross-time balance choice. The API keeps the
+SMS-time transaction report and statement posting report separately; source IDs,
+ownership, stale-review and uniqueness checks remain mandatory.

@@ -1649,13 +1649,13 @@ const statementMatchSchema = z.object({
   ledger_date: z.string(), ledger_time: z.string().nullable(), ledger_source: z.string(), ledger_reference: z.string(), ledger_note: z.string(),
   ledger_counterparty_text: z.string(), ledger_source_balance_after: z.string().nullable(), reporting_observation_is_fallback: z.boolean(),
   effective_balance_after: z.string().nullable(), can_fill_missing_balance: z.boolean().default(false), detail_suggestions: z.array(statementDetailSuggestionSchema),
-  conflict: z.boolean(), can_link: z.boolean(), reasons: z.array(z.string()),
+  conflict: z.boolean(), late_posting: z.boolean().default(false), can_link: z.boolean(), reasons: z.array(z.string()),
   rounding_correction: z.object({ existing_amount: z.string(), statement_amount: z.string(), difference: z.string(), transaction_updated_at: z.string(), can_correct: z.boolean(), blocked_reason: z.string() }).nullable().default(null)
 });
 const pendingStatementSmsMatchSchema = z.object({
   id: z.string(), date: z.string(), time: z.string(), sender: z.string(), sms_text: z.string().nullable(),
   amount: z.string(), type: z.string(), counterparty_text: z.string(),
-  balance_after: z.string().nullable(), reference: z.string(), confidence: z.string(),
+  balance_after: z.string().nullable(), late_posting: z.boolean().default(false), reference: z.string(), confidence: z.string(),
   detail_suggestions: z.array(statementDetailSuggestionSchema),
 });
 const savedStatementRowSchema = z.object({
@@ -1817,7 +1817,7 @@ const pendingSourceSchema = z.object({
   date: z.string().nullable(), time: z.string().nullable(), amount: z.string().nullable(), balance_after: z.string().nullable(), direction: z.enum(["debit", "credit"]),
   type: z.string(), description: z.string(), reference: z.string(), updated_at: z.string(), version: z.number().nullable(), batch: z.string().nullable(), needs_correction: z.boolean()
 });
-const pendingSignalsSchema = z.object({ strength: z.enum(["strong", "possible"]), conflict: z.boolean(), reasons: z.array(z.string()) });
+const pendingSignalsSchema = z.object({ strength: z.enum(["strong", "possible"]), conflict: z.boolean(), late_posting: z.boolean().default(false), reasons: z.array(z.string()) });
 const pendingPairSchema = z.object({ id: z.string(), statement: pendingSourceSchema, sms: pendingSourceSchema, match: pendingSignalsSchema, needs_correction: z.boolean() });
 const unifiedPendingSchema = z.object({
   count: z.number(), offset: z.number(), limit: z.number(), next_cursor: z.string().nullable(),

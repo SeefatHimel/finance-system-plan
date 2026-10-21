@@ -81,7 +81,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     if (action === "combine_sms") return;
     const token = getAccessToken(); if (!token || busy) return;
     const match = row.review.matches.find((item) => item.id === transaction);
-    const balanceChoice = match ? currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version, batch.currency) : undefined;
+    const balanceChoice = match && !match.late_posting ? currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version, batch.currency) : undefined;
     const categorySelection = match && categorySelections[match.id];
     const categoryChoice = match && categorySelection?.version === row.version
       && categorySelection.choice.existing_category === match.category_id
@@ -111,13 +111,13 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     if (row.review.issues.length || (row.review.requires_acknowledgement && !ackIssues)) {
       showError(new Error("Resolve the statement issues and acknowledge source discrepancies first.")); return;
     }
-    const balanceChoice = currentStatementBalanceChoice(
+    const balanceChoice = match.late_posting ? undefined : currentStatementBalanceChoice(
       balanceSelections[candidateId], { effective_balance_after: match.balance_after }, row.balance_after, row.version, batch.currency,
     );
     const selections = detailSelections[candidateId]?.version === row.version ? detailSelections[candidateId].values : {};
     const details = selectedStatementDetails(match.detail_suggestions, selections);
     if (details.error) { showError(new Error(details.error)); return; }
-    if (match.balance_after !== null && row.balance_after !== null && match.balance_after !== row.balance_after && !balanceChoice) {
+    if (!match.late_posting && match.balance_after !== null && row.balance_after !== null && match.balance_after !== row.balance_after && !balanceChoice) {
       showError(new Error("Choose which reported balance to keep.")); return;
     }
     setBusy(true); setError(null);
@@ -225,14 +225,15 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
           <p className="inline-note">Review the same movement across both sources. This creates one SMS-dated transaction and links the statement; either queue can still be reviewed separately.</p>
           {row.review.matches.length ? <div className="raw-message"><strong>Existing ledger suggestions also need a decision</strong><p>Compare each ledger entry in the Possible matches section below before combining the SMS and statement.</p><ul>{row.review.matches.map((item) => <li key={item.id}>{formatCalendarDate(item.date)} · {item.amount} · {item.note || item.reference || item.source}</li>)}</ul><label className="review-remember"><input type="checkbox" checked={distinctLedgerMatches} disabled={busy || dirty} onChange={(event) => setDistinctLedgerMatches(event.target.checked)} /><span>I compared every listed ledger entry and confirmed each is a different movement.</span></label></div> : null}
           <div className="statement-match-list">{row.review.pending_sms_matches.map((match) => {
-            const conflict = reportedBalanceNeedsAcknowledgment(match.balance_after, row.balance_after, batch.currency);
-            const choice = currentStatementBalanceChoice(balanceSelections[match.id], { effective_balance_after: match.balance_after }, row.balance_after, row.version, batch.currency);
+            const conflict = !match.late_posting && reportedBalanceNeedsAcknowledgment(match.balance_after, row.balance_after, batch.currency);
+            const choice = match.late_posting ? undefined : currentStatementBalanceChoice(balanceSelections[match.id], { effective_balance_after: match.balance_after }, row.balance_after, row.version, batch.currency);
             return <article className="statement-match-card" key={match.id}>
               <header className="statement-match-heading"><h4>Pending SMS · {match.sender}</h4><span>{batch.currency} {match.amount}</span></header>
               <div className="statement-match-comparison">
                 <section><h5>Statement</h5><p>{formatCalendarDate(row.date)}{row.time ? ` · ${row.time}` : ""}</p><p>{displayedStatementText(row.counterparty_text || source.description, source.description, row.citytouch_printed_code)}</p><p>Balance after: {row.balance_after ?? "Not reported"}</p></section>
                 <section><h5>SMS</h5><p>{formatCalendarDate(match.date)} · {match.time}</p><p>{match.counterparty_text || "No counterparty parsed"}</p><p>Balance after: {match.balance_after ?? "Not reported"}</p><p>Parser confidence: {Math.round(Number(match.confidence) * 100)}%</p></section>
               </div>
+              {match.late_posting ? <p className="inline-note" role="status">EBL posted this entry after its value date. The SMS balance belongs to the earlier transaction time; the statement balance belongs to posting order. Both reports stay attached. {match.balance_after !== null ? "The SMS balance remains in the ledger." : "The transaction-time balance stays unknown because the SMS did not report it."}</p> : null}
               {match.sms_text ? <details className="raw-message"><summary>Original SMS</summary><p className="statement-evidence-text">{match.sms_text}</p></details> : null}
               {conflict ? <fieldset className="statement-match-conflict" disabled={busy || dirty}>
                 <legend>Which reported balance should this transaction use?</legend>
@@ -254,7 +255,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
           <div className="statement-match-list">{row.review.matches.map((match) => <StatementMatchComparison key={match.id}
             row={row} batch={batch} match={match} accounts={accounts} categories={categories}
             busy={busy} dirty={dirty} issuesAcknowledged={ackIssues}
-            balanceChoice={currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version, batch.currency)}
+            balanceChoice={match.late_posting ? undefined : currentStatementBalanceChoice(balanceSelections[match.id], match, row.balance_after, row.version, batch.currency)}
             balanceAutoSelected={balanceSelections[match.id] === undefined}
             categoryChoice={categorySelections[match.id]?.version === row.version && categorySelections[match.id]?.choice.existing_category === match.category_id && categorySelections[match.id]?.choice.statement_category === row.category ? categorySelections[match.id]?.choice : undefined}
             detailSelections={detailSelections[match.id]?.version === row.version ? detailSelections[match.id].values : {}}

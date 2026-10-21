@@ -36,9 +36,9 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
     dirty, canLink: canAccept, requiresAcknowledgement: row.review.requires_acknowledgement,
     issuesAcknowledged, conflict: match.conflict, balanceChosen: Boolean(balanceChoice), categoryConflict, categoryChosen,
   });
-  const difference = statementBalanceDifference(row.balance_after, match.effective_balance_after);
+  const difference = match.late_posting ? null : statementBalanceDifference(row.balance_after, match.effective_balance_after);
   const dateDifference = calendarDayDifference(row.date, match.date);
-  const smallDifference = insignificantBdtBalanceDifference(row.balance_after, match.effective_balance_after, batch.currency);
+  const smallDifference = !match.late_posting && insignificantBdtBalanceDifference(row.balance_after, match.effective_balance_after, batch.currency);
   const other = accounts.find((account) => account.id === row.other_account)?.name ?? "Other account";
   const path = row.type === "transfer" ? (row.direction === "credit" ? `${other} → ${batch.account_name}` : `${batch.account_name} → ${other}`) : batch.account_name;
   const balanceText = (value: string | null) => value === null ? "Not reported" : `${batch.currency} ${value}`;
@@ -59,6 +59,7 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
       {dateDifference ? <p>Dates differ by {Math.abs(dateDifference)} calendar day{Math.abs(dateDifference) === 1 ? "" : "s"}.</p> : null}
       {difference !== null && difference !== "0.00" ? <p className={smallDifference ? "inline-note" : "form-error"}>Reported balance difference: {batch.currency} {difference} (statement minus ledger).{smallDifference ? " Small difference under BDT 1; both exact reports remain saved." : " Review the balance choice below."}</p> : null}
     </div> : null}
+    {match.late_posting ? <p className="inline-note" role="status">EBL posted this entry after its printed value date. The SMS balance was reported earlier; the statement balance belongs to posting order. Both remain saved, and linking keeps the existing ledger balance, including an unknown balance.</p> : null}
     <div className="statement-match-comparison">
       <section aria-label="Statement saved draft"><h5>Statement <small>Saved draft · {batch.currency} {row.amount}</small></h5><dl>{comparison.map((item) => <div key={item.label} className={(item.balance && match.conflict) || (item.label === "Type / category" && categoryConflict) ? "statement-balance-value--conflict" : undefined}><dt>{item.label}</dt><dd>{item.statement}</dd></div>)}</dl></section>
       <section aria-label="Existing ledger entry"><h5>Existing transaction <small>{match.source} · {batch.currency} {match.amount}</small></h5><dl>{comparison.map((item) => <div key={item.label} className={(item.balance && match.conflict) || (item.label === "Type / category" && categoryConflict) ? "statement-balance-value--conflict" : undefined}><dt>{item.label}</dt><dd>{item.ledger}</dd></div>)}</dl></section>

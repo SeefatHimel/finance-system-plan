@@ -270,7 +270,7 @@ export type RecurringBillFrequency = "weekly" | "monthly" | "quarterly" | "yearl
 
 export type RecurringBillStatus = "active" | "paused" | "ended";
 
-export type ParsedMessageKind = "purchase" | "cash_in" | "cash_out" | "send_money" | "receive_money" | "bank_transfer_in" | "bank_transfer_out" | "card_purchase" | "card_payment" | "fee" | "refund" | "reversal" | "balance_notice" | "otp_or_security" | "promotional" | "unknown";
+export type ParsedMessageKind = "purchase" | "bill_payment" | "cash_in" | "cash_out" | "send_money" | "receive_money" | "bank_transfer_in" | "bank_transfer_out" | "card_purchase" | "card_payment" | "fee" | "refund" | "reversal" | "balance_notice" | "otp_or_security" | "promotional" | "unknown";
 
 export interface AuditLogEntry {
   id: string;
@@ -1473,6 +1473,7 @@ export interface StatementMatch {
   can_fill_missing_balance: boolean;
   detail_suggestions: StatementDetailSuggestion[];
   conflict: boolean;
+  late_posting: boolean;
   can_link: boolean;
   rounding_correction?: StatementRoundingMatch | null;
   reasons: string[];
@@ -1491,6 +1492,7 @@ export interface PendingSmsStatementMatch {
   type: string;
   counterparty_text: string;
   balance_after: string | null;
+  late_posting: boolean;
   reference: string;
   confidence: string;
   detail_suggestions: StatementDetailSuggestion[];
@@ -1655,6 +1657,7 @@ export interface UnifiedPendingSource {
 export interface UnifiedPendingMatch {
   strength: UnifiedStrengthEnum;
   conflict: boolean;
+  late_posting: boolean;
   reasons: string[];
 }
 

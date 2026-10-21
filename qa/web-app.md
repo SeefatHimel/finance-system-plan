@@ -1449,3 +1449,12 @@ range and reduce row height when text gets smaller. The account header, day
 labels, and left time rail use CSS sticky positioning in the same two-axis
 scroll container, avoiding per-scroll JavaScript transforms that can lag and
 visually wobble. These are presentation-only controls.
+
+### What does statement review show for an EBL transaction posted late?
+
+Direct statement matches, pending SMS pairs and unified review explain the
+posting date, printed value date and SMS time. Their running balances stay
+source-specific, so no cross-time balance radio appears. The user still reviews
+the candidate and confirms that both sources describe one movement. Linking
+keeps the earlier SMS ledger report; account summaries can show the later EBL
+statement report without presenting it as a proven ledger mismatch.

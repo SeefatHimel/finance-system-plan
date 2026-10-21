@@ -777,3 +777,11 @@ whole-group Undo action. Stop on failed/uncertain responses; refresh and obtain 
 new explicit selection, never silently retry mutations. Cursor user/policy scope,
 source ownership and fresh financial fingerprints are verified server-side.
 New entries after scan start appear on a new scan. No import, resync or migration.
+
+### What does `late_posting` mean on review matches?
+
+It is a boolean on `StatementMatch`, `PendingSmsStatementMatch` and
+`UnifiedPendingMatch`. The EBL statement posting date is at least two days after
+SMS evidence near its printed value date. Clients must not compare those running
+balances as if reported at the same time or offer a cross-time balance choice.
+The statement row and SMS candidate still expose exact balances separately.

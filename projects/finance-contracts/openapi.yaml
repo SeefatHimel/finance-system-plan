@@ -7238,6 +7238,9 @@ components:
             $ref: '#/components/schemas/StatementDetailSuggestion'
         conflict:
           type: boolean
+        late_posting:
+          type: boolean
+          description: EBL value date aligns with earlier SMS evidence while the statement balance belongs to a later posting date. The reports must not be merged.
         can_link:
           type: boolean
         rounding_correction:
@@ -7269,6 +7272,7 @@ components:
       - category_id
       - category_name
       - conflict
+      - late_posting
       - detail_suggestions
       - date
       - id
@@ -7318,6 +7322,9 @@ components:
           type: string
           format: decimal
           nullable: true
+        late_posting:
+          type: boolean
+          description: SMS and EBL statement balances belong to different dates; keep both reports.
         reference:
           type: string
         confidence:
@@ -7337,6 +7344,7 @@ components:
       - type
       - counterparty_text
       - balance_after
+      - late_posting
       - reference
       - confidence
       - detail_suggestions
@@ -7838,12 +7846,16 @@ components:
           $ref: '#/components/schemas/UnifiedStrengthEnum'
         conflict:
           type: boolean
+        late_posting:
+          type: boolean
+          description: EBL posted after the SMS transaction time; source balances remain separate.
         reasons:
           type: array
           items:
             type: string
       required:
       - conflict
+      - late_posting
       - reasons
       - strength
     UnifiedPendingPage:

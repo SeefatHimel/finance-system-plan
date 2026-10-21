@@ -7217,6 +7217,7 @@
     "MessageKindEnum": {
       "enum": [
         "purchase",
+        "bill_payment",
         "cash_in",
         "cash_out",
         "send_money",
@@ -8773,6 +8774,9 @@
           "format": "uuid",
           "type": "string"
         },
+        "late_posting": {
+          "type": "boolean"
+        },
         "reference": {
           "type": "string"
         },
@@ -8799,6 +8803,7 @@
         "date",
         "detail_suggestions",
         "id",
+        "late_posting",
         "reference",
         "sender",
         "sms_text",
@@ -10656,6 +10661,9 @@
           "format": "uuid",
           "type": "string"
         },
+        "late_posting": {
+          "type": "boolean"
+        },
         "ledger_counterparty_text": {
           "type": "string"
         },
@@ -10745,6 +10753,7 @@
         "detail_suggestions",
         "effective_balance_after",
         "id",
+        "late_posting",
         "ledger_counterparty_text",
         "ledger_date",
         "ledger_note",
@@ -12090,6 +12099,9 @@
         "conflict": {
           "type": "boolean"
         },
+        "late_posting": {
+          "type": "boolean"
+        },
         "reasons": {
           "items": {
             "type": "string"
@@ -12102,6 +12114,7 @@
       },
       "required": [
         "conflict",
+        "late_posting",
         "reasons",
         "strength"
       ],

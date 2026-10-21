@@ -45,7 +45,7 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
   const [dismissedLedgerMatches, setDismissedLedgerMatches] = useState<string[]>([]);
   const [ackDistinctLedgerMatches, setAckDistinctLedgerMatches] = useState(false);
   const [ledgerCleared, setLedgerCleared] = useState(false);
-  const [balance, setBalance] = useState<BalanceChoice>(() => suggestedBalanceSource(pair.row.balance_after, pair.sms.balance_after, Number(pair.row.extracted.signed_fee) !== 0));
+  const [balance, setBalance] = useState<BalanceChoice>(() => pair.match.late_posting ? "sms" : suggestedBalanceSource(pair.row.balance_after, pair.sms.balance_after, Number(pair.row.extracted.signed_fee) !== 0));
   const [draft, setDraft] = useState(() => initialPairDraft(pair, categories));
   const [typeChoice, setTypeChoice] = useState<PairTypeChoice>(() => pair.row.type === pair.sms.transaction_type ? "statement" : "");
   const row = pair.row;
@@ -54,7 +54,7 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
   const draftChanged = JSON.stringify(draft) !== JSON.stringify(savedPairDraft(pair));
   const needsDraftReview = row.review.requires_acknowledgement || draftChanged;
   function updateDraft(value: typeof draft) {
-    if (value.balance_after !== draft.balance_after) setBalance(suggestedBalanceSource(value.balance_after, pair.sms.balance_after, statementIncludesSeparateFee));
+    if (value.balance_after !== draft.balance_after) setBalance(pair.match.late_posting ? "sms" : suggestedBalanceSource(value.balance_after, pair.sms.balance_after, statementIncludesSeparateFee));
     if (ledger) setLedgerCleared(true);
     setDraft(value); setLedger(""); setSeparateLedgerMovement(false); setDismissedLedgerMatches([]); setAckDistinctLedgerMatches(false); setAckMatch(false); setAckConflict(false); setAckIssues(false);
   }
@@ -70,8 +70,8 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
   const originalBalanceDifference = statementBalanceDifference(row.balance_after, pair.sms.balance_after);
   const sourceDateDifference = calendarDayDifference(row.date, localDate(new Date(pair.sms.raw_message.received_at)));
   const smallSourceBalanceDifference = insignificantBdtBalanceDifference(row.balance_after, pair.sms.balance_after, pair.batch.currency);
-  const originalBalanceNeedsReview = pair.match.conflict && reportedBalanceNeedsAcknowledgment(row.balance_after, pair.sms.balance_after, pair.batch.currency);
-  const editedBalanceNeedsReview = reportedBalanceNeedsAcknowledgment(draft.balance_after, pair.sms.balance_after, pair.batch.currency);
+  const originalBalanceNeedsReview = !pair.match.late_posting && pair.match.conflict && reportedBalanceNeedsAcknowledgment(row.balance_after, pair.sms.balance_after, pair.batch.currency);
+  const editedBalanceNeedsReview = !pair.match.late_posting && reportedBalanceNeedsAcknowledgment(draft.balance_after, pair.sms.balance_after, pair.batch.currency);
   const needsConflict = originalBalanceNeedsReview || editedBalanceNeedsReview || Boolean(ledgerMatch?.conflict) || reportedBalanceNeedsAcknowledgment(pair.sms.balance_after, ledgerMatch?.effective_balance_after ?? null, pair.batch.currency);
   const reviewChecksComplete = draft.classification_confirmed && (!needsConflict || ackConflict) && (!needsDraftReview || ackIssues);
   const typeDecisionReady = !typeDiffers || (Boolean(typeChoice) && !(typeChoice === "custom" && (draft.type === row.type || draft.type === pair.sms.transaction_type)));
@@ -85,6 +85,8 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
   const smsDescription = pair.sms.counterparty_text || pair.sms.message_kind.replaceAll("_", " ");
   const balanceHint = statementIncludesSeparateFee
     ? "The statement includes a separate fee, so use the SMS balance or review the fee separately."
+    : pair.match.late_posting
+      ? "EBL posted this entry after its value date. The earlier SMS balance remains the ledger report when available; the later statement balance stays attached as posting evidence."
     : draft.balance_after !== null && pair.sms.balance_after !== null
       ? "The higher report is selected initially. You can choose the other."
       : "The available report is selected initially when there is one.";
@@ -106,8 +108,8 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
     ...(!draftChanged && !ledger && row.review.issues.length > 0 ? ["Correct the blocking statement issues before confirming."] : []),
     ...(row.review.matching_truncated ? ["Narrow the statement ledger search before confirming."] : []),
   ];
-  const automaticLedgerBalance = ledgerMatch && ledgerMatch.effective_balance_after !== null ? automaticBdtBalanceSource({ sms: pair.sms.balance_after, statement: statementIncludesSeparateFee ? null : draft.balance_after, existing: ledgerMatch.effective_balance_after }, pair.batch.currency) : null;
-  const automaticBalance = automaticBdtBalanceSource({ sms: pair.sms.balance_after, statement: statementIncludesSeparateFee ? null : draft.balance_after }, pair.batch.currency);
+  const automaticLedgerBalance = !pair.match.late_posting && ledgerMatch && ledgerMatch.effective_balance_after !== null ? automaticBdtBalanceSource({ sms: pair.sms.balance_after, statement: statementIncludesSeparateFee ? null : draft.balance_after, existing: ledgerMatch.effective_balance_after }, pair.batch.currency) : null;
+  const automaticBalance = !pair.match.late_posting && automaticBdtBalanceSource({ sms: pair.sms.balance_after, statement: statementIncludesSeparateFee ? null : draft.balance_after }, pair.batch.currency);
   if (ledgerMatch && coalescedSourceAmount([draft.amount, pair.sms.amount, ledgerMatch.amount], pair.batch.currency) === null) requirements.push("The full amount difference across these sources is at least one taka. Review them separately.");
   const blocked = busy || requirements.length > 0;
 
@@ -123,7 +125,7 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
   async function confirm() {
     const token = getAccessToken();
     if (!token || blocked || (!balance && !ledger)) return;
-    const balanceSource = ledger ? fillingMissingBalance ? balance : "existing" : balance;
+    const balanceSource = pair.match.late_posting ? (ledger && !fillingMissingBalance ? "existing" : "sms") : ledger ? fillingMissingBalance ? balance : "existing" : balance;
     if (!balanceSource) return;
     setBusy(true); setError("");
     try {
@@ -152,9 +154,10 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
       <section id="unified-pair-summary" tabIndex={-1} className="unified-pair-summary" aria-label="Source comparison">
         <strong>Same account and direction · amounts match within the rounding rule</strong>
         <span>Statement {formatStatementDateTime(row.date, row.time)} · SMS {formatTimestamp(pair.sms.raw_message.received_at)}</span>
+        {pair.match.late_posting ? <span className="inline-note">EBL value date {formatCalendarDate(row.value_date)} aligns with the earlier SMS. The statement was posted later; its running balance belongs to posting order. Both reports stay attached.</span> : null}
         {typeDiffers ? <span className="unified-pair-summary__difference">Type differs</span> : null}
         {sourceDateDifference ? <span className="unified-pair-summary__difference">Dates differ by {Math.abs(sourceDateDifference)} calendar day{Math.abs(sourceDateDifference) === 1 ? "" : "s"}</span> : null}
-        {originalBalanceDifference !== null && originalBalanceDifference !== "0.00" ? <span className={originalBalanceNeedsReview ? "unified-pair-summary__difference" : "inline-note"}>Reported balance difference: {pair.batch.currency} {originalBalanceDifference} (statement minus SMS){smallSourceBalanceDifference ? " · Small difference under BDT 1" : ""}</span> : null}
+        {originalBalanceDifference !== null && originalBalanceDifference !== "0.00" ? <span className={originalBalanceNeedsReview ? "unified-pair-summary__difference" : "inline-note"}>Reported balance difference: {pair.batch.currency} {originalBalanceDifference} (statement minus SMS){pair.match.late_posting ? " · Different reporting times; not a reconciliation mismatch" : smallSourceBalanceDifference ? " · Small difference under BDT 1" : ""}</span> : null}
         <span>Reported balances · Statement: {row.balance_after ?? "Not reported"} · SMS: {pair.sms.balance_after ?? "Not reported"}</span>
       </section>
       <UnifiedPairEditor ledgerAmount={ledgerMatch?.amount} pair={pair} accounts={accounts} categories={categories} draft={draft} onDraftChange={updateDraft} typeChoice={typeChoice} onTypeChoice={choice => { setTypeChoice(choice); setAckMatch(false); }} busy={busy} />
@@ -198,10 +201,10 @@ function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: {
         {separateLedgerMovement && ledgerSuggestionsReviewed ? <label className="review-remember"><input type="checkbox" checked={ackDistinctLedgerMatches} disabled={busy} onChange={event => setAckDistinctLedgerMatches(event.target.checked)} /><span>I verified that every ledger suggestion above is a different movement. Record this pair once as a new transaction.</span></label> : null}
         <small className="field__hint">If one suggestion is the same movement but cannot be linked, review its statement evidence before recording another transaction.</small>
       </section> : null}
-      {ledger && !fillingMissingBalance ? <p role="status" className="inline-note">{automaticLedgerBalance ? `Small rounding difference · using the higher balance automatically: ${automaticLedgerBalance === "sms" ? pair.sms.balance_after : automaticLedgerBalance === "statement" ? draft.balance_after : ledgerMatch?.effective_balance_after}. Both exact source values remain attached.` : `The saved balance selection for ${pair.batch.account_name} will be retained. Use Transactions to correct a known balance or a previously reviewed blank.`}</p> : null}
+      {ledger && !fillingMissingBalance ? <p role="status" className="inline-note">{pair.match.late_posting ? "EBL posted after the value date. This link keeps the earlier ledger balance and attaches the later statement report separately." : automaticLedgerBalance ? `Small rounding difference · using the higher balance automatically: ${automaticLedgerBalance === "sms" ? pair.sms.balance_after : automaticLedgerBalance === "statement" ? draft.balance_after : ledgerMatch?.effective_balance_after}. Both exact source values remain attached.` : `The saved balance selection for ${pair.batch.account_name} will be retained. Use Transactions to correct a known balance or a previously reviewed blank.`}</p> : null}
       {!ledger || fillingMissingBalance ? <fieldset className="statement-balance-choice">
         <legend>{fillingMissingBalance ? `Missing balance to add · ${pair.batch.account_name}` : "Balance to use in the ledger"}</legend>
-        {automaticBalance ? <p role="status">Small rounding difference · using the higher balance automatically: {automaticBalance === "sms" ? pair.sms.balance_after : draft.balance_after}. SMS: {pair.sms.balance_after} · Statement: {draft.balance_after}.</p> : <div className="statement-balance-options">
+        {pair.match.late_posting ? <p role="status">EBL posted this entry after its value date. {pair.sms.balance_after !== null ? "Use the SMS balance from transaction time." : "The SMS has no balance, so the transaction-time report stays unknown."} The statement balance remains attached with its posting date.</p> : automaticBalance ? <p role="status">Small rounding difference · using the higher balance automatically: {automaticBalance === "sms" ? pair.sms.balance_after : draft.balance_after}. SMS: {pair.sms.balance_after} · Statement: {draft.balance_after}.</p> : <div className="statement-balance-options">
           <label><input type="radio" name="unified-balance" value="sms" checked={balance === "sms"} disabled={busy || (pair.sms.balance_after === null && draft.balance_after !== null)} onChange={() => { setBalance("sms"); setAckConflict(false); }} /><span>SMS<strong>{pair.sms.balance_after ?? "Not reported"}</strong></span></label>
           <label><input type="radio" name="unified-balance" value="statement" checked={balance === "statement"} disabled={busy || statementIncludesSeparateFee || (draft.balance_after === null && pair.sms.balance_after !== null)} onChange={() => { setBalance("statement"); setAckConflict(false); }} /><span>Statement draft<strong>{draft.balance_after ?? "Not reported"}</strong></span></label>
         </div>}

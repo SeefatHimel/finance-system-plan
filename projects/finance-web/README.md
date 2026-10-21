@@ -1744,3 +1744,15 @@ Closing an unsubmitted scan writes nothing and discards its temporary selections
 Existing single-entry Revalidate is unchanged. Deploy API before web; no APK needed.
 Verification includes bulk selection/grouping Node tests, web typecheck/lint/build,
 PostgreSQL atomicity/concurrency/Undo tests and desktop/phone browser interactions.
+
+### EBL delayed posting in statement review
+
+When an EBL posting date is at least two days after matching SMS time and its
+printed value date aligns with that SMS, the statement, pending-SMS and unified
+review dialogs explain the two reporting times. They do not ask the user to pick
+one of the running balances or apply the sub-taka higher-value policy across
+those dates. Linking keeps the SMS-time ledger balance; the statement posting
+balance remains attached. The latest account report may use that later statement
+value and marks transaction-order comparison as unknown. The value date helps
+find a candidate but does not prove identity; manual confirmation and ambiguity
+checks still apply. Deploy API before web; no APK change or re-import is needed.
