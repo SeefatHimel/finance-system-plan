@@ -678,3 +678,14 @@ is no financial data backfill. For optional metadata maintenance,
 metadata expired more than 30 days ago. Canonical source links stay intact.
 See [the evidence API guide](evidence-reconciliation-api.md) for synthetic tests
 and deployment/retention details.
+
+### Mobile source expansion and APK 0.1.17
+
+From `projects/finance-mobile`, run `npm run typecheck`, `npm test` and optionally
+`node --test tests/mobile-source-evidence.test.cjs` for the focused evidence
+checks. Follow the existing JDK 17, Android module-test and signed assembly
+commands in the [release guide](../projects/finance-mobile/docs/signed-android-release.md).
+Release 0.1.17 uses Android code 18 and packages retained navigation, immediate
+review save recovery and original source expansion. No new dependency, permission,
+API contract or migration is needed for these client changes. Mobile shows
+extracted statement-row evidence; the web PDF viewer remains separate.

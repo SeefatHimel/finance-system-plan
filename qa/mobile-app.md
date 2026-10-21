@@ -667,6 +667,22 @@ write or API migration is added. Tests use real router/query libraries with
 native host mocks; phone Back gestures, keyboard, TalkBack and scroll geometry
 still need the [device checklist](../projects/finance-mobile/docs/navigation-state.md).
 
+### Does expanding original evidence affect a mobile review or edit draft?
+
+No. SMS review can expand its full selectable original inline, with the dedicated
+reader still available. Activity Edit groups originals by SMS and statement;
+opening the source section reveals complete text without a second nested toggle.
+Disclosure children and the form stay mounted, so typed fields, account-bound
+balances and linked-correction consent survive collapse/reopen, token changes
+and layout updates. Expansion itself sends no financial write or reparse.
+
+Statement cards use the immutable extracted row values/text, not reviewed draft
+values labelled as originals. Missing extraction is unavailable. Redaction
+metadata hides even a stale nonempty SMS body in inline and full-reader views.
+The mobile statement view displays row evidence, not the whole PDF. Expansion is
+in-memory UI state; no API or migration changes are required. Automated retention
+and payload tests are supplemented by the [phone checklist](../projects/finance-mobile/docs/source-evidence.md).
+
 ### How do immediate review updates recover failures without duplicate transactions?
 
 After final approval/rejection or accepting a transfer match, a hidden-ID overlay

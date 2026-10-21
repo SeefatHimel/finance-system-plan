@@ -94,10 +94,11 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.16**, Android version code **17**. It adds profile
-editing and device-local System, Light and Dark appearance choices. Deploy the
-API with `PATCH /api/auth/me/` before using profile edits in this APK. There is
-no database migration or queue reset.
+The current release is **0.1.17**, Android version code **18**. It includes
+retained navigation/drafts, immediate review updates with safe retry recovery,
+and original SMS/statement-row expansion. Existing profile/appearance features
+require the API with `PATCH /api/auth/me/`. No new migration or queue reset is
+introduced by this release.
 
 ## 5. Build the signed APK
 
@@ -120,7 +121,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.16.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.17.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -422,3 +423,24 @@ Switch System, Light and Dark, restart the app, and verify the selected appearan
 persists while System follows the OS. Check Home, Activity, Review, Quick Add and
 SMS capture in both modes on a physical phone, including enlarged text and
 TalkBack. No financial data should change when only appearance changes.
+
+## Retained review and source expansion release 0.1.17
+
+Upgrade in place with the existing signing key. Verify **0.1.17/code 18**, package
+`com.personalfinance.mobile`, the production API URL, bundled JavaScript and icon
+font. Compare the signing certificate with the preceding same-key APK, copy to
+`dist/releases/finance-mobile-0.1.17.apk`, and retain its SHA-256 checksum.
+Binaries and local verification JSON remain ignored by Git.
+
+Before assembly, run mobile typecheck, `npm test` and
+`./gradlew :finance-sms-capture:testReleaseUnitTest` using JDK 17. Then use the
+existing signed `assembleRelease` command. The new source-evidence tests check
+expansion, redaction, exact draft/consent retention and the submitted edit.
+
+Run the [navigation](navigation-state.md#verification),
+[review save/retry](review-save-recovery.md#verification) and
+[source expansion](source-evidence.md#checks) phone checklists, including Android
+Back/keyboard, scroll restoration, unknown save outcomes, paired-source rollback,
+large fonts/TalkBack and logout/relogin. Original statement cards show extracted
+row evidence rather than the whole PDF. No new API route, permission, dependency
+or native module is added. Build/signature tests do not replace phone checks.

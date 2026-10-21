@@ -1122,7 +1122,8 @@ export async function getTransactionSourceMessages(token: string, id: string, si
   const response = await authenticatedFetch(`/api/transactions/${encodeURIComponent(id)}/source-messages/`, token, { signal });
   const values: unknown = await response.json(); if (!Array.isArray(values) || values.some(item => !item || typeof item.id !== "string" || typeof item.sender !== "string" || !(item.body === null || typeof item.body === "string"))) throw new Error("Source messages could not be read."); return values as TransactionSourceMessage[];
 }
-export type StatementSource = { id: string; date: string | null; time: string | null; description: string; amount: string | null; balance_after: string | null; extracted: { description?: string; raw_text?: string } };
+export type StatementSource = { id: string; date: string | null; time: string | null; description: string; amount: string | null; balance_after: string | null;
+  extracted: { description?: string; raw_text?: string; page?: number; row?: number; date?: string | null; time?: string | null; amount?: string | null; balance_after?: string | null; direction?: string; signed_fee?: string } };
 export async function getTransactionStatements(token: string, id: string, signal?: AbortSignal): Promise<StatementSource[]> {
   const response = await authenticatedFetch(`/api/transactions/${encodeURIComponent(id)}/statement-evidence/`, token, { signal });
   const values: unknown = await response.json(); if (!Array.isArray(values) || values.some(item => !item || typeof item.id !== "string")) throw new Error("Statement evidence could not be read."); return values as StatementSource[];

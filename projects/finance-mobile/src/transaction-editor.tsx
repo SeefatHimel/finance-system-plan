@@ -30,11 +30,7 @@ import {
 import { ClassificationFields } from "./classification-fields";
 import { CompactFields, CompactDateTime } from "./compact-form";
 import { Disclosure } from "./disclosure";
-import {
-  formatCalendarDate,
-  formatCurrency,
-  formatClockTime,
-} from "../../finance-contracts/presentation";
+import { StatementSourceEvidence } from "./statement-source-evidence";
 export function TransactionEditor({
   id,
   token,
@@ -285,28 +281,12 @@ export function TransactionEditor({
           {sourceError}
         </Text>
       ) : null}
-      {sources.map((message) => (
-        <SourceMessage key={message.id} message={message} />
-      ))}
-      {statements.map((source) => (
-        <Disclosure key={source.id} label="Linked statement row">
-          <Text selectable style={ui.text}>
-            {source.description ||
-              source.extracted?.description ||
-              "Statement row"}
-          </Text>
-          <Text style={ui.muted}>
-            {formatCalendarDate(source.date)} · {formatClockTime(source.time)} ·
-            Amount {formatCurrency(source.amount)} · Balance{" "}
-            {formatCurrency(source.balance_after)}
-          </Text>
-          {source.extracted?.raw_text ? (
-            <Text selectable style={ui.text}>
-              {source.extracted.raw_text}
-            </Text>
-          ) : null}
-        </Disclosure>
-      ))}
+      {sources.length ? <Disclosure label={`Original SMS (${sources.length})`}>
+        {sources.map(message => <SourceMessage key={message.id} message={message} fullBody />)}
+      </Disclosure> : null}
+      {statements.length ? <Disclosure label={`Original statement rows (${statements.length})`}>
+        {statements.map(source => <StatementSourceEvidence key={source.id} source={source} />)}
+      </Disclosure> : null}
       {row && draft && !loading ? (
         <>
           <ClassificationFields

@@ -120,6 +120,9 @@ Phase 1 scaffold now includes:
   - loads parsed candidates from `GET /api/messages/review/`
   - focuses on one candidate at a time with previous/next navigation
   - shows parser hints, raw SMS evidence, and internal-transfer flags
+  - expands the complete original SMS inline with an optional full-screen reader;
+    saved-entry editing groups full SMS and original statement rows in separate
+    source sections ([behavior and checks](docs/source-evidence.md))
   - shows parser confidence, raw message status, and review/duplicate reasons
   - lets the user correct amount, date, type, accounts, payment method,
     category, counterparty, reference, and note before confirmation
@@ -830,3 +833,9 @@ as a ledger balance. Install the same-key upgrade from
 Release **0.1.16 / Android code 17** adds profile editing and mobile appearance
 controls. Install `dist/releases/finance-mobile-0.1.16.apk` over the existing
 same-key build after the matching API has deployed.
+
+Release **0.1.17 / Android code 18** includes retained navigation and drafts,
+immediate review decisions with safe rollback/retry, and inline original SMS
+and statement-row expansion. Install the same-key update from
+`dist/releases/finance-mobile-0.1.17.apk`; follow the
+[release checklist](docs/signed-android-release.md#retained-review-and-source-expansion-release-0117).

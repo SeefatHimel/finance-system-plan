@@ -227,17 +227,23 @@ export function SearchSelect({
 }
 export function SourceMessage({
   message,
+  fullBody = false,
 }: {
+  /** A surrounding source section already owns collapse/expand. */
+  fullBody?: boolean;
   message: {
     sender: string;
     received_at: string;
     body: string | null;
     redacted_at?: string | null;
+    status?: string;
   };
 }) {
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const inlineExpanded = fullBody || expanded;
   const body =
-    message.redacted_at || !message.body
+    message.redacted_at || message.status === "redacted" || !message.body
       ? "Original SMS is unavailable or was removed by your retention choice."
       : message.body;
   return (
@@ -245,10 +251,17 @@ export function SourceMessage({
       <Text style={ui.muted}>
         {message.sender} · {formatTimestamp(message.received_at)}
       </Text>
-      <Text numberOfLines={3} style={ui.text}>
+      <Text selectable={inlineExpanded} numberOfLines={inlineExpanded ? undefined : 3} style={ui.text}>
         {body}
       </Text>
-      <ActionButton label="View full SMS" onPress={() => setOpen(true)} />
+      <View style={ui.row}>
+        {!fullBody ? <Pressable accessibilityRole="button"
+          accessibilityLabel={expanded ? "Collapse original SMS" : "Expand original SMS"}
+          accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={ui.button}>
+          <Text style={[ui.text, { fontWeight: "700" }]}>{expanded ? "▾ Collapse SMS" : "▸ Expand SMS"}</Text>
+        </Pressable> : null}
+        <ActionButton label="View full SMS" onPress={() => setOpen(true)} />
+      </View>
       {open ? (
         <Modal
           visible
