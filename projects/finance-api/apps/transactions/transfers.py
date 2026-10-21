@@ -165,6 +165,10 @@ def sms_transfer_data(candidate, overrides=None):
         raise ValidationError(
             {"account": "Choose an account before finding a transfer match."}
         )
+    if observed_account is None:
+        raise ValidationError(
+            {"account": "Choose the reporting account before finding a transfer match."}
+        )
     return data, observation
 
 

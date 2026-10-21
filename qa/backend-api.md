@@ -348,6 +348,9 @@ The transfer matching endpoint also considers same-provider messages, account
 ownership, known source/destination, opposite account observations, and dates
 within three days. It includes existing posted/manual transfers and requires
 explicit user acceptance before linking or merging.
+Candidates missing the reporting account cannot supply a reliable opposite
+observation: the matcher skips them, while a direct lookup for one returns an
+`account` validation error instead of failing the entire request.
 
 ## How would you prevent duplicate SMS transactions?
 

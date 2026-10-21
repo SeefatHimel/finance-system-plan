@@ -237,6 +237,9 @@ drafts normalize to other-account → selected-account, with reported balances
 attached to the selected account. Legacy SMS callers omitting the flag retain
 canonical source/destination semantics. References need not match across providers.
 The three-day matching window is a suggestion rule, never a uniqueness key.
+Pending candidates without a reporting account are omitted from suggestions;
+requesting a match for such a candidate returns HTTP 400 with an `account`
+field error. An incomplete neighboring SMS does not fail another draft's lookup.
 
 Linked account references remain searchable without returning duplicate rows.
 CSV exports append contextual `account_direction` and structured

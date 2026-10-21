@@ -519,6 +519,10 @@ Account filtering includes both sides and exposes contextual `account_direction`
 no additional ledger movement. Matching uses exact principal and compatible
 accounts within three days; a real reverse transfer is excluded. Multiple
 suggestions require user selection. Keep separate always remains available.
+Pending SMS transfers without an identified reporting account are excluded from
+match suggestions. Looking up a match for that SMS returns a field error asking
+for the reporting account, so one incomplete pending message cannot prevent
+other SMS reviews from being confirmed.
 
 Apply migrations with `python manage.py migrate`; old transfers are backfilled
 without automatic merging. Confirmation/link/create/update/delete share a

@@ -122,6 +122,27 @@ class TransferMatchingTests(APITestCase):
             [],
         )
 
+    def test_pending_transfer_without_reporting_account_does_not_break_matches(self):
+        pending = self.candidate()
+        pending.account = None
+        pending.save(update_fields=["account"])
+
+        self.assertEqual(self.matches(draft=self.draft()), [])
+
+    def test_transfer_review_without_reporting_account_explains_what_is_missing(self):
+        candidate = self.candidate()
+        candidate.account = None
+        candidate.save(update_fields=["account"])
+
+        response = self.client.post(
+            reverse("transaction-transfer-matches"),
+            {"candidate": str(candidate.id), "draft": {"type": "transfer"}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("reporting account", str(response.data["account"]))
+
     def receiving_review_draft(self, **changes):
         return {
             "account_perspective": True,
