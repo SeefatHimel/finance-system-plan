@@ -644,6 +644,13 @@ the installed Android module owns automatic/background batch sync.
 
 ## Activity timeline and direct navigation
 
+Visited workspaces now retain drafts, disclosures, loaded Activity pages and
+scroll positions for the signed-in session. Back follows workspace history;
+returning to Activity immediately shows cached content and refreshes stale data
+in the background. Token rotation does not reconstruct screens. See
+[navigation state and verification](docs/navigation-state.md) for cache lifetimes,
+session cleanup, dirty-editor protection and device checks.
+
 Activity uses the authenticated `/api/transactions/activity/` endpoint in pages
 of 25. Search is debounced; account, category, type and transaction-date filters
 use an Apply/Cancel sheet with searchable account/category/type choices. Date
@@ -653,7 +660,8 @@ always refer to the transaction date. Added/updated grouping uses Asia/Dhaka.
 
 The virtualized timeline has pull-to-refresh, retry and explicit Load more.
 Duplicate page IDs are deduplicated; failed appends retain the loaded rows;
-filter changes and unmount abort in-flight work and ignore late responses.
+filter changes and session teardown cancel superseded work and isolate responses
+by query. Ordinary navigation keeps the Activity view and its pages mounted.
 Opening/closing transaction details retains filters and the timeline position.
 Details offer Edit transaction, which fetches the current saved entry by ID in a
 full-screen native editor without resetting Activity filters.
@@ -679,8 +687,9 @@ Tapping a Home review card selects its candidate ID before opening SMS review.
 Selection follows that ID across queue reordering; removing the selected message
 falls back to the nearest available item. Each candidate keeps its own draft.
 
-Run `npm run typecheck` and `npm run test:activity` for the new timeline and
-selection regressions, or `node --test tests/*.test.cjs` for all JS checks.
+Run `npm run typecheck`, `npm run test:activity` and `npm run test:navigation`
+for timeline/selection and retained-state regressions, or
+`node --test tests/*.test.cjs` for all JS checks.
 Physical-device checks still include keyboard behavior, large text, native Back,
 long-history scrolling, offline/reconnect and switching signed-in accounts.
 

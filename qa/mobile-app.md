@@ -627,8 +627,8 @@ separate from unit and HTTP fault tests.
 Activity requests 25 owned transactions at a time from the paginated activity
 endpoint, with server search/filtering, date grouping, retry and Load more. Home
 uses a bounded preview plus the exact API count. The timeline is a FlatList
-outside the outer ScrollView. Filter changes abort old work; generation checks
-reject late responses, duplicate IDs are merged, and failed appends preserve
+outside the outer ScrollView. TanStack Query isolates requests by user/backend
+and filters, cancels superseded work, merges duplicate IDs and preserves
 loaded rows. Cached previews are labeled incomplete, and user/backend scope
 changes clear local selection/filter state. Details support the native editor in 0.1.13 and preserve
 the timeline position. Date filters use transaction date; added/updated grouping
@@ -642,6 +642,30 @@ visible and Android hardware Back navigation. Full Quick Add opens manual entry
 directly. A review card opens its exact candidate ID, preserves that selection
 across queue reordering and keeps drafts keyed by candidate, rather than opening
 whichever index happened to be selected previously.
+
+### Why does Back retain a screen instead of loading it again?
+
+React Navigation's history router owns screen changes instead of conditional
+rendering in App. The custom workspace navigator lazily retains one native view
+per fixed destination for the login, including forms and disclosures. Each view
+keeps its scroll position. Hidden workspaces cannot receive touch/accessibility
+focus and avoid rendering unrelated root updates. Native modals dismiss first;
+a dirty saved-entry editor requires explicit discard before Back/Cancel can
+remove its draft.
+
+Activity's infinite query caches loaded pages by user/backend and filter query.
+Fresh data is reused for 60 seconds; stale data refreshes in the background on
+screen/app focus, keeping the old complete list through slow or failed requests.
+Unobserved filter caches expire after five minutes. Token rotation does not
+replace screen keys/drafts or restart bootstrap requests. SMS refresh retains
+the loaded window and drafts for still-pending IDs.
+
+Logout/scope changes cancel reads, clear query data, destroy navigation/scroll
+state and reset root drafts. Process death also loses this in-memory state;
+encrypted upload queues keep their existing persistence rules. No financial
+write or API migration is added. Tests use real router/query libraries with
+native host mocks; phone Back gestures, keyboard, TalkBack and scroll geometry
+still need the [device checklist](../projects/finance-mobile/docs/navigation-state.md).
 
 ### What shared interface improvements are implemented on native?
 

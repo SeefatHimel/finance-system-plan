@@ -607,6 +607,7 @@ node --test tests/*.test.cjs
 cd ../finance-mobile
 npm run typecheck
 npm run test:activity
+npm run test:navigation
 # Full mobile JS regression suite:
 node --test tests/*.test.cjs
 cd ../finance-api
@@ -617,6 +618,13 @@ Run API tests against a disposable test database, never a production dump.
 Deploy the API exposing `GET /api/transactions/activity/` before distributing a
 mobile build containing the new Activity UI. No migration is added. The default
 page is 25 and the legacy transaction-list array contract remains unchanged.
+For retained mobile navigation, run `npm ci` after pulling to install React
+Navigation and TanStack Query. The custom workspace navigator uses existing
+native views and adds no native module or API migration. Run
+`npm run test:navigation`; optionally check the Android bundle with
+`CI=1 npx expo export --platform android --output-dir dist/navigation-check`.
+This export is not an APK. Build/install a signed app for native Back, scroll and
+draft checks using the [navigation guide](../projects/finance-mobile/docs/navigation-state.md).
 Verify web at desktop and phone widths: secondary filters retain values when
 collapsed, URLs reload correctly, review routes share navigation, Planning and
 Settings reveal their active item, and SMS focus mode preserves edits.

@@ -4,6 +4,13 @@ This guide creates a signed Android APK for personal installation and an AAB
 for stores that accept the app's SMS permissions. Release signing credentials
 stay outside the repository.
 
+For builds including retained workspace navigation, also follow the
+[navigation acceptance checklist](navigation-state.md#verification). In
+particular, check Android Back/keyboard dismissal, long-list scroll restoration,
+unsaved review/manual/profile forms, stale/offline background refresh and
+logout/relogin. The automated navigation tests and Metro export do not replace
+these physical-device checks.
+
 ## Prerequisites
 
 - Android Studio with the Android SDK and command-line tools.
