@@ -5,7 +5,9 @@ import {
   displayLabel as title,
   presentationColors,
 } from "../../finance-contracts/presentation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useRetainedScroll } from "./retained-scroll";
 import {
   ActivityIndicator,
   FlatList,
@@ -42,10 +44,10 @@ type Props = {
   filters: ActivityFilters;
   onFiltersChange: (filters: ActivityFilters) => void;
   cached: Transaction[];
-  revision: number;
   pendingCount: number;
   onQuickAdd: () => void;
   onEdit?: (id: string) => void;
+  focused?: boolean;
 };
 const types = [
   "expense",
@@ -398,128 +400,59 @@ export function TransactionActivity({
   filters,
   onFiltersChange,
   cached,
-  revision,
   pendingCount,
   onQuickAdd,
   onEdit,
+  focused = true,
 }: Props) {
   const query = activityQuery(filters),
     key = JSON.stringify(query);
-  const [page, setPage] = useState<{
-    key: string;
-    rows: Transaction[];
-    count: number | null;
-    next: number | null;
-  }>({
-    key: JSON.stringify(activityQuery(initialActivityFilters())),
-    rows: cached,
-    count: null,
-    next: null,
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
+  const paging = useRef(false);
+  const queryKey = ["activity", scope, key] as const;
+  const timeline = useInfiniteQuery({
+    queryKey,
+    initialPageParam: 0,
+    queryFn: async ({ pageParam, signal }) => {
+      if (query.search && pageParam === 0) await new Promise<void>((resolve, reject) => {
+        const abort = () => { clearTimeout(timer); reject(new Error("Search cancelled.")); };
+        const timer = setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, 250);
+        if (signal.aborted) abort();
+        else signal.addEventListener("abort", abort, { once: true });
+      });
+      return listTransactionActivity(tokenRef.current, JSON.parse(key), pageParam, signal);
+    },
+    getNextPageParam: page => page.next_offset ?? undefined,
+    enabled: focused,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    retry: false,
   });
-  const [loading, setLoading] = useState(false),
-    [loadingMore, setLoadingMore] = useState(false),
-    [error, setError] = useState("");
-  const [epoch, setEpoch] = useState(0),
-    [filterSheet, setFilterSheet] = useState(false),
-    [selected, setSelected] = useState<Transaction | null>(null);
-  const generation = useRef(0),
-    busy = useRef(false),
-    controller = useRef<AbortController | null>(null);
-  const current = page.key === key,
-    rows = current ? page.rows : [];
-  const accountNames = useMemo(
-    () => new Map(accounts.map((item) => [item.id, item.name])),
-    [accounts],
-  );
-  const categoryNames = useMemo(
-    () => new Map(categories.map((item) => [item.id, item.name])),
-    [categories],
-  );
-  useEffect(() => {
-    const version = ++generation.current;
-    controller.current?.abort();
-    const abort = new AbortController();
-    controller.current = abort;
-    busy.current = true;
-    setLoading(true);
-    setLoadingMore(false);
-    setError("");
-    const timer = setTimeout(
-      async () => {
-        try {
-          const result = await listTransactionActivity(
-            token,
-            JSON.parse(key),
-            0,
-            abort.signal,
-          );
-          if (version === generation.current)
-            setPage({
-              key,
-              rows: result.results,
-              count: result.count,
-              next: result.next_offset,
-            });
-        } catch (reason) {
-          if (version === generation.current && !abort.signal.aborted)
-            setError(
-              (reason as { status?: number }).status === 404
-                ? "Activity needs the latest backend deployment. Saved recent entries may still be shown."
-                : reason instanceof Error
-                  ? reason.message
-                  : "Could not load activity.",
-            );
-        } finally {
-          if (version === generation.current) {
-            busy.current = false;
-            setLoading(false);
-          }
-        }
-      },
-      filters.search ? 250 : 0,
-    );
-    return () => {
-      clearTimeout(timer);
-      controller.current?.abort();
-      generation.current++;
-    };
-  }, [key, token, scope, epoch, revision]);
+  const rows = useMemo(() => timeline.data
+    ? appendActivityPage([], timeline.data.pages.flatMap(page => page.results))
+    : key === JSON.stringify(activityQuery(initialActivityFilters())) ? cached : [],
+    [timeline.data, key, cached]);
+  const count = timeline.data?.pages[0]?.count ?? null;
+  const loadingMore = timeline.isFetchingNextPage;
+  const loading = timeline.isFetching && !loadingMore;
+  const error = timeline.error
+    ? (timeline.error as { status?: number }).status === 404
+      ? "Activity needs the latest backend deployment. Saved recent entries may still be shown."
+      : timeline.error.message || "Could not load activity."
+    : "";
+  const [filterSheet, setFilterSheet] = useState(false);
+  const [selected, setSelected] = useState<Transaction | null>(null);
+  const scroll = useRetainedScroll<FlatList<Transaction>>(focused, key);
+  const accountNames = useMemo(() => new Map(accounts.map(item => [item.id, item.name])), [accounts]);
+  const categoryNames = useMemo(() => new Map(categories.map(item => [item.id, item.name])), [categories]);
   async function loadMore() {
-    if (busy.current || !current || page.next === null) return;
-    const version = generation.current,
-      abort = new AbortController();
-    controller.current = abort;
-    busy.current = true;
-    setLoadingMore(true);
-    setError("");
-    try {
-      const result = await listTransactionActivity(
-        token,
-        query,
-        page.next,
-        abort.signal,
-      );
-      if (version === generation.current)
-        setPage((previous) => ({
-          key,
-          rows: appendActivityPage(previous.rows, result.results),
-          count: result.count,
-          next: result.next_offset,
-        }));
-    } catch (reason) {
-      if (version === generation.current && !abort.signal.aborted)
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : "Could not load more activity.",
-        );
-    } finally {
-      if (version === generation.current) {
-        busy.current = false;
-        setLoadingMore(false);
-      }
-    }
+    if (paging.current || timeline.isFetching || !timeline.hasNextPage || !focused) return;
+    paging.current = true;
+    try { await timeline.fetchNextPage({ cancelRefetch: false }); }
+    finally { paging.current = false; }
   }
+  function refresh() { void timeline.refetch({ cancelRefetch: false }); }
   const sortLabel =
     filters.ordering === "-date"
       ? "Transaction date"
@@ -548,11 +481,17 @@ export function TransactionActivity({
   return (
     <View style={s.screen}>
       <FlatList
+        ref={scroll.ref}
+        onScroll={scroll.onScroll}
+        onScrollBeginDrag={scroll.onScrollBeginDrag}
+        onLayout={scroll.onLayout}
+        onContentSizeChange={scroll.onContentSizeChange}
+        scrollEventThrottle={16}
         data={rows}
         keyExtractor={(row) => row.id}
         keyboardShouldPersistTaps="handled"
         refreshing={loading && rows.length > 0}
-        onRefresh={() => setEpoch((value) => value + 1)}
+        onRefresh={refresh}
         contentContainerStyle={s.content}
         ListHeaderComponent={
           <View style={s.contentHeader}>
@@ -577,7 +516,7 @@ export function TransactionActivity({
               <Button label="Quick Add manual entry" onPress={onQuickAdd} />
               <Button
                 label="Refresh activity"
-                onPress={() => setEpoch((value) => value + 1)}
+                onPress={refresh}
               />
               {activeCount || filters.search || filters.ordering !== "-date" ? (
                 <Button
@@ -600,9 +539,9 @@ export function TransactionActivity({
             {activeSummary ? (
               <Text style={s.muted}>{activeSummary}</Text>
             ) : null}
-            {current && page.count !== null ? (
+            {count !== null ? (
               <Text accessibilityLiveRegion="polite" style={s.muted}>
-                {rows.length} of {page.count} transactions
+                {rows.length} of {count} transactions
               </Text>
             ) : rows.length ? (
               <Text style={s.muted}>
@@ -612,7 +551,7 @@ export function TransactionActivity({
             {loading ? (
               <View accessibilityLiveRegion="polite" style={s.wrap}>
                 <ActivityIndicator color="#55e6a5" />
-                <Text style={s.muted}>Loading activity…</Text>
+                <Text style={s.muted}>{rows.length ? "Refreshing activity…" : "Loading activity…"}</Text>
               </View>
             ) : null}
             {error ? (
@@ -622,7 +561,7 @@ export function TransactionActivity({
                 </Text>
                 <Button
                   label="Retry activity"
-                  onPress={() => setEpoch((value) => value + 1)}
+                  onPress={refresh}
                 />
               </View>
             ) : null}
@@ -634,7 +573,7 @@ export function TransactionActivity({
           ) : null
         }
         ListFooterComponent={
-          current && page.next !== null ? (
+          timeline.hasNextPage ? (
             <Button
               label={
                 loadingMore

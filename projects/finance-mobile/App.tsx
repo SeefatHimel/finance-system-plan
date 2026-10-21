@@ -9,7 +9,11 @@ import { RecoveryCard, useTransactionRecovery } from "./src/transaction-recovery
 import { PRODUCT_NAME, formatCurrency, formatCalendarDate, timestampFields, presentationColors } from "../finance-contracts/presentation";
 import { TransactionActivity } from "./src/transaction-activity";
 import { initialActivityFilters } from "./src/activity-model";
-import { mobileDestinations, reviewIndex, reviewSelection, type MobileDestination, type AdvancedTool } from "./src/mobile-navigation";
+import { WorkspaceScrollView } from "./src/retained-scroll";
+import { RetainedNavigation } from "./src/retained-navigation";
+import { MobileQueryProvider } from "./src/mobile-query";
+import { useNavigationContainerRef } from "@react-navigation/native";
+import { mobileDestinations, refreshReviewWindow, reviewIndex, reviewSelection, type MobileDestination, type AdvancedTool, isMainTab, type MainTab, type WorkspaceRoute, type WorkspaceParams } from "./src/mobile-navigation";
 import { QuickAddHub, type QuickAddHandle } from "./src/quick-add-hub";
 import { quickSessionScope } from "./src/secure-document";
 import { transferComparison, transferBalanceConflicts } from "../finance-contracts/transfer-comparison";
@@ -25,7 +29,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  BackHandler,
+  Keyboard,
   AppState,
   Alert,
   Animated,
@@ -132,9 +136,7 @@ import { lightMobileStyles } from "./src/theme-styles";
 type ViewState = "idle" | "loading" | "success" | "error";
 type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
 type SmsScanMode = "new" | "history";
-type MainTab = "home" | "activity" | "capture" | "review" | "more";
 type HomeFeed = "review" | "captured";
-type MobilePanel = "sms-automation" | "accounts" | "profile" | null;
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 type ReviewCandidateDraft = ReviewDraft;
 function isIncomingReview(candidate: ParsedMessageCandidate) {
@@ -782,6 +784,7 @@ function FinanceApp() {
   const quickHub = useRef<QuickAddHandle>(null);
   const [editingTransaction, setEditingTransaction] = useState<{ id: string; scope: string } | null>(null);
   const reviewSubmitting = useRef<object | null>(null);
+  const reviewLoadRequest = useRef(0);
   const manualSubmitting = useRef<object | null>(null), transferSubmitting = useRef<object | null>(null), reconciliationRequest = useRef(0);
   const [quickFavorites, setQuickFavorites] = useState<QuickPreset[]>([]);
   const [quickPendingCount, setQuickPendingCount] = useState(0);
@@ -934,13 +937,27 @@ function FinanceApp() {
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewCandidateDraft>>({});
   const [reviewCandidateIndex, setReviewCandidateIndex] = useState(0);
   const [reviewCandidateId, setReviewCandidateId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<MainTab>("home");
+  const navigation = useNavigationContainerRef<WorkspaceParams>();
+  const [workspace, setWorkspace] = useState<{ scope: string | null; route: WorkspaceRoute; tab: MainTab }>({ scope: localDataScope, route: "home", tab: "home" });
+  const currentWorkspace = workspace.scope === localDataScope ? workspace : { scope: localDataScope, route: "home" as const, tab: "home" as const };
+  const activeTab = currentWorkspace.tab;
+  const mobilePanel = ["accounts", "profile"].includes(currentWorkspace.route) ? currentWorkspace.route : null;
+  const advancedTool = !isMainTab(currentWorkspace.route) && !mobilePanel ? currentWorkspace.route as AdvancedTool : null;
+  function changeWorkspace(route: WorkspaceRoute) {
+    Keyboard.dismiss();
+    setWorkspace(current => ({ scope: localDataScope, route, tab: isMainTab(route) ? route : current.scope === localDataScope ? current.tab : "home" }));
+  }
+  function navigateWorkspace(route: WorkspaceRoute) {
+    Keyboard.dismiss();
+    if (navigation.isReady()) navigation.navigate(route);
+  }
+  function goBack() {
+    Keyboard.dismiss();
+    if (navigation.isReady() && navigation.canGoBack()) navigation.goBack();
+  }
   const [homeFeed, setHomeFeed] = useState<HomeFeed>("review");
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const [advancedTool, setAdvancedTool] = useState<AdvancedTool | null>(null);
-  const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const drawerTranslateX = useRef(new Animated.Value(-320)).current;
-  const contentOpacity = useRef(new Animated.Value(1)).current;
 
   const loadHealth = async () => {
     setState("loading");
@@ -1342,14 +1359,15 @@ function FinanceApp() {
       return;
     }
 
+    const ticket = ++reviewLoadRequest.current;
     setReviewState("loading");
     setReviewMessage("");
     try {
       const [page, nextAccounts] = await Promise.all([
-        listMessageCandidates(accessToken.trim()),
+        refreshReviewWindow(offset => listMessageCandidates(accessToken.trim(), offset), reviewCandidates.length),
         accounts.length ? Promise.resolve(accounts) : listAccounts(accessToken.trim())
       ]);
-      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
+      if (!localDataScope || accountScopeRef.current !== localDataScope || ticket !== reviewLoadRequest.current) return;
       const candidates = page.results;
       setReviewCandidates(candidates);
       setReviewCandidateId(current => candidates.some(candidate => candidate.id === current) ? current : null);
@@ -1368,7 +1386,7 @@ function FinanceApp() {
       setReviewState("ok");
       setReviewMessage(`Loaded ${candidates.length} of ${page.count} SMS candidate(s).`);
     } catch (error) {
-      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
+      if (!localDataScope || accountScopeRef.current !== localDataScope || ticket !== reviewLoadRequest.current) return;
       setReviewState("error");
       setReviewMessage(error instanceof Error ? error.message : "Could not load SMS review inbox.");
     }
@@ -1376,11 +1394,12 @@ function FinanceApp() {
 
   const handleLoadMoreReviewCandidates = async () => {
     if (!accessToken.trim() || reviewState === "loading" || reviewCandidates.length >= reviewCandidateCount) return;
+    const ticket = ++reviewLoadRequest.current;
     setReviewState("loading");
     try {
       const page = await listMessageCandidates(accessToken.trim(), reviewCandidates.length);
-      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
-      const candidates = [...reviewCandidates, ...page.results];
+      if (!localDataScope || accountScopeRef.current !== localDataScope || ticket !== reviewLoadRequest.current) return;
+      const candidates = [...new Map([...reviewCandidates, ...page.results].map(candidate => [candidate.id, candidate])).values()];
       setReviewCandidates(candidates);
       setReviewCandidateCount(page.count);
       setReviewDrafts((current) => {
@@ -1391,7 +1410,7 @@ function FinanceApp() {
       setReviewState("ok");
       setReviewMessage(`Loaded ${candidates.length} of ${page.count} SMS candidate(s).`);
     } catch (error) {
-      if (!localDataScope || accountScopeRef.current !== localDataScope) return;
+      if (!localDataScope || accountScopeRef.current !== localDataScope || ticket !== reviewLoadRequest.current) return;
       setReviewState("error");
       setReviewMessage(error instanceof Error ? error.message : "Could not load more messages.");
     }
@@ -2473,12 +2492,15 @@ function FinanceApp() {
     setTransactions([]);
     setTransactionTotal(null);
     setActivityFilters(initialActivityFilters());
-    setAdvancedTool(null);
+    setWorkspace({ scope: null, route: "home", tab: "home" });
     setTransactionQueue([]);
     setTxAccountId("");
     setTxTransferAccountId("");
     setTxCategoryId("");
+    setTxAmount(""); setTxBalanceAfter(""); setTxNote(""); setTxCounterparty("");
+    setTxType("expense"); setTxDirection("debit"); setTxDate(localDay()); setTxTime(currentInputTime());
     setReviewCandidates([]);
+    reviewLoadRequest.current++;
     setReviewCandidateId(null);
     setReviewCandidateIndex(0);
     setReviewCandidateCount(0);
@@ -2489,8 +2511,20 @@ function FinanceApp() {
     setReviewActionCandidateId(""); setTransferBusy(false);
     setReviewState("idle"); setReviewMessage(""); setTxState("idle"); setTxMessage("");
     setDebts([]);
+    setDebtSearch(""); setDebtCounterparty(""); setDebtPrincipal(""); setDebtDueDate(""); setDebtNote("");
+    setDebtDirection("lent_by_me"); setDebtOpenedAt(today()); setDebtPaymentId("");
+    setDebtPaymentAmount(""); setDebtPaymentDate(today()); setDebtPaymentNote("");
+    setDebtState("idle"); setDebtMessage("");
     setCardBills([]);
+    setCardAccountId(""); setCardStatementBalance(""); setCardMinimumDue(""); setCardStatementDate(today());
+    setCardDueDate(""); setCardReference(""); setCardNote(""); setCardPaymentBillId("");
+    setCardPaymentAmount(""); setCardPaymentDate(today()); setCardPaymentNote("");
+    setCardBillState("idle"); setCardBillMessage("");
     setRecurringBills([]);
+    setRecurringName(""); setRecurringAccountId(""); setRecurringCategoryId(""); setRecurringAmount("");
+    setRecurringFrequency("monthly"); setRecurringNextDueDate(today()); setRecurringReminderDays("3"); setRecurringNote("");
+    setRecurringPaymentBillId(""); setRecurringPaymentAmount(""); setRecurringPaymentDate(today()); setRecurringPaymentNote("");
+    setRecurringState("idle"); setRecurringMessage("");
     setPaymentMethods([]);
     setSenderRules([]);
     setEnabledSenderRuleIds([]);
@@ -2503,6 +2537,9 @@ function FinanceApp() {
     });
     setReconciliation(null);
     setReconciliationAccountId("");
+    setSnapshotActualBalance(""); setSnapshotNote(""); setReconciliationState("idle"); setReconciliationMessage("");
+    setNewSenderRuleName(""); setSelectedSmsSender(""); setSmsSenderSearch("");
+    setRawSender(""); setRawBody(""); setRawDeviceMessageId(""); setRawReceivedAt(new Date().toISOString());
     setTransferDecision(null);
     setCacheReadyScope("");
   };
@@ -2589,11 +2626,11 @@ function FinanceApp() {
         AsyncStorage.setItem(accountKey, JSON.stringify(nextAccounts)),
         AsyncStorage.setItem(categoryKey, JSON.stringify(nextCategories))
       ]);
-      if (!txAccountId && nextAccounts.length > 0) {
-        setTxAccountId(nextAccounts[0].id);
+      if (nextAccounts.length > 0) {
+        setTxAccountId(current => current || nextAccounts[0].id);
       }
-      if (!txCategoryId && nextCategories.length > 0) {
-        setTxCategoryId(nextCategories[0].id);
+      if (nextCategories.length > 0) {
+        setTxCategoryId(current => current || nextCategories[0].id);
       }
       setDataState("ok");
       setDataMessage(
@@ -2862,28 +2899,7 @@ function FinanceApp() {
     });
   };
 
-  const switchTab = (nextTab: MainTab) => {
-    if (nextTab === activeTab) {
-      setMobilePanel(null);
-      setAdvancedTool(null);
-      return;
-    }
-    Animated.timing(contentOpacity, {
-      duration: 90,
-      toValue: 0,
-      useNativeDriver: true
-    }).start(() => {
-      setActiveTab(nextTab);
-      setMobilePanel(null);
-      setAdvancedTool(null);
-      Animated.timing(contentOpacity, {
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
-        toValue: 1,
-        useNativeDriver: true
-      }).start();
-    });
-  };
+  const switchTab = (nextTab: MainTab) => navigateWorkspace(nextTab);
 
   const handleLogout = async () => {
     let sessionRefreshToken = refreshToken.trim();
@@ -2918,9 +2934,7 @@ function FinanceApp() {
       setPassword("");
       setAuthState("idle");
       setAuthMessage("");
-      setActiveTab("home");
-      setMobilePanel(null);
-      setAdvancedTool(null);
+      setWorkspace({ scope: null, route: "home", tab: "home" });
       closeDrawer();
     }
   };
@@ -3018,8 +3032,8 @@ function FinanceApp() {
       setCategories(cachedCategories);
       setTransactions(normalizeTransactionCache(storedTransactions).slice(0, 25));
       setTransactionQueue(normalizeManualTransactionQueue(storedQueue));
-      setTxAccountId(cachedAccounts[0]?.id ?? "");
-      setTxCategoryId(cachedCategories[0]?.id ?? "");
+      setTxAccountId(current => current || cachedAccounts[0]?.id || "");
+      setTxCategoryId(current => current || cachedCategories[0]?.id || "");
     }).catch(() => {
       if (!active) return;
       setTransactionQueueState("error");
@@ -3116,7 +3130,8 @@ function FinanceApp() {
       handleLoadReviewCandidates(),
       handleLoadSmsSettings()
     ]);
-  }, [accessToken, cacheReadyScope, localDataScope]);
+  // Identity/cache hydration starts this load; token rotation must not reload workspaces.
+  }, [cacheReadyScope, localDataScope]);
 
   useEffect(() => {
     if (accessToken.trim() && username.trim() && rawQueue.length > 0) {
@@ -3189,23 +3204,15 @@ function FinanceApp() {
     setTxCounterparty(draft.counterparty_text);
     setTxState("idle");
     setTxMessage("");
-    setAdvancedTool("entry");
+    navigateWorkspace("entry");
   }
 
-  useEffect(() => {
-    if (!advancedTool && !mobilePanel) return;
-    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      setAdvancedTool(null); setMobilePanel(null); return true;
-    });
-    return () => subscription.remove();
-  }, [advancedTool, mobilePanel]);
 
   function openDestination(destination: MobileDestination) {
     setDrawerVisible(false);
-    setAdvancedTool(null);
     if (destination === "capture") { switchTab("capture"); return; }
-    if (destination === "accounts") { setMobilePanel("accounts"); void handleLoadReferenceData(); return; }
-    setMobilePanel(null); setAdvancedTool(destination);
+    if (destination === "accounts") { navigateWorkspace("accounts"); void handleLoadReferenceData(); return; }
+    navigateWorkspace(destination);
     if (destination === "debts") void handleLoadDebts();
     if (destination === "credit-cards") void handleLoadCreditCardBills();
     if (destination === "recurring-bills") void handleLoadRecurringBills();
@@ -3215,13 +3222,13 @@ function FinanceApp() {
   const recovery = useTransactionRecovery(accessToken, localDataScope, () => { void handleLoadTransactions(); void handleLoadReferenceData(); void handleLoadReviewCandidates(); });
   function openTransactionEditor(id: string) { if (localDataScope && accountScopeRef.current === localDataScope) setEditingTransaction({ id, scope: localDataScope }); }
   const editorSurface = editingTransaction && editingTransaction.scope === localDataScope && accessToken ? <TransactionEditor key={`${editingTransaction.scope}.${editingTransaction.id}`} id={editingTransaction.id} token={accessToken} scope={localDataScope!} accounts={accounts} categories={categories} paymentMethods={paymentMethods} isCurrent={() => accountScopeRef.current === editingTransaction.scope} onClose={() => setEditingTransaction(current => current?.id === editingTransaction.id && current.scope === editingTransaction.scope ? null : current)} onSaved={() => { if (accountScopeRef.current !== editingTransaction.scope) return; setEditingTransaction(current => current?.id === editingTransaction.id && current.scope === editingTransaction.scope ? null : current); void recovery.announce(); }} /> : null;
-  const renderAdvancedTools = () => (
-    <SafeAreaView style={styles.screen}>
+  const renderAdvancedTools = (advancedTool: AdvancedTool, focused: boolean) => (
+    <View style={styles.screen}>
       <StatusBar style={isLight ? "dark" : "light"} />
       <View style={styles.advancedHeader}>
         <Pressable
           accessibilityLabel="Back to Finance"
-          onPress={() => setAdvancedTool(null)}
+          onPress={() => goBack()}
           style={styles.advancedHeaderButton}
         >
           <MaterialCommunityIcons color="#f6f8fc" name="arrow-left" size={22} />
@@ -3231,7 +3238,7 @@ function FinanceApp() {
           <Text style={styles.advancedHeaderSubtitle}>Finance tools</Text>
         </View>
       </View>
-      <ScrollView key={advancedTool} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <WorkspaceScrollView focused={focused} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {advancedTool === "entry" ? <View style={styles.card}>          <Text style={styles.sectionTitle}>Add transaction</Text>
           <ManualEntryFields accounts={accounts} categories={categories} busy={txState === "loading" || transactionQueueState === "loading"}
             error={txState === "error" ? txMessage : transactionQueueState === "error" ? transactionQueueMessage : ""}
@@ -3855,13 +3862,9 @@ function FinanceApp() {
         </View>
 
  : null}
-      </ScrollView>
-    </SafeAreaView>
+      </WorkspaceScrollView>
+    </View>
   );
-
-  if (advancedTool) {
-    return <View style={{ flex: 1, backgroundColor: "#081421" }}>{renderAdvancedTools()}<RecoveryCard compact recovery={recovery} onEdit={openTransactionEditor} />{editorSurface}</View>;
-  }
 
   const tabItems: Array<{ icon: IconName; key: MainTab; label: string }> = [
     { icon: "home-variant-outline", key: "home", label: "Home" },
@@ -4102,7 +4105,7 @@ function FinanceApp() {
     </View>
   );
 
-  const renderActivity = () => <TransactionActivity onEdit={openTransactionEditor} key={localDataScope ?? "signed-out"} scope={localDataScope ?? ""} token={accessToken} accounts={accounts} categories={categories} filters={activityFilters} onFiltersChange={setActivityFilters} cached={transactions} revision={activityRevision} pendingCount={transactionQueue.length + quickPendingCount} onQuickAdd={() => quickHub.current?.open()} />;
+  const renderActivity = (focused: boolean) => <TransactionActivity focused={focused} onEdit={openTransactionEditor} key={localDataScope ?? "signed-out"} scope={localDataScope ?? ""} token={accessToken} accounts={accounts} categories={categories} filters={activityFilters} onFiltersChange={setActivityFilters} cached={transactions} pendingCount={transactionQueue.length + quickPendingCount} onQuickAdd={() => quickHub.current?.open()} />;
 
   const renderReview = () => (
     <View style={styles.mobileSectionStack}>
@@ -4212,7 +4215,7 @@ function FinanceApp() {
         <Text style={styles.mobileSecondaryActionText}>Refresh accounts</Text>
       </Pressable>
       <InlineFeedback loadingLabel="Refreshing accounts…" message={dataMessage} state={dataState} />
-      <View style={{ gap: 12 }}>{accounts.map(account => <AccountSummary key={account.id} account={account} cached={dataState !== "ok"} onReview={() => { setAdvancedTool("reconciliation"); void handleLoadReconciliation(account.id); }} />)}</View>
+      <View style={{ gap: 12 }}>{accounts.map(account => <AccountSummary key={account.id} account={account} cached={dataState !== "ok"} onReview={() => { navigateWorkspace("reconciliation"); void handleLoadReconciliation(account.id); }} />)}</View>
       {!accounts.length ? <Text style={styles.mobileStateText}>No accounts loaded yet.</Text> : null}
     </View>
   );
@@ -4244,12 +4247,6 @@ function FinanceApp() {
 
     return (
       <View style={styles.mobileSectionStack}>
-        {mobilePanel ? (
-          <Pressable onPress={() => setMobilePanel(null)} style={styles.mobileBackAction}>
-            <MaterialCommunityIcons color="#32d8f2" name="arrow-left" size={22} />
-            <Text style={styles.mobileBackActionText}>More</Text>
-          </Pressable>
-        ) : null}
         <View style={styles.mobilePageIntro}>
           <Text style={styles.mobilePageTitle}>SMS automation</Text>
           <Text style={styles.mobilePageSubtitle}>
@@ -4932,7 +4929,7 @@ function FinanceApp() {
       <View style={styles.mobileGroupedList}>{mobileDestinations.filter(item => item.id !== "accounts" && item.id !== "capture").map(destinationRow)}</View>
       <Text accessibilityRole="header" style={styles.mobileFieldLabel}>Settings</Text>
       <View style={styles.mobileGroupedList}>
-        <Pressable accessibilityRole="button" onPress={() => setMobilePanel("profile")} style={styles.mobileMenuRow}><MaterialCommunityIcons color={isLight ? "#168c69" : "#55e6a5"} name="account-circle-outline" size={22} /><Text style={styles.mobileMenuLabel}>Profile & appearance</Text><MaterialCommunityIcons color={isLight ? "#6c808b" : "#647b98"} name="chevron-right" size={23} /></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => navigateWorkspace("profile")} style={styles.mobileMenuRow}><MaterialCommunityIcons color={isLight ? "#168c69" : "#55e6a5"} name="account-circle-outline" size={22} /><Text style={styles.mobileMenuLabel}>Profile & appearance</Text><MaterialCommunityIcons color={isLight ? "#6c808b" : "#647b98"} name="chevron-right" size={23} /></Pressable>
         <Pressable accessibilityRole="button" onPress={() => quickHub.current?.manage()} style={styles.mobileMenuRow}><MaterialCommunityIcons color="#55e6a5" name="flash-outline" size={22} /><Text style={styles.mobileMenuLabel}>Quick Add presets</Text><MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} /></Pressable>
         {mobileDestinations.filter(item => item.id === "capture").map(destinationRow)}
       </View>
@@ -5062,28 +5059,27 @@ function FinanceApp() {
     );
   }
 
-  const selectedReviewCandidate = activeTab === "review" && !mobilePanel && reviewCandidates.length ? reviewCandidates[reviewSelection(reviewCandidates, reviewCandidateId, reviewCandidateIndex)] : null;
+  const selectedReviewCandidate = currentWorkspace.route === "review" && reviewCandidates.length ? reviewCandidates[reviewSelection(reviewCandidates, reviewCandidateId, reviewCandidateIndex)] : null;
   const selectedReviewDraft = selectedReviewCandidate ? getReviewDraft(selectedReviewCandidate) : null;
   const selectedReviewIssue = selectedReviewDraft ? reviewDraftError(selectedReviewDraft, accounts, categories, paymentMethods) : "";
-  const activeContent = mobilePanel === "profile" ? <ProfileScreen key={username} accessToken={accessToken} isLight={isLight} onSignOut={() => void handleLogout()} preference={themePreference} setPreference={chooseTheme} username={username} /> : mobilePanel === "accounts" ? renderAccounts() : mobilePanel === "sms-automation"
-    ? renderSmsAutomation()
-    : activeTab === "home"
-      ? renderHome()
-      : activeTab === "activity"
-        ? renderActivity()
-        : activeTab === "capture"
-          ? renderSmsAutomation()
-        : activeTab === "review"
-          ? renderReview()
-          : renderMore();
+  function renderWorkspace(route: WorkspaceRoute, focused: boolean) {
+    if (route === "activity") return renderActivity(focused);
+    if (!isMainTab(route) && route !== "accounts" && route !== "profile") return renderAdvancedTools(route, focused);
+    const content = route === "profile" ? <ProfileScreen key={localDataScope} accessToken={accessToken} isLight={isLight} onSignOut={() => void handleLogout()} preference={themePreference} setPreference={chooseTheme} username={username} />
+      : route === "accounts" ? renderAccounts()
+      : route === "home" ? renderHome()
+      : route === "capture" ? renderSmsAutomation()
+      : route === "review" ? renderReview() : renderMore();
+    return <WorkspaceScrollView focused={focused} contentContainerStyle={styles.mobileScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>{content}</WorkspaceScrollView>;
+  }
 
   return (
     <SafeAreaView style={styles.mobileRoot}>
       <StatusBar style={isLight ? "dark" : "light"} />
-      <View style={styles.mobileAppHeader}>
+      {!advancedTool ? <View style={styles.mobileAppHeader}>
         <Pressable
           accessibilityLabel={mobilePanel ? "Go back" : "Open menu"}
-          onPress={mobilePanel ? () => setMobilePanel(null) : openDrawer}
+          onPress={mobilePanel ? () => goBack() : openDrawer}
           style={styles.mobileHeaderButton}
         >
           <MaterialCommunityIcons color={isLight ? "#142b36" : "#dce8f6"} name={mobilePanel ? "arrow-left" : "menu"} size={27} />
@@ -5122,22 +5118,17 @@ function FinanceApp() {
             </Text>
           </View>
         </Pressable>
-      </View>
+      </View> : null}
 
       <QuickAddHub key={quickScope ?? "signed-out"} ref={quickHub} scope={quickScope} token={accessToken} onFavorites={setQuickFavorites} onPendingCount={setQuickPendingCount} onReferences={(accounts, categories) => { setAccounts(accounts); setCategories(categories); }} onSaved={() => { void recovery.announce(); }} onFullEntry={handleQuickFullEntry} />
-      {activeTab === "activity" && !mobilePanel ? <View style={{ flex: 1 }}>{activeContent}</View> : (      <Animated.ScrollView
-        contentContainerStyle={styles.mobileScrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        style={{ opacity: contentOpacity }}
-      >
-        {activeContent}
-      </Animated.ScrollView>)}
+      <MobileQueryProvider key={`navigation.${localDataScope}`} revision={activityRevision}>
+        <RetainedNavigation navigation={navigation} onRouteChange={changeWorkspace} render={renderWorkspace} />
+      </MobileQueryProvider>
 
       {selectedReviewCandidate ? <View style={[ui.card, { borderRadius: 0, padding: 12 }]}><Text accessibilityLiveRegion="polite" style={selectedReviewIssue || reviewState === "error" ? ui.error : ui.muted}>{reviewState === "error" && reviewMessage ? reviewMessage : selectedReviewIssue || `Ready · ${formatCurrency(selectedReviewDraft?.amount)}`}</Text><View style={ui.row}><ActionButton label="Reject message" disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => confirmRejectReviewCandidate(selectedReviewCandidate)} /><ActionButton label={reviewActionCandidateId ? "Confirming…" : "Confirm & add"} primary disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => void handleConfirmReviewCandidate(selectedReviewCandidate)} /></View></View> : null}
       <RecoveryCard compact recovery={recovery} onEdit={openTransactionEditor} />
       {editorSurface}
-      <View style={styles.mobileTabBar}>
+      {!advancedTool ? <View style={styles.mobileTabBar}>
         {tabItems.map((item) => {
           const isActive = activeTab === item.key;
           return (
@@ -5157,7 +5148,7 @@ function FinanceApp() {
             </Pressable>
           );
         })}
-      </View>
+      </View> : null}
 
       <Modal animationType="fade" onRequestClose={closeDrawer} transparent visible={drawerVisible}>
         <View style={styles.mobileDrawerLayer}>
@@ -5188,7 +5179,7 @@ function FinanceApp() {
             <View style={styles.mobileDrawerFooter}>
               <Text style={styles.mobileDrawerFooterLabel}>Signed in</Text>
               <Text style={styles.mobileDrawerFooterValue}>{username || "Finance user"}</Text>
-              <Pressable accessibilityRole="button" onPress={() => { closeDrawer(); setAdvancedTool(null); setMobilePanel("profile"); }} style={styles.mobileDrawerLogout}>
+              <Pressable accessibilityRole="button" onPress={() => { closeDrawer(); navigateWorkspace("profile"); }} style={styles.mobileDrawerLogout}>
                 <MaterialCommunityIcons color={isLight ? "#168c69" : "#55e6a5"} name="account-circle-outline" size={20} />
                 <Text style={styles.mobileLogoutText}>Profile & appearance</Text>
               </Pressable>

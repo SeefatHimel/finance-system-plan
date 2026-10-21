@@ -430,3 +430,31 @@ test("server sync status ignores old owners and preserves the last known report 
   assert.equal(value.value.last_successful_sync_at, "2026-10-17T01:00:00Z");
   await act(async () => tree.unmount());
 });
+
+test("hardware Back and Cancel preserve dirty editor fields until explicit discard", async () => {
+  let tree, closes = 0, choices;
+  const h = nativeHarness({
+    getTransaction: async () => row,
+    getTransactionSourceMessages: async () => [],
+    getTransactionStatements: async () => [],
+  });
+  h.native.Alert = { alert(_title, _message, buttons) { choices = buttons; } };
+  const { TransactionEditor } = h.load("transaction-editor");
+  await act(async () => { tree = create(React.createElement(TransactionEditor, {
+    id: row.id, token: "demo-token", scope: "demo-owner",
+    accounts: [{ id: "bank", name: "Demo bank", currency: "BDT", is_active: true }],
+    categories: [], paymentMethods: [], onClose() { closes++; }, onSaved() {},
+  })); });
+  const note = input(tree, "Note");
+  await act(async () => note.props.onChangeText("Retain until I discard"));
+  await act(async () => tree.root.findByType("Modal").props.onRequestClose());
+  assert.equal(closes, 0);
+  assert.equal(choices[0].text, "Keep editing");
+  assert.equal(input(tree, "Note"), note);
+  assert.equal(note.props.value, "Retain until I discard");
+  await act(async () => button(tree, "Cancel editing").props.onPress());
+  assert.equal(closes, 0);
+  await act(async () => choices.find(item => item.text === "Discard changes").onPress());
+  assert.equal(closes, 1);
+  await act(async () => tree.unmount());
+});

@@ -1,11 +1,13 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { readFileSync } = require("node:fs");
+const { readFileSync, existsSync } = require("node:fs");
 const { resolve } = require("node:path");
 const ts = require("typescript");
 const React = require("react");
 const { create, act } = require("react-test-renderer");
 global.IS_REACT_ACT_ENVIRONMENT = true;
+const { QueryClient, QueryClientProvider, notifyManager } = require("@tanstack/react-query");
+notifyManager.setScheduler(callback => queueMicrotask(callback));
 const row = (id, extra = {}) => ({
   id,
   account: "bank",
@@ -28,6 +30,9 @@ const row = (id, extra = {}) => ({
 function harness(t) {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const requests = [];
+  global.requestAnimationFrame = callback => setTimeout(callback, 0);
+  global.cancelAnimationFrame = id => clearTimeout(id);
+  const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
   const native = Object.fromEntries(
     [
       "ActivityIndicator",
@@ -81,6 +86,7 @@ function harness(t) {
           return { SafeAreaView: "SafeAreaView" };
         if (name === "./native-time-field")
           return { NativeDateField: "NativeDateField" };
+        if (name === "@tanstack/react-query") return require(name);
         if (name === "./api")
           return {
             listTransactionActivity: (token, query, offset, signal) =>
@@ -95,7 +101,8 @@ function harness(t) {
                 }),
               ),
           };
-        return load(resolve(file, "..", `${name}.ts`));
+        const path = resolve(file, "..", name);
+        return load(existsSync(`${path}.ts`) ? `${path}.ts` : `${path}.tsx`);
       },
     );
     return mod.exports;
@@ -105,6 +112,7 @@ function harness(t) {
     resolve(__dirname, "../src/transaction-activity.tsx"),
   );
   let props = {
+    focused: true,
     token: "synthetic-token",
     scope: "demo",
     accounts: [{ id: "bank", name: "Demo bank" }],
@@ -116,18 +124,22 @@ function harness(t) {
     onQuickAdd() {},
     onFiltersChange(value) {
       props = { ...props, filters: value };
-      tree.update(React.createElement(TransactionActivity, props));
+      tree.update(render());
     },
   };
+  const render = () => React.createElement(QueryClientProvider, { client }, React.createElement(TransactionActivity, props));
   let tree;
   const buttons = () => tree.root.findAllByType("Pressable");
   return {
     model,
     navigation: load(resolve(__dirname, "../src/mobile-navigation.ts")),
     requests,
+    client,
+    get tree() { return tree; },
+    async update(patch) { await act(async () => { props = { ...props, ...patch }; tree.update(render()); }); },
     async mount() {
       await act(async () => {
-        tree = create(React.createElement(TransactionActivity, props));
+        tree = create(render());
       });
       await act(async () => t.mock.timers.tick(300));
     },
@@ -188,6 +200,7 @@ function harness(t) {
     },
     async dispose() {
       await act(async () => tree.unmount());
+      client.clear();
     },
     props() {
       return props;
@@ -322,4 +335,97 @@ test("changing filters during an append aborts it and prevents stale rows return
   await h.resolve(1, { count: 3, results: [row("stale")], next_offset: null });
   assert.deepEqual(h.listRows(), ["wallet"]);
   await h.dispose();
+});
+
+
+test("leaving Activity retains loaded pages, fresh Back avoids a request, and token rotation preserves the view", async t => {
+  const h = harness(t);
+  await h.mount();
+  await h.resolve(0, { count: 3, results: [row("one")], next_offset: 1 });
+  await h.press("Load more transactions");
+  await h.resolve(1, { count: 3, results: [row("two")], next_offset: 2 });
+  const list = h.tree.root.findAllByType("FlatList")[0];
+  await h.update({ focused: false });
+  await h.update({ token: "rotated-token" });
+  await h.update({ focused: true });
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.tree.root.findAllByType("FlatList")[0], list);
+  assert.deepEqual(h.listRows(), ["one", "two"]);
+  await h.press("Load more transactions");
+  assert.equal(h.requests[2].token, "rotated-token");
+  await h.dispose();
+});
+
+test("stale Back refreshes every loaded page in the background without dropping rows", async t => {
+  const h = harness(t);
+  await h.mount();
+  await h.resolve(0, { count: 3, results: [row("one")], next_offset: 1 });
+  await h.press("Load more transactions");
+  await h.resolve(1, { count: 3, results: [row("two")], next_offset: 2 });
+  await h.update({ focused: false });
+  await act(async () => { await h.client.invalidateQueries({ queryKey: ["activity", "demo"] }); });
+  assert.equal(h.requests.length, 2, "hidden query must not refresh");
+  await h.update({ focused: true });
+  assert.equal(h.requests.length, 3);
+  assert.deepEqual(h.listRows(), ["one", "two"]);
+  assert(h.text().includes("Refreshing activity"));
+  await h.resolve(2, { count: 3, results: [row("changed-one")], next_offset: 1 });
+  assert.equal(h.requests[3].offset, 1);
+  assert.deepEqual(h.listRows(), ["one", "two"], "keep the old complete view until refresh finishes");
+  await h.resolve(3, { count: 3, results: [row("changed-two")], next_offset: 2 });
+  assert.deepEqual(h.listRows(), ["changed-one", "changed-two"]);
+  await h.dispose();
+});
+
+test("failed background refresh preserves pages and a revisited filter uses its own cache", async t => {
+  const h = harness(t);
+  await h.mount();
+  await h.resolve(0, { count: 2, results: [row("bank-one")], next_offset: 1 });
+  await h.press("Load more transactions");
+  await h.resolve(1, { count: 2, results: [row("bank-two")], next_offset: null });
+  await h.filters({ account: "wallet" });
+  await h.resolve(2, { count: 1, results: [row("wallet")], next_offset: null });
+  await h.filters({ account: "" });
+  assert.deepEqual(h.listRows(), ["bank-one", "bank-two"]);
+  assert.equal(h.requests.length, 3);
+  await h.press("Refresh activity");
+  await h.reject(3, new Error("Network unavailable"));
+  assert.deepEqual(h.listRows(), ["bank-one", "bank-two"]);
+  assert(h.text().includes("Network unavailable"));
+  await h.dispose();
+});
+
+
+test("returning from the background refreshes stale Activity while cached rows remain visible", async t => {
+  const { focusManager } = require("@tanstack/react-query");
+  const h = harness(t); await h.mount();
+  await h.resolve(0, { count: 1, results: [row("saved")], next_offset: null });
+  await act(async () => {
+    focusManager.setFocused(false);
+    const key = h.client.getQueryCache().getAll()[0].queryKey;
+    h.client.setQueryData(key, old => old, { updatedAt: Date.now() - 120_000 });
+  });
+  assert.equal(h.requests.length, 1);
+  await act(async () => focusManager.setFocused(true));
+  assert.equal(h.requests.length, 2);
+  assert.deepEqual(h.listRows(), ["saved"]);
+  await h.reject(1, new Error("Connection lost"));
+  assert.deepEqual(h.listRows(), ["saved"]);
+  await h.dispose();
+});
+
+test("review refresh keeps the previously loaded window and refuses partial replacement on failure", async t => {
+  const { navigation } = harness(t);
+  const offsets = [];
+  const result = await navigation.refreshReviewWindow(async offset => {
+    offsets.push(offset);
+    return { count: 5, results: offset === 0 ? [{ id: "a" }, { id: "b" }] : offset === 2 ? [{ id: "b" }, { id: "c" }] : [{ id: "d" }] };
+  }, 4);
+  assert.deepEqual(offsets, [0, 2, 4]);
+  assert.deepEqual(result.results.map(row => row.id), ["a", "b", "c", "d"]);
+  await assert.rejects(navigation.refreshReviewWindow(async offset => {
+    if (offset) throw new Error("Offline");
+    return { count: 4, results: [{ id: "a" }] };
+  }, 4), /Offline/);
+  assert.deepEqual(await navigation.refreshReviewWindow(async () => ({ count: 0, results: [] }), 200), { count: 0, results: [] });
 });

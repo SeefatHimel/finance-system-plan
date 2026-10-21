@@ -4,7 +4,7 @@ const ts = require("typescript"),
   React = require("react");
 const { create, act } = require("react-test-renderer");
 global.IS_REACT_ACT_ENVIRONMENT = true;
-function nativeHarness(api = {}, os = "android") {
+function nativeHarness(api = {}, os = "android", modules = {}) {
   const listeners = new Set(),
     cache = new Map();
   const native = Object.fromEntries(
@@ -62,6 +62,7 @@ function nativeHarness(api = {}, os = "android") {
       mod,
       mod.exports,
       (name) => {
+        if (Object.hasOwn(modules, name)) return modules[name];
         if (name === "react" || name === "react/jsx-runtime")
           return require(name);
         if (name === "react-native") return native;
@@ -79,6 +80,7 @@ function nativeHarness(api = {}, os = "android") {
     return mod.exports;
   }
   return {
+    native,
     load: (file) => load(resolve(__dirname, "../../src", file)),
     resize: (patch) => { dimensions = { ...dimensions, ...patch }; },
     resume: () => listeners.forEach((callback) => callback("active")),

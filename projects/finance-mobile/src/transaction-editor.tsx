@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import {
   type Account,
   type Category,
@@ -227,11 +227,19 @@ export function TransactionEditor({
     name: item.name,
     detail: `${item.currency}${item.is_active === false ? " · Inactive" : ""}`,
   }));
+  function requestClose() {
+    if (inFlight.current) return;
+    if (!row || !draft || JSON.stringify(draft) === JSON.stringify(transactionDraft(row))) { onClose(); return; }
+    Alert.alert("Discard unsaved edits?", "Your changes have not been saved.", [
+      { text: "Keep editing", style: "cancel" },
+      { text: "Discard changes", style: "destructive", onPress: onClose },
+    ]);
+  }
   return (
     <ModalFrame
       title="Edit transaction"
       busy={busy}
-      onClose={onClose}
+      onClose={requestClose}
       footer={
         <>
           {error ? (
@@ -245,7 +253,7 @@ export function TransactionEditor({
           <ActionButton
             label="Cancel editing"
             disabled={busy}
-            onPress={onClose}
+            onPress={requestClose}
           />
           <ActionButton
             label={busy ? "Saving transaction…" : "Save changes"}
