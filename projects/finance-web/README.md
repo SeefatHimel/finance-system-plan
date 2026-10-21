@@ -1590,6 +1590,13 @@ draft saving. These checks do not exercise a live statement import or backend.
 
 ### Compact combined review and transaction add/edit
 
+In combined review, opening **Compare original sources and parsed values** now
+reveals both original SMS and original PDF-row text expanded immediately. Either
+can still be collapsed independently. Reading/collapsing sources leaves the
+controlled draft, balance choices and required confirmations unchanged and sends
+no save request. Redaction metadata suppresses a stale SMS body. These controls
+show the extracted row text; the saved PDF viewer remains a separate feature.
+
 Combined SMS + statement review and the shared transaction add/edit dialog now
 use a named container grid. The available editor width determines one column at
 640px or below, two at intermediate widths, and three at 900px or above. Date and

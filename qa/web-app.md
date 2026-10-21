@@ -1323,6 +1323,14 @@ incompatible categories. These changes require saving the draft and refreshing
 matches before a posting/link decision; neither the source evidence nor existing
 ledger transactions is rewritten automatically.
 
+### Does opening combined source evidence reveal the full original text?
+
+Combined review also opens each original SMS/PDF-row text automatically when
+**Compare original sources and parsed values** is expanded. An explicit inner
+collapse remains possible. Toggling sources does not change the form, balance
+choice, confirmation checkboxes or outgoing draft, and cannot save a record.
+Redaction status/date takes precedence over any retained nonempty SMS body.
+
 ### Is the compact layout shared by combined review and manual add/edit?
 
 Yes. A named CSS container measures the actual editor width, so the combined
