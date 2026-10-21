@@ -69,6 +69,14 @@ export function AccountLanesWorkspace() {
   const jumpTargetRef = useRef<string | null>(null);
   const shiftingRef = useRef(false);
   const requestsRef = useRef(new Map<string, AbortController>());
+  const closeDetails = useCallback(() => {
+    const id = lastCardRef.current;
+    setSelectedTransaction(null);
+    requestAnimationFrame(() => {
+      const card = id ? Array.from(viewportRef.current?.querySelectorAll<HTMLElement>("[data-lane-card]") ?? []).find(item => item.dataset.laneCard === id) : null;
+      (card ?? viewportRef.current)?.focus();
+    });
+  }, []);
 
   const loadAccounts = useCallback(async () => {
     const token = getAccessToken();
@@ -94,15 +102,21 @@ export function AccountLanesWorkspace() {
     const priorInert = appFrame?.inert ?? false;
     document.body.style.overflow = "hidden";
     if (appFrame) appFrame.inert = true;
+    return () => { document.body.style.overflow = priorOverflow; if (appFrame) appFrame.inert = priorInert; };
+  }, [isFullscreen]);
+  useEffect(() => {
+    if (!selectedTransaction && !isFullscreen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      if (selectedTransaction) { closeDetails(); return; }
       const viewport = viewportRef.current;
       if (viewport) viewPositionRef.current = { top: viewport.scrollTop, left: viewport.scrollLeft };
       setIsFullscreen(false);
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => { document.body.style.overflow = priorOverflow; if (appFrame) appFrame.inert = priorInert; window.removeEventListener("keydown", onKeyDown); };
-  }, [isFullscreen]);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [closeDetails, isFullscreen, selectedTransaction]);
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -238,14 +252,6 @@ export function AccountLanesWorkspace() {
     setSelectedTransaction(row);
     if (keyboard) requestAnimationFrame(() => inspectorTitleRef.current?.focus());
   };
-  const closeDetails = () => {
-    const id = lastCardRef.current;
-    setSelectedTransaction(null);
-    requestAnimationFrame(() => {
-      const card = id ? Array.from(viewportRef.current?.querySelectorAll<HTMLElement>("[data-lane-card]") ?? []).find(item => item.dataset.laneCard === id) : null;
-      (card ?? viewportRef.current)?.focus();
-    });
-  };
   const toggleFullscreen = () => {
     const viewport = viewportRef.current;
     if (viewport) viewPositionRef.current = { top: viewport.scrollTop, left: viewport.scrollLeft };
@@ -361,9 +367,8 @@ export function AccountLanesWorkspace() {
           })}
         </div>
       </div>
-      <aside className="account-lanes-inspector" aria-label="Transaction details">
-        {selected ? <>
-          <div className="account-lanes-inspector__title"><h2 ref={inspectorTitleRef} tabIndex={-1}>Transaction details</h2><button type="button" aria-label="Close transaction details" onClick={closeDetails}><X size={18} /></button></div>
+      {selected ? createPortal(<aside className="account-lanes-inspector" role="dialog" aria-modal="false" aria-labelledby="account-lanes-inspector-title">
+          <div className="account-lanes-inspector__title"><h2 id="account-lanes-inspector-title" ref={inspectorTitleRef} tabIndex={-1}>Transaction details</h2><button type="button" aria-label="Close transaction details" onClick={closeDetails}><X size={18} /></button></div>
           <p className="account-lanes-inspector__date">{formatCalendarDate(selected.date)} · {selected.time ? formatClockTime(selected.time) : "time not reported"}</p>
           <h3>{title(selected)}</h3>
           <strong className="account-lanes-inspector__amount">{formatCurrency(selected.amount, accountById.get(selected.account)?.currency)}</strong>
@@ -380,8 +385,7 @@ export function AccountLanesWorkspace() {
           <div className="account-lanes-sources"><TransactionSourceMessages key={selected.id} transactionId={selected.id} loadOnExpand showEmpty /><TransactionStatementEvidence key={"statement-" + selected.id} transactionId={selected.id} /></div>
           <Link className="button button--ghost" href={"/transactions?edit=" + selected.id}>Open ledger entry</Link>
           <p className="account-lanes-inspector__hint">A transfer is one ledger transaction shown in each involved account.</p>
-        </> : <div className="account-lanes-inspector__empty"><h2>Transaction details</h2><p>Select a movement to inspect its account balances, note, and original sources.</p><p>Only reported balances are shown. A missing report is never treated as a calculated balance.</p></div>}
-      </aside>
+      </aside>, document.body) : null}
     </div>
     {accountsLoading ? <span className="sr-only" role="status">Loading accounts…</span> : null}
   </main>;

@@ -32,6 +32,11 @@ stay in a separate disclosure for their day.
 The lane header, day labels, and time rail stay fixed through native CSS sticky
 positioning as the same viewport scrolls in both directions. Full screen expands
 the timeline over the app navigation and can be closed with its button or Escape.
+The lanes use the full available width in either mode. Selecting a transaction
+opens a nonmodal right-side drawer on desktop or a bottom sheet on phones, rather
+than reserving a permanent details column. Escape closes details first; closing
+returns keyboard focus to the source card when it remains loaded. Other visible
+cards stay selectable while details are open.
 The A− and A+ controls adjust timeline card and label text in 0.5 px steps
 (from −2 to +2 px); smaller text also reduces minimum row height. These view
 controls do not change stored transactions.
@@ -40,7 +45,7 @@ A transfer appears in each selected involved account lane but remains one ledger
 entry. A connector links its two visible cards; if the other account is hidden,
 an endpoint offers “Show lane.” The chronological List layout shows each
 movement once and supports keyboard navigation. Selecting a card moves keyboard
-focus to a separate inspector, and closing it returns focus to the card when it
+focus to the details drawer, and closing it returns focus to the card when it
 remains loaded. Quiet days collapse into dated bands with a next-movement jump;
 unloaded days are never presented as quiet. Next movement and Next gap navigation
 use only the loaded window. Earlier dates and Later dates load another date

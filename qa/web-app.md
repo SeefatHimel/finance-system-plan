@@ -1380,10 +1380,13 @@ choosing a date jumps there. Account selection controls visible lanes, while a
 transfer links both visible cards, or offers a “Show lane” endpoint when an
 account is hidden. The same transfer remains one ledger transaction. A
 chronological List layout shows each movement once and has ordinary keyboard
-buttons; opening a card focuses the separate inspector and closing it returns
-focus to the card if it is still loaded. Cards can show amount, reported
-balance, or both; entries without a trustworthy time remain in a separate day
-disclosure in Lanes and appear as “Time unknown” in List.
+buttons; opening a card from the keyboard focuses a nonmodal details drawer and
+closing it returns focus to the card if it is still loaded. The lanes retain
+their width while the drawer overlays the right edge on desktop or rises as a
+bottom sheet on phones. Escape closes the drawer before leaving full screen;
+another visible card can be chosen without closing it first. Cards can show
+amount, reported balance, or both; entries without a trustworthy time remain
+in a separate day disclosure in Lanes and appear as “Time unknown” in List.
 
 The lane header labels the last saved report on or before the visible date and
 its actual report date. When that cannot be established from loaded data, it
