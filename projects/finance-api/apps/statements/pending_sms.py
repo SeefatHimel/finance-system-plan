@@ -36,6 +36,7 @@ from .services import (
     MATCH_DAYS,
     ReviewConflict,
     dates_for,
+    delayed_ebl_posting,
     find_matches,
     posting_issues,
     resolved,
@@ -136,6 +137,9 @@ def pending_sms_matches(row):
             "type": candidate.transaction_type,
             "counterparty_text": candidate.counterparty_text,
             "balance_after": str(candidate.balance_after) if candidate.balance_after is not None else None,
+            "late_posting": delayed_ebl_posting(
+                row, timezone.localtime(candidate.raw_message.received_at).date()
+            ),
             "reference": candidate.reference,
             "confidence": str(candidate.confidence),
             "detail_suggestions": detail_suggestions(row, SimpleNamespace(
@@ -254,10 +258,15 @@ def combine_pending_sms(*, row, user, payload, request):
     if transfer_account and transfer_account.currency != row.batch.currency:
         raise ValidationError({"account": "Transfer accounts must use the statement currency."})
     choice = payload.get("balance_choice")
-    conflict = reported_balance is not None and row.balance_after is not None and reported_balance != row.balance_after
+    late_posting = delayed_ebl_posting(
+        row, timezone.localtime(candidate.raw_message.received_at).date()
+    )
+    if late_posting and choice:
+        raise ValidationError({"balance_choice": "These balances were reported at different times. Keep the SMS ledger balance; the statement posting balance remains attached."})
+    conflict = not late_posting and reported_balance is not None and row.balance_after is not None and reported_balance != row.balance_after
     if choice and (choice["existing_balance_after"] != reported_balance or choice["statement_balance_after"] != row.balance_after):
         raise ReviewConflict("Reported balances changed. Reload and choose again.")
-    automatic = automatic_balance_choice({"existing": reported_balance, "statement": row.balance_after}, row.batch.currency)
+    automatic = None if late_posting else automatic_balance_choice({"existing": reported_balance, "statement": row.balance_after}, row.batch.currency)
     if automatic:
         choice = {"keep": automatic, "existing_balance_after": reported_balance, "statement_balance_after": row.balance_after}
     if conflict and not choice:
@@ -274,7 +283,7 @@ def combine_pending_sms(*, row, user, payload, request):
         raw_message=candidate.raw_message, date=received.date(),
         time=received.time().replace(tzinfo=None, microsecond=0),
         type=row.type, direction=direction, amount=resolved_amount([row.amount, candidate.amount], row.batch.currency),
-        balance_after=reported_balance if reported_balance is not None else row.balance_after,
+        balance_after=reported_balance if late_posting or reported_balance is not None else row.balance_after,
         reference=candidate.reference or row.reference,
         counterparty_text=candidate.counterparty_text or draft_merchant(row),
         note=_sms_note(candidate, row),
@@ -292,7 +301,7 @@ def combine_pending_sms(*, row, user, payload, request):
                      metadata={"candidate": str(candidate.id), "statement_row": str(row.id)})
     link_payload = {
         **payload, "action": "link", "transaction": record,
-        "balance_choice": {
+        "balance_choice": None if late_posting else {
             "keep": choice["keep"] if choice else "existing",
             "existing_balance_after": reported_balance if reported_balance is not None else row.balance_after,
             "statement_balance_after": row.balance_after,

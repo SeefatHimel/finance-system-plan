@@ -379,3 +379,11 @@ type. A mapping for a different type waits until that type is chosen; a saved
 statement category takes precedence on initial load, and the result stays editable.
 The user can edit or choose the SMS/statement wording before confirmation;
 manually corrected merchants and the original source descriptions stay intact.
+
+For EBL delayed posting, the statement posting date remains the row date and the
+printed value date remains a separate matching hint. When SMS evidence aligns
+with that value date but the row posts at least two days later, review keeps the
+SMS-time ledger balance and statement posting-time balance as separate
+observations. The later statement report can surface in account summaries, but
+its transaction-order comparison is marked unknown. Already linked rows gain
+this read behavior without modifying archived PDF, SMS or transaction records.

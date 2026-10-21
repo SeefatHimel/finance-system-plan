@@ -1209,3 +1209,14 @@ all group entries, so Undo restores the whole latest group only while unchanged.
 Large selections use multiple independent groups; only the latest remains undoable.
 The one-hour scan cursor fixes creation cutoff/order, not mutable source state;
 15-minute preview fingerprints still enforce current knowledge on apply.
+
+### Why can one EBL statement and SMS movement have different balances?
+
+EBL can post a row days after the SMS-time movement. A printed value date within
+one day of the SMS is a matching hint, while the statement running balance belongs
+to posting order. For a delay of at least two days, the backend marks
+`late_posting`, keeps both observations, and does not apply same-time conflict or
+sub-taka balance resolution between them. It retains the SMS ledger report and
+exposes a later linked EBL report as the account's latest provider balance with
+`timing_unknown` comparison. Existing linked rows use this read path without
+migration or automatic financial rewrite.

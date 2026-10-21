@@ -103,13 +103,14 @@ def calculate_account_balance_summaries(
     reported_source = {}
 
     def record_reported(
-        account_id, value, record_date, record_time, created_at, source
+        account_id, value, record_date, record_time, created_at, source,
+        posting_context=False,
     ):
         order = (record_date, record_time or time.min, created_at)
         if value is not None and order >= reported_order.get(account_id, order):
             reported_order[account_id] = order
             latest_reported[account_id] = (value, record_date)
-            reported_source[account_id] = (source, record_time)
+            reported_source[account_id] = (source, record_time, posting_context)
 
     for transaction in transactions:
         if transaction.account_id in balances:
@@ -179,13 +180,46 @@ def calculate_account_balance_summaries(
                 records_by_id[record_id],
             )
 
+    # EBL may post a movement days after its SMS. Its printed running balance
+    # belongs to posting order, so it can be the latest provider report without
+    # replacing the transaction-time SMS report on the ledger entry. Existing
+    # linked rows participate immediately; no historical rewrite is needed.
+    from apps.statements.models import StatementRow
+
+    delayed_rows = StatementRow.objects.filter(
+        batch__profile="ebl_bank",
+        batch__account_id__in=account_ids,
+        state=StatementRow.State.LINKED,
+        transaction_id__in=records_by_id,
+        balance_after__isnull=False,
+        date__isnull=False,
+        value_date__isnull=False,
+    ).only(
+        "batch__account_id", "date", "time", "value_date", "balance_after",
+        "created_at", "transaction_id",
+    ).select_related("batch")
+    if as_of_date is not None:
+        delayed_rows = delayed_rows.filter(date__lte=as_of_date)
+    for row in delayed_rows:
+        record = records_by_id[row.transaction_id]
+        if record.source != Transaction.Source.SMS or not (
+            row.date > record.date
+            and (row.date - record.date).days >= 2
+            and abs((row.value_date - record.date).days) <= 1
+        ):
+            continue
+        record_reported(
+            row.batch.account_id, row.balance_after, row.date, row.time,
+            row.created_at, row, posting_context=True,
+        )
+
     summaries = {}
     for account in account_list:
         value, record_date = latest_reported[account.id]
         expected = difference = None
         comparison = "unavailable"
         if value is not None:
-            source, record_time = reported_source[account.id]
+            source, record_time, posting_context = reported_source[account.id]
             cutoff = reported_order[account.id]
             same_day = [
                 item
@@ -201,7 +235,11 @@ def calculate_account_balance_summaries(
                     source.time or time.min,
                     max(source.created_at, cutoff[2]),
                 )
-            if account.type == Account.Type.CREDIT_CARD:
+            if posting_context:
+                # Posting order and transaction-time order are different; an
+                # exact ledger comparison would claim a false discrepancy.
+                comparison = "timing_unknown"
+            elif account.type == Account.Type.CREDIT_CARD:
                 comparison = "credit_card_reference"
             elif source_order > cutoff:
                 comparison = "report_precedes_movement"

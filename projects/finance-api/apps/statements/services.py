@@ -324,6 +324,23 @@ def dates_for(row):
     return [d for d in (row.date, row.value_date) if d is not None]
 
 
+def delayed_ebl_posting(row, observation_date, source="sms"):
+    """An EBL posting balance and an earlier SMS balance describe different times.
+
+    The value date is only a matching hint, never a substitute for the printed
+    posting date. Restrict this exception to SMS evidence close to that hint.
+    """
+    return bool(
+        row.batch.profile == "ebl_bank"
+        and source == "sms"
+        and row.date
+        and row.value_date
+        and observation_date
+        and (row.date - observation_date).days >= 2
+        and abs((row.value_date - observation_date).days) <= 1
+    )
+
+
 def reporting_observations(record, account_id):
     """Keep reporting-account evidence intact; never borrow another side's fields."""
     if record.type != "transfer":
@@ -374,14 +391,16 @@ def evaluate_observation(row, record, observation, compatible_fields, previously
         row.reference.strip().casefold() == observation.reference.strip().casefold()
     )
     reported_balance = observation.balance_after
+    late_posting = delayed_ebl_posting(row, observation.date, observation.source)
     balance_matches = (
-        row.balance_after is not None and row.balance_after == reported_balance
+        not late_posting and row.balance_after is not None and row.balance_after == reported_balance
     )
     conflict = (
         row.balance_after is not None
         and reported_balance is not None
         and not balance_matches
         and not nearby_amount(row.balance_after, reported_balance, row.batch.currency)
+        and not late_posting
     )
     signals, reasons, extra_score = match_signals(
         row,
@@ -407,6 +426,7 @@ def evaluate_observation(row, record, observation, compatible_fields, previously
         "balance_matches": balance_matches,
         "reported_balance": reported_balance,
         "conflict": conflict,
+        "late_posting": late_posting,
         "signals": signals,
         "extra_reasons": reasons,
         "score": score,
@@ -664,12 +684,14 @@ def _find_statement_matches(rows):
                 and effective_balance is not None
                 and row.balance_after != effective_balance
                 and not nearby_amount(row.balance_after, effective_balance, batch.currency)
+                and not selected["late_posting"]
             )
             if (
                 rounding
                 and row.balance_after is not None
                 and effective_balance is not None
                 and abs(row.balance_after - effective_balance) >= Decimal("1.00")
+                and not selected["late_posting"]
             ):
                 continue
             conflict = selected["conflict"] or effective_conflict
@@ -689,6 +711,10 @@ def _find_statement_matches(rows):
                 reasons.append("Reference also agrees; references can be reused.")
             if balance_matches:
                 reasons.append("Reported balance also agrees.")
+            if selected["late_posting"]:
+                reasons.append(
+                    "EBL posted this row after its value date. The SMS balance is from the earlier transaction time; the statement balance is from posting order. Keep both reports separately."
+                )
             if selected["conflict"]:
                 reasons.append(
                     f"Reported balances differ: statement {row.balance_after}, ledger observation {reported_balance}, difference {row.balance_after - reported_balance:+.2f}. Explicitly review this conflict."
@@ -768,6 +794,7 @@ def _find_statement_matches(rows):
                         else None,
                         "detail_suggestions": detail_suggestions(row, record),
                         "conflict": conflict,
+                        "late_posting": selected["late_posting"],
                         "can_link": (compatible_fields and record.id not in occupied) or (rounding and correction_metadata(row, record, occupied)["can_correct"]),
                         "rounding_correction": correction_metadata(
                             row, record, occupied
@@ -1100,10 +1127,12 @@ def decide_locked(
                     target.category = selected_category
                     target.save(update_fields=("category", "updated_at"))
             choice = payload.get("balance_choice")
+            if match["late_posting"] and choice:
+                raise ValidationError({"balance_choice": "These balances were reported at different times. Keep the SMS ledger balance; the statement posting balance remains attached as source evidence."})
             current_balance = Decimal(match["effective_balance_after"]) if match["effective_balance_after"] is not None else None
             if choice and (choice["existing_balance_after"] != current_balance or choice["statement_balance_after"] != row.balance_after):
                 raise ReviewConflict("Reported balances changed. Reload the row and choose again.")
-            automatic = automatic_balance_choice({
+            automatic = None if match["late_posting"] else automatic_balance_choice({
                 "existing": Decimal(match["effective_balance_after"]) if match["effective_balance_after"] is not None else None,
                 "statement": row.balance_after,
             }, row.batch.currency)

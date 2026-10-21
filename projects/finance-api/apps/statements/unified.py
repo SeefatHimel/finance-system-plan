@@ -46,6 +46,7 @@ from .rounding import (
 from .services import (
     ReviewConflict,
     dates_for,
+    delayed_ebl_posting,
     decide_locked,
     find_matches,
     row_snapshot,
@@ -118,6 +119,7 @@ def pair_signals(row, candidate):
     ):
         return None
     distance = min(abs((day - received.date()).days) for day in dates_for(row))
+    late_posting = delayed_ebl_posting(row, received.date())
     if distance > 3:
         return None
     left, right = (
@@ -128,9 +130,10 @@ def pair_signals(row, candidate):
         return None
     same_reference = bool(left and left == right)
     same_balance = (
+        not late_posting and
         row.balance_after is not None and row.balance_after == candidate.balance_after
     )
-    near_balance = insignificant_bdt_balance_difference(
+    near_balance = not late_posting and insignificant_bdt_balance_difference(
         row.balance_after, candidate.balance_after, row.batch.currency
     )
     merchant = merchant_text(
@@ -152,12 +155,14 @@ def pair_signals(row, candidate):
         return None
     if distance > 1 and not (same_reference or same_balance or near_balance):
         return None
-    if nearby_amount(row.amount, candidate.amount, row.batch.currency) and (
+    if not late_posting and nearby_amount(row.amount, candidate.amount, row.batch.currency) and (
         row.balance_after is not None and candidate.balance_after is not None
         and not equivalent_amount(row.balance_after, candidate.balance_after, row.batch.currency)
     ):
         return None
     conflict = (
+        not late_posting
+        and
         row.balance_after is not None and candidate.balance_after is not None
         and not equivalent_amount(row.balance_after, candidate.balance_after, row.batch.currency)
     )
@@ -183,6 +188,8 @@ def pair_signals(row, candidate):
         reasons.append(
             f"Reported balance difference: {row.balance_after - candidate.balance_after:+.2f}."
         )
+    if late_posting:
+        reasons.append("EBL posted after its value date. SMS and statement balances describe different times and remain separate.")
     reasons.append(
         "SMS date/time is its received timestamp; verify the original message."
     )
@@ -194,6 +201,7 @@ def pair_signals(row, candidate):
         and not merchant_conflict
         else "possible",
         "conflict": conflict,
+        "late_posting": late_posting,
         "reasons": reasons,
     }
 
@@ -647,6 +655,7 @@ def confirm_pair(*, user, row, candidate, payload, request):
             "These sources are no longer pending matches. Reload the queue."
         )
     original_balance_after = row.balance_after
+    late_posting = delayed_ebl_posting(row, timezone.localtime(candidate.raw_message.received_at).date())
     original_balance_needs_review = (
         signals["conflict"]
         and not insignificant_bdt_balance_difference(
@@ -706,6 +715,8 @@ def confirm_pair(*, user, row, candidate, payload, request):
             {"acknowledge_issues": "Review the edited result against both original sources before confirming."}
         )
     edited_balance_needs_review = (
+        not late_posting
+        and
         row.balance_after is not None
         and candidate.balance_after is not None
         and row.balance_after != candidate.balance_after
@@ -759,10 +770,12 @@ def confirm_pair(*, user, row, candidate, payload, request):
             )
     has_fee = row.batch.rows.filter(position=row.position, component="fee").exists()
     incoming_balances = {"sms": candidate.balance_after, "statement": None if has_fee else row.balance_after}
-    automatic_source = automatic_balance_choice(incoming_balances, row.batch.currency)
+    if late_posting and payload["balance_source"] == "statement":
+        raise ValidationError({"balance_source": "This statement balance was reported after EBL posted the transaction. Keep the earlier SMS ledger balance; the statement balance stays attached separately."})
+    automatic_source = None if late_posting else automatic_balance_choice(incoming_balances, row.batch.currency)
     balance_source = automatic_source or payload["balance_source"]
     selected_balance = candidate.balance_after if balance_source == "sms" else row.balance_after
-    if not target and selected_balance is None and any(value is not None for value in incoming_balances.values()):
+    if not target and not late_posting and selected_balance is None and any(value is not None for value in incoming_balances.values()):
         raise ValidationError({"balance_source": "That source has no reported balance. Choose the source that reports one."})
     existing_report = None
     fill_source = None
@@ -780,16 +793,16 @@ def confirm_pair(*, user, row, candidate, payload, request):
         matches, _ = find_matches([row])
         selected = next((match for match in matches[row.pk] if match["id"] == str(target.pk)), None)
         effective_balance = Decimal(selected["effective_balance_after"]) if selected and selected["effective_balance_after"] is not None else None
-        automatic_target_source = automatic_balance_choice({**incoming_balances, "existing": effective_balance}, row.batch.currency)
+        automatic_target_source = None if late_posting else automatic_balance_choice({**incoming_balances, "existing": effective_balance}, row.batch.currency)
         # An intentionally cleared report remains protected. Unknown is not zero.
         if target.type == "transfer" and effective_balance is None and not can_fill:
             automatic_target_source = None
-        fill_source = missing_report_choice(
+        fill_source = None if late_posting and candidate.balance_after is None else missing_report_choice(
             target, row.batch.account_id, incoming_balances,
             (automatic_target_source or payload["balance_source"]) if can_fill else ("existing" if automatic_target_source else payload["balance_source"]),
             excluded={"statement"} if has_fee else (),
         )
-        if selected and not can_fill:
+        if selected and not can_fill and not late_posting:
             balance_choice = {"keep": "existing", "existing_balance_after": effective_balance, "statement_balance_after": row.balance_after}
         if effective_balance is not None and candidate.balance_after is not None and not equivalent_amount(effective_balance, candidate.balance_after, row.batch.currency) and not payload["acknowledge_conflict"]:
             raise ValidationError({"acknowledge_conflict": "The SMS and existing ledger report different balances. Review both before linking."})
@@ -826,7 +839,8 @@ def confirm_pair(*, user, row, candidate, payload, request):
         )
     if not target:
         record.balance_after = (
-            selected_balance if record.account_id == row.batch.account_id else None
+            candidate.balance_after if late_posting and record.account_id == row.batch.account_id
+            else selected_balance if record.account_id == row.batch.account_id else None
         )
         record.source = "sms"
     elif automatic_target_source and target.type != "transfer":

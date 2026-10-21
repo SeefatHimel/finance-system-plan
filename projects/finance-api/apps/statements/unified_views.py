@@ -73,6 +73,7 @@ class UnifiedPendingSourceSerializer(serializers.Serializer):
 class UnifiedPendingMatchSerializer(serializers.Serializer):
     strength = serializers.ChoiceField(choices=("strong", "possible"))
     conflict = serializers.BooleanField()
+    late_posting = serializers.BooleanField()
     reasons = serializers.ListField(child=serializers.CharField())
 
 

@@ -1562,3 +1562,24 @@ rebuild, source re-import or SMS resync is required. Deploy API before web. Veri
 ```sh
 .venv/bin/python manage.py test apps.transactions.test_bulk_revalidation apps.transactions.test_revalidation apps.transactions.test_recovery --noinput
 ```
+
+### EBL value dates and delayed posting
+
+An EBL statement row can post days after its printed value date. When a matching
+SMS observation is within one day of the value date and precedes posting by at
+least two days, statement review marks `late_posting`. The SMS and statement
+running balances describe different moments: direct links, pending-SMS combines,
+and unified review retain the SMS-time ledger report and save the statement's
+posting balance on its linked row. The two balances are never compared as a
+same-time conflict or resolved by the sub-taka higher-value rule. Matching still
+requires account, direction, amount, date and uniqueness safeguards; the value
+date is a matching hint, not proof of identity.
+
+Account summaries read already linked delayed EBL rows as later provider reports
+without rewriting old transactions. Their comparison is `timing_unknown`, since
+posting order cannot safely be compared with transaction-time ledger order. No
+migration or re-import is needed. Deploy API before web. Verify with:
+
+```sh
+.venv/bin/python manage.py test apps.statements.test_ebl_delayed_posting apps.statements.test_unified apps.statements.test_balance_choices apps.accounts.test_balance_comparison --noinput
+```

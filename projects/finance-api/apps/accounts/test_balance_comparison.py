@@ -145,7 +145,8 @@ class ReportedBalanceComparisonTests(APITestCase):
             balance_after="550.00",
             external_key="synthetic-duplicate-report",
         )
-        with self.assertNumQueries(3):
+        # One bounded linked-statement query also checks for later EBL reports.
+        with self.assertNumQueries(4):
             summaries = calculate_account_balance_summaries(
                 accounts=[self.bank, destination]
             )
