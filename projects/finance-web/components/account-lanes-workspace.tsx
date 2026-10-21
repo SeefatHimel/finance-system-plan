@@ -10,9 +10,9 @@ import { TransactionSourceMessages } from "./transaction-source-messages";
 import { TransactionStatementEvidence } from "./transaction-statement-evidence";
 import { getAccessToken } from "@/lib/auth-storage";
 import { listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
-import { addDays, balanceGapDetails, groupTimelineDays, laneBalance, laneDirection, reportedBalanceAtDate, weekStart } from "@/lib/account-lanes";
+import { addDays, atTimelineEdge, balanceGapDetails, groupTimelineDays, laneBalance, laneDirection, reportedBalanceAtDate, timelineScrollShift, weekStart } from "@/lib/account-lanes";
 
-type WeekResult = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; rows: Transaction[] };
+type WeekResult = { status: "loading"; loaded: number; total: number | null } | { status: "error"; message: string } | { status: "ready"; rows: Transaction[] };
 type ViewMode = "amount" | "balance" | "both";
 type LayoutMode = "lanes" | "list";
 const WINDOW_DAYS = 21;
@@ -68,6 +68,9 @@ export function AccountLanesWorkspace() {
   const initializedRef = useRef(false);
   const jumpTargetRef = useRef<string | null>(null);
   const shiftingRef = useRef(false);
+  const touchStartRef = useRef<number | null>(null);
+  const lastScrollInputRef = useRef(0);
+  const lastScrollTopRef = useRef(0);
   const requestsRef = useRef(new Map<string, AbortController>());
   const closeDetails = useCallback(() => {
     const id = lastCardRef.current;
@@ -122,6 +125,7 @@ export function AccountLanesWorkspace() {
     if (!viewport) return;
     viewport.scrollTop = viewPositionRef.current.top;
     viewport.scrollLeft = viewPositionRef.current.left;
+    lastScrollTopRef.current = viewport.scrollTop;
   }, [isFullscreen]);
 
   const captureAnchor = useCallback(() => {
@@ -139,13 +143,16 @@ export function AccountLanesWorkspace() {
     if (!token) return;
     const controller = new AbortController();
     requestsRef.current.set(start, controller);
-    setWeekResults(current => ({ ...current, [start]: { status: "loading" } }));
+    setWeekResults(current => ({ ...current, [start]: { status: "loading", loaded: 0, total: null } }));
     try {
       const rows: Transaction[] = [];
       let offset: number | null = 0;
       while (offset !== null) {
         const page = await listTransactionActivityPage(token, start, addDays(start, 6), offset, controller.signal);
         rows.push(...page.results);
+        if (!controller.signal.aborted && page.next_offset !== null) {
+          setWeekResults(current => ({ ...current, [start]: { status: "loading", loaded: rows.length, total: page.count } }));
+        }
         offset = page.next_offset;
       }
       if (!controller.signal.aborted) {
@@ -158,11 +165,12 @@ export function AccountLanesWorkspace() {
   }, [captureAnchor, weekResults]);
 
   useEffect(() => {
+    if (accountsError) return;
     for (let index = 0; index < 3; index++) {
       const start = addDays(windowStart, index * 7);
       if ((!weekResults[start] || weekResults[start].status === "loading") && !requestsRef.current.has(start)) void loadWeek(start);
     }
-  }, [loadWeek, weekResults, windowStart]);
+  }, [accountsError, accountsLoading, loadWeek, weekResults, windowStart]);
 
   useEffect(() => {
     const retained = new Set(Array.from({ length: 5 }, (_, index) => addDays(windowStart, (index - 1) * 7)));
@@ -174,6 +182,13 @@ export function AccountLanesWorkspace() {
   }, [windowStart]);
 
   const dates = useMemo(() => Array.from({ length: WINDOW_DAYS }, (_, index) => addDays(windowStart, index)), [windowStart]);
+  const windowWeeks = useMemo(() => Array.from({ length: 3 }, (_, index) => addDays(windowStart, index * 7)), [windowStart]);
+  const readyWeeks = windowWeeks.filter(start => weekResults[start]?.status === "ready").length;
+  const failedWeeks = windowWeeks.filter(start => weekResults[start]?.status === "error").length;
+  const targetDate = jumpTargetRef.current ?? today();
+  const targetWeek = weekResults[weekStart(targetDate)];
+  const waitingForTarget = !initializedRef.current && targetWeek?.status !== "ready" && targetWeek?.status !== "error";
+  const targetError = targetWeek?.status === "error" ? targetWeek.message : null;
   const accountById = useMemo(() => new Map(accounts.map(account => [account.id, account])), [accounts]);
   const selectedAccounts = useMemo(() => selectedIds.map(id => accountById.get(id)).filter((account): account is Account => Boolean(account)), [accountById, selectedIds]);
   useLayoutEffect(() => {
@@ -204,12 +219,14 @@ export function AccountLanesWorkspace() {
     const viewport = viewportRef.current;
     if (!viewport) return;
     if (!initializedRef.current) {
-      const target = findDayNode(viewport, jumpTargetRef.current ?? today());
-      if (target) { viewport.scrollTop = target.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0) - 8; initializedRef.current = true; jumpTargetRef.current = null; }
+      const target = jumpTargetRef.current ?? today();
+      if (weekResults[weekStart(target)]?.status !== "ready") return;
+      const day = findDayNode(viewport, target);
+      if (day) { lastScrollInputRef.current = 0; viewport.scrollTop = day.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0) - 8; lastScrollTopRef.current = viewport.scrollTop; initializedRef.current = true; jumpTargetRef.current = null; }
     } else if (anchorRef.current) {
       const anchor = anchorRef.current;
       const target = findDayNode(viewport, anchor.date);
-      if (target) viewport.scrollTop += target.getBoundingClientRect().top - viewport.getBoundingClientRect().top - anchor.top;
+      if (target) { lastScrollInputRef.current = 0; viewport.scrollTop += target.getBoundingClientRect().top - viewport.getBoundingClientRect().top - anchor.top; lastScrollTopRef.current = viewport.scrollTop; }
     }
     anchorRef.current = null;
     shiftingRef.current = false;
@@ -234,16 +251,31 @@ export function AccountLanesWorkspace() {
   const onScroll = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport || !initializedRef.current) return;
+    const movement = viewport.scrollTop - lastScrollTopRef.current;
+    lastScrollTopRef.current = viewport.scrollTop;
     const middle = viewport.getBoundingClientRect().top + Math.min(viewport.clientHeight / 3, 180) + (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0);
     const current = Array.from(viewport.querySelectorAll<HTMLElement>("[data-lane-day]")).find(day => day.getBoundingClientRect().bottom > middle);
     if (current?.dataset.laneDay) setVisibleDate(previous => previous >= current.dataset.laneDay! && previous <= (current.dataset.laneEnd ?? current.dataset.laneDay!) ? previous : current.dataset.laneDay!);
-    if (shiftingRef.current) return;
-    if (viewport.scrollTop < 260) {
+    if (shiftingRef.current || Date.now() - lastScrollInputRef.current > 2000) return;
+    const shift = timelineScrollShift(movement, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, weekResults[windowStart]?.status === "ready", weekResults[addDays(windowStart, 14)]?.status === "ready");
+    if (shift < 0) {
       captureAnchor(); shiftingRef.current = true; setWindowStart(previous => addDays(previous, -7));
-    } else if (viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop < 260) {
+    } else if (shift > 0) {
       captureAnchor(); shiftingRef.current = true; setWindowStart(previous => addDays(previous, 7));
     }
-  }, [captureAnchor]);
+  }, [captureAnchor, weekResults, windowStart]);
+
+  const shiftAtEdge = useCallback((direction: -1 | 1) => {
+    const viewport = viewportRef.current;
+    if (!viewport || !initializedRef.current || shiftingRef.current) return;
+    const edgeWeek = direction < 0 ? windowStart : addDays(windowStart, 14);
+    if (weekResults[edgeWeek]?.status !== "ready") return;
+    const atEdge = atTimelineEdge(direction, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, 4);
+    if (!atEdge) return;
+    captureAnchor();
+    shiftingRef.current = true;
+    setWindowStart(previous => addDays(previous, direction * 7));
+  }, [captureAnchor, weekResults, windowStart]);
 
   const toggleAccount = (id: string) => setSelectedIds(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
   const showAccount = (id: string) => { revealAccountRef.current = id; setSelectedIds(previous => previous.includes(id) ? previous : [...previous, id]); };
@@ -332,11 +364,12 @@ export function AccountLanesWorkspace() {
       <button type="button" disabled={!nextMovementDate} onClick={() => nextMovementDate && jumpTo(nextMovementDate)} title={nextMovementDate ? `Jump to ${formatCalendarDate(nextMovementDate)}` : "No later movement loaded"}>Next movement</button>
       <button type="button" disabled={!nextGapDate} onClick={() => nextGapDate && jumpTo(nextGapDate)} title={nextGapDate ? `Jump to ${formatCalendarDate(nextGapDate)}` : "No later gap loaded"}>Next gap</button>
       <small>Navigation uses loaded days.</small>
+      {!accountsError && readyWeeks < 3 ? <span className="account-lanes-progress" role="status">{readyWeeks + failedWeeks < 3 ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}{readyWeeks} of 3 weeks ready{failedWeeks ? ` · ${failedWeeks} failed` : ""}{failedWeeks ? <button type="button" onClick={() => windowWeeks.filter(start => weekResults[start]?.status === "error").forEach(start => void loadWeek(start, true))}>Retry failed {failedWeeks === 1 ? "week" : "weeks"}</button> : null}</span> : null}
     </div>
     {accountsError ? <div className="account-lanes-error" role="alert">{accountsError} <button type="button" onClick={() => void loadAccounts()}>Retry</button></div> : null}
     <div className="account-lanes-layout">
       <div className={`account-lanes-main${layoutMode === "list" ? " account-lanes-main--list" : ""}`} style={{ "--lane-count": Math.max(selectedAccounts.length, 1), "--lanes-min-width": `${88 + Math.max(selectedAccounts.length, 1) * 240}px` } as CSSProperties}>
-        <div className="account-lanes-scroll" ref={viewportRef} onScroll={onScroll} tabIndex={0} aria-label="Timeline. Scroll up for earlier dates and down for later dates.">
+        <div className="account-lanes-scroll" ref={viewportRef} onScroll={onScroll} onWheel={event => { lastScrollInputRef.current = Date.now(); if (Math.abs(event.deltaY) > 2) shiftAtEdge(event.deltaY < 0 ? -1 : 1); }} onTouchStart={event => { lastScrollInputRef.current = Date.now(); touchStartRef.current = event.touches[0]?.clientY ?? null; }} onTouchEnd={event => { const start = touchStartRef.current; touchStartRef.current = null; if (start !== null && Math.abs(start - event.changedTouches[0].clientY) > 45) shiftAtEdge(start < event.changedTouches[0].clientY ? -1 : 1); }} onPointerDown={() => { lastScrollInputRef.current = Date.now(); }} onKeyDown={event => { if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(event.key)) lastScrollInputRef.current = Date.now(); }} tabIndex={0} aria-label="Timeline. Scroll up for earlier dates and down for later dates.">
           {layoutMode === "lanes" ? <div className="account-lanes-head" style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}><span>Time</span>{selectedAccounts.length ? selectedAccounts.map(account => {
             const report = asOfReports.get(account.id);
             const context = report?.status === "reported"
@@ -346,6 +379,7 @@ export function AccountLanesWorkspace() {
               : "No reported balance in loaded days";
             return <div data-lane-account={account.id} key={account.id}><strong>{account.name}</strong><small>By {formatCalendarDate(visibleDate)} · {context}</small></div>;
           }) : <div><strong>Choose an account</strong></div>}</div> : null}
+          <div className="account-lanes-edge" role="status">{weekResults[windowStart]?.status === "error" ? <button type="button" onClick={() => void loadWeek(windowStart, true)}>Retry earlier dates</button> : weekResults[windowStart]?.status !== "ready" ? <><span className="account-lanes-spinner" aria-hidden="true" />Loading earlier dates…</> : <button type="button" onClick={() => jumpTo(addDays(windowStart, -7))}>Load earlier dates</button>}</div>
           {displayedDays.map(item => {
             if (item.kind === "quiet") {
               const nextActivity = dates.find(date => date > item.end && movementDates.has(date) && loadedDays.has(date));
@@ -360,12 +394,14 @@ export function AccountLanesWorkspace() {
             const timed = daily.filter(row => row.time).sort((a, b) => `${a.time}:${a.id}`.localeCompare(`${b.time}:${b.id}`));
             const untimed = daily.filter(row => !row.time);
             return <section className={`account-lanes-day${layoutMode === "list" ? " account-lanes-day--list" : ""}`} data-lane-day={date} key={date} aria-label={dayLabel(date)}><div className="account-lanes-day-title"><div className="account-lanes-day-title__content"><time dateTime={date}>{dayLabel(date)}</time><span>{daily.length} {daily.length === 1 ? "movement" : "movements"}</span></div></div>
-              {result?.status === "error" ? <p className="account-lanes-status" role="alert">Could not load this week: {result.message} <button type="button" onClick={() => void loadWeek(weekStart(date), true)}>Retry</button></p> : result?.status !== "ready" ? <p className="account-lanes-status" role="status">Loading movements…</p> : daily.length === 0 ? <p className="account-lanes-status">No movements in selected accounts on this day.</p> : null}
+              {result?.status === "error" ? date === weekStart(date) ? <p className="account-lanes-status" role="alert">Could not load this week: {result.message} <button type="button" onClick={() => void loadWeek(weekStart(date), true)}>Retry</button></p> : null : result?.status !== "ready" ? date === weekStart(date) ? <p className="account-lanes-status">Loading movements…</p> : null : daily.length === 0 ? <p className="account-lanes-status">No movements in selected accounts on this day.</p> : null}
               {layoutMode === "lanes" ? timed.map(row => renderLaneRow(row, date)) : <ul className="account-lanes-list">{[...timed, ...untimed].map(renderListRow)}</ul>}
               {layoutMode === "lanes" && untimed.length ? <details className="account-lanes-untimed"><summary>Time not reported · {untimed.length} {untimed.length === 1 ? "movement" : "movements"}</summary>{untimed.map(row => <button type="button" data-lane-card={row.id} key={row.id} onClick={event => selectTransaction(row, event.detail === 0)}>{title(row)} · {formatCurrency(row.amount, accountById.get(row.account)?.currency)}{row.type === "transfer" ? " · transfer" : ""}</button>)}</details> : null}
             </section>;
           })}
+          <div className="account-lanes-edge" role="status">{weekResults[addDays(windowStart, 14)]?.status === "error" ? <button type="button" onClick={() => void loadWeek(addDays(windowStart, 14), true)}>Retry later dates</button> : weekResults[addDays(windowStart, 14)]?.status !== "ready" ? <><span className="account-lanes-spinner" aria-hidden="true" />Loading later dates…</> : <button type="button" onClick={() => jumpTo(addDays(windowStart, WINDOW_DAYS))}>Load later dates</button>}</div>
         </div>
+        {!accountsError && (waitingForTarget || targetError) ? <div className="account-lanes-initial-loading" role={targetError ? "alert" : "status"}>{targetError ? <><strong>Could not load {formatCalendarDate(targetDate)}</strong><span>{targetError}</span><button type="button" onClick={() => void loadWeek(weekStart(targetDate), true)}>Retry</button></> : <><span className="account-lanes-spinner" aria-hidden="true" /><strong>Loading timeline</strong><span>{targetWeek?.status === "loading" && targetWeek.loaded ? `${targetWeek.loaded} of ${targetWeek.total ?? "more"} movements loaded around ${formatCalendarDate(targetDate)}…` : `Fetching movements around ${formatCalendarDate(targetDate)}…`}</span></>}</div> : null}
       </div>
       {selected ? createPortal(<aside className="account-lanes-inspector" role="dialog" aria-modal="false" aria-labelledby="account-lanes-inspector-title">
           <div className="account-lanes-inspector__title"><h2 id="account-lanes-inspector-title" ref={inspectorTitleRef} tabIndex={-1}>Transaction details</h2><button type="button" aria-label="Close transaction details" onClick={closeDetails}><X size={18} /></button></div>

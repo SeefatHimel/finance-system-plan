@@ -1400,6 +1400,14 @@ another visible card can be chosen without closing it first. Cards can show
 amount, reported balance, or both; entries without a trustworthy time remain
 in a separate day disclosure in Lanes and appear as “Time unknown” in List.
 
+The first position waits for its week rather than anchoring to loading
+placeholders. A centered loader reports received movement counts during
+multi-page fetches; per-window progress, edge status and Retry
+controls make network work visible. Short runs of collapsed quiet days may leave
+no scroll range; wheel and touch gestures at the edge still advance a week, and
+explicit edge controls remain available. Automatic shifts follow actual scroll
+direction and ignore programmatic position restoration after data loads.
+
 The lane header labels the last saved report on or before the visible date and
 its actual report date. When that cannot be established from loaded data, it
 shows “No reported balance,” “Loading report context,” or “Report order unclear”

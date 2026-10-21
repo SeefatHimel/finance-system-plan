@@ -29,6 +29,15 @@ timeline in memory. The Amount, Balance, and Both controls change the visible
 card values without editing ledger data. Transactions without a reported time
 stay in a separate disclosure for their day.
 
+The first date is positioned only after its week has loaded. A centered loader
+shows that initial fetch and the number of movements received across multi-page
+weeks, while a compact progress indicator and edge loaders
+show subsequent weeks. Failed weeks show Retry. When collapsed quiet days make
+the viewport too short to scroll, a wheel or touch gesture at an edge still
+advances by one week; explicit edge buttons offer the same navigation. The
+timeline only auto-advances in the direction of the user's scroll, so loading
+and layout changes cannot silently move it to another week.
+
 The lane header, day labels, and time rail stay fixed through native CSS sticky
 positioning as the same viewport scrolls in both directions. Full screen expands
 the timeline over the app navigation and can be closed with its button or Escape.

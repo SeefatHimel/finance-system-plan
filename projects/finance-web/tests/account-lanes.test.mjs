@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, balanceGapDetails, balanceGaps, groupTimelineDays, laneBalance, laneDirection, laneMomentMatchesCanonical, reportedBalanceAtDate, weekStart } from "../lib/account-lanes.ts";
+import { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, groupTimelineDays, laneBalance, laneDirection, laneMomentMatchesCanonical, reportedBalanceAtDate, timelineScrollShift, weekStart } from "../lib/account-lanes.ts";
 
 const row = (id, date, time, amount, balance_after, extra = {}) => ({
   id, date, time, amount, balance_after, account: "city", transfer_account: null,
@@ -11,6 +11,19 @@ test("date window crosses month and leap-day boundaries", () => {
   assert.equal(addDays("2024-03-01", -1), "2024-02-29");
   assert.equal(weekStart("2026-10-20"), "2026-10-19");
   assert.equal(weekStart("2026-10-25"), "2026-10-19");
+});
+
+test("a short timeline advances only toward the user's gesture", () => {
+  assert.equal(atTimelineEdge(-1, 0, 300, 500, 4), true);
+  assert.equal(atTimelineEdge(1, 0, 300, 500, 4), true);
+  assert.equal(timelineScrollShift(-20, 0, 300, 500, true, true), -1);
+  assert.equal(timelineScrollShift(20, 0, 300, 500, true, true), 1);
+  assert.equal(timelineScrollShift(0, 0, 300, 500, true, true), 0);
+  assert.equal(timelineScrollShift(20, 0, 300, 500, true, false), 0);
+  assert.equal(atTimelineEdge(-1, 150, 1000, 500, 4), false);
+  assert.equal(atTimelineEdge(1, 150, 1000, 500, 4), false);
+  assert.equal(atTimelineEdge(-1, 0, 1000, 500, 4), true);
+  assert.equal(atTimelineEdge(1, 500, 1000, 500, 4), true);
 });
 
 test("transfer is a debit and credit observation of one ledger entry", () => {
