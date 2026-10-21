@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, contiguousReadyDates, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, laneMomentMatchesCanonical, readyTimelineWindowStart, reportedBalanceAtDate, timelineScrollShift, weekStart } from "../lib/account-lanes.ts";
+import { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, laneMomentMatchesCanonical, reportedBalanceAtDate, timelineScrollShift, weekStart } from "../lib/account-lanes.ts";
 
 const row = (id, date, time, amount, balance_after, extra = {}) => ({
   id, date, time, amount, balance_after, account: "city", transfer_account: null,
@@ -87,25 +87,36 @@ test("timeline renders only contiguous ready weeks around the visible date", () 
   assert.deepEqual(contiguousReadyDates(dates, new Set(["2026-10-19", "2026-10-26", "2026-11-02"]), "2026-10-28"), dates);
 });
 
-test("scrolling keeps the current days until the entering week is ready", () => {
+test("scrolling appends and prepends ready weeks without dropping visible dates", () => {
   const start = "2026-05-11";
+  const range = { start, end: addDays(start, 21) };
   const ready = new Set([start, addDays(start, 7), addDays(start, 14)]);
   const existing = Array.from({ length: 21 }, (_, index) => addDays(start, index));
-  assert.equal(readyTimelineWindowStart(start, 1, ready), null);
-  assert.equal(readyTimelineWindowStart(start, -1, ready), null);
+  assert.equal(expandReadyTimelineRange(range, 1, ready), null);
+  assert.equal(expandReadyTimelineRange(range, -1, ready), null);
   assert.deepEqual(contiguousReadyDates(existing, ready, existing[20]), existing);
 
-  ready.add(addDays(start, 21));
-  const nextStart = readyTimelineWindowStart(start, 1, ready);
-  assert.equal(nextStart, addDays(start, 7));
-  const nextDates = Array.from({ length: 21 }, (_, index) => addDays(nextStart, index));
-  assert.deepEqual(contiguousReadyDates(nextDates, ready, existing[20]), nextDates);
+  ready.add(range.end);
+  const laterRange = expandReadyTimelineRange(range, 1, ready);
+  assert.deepEqual(laterRange, { start, end: addDays(range.end, 7) });
+  const laterDates = Array.from({ length: 28 }, (_, index) => addDays(laterRange.start, index));
+  assert.deepEqual(laterDates.slice(0, 21), existing);
+  assert.deepEqual(contiguousReadyDates(laterDates, ready, existing[20]), laterDates);
 
   ready.add(addDays(start, -7));
-  const previousStart = readyTimelineWindowStart(start, -1, ready);
-  assert.equal(previousStart, addDays(start, -7));
-  const previousDates = Array.from({ length: 21 }, (_, index) => addDays(previousStart, index));
-  assert.deepEqual(contiguousReadyDates(previousDates, ready, existing[0]), previousDates);
+  const earlierRange = expandReadyTimelineRange(range, -1, ready);
+  assert.deepEqual(earlierRange, { start: addDays(start, -7), end: range.end });
+  const earlierDates = Array.from({ length: 28 }, (_, index) => addDays(earlierRange.start, index));
+  assert.deepEqual(earlierDates.slice(7), existing);
+  assert.deepEqual(contiguousReadyDates(earlierDates, ready, existing[0]), earlierDates);
+});
+
+test("quiet dates retain a small scrollable band for each week", () => {
+  const dates = Array.from({ length: 14 }, (_, index) => addDays("2026-05-11", index));
+  assert.deepEqual(groupTimelineDays(dates, new Set(), new Set(dates), true), [
+    { kind: "quiet", start: "2026-05-11", end: "2026-05-17", count: 7 },
+    { kind: "quiet", start: "2026-05-18", end: "2026-05-24", count: 7 }
+  ]);
 });
 
 test("a transfer observed on another date cannot produce a precise lane gap", () => {

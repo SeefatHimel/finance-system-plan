@@ -10,7 +10,7 @@ import { TransactionSourceMessages } from "./transaction-source-messages";
 import { TransactionStatementEvidence } from "./transaction-statement-evidence";
 import { getAccessToken } from "@/lib/auth-storage";
 import { listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
-import { addDays, atTimelineEdge, balanceGapDetails, contiguousReadyDates, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, readyTimelineWindowStart, reportedBalanceAtDate, timelineScrollShift, weekStart } from "@/lib/account-lanes";
+import { addDays, atTimelineEdge, balanceGapDetails, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, reportedBalanceAtDate, timelineScrollShift, weekStart, type TimelineRange } from "@/lib/account-lanes";
 
 type WeekResult = { status: "loading"; loaded: number; total: number | null } | { status: "error"; message: string } | { status: "ready"; rows: Transaction[] };
 type ViewMode = "amount" | "balance" | "both";
@@ -48,11 +48,14 @@ export function AccountLanesWorkspace() {
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [accountsError, setAccountsError] = useState<string | null>(null);
   const [weekResults, setWeekResults] = useState<Record<string, WeekResult>>({});
-  const [windowStart, setWindowStart] = useState(initialWindow);
-  const [pendingEdge, setPendingEdge] = useState<-1 | 1 | null>(null);
+  const [range, setRange] = useState<TimelineRange>(() => {
+    const start = initialWindow();
+    return { start, end: addDays(start, WINDOW_DAYS) };
+  });
+  const [pendingEdge, setPendingEdge] = useState<{ direction: -1 | 1; force: boolean } | null>(null);
   const [pendingJump, setPendingJump] = useState<string | null>(null);
-  const windowStartRef = useRef(windowStart);
-  windowStartRef.current = windowStart;
+  const rangeRef = useRef(range);
+  rangeRef.current = range;
   const [visibleDate, setVisibleDate] = useState(today);
   const [mode, setMode] = useState<ViewMode>("both");
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("lanes");
@@ -69,6 +72,8 @@ export function AccountLanesWorkspace() {
   const lastCardRef = useRef<string | null>(null);
   const revealAccountRef = useRef<string | null>(null);
   const anchorRef = useRef<{ date: string; top: number } | null>(null);
+  const revealEdgeRef = useRef<-1 | 1 | null>(null);
+  const manualEdgeTargetRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
   const jumpTargetRef = useRef<string | null>(null);
   const shiftingRef = useRef(false);
@@ -166,7 +171,7 @@ export function AccountLanesWorkspace() {
         offset = page.next_offset;
       }
       if (!controller.signal.aborted) {
-        if (start >= windowStartRef.current && start <= addDays(windowStartRef.current, 14)) captureAnchor();
+        if (start >= rangeRef.current.start && start < rangeRef.current.end) captureAnchor();
         setWeekResults(current => ({ ...current, [start]: { status: "ready", rows } }));
       }
     } catch (error) {
@@ -174,34 +179,32 @@ export function AccountLanesWorkspace() {
     } finally { if (requestsRef.current.get(start) === controller) requestsRef.current.delete(start); }
   }, [captureAnchor, weekResults]);
 
-  useEffect(() => {
-    if (accountsError) return;
-    for (let index = 0; index < 3; index++) {
-      const start = addDays(windowStart, index * 7);
-      if ((!weekResults[start] || weekResults[start].status === "loading") && !requestsRef.current.has(start)) void loadWeek(start);
-    }
-  }, [accountsError, accountsLoading, loadWeek, weekResults, windowStart]);
-
-  useEffect(() => {
-    const retained = new Set(Array.from({ length: 5 }, (_, index) => addDays(windowStart, (index - 1) * 7)));
-    setWeekResults(current => {
-      if (Object.keys(current).every(key => retained.has(key))) return current;
-      return Object.fromEntries(Object.entries(current).filter(([key]) => retained.has(key)));
-    });
-    for (const [key, controller] of requestsRef.current) if (!retained.has(key)) { controller.abort(); requestsRef.current.delete(key); }
-  }, [windowStart]);
-
-  const dates = useMemo(() => Array.from({ length: WINDOW_DAYS }, (_, index) => addDays(windowStart, index)), [windowStart]);
-  const windowWeeks = useMemo(() => Array.from({ length: 3 }, (_, index) => addDays(windowStart, index * 7)), [windowStart]);
+  const windowWeeks = useMemo(() => {
+    const weeks: string[] = [];
+    for (let start = range.start; start < range.end; start = addDays(start, 7)) weeks.push(start);
+    return weeks;
+  }, [range]);
+  const dates = useMemo(() => {
+    const days: string[] = [];
+    for (let date = range.start; date < range.end; date = addDays(date, 1)) days.push(date);
+    return days;
+  }, [range]);
   const readyWeeks = windowWeeks.filter(start => weekResults[start]?.status === "ready").length;
   const failedWeeks = windowWeeks.filter(start => weekResults[start]?.status === "error").length;
   useEffect(() => {
-    if (accountsError || accountsLoading || readyWeeks !== windowWeeks.length) return;
-    // Fetch beyond both ends before a scroll reaches the next window.
-    for (const start of [addDays(windowStart, -7), addDays(windowStart, WINDOW_DAYS)]) {
+    if (accountsError || accountsLoading) return;
+    for (const start of windowWeeks) {
       if (!weekResults[start] && !requestsRef.current.has(start)) void loadWeek(start);
     }
-  }, [accountsError, accountsLoading, loadWeek, readyWeeks, weekResults, windowStart, windowWeeks]);
+  }, [accountsError, accountsLoading, loadWeek, weekResults, windowWeeks]);
+
+  useEffect(() => {
+    if (accountsError || accountsLoading || readyWeeks !== windowWeeks.length) return;
+    // Keep two complete weeks ready on either side of the visible range.
+    for (const start of [addDays(range.start, -14), addDays(range.start, -7), range.end, addDays(range.end, 7)]) {
+      if (!weekResults[start] && !requestsRef.current.has(start)) void loadWeek(start);
+    }
+  }, [accountsError, accountsLoading, loadWeek, range, readyWeeks, weekResults, windowWeeks]);
   const targetDate = jumpTargetRef.current ?? today();
   const targetWeek = weekResults[weekStart(targetDate)];
   const waitingForTarget = !initializedRef.current && targetWeek?.status !== "ready" && targetWeek?.status !== "error";
@@ -219,14 +222,14 @@ export function AccountLanesWorkspace() {
   const renderedDates = useMemo(() => contiguousReadyDates(dates, new Set(windowWeeks.filter(start => weekResults[start]?.status === "ready")), jumpTargetRef.current ?? visibleDate), [dates, visibleDate, weekResults, windowWeeks]);
   const earlierMissingWeek = renderedDates.length && renderedDates[0] !== dates[0] ? addDays(weekStart(renderedDates[0]), -7) : null;
   const laterMissingWeek = renderedDates.length && renderedDates[renderedDates.length - 1] !== dates[dates.length - 1] ? addDays(weekStart(renderedDates[renderedDates.length - 1]), 7) : null;
-  const earlierEdgeWeek = earlierMissingWeek || (pendingEdge === -1 ? addDays(windowStart, -7) : null);
-  const laterEdgeWeek = laterMissingWeek || (pendingEdge === 1 ? addDays(windowStart, WINDOW_DAYS) : null);
+  const earlierEdgeWeek = earlierMissingWeek || (pendingEdge?.direction === -1 ? addDays(range.start, -7) : null);
+  const laterEdgeWeek = laterMissingWeek || (pendingEdge?.direction === 1 ? range.end : null);
   const pendingJumpResult = pendingJump ? weekResults[weekStart(pendingJump)] : null;
   const loadedDays = useMemo(() => new Set(renderedDates), [renderedDates]);
   const allRows = useMemo(() => {
     const unique = new Map<string, Transaction>();
-    for (const date of renderedDates) {
-      const result = weekResults[weekStart(date)];
+    for (const start of new Set(renderedDates.map(weekStart))) {
+      const result = weekResults[start];
       if (result?.status === "ready") for (const row of result.rows) unique.set(row.id, row);
     }
     return [...unique.values()];
@@ -251,9 +254,24 @@ export function AccountLanesWorkspace() {
       const target = findDayNode(viewport, anchor.date);
       if (target) { viewport.scrollTop += target.getBoundingClientRect().top - viewport.getBoundingClientRect().top - anchor.top; lastScrollTopRef.current = viewport.scrollTop; }
     }
+    if (revealEdgeRef.current) {
+      // The edge gesture should reveal a little of the newly appended content,
+      // while the rest of the scroll remains native and uninterrupted.
+      viewport.scrollTop += revealEdgeRef.current * Math.min(72, viewport.clientHeight / 5);
+      lastScrollTopRef.current = viewport.scrollTop;
+      revealEdgeRef.current = null;
+    }
+    if (manualEdgeTargetRef.current) {
+      const target = findDayNode(viewport, manualEdgeTargetRef.current);
+      if (target) {
+        viewport.scrollTop = target.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0) - 8;
+        lastScrollTopRef.current = viewport.scrollTop;
+      }
+      manualEdgeTargetRef.current = null;
+    }
     anchorRef.current = null;
     shiftingRef.current = false;
-  }, [windowStart, weekResults, renderedDates, layoutMode, showEmptyDays]);
+  }, [range, weekResults, renderedDates, layoutMode, showEmptyDays]);
 
   const jumpTo = useCallback((date: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
@@ -266,67 +284,71 @@ export function AccountLanesWorkspace() {
     setPendingJump(null);
     setPendingEdge(null);
     setVisibleDate(date);
-    const start = addDays(weekStart(date), -7);
-    if (start !== windowStart) {
+    if (date < range.start || date >= range.end) {
+      const start = addDays(weekStart(date), -7);
       initializedRef.current = false;
       jumpTargetRef.current = date;
       anchorRef.current = null;
-      setWindowStart(start);
+      setRange({ start, end: addDays(start, WINDOW_DAYS) });
     } else {
       const viewport = viewportRef.current;
       const target = viewport ? findDayNode(viewport, date) : null;
       if (viewport && target) viewport.scrollTo({ top: target.offsetTop - viewport.offsetTop - (viewport.querySelector<HTMLElement>(".account-lanes-head")?.offsetHeight ?? 0) - 8, behavior: "smooth" });
       else { initializedRef.current = false; jumpTargetRef.current = date; anchorRef.current = null; }
     }
-  }, [loadWeek, weekResults, windowStart]);
+  }, [loadWeek, range, weekResults]);
 
   useEffect(() => {
     if (pendingJump && weekResults[weekStart(pendingJump)]?.status === "ready") jumpTo(pendingJump);
   }, [jumpTo, pendingJump, weekResults]);
 
-  const performEdgeShift = useCallback((direction: -1 | 1, nextWindowStart: string) => {
+  const performEdgeExpand = useCallback((direction: -1 | 1, expandedRange: TimelineRange, force: boolean) => {
     const viewport = viewportRef.current;
     if (!viewport || !renderedDates.length) return;
-    // Keep the day at the edge in the next window, even if a collapsed quiet
-    // band covers the whole viewport and its DOM start is weeks earlier.
-    const anchorDate = direction < 0 ? renderedDates[0] : renderedDates[renderedDates.length - 1];
-    const node = findDayNode(viewport, anchorDate);
-    if (node) anchorRef.current = { date: anchorDate, top: node.getBoundingClientRect().top - viewport.getBoundingClientRect().top };
-    setVisibleDate(anchorDate);
+    if (force) manualEdgeTargetRef.current = direction < 0 ? expandedRange.start : range.end;
+    else {
+      if (direction < 0) captureAnchor();
+      revealEdgeRef.current = direction;
+    }
     setPendingEdge(null);
     edgeGestureRef.current = direction;
     shiftingRef.current = true;
-    setWindowStart(nextWindowStart);
-  }, [renderedDates]);
+    setRange(expandedRange);
+  }, [captureAnchor, range.end, renderedDates]);
 
-  const shiftAtEdge = useCallback((direction: -1 | 1) => {
+  const expandAtEdge = useCallback((direction: -1 | 1, force = false) => {
     const viewport = viewportRef.current;
     if (!viewport || !initializedRef.current || shiftingRef.current) return;
-    // A trackpad emits many wheel events for one swipe. Shift only once per
-    // gesture, including when collapsed quiet days leave no scroll range.
-    if (edgeGestureRef.current === direction) return;
+    // A trackpad emits many wheel events for one swipe. Expand only once per gesture.
+    if (!force && edgeGestureRef.current === direction) return;
+    if (!force && !atTimelineEdge(direction, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, 4)) return;
     const edgeLoaded = direction < 0 ? renderedDates[0] === dates[0] : renderedDates[renderedDates.length - 1] === dates[dates.length - 1];
-    if (!edgeLoaded) return;
-    const atEdge = atTimelineEdge(direction, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, 4);
-    if (!atEdge) return;
-    const nextWindowStart = readyTimelineWindowStart(windowStart, direction, new Set(Object.keys(weekResults).filter(start => weekResults[start].status === "ready")));
-    if (!nextWindowStart) {
-      const incomingWeek = addDays(windowStart, direction < 0 ? -7 : WINDOW_DAYS);
-      setPendingEdge(direction);
+    if (!edgeLoaded) { setPendingEdge({ direction, force }); return; }
+    const expandedRange = expandReadyTimelineRange(range, direction, new Set(Object.keys(weekResults).filter(start => weekResults[start].status === "ready")));
+    if (!expandedRange) {
+      const incomingWeek = direction < 0 ? addDays(range.start, -7) : range.end;
+      setPendingEdge({ direction, force });
       if (weekResults[incomingWeek]?.status !== "error") void loadWeek(incomingWeek);
       return;
     }
-    performEdgeShift(direction, nextWindowStart);
-  }, [dates, loadWeek, performEdgeShift, renderedDates, weekResults, windowStart]);
+    performEdgeExpand(direction, expandedRange, force);
+  }, [dates, loadWeek, performEdgeExpand, range, renderedDates, weekResults]);
 
   useEffect(() => {
-    if (pendingEdge === null) return;
-    const nextWindowStart = readyTimelineWindowStart(windowStart, pendingEdge, new Set(Object.keys(weekResults).filter(start => weekResults[start].status === "ready")));
-    if (!nextWindowStart) return;
+    if (!pendingEdge) return;
+    const { direction, force } = pendingEdge;
+    const edgeLoaded = direction < 0 ? renderedDates[0] === dates[0] : renderedDates[renderedDates.length - 1] === dates[dates.length - 1];
+    if (!edgeLoaded) return;
+    const expandedRange = expandReadyTimelineRange(range, direction, new Set(Object.keys(weekResults).filter(start => weekResults[start].status === "ready")));
+    if (!expandedRange) {
+      const incomingWeek = direction < 0 ? addDays(range.start, -7) : range.end;
+      if (!weekResults[incomingWeek] && !requestsRef.current.has(incomingWeek)) void loadWeek(incomingWeek);
+      return;
+    }
     const viewport = viewportRef.current;
-    if (viewport && atTimelineEdge(pendingEdge, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, 4)) performEdgeShift(pendingEdge, nextWindowStart);
+    if (force || (viewport && atTimelineEdge(direction, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, 4))) performEdgeExpand(direction, expandedRange, force);
     else setPendingEdge(null);
-  }, [pendingEdge, performEdgeShift, weekResults, windowStart]);
+  }, [dates, loadWeek, pendingEdge, performEdgeExpand, range, renderedDates, weekResults]);
 
   const onScroll = useCallback(() => {
     const viewport = viewportRef.current;
@@ -344,10 +366,10 @@ export function AccountLanesWorkspace() {
       visibleDateTimerRef.current = null;
     }, 120);
     if (Date.now() - lastScrollInputAtRef.current < 1000) {
-      const direction = timelineScrollShift(movement, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, renderedDates[0] === dates[0], renderedDates[renderedDates.length - 1] === dates[dates.length - 1]);
-      if (direction) shiftAtEdge(direction);
+      const direction = timelineScrollShift(movement, viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, true, true);
+      if (direction) expandAtEdge(direction);
     }
-  }, [dates, renderedDates, shiftAtEdge]);
+  }, [expandAtEdge]);
 
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     // Trackpad horizontal swipes often include a small vertical delta.
@@ -356,7 +378,7 @@ export function AccountLanesWorkspace() {
     if (now - lastWheelAtRef.current > 300) edgeGestureRef.current = null;
     lastWheelAtRef.current = now;
     lastScrollInputAtRef.current = now;
-    shiftAtEdge(event.deltaY < 0 ? -1 : 1);
+    expandAtEdge(event.deltaY < 0 ? -1 : 1);
   };
   const onTouchStart = (event: ReactTouchEvent<HTMLDivElement>) => {
     edgeGestureRef.current = null;
@@ -372,11 +394,11 @@ export function AccountLanesWorkspace() {
     if (!start || !touch) return;
     const x = touch.clientX - start.x;
     const y = touch.clientY - start.y;
-    if (isVerticalTimelineGesture(x, y, 45)) shiftAtEdge(y > 0 ? -1 : 1);
+    if (isVerticalTimelineGesture(x, y, 45)) expandAtEdge(y > 0 ? -1 : 1);
   };
   const onViewportKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "ArrowUp" || event.key === "PageUp") { edgeGestureRef.current = null; lastScrollInputAtRef.current = Date.now(); shiftAtEdge(-1); }
-    else if (event.key === "ArrowDown" || event.key === "PageDown") { edgeGestureRef.current = null; lastScrollInputAtRef.current = Date.now(); shiftAtEdge(1); }
+    if (event.key === "ArrowUp" || event.key === "PageUp") { edgeGestureRef.current = null; lastScrollInputAtRef.current = Date.now(); expandAtEdge(-1); }
+    else if (event.key === "ArrowDown" || event.key === "PageDown") { edgeGestureRef.current = null; lastScrollInputAtRef.current = Date.now(); expandAtEdge(1); }
   };
 
   const toggleAccount = (id: string) => setSelectedIds(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
@@ -461,12 +483,12 @@ export function AccountLanesWorkspace() {
     </div>
     <div className="account-lanes-subtoolbar">
       <div className="account-lanes-layout-switch" role="group" aria-label="Timeline layout"><button type="button" aria-pressed={layoutMode === "lanes"} className={layoutMode === "lanes" ? "is-active" : ""} onClick={() => setLayoutMode("lanes")}>Lanes</button><button type="button" aria-pressed={layoutMode === "list"} className={layoutMode === "list" ? "is-active" : ""} onClick={() => setLayoutMode("list")}>List</button></div>
-      <button type="button" onClick={() => jumpTo(addDays(windowStart, -7))}>Earlier dates</button>
-      <button type="button" onClick={() => jumpTo(addDays(windowStart, WINDOW_DAYS))}>Later dates</button>
+      <button type="button" onClick={() => expandAtEdge(-1, true)}>Earlier dates</button>
+      <button type="button" onClick={() => expandAtEdge(1, true)}>Later dates</button>
       <button type="button" disabled={!nextMovementDate} onClick={() => nextMovementDate && jumpTo(nextMovementDate)} title={nextMovementDate ? `Jump to ${formatCalendarDate(nextMovementDate)}` : "No later movement loaded"}>Next movement</button>
       <button type="button" disabled={!nextGapDate} onClick={() => nextGapDate && jumpTo(nextGapDate)} title={nextGapDate ? `Jump to ${formatCalendarDate(nextGapDate)}` : "No later gap loaded"}>Next gap</button>
       <small>Navigation uses loaded days.</small>
-      {pendingJump ? <span className="account-lanes-progress" role={pendingJumpResult?.status === "error" ? "alert" : "status"}>{pendingJumpResult?.status !== "error" ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}{pendingJumpResult?.status === "error" ? `Could not load ${formatCalendarDate(pendingJump)}` : `Loading ${formatCalendarDate(pendingJump)}…`}{pendingJumpResult?.status === "error" ? <button type="button" onClick={() => void loadWeek(weekStart(pendingJump), true)}>Retry</button> : null}<button type="button" onClick={() => setPendingJump(null)}>Cancel</button></span> : !accountsError && readyWeeks < 3 && !waitingForTarget ? <span className="account-lanes-progress" role="status">{pendingEdge === null && readyWeeks + failedWeeks < 3 ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}{readyWeeks} of 3 weeks ready{failedWeeks ? ` · ${failedWeeks} failed` : ""}{failedWeeks ? <button type="button" onClick={() => windowWeeks.filter(start => weekResults[start]?.status === "error").forEach(start => void loadWeek(start, true))}>Retry failed {failedWeeks === 1 ? "week" : "weeks"}</button> : null}</span> : null}
+      {pendingJump ? <span className="account-lanes-progress" role={pendingJumpResult?.status === "error" ? "alert" : "status"}>{pendingJumpResult?.status !== "error" ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}{pendingJumpResult?.status === "error" ? `Could not load ${formatCalendarDate(pendingJump)}` : `Loading ${formatCalendarDate(pendingJump)}…`}{pendingJumpResult?.status === "error" ? <button type="button" onClick={() => void loadWeek(weekStart(pendingJump), true)}>Retry</button> : null}<button type="button" onClick={() => setPendingJump(null)}>Cancel</button></span> : !accountsError && readyWeeks < windowWeeks.length && !waitingForTarget ? <span className="account-lanes-progress" role="status">{pendingEdge === null && readyWeeks + failedWeeks < windowWeeks.length ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}{readyWeeks} of {windowWeeks.length} weeks ready{failedWeeks ? ` · ${failedWeeks} failed` : ""}{failedWeeks ? <button type="button" onClick={() => windowWeeks.filter(start => weekResults[start]?.status === "error").forEach(start => void loadWeek(start, true))}>Retry failed {failedWeeks === 1 ? "week" : "weeks"}</button> : null}</span> : null}
     </div>
     {accountsError ? <div className="account-lanes-error" role="alert">{accountsError} <button type="button" onClick={() => void loadAccounts()}>Retry</button></div> : null}
     <div className="account-lanes-layout">
@@ -481,7 +503,7 @@ export function AccountLanesWorkspace() {
               : "No reported balance in loaded days";
             return <div data-lane-account={account.id} key={account.id}><strong>{account.name}</strong><small>By {formatCalendarDate(visibleDate)} · {context}</small></div>;
           }) : <div><strong>Choose an account</strong></div>}</div> : null}
-          <div className="account-lanes-edge">{earlierEdgeWeek ? weekResults[earlierEdgeWeek]?.status === "error" ? <button type="button" onClick={() => void loadWeek(earlierEdgeWeek, true)}>Retry earlier dates</button> : <>{pendingEdge === -1 && !pendingJump ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}<span role="status">Loading earlier dates…</span></> : <button type="button" onClick={() => jumpTo(addDays(windowStart, -7))}>Load earlier dates</button>}</div>
+          <div className="account-lanes-edge">{earlierEdgeWeek ? weekResults[earlierEdgeWeek]?.status === "error" ? <button type="button" onClick={() => void loadWeek(earlierEdgeWeek, true)}>Retry earlier dates</button> : <>{pendingEdge?.direction === -1 && !pendingJump ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}<span role="status">Loading earlier dates…</span></> : <button type="button" onClick={() => expandAtEdge(-1, true)}>Load earlier dates</button>}</div>
           {displayedDays.map(item => {
             if (item.kind === "quiet") {
               const nextActivity = renderedDates.find(date => date > item.end && movementDates.has(date));
@@ -501,7 +523,7 @@ export function AccountLanesWorkspace() {
               {layoutMode === "lanes" && untimed.length ? <details className="account-lanes-untimed"><summary>Time not reported · {untimed.length} {untimed.length === 1 ? "movement" : "movements"}</summary>{untimed.map(row => <button type="button" data-lane-card={row.id} key={row.id} onClick={event => selectTransaction(row, event.detail === 0)}>{title(row)} · {formatCurrency(row.amount, accountById.get(row.account)?.currency)}{row.type === "transfer" ? " · transfer" : ""}</button>)}</details> : null}
             </section>;
           })}
-          <div className="account-lanes-edge">{laterEdgeWeek ? weekResults[laterEdgeWeek]?.status === "error" ? <button type="button" onClick={() => void loadWeek(laterEdgeWeek, true)}>Retry later dates</button> : <>{pendingEdge === 1 && !pendingJump ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}<span role="status">Loading later dates…</span></> : <button type="button" onClick={() => jumpTo(addDays(windowStart, WINDOW_DAYS))}>Load later dates</button>}</div>
+          <div className="account-lanes-edge">{laterEdgeWeek ? weekResults[laterEdgeWeek]?.status === "error" ? <button type="button" onClick={() => void loadWeek(laterEdgeWeek, true)}>Retry later dates</button> : <>{pendingEdge?.direction === 1 && !pendingJump ? <span className="account-lanes-spinner" aria-hidden="true" /> : null}<span role="status">Loading later dates…</span></> : <button type="button" onClick={() => expandAtEdge(1, true)}>Load later dates</button>}</div>
         </div>
         {!accountsError && (waitingForTarget || targetError) ? <div className="account-lanes-initial-loading" role={targetError ? "alert" : "status"}>{targetError ? <><strong>Could not load {formatCalendarDate(targetDate)}</strong><span>{targetError}</span><button type="button" onClick={() => void loadWeek(weekStart(targetDate), true)}>Retry</button></> : <><span className="account-lanes-spinner" aria-hidden="true" /><strong>Loading timeline</strong><span>{targetWeek?.status === "loading" && targetWeek.loaded ? `${targetWeek.loaded} of ${targetWeek.total ?? "more"} movements loaded around ${formatCalendarDate(targetDate)}…` : `Fetching movements around ${formatCalendarDate(targetDate)}…`}</span></>}</div> : null}
       </div>

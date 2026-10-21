@@ -1385,12 +1385,14 @@ needed for this web/API feature.
 
 ### How does the Account Lanes timeline stay responsive and handle hidden accounts?
 
-The `/timeline` view renders only the contiguous loaded portion of a moving
-21-day window, loads complete seven-day activity pages in either date direction,
-prefetches neighboring weeks once the current window is ready, and retains at
-most five fetched weeks. Edge gestures and date jumps keep the current days
-visible while their target week loads, with one compact progress indicator;
-the window moves only after the entering week is ready. The date field follows
+The `/timeline` view starts with three weeks and loads complete seven-day
+activity pages in either date direction. Once the displayed range is ready,
+it preloads the next two weeks on each side. Reaching an edge appends or
+prepends a ready week without removing already displayed days or resetting
+the native scroll position. A single compact edge loader appears if the
+entering week is still loading. Long quiet stretches use one dated band per
+week, so the scroll position advances visibly. Explicit date jumps may recenter
+the displayed range; fetched weeks stay cached for the session. The date field follows
 the day near the top of the viewport. Account selection controls visible lanes, while a
 transfer links both visible cards, or offers a “Show lane” endpoint when an
 account is hidden. The same transfer remains one ledger transaction. A

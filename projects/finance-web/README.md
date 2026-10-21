@@ -70,8 +70,13 @@ movement once and supports keyboard navigation. Selecting a card moves keyboard
 focus to the details drawer, and closing it returns focus to the card when it
 remains loaded. Quiet days collapse into dated bands with a next-movement jump;
 unloaded days are never presented as quiet. Next movement and Next gap navigation
-use only the loaded window. Earlier dates and Later dates load another date
-window even when quiet bands leave too little content to scroll.
+use only loaded days. The timeline starts with three weeks, preloads two more
+weeks on each side, and appends or prepends a ready week when scrolling reaches
+an edge. Already visible days stay mounted, so normal scrolling continues
+through them; a single compact loader appears at the active edge if its next
+week is still loading. Quiet stretches show one dated band per week so the
+scroll position continues to advance. Earlier dates and Later dates extend
+the same range when there is too little content to scroll.
 
 Lane headers distinguish the balance reported on or before the visible date
 from a current account balance. They show the report date, “No reported balance

@@ -26,10 +26,13 @@ export function timelineScrollShift(movement: number, scrollTop: number, scrollH
   return 0;
 }
 
-/** Never replace the visible window until the newly exposed week is ready. */
-export function readyTimelineWindowStart(windowStart: string, direction: -1 | 1, readyWeeks: Set<string>): string | null {
-  const enteringWeek = addDays(windowStart, direction < 0 ? -7 : 21);
-  return readyWeeks.has(enteringWeek) ? addDays(windowStart, direction * 7) : null;
+export type TimelineRange = { start: string; end: string }; // End is exclusive.
+
+/** Extend an already visible range only after its next week has loaded. */
+export function expandReadyTimelineRange(range: TimelineRange, direction: -1 | 1, readyWeeks: Set<string>): TimelineRange | null {
+  const enteringWeek = direction < 0 ? addDays(range.start, -7) : range.end;
+  if (!readyWeeks.has(enteringWeek)) return null;
+  return direction < 0 ? { start: enteringWeek, end: range.end } : { start: range.start, end: addDays(range.end, 7) };
 }
 
 export type TimelineDayItem = { kind: "day"; date: string } | { kind: "quiet"; start: string; end: string; count: number };
@@ -55,7 +58,9 @@ export function groupTimelineDays(dates: string[], movementDates: Set<string>, l
   for (const date of dates) {
     if (collapseQuiet && loadedDays.has(date) && !movementDates.has(date)) {
       const previous = items[items.length - 1];
-      if (previous?.kind === "quiet") { previous.end = date; previous.count++; }
+      // Keep a visible band per week so scrolling through long quiet periods
+      // still advances instead of endlessly enlarging one stationary band.
+      if (previous?.kind === "quiet" && weekStart(previous.end) === weekStart(date)) { previous.end = date; previous.count++; }
       else items.push({ kind: "quiet", start: date, end: date, count: 1 });
     } else items.push({ kind: "day", date });
   }
