@@ -1,3 +1,5 @@
+import { useReviewMutation, reviewSnapshots, restoreReviewRows, type ReviewDecision } from "./src/review-mutation";
+import { ReviewSaveNotice } from "./src/review-save-notice";
 import { reviewDraftError } from "./src/review-validation";
 import { ActionButton, SourceMessage, ui as darkUi } from "./src/mobile-ui";
 import { SyncSummary, useServerSyncStatus } from "./src/sync-summary";
@@ -51,7 +53,6 @@ import {
 import {
   checkHealth,
   configureAuthenticationRecovery,
-  confirmMessageCandidate,
   createBalanceSnapshot,
   createCreditCardBill,
   createCreditCardPayment,
@@ -84,7 +85,6 @@ import {
   login,
   logout as revokeLoginSession,
   refreshLogin,
-  rejectMessageCandidate,
   resetSmsDevelopmentData,
   updateSmsCapturePreference,
   updateSmsDeviceStatus,
@@ -931,12 +931,50 @@ function FinanceApp() {
   const smsRetryInFlight = useRef(false);
   const [reviewState, setReviewState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [reviewMessage, setReviewMessage] = useState("");
-  const [reviewCandidates, setReviewCandidates] = useState<ParsedMessageCandidate[]>([]);
-  const [reviewCandidateCount, setReviewCandidateCount] = useState(0);
+  const [loadedReviewCandidates, setReviewCandidates] = useState<ParsedMessageCandidate[]>([]);
+  const [reviewCandidateServerCount, setReviewCandidateCount] = useState(0);
   const [reviewActionCandidateId, setReviewActionCandidateId] = useState("");
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewCandidateDraft>>({});
   const [reviewCandidateIndex, setReviewCandidateIndex] = useState(0);
   const [reviewCandidateId, setReviewCandidateId] = useState<string | null>(null);
+  const reviewMutation = useReviewMutation({
+    scope: localDataScope, token: accessToken,
+    onBegin: ids => {
+      recovery.beginAction();
+      reviewLoadRequest.current++;
+      const index = reviewSelection(reviewCandidates, reviewCandidateId, reviewCandidateIndex);
+      if (ids.includes(reviewCandidates[index]?.id)) {
+        const remaining = reviewCandidates.filter(row => !ids.includes(row.id));
+        const next = remaining[Math.min(index, Math.max(0, remaining.length - 1))];
+        setReviewCandidateId(next?.id ?? null);
+        setReviewCandidateIndex(Math.min(index, Math.max(0, remaining.length - 1)));
+      }
+      setReviewMessage("");
+      setReviewState("ok");
+    },
+    onRestore: snapshots => {
+      setReviewCandidates(rows => restoreReviewRows(rows, snapshots));
+      setReviewDrafts(drafts => ({ ...drafts, ...Object.fromEntries(snapshots.map(item => [item.candidate.id, item.draft])) }));
+    },
+    onSettled: () => { reviewLoadRequest.current++; },
+    onResolved: ({ decision, observed }) => {
+      setReviewState("ok");
+      if (decision.kind === "reject") {
+        void handleLoadReviewCandidates();
+        if (decision.input.exclude_provider || decision.input.exclude_sender) void handleLoadSmsSettings();
+      } else if (observed) {
+        // Another device may own this action; do not announce an unrelated Undo.
+        void handleLoadReviewCandidates(); void handleLoadTransactions(); void handleLoadReferenceData();
+      } else void recovery.announce();
+    },
+  });
+  const reviewCandidates = reviewMutation.visible(loadedReviewCandidates);
+  const reviewCandidateCount = Math.max(reviewCandidates.length, reviewMutation.count(reviewCandidateServerCount));
+  function saveReviewDecision(decision: ReviewDecision) {
+    const ids = [decision.kind === "link" ? decision.input.candidate : decision.candidate];
+    if (decision.kind === "link" && decision.match.kind === "candidate") ids.push(decision.match.id);
+    return reviewMutation.start(decision, reviewSnapshots(loadedReviewCandidates, ids, getReviewDraft));
+  }
   const navigation = useNavigationContainerRef<WorkspaceParams>();
   const [workspace, setWorkspace] = useState<{ scope: string | null; route: WorkspaceRoute; tab: MainTab }>({ scope: localDataScope, route: "home", tab: "home" });
   const currentWorkspace = workspace.scope === localDataScope ? workspace : { scope: localDataScope, route: "home" as const, tab: "home" as const };
@@ -1359,15 +1397,25 @@ function FinanceApp() {
       return;
     }
 
+    // Keep the pre-decision count/window until the outcome is known. A match
+    // may hide a source outside this window, and an in-flight write may commit
+    // after a list GET. Status/retry controls perform their own source reads.
+    if (reviewMutation.operation && ["checking", "saving", "unknown"].includes(reviewMutation.operation.phase)) {
+      setReviewState("ok");
+      setReviewMessage("A review decision is pending. Use its save status controls before refreshing the inbox.");
+      return;
+    }
     const ticket = ++reviewLoadRequest.current;
+    const marker = reviewMutation.refreshMarker();
     setReviewState("loading");
     setReviewMessage("");
     try {
       const [page, nextAccounts] = await Promise.all([
-        refreshReviewWindow(offset => listMessageCandidates(accessToken.trim(), offset), reviewCandidates.length),
+        refreshReviewWindow(offset => listMessageCandidates(accessToken.trim(), offset), loadedReviewCandidates.length),
         accounts.length ? Promise.resolve(accounts) : listAccounts(accessToken.trim())
       ]);
       if (!localDataScope || accountScopeRef.current !== localDataScope || ticket !== reviewLoadRequest.current) return;
+      if (!reviewMutation.acceptRefresh(marker)) return;
       const candidates = page.results;
       setReviewCandidates(candidates);
       setReviewCandidateId(current => candidates.some(candidate => candidate.id === current) ? current : null);
@@ -1381,6 +1429,10 @@ function FinanceApp() {
         for (const candidate of candidates) {
           nextDrafts[candidate.id] = currentDrafts[candidate.id] ?? buildReviewDraft(candidate);
         }
+        const operation = reviewMutation.operation;
+        if (operation && operation.phase !== "resolved") for (const snapshot of operation.snapshots) {
+          nextDrafts[snapshot.candidate.id] ??= currentDrafts[snapshot.candidate.id] ?? snapshot.draft;
+        }
         return nextDrafts;
       });
       setReviewState("ok");
@@ -1393,13 +1445,13 @@ function FinanceApp() {
   };
 
   const handleLoadMoreReviewCandidates = async () => {
-    if (!accessToken.trim() || reviewState === "loading" || reviewCandidates.length >= reviewCandidateCount) return;
+    if (!accessToken.trim() || reviewState === "loading" || reviewMutation.paginationDirty || loadedReviewCandidates.length >= reviewCandidateServerCount) return;
     const ticket = ++reviewLoadRequest.current;
     setReviewState("loading");
     try {
-      const page = await listMessageCandidates(accessToken.trim(), reviewCandidates.length);
+      const page = await listMessageCandidates(accessToken.trim(), loadedReviewCandidates.length);
       if (!localDataScope || accountScopeRef.current !== localDataScope || ticket !== reviewLoadRequest.current) return;
-      const candidates = [...new Map([...reviewCandidates, ...page.results].map(candidate => [candidate.id, candidate])).values()];
+      const candidates = [...new Map([...loadedReviewCandidates, ...page.results].map(candidate => [candidate.id, candidate])).values()];
       setReviewCandidates(candidates);
       setReviewCandidateCount(page.count);
       setReviewDrafts((current) => {
@@ -1417,7 +1469,7 @@ function FinanceApp() {
   };
 
   const handleConfirmReviewCandidate = async (candidate: ParsedMessageCandidate) => {
-    if (reviewSubmitting.current) return;
+    if (reviewSubmitting.current || reviewMutation.blocked) return;
     if (!accessToken.trim()) {
       setReviewState("error");
       setReviewMessage("Sign in first or paste a valid access token.");
@@ -1455,7 +1507,7 @@ function FinanceApp() {
       if (draft.transactionType === "transfer" || candidate.possible_internal_transfer || ["receive_money", "bank_transfer_in"].includes(candidate.message_kind)) {
         const matchInput = { candidate: candidate.id, draft: input };
         const matches = await findTransferMatches(accessToken.trim(), matchInput);
-        if (owner !== accountScopeRef.current) return;
+        if (owner !== accountScopeRef.current || reviewSubmitting.current !== operation) return;
         if (matches.length) {
           setTransferError("");
           setTransferDecision({ input: matchInput, matches });
@@ -1463,16 +1515,16 @@ function FinanceApp() {
           return;
         }
       }
-      await confirmMessageCandidate(accessToken.trim(), candidate.id, input);
-      if (owner !== accountScopeRef.current) return;
-      await recovery.announce();
+      await saveReviewDecision({ kind: "confirm", candidate: candidate.id, input });
     } catch (error) {
-      if (owner !== accountScopeRef.current) return;
+      if (owner !== accountScopeRef.current || reviewSubmitting.current !== operation) return;
       setReviewState("error");
       setReviewMessage(error instanceof Error ? error.message : "Could not confirm SMS candidate.");
     } finally {
-      if (reviewSubmitting.current === operation) reviewSubmitting.current = null;
-      if (owner === accountScopeRef.current) setReviewActionCandidateId("");
+      if (reviewSubmitting.current === operation) {
+        reviewSubmitting.current = null;
+        if (owner === accountScopeRef.current) setReviewActionCandidateId("");
+      }
     }
   };
 
@@ -1505,7 +1557,8 @@ function FinanceApp() {
     reviewDrafts[candidate.id] ?? buildReviewDraft(candidate);
 
   const updateReviewDraft = (candidate: ParsedMessageCandidate, patch: Partial<ReviewCandidateDraft>) => {
-    if (reviewSubmitting.current) return;
+    if (reviewActionCandidateId === candidate.id || reviewMutation.hidden(candidate.id)) return;
+    if (reviewMutation.operation?.phase === "failed" && reviewMutation.operation.snapshots.some(item => item.candidate.id === candidate.id)) reviewMutation.dismiss();
     setReviewDrafts((currentDrafts) => ({
       ...currentDrafts,
       [candidate.id]: updateReviewBalanceContext(currentDrafts[candidate.id] ?? buildReviewDraft(candidate), patch)
@@ -1519,7 +1572,7 @@ function FinanceApp() {
     candidate: ParsedMessageCandidate,
     exclusion: "entry" | "provider" | "sender" = "entry"
   ) => {
-    if (reviewSubmitting.current) return;
+    if (reviewSubmitting.current || reviewMutation.blocked) return;
     if (!accessToken.trim()) {
       setReviewState("error");
       setReviewMessage("Sign in first or paste a valid access token.");
@@ -1533,24 +1586,21 @@ function FinanceApp() {
     setReviewState("loading");
     setReviewMessage("");
     try {
-      await rejectMessageCandidate(accessToken.trim(), candidate.id, {
+      await saveReviewDecision({ kind: "reject", candidate: candidate.id, input: {
         exclude_provider: exclusion === "provider",
         exclude_sender: exclusion === "sender",
         reason: candidate.message_kind === "otp_or_security" ? "otp_security" : "not_transaction",
-        redact_raw_sms: true
-      });
-      if (owner !== accountScopeRef.current) return;
-      await Promise.all([
-        handleLoadReviewCandidates(),
-        exclusion === "entry" ? Promise.resolve() : handleLoadSmsSettings()
-      ]);
+        redact_raw_sms: true,
+      } });
     } catch (error) {
-      if (owner !== accountScopeRef.current) return;
+      if (owner !== accountScopeRef.current || reviewSubmitting.current !== operation) return;
       setReviewState("error");
       setReviewMessage(error instanceof Error ? error.message : "Could not reject SMS candidate.");
     } finally {
-      if (reviewSubmitting.current === operation) reviewSubmitting.current = null;
-      if (owner === accountScopeRef.current) setReviewActionCandidateId("");
+      if (reviewSubmitting.current === operation) {
+        reviewSubmitting.current = null;
+        if (owner === accountScopeRef.current) setReviewActionCandidateId("");
+      }
     }
   };
 
@@ -2762,7 +2812,15 @@ function FinanceApp() {
   };
 
   const handleTransferDecision = async (match?: TransferMatch, balanceChoices: import("./src/api").TransferBalanceChoice[] = []) => {
-    if (!transferDecision || !accessToken.trim() || transferSubmitting.current) return;
+    if (!transferDecision || !accessToken.trim() || transferSubmitting.current || reviewMutation.blocked) return;
+    if (transferDecision.input.candidate) {
+      const input = { ...transferDecision.input, candidate: transferDecision.input.candidate };
+      setTransferDecision(null);
+      await saveReviewDecision(match
+        ? { kind: "link", input, match, balances: balanceChoices }
+        : { kind: "confirm", candidate: input.candidate, input: input.draft as ConfirmMessageCandidateInput });
+      return;
+    }
     const operation = {};
     transferSubmitting.current = operation;
     const owner = localDataScope;
@@ -2770,9 +2828,7 @@ function FinanceApp() {
     setTransferError("");
     try {
       if (match) await linkTransfer(accessToken.trim(), transferDecision.input, match, balanceChoices);
-      else if (transferDecision.input.candidate) {
-        await confirmMessageCandidate(accessToken.trim(), transferDecision.input.candidate, transferDecision.input.draft as ConfirmMessageCandidateInput);
-      } else await createTransaction(accessToken.trim(), transferDecision.input.draft as CreateTransactionInput);
+      else await createTransaction(accessToken.trim(), transferDecision.input.draft as CreateTransactionInput);
       if (owner !== accountScopeRef.current) return;
       if (transferDecision.queueId) {
         await saveTransactionQueue(transactionQueue.filter((entry) => entry.id !== transferDecision.queueId));
@@ -4044,7 +4100,7 @@ function FinanceApp() {
               </View>
               <View style={styles.mobileActionRow}>
                 <Pressable
-                  disabled={reviewActionCandidateId === primaryCandidate.id}
+                  disabled={Boolean(reviewActionCandidateId) || reviewMutation.blocked || transferBusy}
                   onPress={() => void handleConfirmReviewCandidate(primaryCandidate)}
                   style={({ pressed }) => [styles.mobilePrimaryButton, pressed ? styles.mobilePressed : null]}
                 >
@@ -4069,8 +4125,8 @@ function FinanceApp() {
               <View style={styles.mobileEmptyIcon}>
                 <MaterialCommunityIcons color="#55e6a5" name="check-decagram-outline" size={34} />
               </View>
-              <Text style={styles.mobileEmptyTitle}>Inbox clear</Text>
-              <Text style={styles.mobileEmptyCopy}>New SMS transactions that need your attention will appear here.</Text>
+              <Text style={styles.mobileEmptyTitle}>{reviewMutation.blocked ? "Review decision pending" : "Inbox clear"}</Text>
+              <Text style={styles.mobileEmptyCopy}>{reviewMutation.blocked ? "Your edits are kept while the server decision is checked." : "New SMS transactions that need your attention will appear here."}</Text>
               <Pressable onPress={handleLoadReviewCandidates} style={styles.mobileTextButton}>
                 <Text style={styles.mobileTextButtonText}>Check again</Text>
               </Pressable>
@@ -4147,7 +4203,7 @@ function FinanceApp() {
               <MaterialCommunityIcons color={index >= reviewCandidates.length - 1 ? "#50647e" : "#32d8f2"} name="chevron-right" size={23} />
             </Pressable>
           </View>
-          {reviewCandidates.length < reviewCandidateCount ? <Pressable disabled={reviewState === "loading"} onPress={() => void handleLoadMoreReviewCandidates()} style={styles.mobileSecondaryAction}><Text style={styles.mobileSecondaryActionText}>Load more messages ({reviewCandidates.length} loaded)</Text></Pressable> : null}
+          {loadedReviewCandidates.length < reviewCandidateServerCount ? <Pressable disabled={reviewState === "loading" || reviewMutation.blocked} onPress={() => void (reviewMutation.paginationDirty ? handleLoadReviewCandidates() : handleLoadMoreReviewCandidates())} style={styles.mobileSecondaryAction}><Text style={styles.mobileSecondaryActionText}>{reviewMutation.paginationDirty ? "Refresh inbox before loading more" : `Load more messages (${reviewCandidates.length} loaded)`}</Text></Pressable> : null}
           <View key={candidate.id} style={styles.mobileReviewCard}>
             <View style={styles.mobileHeroHeader}>
               <View style={styles.mobileProviderIcon}>
@@ -4197,8 +4253,8 @@ function FinanceApp() {
         );
       })() : (
         <View style={styles.mobileEmptyState}>
-          <Text style={styles.mobileEmptyTitle}>Nothing to review</Text>
-          <Text style={styles.mobileEmptyCopy}>No captured messages currently require a decision.</Text>
+          <Text style={styles.mobileEmptyTitle}>{reviewMutation.blocked ? "Review decision pending" : "Nothing to review"}</Text>
+          <Text style={styles.mobileEmptyCopy}>{reviewMutation.blocked ? "Your edits are kept while the server decision is checked." : "No captured messages currently require a decision."}</Text>
         </View>
       )}
     </View>
@@ -4922,7 +4978,7 @@ function FinanceApp() {
   const renderMore = () => (
     <View style={styles.mobileSectionStack}>
       <View style={styles.mobilePageIntro}><Text style={styles.mobilePageTitle}>More</Text><Text style={styles.mobilePageSubtitle}>Accounts, planning and settings.</Text></View>
-      <RecoveryCard recovery={recovery} onEdit={openTransactionEditor} />
+      <RecoveryCard recovery={recovery} blocked={reviewMutation.blocked} onEdit={openTransactionEditor} />
       <Text accessibilityRole="header" style={styles.mobileFieldLabel}>Accounts</Text>
       <View style={styles.mobileGroupedList}>{mobileDestinations.filter(item => item.id === "accounts").map(destinationRow)}</View>
       <Text accessibilityRole="header" style={styles.mobileFieldLabel}>Planning</Text>
@@ -5125,8 +5181,9 @@ function FinanceApp() {
         <RetainedNavigation navigation={navigation} onRouteChange={changeWorkspace} render={renderWorkspace} />
       </MobileQueryProvider>
 
-      {selectedReviewCandidate ? <View style={[ui.card, { borderRadius: 0, padding: 12 }]}><Text accessibilityLiveRegion="polite" style={selectedReviewIssue || reviewState === "error" ? ui.error : ui.muted}>{reviewState === "error" && reviewMessage ? reviewMessage : selectedReviewIssue || `Ready · ${formatCurrency(selectedReviewDraft?.amount)}`}</Text><View style={ui.row}><ActionButton label="Reject message" disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => confirmRejectReviewCandidate(selectedReviewCandidate)} /><ActionButton label={reviewActionCandidateId ? "Confirming…" : "Confirm & add"} primary disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => void handleConfirmReviewCandidate(selectedReviewCandidate)} /></View></View> : null}
-      <RecoveryCard compact recovery={recovery} onEdit={openTransactionEditor} />
+      {selectedReviewCandidate ? <View style={[ui.card, { borderRadius: 0, padding: 12 }]}><Text accessibilityLiveRegion="polite" style={selectedReviewIssue || reviewState === "error" ? ui.error : ui.muted}>{reviewState === "error" && reviewMessage ? reviewMessage : selectedReviewIssue || `Ready · ${formatCurrency(selectedReviewDraft?.amount)}`}</Text><View style={ui.row}><ActionButton label="Reject message" disabled={Boolean(reviewActionCandidateId) || reviewMutation.blocked || transferBusy} onPress={() => confirmRejectReviewCandidate(selectedReviewCandidate)} /><ActionButton label={reviewActionCandidateId ? "Save in progress…" : "Confirm & add"} primary disabled={Boolean(reviewActionCandidateId) || reviewMutation.blocked || transferBusy} onPress={() => void handleConfirmReviewCandidate(selectedReviewCandidate)} /></View></View> : null}
+      <ReviewSaveNotice review={reviewMutation} candidates={reviewCandidates} onReview={id => openReviewCandidate(id)} onEdit={openTransactionEditor} />
+      <RecoveryCard compact recovery={recovery} blocked={reviewMutation.blocked} onEdit={openTransactionEditor} />
       {editorSurface}
       {!advancedTool ? <View style={styles.mobileTabBar}>
         {tabItems.map((item) => {

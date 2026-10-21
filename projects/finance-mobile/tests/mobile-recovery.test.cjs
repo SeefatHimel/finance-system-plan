@@ -153,6 +153,37 @@ test("an old user's completed Undo cannot notify or refresh the new user's ledge
   assert.equal(h.current.latest, null);
   await h.dispose();
 });
+test("starting a review clears old Undo and ignores an older recovery read", async t => {
+  const stale = deferred(); let reads = 0;
+  const h = recoveryHarness({ recentTransactionAction: () => ++reads === 1 ? Promise.resolve(action("old")) : stale.promise });
+  await h.mount(); t.after(() => h.dispose());
+  assert.equal(h.current.latest.id, "old");
+  await act(async () => { void h.current.refresh(); });
+  await act(async () => h.current.beginAction());
+  assert.equal(h.current.latest, null);
+  await act(async () => stale.resolve(action("stale")));
+  assert.equal(h.current.latest, null);
+});
+test("accepted saves clear previous Undo before waiting for a new recovery receipt", async t => {
+  const receipt = deferred(); let reads = 0;
+  const h = recoveryHarness({ recentTransactionAction: () => ++reads === 1 ? Promise.resolve(action("old")) : receipt.promise });
+  await h.mount(); t.after(() => h.dispose());
+  await act(async () => { void h.current.announce(); });
+  assert.equal(h.current.latest, null); assert.match(h.current.notice, /saved/);
+  await act(async () => receipt.resolve(action("new")));
+  assert.equal(h.current.latest.id, "new");
+});
+test("an unresolved review disables Undo even if a foreground read finds an older action", async t => {
+  let undos = 0, tree;
+  const h = nativeHarness(), { RecoveryCard } = h.load("transaction-recovery");
+  t.after(async () => { if (tree) await act(async () => tree.unmount()); });
+  await act(async () => { tree = create(React.createElement(RecoveryCard, {
+    blocked: true, onEdit() {}, recovery: { latest: action(), notice: "", error: "", busy: false, undo: () => undos++, refresh() {} },
+  })); });
+  assert.equal(button(tree, "Undo last action").props.disabled, true);
+  await act(async () => button(tree, "Undo last action").props.onPress());
+  assert.equal(undos, 0);
+});
 const row = {
   id: "demo-entry",
   type: "expense",

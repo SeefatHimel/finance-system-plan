@@ -24,6 +24,21 @@ function loadApi(fetch) {
   );
   return api.exports;
 }
+test("review status checks use an authenticated GET and reject unverifiable save outcomes", async () => {
+  let seen, body = { id: "synthetic-id", status: "needs_review", transaction: null };
+  const api = loadApi(async (url, init) => { seen = { url, init }; return new Response(JSON.stringify(body)); });
+  for (const status of ["needs_review", "confirmed", "ignored"]) {
+    body = { id: "synthetic-id", status, transaction: status === "confirmed" ? "saved-entry" : null };
+    assert.equal((await api.getMessageCandidate("synthetic-token", body.id)).status, status);
+  }
+  assert.equal(new URL(seen.url).pathname, "/api/messages/review/synthetic-id/");
+  assert.equal(seen.init.method ?? "GET", "GET");
+  assert.equal(seen.init.headers.Authorization, "Bearer synthetic-token");
+  assert(!seen.url.includes("synthetic-token"));
+  for (body of [null, {}, { id: "wrong-id", status: "needs_review" }, { id: "synthetic-id", status: "unexpected" }, { id: "synthetic-id", status: "confirmed", transaction: null }]) {
+    await assert.rejects(api.getMessageCandidate("synthetic-token", "synthetic-id"), /could not be verified/);
+  }
+});
 test("activity requests a bounded filtered page and forwards cancellation without placing credentials in the URL", async () => {
   let seen;
   const api = loadApi(async (url, init) => {

@@ -118,6 +118,7 @@ export function useTransactionRecovery(
   const announce = useCallback(async () => {
     // The callback is tied to its owner even if a save finishes after a user switch.
     if (scope && current.current.scope === scope) {
+      setState({ scope, latest: null, notice: "Transaction saved. Checking recovery…", error: "" });
       current.current.onChanged();
       await refresh(true);
     }
@@ -190,6 +191,11 @@ export function useTransactionRecovery(
     announce,
     refresh,
     undo,
+    beginAction: () => {
+      if (current.current.scope !== scope) return;
+      version.current++;
+      setState({ scope, latest: null, notice: "", error: "" });
+    },
     dismiss: () => setState((old) => ({ ...old, notice: "", error: "" })),
   };
 }
@@ -197,10 +203,12 @@ export function RecoveryCard({
   recovery,
   onEdit,
   compact = false,
+  blocked = false,
 }: {
   recovery: ReturnType<typeof useTransactionRecovery>;
   onEdit: (id: string) => void;
   compact?: boolean;
+  blocked?: boolean;
 }) {
   const action = recovery.latest;
   if (compact && !recovery.notice && !recovery.error) return null;
@@ -237,11 +245,11 @@ export function RecoveryCard({
             label={recovery.busy ? "Undoing…" : "Undo last action"}
             text={compact && !recovery.busy ? "Undo" : undefined}
             disabled={
-              recovery.busy ||
+              blocked || recovery.busy ||
               !action.can_undo ||
               Date.parse(action.expires_at) <= Date.now()
             }
-            onPress={() => void recovery.undo()}
+            onPress={() => { if (!blocked) void recovery.undo(); }}
           />
         ) : null}
         {compact ? (

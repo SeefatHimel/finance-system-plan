@@ -729,6 +729,17 @@ export async function listMessageCandidates(accessToken: string, offset = 0): Pr
   return (await response.json()) as { count: number; results: ParsedMessageCandidate[] };
 }
 
+/** Read the authoritative state, including candidates already confirmed/ignored. */
+export async function getMessageCandidate(accessToken: string, id: string): Promise<ParsedMessageCandidate> {
+  const response = await authenticatedFetch(`/api/messages/review/${encodeURIComponent(id)}/`, accessToken);
+  const candidate = await response.json() as ParsedMessageCandidate;
+  if (candidate?.id !== id || !["needs_review", "confirmed", "ignored"].includes(candidate.status)
+    || (candidate.status === "confirmed" && !candidate.transaction)) {
+    throw new Error("The review status could not be verified. Check status again before retrying.");
+  }
+  return candidate;
+}
+
 export async function listDebts(accessToken: string): Promise<Debt[]> {
   const response = await authenticatedFetch("/api/debts/", accessToken);
   return (await response.json()) as Debt[];
