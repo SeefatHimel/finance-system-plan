@@ -1643,8 +1643,9 @@ queue is shown or hidden: one column at 640px or below, two at intermediate
 widths, three at 900px or above. Date and time share one slot and stack on phone
 viewports. Labels and controls remain aligned when an info button is present.
 
-Account, amount, type/category, reported balance, date/time and merchant stay
-visible. Reference, ledger note and payment method expand under **More details**.
+Account, amount, type/category, reported balance, date/time, merchant and the
+editable ledger note stay visible. Reference and payment method expand under
+**More details**.
 Masked identifiers retain their own disclosure and open automatically for a
 missing reporting account or low parser confidence. Original SMS evidence keeps
 its existing low-confidence/duplicate auto-open behaviour. Account suggestions,
