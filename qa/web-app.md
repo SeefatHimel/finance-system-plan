@@ -1385,9 +1385,10 @@ needed for this web/API feature.
 
 ### How does the Account Lanes timeline stay responsive and handle hidden accounts?
 
-The `/timeline` view renders a moving 21-day window, loads complete seven-day
-activity pages as the user scrolls in either date direction, and retains at most
-five fetched weeks. The date field follows the day near the top of the viewport;
+The `/timeline` view renders only the contiguous loaded portion of a moving
+21-day window, loads complete seven-day activity pages in either date direction,
+prefetches neighboring weeks once the current window is ready, and retains at
+most five fetched weeks. The date field follows the day near the top of the viewport;
 choosing a date jumps there. Account selection controls visible lanes, while a
 transfer links both visible cards, or offers a “Show lane” endpoint when an
 account is hidden. The same transfer remains one ledger transaction. A
@@ -1402,9 +1403,11 @@ in a separate day disclosure in Lanes and appear as “Time unknown” in List.
 
 The first position waits for its week rather than anchoring to loading
 placeholders. A centered loader reports received movement counts during
-multi-page fetches; per-window progress, edge status and Retry
-controls make network work visible. Short runs of collapsed quiet days may leave
-no scroll range; wheel and touch gestures at the edge still advance a week, and
+multi-page fetches. Subsequent loading has one compact spinner and edge status;
+days and cards appear only after their full week is loaded, even if later weeks
+finish first. Retry controls remain available for failed weeks. Short runs of
+collapsed quiet days may leave no scroll range; wheel and touch gestures at the
+edge still advance a week, and
 explicit edge controls remain available. Keyboard and scrollbar movement also
 advance at a true edge. A continuous trackpad gesture advances
 at most once, only at a true edge; horizontal swipes do not change weeks.

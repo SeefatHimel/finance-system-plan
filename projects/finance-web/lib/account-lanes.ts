@@ -28,6 +28,21 @@ export function timelineScrollShift(movement: number, scrollTop: number, scrollH
 
 export type TimelineDayItem = { kind: "day"; date: string } | { kind: "quiet"; start: string; end: string; count: number };
 
+/** Keep the visible timeline continuous while weeks finish out of order. */
+export function contiguousReadyDates(dates: string[], readyWeeks: Set<string>, anchorDate: string): string[] {
+  const weeks = [...new Set(dates.map(weekStart))];
+  const anchorIndex = weeks.indexOf(weekStart(anchorDate));
+  if (anchorIndex < 0 || !readyWeeks.has(weeks[anchorIndex])) return [];
+  let first = anchorIndex;
+  let last = anchorIndex;
+  while (first > 0 && readyWeeks.has(weeks[first - 1])) first--;
+  while (last < weeks.length - 1 && readyWeeks.has(weeks[last + 1])) last++;
+  return dates.filter(date => {
+    const index = weeks.indexOf(weekStart(date));
+    return index >= first && index <= last;
+  });
+}
+
 /** Only verified empty days are collapsed; unloaded days stay visible. */
 export function groupTimelineDays(dates: string[], movementDates: Set<string>, loadedDays: Set<string>, collapseQuiet: boolean): TimelineDayItem[] {
   const items: TimelineDayItem[] = [];

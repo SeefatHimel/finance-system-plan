@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, laneMomentMatchesCanonical, reportedBalanceAtDate, timelineScrollShift, weekStart } from "../lib/account-lanes.ts";
+import { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, contiguousReadyDates, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, laneMomentMatchesCanonical, reportedBalanceAtDate, timelineScrollShift, weekStart } from "../lib/account-lanes.ts";
 
 const row = (id, date, time, amount, balance_after, extra = {}) => ({
   id, date, time, amount, balance_after, account: "city", transfer_account: null,
@@ -77,6 +77,14 @@ test("quiet days collapse only when loaded and consecutive", () => {
     { kind: "quiet", start: "2026-10-20", end: "2026-10-21", count: 2 },
     { kind: "day", date: "2026-10-22" }, { kind: "day", date: "2026-10-23" }
   ]);
+});
+
+test("timeline renders only contiguous ready weeks around the visible date", () => {
+  const dates = Array.from({ length: 21 }, (_, index) => addDays("2026-10-19", index));
+  assert.deepEqual(contiguousReadyDates(dates, new Set(["2026-10-19", "2026-11-02"]), "2026-10-28"), []);
+  assert.deepEqual(contiguousReadyDates(dates, new Set(["2026-10-26", "2026-11-02"]), "2026-10-28"), dates.slice(7));
+  assert.deepEqual(contiguousReadyDates(dates, new Set(["2026-10-19", "2026-11-02"]), "2026-11-03"), dates.slice(14));
+  assert.deepEqual(contiguousReadyDates(dates, new Set(["2026-10-19", "2026-10-26", "2026-11-02"]), "2026-10-28"), dates);
 });
 
 test("a transfer observed on another date cannot produce a precise lane gap", () => {

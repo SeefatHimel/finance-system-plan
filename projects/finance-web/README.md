@@ -21,19 +21,23 @@ Next.js web dashboard for managing and reviewing the finance system.
 
 `/timeline` shows selected accounts as parallel lanes. Scroll upward for earlier
 days or downward for later days; the date control follows the visible day and
-can jump to another date. The view keeps 21 days mounted and fetches complete
-seven-day transaction activity windows on demand, paging through the existing
+can jump to another date. The view keeps up to 21 loaded days mounted. It
+fetches complete seven-day transaction activity windows on demand, paging
+through the existing
 `GET /api/transactions/activity/` endpoint. It retains at most five fetched
-weeks around the viewport, so long browsing does not keep an ever-growing
+weeks around the viewport and prefetches the neighboring weeks once the current
+window is ready, so long browsing does not keep an ever-growing
 timeline in memory. The Amount, Balance, and Both controls change the visible
 card values without editing ledger data. Transactions without a reported time
 stay in a separate disclosure for their day.
 
 The first date is positioned only after its week has loaded. A centered loader
 shows that initial fetch and the number of movements received across multi-page
-weeks, while a compact progress indicator and edge loaders
-show subsequent weeks. Failed weeks show Retry. When collapsed quiet days make
-the viewport too short to scroll, a wheel or touch gesture at an edge still
+weeks. Later fetches show one compact spinner and edge status; unloaded days
+never appear as placeholder rows. Weeks that finish out of order wait offscreen
+until the days between them are ready. Failed weeks show Retry. When collapsed
+quiet days leave too little room to scroll, a wheel or touch gesture at an edge
+still
 advances by one week; explicit edge buttons offer the same navigation. Wheel,
 touch, keyboard, and scrollbar gestures can advance at a true edge. A vertical
 wheel swipe advances at most one week per gesture; sideways
