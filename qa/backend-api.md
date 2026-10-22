@@ -1187,6 +1187,16 @@ and account-specific reports stay attached. Stale snapshots fail, accepted retri
 are idempotent, fee balances and reviewed nulls stay protected, and dependencies
 block unsafe amount increases. No historical backfill or automatic posting.
 
+### How are missing directions in older SMS evidence recovered?
+
+The separate source-direction refresh walks saved SMS candidates in bounded,
+user-owned pages. It fills a blank `source_direction` only from an unambiguous
+saved message kind or retained original SMS parsed under current rules. It does
+not overwrite an observation, change the ledger, or infer a PDF direction from
+its editable draft. Each page also reports coverage of immutable principal
+statement `extracted.direction` values. Unknown or redacted ambiguous sources
+remain unknown, and the mismatch scan is a separate read-only operation.
+
 ### Can confirmed transactions be revalidated as rules improve?
 
 Yes. The per-transaction revalidate GET compares attached confirmed SMS, accepted

@@ -5,6 +5,11 @@ user-scoped issue page. The response reports inspected count, total count,
 next offset, and findings with stable issue codes and advisory severity; it
 never includes SMS bodies or changes ledger entries. Clients must treat current
 rule differences as suggestions for human review.
+`POST /api/transactions/refresh-evidence-directions/` accepts bounded
+`limit`/`offset` pages and fills only blank SMS source directions when saved
+message evidence is unambiguous. Its response reports SMS recovery and stored
+statement direction coverage. It never copies an editable draft or ledger
+direction into source evidence; unknowns remain for manual review.
 
 Batch SMS sync uses `POST /api/messages/import/batch/`, a 1–25-item envelope of
 single-import payloads plus distinct `client_id` correlation keys. HTTP 200 is

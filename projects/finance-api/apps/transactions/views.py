@@ -18,7 +18,7 @@ from apps.audit_logs.services import create_audit_log, transaction_snapshot
 from apps.messages.models import ParsedMessageCandidate, RawMessage
 from apps.statements.serializers import SavedStatementRowSerializer
 
-from . import bulk_revalidation, revalidation
+from . import bulk_revalidation, evidence_refresh, revalidation
 from .issue_scan import scan_ledger_page
 from .models import Transaction, TransactionAction
 from .recovery import ActionRecorder, describe, undo_action
@@ -88,6 +88,19 @@ class TransactionIssuePageSerializer(serializers.Serializer):
     total = serializers.IntegerField()
     next_offset = serializers.IntegerField(allow_null=True)
     results = TransactionIssueResultSerializer(many=True)
+
+
+class EvidenceDirectionRefreshPageSerializer(serializers.Serializer):
+    sms_scanned = serializers.IntegerField()
+    sms_total = serializers.IntegerField()
+    sms_updated = serializers.IntegerField()
+    sms_known = serializers.IntegerField()
+    sms_unknown = serializers.IntegerField()
+    statement_scanned = serializers.IntegerField()
+    statement_total = serializers.IntegerField()
+    statement_known = serializers.IntegerField()
+    statement_unknown = serializers.IntegerField()
+    next_offset = serializers.IntegerField(allow_null=True)
 
 
 class RevalidationSuggestionSerializer(serializers.Serializer):
@@ -173,6 +186,16 @@ def spreadsheet_safe_text(value):
 class TransactionViewSet(ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = (IsAuthenticated,)
+
+    @extend_schema(operation_id="transactions_refresh_evidence_directions", request=TransactionIssueQuery, responses=EvidenceDirectionRefreshPageSerializer)
+    @action(detail=False, methods=("post",), url_path="refresh-evidence-directions")
+    def refresh_evidence_directions(self, request):
+        query = TransactionIssueQuery(data=request.data)
+        query.is_valid(raise_exception=True)
+        return Response(
+            evidence_refresh.refresh_page(user=request.user, **query.validated_data),
+            headers={"Cache-Control": "private, no-store"},
+        )
 
     @extend_schema(parameters=[OpenApiParameter("limit", int), OpenApiParameter("cursor", str)], responses=BulkRevalidationPageSerializer)
     @action(detail=False, methods=("get",), url_path="revalidation")

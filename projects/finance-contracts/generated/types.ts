@@ -1073,6 +1073,19 @@ export interface TransactionIssuePage {
   results: TransactionIssueResult[];
 }
 
+export interface EvidenceDirectionRefreshPage {
+  sms_scanned: number;
+  sms_total: number;
+  sms_updated: number;
+  sms_known: number;
+  sms_unknown: number;
+  statement_scanned: number;
+  statement_total: number;
+  statement_known: number;
+  statement_unknown: number;
+  next_offset: number | null;
+}
+
 export interface Transaction {
   undo_action?: TransactionAction | null;
   reported_balances?: AccountReportedBalance[];

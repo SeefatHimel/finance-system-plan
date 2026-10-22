@@ -5004,6 +5004,48 @@
         ]
       }
     },
+    "/api/transactions/refresh-evidence-directions/": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionIssueQuery"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionIssueQuery"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionIssueQuery"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceDirectionRefreshPage"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/transactions/revalidation/": {
       "get": {
         "parameters": [
@@ -6599,6 +6641,54 @@
         "manual",
         "sms",
         "statement"
+      ],
+      "type": "object"
+    },
+    "EvidenceDirectionRefreshPage": {
+      "properties": {
+        "next_offset": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "sms_known": {
+          "type": "integer"
+        },
+        "sms_scanned": {
+          "type": "integer"
+        },
+        "sms_total": {
+          "type": "integer"
+        },
+        "sms_unknown": {
+          "type": "integer"
+        },
+        "sms_updated": {
+          "type": "integer"
+        },
+        "statement_known": {
+          "type": "integer"
+        },
+        "statement_scanned": {
+          "type": "integer"
+        },
+        "statement_total": {
+          "type": "integer"
+        },
+        "statement_unknown": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "next_offset",
+        "sms_known",
+        "sms_scanned",
+        "sms_total",
+        "sms_unknown",
+        "sms_updated",
+        "statement_known",
+        "statement_scanned",
+        "statement_total",
+        "statement_unknown"
       ],
       "type": "object"
     },
@@ -11665,6 +11755,23 @@
         "scanned",
         "total"
       ],
+      "type": "object"
+    },
+    "TransactionIssueQuery": {
+      "properties": {
+        "limit": {
+          "default": 50,
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
       "type": "object"
     },
     "TransactionIssueResult": {

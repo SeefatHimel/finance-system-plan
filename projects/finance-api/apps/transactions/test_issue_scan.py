@@ -34,6 +34,112 @@ class TransactionIssueScanTests(APITestCase):
     def scan(self, **params):
         return self.client.get(reverse("transaction-issues"), params)
 
+    def refresh_directions(self, **params):
+        return self.client.post(reverse("transaction-refresh-evidence-directions"), params)
+
+    def test_refresh_recovers_legacy_sms_direction_then_check_finds_conflict(self):
+        message = self.message("Tk. 100 purchase at SAMPLE SHOP. Balance Tk. 900")
+        record = Transaction.objects.create(
+            user=self.user, account=self.city, raw_message=message,
+            date="2026-09-30", type="income", direction="credit", amount="100.00",
+        )
+        candidate = ParsedMessageCandidate.objects.create(
+            user=self.user, raw_message=message, transaction=record, account=self.city,
+            status="confirmed", message_kind="unknown", transaction_type="income",
+            amount="100.00", source_direction="",
+        )
+        response = self.refresh_directions(limit=50, offset=0)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+        self.assertEqual(response.data["sms_updated"], 1)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.source_direction, "debit")
+        self.assertEqual(self.refresh_directions().data["sms_updated"], 0)
+        self.assertIn("sms_source_direction_mismatch", {
+            issue["code"] for issue in self.scan().data["results"][0]["issues"]
+        })
+        record.refresh_from_db()
+        self.assertEqual(record.direction, "credit")
+
+    def test_refresh_keeps_ambiguous_redacted_sms_and_statement_originals(self):
+        message = self.message("Tk. 100 was processed")
+        message.status = RawMessage.Status.REDACTED
+        message.save(update_fields=("status",))
+        candidate = ParsedMessageCandidate.objects.create(
+            user=self.user, raw_message=message, account=self.city,
+            message_kind="unknown", transaction_type="expense", source_direction="",
+        )
+        batch = StatementImport.objects.create(
+            user=self.user, account=self.city, file_digest="refresh-evidence-test",
+            profile="bkash", parser_version="test", currency="BDT",
+            account_identity="synthetic", page_count=1,
+        )
+        known = StatementRow.objects.create(
+            batch=batch, position=1, component="principal", source_fingerprint="known",
+            extracted={"direction": "debit"}, direction="credit", type="income",
+        )
+        StatementRow.objects.create(
+            batch=batch, position=2, component="principal", source_fingerprint="missing",
+            extracted={"description": "synthetic legacy row"}, direction="debit", type="expense",
+        )
+        response = self.refresh_directions()
+        self.assertEqual(response.data["sms_unknown"], 1)
+        self.assertEqual(response.data["statement_known"], 1)
+        self.assertEqual(response.data["statement_unknown"], 1)
+        candidate.refresh_from_db()
+        known.refresh_from_db()
+        self.assertEqual(candidate.source_direction, "")
+        self.assertEqual(known.extracted["direction"], "debit")
+        self.assertEqual(known.direction, "credit")
+
+    def test_refresh_is_user_scoped_and_requires_authentication(self):
+        stranger = get_user_model().objects.create_user(username="refresh-stranger")
+        message = RawMessage.objects.create(
+            user=stranger, sender="CITYBANK", body="Tk. 100 purchase at SAMPLE SHOP",
+            body_hash=str(uuid4()), received_at=timezone.now(),
+        )
+        candidate = ParsedMessageCandidate.objects.create(
+            user=stranger, raw_message=message, message_kind="card_purchase",
+            transaction_type="expense", source_direction="",
+        )
+        self.assertEqual(self.refresh_directions().data["sms_total"], 0)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.source_direction, "")
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.refresh_directions().status_code, 401)
+
+    def test_refresh_pages_existing_candidates_without_reprocessing_prior_page(self):
+        for amount in ("100", "200"):
+            message = self.message(f"Tk. {amount} purchase at SAMPLE SHOP")
+            ParsedMessageCandidate.objects.create(
+                user=self.user, raw_message=message, account=self.city,
+                message_kind="card_purchase", transaction_type="expense",
+                source_direction="",
+            )
+        first = self.refresh_directions(limit=1, offset=0)
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.data["sms_scanned"], 1)
+        self.assertEqual(first.data["sms_total"], 2)
+        self.assertEqual(first.data["sms_updated"], 1)
+        self.assertEqual(first.data["next_offset"], 1)
+        second = self.refresh_directions(limit=1, offset=first.data["next_offset"])
+        self.assertEqual(second.data["sms_updated"], 1)
+        self.assertIsNone(second.data["next_offset"])
+        self.assertEqual(set(ParsedMessageCandidate.objects.values_list("source_direction", flat=True)), {"debit"})
+
+    def test_refresh_never_overwrites_a_previously_saved_source_direction(self):
+        message = self.message("Tk. 100 purchase at SAMPLE SHOP")
+        candidate = ParsedMessageCandidate.objects.create(
+            user=self.user, raw_message=message, account=self.city,
+            message_kind="card_purchase", transaction_type="expense",
+            source_direction="credit",
+        )
+        response = self.refresh_directions()
+        self.assertEqual(response.data["sms_updated"], 0)
+        self.assertEqual(response.data["sms_known"], 1)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.source_direction, "credit")
+
     def test_scan_flags_bank_conflict_and_unsupported_deposit_details_without_writing(self):
         message = self.message("Tk. 5,313 Deposit\nTk. 72,488 Balance\nA/C: 1234***5678")
         record = Transaction.objects.create(

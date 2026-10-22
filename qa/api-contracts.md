@@ -789,3 +789,13 @@ It is a boolean on `StatementMatch`, `PendingSmsStatementMatch` and
 SMS evidence near its printed value date. Clients must not compare those running
 balances as if reported at the same time or offer a cross-time balance choice.
 The statement row and SMS candidate still expose exact balances separately.
+
+### How are historical source directions refreshed?
+
+`POST /api/transactions/refresh-evidence-directions/` accepts `limit` (1–100)
+and `offset` (zero-based). Each page returns SMS and principal-statement checked
+and total counts, known/unknown counts, SMS update count, and `next_offset`.
+Clients continue until `next_offset` is null. This endpoint only fills blank,
+unambiguous SMS parser observations; it does not update ledger transactions or
+immutable PDF extractions. `GET /api/transactions/issues/` is the separate
+read-only ledger mismatch scan.

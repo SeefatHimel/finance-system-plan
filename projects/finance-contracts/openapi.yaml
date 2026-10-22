@@ -2410,6 +2410,30 @@ paths:
               schema: {$ref: '#/components/schemas/TransactionIssuePage'}
         '400': {$ref: '#/components/responses/ValidationError'}
         '401': {$ref: '#/components/responses/UnauthorizedError'}
+  /api/transactions/refresh-evidence-directions/:
+    post:
+      tags: [Transactions]
+      summary: Recover missing directions from saved SMS evidence
+      description: User-scoped, bounded, idempotent page. Fills only blank and unambiguous SMS source directions; verifies immutable statement extraction coverage without changing ledger entries or PDF rows.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                limit: {type: integer, minimum: 1, maximum: 100, default: 50}
+                offset: {type: integer, minimum: 0, default: 0}
+      responses:
+        '200':
+          description: Private, non-cacheable direction coverage and update counts.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EvidenceDirectionRefreshPage'}
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/UnauthorizedError'}
   /api/transactions/activity/:
     get:
       tags:
@@ -6032,6 +6056,20 @@ components:
         results:
           type: array
           items: {$ref: '#/components/schemas/TransactionIssueResult'}
+    EvidenceDirectionRefreshPage:
+      type: object
+      required: [sms_scanned, sms_total, sms_updated, sms_known, sms_unknown, statement_scanned, statement_total, statement_known, statement_unknown, next_offset]
+      properties:
+        sms_scanned: {type: integer}
+        sms_total: {type: integer}
+        sms_updated: {type: integer}
+        sms_known: {type: integer}
+        sms_unknown: {type: integer}
+        statement_scanned: {type: integer}
+        statement_total: {type: integer}
+        statement_known: {type: integer}
+        statement_unknown: {type: integer}
+        next_offset: {type: integer, nullable: true}
     Transaction:
       type: object
       required:

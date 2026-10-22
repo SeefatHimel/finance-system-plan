@@ -960,6 +960,14 @@ remain blank, and neither the original message nor posted entries are rewritten.
 `GET /api/transactions/issues/` compares saved PDF, draft and SMS directions
 with the current ledger direction for the reporting account. It flags
 disagreements for review without changing balances, links or source evidence.
+`POST /api/transactions/refresh-evidence-directions/` accepts a bounded
+`{ "limit": 100, "offset": 0 }` page and recovers only blank SMS
+`source_direction` values from an unambiguous saved message kind or retained
+original SMS parsed with current rules. It never overwrites a known direction,
+changes a ledger entry or copies the editable statement draft direction. The
+response reports SMS updates and coverage of immutable principal statement
+`extracted.direction` values; missing or ambiguous source directions remain
+unknown for manual review. Both actions are user-scoped and no-store.
 
 ## Account recognition profiles
 
