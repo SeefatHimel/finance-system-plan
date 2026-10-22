@@ -3751,6 +3751,11 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .review-payment-details > summary span { color: var(--muted); font-size: 12px; }
 .transaction-direction-control { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; }
 .statement-library > summary, .statement-review-checks > summary { cursor: pointer; min-height: 48px; padding: 14px 18px; font-weight: 600; }
+.statement-direction-recheck { margin-block: 20px; padding: 18px; border: 1px solid var(--panel-border); border-radius: 14px; }
+.statement-direction-recheck h3 { margin-top: 0; }
+.statement-direction-recheck__results { margin-top: 16px; }
+.statement-direction-recheck__issue { margin-top: 12px; padding: 16px; border: 1px solid var(--warning, #b7791f); border-radius: 12px; overflow-wrap: anywhere; }
+.statement-direction-recheck__issue p { margin-block: 10px; }
 .statement-library > .workspace-grid { padding: 0 12px 12px; }
 .statement-selected-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; }
 .statement-selected-heading p { color: var(--muted); font-size: 13px; margin: 6px 0 0; }

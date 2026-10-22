@@ -16,7 +16,7 @@ import { ModalDialog } from "@/components/modal-dialog";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { useToast } from "@/components/toast-provider";
 import { getAccessToken } from "@/lib/auth-storage";
-import { directionForType, transactionTypes } from "@/lib/category-type";
+import { transactionTypes } from "@/lib/category-type";
 import { decideStatementRow, updateStatementRow, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementCategoryChoice, type StatementDecision, type StatementRowEdit, type TransactionType } from "@/lib/api";
 
 function editable(row: SavedStatementRow): StatementRowEdit {
@@ -50,6 +50,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     issuesAcknowledged: ackIssues, classificationConfirmed: draft.classification_confirmed,
   });
   const source = row.extracted;
+  const verifiedDirection = row.reviewed_source_direction || source.direction;
   const bkashFundingSuggestion = batch.profile === "bkash" && row.component === "principal" && /^(?:card|bank)\s+to\s+bkash$/i.test(source.provider_type?.trim() ?? "") && row.review.suggestion?.type === "transfer" ? row.review.suggestion : null;
   const suggestedName = row.review.suggestion?.counterparty_text;
   const suggestedNote = row.review.suggestion?.note;
@@ -57,7 +58,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
   const suggestionSaved = row.review.suggestion ? statementSuggestionAlreadyApplied(editable(row), row.review.suggestion, categories) : false;
   function setField<K extends keyof StatementRowEdit>(key: K, value: StatementRowEdit[K]) { setDraft((old) => ({ ...old, [key]: value })); }
   function applyType(type: TransactionType, category = type === draft.type ? draft.category : statementDraftCategory(type, draft.category, categories)) {
-    setDraft((old) => ({ ...old, category, type, direction: type === "transfer" || type === "adjustment" ? old.direction : directionForType(type), other_account: type === "transfer" ? old.other_account : null, classification_confirmed: old.type === type ? old.classification_confirmed : false }));
+    setDraft((old) => ({ ...old, category, type, other_account: type === "transfer" ? old.other_account : null, classification_confirmed: old.type === type ? old.classification_confirmed : false }));
   }
   function showError(reason: unknown) {
     const message = reason instanceof Error ? reason.message : "Could not save the statement row.";
@@ -144,7 +145,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
       <div className="form-drawer__header"><div><h2 id="statement-row-title">Review statement {row.component === "fee" ? "fee" : "transaction"}</h2><p>{batch.account_name} · Page {source.page}, source row {source.row}</p></div><button type="button" className="icon-button" aria-label="Close statement row" disabled={busy} onClick={onCancel}>×</button></div>
       <div className="statement-row-body" onKeyDown={handleShortcuts}>
         <details className="raw-message"><summary>Original extracted row · {source.amount ?? "Unreadable amount"} {batch.currency}</summary>
-          <p>{source.date ?? "Unknown date"}{source.time ? ` · ${source.time}` : ""} · {source.provider_type || "Unknown source type"} · PDF direction: {source.direction === "credit" ? "Credit" : source.direction === "debit" ? "Debit" : "Unknown"}</p>
+          <p>{source.date ?? "Unknown date"}{source.time ? ` · ${source.time}` : ""} · {source.provider_type || "Unknown source type"} · Original parser direction: {source.direction === "credit" ? "Credit" : source.direction === "debit" ? "Debit" : "Unknown"}{row.reviewed_source_direction ? ` · Reviewed PDF direction: ${row.reviewed_source_direction}` : ""}</p>
           <p className="statement-evidence-text">{source.description}</p>
           {row.citytouch_printed_code ? <p>Citytouch code printed in PDF: {row.citytouch_printed_code}</p> : null}
           <p>Principal: {source.amount ?? "Unreadable"} · Signed fee: {source.signed_fee} · Reported final balance: {source.balance_after ?? "Unreadable"}</p>
@@ -155,7 +156,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         {batch.profile === "city_bank" && /\bCT-FT-/i.test(source.description) ? <p className="inline-note">Citytouch fund transfer describes the bank operation. Verify whether this is an internal transfer or a payment. <Link href="/statement-counterparties">Manage recurring counterparty codes</Link>.</p> : null}
         {row.component === "fee" ? <p className="inline-note">This is the separate charge from the source row. Approving the principal does not approve this fee.</p> : source.signed_fee !== "0.00" ? <p className="inline-note">The inline fee has its own review row. The final reported balance is saved on the fee entry when you add new movements.</p> : null}
         {isResolved ? <p>This row is {row.state === "posted" ? "added" : row.state}. {row.transaction ? <>Ledger entry: {row.transaction}. Make ledger corrections in <Link href="/transactions">Transactions</Link>.</> : "You can reopen it below."}</p> : null}
-        {row.component === "principal" && source.direction !== row.direction ? <p className="inline-note" role="alert">The saved draft records {row.direction}, but the PDF extraction records {source.direction}. Check the original PDF before linking or changing the ledger entry.</p> : null}
+        {row.component === "principal" && verifiedDirection !== row.direction ? <p className="inline-note" role="alert">The saved draft records {row.direction}, but the {row.reviewed_source_direction ? "reviewed PDF direction" : "original PDF extraction"} records {verifiedDirection}. Check the original PDF before linking or changing the ledger entry.</p> : null}
         {!row.transaction && ["posted", "linked"].includes(row.state) ? <p>The previous ledger entry was deleted. Review this source row before recording it again.</p> : null}
         {!isResolved && row.review.suggestion && !bkashFundingSuggestion ? (
           <section className="raw-message">
@@ -190,7 +191,8 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
             <label className="field"><span className="field__label">Time (if known)</span><input className="field__control" type="time" step="1" value={draft.time ?? ""} onChange={(e) => setField("time", e.target.value || null)} /></label>
             </div>
             <div className="field"><label className="field__label" htmlFor="statement-draft-type">Type</label><select id="statement-draft-type" className="field__control" value={draft.type} onChange={(e) => applyType(e.target.value as TransactionType)}>{transactionTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></div>
-            <div className="field"><label className="field__label" htmlFor="statement-draft-direction">Debit / credit for {batch.account_name}</label><select id="statement-draft-direction" className="field__control" value={draft.direction} onChange={(e) => setField("direction", e.target.value as "debit" | "credit")}><option value="debit">Debit</option><option value="credit">Credit</option></select></div>
+            <div className="field"><label className="field__label" htmlFor="statement-draft-direction">Debit / credit for {batch.account_name}</label><select id="statement-draft-direction" className="field__control" value={draft.direction} onChange={(e) => setField("direction", e.target.value as "debit" | "credit")}><option value="debit">Debit</option><option value="credit">Credit</option></select><small className="field__hint">Changing type or category keeps this direction. Check the original PDF before changing it.</small></div>
+            {row.component === "principal" && verifiedDirection !== draft.direction ? <p className="form-error field--wide" role="alert">The {row.reviewed_source_direction ? "reviewed PDF direction" : "original PDF extraction"} says {verifiedDirection}, while this draft says {draft.direction}. Verify the Out/In column and balance in the PDF before saving. If the original extraction is wrong, recheck the archived PDF in Statement details.</p> : null}
             {draft.type === "transfer" ? <div className="field">
               <label className="field__label" htmlFor="statement-other-account">Other owned account</label>
               <select id="statement-other-account" className="field__control" value={draft.other_account ?? ""} onChange={(e) => setField("other_account", e.target.value || null)}><option value="">Choose the other account</option>{accounts.filter((a) => a.id !== batch.account && a.is_active && a.currency === batch.currency).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>

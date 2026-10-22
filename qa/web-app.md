@@ -1521,3 +1521,8 @@ source-specific, so no cross-time balance radio appears. The user still reviews
 the candidate and confirms that both sources describe one movement. Linking
 keeps the earlier SMS ledger report; account summaries can show the later EBL
 statement report without presenting it as a proven ledger mismatch.
+
+### What should a user do when an old bKash row has the wrong debit or credit?
+
+Open the saved bKash import in Statements, expand Statement details, and run **Recheck saved directions**. If its PDF is missing, re-upload the identical PDF to the same account first. Compare the exact row and Out/In column with the archived PDF; the parser's suggestion alone is not proof. Explicitly save the verified source direction, optionally align the saved draft if the ledger already agrees, and use **Compare linked ledger entry** if a confirmed transaction still differs. The page states that recheck and source review do not change confirmed ledger entries.
+An unresolved bKash row cannot be added while its saved draft direction disagrees with the original or reviewed PDF direction. The review displays the exact blocker and asks for PDF verification.

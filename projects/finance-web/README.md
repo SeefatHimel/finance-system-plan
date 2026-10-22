@@ -1821,3 +1821,9 @@ balance remains attached. The latest account report may use that later statement
 value and marks transaction-order comparison as unknown. The value date helps
 find a candidate but does not prove identity; manual confirmation and ambiguity
 checks still apply. Deploy API before web; no APK change or re-import is needed.
+
+# Recheck older bKash statement directions
+
+Open **Statements → an existing bKash import → Statement details and reconciliation → Check saved debit and credit**. If the original PDF is missing, upload the identical file to the same account first; the saved import reopens without another set of rows. Enter the PDF password if needed and run **Recheck saved directions**. The comparison shows original extraction → current parser → reviewed PDF direction → saved draft → linked ledger for each row needing attention. Compare the exact page and row with the PDF; matching transaction labels alone do not establish debit or credit.
+
+For a verified row, choose **Out → debit** or **In → credit**, confirm that you checked the PDF, and save. Optionally align the saved draft; linked entries only allow this when the ledger already agrees. The original extraction stays available as audit evidence. If the ledger disagrees, use **Compare linked ledger entry** and review its correction separately. Rechecking and saving a reviewed PDF direction never change the ledger automatically. Changing a statement type or category now preserves the draft direction and warns immediately if it differs from the original PDF extraction.

@@ -1689,6 +1689,7 @@ const pendingStatementSmsMatchSchema = z.object({
 });
 const savedStatementRowSchema = z.object({
   id: z.string(), batch: z.string(), position: z.number(), component: z.enum(["principal", "fee"]), extracted: statementRowSchema,
+  reviewed_source_direction: z.string().default(""),
   citytouch_printed_code: z.string().nullable(),
   date: z.string().nullable(), time: z.string().nullable(), value_date: z.string().nullable(), direction: z.enum(["debit", "credit"]), amount: z.string().nullable(), balance_after: z.string().nullable(),
   type: z.enum(["expense", "income", "transfer", "adjustment", "fee", "refund", "lend", "borrow", "repayment_received", "repayment_paid"]),
@@ -1722,6 +1723,31 @@ export async function refreshStatementIdentifiers(token: string, id: string, pas
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }),
   });
   return z.object({ updated_rows: z.number().int().nonnegative() }).parse(await response.json()).updated_rows;
+}
+const statementDirectionIssueSchema = z.object({
+  row_id: z.string(), version: z.number().int(), page: z.number().nullable(), source_row: z.number().nullable(),
+  date: z.string().nullable(), time: z.string().nullable(), amount: z.string().nullable(),
+  balance_after: z.string().nullable(), original_direction: z.string().nullable(), reviewed_direction: z.string().nullable(),
+  fresh_direction: z.string().nullable(), draft_direction: z.string(), ledger_direction: z.string().nullable(),
+  transaction_id: z.string().nullable(), state: z.string(), reasons: z.array(z.string()),
+});
+const statementDirectionRecheckSchema = z.object({
+  parser_version: z.string(), checked_rows: z.number().int().nonnegative(),
+  issues: z.array(statementDirectionIssueSchema),
+});
+export type StatementDirectionRecheck = z.infer<typeof statementDirectionRecheckSchema>;
+export async function recheckStatementDirections(token: string, id: string, password = ""): Promise<StatementDirectionRecheck> {
+  const response = await authenticatedFetch(`/api/statements/imports/${id}/recheck-directions/`, token, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }),
+  });
+  return statementDirectionRecheckSchema.parse(await response.json());
+}
+export async function reviewStatementSourceDirection(token: string, id: string, version: number, direction: "debit" | "credit", alignDraft: boolean): Promise<{ version: number; reviewed_direction: string; draft_direction: string }> {
+  const response = await authenticatedFetch(`/api/statements/rows/${id}/review-source-direction/`, token, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ version, direction, confirmed_pdf: true, align_draft: alignDraft }),
+  });
+  return z.object({ version: z.number().int(), reviewed_direction: z.string(), draft_direction: z.string() }).parse(await response.json());
 }
 const statementIdentificationSchema = z.object({
   profile: z.string(), account_hint: z.string(),
