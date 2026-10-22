@@ -2359,6 +2359,34 @@ paths:
       description: Apply only offered keys from a signed 15-minute preview. Recompute
         current evidence/policy under locks, preserve originals, audit the update and
         support latest-action Undo. Stale, expired or replayed previews return 409.
+  /api/transactions/{id}/correct-sms-evidence/:
+    post:
+      operationId: transactions_correct_sms_evidence
+      summary: Correct one confirmed SMS link on a transfer
+      description: Move one saved SMS report to the other transfer account when its original direction agrees, or unlink it and return it to SMS review. The original SMS and ledger movement remain saved. Requires a fresh signed revalidation preview.
+      tags: [Transactions]
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema: {type: string, format: uuid}
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SmsEvidenceCorrection'}
+      responses:
+        '200':
+          description: Corrected transfer with the remaining evidence.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Transaction'}
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/UnauthorizedError'}
+        '404': {$ref: '#/components/responses/NotFoundError'}
+        '409': {description: Preview expired or its evidence changed; refresh the comparison.}
   /api/transactions/{id}/revalidate/:
     get:
       operationId: transactions_revalidate_retrieve
@@ -5935,6 +5963,14 @@ components:
       required:
       - selected
       - token
+    SmsEvidenceCorrection:
+      type: object
+      properties:
+        token: {type: string, maxLength: 2048}
+        candidate: {type: string, format: uuid}
+        action: {type: string, enum: [move, unlink]}
+        account: {type: string, format: uuid, description: Required when action is move.}
+      required: [token, candidate, action]
     RevalidationPreview:
       type: object
       properties:
@@ -6019,6 +6055,13 @@ components:
           type: string
           format: date
           nullable: true
+        time:
+          type: string
+          nullable: true
+        raw_message:
+          type: string
+          format: uuid
+          nullable: true
         amount:
           type: string
           nullable: true
@@ -6044,6 +6087,8 @@ components:
       - id
       - issues
       - kind
+      - raw_message
+      - time
       - usable
     RevalidationSuggestion:
       type: object

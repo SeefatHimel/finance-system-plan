@@ -1459,6 +1459,12 @@ History; latest-action Undo is available. Original SMS/PDF values stay intact.
 Revalidation uses already attached sources, so there is no re-import/resync, and
 it does not silently discover/merge unrelated transactions.
 
+For a transfer, a Saved SMS card also offers Correct this SMS link. The panel
+shows the precise source and can fetch its original text on demand. The user
+chooses either a direction-compatible destination account or unlink to Review
+inbox, then confirms. The comparison reloads after success; stale previews
+must be refreshed. Other evidence and the ledger movement remain in place.
+
 ### Where do source-versus-ledger checks live?
 
 The separate `/checks` Evidence health page first offers a bounded refresh of

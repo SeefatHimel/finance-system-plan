@@ -120,6 +120,8 @@ class RevalidationSourceSerializer(serializers.Serializer):
     currency = serializers.CharField(allow_null=True)
     direction = serializers.CharField(allow_blank=True, allow_null=True)
     date = serializers.DateField(allow_null=True)
+    time = serializers.CharField(allow_null=True)
+    raw_message = serializers.UUIDField(allow_null=True)
     amount = serializers.CharField(allow_null=True)
     balance_after = serializers.CharField(allow_null=True)
     usable = serializers.BooleanField()
@@ -158,6 +160,13 @@ class RevalidationPreviewSerializer(serializers.Serializer):
 class RevalidationApplySerializer(serializers.Serializer):
     token = serializers.CharField(max_length=2048)
     selected = serializers.ListField(child=serializers.CharField(max_length=80), min_length=1, max_length=4)
+
+
+class SmsEvidenceCorrectionSerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=2048)
+    candidate = serializers.UUIDField()
+    action = serializers.ChoiceField(choices=("move", "unlink"))
+    account = serializers.UUIDField(required=False)
 
 
 class BulkRevalidationQuery(serializers.Serializer):
@@ -243,6 +252,20 @@ class TransactionViewSet(ModelViewSet):
         serializer = RevalidationApplySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         record = revalidation.apply(user=request.user, record_id=pk, request=request, **serializer.validated_data)
+        return Response(self.get_serializer(record).data, headers={"Cache-Control": "private, no-store"})
+
+    @extend_schema(operation_id="transactions_correct_sms_evidence", request=SmsEvidenceCorrectionSerializer, responses=TransactionSerializer)
+    @action(detail=True, methods=("post",), url_path="correct-sms-evidence")
+    def correct_sms_evidence(self, request, pk=None):
+        self.get_object()
+        serializer = SmsEvidenceCorrectionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        values = serializer.validated_data
+        record = revalidation.correct_sms_evidence(
+            user=request.user, record_id=pk, token=values["token"],
+            candidate_id=values["candidate"], action=values["action"],
+            account_id=values.get("account"),
+        )
         return Response(self.get_serializer(record).data, headers={"Cache-Control": "private, no-store"})
 
     @extend_schema(

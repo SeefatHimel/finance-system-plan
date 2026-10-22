@@ -1213,6 +1213,16 @@ does not automatically merge, relink, change account paths or repair larger
 conflicts/debt and bill amounts. Original observations remain unchanged; no
 historical import/resync or migration is required.
 
+### How is one wrongly attached transfer SMS corrected?
+
+The confirmed-transaction preview identifies each saved SMS separately. A
+dedicated, signed-preview POST can move that one candidate's reporting account
+and transfer report to the other side only when its saved debit/credit direction
+agrees, or unlink only that candidate and return it to SMS review. It never
+changes the transfer movement, deletes the original message or reassigns other
+sources. The server checks ownership and freshness under locks, records History,
+and supports latest-action Undo.
+
 ### How does bulk revalidation avoid partial financial corrections?
 
 A signed keyset cursor scans owned ledger entries in bounded pages, batch-loading

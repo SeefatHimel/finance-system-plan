@@ -773,6 +773,16 @@ is the existing Transaction shape, with audit and Undo. No migration or mandator
 old-client changes; deploy API before web. Source evidence is never rewritten and
 no new movement is posted.
 
+### How can one saved transfer SMS link be corrected?
+
+The revalidation preview identifies a Saved SMS by candidate ID and returns its
+date/time and nullable raw-message ID without embedding private body text.
+`POST /api/transactions/{id}/correct-sms-evidence/` requires its signed token,
+that candidate ID and `move` or `unlink`; a move also names the receiving account.
+The server validates ownership, freshness and saved direction, then returns the
+updated Transaction. A stale preview is 409. The action changes one evidence
+link, not the transaction movement, and is audited and undoable.
+
 ### What should a client do with bulk correction previews?
 
 Consume the signed all-ledger scan cursor in pages, using next_cursor null rather

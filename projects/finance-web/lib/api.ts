@@ -1191,7 +1191,7 @@ const transactionRevalidationSchema = z.object({
   transaction: z.string().uuid(), currency: z.string(), policy: z.string(), fingerprint: z.string(), token: z.string(), expires_in: z.number(),
   suggestions: z.array(z.object({ key: z.string(), label: z.string(), current: z.string().nullable(), proposed: z.string(), reason: z.string(), value: z.string().optional() })),
   ledger: z.object({ date: z.string(), type: z.string(), amount: z.string(), accounts: z.array(z.object({ id: z.string().uuid(), name: z.string(), currency: z.string(), direction: z.string(), balance_after: z.string().nullable() })) }),
-  sources: z.array(z.object({ kind: z.string(), id: z.string().uuid(), account: z.string().uuid().nullable(), account_name: z.string(), currency: z.string().nullable(), direction: z.string().nullable(), date: z.string().nullable(), amount: z.string().nullable(), balance_after: z.string().nullable(), usable: z.boolean(), has_fee: z.boolean(), issues: z.array(z.string()) })),
+  sources: z.array(z.object({ kind: z.string(), id: z.string().uuid(), account: z.string().uuid().nullable(), account_name: z.string(), currency: z.string().nullable(), direction: z.string().nullable(), date: z.string().nullable(), time: z.string().nullable(), raw_message: z.string().uuid().nullable(), amount: z.string().nullable(), balance_after: z.string().nullable(), usable: z.boolean(), has_fee: z.boolean(), issues: z.array(z.string()) })),
   warnings: z.array(z.string()),
 });
 export type TransactionRevalidation = z.infer<typeof transactionRevalidationSchema>;
@@ -1203,6 +1203,16 @@ export async function previewTransactionRevalidation(token: string, id: string, 
 export async function applyTransactionRevalidation(token: string, id: string, previewToken: string, selected: string[]): Promise<Transaction> {
   return transactionSchema.parse(await (await authenticatedFetch(`/api/transactions/${id}/apply-revalidation/`, token, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: previewToken, selected }),
+  })).json());
+}
+
+export async function correctTransactionSmsEvidence(
+  token: string, id: string, previewToken: string, candidate: string,
+  action: "move" | "unlink", account?: string,
+): Promise<Transaction> {
+  return transactionSchema.parse(await (await authenticatedFetch(`/api/transactions/${id}/correct-sms-evidence/`, token, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: previewToken, candidate, action, ...(account ? { account } : {}) }),
   })).json());
 }
 

@@ -23,10 +23,11 @@ from apps.statements.services import ReviewConflict
 from apps.statements.unified import sms_observation
 
 from .balance_reports import has_unattributed_legacy_balance, reported_values
+from .balance_reports import primary_transfer_evidence
 from .models import Transaction, TransferEvidence
 from .recovery import ActionRecorder, freeze
 from .serializers import TransactionSerializer
-from .transfers import lock_transfer_user
+from .transfers import add_transfer_evidence, lock_transfer_user, sms_transfer_data
 
 POLICY_VERSION = "confirmed-revalidation-v1"
 SALT = "transactions.revalidation"
@@ -118,7 +119,7 @@ def inspect(record, *, lock=False, prepared=None):
     if not path_valid:
         warnings.append("The saved account path or currency needs manual review.")
 
-    def add(kind, identifier, account, amount, balance, direction, day, *, fee=False):
+    def add(kind, identifier, account, amount, balance, direction, day, *, fee=False, source_time=None, raw_message_id=None):
         expected = (
             "credit"
             if record.type == "transfer"
@@ -151,6 +152,8 @@ def inspect(record, *, lock=False, prepared=None):
                 "currency": account.currency if account else None,
                 "direction": direction,
                 "date": day.isoformat() if day else None,
+                "time": source_time,
+                "raw_message": str(raw_message_id) if raw_message_id else None,
                 "amount": money(amount),
                 "balance_after": money(balance),
                 "usable": usable,
@@ -176,6 +179,8 @@ def inspect(record, *, lock=False, prepared=None):
             direction,
             received.date(),
             fee=bool(candidate.fee_amount),
+            source_time=received.time().replace(microsecond=0).isoformat(),
+            raw_message_id=candidate.raw_message_id,
         )
         if candidate.raw_message.user_id != user.pk:
             sources[-1]["usable"] = False
@@ -303,6 +308,8 @@ def inspect(record, *, lock=False, prepared=None):
                 direction,
                 received.date(),
                 fee=bool(parsed.get("fee_amount")),
+                source_time=received.time().replace(microsecond=0).isoformat(),
+                raw_message_id=message.pk,
             )
             sources[-1]["usable"] = False
             sources[-1]["issues"].append("Current SMS rules identify a different reporting account than the saved SMS.")
@@ -317,6 +324,8 @@ def inspect(record, *, lock=False, prepared=None):
             direction,
             day,
             fee=bool(parsed.get("fee_amount")),
+            source_time=received.time().replace(microsecond=0).isoformat(),
+            raw_message_id=message.pk,
         )
         category = parsed.get("category")
         if (
@@ -534,8 +543,8 @@ def preview(record, *, prepared=None):
     return result
 
 
-def _reviewed_decision(*, user, record_id, token, selected):
-    """Validate a signed choice under the caller's atomic writer lock; no writes."""
+def _validated_preview(*, user, record_id, token):
+    """Validate a signed preview under the caller's atomic writer lock."""
     try:
         signed = signing.loads(token, salt=SALT, max_age=PREVIEW_SECONDS)
     except signing.BadSignature as error:
@@ -561,6 +570,14 @@ def _reviewed_decision(*, user, record_id, token, selected):
         raise ReviewConflict(
             "The transaction, evidence or current suggestions changed. Revalidate and review again."
         )
+    return record, current, signed["fingerprint"]
+
+
+def _reviewed_decision(*, user, record_id, token, selected):
+    """Validate a signed choice under the caller's atomic writer lock; no writes."""
+    record, current, fingerprint = _validated_preview(
+        user=user, record_id=record_id, token=token
+    )
     choices = {item["key"]: item for item in current["suggestions"]}
     if (
         not selected
@@ -570,7 +587,101 @@ def _reviewed_decision(*, user, record_id, token, selected):
         raise ValidationError(
             {"selected": "Select only corrections offered in this preview, once each."}
         )
-    return record, choices, signed["fingerprint"]
+    return record, choices, fingerprint
+
+
+@transaction.atomic
+def correct_sms_evidence(*, user, record_id, token, candidate_id, action, account_id=None):
+    """Correct one confirmed SMS link; never change the transfer movement."""
+    record, current, fingerprint = _validated_preview(
+        user=user, record_id=record_id, token=token
+    )
+    if record.type != Transaction.Type.TRANSFER or not record.transfer_account_id:
+        raise ValidationError({"candidate": "SMS evidence correction requires a transfer."})
+    if not any(
+        source["kind"] == "Saved SMS" and source["id"] == str(candidate_id)
+        for source in current["sources"]
+    ):
+        raise ValidationError({"candidate": "Select a saved SMS shown in this preview."})
+    candidate = get_object_or_404(
+        ParsedMessageCandidate.objects.select_for_update(of=("self",)).select_related(
+            "raw_message", "account", "destination_account"
+        ),
+        pk=candidate_id, user=user, transaction=record, status="confirmed",
+        raw_message__user=user,
+    )
+    evidence = list(
+        TransferEvidence.objects.select_for_update(of=("self",)).filter(
+            user=user, transaction=record, raw_message=candidate.raw_message
+        )
+    )
+    if len(evidence) > 1:
+        raise ReviewConflict("This SMS has multiple reports. Review it manually before changing its link.")
+    previous_primary = primary_transfer_evidence(record, list(record.transfer_evidence.all()))
+    changes_primary_report = bool(
+        (previous_primary and previous_primary.raw_message_id == candidate.raw_message_id)
+        or record.raw_message_id == candidate.raw_message_id
+    )
+    before = transaction_snapshot(record)
+    old_account, old_direction, _ = sms_observation(candidate)
+    recorder = ActionRecorder(user, transaction_ids=[record.pk], candidate_ids=[candidate.pk])
+
+    if action == "move":
+        target = {record.account_id: record.account, record.transfer_account_id: record.transfer_account}.get(account_id)
+        if not target or not old_account or target.pk == old_account.pk:
+            raise ValidationError({"account": "Choose the other account in this transfer."})
+        expected = "credit" if target.pk == record.transfer_account_id else "debit"
+        if candidate.source_direction != expected or old_direction != expected:
+            raise ValidationError({"account": "The SMS direction does not match that account's transfer side."})
+        candidate.account = record.account
+        candidate.destination_account = record.transfer_account
+        candidate.suggested_transfer_direction = expected
+        if candidate.payment_method_id and candidate.payment_method.account_id != record.account_id:
+            candidate.payment_method = None
+        if candidate.destination_payment_method_id and candidate.destination_payment_method.account_id != record.transfer_account_id:
+            candidate.destination_payment_method = None
+        candidate.save(update_fields=(
+            "account", "destination_account", "suggested_transfer_direction",
+            "payment_method", "destination_payment_method", "updated_at",
+        ))
+        for item in evidence:
+            item.account = target
+            item.direction = expected
+            item.save(update_fields=("account", "direction"))
+        if not evidence:
+            _data, observation = sms_transfer_data(candidate)
+            add_transfer_evidence(record, observation, candidate)
+    elif action == "unlink":
+        candidate.transaction = None
+        candidate.status = ParsedMessageCandidate.Status.NEEDS_REVIEW
+        candidate.save(update_fields=("transaction", "status", "updated_at"))
+        for item in evidence:
+            item.delete()
+        if record.raw_message_id == candidate.raw_message_id:
+            record.raw_message = None
+        if record.external_key == f"raw-message:{candidate.raw_message_id}":
+            record.external_key = ""
+    else:
+        raise ValidationError({"action": "Choose move or unlink."})
+
+    # A secondary report correction must not replace an independently reviewed
+    # scalar balance. Recompute only when this SMS supplied the primary report.
+    if changes_primary_report:
+        getattr(record, "_prefetched_objects_cache", {}).pop("transfer_evidence", None)
+        primary = primary_transfer_evidence(record, list(record.transfer_evidence.all()))
+        record.balance_after = primary.balance_after if primary else None
+    record.save(update_fields=("raw_message", "external_key", "balance_after", "updated_at"))
+    create_audit_log(
+        user=user, action="updated", entity=record, before=before,
+        after=transaction_snapshot(record), metadata={
+            "operation": "correct_sms_evidence", "action": action,
+            "candidate": str(candidate.pk), "from_account": str(old_account.pk) if old_account else None,
+            "to_account": str(account_id) if action == "move" else None,
+            "preview_fingerprint": fingerprint,
+        },
+    )
+    recorder.finish(record, "update")
+    return record
 
 
 def _write_corrections(

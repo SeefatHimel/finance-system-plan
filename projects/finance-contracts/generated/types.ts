@@ -1020,6 +1020,13 @@ export interface RevalidationApply {
   selected: string[];
 }
 
+export interface SmsEvidenceCorrection {
+  token: string;
+  candidate: string;
+  action: "move" | "unlink";
+  account?: string;
+}
+
 export interface RevalidationPreview {
   transaction: string;
   currency: string;
@@ -1056,6 +1063,8 @@ export interface RevalidationSource {
   currency: string | null;
   direction: string | null;
   date: string | null;
+  time: string | null;
+  raw_message: string | null;
   amount: string | null;
   balance_after: string | null;
   usable: boolean;

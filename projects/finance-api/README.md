@@ -1513,6 +1513,19 @@ client. Apply is user-scoped, atomic and serialized with existing ledger writers
 changed ledger/evidence/rules, expired tokens and replayed successful previews
 return 409 and require a fresh review. Retrying cannot create another movement.
 
+For a transfer with a wrongly attributed **confirmed SMS**, the preview identifies
+each saved SMS by candidate ID, reporting account, direction, date and time. The
+separate `POST /api/transactions/{id}/correct-sms-evidence/` accepts the signed
+preview `token`, that `candidate`, and `action: "move"` with the other transfer
+side's `account`, or `action: "unlink"`. Move requires the SMS's saved direction
+to agree with that side; it reassigns that SMS candidate and its report without
+changing the transfer movement or other evidence. Unlink removes only that SMS
+link/report and returns the candidate to Review inbox. The original message and
+other sources remain saved. Both actions are owner-scoped, atomic, audited,
+stale-preview protected and eligible for latest-action Undo. The preview never
+includes SMS body text; the web client fetches original text on demand through
+the existing source-message route. Deploy API before web; no migration is needed.
+
 Eligible corrections use the higher exact BDT value only when the full amount or
 same-account balance span is strictly below Tk 1. Missing balances can be restored
 by explicitly selecting the suggestion, including a previously reviewed blank;

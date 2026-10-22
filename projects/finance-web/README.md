@@ -1748,6 +1748,15 @@ conflict and no automatic correction is safe, **Review ledger entry** opens the
 editor on the same page. The dialog offers no Apply button in that state.
 Closing, opening the preview and **Refresh comparison** never write the ledger.
 
+For transfer evidence, each Saved SMS card offers **Correct this SMS link**.
+The inline panel can reveal the original SMS on demand, move only that SMS's
+report to the other transfer side when its saved direction agrees, or unlink
+that SMS back to Review inbox. It previews the affected account, direction,
+amount and balance and requires a deliberate confirmation. The transfer and
+other attached SMS/PDF sources stay saved; the result refreshes the comparison.
+An expired or changed preview requires refreshing before correction. Original
+SMS text is subject to retention and is never embedded in the comparison list.
+
 Supported suggestions are higher BDT amounts/balances within a full span strictly
 below Tk 1, restoration of missing account-specific balances, and an unambiguous
 current category compatible with the saved type. Original text may be unavailable

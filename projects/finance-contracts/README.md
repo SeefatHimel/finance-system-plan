@@ -829,6 +829,15 @@ account, currency, direction, date and `issues` explaining unusable evidence.
 No SMS body is returned. All suggestions require explicit selection;
 opening/refreshing never applies corrections.
 
+Saved SMS sources also return nullable `time` and `raw_message` ID for identifying
+an individual message. `POST /api/transactions/{id}/correct-sms-evidence/` accepts
+`token`, confirmed SMS `candidate`, `action: move|unlink`, and `account` for a
+move. It returns the updated Transaction. It corrects one transfer source under
+the same 15-minute stale-preview and ownership checks, without editing the
+movement or the original SMS. A move requires the saved direction to match the
+target transfer side; unlink returns the candidate to review. Invalid choices
+are 400, foreign records 404, and stale previews 409. Latest-action Undo applies.
+
 `POST /api/transactions/{id}/apply-revalidation/` accepts only a preview `token` and
 `selected` keys (1–4). It returns the updated Transaction. Invalid selections are
 400; other users' records are 404; invalid/expired/stale or previously consumed

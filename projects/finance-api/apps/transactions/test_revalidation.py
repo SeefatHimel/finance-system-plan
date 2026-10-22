@@ -61,6 +61,114 @@ class RevalidationTests(APITestCase):
             format="json",
         )
 
+    def correct_sms(self, preview, candidate, action, account=None):
+        return self.client.post(
+            reverse("transaction-correct-sms-evidence", args=[self.record.pk]),
+            {
+                "token": preview["token"], "candidate": str(candidate.pk),
+                "action": action, **({"account": str(account.pk)} if account else {}),
+            },
+            format="json",
+        )
+
+    def transfer_with_misattributed_sms(self):
+        self.record.type = "transfer"
+        self.record.transfer_account = self.wallet
+        self.record.external_key = f"raw-message:{self.sms.raw_message_id}"
+        self.record.save()
+        self.sms.message_kind = "bank_transfer_out"
+        self.sms.transaction_type = "transfer"
+        self.sms.source_direction = "debit"
+        self.sms.destination_account = self.wallet
+        self.sms.save()
+        TransferEvidence.objects.create(
+            user=self.user, transaction=self.record, account=self.account,
+            raw_message=self.sms.raw_message, direction="debit",
+            date=self.record.date, source="sms", balance_after="900.00",
+        )
+        wrong = self.candidate(
+            kind="bank_transfer_in", balance="42.00", transaction_type="transfer",
+            source_direction="credit", destination_account=self.account,
+            suggested_transfer_direction="credit",
+        )
+        wrong.transaction = self.record
+        wrong.status = "confirmed"
+        wrong.save(update_fields=("transaction", "status", "updated_at"))
+        TransferEvidence.objects.create(
+            user=self.user, transaction=self.record, account=self.account,
+            raw_message=wrong.raw_message, direction="credit",
+            date=self.record.date, source="sms", balance_after="42.00",
+        )
+        return wrong
+
+    def test_move_one_misattributed_sms_preserves_transfer_and_other_evidence(self):
+        wrong = self.transfer_with_misattributed_sms()
+        old = self.preview().data
+        response = self.correct_sms(old, wrong, "move", self.wallet)
+        self.assertEqual(response.status_code, 200, response.data)
+        wrong.refresh_from_db()
+        self.record.refresh_from_db()
+        self.assertEqual(wrong.transaction_id, self.record.pk)
+        self.assertEqual(wrong.status, "confirmed")
+        self.assertEqual(wrong.destination_account_id, self.wallet.pk)
+        self.assertEqual(wrong.source_direction, "credit")
+        self.assertEqual(self.record.account_id, self.account.pk)
+        self.assertEqual(self.record.transfer_account_id, self.wallet.pk)
+        self.assertEqual(self.record.amount, Decimal("100.00"))
+        self.assertEqual(self.record.balance_after, Decimal("900.00"))
+        moved = TransferEvidence.objects.get(raw_message=wrong.raw_message)
+        self.assertEqual((moved.account_id, moved.direction, moved.balance_after), (self.wallet.pk, "credit", Decimal("42.00")))
+        self.assertEqual(TransferEvidence.objects.filter(transaction=self.record).count(), 2)
+        self.assertEqual(reported_values(self.record)[self.wallet.pk], Decimal("42.00"))
+        self.assertTrue(RawMessage.objects.filter(pk=wrong.raw_message_id).exists())
+        self.assertEqual(AuditLogEntry.objects.latest("created_at").metadata["operation"], "correct_sms_evidence")
+        self.assertEqual(self.correct_sms(old, wrong, "move", self.wallet).status_code, 409)
+        action = TransactionAction.objects.latest("created_at")
+        undo = self.client.post(reverse("transaction-undo"), {"action": str(action.pk)}, format="json")
+        self.assertEqual(undo.status_code, 200, undo.data)
+        wrong.refresh_from_db()
+        moved.refresh_from_db()
+        self.assertEqual(wrong.destination_account_id, self.account.pk)
+        self.assertEqual((moved.account_id, moved.direction), (self.account.pk, "credit"))
+
+    def test_unlink_only_selected_sms_returns_it_to_review_and_is_undoable(self):
+        wrong = self.transfer_with_misattributed_sms()
+        response = self.correct_sms(self.preview().data, wrong, "unlink")
+        self.assertEqual(response.status_code, 200, response.data)
+        wrong.refresh_from_db()
+        self.record.refresh_from_db()
+        self.assertEqual(wrong.status, "needs_review")
+        self.assertIsNone(wrong.transaction_id)
+        self.assertFalse(TransferEvidence.objects.filter(raw_message=wrong.raw_message).exists())
+        self.assertTrue(TransferEvidence.objects.filter(raw_message=self.sms.raw_message, transaction=self.record).exists())
+        self.assertEqual(self.record.balance_after, Decimal("900.00"))
+        self.assertTrue(RawMessage.objects.filter(pk=wrong.raw_message_id).exists())
+        action = TransactionAction.objects.latest("created_at")
+        undo = self.client.post(reverse("transaction-undo"), {"action": str(action.pk)}, format="json")
+        self.assertEqual(undo.status_code, 200, undo.data)
+        wrong.refresh_from_db()
+        self.assertEqual(wrong.status, "confirmed")
+        self.assertEqual(wrong.transaction_id, self.record.pk)
+        self.assertTrue(TransferEvidence.objects.filter(raw_message=wrong.raw_message, transaction=self.record).exists())
+
+    def test_sms_correction_rejects_wrong_direction_and_other_user(self):
+        wrong = self.transfer_with_misattributed_sms()
+        wrong.source_direction = "debit"
+        wrong.save(update_fields=("source_direction", "updated_at"))
+        preview = self.preview().data
+        self.assertEqual(self.correct_sms(preview, wrong, "move", self.wallet).status_code, 400)
+        self.client.force_authenticate(self.other_user)
+        self.assertEqual(self.correct_sms(preview, wrong, "unlink").status_code, 404)
+
+    def test_secondary_sms_correction_keeps_reviewed_scalar_balance(self):
+        wrong = self.transfer_with_misattributed_sms()
+        self.record.balance_after = Decimal("901.00")
+        self.record.save(update_fields=("balance_after", "updated_at"))
+        response = self.correct_sms(self.preview().data, wrong, "move", self.wallet)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.record.refresh_from_db()
+        self.assertEqual(self.record.balance_after, Decimal("901.00"))
+
     def test_preview_is_read_only_and_shows_both_originals(self):
         stamp = self.record.updated_at
         response = self.preview()

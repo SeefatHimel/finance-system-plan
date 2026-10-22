@@ -5384,6 +5384,59 @@
         ]
       }
     },
+    "/api/transactions/{id}/correct-sms-evidence/": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsEvidenceCorrection"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsEvidenceCorrection"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsEvidenceCorrection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/transactions/{id}/merge-transfer/": {
       "post": {
         "parameters": [
@@ -9637,6 +9690,15 @@
         "kind": {
           "type": "string"
         },
+        "raw_message": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "time": {
+          "nullable": true,
+          "type": "string"
+        },
         "usable": {
           "type": "boolean"
         }
@@ -9653,6 +9715,8 @@
         "id",
         "issues",
         "kind",
+        "raw_message",
+        "time",
         "usable"
       ],
       "type": "object"
@@ -10082,6 +10146,38 @@
         "updated_at"
       ],
       "type": "object"
+    },
+    "SmsEvidenceCorrection": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "action": {
+          "$ref": "#/components/schemas/SmsEvidenceCorrectionActionEnum"
+        },
+        "candidate": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "token": {
+          "maxLength": 2048,
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "candidate",
+        "token"
+      ],
+      "type": "object"
+    },
+    "SmsEvidenceCorrectionActionEnum": {
+      "enum": [
+        "move",
+        "unlink"
+      ],
+      "type": "string"
     },
     "SmsPermissionStateEnum": {
       "enum": [
