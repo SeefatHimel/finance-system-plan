@@ -9,8 +9,8 @@ export default function EvidenceChecksPage() {
   return <main className="main evidence-checks-page">
     <section className="panel">
       <div className="panel__body">
-        <h2 className="section-title">Check saved evidence</h2>
-        <p className="section-subtitle">Find direction, amount, balance and account disagreements between saved SMS, statement rows and ledger entries. A check never changes the ledger or original sources.</p>
+        <h2 className="section-title">Evidence health</h2>
+        <p className="section-subtitle">First update recoverable directions in older saved evidence. Then scan ledger entries for disagreements. Nothing changes a ledger entry until you review and apply a correction.</p>
         <TransactionIssueAudit
           onEdit={edit}
           onRevalidate={revalidate}

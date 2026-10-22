@@ -165,6 +165,15 @@ const transactionIssuePageSchema = z.object({
   }))
 });
 
+const evidenceDirectionRefreshPageSchema = z.object({
+  sms_scanned: z.number(), sms_total: z.number(), sms_updated: z.number(),
+  sms_known: z.number(), sms_unknown: z.number(),
+  statement_scanned: z.number(), statement_total: z.number(),
+  statement_known: z.number(), statement_unknown: z.number(),
+  next_offset: z.number().nullable(),
+});
+export type EvidenceDirectionRefreshPage = z.infer<typeof evidenceDirectionRefreshPageSchema>;
+
 const transactionActionSchema = z.object({
   id: z.string(), kind: z.string(), label: z.string(), transaction: z.string().nullable(),
   created_at: z.string(), expires_at: z.string(), can_undo: z.boolean(), undone: z.boolean()
@@ -1219,8 +1228,16 @@ export async function applyBulkRevalidation(token: string, items: { transaction:
   );
 }
 
-export async function scanTransactionIssues(accessToken: string, offset = 0): Promise<TransactionIssuePage> {
-  const response = await authenticatedFetch(`/api/transactions/issues/?limit=50&offset=${offset}`, accessToken);
+export async function refreshEvidenceDirections(accessToken: string, offset = 0, signal?: AbortSignal): Promise<EvidenceDirectionRefreshPage> {
+  const response = await authenticatedFetch("/api/transactions/refresh-evidence-directions/", accessToken, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ limit: 100, offset }), signal,
+  });
+  return evidenceDirectionRefreshPageSchema.parse(await response.json());
+}
+
+export async function scanTransactionIssues(accessToken: string, offset = 0, signal?: AbortSignal): Promise<TransactionIssuePage> {
+  const response = await authenticatedFetch(`/api/transactions/issues/?limit=50&offset=${offset}`, accessToken, { signal });
   return transactionIssuePageSchema.parse(await response.json());
 }
 

@@ -1457,8 +1457,14 @@ it does not silently discover/merge unrelated transactions.
 
 ### Where do source-versus-ledger checks live?
 
-The separate `/checks` Evidence checks page scans saved entries in pages of 50.
-It groups source-direction disagreements ahead of other findings and links each
+The separate `/checks` Evidence health page first offers a bounded refresh of
+missing historical SMS source directions and verifies stored statement direction
+coverage. It shows recovered, known, and unresolved counts with a single loader
+and progress bar; it never silently edits the ledger. A second action scans all
+saved ledger entries, shows progress, and filters highlighted direction conflicts
+from other findings. It reveals long finding lists 25 entries at a time. Either
+operation can be paused and continued. The check
+groups source-direction disagreements ahead of other findings and links each
 entry to the shared editor or its revalidation preview in a modal on that page.
 Closing the modal keeps the scan results and scroll position. Account Lanes uses
 the same local editor for cards and gap details, retaining its visible date,

@@ -1059,7 +1059,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
           </div>
 
           <RecentTransactionAction />
-          <Link className="button button--ghost" href="/checks">Check saved evidence</Link>
+          <Link className="button button--ghost" href="/checks">Evidence health</Link>
           {formMessage ? <p className="form-success">{formMessage}</p> : null}
 
           <form className="transaction-filters" onSubmit={handleFilterSubmit}>

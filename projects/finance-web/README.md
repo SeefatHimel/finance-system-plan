@@ -9,10 +9,15 @@ claims details absent from the SMS. Reviewers must acknowledge visible warnings
 before saving; they can still keep a verified choice based on other evidence.
 The app does not alter existing ledger entries automatically.
 
-The dedicated **Evidence checks** page scans 50 entries at a time with the
-current rules, groups source-direction disagreements separately from other
-findings, and opens edit or revalidation dialogs over the checks page. A further
-50 can be checked from the result panel; checking again starts a fresh scan.
+The dedicated **Evidence health** page has two independent actions. **Update
+saved evidence** walks older SMS candidates in bounded pages and fills only
+missing, unambiguous source directions while checking statement extraction
+coverage. **Check all transactions** then scans ledger entries in the background,
+shows one progress indicator, and highlights source-direction conflicts above
+other findings. Long finding lists reveal 25 entries at a time. Either scan can
+be paused and continued. Edit and revalidation
+dialogs open over the results, preserving the current page. Unknown source
+directions stay unknown rather than borrowing an edited draft or ledger value.
 Bulk revalidation is under Advanced tools. The Transactions page links to this
 page instead of carrying the full scanner. A scan does not update past entries
 automatically. It also flags disagreements
