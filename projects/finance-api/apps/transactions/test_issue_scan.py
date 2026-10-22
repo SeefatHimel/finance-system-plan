@@ -8,8 +8,10 @@ from rest_framework.test import APITestCase
 from apps.accounts.models import Account
 from apps.audit_logs.models import AuditLogEntry
 from apps.categories.models import Category
-from apps.messages.models import RawMessage, SenderRule, SenderRuleMapping
+from apps.messages.models import ParsedMessageCandidate, RawMessage, SenderRule, SenderRuleMapping
+from apps.messages.parsers import parse_raw_message
 from apps.payment_methods.models import PaymentMethod
+from apps.statements.models import StatementImport, StatementRow
 
 from .models import Transaction, TransferEvidence
 
@@ -98,6 +100,78 @@ class TransactionIssueScanTests(APITestCase):
         self.assertEqual(self.scan(limit=101).status_code, 400)
         self.client.force_authenticate(user=None)
         self.assertEqual(self.scan().status_code, 401)
+
+    def test_scan_compares_original_statement_and_saved_draft_separately(self):
+        record = Transaction.objects.create(
+            user=self.user, account=self.city, date="2026-09-30",
+            type="income", direction="credit", amount="100.00",
+        )
+        batch = StatementImport.objects.create(
+            user=self.user, account=self.city, file_digest="synthetic-digest",
+            profile="bkash", parser_version="test", currency="BDT",
+            account_identity="synthetic", page_count=1,
+        )
+        row = StatementRow.objects.create(
+            batch=batch, position=1, component="principal", source_fingerprint="synthetic",
+            extracted={"direction": "debit"}, direction="credit", amount="100.00",
+            type="income", state="posted", transaction=record,
+        )
+        codes = {issue["code"] for issue in self.scan().data["results"][0]["issues"]}
+        self.assertIn("statement_source_direction_mismatch", codes)
+        self.assertNotIn("statement_draft_direction_mismatch", codes)
+        row.extracted = {"direction": "credit"}
+        row.direction = "debit"
+        row.save(update_fields=("extracted", "direction"))
+        codes = {issue["code"] for issue in self.scan().data["results"][0]["issues"]}
+        self.assertIn("statement_draft_direction_mismatch", codes)
+        self.assertNotIn("statement_source_direction_mismatch", codes)
+
+    def test_scan_checks_saved_sms_direction_after_ledger_edit(self):
+        message = self.message("Tk. 100 purchase at SAMPLE SHOP. Balance Tk. 900")
+        record = Transaction.objects.create(
+            user=self.user, account=self.city, raw_message=message,
+            date="2026-09-30", type="income", direction="credit", amount="100.00",
+        )
+        ParsedMessageCandidate.objects.create(
+            user=self.user, raw_message=message, transaction=record,
+            account=self.city, amount="100.00", status="confirmed",
+            message_kind="card_purchase", transaction_type="income",
+            source_direction="debit",
+        )
+        codes = {issue["code"] for issue in self.scan().data["results"][0]["issues"]}
+        self.assertIn("sms_source_direction_mismatch", codes)
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_fee_row_uses_its_own_direction_not_the_principal_pdf_direction(self):
+        record = Transaction.objects.create(
+            user=self.user, account=self.city, date="2026-09-30",
+            type="fee", direction="debit", amount="5.00",
+        )
+        batch = StatementImport.objects.create(
+            user=self.user, account=self.city, file_digest="fee-digest",
+            profile="bkash", parser_version="test", currency="BDT",
+            account_identity="synthetic", page_count=1,
+        )
+        StatementRow.objects.create(
+            batch=batch, position=1, component="fee", source_fingerprint="fee-row",
+            extracted={"direction": "credit", "signed_fee": "-5.00"},
+            direction="debit", amount="5.00", type="fee", state="posted", transaction=record,
+        )
+        self.assertEqual(self.scan().data["results"], [])
+
+    def test_sms_direction_is_captured_before_a_learned_type_override(self):
+        rule = SenderRule.objects.create(
+            user=self.user, account=self.city, name="City alerts",
+            provider="city_bank", sender="CITYBANK",
+        )
+        SenderRuleMapping.objects.create(
+            user=self.user, sender_rule=rule, message_kind="card_purchase",
+            account=self.city, transaction_type="income",
+        )
+        parsed = parse_raw_message(self.message("Tk. 100 purchase at SAMPLE SHOP. Balance Tk. 900"))
+        self.assertEqual(parsed["message_kind"], "card_purchase")
+        self.assertEqual(parsed["transaction_type"], "income")
+        self.assertEqual(parsed["source_direction"], "debit")
 
     def test_unattributed_transfer_sms_does_not_claim_the_wrong_bank(self):
         message = self.message("Tk. 100 Deposit. Balance Tk. 900. A/C: 1234***5678")

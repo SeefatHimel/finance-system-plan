@@ -6,6 +6,10 @@
 `next_offset`, and `results` with transaction ID, date, account, amount, and
 issue `code`, `level`, and `text`. It is authenticated, user-scoped, read-only,
 and omits original SMS bodies. `limit` is at most 100.
+Direction disagreements use `sms_source_direction_mismatch`,
+`statement_source_direction_mismatch`, or `statement_draft_direction_mismatch`.
+`ParsedMessageCandidate.source_direction` is read-only and may be blank when the
+SMS does not determine debit versus credit.
 
 ### How does the profile editor cross the API boundary?
 

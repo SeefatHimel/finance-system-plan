@@ -74,7 +74,7 @@ def sms_observation(candidate):
         if candidate.suggested_transfer_direction
         else candidate.message_kind in INCOMING_KINDS
     )
-    direction = (
+    direction = getattr(candidate, "source_direction", "") or (
         ("credit" if incoming else "debit")
         if candidate.transaction_type == "transfer"
         or candidate.message_kind

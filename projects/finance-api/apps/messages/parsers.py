@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from .identifiers import sanitize_financial_identifier
 from .models import ParsedMessageCandidate, SenderRule, SenderRuleMapping
 from .safe_sender_regex import sender_pattern_matches
+from .source_direction import source_direction_for_kind
 
 _AMOUNT_PATTERN = re.compile(
     r"(?:tk|bdt)\.?\s*([0-9][0-9,]*(?:\.\d{1,2})?)|"
@@ -132,6 +133,7 @@ def parse_raw_message(raw_message, *, sender_rule=None):
             "transaction_type": "expense",
         }
 
+    parsed["source_direction"] = source_direction_for_kind(parsed["message_kind"])
     parsed["suggested_transfer_direction"] = ""
     parsed["transfer_suggestion_reason"] = ""
     # Retain the reporting account established by SMS evidence before legacy mappings.

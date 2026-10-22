@@ -577,6 +577,7 @@ export interface ParsedMessageCandidate {
   status: ParsedMessageCandidateStatus;
   parser_name: string;
   suggested_transfer_direction?: "" | "debit" | "credit";
+  source_direction: "" | "debit" | "credit";
   transfer_suggestion_reason?: string;
   parser_notes: string;
   rejection_reason: string;

@@ -951,6 +951,16 @@ CI runs `manage.py spectacular --validate` and fails on schema errors. The
 checked-in shared OpenAPI and generated TypeScript client remain the integration
 contract; legacy schema warnings are tracked separately.
 
+Statement imports already retain the PDF-extracted debit/credit direction in
+`StatementRow.extracted.direction`, separately from the editable `StatementRow.direction`
+and posted `Transaction.direction`. SMS candidates now retain a read-only
+`source_direction` inferred from unambiguous message kinds before user mappings.
+Migration 0016 backfills that field from saved message kinds; ambiguous kinds
+remain blank, and neither the original message nor posted entries are rewritten.
+`GET /api/transactions/issues/` compares saved PDF, draft and SMS directions
+with the current ledger direction for the reporting account. It flags
+disagreements for review without changing balances, links or source evidence.
+
 ## Account recognition profiles
 
 Account create/update accepts optional `identity` metadata: provider, masked primary

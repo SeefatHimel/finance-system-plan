@@ -8,6 +8,11 @@ wording with saved account and classification, and reruns the current parser
 for advisory category suggestions. Results omit raw SMS content and use
 `Cache-Control: private, no-store`. A changed rule is a suggestion, not proof
 that an older reviewed entry was wrong.
+The scan also compares saved SMS direction, PDF-extracted direction and editable
+statement draft direction against the current ledger direction for the reporting
+account. These are separate review findings; the scan never rewrites evidence or
+the ledger. SMS direction is inferred before user mappings, and ambiguous message
+kinds stay unknown.
 
 ### What can a signed-in user change on their profile?
 

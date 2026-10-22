@@ -7664,6 +7664,10 @@
           "readOnly": true,
           "type": "string"
         },
+        "source_direction": {
+          "readOnly": true,
+          "type": "string"
+        },
         "status": {
           "allOf": [
             {
@@ -7744,6 +7748,7 @@
         "sender_account_identifier",
         "sender_card_identifier",
         "sender_rule",
+        "source_direction",
         "status",
         "suggested_transfer_direction",
         "transaction",

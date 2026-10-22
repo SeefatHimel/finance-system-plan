@@ -409,6 +409,8 @@ class ParsedMessageCandidate(models.Model):
     receiver_card_identifier = models.CharField(max_length=120, blank=True, default="")
     counterparty_text = models.CharField(max_length=255, blank=True, default="")
     suggested_transfer_direction = models.CharField(max_length=6, blank=True, default="", choices=(("debit", "Debit"), ("credit", "Credit")))
+    # Captured from the message kind before user classification or ledger edits.
+    source_direction = models.CharField(max_length=6, blank=True, default="")
     transfer_suggestion_reason = models.CharField(max_length=255, blank=True, default="")
     reference = models.CharField(max_length=120, blank=True, default="")
     balance_after = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)

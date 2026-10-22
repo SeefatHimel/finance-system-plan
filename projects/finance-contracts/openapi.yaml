@@ -4682,7 +4682,7 @@ components:
     ParsedMessageCandidate:
       type: object
       required:
-        [id, raw_message, sender_rule, account, payment_method, category, destination_account, destination_payment_method, transaction, possible_related_candidate, provider, message_kind, transaction_type, amount, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, related_match_reason, confidence, status, parser_name, parser_notes, rejection_reason, rejection_note, rejected_at, created_at, updated_at]
+        [id, raw_message, sender_rule, account, payment_method, category, destination_account, destination_payment_method, transaction, possible_related_candidate, provider, message_kind, source_direction, transaction_type, amount, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, related_match_reason, confidence, status, parser_name, parser_notes, rejection_reason, rejection_note, rejected_at, created_at, updated_at]
       properties:
         undo_action:
           allOf: [{$ref: '#/components/schemas/TransactionAction'}]
@@ -4792,6 +4792,11 @@ components:
           type: string
           enum: ['', debit, credit]
           description: Optional suggested direction for the reporting account; blank when no transfer path is suggested.
+        source_direction:
+          type: string
+          enum: ['', debit, credit]
+          readOnly: true
+          description: Direction inferred from the SMS message kind before user classification; blank when ambiguous. The original SMS remains separate evidence.
         transfer_suggestion_reason:
           type: string
           description: Explanation for a suggested transfer path or ambiguity. Suggestions require review and never post ledger activity.

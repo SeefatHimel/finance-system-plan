@@ -142,6 +142,11 @@ format, causing a false schema-drift failure against PostgreSQL.
 - Breaking changes must be versioned or coordinated.
 - Transaction amount is stored as a positive value with explicit business type
   and ledger direction (`debit` or `credit`).
+- `ParsedMessageCandidate.source_direction` is a read-only SMS parser observation
+  (`debit`, `credit`, or blank when ambiguous), separate from the chosen ledger
+  direction. Statement rows retain immutable PDF direction in `extracted.direction`
+  and a separately editable draft direction. Neither source direction follows a
+  later ledger edit automatically.
 - Account responses expose a derived `ledger_balance` plus nullable
   `latest_reported_balance` and `latest_reported_balance_date`. The derived
   value is recalculated from posted activity; the reported value is evidence

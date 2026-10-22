@@ -26,6 +26,16 @@ def _account_provider(account, methods):
     return {"CITYBANK": "city_bank", "EBL": "ebl", "EBLBANK": "ebl"}.get(normalized, "")
 
 
+def _ledger_direction_for_account(record, account_id):
+    if record.type == Transaction.Type.TRANSFER:
+        if account_id == record.transfer_account_id:
+            return "credit"
+        if account_id == record.account_id:
+            return "debit"
+        return None
+    return record.direction if account_id == record.account_id else None
+
+
 def scan_ledger_page(*, user, limit, offset):
     queryset = Transaction.objects.filter(user=user).select_related("account", "category", "raw_message").prefetch_related("transfer_evidence").order_by("-date", "-id")
     total = queryset.count()
@@ -33,6 +43,8 @@ def scan_ledger_page(*, user, limit, offset):
     record_ids = [record.pk for record in records]
     sources = defaultdict(dict)
     financials = defaultdict(list)
+    directions = defaultdict(list)
+    saved_sms_directions = defaultdict(set)
     for record in records:
         if record.raw_message_id:
             sources[record.pk][record.raw_message_id] = (record.raw_message, record.account, False)
@@ -41,6 +53,11 @@ def scan_ledger_page(*, user, limit, offset):
     ).select_related("raw_message", "account", "destination_account"):
         account, _, _ = sms_observation(candidate)
         financials[candidate.transaction_id].append((account.pk if account else None, candidate.amount, candidate.balance_after))
+        if candidate.source_direction and account:
+            directions[candidate.transaction_id].append((
+                "sms_source_direction_mismatch", "Saved SMS parser", account.pk, candidate.source_direction,
+            ))
+            saved_sms_directions[candidate.transaction_id].add(candidate.raw_message_id)
         sources[candidate.transaction_id].setdefault(
             candidate.raw_message_id, (candidate.raw_message, candidate.account, False)
         )
@@ -52,10 +69,25 @@ def scan_ledger_page(*, user, limit, offset):
         sources[evidence.transaction_id][evidence.raw_message_id] = (evidence.raw_message, evidence.account, True)
     for row in StatementRow.objects.filter(batch__user=user, transaction_id__in=record_ids, state__in=("posted", "linked")).select_related("batch"):
         financials[row.transaction_id].append((row.batch.account_id, row.amount, row.balance_after))
+        directions[row.transaction_id].append((
+            "statement_draft_direction_mismatch", "Saved statement draft", row.batch.account_id, row.direction,
+        ))
+        source_direction = row.extracted.get("direction")
+        if row.component == "principal" and source_direction in {"debit", "credit"}:
+            directions[row.transaction_id].append((
+                "statement_source_direction_mismatch", "Original PDF extraction", row.batch.account_id, source_direction,
+            ))
     methods = list(PaymentMethod.objects.filter(user=user, is_active=True, account__is_active=True))
     findings = []
     for record in records:
         warnings = []
+        for code, label, account_id, source_direction in directions[record.pk]:
+            ledger_direction = _ledger_direction_for_account(record, account_id)
+            if ledger_direction and source_direction != ledger_direction:
+                warnings.append({
+                    "code": code, "level": "check",
+                    "text": f"{label} records {source_direction}; this ledger entry records {ledger_direction} for the reporting account. Review the original source before correcting or relinking evidence.",
+                })
         balances = reported_values(record) if record.type == "transfer" else {record.account_id: record.balance_after}
         if any((amount is not None and not (record.amount >= amount and equivalent_amount(record.amount, amount, record.account.currency))) or
                (balance is not None and not (balances.get(account_id) is not None and balances[account_id] >= balance and equivalent_amount(balances[account_id], balance, record.account.currency)))
@@ -82,6 +114,13 @@ def scan_ledger_page(*, user, limit, offset):
             if message.status == RawMessage.Status.REDACTED or message.redacted_at or message.exclusion_reason:
                 continue
             parsed = parse_raw_message(message)
+            source_direction = parsed["source_direction"]
+            ledger_direction = _ledger_direction_for_account(record, checked_account.pk)
+            if (record.type != Transaction.Type.TRANSFER or attributed) and message.pk not in saved_sms_directions[record.pk] and source_direction and ledger_direction and source_direction != ledger_direction:
+                warnings.append({
+                    "code": "sms_source_direction_mismatch", "level": "check",
+                    "text": f"Current SMS parser reads {source_direction}; this ledger entry records {ledger_direction} for the reporting account. Review the message before correcting the entry.",
+                })
             if is_generic_bank_deposit(
                 provider=parsed["provider"], message_kind=parsed["message_kind"],
                 body=message.body, counterparty_text=parsed["counterparty_text"],
