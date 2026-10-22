@@ -766,7 +766,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
   return (
     <div className={isEmbedded ? "" : "workspace-grid"}>
       {isEmbedded && !editorMode ? <ModalDialog className="form-drawer embedded-editor-status" labelledBy="embedded-editor-pending-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-pending-title">Opening transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body">{formError ? <p role="alert">{formError}</p> : <p role="status">Preparing {embeddedCreate ? "full entry" : "saved entry and sources"}…</p>}{formError && embeddedEditId ? <button className="button button--ghost" type="button" onClick={() => void selectTransactionForEdit(embeddedEditId)}>Retry</button> : null}</div></ModalDialog> : null}
-      {revalidationId ? <TransactionRevalidationDialog key={revalidationId} transactionId={revalidationId} onClose={() => setRevalidationId(null)} /> : null}
+      {revalidationId ? <TransactionRevalidationDialog key={revalidationId} transactionId={revalidationId} onClose={() => setRevalidationId(null)} onEdit={() => { const id = revalidationId; setRevalidationId(null); void selectTransactionForEdit(id); }} /> : null}
       {categoryChoice.confirmation}
       {clockEdit ? <QuickTimePicker value={clockEdit.value} onCancel={() => setClockEdit(null)} onApply={time => { setEditingTime(time); setClockEdit(null); }} /> : null}
       {evidenceTransaction ? <ModalDialog labelledBy="transaction-sources-title" className="form-drawer transaction-sources-dialog" onCancel={() => setEvidenceTransaction(null)}>

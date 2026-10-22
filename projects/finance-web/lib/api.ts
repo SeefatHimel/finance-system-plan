@@ -1190,7 +1190,8 @@ export async function listTransactionSourceMessages(accessToken: string, id: str
 const transactionRevalidationSchema = z.object({
   transaction: z.string().uuid(), currency: z.string(), policy: z.string(), fingerprint: z.string(), token: z.string(), expires_in: z.number(),
   suggestions: z.array(z.object({ key: z.string(), label: z.string(), current: z.string().nullable(), proposed: z.string(), reason: z.string(), value: z.string().optional() })),
-  sources: z.array(z.object({ kind: z.string(), id: z.string().uuid(), account: z.string().uuid().nullable(), account_name: z.string(), amount: z.string().nullable(), balance_after: z.string().nullable(), usable: z.boolean(), has_fee: z.boolean() })),
+  ledger: z.object({ date: z.string(), type: z.string(), amount: z.string(), accounts: z.array(z.object({ id: z.string().uuid(), name: z.string(), currency: z.string(), direction: z.string(), balance_after: z.string().nullable() })) }),
+  sources: z.array(z.object({ kind: z.string(), id: z.string().uuid(), account: z.string().uuid().nullable(), account_name: z.string(), currency: z.string().nullable(), direction: z.string().nullable(), date: z.string().nullable(), amount: z.string().nullable(), balance_after: z.string().nullable(), usable: z.boolean(), has_fee: z.boolean(), issues: z.array(z.string()) })),
   warnings: z.array(z.string()),
 });
 export type TransactionRevalidation = z.infer<typeof transactionRevalidationSchema>;

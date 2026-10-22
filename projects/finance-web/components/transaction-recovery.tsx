@@ -122,11 +122,11 @@ export function TransactionRecoveryProvider({ children }: { children: ReactNode 
 // Mount inside QuickAddProvider so the shared editor can read account drafts
 // without replacing the page underneath the modal.
 export function TransactionOverlayHost() {
-  const { editId, revalidationId, createOpen, closeEdit, closeRevalidation } = useTransactionRecovery();
+  const { editId, revalidationId, createOpen, closeEdit, closeRevalidation, edit } = useTransactionRecovery();
   return <>
     {editId ? <TransactionEditor key={editId} embeddedEditId={editId} onEmbeddedClose={closeEdit} onEmbeddedSaved={transaction => window.dispatchEvent(new CustomEvent("finance:transaction-saved", { detail: transaction }))} /> : null}
     {createOpen ? <TransactionEditor key="full-entry" embeddedCreate onEmbeddedClose={closeEdit} onEmbeddedSaved={transaction => window.dispatchEvent(new CustomEvent("finance:transaction-saved", { detail: transaction }))} /> : null}
-    {revalidationId ? <TransactionRevalidationDialog key={revalidationId} transactionId={revalidationId} onClose={closeRevalidation} /> : null}
+    {revalidationId ? <TransactionRevalidationDialog key={revalidationId} transactionId={revalidationId} onClose={closeRevalidation} onEdit={() => edit(revalidationId)} /> : null}
   </>;
 }
 

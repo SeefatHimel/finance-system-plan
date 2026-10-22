@@ -1447,9 +1447,13 @@ source-evidence APIs.
 ### How does the user safely revalidate an already confirmed transaction?
 
 Choose Revalidate on the Transactions row or an Evidence checks finding. The
-dialog shows source values, warnings and current → proposed corrections, with all
-checkboxes unchecked. Apply selected performs one reviewed update; Cancel and
-Refresh preview do not write. On errors or stale evidence, approval clears and a
+dialog groups evidence by reporting account and compares each source's date,
+direction, amount and balance with the current ledger. Incompatible evidence has
+a specific reason; eligible current → proposed corrections have unchecked
+checkboxes. If none is safe, Review ledger entry opens the editor on the same
+page and the Apply action is absent. Applying selected changes performs one
+reviewed update; closing and refreshing the comparison do not write. On errors
+or stale evidence, approval clears and a
 fresh preview is required. Success refreshes the list, shows a toast and records
 History; latest-action Undo is available. Original SMS/PDF values stay intact.
 Revalidation uses already attached sources, so there is no re-import/resync, and

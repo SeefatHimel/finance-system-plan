@@ -1740,10 +1740,13 @@ API first; no migration or APK rebuild is needed.
 
 Transactions provides **Revalidate** on each entry and beside **Check transactions**
 findings. The dialog compares already attached SMS/PDF observations and current
-SMS rules without changing anything. It shows exact source values, each eligible
-current → proposed correction, and warnings that need manual Edit. All correction
-checkboxes start unchecked. Select individual suggestions and use **Apply selected**;
-Cancel, opening the preview and **Refresh preview** never write the ledger.
+SMS rules without changing anything. It puts the current ledger beside evidence
+grouped by reporting account; each source shows its date, direction, amount,
+balance and any specific reason it cannot be compared. Eligible corrections show
+current → proposed values and remain unchecked until selected. When sources
+conflict and no automatic correction is safe, **Review ledger entry** opens the
+editor on the same page. The dialog offers no Apply button in that state.
+Closing, opening the preview and **Refresh comparison** never write the ledger.
 
 Supported suggestions are higher BDT amounts/balances within a full span strictly
 below Tk 1, restoration of missing account-specific balances, and an unambiguous
