@@ -9,11 +9,17 @@ claims details absent from the SMS. Reviewers must acknowledge visible warnings
 before saving; they can still keep a verified choice based on other evidence.
 The app does not alter existing ledger entries automatically.
 
-The Transactions page has a **Check transactions** action. It scans 50 entries
-at a time with the current rules, shows issues and advisory category suggestions,
-and opens any finding in the existing transaction editor. A further 50 can be
-checked from the result panel; checking again starts a fresh scan. This action
-does not update past entries automatically.
+The dedicated **Evidence checks** page scans 50 entries at a time with the
+current rules, groups source-direction disagreements separately from other
+findings, and opens any finding in the existing transaction editor. A further
+50 can be checked from the result panel; checking again starts a fresh scan.
+Bulk revalidation is under Advanced tools. The Transactions page links to this
+page instead of carrying the full scanner. A scan does not update past entries
+automatically. It also flags disagreements
+between a posted entry and the saved SMS parser direction, the PDF-extracted
+direction, or the editable statement draft direction. Statement review labels
+the PDF direction separately; SMS review labels an ambiguous direction as
+unknown. A later ledger edit does not rewrite either original source.
 
 Next.js web dashboard for managing and reviewing the finance system.
 

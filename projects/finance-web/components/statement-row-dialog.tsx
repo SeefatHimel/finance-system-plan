@@ -144,7 +144,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
       <div className="form-drawer__header"><div><h2 id="statement-row-title">Review statement {row.component === "fee" ? "fee" : "transaction"}</h2><p>{batch.account_name} · Page {source.page}, source row {source.row}</p></div><button type="button" className="icon-button" aria-label="Close statement row" disabled={busy} onClick={onCancel}>×</button></div>
       <div className="statement-row-body" onKeyDown={handleShortcuts}>
         <details className="raw-message"><summary>Original extracted row · {source.amount ?? "Unreadable amount"} {batch.currency}</summary>
-          <p>{source.date ?? "Unknown date"}{source.time ? ` · ${source.time}` : ""} · {source.provider_type || source.direction}</p>
+          <p>{source.date ?? "Unknown date"}{source.time ? ` · ${source.time}` : ""} · {source.provider_type || "Unknown source type"} · PDF direction: {source.direction === "credit" ? "Credit" : source.direction === "debit" ? "Debit" : "Unknown"}</p>
           <p className="statement-evidence-text">{source.description}</p>
           {row.citytouch_printed_code ? <p>Citytouch code printed in PDF: {row.citytouch_printed_code}</p> : null}
           <p>Principal: {source.amount ?? "Unreadable"} · Signed fee: {source.signed_fee} · Reported final balance: {source.balance_after ?? "Unreadable"}</p>
@@ -155,6 +155,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         {batch.profile === "city_bank" && /\bCT-FT-/i.test(source.description) ? <p className="inline-note">Citytouch fund transfer describes the bank operation. Verify whether this is an internal transfer or a payment. <Link href="/statement-counterparties">Manage recurring counterparty codes</Link>.</p> : null}
         {row.component === "fee" ? <p className="inline-note">This is the separate charge from the source row. Approving the principal does not approve this fee.</p> : source.signed_fee !== "0.00" ? <p className="inline-note">The inline fee has its own review row. The final reported balance is saved on the fee entry when you add new movements.</p> : null}
         {isResolved ? <p>This row is {row.state === "posted" ? "added" : row.state}. {row.transaction ? <>Ledger entry: {row.transaction}. Make ledger corrections in <Link href="/transactions">Transactions</Link>.</> : "You can reopen it below."}</p> : null}
+        {row.component === "principal" && source.direction !== row.direction ? <p className="inline-note" role="alert">The saved draft records {row.direction}, but the PDF extraction records {source.direction}. Check the original PDF before linking or changing the ledger entry.</p> : null}
         {!row.transaction && ["posted", "linked"].includes(row.state) ? <p>The previous ledger entry was deleted. Review this source row before recording it again.</p> : null}
         {!isResolved && row.review.suggestion && !bkashFundingSuggestion ? (
           <section className="raw-message">

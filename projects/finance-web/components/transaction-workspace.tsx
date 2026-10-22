@@ -51,7 +51,6 @@ import { getAccessToken } from "@/lib/auth-storage";
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
 import { TransactionSourceMessages } from "@/components/transaction-source-messages";
 import { TransactionRevalidationDialog } from "@/components/transaction-revalidation";
-import { TransactionIssueAudit } from "@/components/transaction-issue-audit";
 import { smsEvidenceWarnings } from "@/lib/sms-evidence-review";
 import { TransactionStatementEvidence } from "@/components/transaction-statement-evidence";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
@@ -587,6 +586,8 @@ export function TransactionWorkspace() {
   useEffect(() => () => editLoad.current?.abort(), []);
   const editId = searchParams.get("edit");
   useEffect(() => { if (editId) void selectTransactionForEdit(editId); }, [editId, selectTransactionForEdit]);
+  const revalidateId = searchParams.get("revalidate");
+  useEffect(() => { if (revalidateId) setRevalidationId(revalidateId); }, [revalidateId]);
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1031,7 +1032,7 @@ export function TransactionWorkspace() {
           </div>
 
           <RecentTransactionAction />
-          <TransactionIssueAudit onRevalidate={setRevalidationId} onEdit={transactionId => void selectTransactionForEdit(transactionId)} />
+          <Link className="button button--ghost" href="/checks">Check saved evidence</Link>
           {formMessage ? <p className="form-success">{formMessage}</p> : null}
 
           <form className="transaction-filters" onSubmit={handleFilterSubmit}>

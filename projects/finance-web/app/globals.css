@@ -2958,6 +2958,12 @@ textarea {
 .transaction-issue-audit__item { border-top: 1px solid var(--panel-border); padding: 14px 0; }
 .transaction-issue-audit__item span { color: var(--muted); }
 .transaction-issue-audit__item ul { margin: 8px 0; padding-left: 20px; }
+.evidence-checks-page { max-width: 1120px; }
+.evidence-checks-tools { margin-top: 12px; color: var(--muted); }
+.evidence-checks-tools summary { cursor: pointer; font-weight: 600; }
+.evidence-checks-tools p { margin: 8px 0; }
+.evidence-checks-group { margin-top: 20px; }
+.evidence-checks-group h3 { margin: 0; font-size: 1.05rem; }
 .transaction-editor-drawer .form-drawer__header .form-error { color: var(--danger, #ff7c82); }
 .viewport-modal.transaction-editor-drawer .drawer-form { flex: 1; min-height: 0; }
 @media (max-width: 640px) {

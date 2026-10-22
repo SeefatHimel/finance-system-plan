@@ -300,7 +300,12 @@ identifier submission, focus return and desktop/phone overflow.
 It shows raw SMS evidence, parser
 notes, parser confidence, review or duplicate reason, detected
 provider/message kind, amount, reference, balance, fee, counterparty text, and
-possible internal-transfer/related-message hints. The user can confirm a
+possible internal-transfer/related-message hints. The user can see the
+separately saved SMS parsed debit/credit direction;
+unknown direction is labeled as such. Statement review labels the PDF-extracted
+direction apart from the editable draft and warns when they disagree. The
+transaction issue scan flags source-versus-ledger direction conflicts without
+silently changing either side. The user can confirm a
 candidate into an SMS-sourced transaction or reject it with a reason. Rejection
 can also redact the original SMS, deactivate the matched sender rule, or exclude
 the provider. The confirmation flow supports debit/credit direction and
@@ -1440,7 +1445,7 @@ source-evidence APIs.
 
 ### How does the user safely revalidate an already confirmed transaction?
 
-Choose Revalidate on the Transactions row or a Check transactions finding. The
+Choose Revalidate on the Transactions row or an Evidence checks finding. The
 dialog shows source values, warnings and current → proposed corrections, with all
 checkboxes unchecked. Apply selected performs one reviewed update; Cancel and
 Refresh preview do not write. On errors or stale evidence, approval clears and a
@@ -1448,6 +1453,15 @@ fresh preview is required. Success refreshes the list, shows a toast and records
 History; latest-action Undo is available. Original SMS/PDF values stay intact.
 Revalidation uses already attached sources, so there is no re-import/resync, and
 it does not silently discover/merge unrelated transactions.
+
+### Where do source-versus-ledger checks live?
+
+The separate `/checks` Evidence checks page scans saved entries in pages of 50.
+It groups source-direction disagreements ahead of other findings and links each
+entry to the existing editor or its revalidation preview. The Transactions page
+links to it; pending SMS and statement decisions remain in Review inbox. Bulk
+revalidation is under Advanced tools. Running a check is read-only, and the page
+marks its results stale after a ledger change instead of silently applying a fix.
 
 ### Can the user review and select many confirmed-transaction corrections together?
 

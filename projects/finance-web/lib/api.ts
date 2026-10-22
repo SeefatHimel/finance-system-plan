@@ -189,6 +189,7 @@ const parsedMessageCandidateSchema = z.object({
   fee_amount: z.string().nullable(),
   id: z.string(),
   message_kind: z.string(),
+  source_direction: z.enum(["", "debit", "credit"]).default(""),
   parser_name: z.string(),
   parser_notes: z.string(),
   suggested_transfer_direction: z.enum(["", "debit", "credit"]).default(""),
