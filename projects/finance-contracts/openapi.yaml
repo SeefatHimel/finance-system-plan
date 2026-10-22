@@ -308,6 +308,35 @@ paths:
           description: Refresh rate exceeded.
         '503':
           description: Archive decryption or extraction unavailable.
+  /api/statements/imports/{id}/recheck-directions/:
+    post:
+      operationId: statements_imports_recheck_directions_create
+      tags: [Statements]
+      parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+      security:
+      - bearerAuth: []
+      description: Owner-scoped, throttled and read-only. Reparse the archived bKash PDF and compare principal row directions with the saved extraction, draft and linked ledger. A row is only aligned when its position, date, time, type, amount and balance match. Never edits evidence or ledger entries.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatementRefreshRequest'
+      responses:
+        '200':
+          description: Rows requiring manual review; no data changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementDirectionRecheck'
+        '400':
+          description: Password needed, unsupported profile, or row count mismatch.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '429':
+          description: Recheck rate exceeded.
+        '503':
+          description: Archive decryption or extraction unavailable.
   /api/statements/imports/{id}/approve_new/:
     post:
       operationId: statements_imports_approve_new_create
@@ -587,6 +616,34 @@ paths:
         '409':
           description: Stale version or already resolved differently. Reload before retrying.
       description: 'Authenticated and user-scoped. Response uses Cache-Control: no-store.'
+  /api/statements/rows/{id}/review-source-direction/:
+    post:
+      operationId: statements_rows_review_source_direction_create
+      tags: [Statements]
+      parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+      security:
+      - bearerAuth: []
+      description: Record a human-verified bKash PDF Out/In column separately from the immutable original extraction. Optionally align the saved draft only when a linked ledger entry already agrees; never changes the ledger. Version-checked and audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatementSourceDirectionReview'
+      responses:
+        '200':
+          description: Reviewed source and draft directions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementSourceDirectionReviewResult'
+        '400':
+          description: PDF unavailable, unconfirmed direction, or conflicting ledger path.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          description: Stale row version.
   /api/statements/rows/{id}/decide/:
     post:
       operationId: statements_rows_decide_create
@@ -6815,6 +6872,10 @@ components:
           allOf:
           - $ref: '#/components/schemas/StatementRow'
           readOnly: true
+        reviewed_source_direction:
+          type: string
+          readOnly: true
+          description: Human-verified PDF direction; blank until reviewed. Original extraction remains unchanged.
         citytouch_printed_code:
           type: string
           nullable: true
@@ -6919,6 +6980,7 @@ components:
       - other_account
       - position
       - reference
+      - reviewed_source_direction
       - review
       - state
       - time
@@ -8081,6 +8143,48 @@ components:
       required: [updated_rows]
       properties:
         updated_rows: {type: integer, minimum: 0}
+    StatementDirectionIssue:
+      type: object
+      required: [row_id, version, page, source_row, date, time, amount, balance_after, original_direction, reviewed_direction, fresh_direction, draft_direction, ledger_direction, transaction_id, state, reasons]
+      properties:
+        row_id: {type: string, format: uuid}
+        version: {type: integer, minimum: 1}
+        page: {type: integer, nullable: true}
+        source_row: {type: integer, nullable: true}
+        date: {type: string, format: date, nullable: true}
+        time: {type: string, nullable: true}
+        amount: {type: string, nullable: true}
+        balance_after: {type: string, nullable: true}
+        original_direction: {type: string, nullable: true}
+        reviewed_direction: {type: string, nullable: true}
+        fresh_direction: {type: string, nullable: true}
+        draft_direction: {type: string}
+        ledger_direction: {type: string, nullable: true}
+        transaction_id: {type: string, format: uuid, nullable: true}
+        state: {type: string}
+        reasons: {type: array, items: {type: string}}
+    StatementDirectionRecheck:
+      type: object
+      required: [parser_version, checked_rows, issues]
+      properties:
+        parser_version: {type: string}
+        checked_rows: {type: integer, minimum: 0}
+        issues: {type: array, items: {$ref: '#/components/schemas/StatementDirectionIssue'}}
+    StatementSourceDirectionReview:
+      type: object
+      required: [version, direction, confirmed_pdf]
+      properties:
+        version: {type: integer, minimum: 1}
+        direction: {type: string, enum: [debit, credit]}
+        confirmed_pdf: {type: boolean, description: User confirms inspecting this exact row in the original PDF.}
+        align_draft: {type: boolean, default: false}
+    StatementSourceDirectionReviewResult:
+      type: object
+      required: [version, reviewed_direction, draft_direction]
+      properties:
+        version: {type: integer, minimum: 1}
+        reviewed_direction: {type: string, enum: [debit, credit]}
+        draft_direction: {type: string, enum: [debit, credit]}
     ObservedStatementCodeExample:
       type: object
       required: [date, amount, description]

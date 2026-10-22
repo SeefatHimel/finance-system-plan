@@ -811,3 +811,7 @@ Clients continue until `next_offset` is null. This endpoint only fills blank,
 unambiguous SMS parser observations; it does not update ledger transactions or
 immutable PDF extractions. `GET /api/transactions/issues/` is the separate
 read-only ledger mismatch scan.
+
+### What do the bKash archived direction endpoints guarantee?
+
+The import-level recheck is authenticated, owner-scoped, throttled and read-only; mismatched row identity yields no asserted fresh direction. The row-level review requires a saved archive, explicit PDF confirmation and the current row version. It preserves original extraction, audits the human correction, and can align a saved draft only when a linked ledger entry already agrees. Neither endpoint edits ledger transactions.

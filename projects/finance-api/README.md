@@ -1618,3 +1618,13 @@ migration or re-import is needed. Deploy API before web. Verify with:
 ```sh
 .venv/bin/python manage.py test apps.statements.test_ebl_delayed_posting apps.statements.test_unified apps.statements.test_balance_choices apps.accounts.test_balance_comparison --noinput
 ```
+
+# Rechecking older bKash directions
+
+Saved statement rows and confirmed ledger entries do not change when a parser is updated. For a retained bKash PDF, `POST /api/statements/imports/{id}/recheck-directions/` reparses the encrypted archive in the bounded worker and compares principal rows by position, date, time, provider type, amount and reported balance. It returns discrepancies between the old extraction, current parser, saved draft and linked ledger. The endpoint is owner-scoped, throttled, no-store and read-only. An uncertain row match has no proposed direction. Older imports without an archive require re-uploading the identical PDF under the same account; that attaches the file without duplicating rows.
+
+After checking the actual Out/In column, `POST /api/statements/rows/{id}/review-source-direction/` records an explicit, version-checked `debit` or `credit` as `reviewed_source_direction`. The original `extracted` JSON remains intact; the correction is audited. `align_draft` can also update the saved draft direction, but only if any linked ledger entry already has that direction for this reporting account. Neither endpoint edits a confirmed ledger transaction. The ledger issue scan uses the reviewed direction while the original extraction remains available for audit. If the ledger disagrees, correct it separately in Transactions after reviewing its evidence.
+
+An unresolved bKash principal draft whose debit/credit differs from its original or reviewed PDF direction cannot be added to the ledger. The row review lists this as a blocking issue; correct the draft or verify and save a source-direction correction first.
+
+The parser reads bKash Out/In by PDF column, not the transaction label. It checks consecutive reported balances and flags a contradiction without silently reversing the printed column, because missing movements or fee rows can make a balance jump ambiguous.

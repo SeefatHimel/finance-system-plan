@@ -20,7 +20,7 @@ from apps.transactions.models import Transaction
 from .parser import MAX_BYTES, StatementParseError, extract_statement
 
 
-def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_count=1, account_identifier="9876543210123", city_first_description="PURCHASE CARD SYNTH SHOP", bkash_details=None, bkash_funding_type="Card to bKash"):
+def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_count=1, account_identifier="9876543210123", city_first_description="PURCHASE CARD SYNTH SHOP", bkash_details=None, bkash_funding_type="Card to bKash", bkash_rows=None, bkash_totals=None):
     stream = io.BytesIO()
     c = canvas.Canvas(
         stream,
@@ -99,8 +99,8 @@ def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_cou
             text(31, 800, "bKash Statement")
             text(31, 780, "bKash Account Number: 01999990123")
             text(31, 760, "Statement Period: 01 Jan 2026 to 05 Jan 2026")
-            text(31, 740, "Total Out: 32.00")
-            text(31, 720, "Total In: 125.00")
+            text(31, 740, f"Total Out: {(bkash_totals or ('32.00', '125.00'))[0]}")
+            text(31, 720, f"Total In: {(bkash_totals or ('32.00', '125.00'))[1]}")
             text(31, 650, "Date & Time")
             text(92, 650, "Transaction Type")
             text(194, 650, "Transaction Details")
@@ -108,7 +108,7 @@ def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_cou
             number(444, 650, "In")
             number(499, 650, "Charge/Fee")
             number(560, 650, "Balance")
-            for y, label, out, inc, fee, balance in [
+            for y, label, out, inc, fee, balance in bkash_rows or [
                 (620, bkash_funding_type, None, "100.00", None, "1,100.00"),
                 (580, "Send Money", None, "25.00", None, "1,125.00"),
                 (540, "Pay Bill", "30.00", None, "-2.00", "1,093.00"),
@@ -134,6 +134,24 @@ def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_cou
 
 
 class StatementParserTests(SimpleTestCase):
+    def test_bkash_identical_send_money_labels_keep_opposite_pdf_columns(self):
+        pdf = synthetic_pdf("bkash", bkash_rows=[
+            (620, "Send Money", "100.00", None, None, "900.00"),
+            (580, "Send Money", None, "100.00", None, "1,000.00"),
+        ], bkash_totals=("100.00", "100.00"))
+        result = extract_statement(pdf)
+        self.assertEqual([row["direction"] for row in result["rows"]], ["debit", "credit"])
+        self.assertEqual([row["balance_after"] for row in result["rows"]], ["900.00", "1000.00"])
+
+    def test_bkash_balance_jump_does_not_silently_reverse_printed_column(self):
+        pdf = synthetic_pdf("bkash", bkash_rows=[
+            (620, "Send Money", "100.00", None, None, "900.00"),
+            (580, "Send Money", "100.00", None, None, "1,000.00"),
+        ], bkash_totals=("200.00", "0.00"))
+        result = extract_statement(pdf)
+        self.assertEqual(result["rows"][1]["direction"], "debit")
+        self.assertIn("Balance does not reconcile with the preceding row.", result["rows"][1]["issues"])
+
     def test_ebl_excludes_opening_closing_and_keeps_fee_row(self):
         result = extract_statement(synthetic_pdf())
         self.assertEqual(len(result["rows"]), 2)

@@ -1,7 +1,6 @@
 from functools import wraps
 from uuid import UUID
 
-from config.secure_data import decrypt_bytes, encrypt_bytes
 from cryptography.fernet import InvalidToken
 from django.db import transaction as db_transaction
 from django.db.models import Count, Exists, OuterRef, Q
@@ -21,6 +20,7 @@ from rest_framework.response import Response
 
 from apps.categories.models import Category
 from apps.transactions.transfers import lock_transfer_user
+from config.secure_data import decrypt_bytes, encrypt_bytes
 
 from .insights import analyze, prepare
 from .models import StatementImport, StatementOriginalFile, StatementRow
@@ -31,6 +31,7 @@ from .serializers import (
     StatementBulkSerializer,
     StatementComparisonSerializer,
     StatementDecisionSerializer,
+    StatementDirectionRecheckSerializer,
     StatementImportSerializer,
     StatementPreviewRequestSerializer,
     StatementRefreshRequestSerializer,
@@ -38,6 +39,8 @@ from .serializers import (
     StatementRowEditSerializer,
     StatementRowPageSerializer,
     StatementSelectedSerializer,
+    StatementSourceDirectionReviewResultSerializer,
+    StatementSourceDirectionReviewSerializer,
     StatementSummarySerializer,
 )
 from .services import (
@@ -54,7 +57,11 @@ from .services import (
     touch,
 )
 from .uploads import BoundedStatementUploadHandler
-from .views import StatementPreviewThrottle, StatementPreviewView
+from .views import (
+    StatementDirectionRecheckThrottle,
+    StatementPreviewThrottle,
+    StatementPreviewView,
+)
 
 
 class ImportPagination(LimitOffsetPagination):
@@ -133,6 +140,8 @@ class StatementImportViewSet(
         return super().initialize_request(request, *args, **kwargs)
 
     def get_throttles(self):
+        if self.action == "recheck_directions":
+            return [StatementDirectionRecheckThrottle()]
         return [StatementPreviewThrottle()] if self.action in {"create", "refresh_identifiers"} else []
 
     def get_queryset(self):
@@ -283,6 +292,38 @@ class StatementImportViewSet(
             raise ValidationError({"detail": "Archived statement rows do not match this import. No data was changed."})
         updated = refresh_bkash_identifiers(batch, preview, strict=True)
         return Response(StatementRefreshResultSerializer({"updated_rows": updated}).data)
+
+    @extend_schema(
+        request=StatementRefreshRequestSerializer,
+        responses={200: StatementDirectionRecheckSerializer},
+        tags=["Statements"],
+    )
+    @redact_pdf_password
+    @action(detail=True, methods=["post"], url_path="recheck-directions", parser_classes=[JSONParser])
+    def recheck_directions(self, request, pk=None):
+        """Reparse an owned archived PDF; never edit extraction, draft, or ledger."""
+        batch = self.get_object()
+        if batch.profile != "bkash":
+            raise ValidationError({"detail": "Direction recheck is available for bKash statements."})
+        serializer = StatementRefreshRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        source = get_object_or_404(StatementOriginalFile, batch=batch)
+        try:
+            data = decrypt_bytes(source.ciphertext)
+        except InvalidToken:
+            return Response({"detail": "Original statement cannot be decrypted. Check the archive key."}, status=503)
+        if len(data) != source.size or file_digest(data) != batch.file_digest:
+            return Response({"detail": "Original statement failed its integrity check."}, status=503)
+        from .views import extract_pdf_bytes
+        preview = extract_pdf_bytes(data, serializer.validated_data.get("password", ""))
+        if isinstance(preview, Response):
+            return preview
+        from .direction_recheck import recheck_directions
+        try:
+            comparison = recheck_directions(batch, preview)
+        except ValueError as error:
+            raise ValidationError({"detail": str(error)}) from error
+        return Response(StatementDirectionRecheckSerializer(comparison).data)
 
     @extend_schema(
         responses=StatementRowPageSerializer,
@@ -661,6 +702,49 @@ class StatementRowViewSet(NoStoreMixin, viewsets.GenericViewSet):
 
     def retrieve(self, request, pk=None):
         return Response(self.representation(self.get_object()))
+
+    @extend_schema(
+        request=StatementSourceDirectionReviewSerializer,
+        responses={200: StatementSourceDirectionReviewResultSerializer},
+        tags=["Statements"],
+    )
+    @db_transaction.atomic
+    @action(detail=True, methods=["post"], url_path="review-source-direction", parser_classes=[JSONParser])
+    def review_source_direction(self, request, pk=None):
+        """Record a human-verified PDF column, preserving the original extraction."""
+        lock_transfer_user(request.user)
+        row = get_object_or_404(self.get_queryset().select_for_update(of=("self",)), pk=pk)
+        if row.batch.profile != "bkash" or row.component != "principal":
+            raise ValidationError({"detail": "Only bKash principal rows support source-direction review."})
+        if not StatementOriginalFile.objects.filter(batch_id=row.batch_id).exists():
+            raise ValidationError({"detail": "Re-upload the identical original PDF before reviewing its Out/In column."})
+        serializer = StatementSourceDirectionReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if row.version != serializer.validated_data["version"]:
+            raise ReviewConflict("This statement row changed. Recheck it before recording a PDF direction.")
+        direction = serializer.validated_data["direction"]
+        align_draft = serializer.validated_data["align_draft"]
+        if align_draft and row.transaction_id:
+            entry = row.transaction
+            if entry.type == "transfer":
+                ledger_direction = (
+                    "debit" if entry.account_id == row.batch.account_id
+                    else "credit" if entry.transfer_account_id == row.batch.account_id else None
+                )
+            else:
+                ledger_direction = entry.direction if entry.account_id == row.batch.account_id else None
+            if ledger_direction != direction:
+                raise ValidationError({"detail": "The linked ledger entry still disagrees. Review the ledger entry before aligning this saved draft."})
+        if row.reviewed_source_direction != direction or (align_draft and row.direction != direction):
+            before = row_snapshot(row)
+            row.reviewed_source_direction = direction
+            if align_draft:
+                row.direction = direction
+            touch(row, request.user, before, metadata={"reason": "verified_pdf_out_in_column", "draft_aligned": align_draft})
+        return Response(StatementSourceDirectionReviewResultSerializer({
+            "version": row.version, "reviewed_direction": row.reviewed_source_direction,
+            "draft_direction": row.direction,
+        }).data)
 
     @extend_schema(
         request=StatementRowEditSerializer,

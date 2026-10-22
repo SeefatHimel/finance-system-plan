@@ -72,10 +72,10 @@ def scan_ledger_page(*, user, limit, offset):
         directions[row.transaction_id].append((
             "statement_draft_direction_mismatch", "Saved statement draft", row.batch.account_id, row.direction,
         ))
-        source_direction = row.extracted.get("direction")
+        source_direction = row.reviewed_source_direction or row.extracted.get("direction")
         if row.component == "principal" and source_direction in {"debit", "credit"}:
             directions[row.transaction_id].append((
-                "statement_source_direction_mismatch", "Original PDF extraction", row.batch.account_id, source_direction,
+                "statement_source_direction_mismatch", "Reviewed PDF direction" if row.reviewed_source_direction else "Original PDF extraction", row.batch.account_id, source_direction,
             ))
     methods = list(PaymentMethod.objects.filter(user=user, is_active=True, account__is_active=True))
     findings = []

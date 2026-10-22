@@ -1247,3 +1247,8 @@ sub-taka balance resolution between them. It retains the SMS ledger report and
 exposes a later linked EBL report as the account's latest provider balance with
 `timing_unknown` comparison. Existing linked rows use this read path without
 migration or automatic financial rewrite.
+
+### How do old bKash statement direction mistakes get corrected?
+
+Parser changes do not rewrite saved evidence or ledger entries. An owner can reparse an encrypted archived PDF through the bounded worker and compare rows only when their position, date, time, type, amount and balance align. The comparison is read-only. After inspecting the PDF Out/In column, a version-checked action records a reviewed source direction separately from immutable `extracted`; it writes audit history. Optional saved-draft alignment is rejected when a linked ledger entry disagrees. The ledger issue scan uses the reviewed direction. Ledger changes remain separate reviewed transaction edits.
+An unresolved bKash draft cannot be posted while its direction disagrees with that original or reviewed PDF direction; this is a backend validation error, not merely a web warning.

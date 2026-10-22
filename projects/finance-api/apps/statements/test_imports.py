@@ -85,6 +85,124 @@ class SavedStatementTests(APITestCase):
         self.assertTrue(StatementOriginalFile.objects.filter(batch=batch).exists())
         self.assertEqual(StatementRow.objects.filter(batch=batch).count(), count)
 
+    def test_recheck_directions_finds_old_bkash_error_without_changing_records(self):
+        pdf = synthetic_pdf("bkash", bkash_rows=[
+            (620, "Send Money", "100.00", None, None, "900.00"),
+            (580, "Send Money", None, "100.00", None, "1,000.00"),
+        ], bkash_totals=("100.00", "100.00"))
+        batch = self.upload(data=pdf, account=self.wallet)
+        first, second = list(batch.rows.filter(component="principal").order_by("position"))
+        self.assertEqual([first.extracted["direction"], second.extracted["direction"]], ["debit", "credit"])
+        previous = {**second.extracted, "direction": "debit"}
+        StatementRow.objects.filter(pk=second.pk).update(extracted=previous, direction="debit")
+        url = reverse("statement-import-recheck-directions", args=[batch.pk])
+        response = self.client.post(url, {}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response["Cache-Control"], "no-store")
+        self.assertEqual(response.data["checked_rows"], 2)
+        self.assertEqual(len(response.data["issues"]), 1)
+        issue = response.data["issues"][0]
+        self.assertEqual(issue["row_id"], str(second.id))
+        self.assertEqual(issue["original_direction"], "debit")
+        self.assertEqual(issue["fresh_direction"], "credit")
+        second.refresh_from_db()
+        self.assertEqual(second.extracted, previous)
+        self.assertEqual(second.direction, "debit")
+        self.assertEqual(Transaction.objects.count(), 0)
+        other = get_user_model().objects.create_user(username="other-direction-user")
+        self.client.force_authenticate(other)
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, 404)
+
+    def test_recheck_directions_never_pairs_a_different_saved_row(self):
+        batch = self.upload(data=synthetic_pdf("bkash"), account=self.wallet)
+        row = batch.rows.filter(component="principal").order_by("position").first()
+        StatementRow.objects.filter(pk=row.pk).update(extracted={**row.extracted, "amount": "999.00"})
+        response = self.client.post(reverse("statement-import-recheck-directions", args=[batch.pk]), {}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        issue = next(item for item in response.data["issues"] if item["row_id"] == str(row.id))
+        self.assertIsNone(issue["fresh_direction"])
+        self.assertIn("does not match", issue["reasons"][0])
+
+    def test_recheck_locked_pdf_requires_password_without_mutating_draft(self):
+        pdf = synthetic_pdf("bkash", password="synthetic-secret")
+        response = self.client.post(reverse("statement-import-list"), {
+            "account": str(self.wallet.id),
+            "file": SimpleUploadedFile("locked.pdf", pdf),
+            "password": "synthetic-secret",
+        }, format="multipart")
+        self.assertEqual(response.status_code, 201, response.data)
+        batch = StatementImport.objects.get(pk=response.data["id"])
+        row = batch.rows.filter(component="principal").first()
+        url = reverse("statement-import-recheck-directions", args=[batch.pk])
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, 400)
+        self.assertEqual(self.client.post(url, {"password": "synthetic-secret"}, format="json").status_code, 200)
+        row.refresh_from_db()
+        self.assertEqual(row.reviewed_source_direction, "")
+
+    def test_reviewed_pdf_direction_aligns_draft_only_when_ledger_agrees(self):
+        from apps.transactions.issue_scan import scan_ledger_page
+
+        batch = self.upload(data=synthetic_pdf("bkash"), account=self.wallet)
+        row = batch.rows.filter(component="principal").order_by("position").first()
+        original = {**row.extracted, "direction": "debit"}
+        entry = Transaction.objects.create(
+            user=self.user, account=self.wallet, date=row.date,
+            type="income", direction="credit", amount=row.amount,
+            balance_after=row.balance_after,
+        )
+        StatementRow.objects.filter(pk=row.pk).update(
+            extracted=original, direction="debit", state="posted", transaction=entry,
+        )
+        url = reverse("statement-row-review-source-direction", args=[row.pk])
+        rejected = self.client.post(url, {"version": row.version, "direction": "credit", "align_draft": True, "confirmed_pdf": False}, format="json")
+        self.assertEqual(rejected.status_code, 400)
+        result = self.client.post(url, {"version": row.version, "direction": "credit", "align_draft": True, "confirmed_pdf": True}, format="json")
+        self.assertEqual(result.status_code, 200, result.data)
+        row.refresh_from_db()
+        self.assertEqual(row.extracted, original)
+        self.assertEqual(row.reviewed_source_direction, "credit")
+        self.assertEqual(row.direction, "credit")
+        entry.refresh_from_db()
+        self.assertEqual(entry.direction, "credit")
+        audit = AuditLogEntry.objects.filter(user=self.user, entity_type="statements.statementrow", entity_id=str(row.pk)).order_by("-created_at").first()
+        self.assertIsNotNone(audit)
+        self.assertEqual(audit.metadata["reason"], "verified_pdf_out_in_column")
+        issues = [item for item in scan_ledger_page(user=self.user, limit=50, offset=0)["results"] if item["transaction"] == str(entry.pk)]
+        self.assertFalse(any(item["code"].endswith("direction_mismatch") for finding in issues for item in finding["issues"]))
+        self.assertEqual(self.client.post(url, {"version": row.version - 1, "direction": "debit", "confirmed_pdf": True}, format="json").status_code, 409)
+        other = get_user_model().objects.create_user(username="other-source-review-user")
+        self.client.force_authenticate(other)
+        self.assertEqual(self.client.post(url, {"version": row.version, "direction": "debit", "confirmed_pdf": True}, format="json").status_code, 404)
+
+    def test_reviewed_pdf_direction_cannot_align_conflicting_ledger(self):
+        batch = self.upload(data=synthetic_pdf("bkash"), account=self.wallet)
+        row = batch.rows.filter(component="principal").order_by("position").first()
+        entry = Transaction.objects.create(user=self.user, account=self.wallet, date=row.date, type="expense", direction="debit", amount=row.amount)
+        StatementRow.objects.filter(pk=row.pk).update(state="posted", transaction=entry)
+        url = reverse("statement-row-review-source-direction", args=[row.pk])
+        response = self.client.post(url, {"version": row.version, "direction": "credit", "align_draft": True, "confirmed_pdf": True}, format="json")
+        self.assertEqual(response.status_code, 400)
+        row.refresh_from_db()
+        self.assertEqual(row.reviewed_source_direction, "")
+
+    def test_bkash_source_disagreement_blocks_adding_until_pdf_is_reviewed(self):
+        from .services import posting_issues
+
+        batch = self.upload(data=synthetic_pdf("bkash"), account=self.wallet)
+        row = batch.rows.filter(component="principal").order_by("position").first()
+        self.assertEqual(row.extracted["direction"], "credit")
+        StatementRow.objects.filter(pk=row.pk).update(type="expense", direction="debit")
+        row.refresh_from_db()
+        self.assertTrue(any("bKash PDF direction" in issue for issue in posting_issues(row)))
+        response = self.decide(row, acknowledge_issues=True)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("bKash PDF direction", str(response.data))
+        self.assertEqual(Transaction.objects.count(), 0)
+
+        StatementRow.objects.filter(pk=row.pk).update(type="income", direction="credit")
+        row.refresh_from_db()
+        self.assertFalse(any("bKash PDF direction" in issue for issue in posting_issues(row)))
+
     def edit(self, row, **fields):
         return self.client.patch(
             reverse("statement-row-detail", args=[row.id]),

@@ -287,6 +287,13 @@ def financial_issues(row):
 
 def posting_issues(row):
     issues = financial_issues(row)
+    if row.batch.profile == "bkash" and row.component == "principal":
+        source_direction = row.reviewed_source_direction or row.extracted.get("direction")
+        if source_direction in {"debit", "credit"} and row.direction != source_direction:
+            issues.append(
+                "Saved debit/credit disagrees with the bKash PDF direction. "
+                "Check the original Out/In column, then correct the draft or review the source direction before adding."
+            )
     if not row.batch.account.is_active:
         issues.append("The reporting account is inactive.")
     if row.batch.account.currency != row.batch.currency:
@@ -894,6 +901,7 @@ def row_snapshot(row):
         "version": row.version,
         "type": row.type,
         "direction": row.direction,
+        "reviewed_source_direction": row.reviewed_source_direction,
         "amount": str(row.amount) if row.amount is not None else None,
         "date": row.date.isoformat() if isinstance(row.date, date) else row.date,
         "time": str(row.time) if row.time else None,

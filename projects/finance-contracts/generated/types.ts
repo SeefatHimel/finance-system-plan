@@ -1356,6 +1356,7 @@ export interface SavedStatementRow {
   position: number;
   component: StatementComponent;
   extracted: StatementRow;
+  reviewed_source_direction: string;
   citytouch_printed_code: string | null;
   date: string | null;
   time: string | null;
@@ -1754,6 +1755,44 @@ export interface StatementRefreshRequest {
 
 export interface StatementRefreshResult {
   updated_rows: number;
+}
+
+export interface StatementDirectionIssue {
+  row_id: string;
+  version: number;
+  page: number | null;
+  source_row: number | null;
+  date: string | null;
+  time: string | null;
+  amount: string | null;
+  balance_after: string | null;
+  original_direction: string | null;
+  reviewed_direction: string | null;
+  fresh_direction: string | null;
+  draft_direction: string;
+  ledger_direction: string | null;
+  transaction_id: string | null;
+  state: string;
+  reasons: string[];
+}
+
+export interface StatementDirectionRecheck {
+  parser_version: string;
+  checked_rows: number;
+  issues: StatementDirectionIssue[];
+}
+
+export interface StatementSourceDirectionReview {
+  version: number;
+  direction: "debit" | "credit";
+  confirmed_pdf: boolean;
+  align_draft?: boolean;
+}
+
+export interface StatementSourceDirectionReviewResult {
+  version: number;
+  reviewed_direction: "debit" | "credit";
+  draft_direction: "debit" | "credit";
 }
 
 export interface ObservedStatementCodeExample {

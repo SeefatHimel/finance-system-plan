@@ -71,7 +71,7 @@ def pattern(row):
         label,
         row.component,
         row.extracted.get("provider_type"),
-        row.extracted.get("direction"),
+        row.reviewed_source_direction or row.extracted.get("direction"),
     ]
     return hashlib.sha256(repr(source).encode()).hexdigest(), label
 
@@ -424,17 +424,18 @@ def analyze(batch, rows):
                 source_valid = False
             if raw.get("amount") is not None:
                 source_net += Decimal(raw["amount"]) * (
-                    1 if raw["direction"] == "credit" else -1
+                    1 if (row.reviewed_source_direction or raw["direction"]) == "credit" else -1
                 ) + Decimal(raw.get("signed_fee", "0"))
     previous = batch.opening_balance
     derived = False
     if previous is None and groups:
-        first = next(iter(groups.values()))[0].extracted
+        first_row = next(iter(groups.values()))[0]
+        first = first_row.extracted
         if first.get("balance_after") is not None and first.get("amount") is not None:
             previous = (
                 Decimal(first["balance_after"])
                 - Decimal(first["amount"])
-                * (1 if first["direction"] == "credit" else -1)
+                * (1 if (first_row.reviewed_source_direction or first["direction"]) == "credit" else -1)
                 - Decimal(first.get("signed_fee", "0"))
             )
             derived = True
@@ -499,7 +500,7 @@ def analyze(batch, rows):
                 else str(abs(Decimal(row.extracted.get("signed_fee", "0"))))
             )
             raw_direction = (
-                row.extracted["direction"]
+                (row.reviewed_source_direction or row.extracted["direction"])
                 if row.component == "principal"
                 else (
                     "debit"

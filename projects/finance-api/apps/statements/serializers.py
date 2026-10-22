@@ -70,6 +70,49 @@ class StatementRefreshResultSerializer(serializers.Serializer):
     updated_rows = serializers.IntegerField()
 
 
+class StatementDirectionIssueSerializer(serializers.Serializer):
+    row_id = serializers.UUIDField()
+    version = serializers.IntegerField()
+    page = serializers.IntegerField(allow_null=True)
+    source_row = serializers.IntegerField(allow_null=True)
+    date = serializers.DateField(allow_null=True)
+    time = serializers.TimeField(allow_null=True)
+    amount = serializers.CharField(allow_null=True)
+    balance_after = serializers.CharField(allow_null=True)
+    original_direction = serializers.CharField(allow_null=True)
+    reviewed_direction = serializers.CharField(allow_null=True)
+    fresh_direction = serializers.CharField(allow_null=True)
+    draft_direction = serializers.CharField()
+    ledger_direction = serializers.CharField(allow_null=True)
+    transaction_id = serializers.UUIDField(allow_null=True)
+    state = serializers.CharField()
+    reasons = serializers.ListField(child=serializers.CharField())
+
+
+class StatementDirectionRecheckSerializer(serializers.Serializer):
+    parser_version = serializers.CharField()
+    checked_rows = serializers.IntegerField()
+    issues = StatementDirectionIssueSerializer(many=True)
+
+
+class StatementSourceDirectionReviewSerializer(serializers.Serializer):
+    version = serializers.IntegerField(min_value=1)
+    direction = serializers.ChoiceField(choices=["debit", "credit"])
+    confirmed_pdf = serializers.BooleanField()
+    align_draft = serializers.BooleanField(default=False)
+
+    def validate_confirmed_pdf(self, value):
+        if not value:
+            raise serializers.ValidationError("Check the original PDF Out/In column before recording a source correction.")
+        return value
+
+
+class StatementSourceDirectionReviewResultSerializer(serializers.Serializer):
+    version = serializers.IntegerField()
+    reviewed_direction = serializers.CharField()
+    draft_direction = serializers.CharField()
+
+
 class StatementRowSerializer(serializers.Serializer):
     id = serializers.CharField()
     page = serializers.IntegerField()
@@ -360,6 +403,7 @@ class SavedStatementRowSerializer(serializers.ModelSerializer):
             "position",
             "component",
             "extracted",
+            "reviewed_source_direction",
             "citytouch_printed_code",
             "date",
             "time",

@@ -885,3 +885,7 @@ date but precedes posting by at least two days. Clients label the two reported
 balances by source time and omit a cross-time balance choice. The API keeps the
 SMS-time transaction report and statement posting report separately; source IDs,
 ownership, stale-review and uniqueness checks remain mandatory.
+
+# Archived bKash direction review
+
+`POST /api/statements/imports/{id}/recheck-directions/` is a read-only, owner-scoped comparison of an archived PDF with saved principal rows and linked entries. It returns only rows needing attention and withholds a fresh direction when row identity does not match. `POST /api/statements/rows/{id}/review-source-direction/` stores a user's verified Out/In direction separately from immutable extraction; optional draft alignment requires any linked ledger entry to agree. Neither endpoint modifies a ledger transaction. Both are versioned in OpenAPI and the generated client.

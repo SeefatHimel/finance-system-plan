@@ -69,6 +69,8 @@ class StatementRow(models.Model):
         max_length=16, choices=(("principal", "Principal"), ("fee", "Fee"))
     )
     extracted = models.JSONField()
+    # Human-verified PDF column. The original parser output in extracted remains immutable.
+    reviewed_source_direction = models.CharField(max_length=16, blank=True, default="")
     # Original extraction stays untouched; this is the second CT-FT component
     # as printed in the source PDF, refreshed independently of ledger drafts.
     source_code = EncryptedStatementCodeField(blank=True, default="")

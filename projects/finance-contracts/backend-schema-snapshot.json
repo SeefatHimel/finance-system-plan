@@ -4105,6 +4105,49 @@
         ]
       }
     },
+    "/api/statements/imports/{id}/recheck-directions/": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementRefreshRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementDirectionRecheck"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/statements/imports/{id}/refresh-identifiers/": {
       "post": {
         "parameters": [
@@ -4528,6 +4571,50 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SavedStatementRow"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/statements/rows/{id}/review-source-direction/": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementSourceDirectionReview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementSourceDirectionReviewResult"
                 }
               }
             }
@@ -9865,6 +9952,10 @@
           ],
           "readOnly": true
         },
+        "reviewed_source_direction": {
+          "readOnly": true,
+          "type": "string"
+        },
         "state": {
           "allOf": [
             {
@@ -9928,6 +10019,7 @@
         "position",
         "reference",
         "review",
+        "reviewed_source_direction",
         "state",
         "time",
         "transaction",
@@ -10658,6 +10750,117 @@
         "field",
         "label",
         "suggested_value"
+      ],
+      "type": "object"
+    },
+    "StatementDirectionIssue": {
+      "properties": {
+        "amount": {
+          "nullable": true,
+          "type": "string"
+        },
+        "balance_after": {
+          "nullable": true,
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "nullable": true,
+          "type": "string"
+        },
+        "draft_direction": {
+          "type": "string"
+        },
+        "fresh_direction": {
+          "nullable": true,
+          "type": "string"
+        },
+        "ledger_direction": {
+          "nullable": true,
+          "type": "string"
+        },
+        "original_direction": {
+          "nullable": true,
+          "type": "string"
+        },
+        "page": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reviewed_direction": {
+          "nullable": true,
+          "type": "string"
+        },
+        "row_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "source_row": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        },
+        "time": {
+          "format": "time",
+          "nullable": true,
+          "type": "string"
+        },
+        "transaction_id": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "amount",
+        "balance_after",
+        "date",
+        "draft_direction",
+        "fresh_direction",
+        "ledger_direction",
+        "original_direction",
+        "page",
+        "reasons",
+        "reviewed_direction",
+        "row_id",
+        "source_row",
+        "state",
+        "time",
+        "transaction_id",
+        "version"
+      ],
+      "type": "object"
+    },
+    "StatementDirectionRecheck": {
+      "properties": {
+        "checked_rows": {
+          "type": "integer"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/components/schemas/StatementDirectionIssue"
+          },
+          "type": "array"
+        },
+        "parser_version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "checked_rows",
+        "issues",
+        "parser_version"
       ],
       "type": "object"
     },
@@ -11506,6 +11709,49 @@
         "skip"
       ],
       "type": "string"
+    },
+    "StatementSourceDirectionReview": {
+      "properties": {
+        "align_draft": {
+          "default": false,
+          "type": "boolean"
+        },
+        "confirmed_pdf": {
+          "type": "boolean"
+        },
+        "direction": {
+          "$ref": "#/components/schemas/Direction769Enum"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "confirmed_pdf",
+        "direction",
+        "version"
+      ],
+      "type": "object"
+    },
+    "StatementSourceDirectionReviewResult": {
+      "properties": {
+        "draft_direction": {
+          "type": "string"
+        },
+        "reviewed_direction": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "draft_direction",
+        "reviewed_direction",
+        "version"
+      ],
+      "type": "object"
     },
     "StatementSuggestion": {
       "properties": {

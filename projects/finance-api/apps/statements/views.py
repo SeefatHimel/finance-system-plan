@@ -36,6 +36,12 @@ class StatementIdentifyThrottle(StatementPreviewThrottle):
     scope = "statement_identify"
 
 
+class StatementDirectionRecheckThrottle(StatementPreviewThrottle):
+    # Reading archived PDFs must not consume upload/preview allowance.
+    scope = "statement_direction_recheck"
+    rate = "20/hour"
+
+
 def extract_pdf_bytes(data, password="", *, include_private_identifiers=False):
     """Run the bounded PDF worker for imports and archived-source refreshes."""
     payload = {
