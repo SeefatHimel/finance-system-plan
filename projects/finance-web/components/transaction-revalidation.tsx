@@ -35,7 +35,8 @@ export function TransactionRevalidationDialog({ transactionId, onClose }: Props)
     if (!token || !preview || !selected.length || busy) return;
     setBusy(true); setError("");
     try {
-      await applyTransactionRevalidation(token, transactionId, preview.token, selected);
+      const saved = await applyTransactionRevalidation(token, transactionId, preview.token, selected);
+      window.dispatchEvent(new CustomEvent("finance:transaction-saved", { detail: saved }));
       window.dispatchEvent(new Event("finance:transactions-changed"));
       notify("Selected corrections applied. Original SMS and statement evidence kept.");
       onClose();

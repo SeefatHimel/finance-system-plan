@@ -136,7 +136,15 @@ function persistVisibleColumns(columns: TransactionColumn[]) {
   }
 }
 
-export function TransactionWorkspace() {
+type TransactionWorkspaceProps = {
+  embeddedEditId?: string;
+  embeddedCreate?: boolean;
+  onEmbeddedClose?: () => void;
+  onEmbeddedSaved?: (transaction: Transaction) => void;
+};
+
+export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, onEmbeddedClose, onEmbeddedSaved }: TransactionWorkspaceProps = {}) {
+  const isEmbedded = Boolean(embeddedEditId || embeddedCreate);
   const recovery = useTransactionRecovery();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -274,7 +282,12 @@ export function TransactionWorkspace() {
     if (!readyData.current) setLoadState({ status: "loading" });
     try {
       const previous = readyData.current;
-      const next: Extract<LoadState, { status: "ready" }> = previous && !refreshLookups
+      const next: Extract<LoadState, { status: "ready" }> = isEmbedded
+        ? await Promise.all([
+            listAccounts(accessToken, ticket.signal), listCategories(accessToken, ticket.signal),
+            listPaymentMethods(accessToken, ticket.signal)
+          ]).then(([accounts, categories, paymentMethods]) => ({ accounts, categories, paymentMethods, transactions: [], status: "ready" as const }))
+        : previous && !refreshLookups
         ? { ...previous, transactions: await listTransactions(accessToken, activeFilters, ticket.signal) }
         : await Promise.all([
             listAccounts(accessToken, ticket.signal), listCategories(accessToken, ticket.signal),
@@ -292,7 +305,7 @@ export function TransactionWorkspace() {
     } finally {
       if (ticket.isCurrent()) setIsRefreshing(false);
     }
-  }, [setRefreshError]);
+  }, [isEmbedded, setRefreshError]);
 
   const loadData = useCallback((activeFilters = filtersRef.current, refreshLookups = true) => {
     markPending(activeFilters);
@@ -301,6 +314,10 @@ export function TransactionWorkspace() {
 
   useEffect(() => {
     const requests = dataRequests.current;
+    if (isEmbedded) {
+      void loadData(filtersRef.current);
+      return () => requests.cancel();
+    }
     const searchParams = new URLSearchParams(window.location.search);
     const requestedSearch = searchParams.get("search")?.trim() ?? "";
     const requestedOrdering = searchParams.get("ordering");
@@ -322,9 +339,10 @@ export function TransactionWorkspace() {
     setDateView(periodFromFilters(requestedFilters, searchParams.get("date_view") ?? undefined).mode);
     void loadData(requestedFilters);
     return () => requests.cancel();
-  }, [loadData, setFilters]);
+  }, [isEmbedded, loadData, setFilters]);
 
   useEffect(() => {
+    if (isEmbedded) return;
     try {
       const stored = window.localStorage.getItem(transactionColumnsStorageKey);
       if (!stored) return;
@@ -338,7 +356,7 @@ export function TransactionWorkspace() {
     } catch {
       // Fall back to the compact default table when storage is unavailable.
     }
-  }, []);
+  }, [isEmbedded]);
 
   useEffect(() => {
     const refresh = () => { void loadData(filtersRef.current); };
@@ -362,14 +380,16 @@ export function TransactionWorkspace() {
     setFieldErrors({}); setFormError(null); setFormMessage(null); setEditorMode("create");
   }, [setFormError, setFormMessage]);
   useEffect(() => {
+    if (!embeddedCreate) return;
     if (!fullDraft) return;
     openNewTransaction({ ...fullDraft, date: fullDraft.dateMode === "today" ? localDay() : fullDraft.date,
       time: fullDraft.timeMode === "now" ? localTime() : fullDraft.timeMode === "none" ? "" : fullDraft.time });
     consumeFullDraft();
-  }, [fullDraft, consumeFullDraft, openNewTransaction]);
+  }, [embeddedCreate, fullDraft, consumeFullDraft, openNewTransaction]);
   function closeEditor() {
     editLoad.current?.abort();
     setEditorMode(null);
+    if (isEmbedded) { onEmbeddedClose?.(); return; }
     if (searchParams.has("edit")) {
       const params = new URLSearchParams(searchParams); params.delete("edit");
       router.replace(`/transactions${params.size ? `?${params}` : ""}`, { scroll: false });
@@ -584,10 +604,10 @@ export function TransactionWorkspace() {
     } catch (error) { if (!controller.signal.aborted) setFormError(error instanceof Error ? error.message : "Could not load this transaction."); }
   }, [setFormError, setFormMessage]);
   useEffect(() => () => editLoad.current?.abort(), []);
-  const editId = searchParams.get("edit");
+  const editId = isEmbedded ? embeddedEditId : searchParams.get("edit");
   useEffect(() => { if (editId) void selectTransactionForEdit(editId); }, [editId, selectTransactionForEdit]);
   const revalidateId = searchParams.get("revalidate");
-  useEffect(() => { if (revalidateId) setRevalidationId(revalidateId); }, [revalidateId]);
+  useEffect(() => { if (!isEmbedded && revalidateId) setRevalidationId(revalidateId); }, [isEmbedded, revalidateId]);
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -634,7 +654,11 @@ export function TransactionWorkspace() {
           allow_linked_correction: allowLinkedCorrection, category: editingCategoryId || null,
           transfer_account: editingType === "transfer" ? editingTransferAccountId : null });
       }
-      closeEditor(); recovery.announce(saved.undo_action); await loadData(filtersRef.current);
+      closeEditor(); recovery.announce(saved.undo_action);
+      if (isEmbedded) {
+        onEmbeddedSaved?.(saved);
+        window.dispatchEvent(new Event("finance:transactions-changed"));
+      } else await loadData(filtersRef.current);
     } catch (error) {
       const errors = fieldErrorsFrom(error); setFieldErrors(errors); focusFieldError(editorForm.current, errors);
       setFormError(error instanceof Error ? error.message : "Could not save transaction.");
@@ -659,10 +683,12 @@ export function TransactionWorkspace() {
   }, [loadState]);
 
   if (loadState.status === "loading") {
+    if (isEmbedded) return <ModalDialog className="form-drawer embedded-editor-status" labelledBy="embedded-editor-loading-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-loading-title">Opening transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body"><LoadingState compact detail="Loading account and category choices" label="Preparing editor" /></div></ModalDialog>;
     return <LoadingState detail="Syncing ledger entries, accounts, and categories" label="Loading transactions" />;
   }
 
   if (loadState.status === "error") {
+    if (isEmbedded) return <ModalDialog className="form-drawer embedded-editor-status" labelledBy="embedded-editor-error-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-error-title">Could not open transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body"><p role="alert">{loadState.message}</p><button className="button button--ghost" type="button" onClick={() => void loadData(filtersRef.current)}>Retry</button></div></ModalDialog>;
     return (
       <div className="panel">
         <div className="panel__body empty-state">
@@ -738,7 +764,8 @@ export function TransactionWorkspace() {
   }
 
   return (
-    <div className="workspace-grid">
+    <div className={isEmbedded ? "" : "workspace-grid"}>
+      {isEmbedded && !editorMode ? <ModalDialog className="form-drawer embedded-editor-status" labelledBy="embedded-editor-pending-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-pending-title">Opening transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body">{formError ? <p role="alert">{formError}</p> : <p role="status">Preparing {embeddedCreate ? "full entry" : "saved entry and sources"}…</p>}{formError && embeddedEditId ? <button className="button button--ghost" type="button" onClick={() => void selectTransactionForEdit(embeddedEditId)}>Retry</button> : null}</div></ModalDialog> : null}
       {revalidationId ? <TransactionRevalidationDialog key={revalidationId} transactionId={revalidationId} onClose={() => setRevalidationId(null)} /> : null}
       {categoryChoice.confirmation}
       {clockEdit ? <QuickTimePicker value={clockEdit.value} onCancel={() => setClockEdit(null)} onApply={time => { setEditingTime(time); setClockEdit(null); }} /> : null}
@@ -1012,7 +1039,7 @@ export function TransactionWorkspace() {
         </ModalDialog>
       ) : null}
 
-      <section className="panel">
+      {!isEmbedded ? <section className="panel">
         <div className="panel__body">
           <div className="report-header transaction-list-header">
             <div>
@@ -1381,7 +1408,7 @@ export function TransactionWorkspace() {
             </div>
           </>)}
         </div>
-      </section>
+      </section> : null}
       {transferDecision ? <TransferMatchDialog original={transferComparison(transferDecision.input, id => accountNames.get(id))} originalSource={transferDecision.mergeId ? "Recorded transfer selected" : "New manual transfer"} matches={transferDecision.matches} busy={isSubmitting} error={matchError} merging={Boolean(transferDecision.mergeId)} onAccept={(match, choices) => void handleTransferDecision(match, choices)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
     </div>
   );

@@ -11,7 +11,7 @@ The app does not alter existing ledger entries automatically.
 
 The dedicated **Evidence checks** page scans 50 entries at a time with the
 current rules, groups source-direction disagreements separately from other
-findings, and opens any finding in the existing transaction editor. A further
+findings, and opens edit or revalidation dialogs over the checks page. A further
 50 can be checked from the result panel; checking again starts a fresh scan.
 Bulk revalidation is under Advanced tools. The Transactions page links to this
 page instead of carrying the full scanner. A scan does not update past entries
@@ -900,8 +900,9 @@ opens searchable active choices. No preset is created automatically.
 A shortcut opens an amount-focused draft. It never saves by itself. Account,
 category, type and optional details can be changed for one entry without editing
 the preset. Switching presets preserves entered amount, note and merchant.
-Full entry carries the complete draft into the existing transaction editor for
-transfers and other advanced fields. The compact form supports expense/income.
+Full entry carries the complete draft into the existing transaction editor over
+the current page for transfers and other advanced fields. The compact form
+supports expense/income.
 
 Today and Now are defaults, resolved on the first Save. Yesterday, a calendar,
 unknown time, or an hour-then-minute clock allow corrections. The web clock
@@ -1014,8 +1015,13 @@ Successful additions, edits, SMS approvals and transfer resolutions show a
 15-second toast with Edit and Undo (paused while hovered/focused). A compact
 Last action bar on Transactions and SMS review remains after toast dismissal and
 reload. It uses the server's latest user-owned descriptor, not browser-stored
-financial snapshots. Edit opens the exact saved record through `?edit=<UUID>`
-and fetches it directly even when current date/account filters exclude it. Undo
+financial snapshots. Edit fetches the exact saved record by ID and opens the
+shared editor over the current page, even when its filters exclude that entry.
+Existing `?edit=<UUID>` deep links still open the Transactions editor. Evidence
+checks and Account Lanes also use the local overlay; closing it preserves loaded
+results, filters, lane position and full-screen state. Revalidation from Evidence
+checks behaves the same way. Saving updates visible timeline cards and marks
+Evidence checks results stale for a new scan. Undo
 refreshes the transaction list/review queue and respects server stale-state
 checks. The latest unchanged action can be undone for 24 hours; reading help or
 pressing Edit never accepts or undoes a transaction. Auth changes clear recovery

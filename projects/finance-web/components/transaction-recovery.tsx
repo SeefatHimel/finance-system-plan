@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { recentTransactionAction, undoTransactionAction, type TransactionAction } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { useAuth } from "@/components/auth-provider";
@@ -13,7 +14,16 @@ const Context = createContext<{
   announce: (action?: TransactionAction | null) => void;
   undo: (action: TransactionAction) => void;
   edit: (id: string) => void;
+  revalidate: (id: string) => void;
+  create: () => void;
+  editId: string | null;
+  revalidationId: string | null;
+  createOpen: boolean;
+  closeEdit: () => void;
+  closeRevalidation: () => void;
 } | null>(null);
+const TransactionEditor = dynamic(() => import("@/components/transaction-workspace").then(module => module.TransactionWorkspace));
+const TransactionRevalidationDialog = dynamic(() => import("@/components/transaction-revalidation").then(module => module.TransactionRevalidationDialog));
 export function useTransactionRecovery() {
   const value = useContext(Context);
   if (!value) throw new Error("TransactionRecoveryProvider is required.");
@@ -25,10 +35,12 @@ export function TransactionRecoveryProvider({ children }: { children: ReactNode 
   const owner = session.status === "signed-in" ? session.user.id : null;
   const ownerRef = useRef(owner); ownerRef.current = owner;
   const pathname = usePathname();
-  const router = useRouter();
   const { notify, dismiss } = useToast();
   const [latest, setLatest] = useState<TransactionAction | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [revalidationId, setRevalidationId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const pending = useRef(false);
   const version = useRef(0);
   const refresh = useCallback(async () => {
@@ -59,9 +71,18 @@ export function TransactionRecoveryProvider({ children }: { children: ReactNode 
 
   const edit = useCallback((id: string) => {
     dismiss();
-    const params = pathname === "/transactions" ? new URLSearchParams(window.location.search) : new URLSearchParams();
-    params.set("edit", id); router.push(`/transactions?${params}`);
-  }, [dismiss, pathname, router]);
+    setCreateOpen(false); setRevalidationId(null);
+    setEditId(id);
+  }, [dismiss]);
+  const revalidate = useCallback((id: string) => {
+    dismiss();
+    setCreateOpen(false); setEditId(null);
+    setRevalidationId(id);
+  }, [dismiss]);
+  const create = useCallback(() => {
+    dismiss(); setEditId(null); setRevalidationId(null); setCreateOpen(true);
+  }, [dismiss]);
+  useEffect(() => { setEditId(null); setRevalidationId(null); setCreateOpen(false); }, [pathname]);
 
   const undo = useCallback(async (action: TransactionAction) => {
     const token = getAccessToken();
@@ -94,7 +115,19 @@ export function TransactionRecoveryProvider({ children }: { children: ReactNode 
     notify(action.label, "success", { actions, durationMs: 15000 });
   }, [edit, notify, owner, undo]);
 
-  return <Context.Provider value={{ latest, busy, announce, undo: action => void undo(action), edit }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ latest, busy, announce, undo: action => void undo(action), edit, revalidate, create,
+    editId, revalidationId, createOpen, closeEdit: () => { setEditId(null); setCreateOpen(false); }, closeRevalidation: () => setRevalidationId(null) }}>{children}</Context.Provider>;
+}
+
+// Mount inside QuickAddProvider so the shared editor can read account drafts
+// without replacing the page underneath the modal.
+export function TransactionOverlayHost() {
+  const { editId, revalidationId, createOpen, closeEdit, closeRevalidation } = useTransactionRecovery();
+  return <>
+    {editId ? <TransactionEditor key={editId} embeddedEditId={editId} onEmbeddedClose={closeEdit} onEmbeddedSaved={transaction => window.dispatchEvent(new CustomEvent("finance:transaction-saved", { detail: transaction }))} /> : null}
+    {createOpen ? <TransactionEditor key="full-entry" embeddedCreate onEmbeddedClose={closeEdit} onEmbeddedSaved={transaction => window.dispatchEvent(new CustomEvent("finance:transaction-saved", { detail: transaction }))} /> : null}
+    {revalidationId ? <TransactionRevalidationDialog key={revalidationId} transactionId={revalidationId} onClose={closeRevalidation} /> : null}
+  </>;
 }
 
 export function RecentTransactionAction() {

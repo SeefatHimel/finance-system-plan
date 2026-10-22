@@ -765,7 +765,8 @@ The preset page stores user-defined shortcuts, optional defaults and favorite/
 enabled/order choices. Six favorites form the initial menu and dashboard tiles;
 See all and searchable account/category lists keep the complete choices nearby.
 Amount receives focus. Entry overrides and switching presets do not edit saved
-defaults. Full entry carries all draft values into the existing detailed editor.
+defaults. Full entry carries all draft values into the existing detailed editor
+over the current page, so its filters and scroll position remain in place.
 A viewport dialog with a visible Save footer and toast completes the flow.
 
 ## How do time selection and uncertain saves work in Quick Add?
@@ -1458,7 +1459,11 @@ it does not silently discover/merge unrelated transactions.
 
 The separate `/checks` Evidence checks page scans saved entries in pages of 50.
 It groups source-direction disagreements ahead of other findings and links each
-entry to the existing editor or its revalidation preview. The Transactions page
+entry to the shared editor or its revalidation preview in a modal on that page.
+Closing the modal keeps the scan results and scroll position. Account Lanes uses
+the same local editor for cards and gap details, retaining its visible date,
+selected accounts, and full-screen setting. The latest-action Edit control also
+opens the overlay. Direct `?edit=<UUID>` links to Transactions still work. The Transactions page
 links to it; pending SMS and statement decisions remain in Review inbox. Bulk
 revalidation is under Advanced tools. Running a check is read-only, and the page
 marks its results stale after a ledger change instead of silently applying a fix.

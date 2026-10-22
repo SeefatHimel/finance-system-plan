@@ -2939,6 +2939,8 @@ textarea {
 .viewport-modal:not([open]) { display: none; }
 .viewport-modal::backdrop { background: rgb(2 8 15 / 76%); }
 .viewport-modal.form-drawer { border: 1px solid var(--panel-border); border-radius: 14px; padding: 0; }
+.viewport-modal.embedded-editor-status { height: auto; max-width: 560px; }
+.embedded-editor-status .panel__body { padding: 20px 24px; }
 .viewport-modal .form-drawer__header { flex-shrink: 0; }
 .viewport-modal .drawer-form { min-height: 0; }
 .viewport-modal.transfer-match-dialog { display: flex; flex-direction: column; gap: 16px; height: calc(100dvh - 32px); max-height: calc(100dvh - 32px); max-width: 1100px; overflow: hidden; }

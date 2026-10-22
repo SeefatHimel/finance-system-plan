@@ -30,6 +30,7 @@ import { useEffect, useRef, useState } from "react";
 import { getSmsDeviceStatus, listMessageCandidatePage } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { QuickAddProvider, QuickAddButton } from "./quick-add";
+import { TransactionOverlayHost } from "./transaction-recovery";
 import { useAuth } from "@/components/auth-provider";
 import { ButtonBusy } from "@/components/loading-state";
 
@@ -376,6 +377,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
         <div aria-busy={isNavigating} className={`app-main${isNavigating ? " app-main--navigating" : ""}`}>{isReviewPath(pathname) ? <ReviewNavigation pendingSms={pendingCount} /> : null}{children}</div>
       </div>
-    </div></QuickAddProvider>
+    </div><TransactionOverlayHost /></QuickAddProvider>
   );
 }

@@ -624,7 +624,7 @@ function QuickAddSession({
                   onClick={() => {
                     setFullDraft(draft);
                     setSurface(null);
-                    router.push("/transactions");
+                    recovery.create();
                   }}
                 >
                   Full entry

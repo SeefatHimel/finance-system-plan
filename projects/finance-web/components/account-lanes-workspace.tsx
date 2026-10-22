@@ -1,13 +1,13 @@
 "use client";
 
 import { ArrowsIn, ArrowsOut, CalendarBlank, CaretLeft, CaretRight, Eye, LinkSimple, SlidersHorizontal, X } from "@phosphor-icons/react";
-import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type TouchEvent as ReactTouchEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { createPortal } from "react-dom";
 import { formatCalendarDate, formatClockTime, formatCurrency } from "../../finance-contracts/presentation";
 import { CalendarDateInput } from "./calendar-date-input";
 import { TransactionSourceMessages } from "./transaction-source-messages";
 import { TransactionStatementEvidence } from "./transaction-statement-evidence";
+import { useTransactionRecovery } from "./transaction-recovery";
 import { getAccessToken } from "@/lib/auth-storage";
 import { listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
 import { addDays, atTimelineEdge, balanceGapDetails, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, reportedBalanceAtDate, timelineScrollShift, weekStart, type TimelineRange } from "@/lib/account-lanes";
@@ -42,6 +42,7 @@ function title(transaction: Transaction) {
 }
 
 export function AccountLanesWorkspace() {
+  const { edit } = useTransactionRecovery();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -109,6 +110,28 @@ export function AccountLanesWorkspace() {
   }, []);
 
   useEffect(() => { void loadAccounts(); }, [loadAccounts]);
+  useEffect(() => {
+    const reflectSavedEntry = (event: Event) => {
+      const saved = (event as CustomEvent<Transaction>).detail;
+      if (!saved?.id) return;
+      setSelectedTransaction(current => current?.id === saved.id ? saved : current);
+      setWeekResults(current => {
+        let changed = false;
+        const next = { ...current };
+        for (const [start, week] of Object.entries(current)) {
+          if (week.status !== "ready") continue;
+          const present = week.rows.some(row => row.id === saved.id);
+          const belongs = start <= saved.date && saved.date <= addDays(start, 6);
+          if (!present && !belongs) continue;
+          next[start] = { status: "ready", rows: [...week.rows.filter(row => row.id !== saved.id), ...(belongs ? [saved] : [])] };
+          changed = true;
+        }
+        return changed ? next : current;
+      });
+    };
+    window.addEventListener("finance:transaction-saved", reflectSavedEntry);
+    return () => window.removeEventListener("finance:transaction-saved", reflectSavedEntry);
+  }, []);
   useEffect(() => () => { for (const controller of requestsRef.current.values()) controller.abort(); requestsRef.current.clear(); }, []);
   useEffect(() => () => { if (visibleDateTimerRef.current) clearTimeout(visibleDateTimerRef.current); }, []);
   useEffect(() => {
@@ -467,9 +490,9 @@ export function AccountLanesWorkspace() {
       <div><dt>Current report · {formatCalendarDate(detail.to.date)} {detail.to.time ? formatClockTime(detail.to.time) : ""}</dt><dd>{balanceCentsLabel(detail.actualCents, account.currency)}</dd></div>
       <div className="account-lanes-gap-case__difference"><dt>Difference (reported − expected)</dt><dd>{detail.differenceCents >= 0 ? "+" : "−"}{centsLabel(detail.differenceCents, account.currency)}</dd></div>
     </dl>
-    <details><summary>{detail.movements.length} included {detail.movements.length === 1 ? "movement" : "movements"}</summary><ol>{detail.movements.map(row => <li key={row.id}>{formatCalendarDate(row.date)} {row.time ? formatClockTime(row.time) : ""} · {title(row)} · {amountLabel(row, account.id, account.currency)} <Link href={`/transactions?edit=${row.id}`}>Open entry and sources</Link></li>)}</ol></details>
+    <details><summary>{detail.movements.length} included {detail.movements.length === 1 ? "movement" : "movements"}</summary><ol>{detail.movements.map(row => <li key={row.id}>{formatCalendarDate(row.date)} {row.time ? formatClockTime(row.time) : ""} · {title(row)} · {amountLabel(row, account.id, account.currency)} <button className="account-lanes-gap-link" type="button" onClick={() => edit(row.id)}>Open entry and sources</button></li>)}</ol></details>
     <p>Only fully loaded days with an unambiguous order produce a numeric gap. Check missing movements or fees before reconciling.</p>
-    <Link href={`/transactions?edit=${detail.from.id}`}>Open previous report and sources</Link>
+    <button className="account-lanes-gap-link" type="button" onClick={() => edit(detail.from.id)}>Open previous report and sources</button>
   </div>;
 
   const view = <main className={`account-lanes-page${isFullscreen ? " account-lanes-page--fullscreen" : ""}`} aria-label="Account transaction timeline" style={{ "--lanes-font-adjust": `${fontAdjustment}px`, "--lanes-row-min-height": `${Math.max(88, 100 + fontAdjustment * 6)}px` } as CSSProperties}>
@@ -543,7 +566,7 @@ export function AccountLanesWorkspace() {
           {selected.note ? <div className="account-lanes-note"><h3>Note</h3><p>{selected.note}</p></div> : null}
           {selected.reference ? <p>Reference · {selected.reference}</p> : null}
           <div className="account-lanes-sources"><TransactionSourceMessages key={selected.id} transactionId={selected.id} loadOnExpand showEmpty /><TransactionStatementEvidence key={"statement-" + selected.id} transactionId={selected.id} /></div>
-          <Link className="button button--ghost" href={"/transactions?edit=" + selected.id}>Open ledger entry</Link>
+          <button className="button button--ghost" type="button" onClick={() => edit(selected.id)}>Open ledger entry</button>
           <p className="account-lanes-inspector__hint">A transfer is one ledger transaction shown in each involved account.</p>
       </aside>, document.body) : null}
     </div>
