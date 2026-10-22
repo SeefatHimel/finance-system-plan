@@ -1756,6 +1756,15 @@ amount and balance and requires a deliberate confirmation. The transfer and
 other attached SMS/PDF sources stay saved; the result refreshes the comparison.
 An expired or changed preview requires refreshing before correction. Original
 SMS text is subject to retention and is never embedded in the comparison list.
+When a fresh **Current SMS parser** result disagrees after a saved correction,
+its status reads **Parser differs** and **Inspect parser comparison** opens the
+saved-versus-current account, direction and balance beside an on-demand original
+SMS view. The parser result is read-only and does not undo the saved correction.
+The panel links to SMS settings in a new tab so the review stays open while the
+sender rule or account identifiers are checked; it can also open the saved SMS
+link correction if that attachment is still wrong.
+When a parser result has no identified account, its group says so directly;
+"outside this ledger path" is reserved for a known different account.
 
 Supported suggestions are higher BDT amounts/balances within a full span strictly
 below Tk 1, restoration of missing account-specific balances, and an unambiguous

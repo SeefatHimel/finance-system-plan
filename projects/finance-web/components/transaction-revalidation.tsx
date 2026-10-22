@@ -18,11 +18,11 @@ function formattedMoney(value: string | null, currency: string | null) {
   return `${currency ?? ""} ${Number.isFinite(amount) ? amount.toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : value}`.trim();
 }
 
-function SourceRow({ source, currency, onFix }: { source: Source; currency: string; onFix?: () => void }) {
-  return <article className={`revalidation-source${source.usable ? "" : " revalidation-source--conflict"}`}>
+function SourceRow({ source, currency, onFix, onInspect }: { source: Source; currency: string; onFix?: () => void; onInspect?: () => void }) {
+  return <article id={`revalidation-source-${source.id}`} className={`revalidation-source${source.usable ? "" : " revalidation-source--conflict"}`}>
     <div className="revalidation-source__heading">
       <strong>{source.kind}</strong>
-      <span className={`revalidation-source__badge${source.usable ? "" : " revalidation-source__badge--conflict"}`}>{source.usable ? "Ledger path matches" : "Check source"}</span>
+      <span className={`revalidation-source__badge${source.usable ? "" : " revalidation-source__badge--conflict"}`}>{source.usable ? "Ledger path matches" : source.kind === "Current SMS parser" ? "Parser differs" : "Needs review"}</span>
     </div>
     <dl className="revalidation-source__values">
       <div><dt>Direction</dt><dd>{source.direction || "Unknown"}</dd></div>
@@ -32,42 +32,70 @@ function SourceRow({ source, currency, onFix }: { source: Source; currency: stri
     </dl>
     {source.issues.length ? <ul className="revalidation-source__issues">{source.issues.map(issue => <li key={issue}>{issue}</li>)}</ul> : null}
     {onFix ? <button className="button button--ghost button--small" type="button" onClick={onFix}>Correct this SMS link</button> : null}
+    {onInspect ? <button className="button button--ghost button--small" type="button" onClick={onInspect}>Inspect parser comparison</button> : null}
   </article>;
 }
 
-function SmsCorrectionPanel({ preview, fix, busy, onSelect, onCancel, onConfirm }: {
-  preview: TransactionRevalidation; fix: SourceFix; busy: boolean;
-  onSelect: (next: SourceFix) => void; onCancel: () => void; onConfirm: () => void;
-}) {
+function OriginalSms({ transaction, source, busy }: { transaction: string; source: Source; busy: boolean }) {
   const [original, setOriginal] = useState<TransactionSourceMessage | null>(null);
   const [originalLoading, setOriginalLoading] = useState(false);
   const [originalError, setOriginalError] = useState("");
   async function loadOriginal() {
     const token = getAccessToken();
-    if (!token || !fix.source.raw_message || originalLoading) return;
+    if (!token || !source.raw_message || originalLoading) return;
     setOriginalLoading(true); setOriginalError("");
     try {
-      const messages = await listTransactionSourceMessages(token, preview.transaction);
-      const message = messages.find(item => item.id === fix.source.raw_message);
+      const messages = await listTransactionSourceMessages(token, transaction);
+      const message = messages.find(item => item.id === source.raw_message);
       if (!message) throw new Error("This SMS is no longer attached. Refresh the comparison.");
       setOriginal(message);
     } catch (failure) {
       setOriginalError(failure instanceof Error ? failure.message : "Could not load the original SMS.");
     } finally { setOriginalLoading(false); }
   }
+  return <>
+    {source.raw_message ? <button className="button button--ghost button--small" type="button" disabled={originalLoading || busy} onClick={() => void loadOriginal()}>{originalLoading ? "Loading SMS…" : original ? "Reload original SMS" : "View original SMS"}</button> : <p>The original SMS is unavailable.</p>}
+    {original ? <div className="revalidation-source-fix__original"><strong>{original.sender} · {new Date(original.received_at).toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })}</strong><p>{original.body ?? "Original SMS text is unavailable because it was redacted."}</p></div> : null}
+    {originalError ? <p role="alert">{originalError}</p> : null}
+  </>;
+}
+
+function SmsCorrectionPanel({ preview, fix, busy, onSelect, onCancel, onConfirm }: {
+  preview: TransactionRevalidation; fix: SourceFix; busy: boolean;
+  onSelect: (next: SourceFix) => void; onCancel: () => void; onConfirm: () => void;
+}) {
   return <section className="revalidation-source-fix" aria-labelledby="revalidation-source-fix-title">
     <h3 id="revalidation-source-fix-title">Correct this saved SMS</h3>
     <p>{fix.source.account_name} · {fix.source.direction || "Unknown direction"} · {formattedMoney(fix.source.amount, preview.currency)} · balance after {formattedMoney(fix.source.balance_after, preview.currency)}</p>
     <p>Check the original SMS before choosing. This changes one SMS link; the transfer and other sources stay saved.</p>
-    {fix.source.raw_message ? <button className="button button--ghost button--small" type="button" disabled={originalLoading || busy} onClick={() => void loadOriginal()}>{originalLoading ? "Loading SMS…" : original ? "Reload original SMS" : "View original SMS"}</button> : null}
-    {original ? <div className="revalidation-source-fix__original"><strong>{original.sender} · {new Date(original.received_at).toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })}</strong><p>{original.body ?? "Original SMS text is unavailable because it was redacted."}</p></div> : null}
-    {originalError ? <p role="alert">{originalError}</p> : null}
+    <OriginalSms transaction={preview.transaction} source={fix.source} busy={busy} />
     <div className="revalidation-source-fix__choices">
       {preview.ledger.accounts.filter(account => account.id !== fix.source.account && account.direction === fix.source.direction).map(account => <label key={account.id}><input type="radio" name="sms-source-fix" checked={fix.action === "move" && fix.account === account.id} onChange={() => onSelect({ source: fix.source, action: "move", account: account.id })} />Move its report to {account.name} ({account.direction})</label>)}
       <label><input type="radio" name="sms-source-fix" checked={fix.action === "unlink"} onChange={() => onSelect({ source: fix.source, action: "unlink" })} />Unlink this SMS and return it to Review inbox</label>
     </div>
     <p>{fix.action === "unlink" ? "Its SMS balance report will be removed from this transfer. Review the SMS before linking it again." : fix.action === "move" ? "The original SMS is preserved; its balance report moves to the selected account." : "Choose how to correct this one SMS."}</p>
     <div className="revalidation-source-fix__actions"><button className="button button--ghost button--small" type="button" disabled={busy} onClick={onCancel}>Cancel</button><button className="button button--primary button--small" type="button" disabled={busy || !fix.action} onClick={onConfirm}>{busy ? "Saving…" : "Confirm SMS correction"}</button></div>
+  </section>;
+}
+
+function ParserInspectionPanel({ preview, source, saved, busy, onClose, onCorrectSaved }: {
+  preview: TransactionRevalidation; source: Source; saved?: Source; busy: boolean;
+  onClose: () => void; onCorrectSaved?: () => void;
+}) {
+  return <section className="revalidation-source-fix" aria-label="Current SMS parser comparison">
+    <h3>Saved SMS and current parser</h3>
+    <p>The current parser re-reads the original SMS using today's rules. It is a comparison only; it has not changed your saved SMS or transfer.</p>
+    <div className="revalidation-parser-comparison">
+      <div><strong>Saved SMS</strong><span>{saved ? `${saved.account_name} · ${saved.direction || "unknown direction"}` : "No saved SMS interpretation found"}</span><span>{saved ? `Balance after ${formattedMoney(saved.balance_after, saved.currency ?? preview.currency)}` : ""}</span></div>
+      <div><strong>Current parser</strong><span>{source.account_name} · {source.direction || "unknown direction"}</span><span>Balance after {formattedMoney(source.balance_after, source.currency ?? preview.currency)}</span></div>
+    </div>
+    <OriginalSms transaction={preview.transaction} source={source} busy={busy} />
+    <p>If the saved SMS is correct, leave this transaction as it is. Review the sender rule or account identifiers in SMS settings to improve future parsing. If the saved SMS is wrong, correct its link separately.</p>
+    <div className="revalidation-source-fix__actions">
+      {onCorrectSaved ? <button className="button button--ghost button--small" type="button" disabled={busy} onClick={onCorrectSaved}>Correct saved SMS link</button> : null}
+      <a className="button button--ghost button--small" href="/sms-settings" target="_blank" rel="noopener noreferrer">Open SMS settings in new tab</a>
+      <button className="button button--ghost button--small" type="button" onClick={onClose}>Close comparison</button>
+    </div>
   </section>;
 }
 
@@ -79,11 +107,16 @@ export function TransactionRevalidationDialog({ transactionId, onClose, onEdit }
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const [sourceFix, setSourceFix] = useState<SourceFix | null>(null);
+  const [parserInspect, setParserInspect] = useState<Source | null>(null);
   const { notify } = useToast();
 
   useEffect(() => {
+    if (sourceFix) document.getElementById(`revalidation-source-${sourceFix.source.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [sourceFix?.source.id]);
+
+  useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setError(""); setPreview(null); setSelected([]); setSourceFix(null);
+    setLoading(true); setError(""); setPreview(null); setSelected([]); setSourceFix(null); setParserInspect(null);
     const token = getAccessToken();
     if (!token) { setError("Sign in before revalidating transactions."); setLoading(false); return; }
     void previewTransactionRevalidation(token, transactionId, controller.signal).then(result => {
@@ -121,7 +154,7 @@ export function TransactionRevalidationDialog({ transactionId, onClose, onEdit }
       );
       window.dispatchEvent(new CustomEvent("finance:transaction-saved", { detail: saved }));
       window.dispatchEvent(new Event("finance:transactions-changed"));
-      notify(sourceFix.action === "move" ? "SMS reporting account corrected. The transfer was kept." : "SMS unlinked and returned to Review inbox. The transfer was kept.");
+      notify(sourceFix.action === "move" ? "Saved SMS reporting account corrected. Current parser rules may still need review." : "SMS unlinked and returned to Review inbox. The transfer was kept.");
       setSourceFix(null);
       setRevision(value => value + 1);
     } catch (failure) {
@@ -136,6 +169,25 @@ export function TransactionRevalidationDialog({ transactionId, onClose, onEdit }
     "Current SMS rules do not identify the same reporting account. Review the account manually.",
   ]);
   const remainingWarnings = preview?.warnings.filter(warning => !sourceConflicts.length || !genericWarnings.has(warning)) ?? [];
+
+  function renderSource(source: Source) {
+    if (!preview) return null;
+    const saved = source.kind === "Current SMS parser"
+      ? preview.sources.find(item => item.kind === "Saved SMS" && item.raw_message && item.raw_message === source.raw_message)
+      : undefined;
+    const canCorrectSaved = preview.ledger.type === "transfer" && source.kind === "Saved SMS";
+    const canInspectParser = source.kind === "Current SMS parser" && !source.usable;
+    return <Fragment key={`${source.kind}-${source.id}`}>
+      <SourceRow source={source} currency={preview.currency}
+        onFix={canCorrectSaved ? () => { setParserInspect(null); setSourceFix({ source, action: null }); } : undefined}
+        onInspect={canInspectParser ? () => { setSourceFix(null); setParserInspect(source); } : undefined} />
+      {sourceFix?.source.id === source.id && sourceFix.source.kind === source.kind
+        ? <SmsCorrectionPanel preview={preview} fix={sourceFix} busy={busy} onSelect={setSourceFix} onCancel={() => setSourceFix(null)} onConfirm={() => void correctSource()} /> : null}
+      {parserInspect?.id === source.id && parserInspect.kind === source.kind
+        ? <ParserInspectionPanel preview={preview} source={source} saved={saved} busy={busy} onClose={() => setParserInspect(null)}
+            onCorrectSaved={saved && preview.ledger.type === "transfer" ? () => { setParserInspect(null); setSourceFix({ source: saved, action: null }); } : undefined} /> : null}
+    </Fragment>;
+  }
 
   return <ModalDialog className="form-drawer transaction-revalidation" labelledBy="revalidation-title" busy={busy} onCancel={onClose}>
     <div className="form-drawer__header">
@@ -170,10 +222,15 @@ export function TransactionRevalidationDialog({ transactionId, onClose, onEdit }
             if (!sources.length) return null;
             return <section className="revalidation-account" key={account.id} aria-label={`${account.name} evidence`}>
               <header><div><strong>{account.name}</strong><span>Ledger balance after: {formattedMoney(account.balance_after, account.currency)}</span></div><span>{sources.length} source{sources.length === 1 ? "" : "s"}</span></header>
-              <div className="revalidation-account__sources">{sources.map(source => <Fragment key={`${source.kind}-${source.id}`}><SourceRow source={source} currency={preview.currency} onFix={preview.ledger.type === "transfer" && source.kind === "Saved SMS" ? () => setSourceFix({ source, action: null }) : undefined} />{sourceFix?.source.id === source.id && sourceFix.source.kind === source.kind ? <SmsCorrectionPanel preview={preview} fix={sourceFix} busy={busy} onSelect={setSourceFix} onCancel={() => setSourceFix(null)} onConfirm={() => void correctSource()} /> : null}</Fragment>)}</div>
+              <div className="revalidation-account__sources">{sources.map(renderSource)}</div>
             </section>;
           })}
-          {preview.sources.filter(source => !source.account || !preview.ledger.accounts.some(account => account.id === source.account)).map(source => <section className="revalidation-account revalidation-account--unmatched" key={`${source.kind}-${source.id}`} aria-label={`${source.account_name} unmatched evidence`}><header><strong>{source.account_name} · outside this ledger path</strong></header><div className="revalidation-account__sources"><SourceRow source={source} currency={preview.currency} onFix={preview.ledger.type === "transfer" && source.kind === "Saved SMS" ? () => setSourceFix({ source, action: null }) : undefined} />{sourceFix?.source.id === source.id && sourceFix.source.kind === source.kind ? <SmsCorrectionPanel preview={preview} fix={sourceFix} busy={busy} onSelect={setSourceFix} onCancel={() => setSourceFix(null)} onConfirm={() => void correctSource()} /> : null}</div></section>)}
+          {preview.sources.filter(source => !source.account || !preview.ledger.accounts.some(account => account.id === source.account)).map(source => {
+            const heading = !source.account
+              ? source.kind === "Current SMS parser" ? "Current parser could not identify an account" : "Source account not identified"
+              : `${source.account_name} · outside this ledger path`;
+            return <section className="revalidation-account revalidation-account--unmatched" key={`${source.kind}-${source.id}`} aria-label={`${heading} evidence`}><header><strong>{heading}</strong></header><div className="revalidation-account__sources">{renderSource(source)}</div></section>;
+          })}
           {!preview.sources.length ? <p>No attached source observations were found.</p> : null}
         </section>
         {remainingWarnings.length ? <section className="revalidation-warnings" aria-label="Other review notes"><h3>Other review notes</h3><ul>{remainingWarnings.map(warning => <li key={warning}>{warning}</li>)}</ul></section> : null}

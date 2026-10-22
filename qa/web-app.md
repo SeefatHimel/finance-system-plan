@@ -1464,6 +1464,13 @@ shows the precise source and can fetch its original text on demand. The user
 chooses either a direction-compatible destination account or unlink to Review
 inbox, then confirms. The comparison reloads after success; stale previews
 must be refreshed. Other evidence and the ledger movement remain in place.
+The current parser card is a fresh read-only interpretation, so its mismatch can
+remain after a saved SMS link moves. It now has an explicit inspection action
+rather than a button-like status label. Inspection compares the two interpretations,
+can reveal the original SMS on demand, and opens SMS settings in a new tab for
+future rule changes without discarding the transaction review.
+An unidentified parser account is labeled as such instead of being described as
+a known account outside the transfer path.
 
 ### Where do source-versus-ledger checks live?
 
