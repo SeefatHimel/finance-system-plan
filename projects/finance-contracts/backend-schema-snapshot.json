@@ -9477,6 +9477,62 @@
       ],
       "type": "object"
     },
+    "RevalidationLedger": {
+      "properties": {
+        "accounts": {
+          "items": {
+            "$ref": "#/components/schemas/RevalidationLedgerAccount"
+          },
+          "type": "array"
+        },
+        "amount": {
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accounts",
+        "amount",
+        "date",
+        "type"
+      ],
+      "type": "object"
+    },
+    "RevalidationLedgerAccount": {
+      "properties": {
+        "balance_after": {
+          "nullable": true,
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "balance_after",
+        "currency",
+        "direction",
+        "id",
+        "name"
+      ],
+      "type": "object"
+    },
     "RevalidationPreview": {
       "properties": {
         "currency": {
@@ -9487,6 +9543,9 @@
         },
         "fingerprint": {
           "type": "string"
+        },
+        "ledger": {
+          "$ref": "#/components/schemas/RevalidationLedger"
         },
         "policy": {
           "type": "string"
@@ -9521,6 +9580,7 @@
         "currency",
         "expires_in",
         "fingerprint",
+        "ledger",
         "policy",
         "sources",
         "suggestions",
@@ -9548,12 +9608,31 @@
           "nullable": true,
           "type": "string"
         },
+        "currency": {
+          "nullable": true,
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "nullable": true,
+          "type": "string"
+        },
+        "direction": {
+          "nullable": true,
+          "type": "string"
+        },
         "has_fee": {
           "type": "boolean"
         },
         "id": {
           "format": "uuid",
           "type": "string"
+        },
+        "issues": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "kind": {
           "type": "string"
@@ -9567,8 +9646,12 @@
         "account_name",
         "amount",
         "balance_after",
+        "currency",
+        "date",
+        "direction",
         "has_fee",
         "id",
+        "issues",
         "kind",
         "usable"
       ],

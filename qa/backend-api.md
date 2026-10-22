@@ -1201,7 +1201,9 @@ remain unknown, and the mismatch scan is a separate read-only operation.
 
 Yes. The per-transaction revalidate GET compares attached confirmed SMS, accepted
 PDF rows, account reports and current retained-SMS parsing without writes. It
-returns exact before/after suggestions and manual-review warnings. A signed,
+returns exact before/after suggestions, a current ledger snapshot and per-source
+reporting account/date/direction/currency plus specific incompatibility reasons.
+Conflicting current SMS parser output is visible as unusable evidence. A signed,
 15-minute token plus explicitly selected server-offered fields authorizes the
 apply POST. It recomputes the policy/evidence/ledger fingerprint under locks,
 rejects stale/replayed previews, updates through the existing serializer, audits

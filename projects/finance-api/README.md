@@ -1500,8 +1500,12 @@ SMS parsing/learned category rules run read-only when the original text remains
 available. Re-importing statements or resyncing SMS is not required.
 
 `GET /api/transactions/{id}/revalidate/` returns the current/proposed values,
-source values, manual-review warnings, policy version and a signed preview token
-valid for 15 minutes. It does not persist parser output or change the ledger.
+a current ledger snapshot (date, type, amount and each account's direction and
+balance), source values with reporting account, date, direction, currency and
+specific incompatibility reasons, manual-review warnings, policy version and a
+signed preview token valid for 15 minutes. It does not persist parser output or
+change the ledger. A current SMS parse that points to a different account is
+shown as unusable evidence rather than silently omitted.
 `POST /api/transactions/{id}/apply-revalidation/` takes that `token` and a nonempty
 `selected` array of offered keys (`amount`, `category`, `balance:{account_uuid}`).
 Nothing is preapproved. Values are derived by the server, never supplied by the

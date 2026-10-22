@@ -764,7 +764,9 @@ the attachment-only proposal API into financial corrections. No migration.
 ### What is the confirmed-transaction correction boundary?
 
 GET transactions/{id}/revalidate returns a private no-store, user-scoped preview
-and a signed 900-second token. POST apply-revalidation accepts token and selected
+and a signed 900-second token. It includes a current `ledger` snapshot and each
+source's reporting account, currency, direction, date and incompatibility
+`issues`; original message bodies remain excluded. POST apply-revalidation accepts token and selected
 offered keys only; the server recomputes corrections under locks. Ownership is 404,
 invalid selections 400 and expired/stale/replayed previews 409. The atomic response
 is the existing Transaction shape, with audit and Undo. No migration or mandatory

@@ -117,10 +117,29 @@ class RevalidationSourceSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     account = serializers.UUIDField(allow_null=True)
     account_name = serializers.CharField()
+    currency = serializers.CharField(allow_null=True)
+    direction = serializers.CharField(allow_blank=True, allow_null=True)
+    date = serializers.DateField(allow_null=True)
     amount = serializers.CharField(allow_null=True)
     balance_after = serializers.CharField(allow_null=True)
     usable = serializers.BooleanField()
     has_fee = serializers.BooleanField()
+    issues = serializers.ListField(child=serializers.CharField())
+
+
+class RevalidationLedgerAccountSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    currency = serializers.CharField()
+    direction = serializers.CharField()
+    balance_after = serializers.CharField(allow_null=True)
+
+
+class RevalidationLedgerSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    type = serializers.CharField()
+    amount = serializers.CharField()
+    accounts = RevalidationLedgerAccountSerializer(many=True)
 
 
 class RevalidationPreviewSerializer(serializers.Serializer):
@@ -131,6 +150,7 @@ class RevalidationPreviewSerializer(serializers.Serializer):
     token = serializers.CharField()
     expires_in = serializers.IntegerField()
     suggestions = RevalidationSuggestionSerializer(many=True)
+    ledger = RevalidationLedgerSerializer()
     sources = RevalidationSourceSerializer(many=True)
     warnings = serializers.ListField(child=serializers.CharField())
 

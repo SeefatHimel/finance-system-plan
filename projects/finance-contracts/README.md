@@ -823,8 +823,11 @@ not gain automatic financial mutation through this policy.
 `GET /api/transactions/{id}/revalidate/` is a private, read-only preview against
 attached confirmed evidence/current SMS rules. It returns `suggestions` with stable
 selection keys, exact current/proposed text, `sources`, `warnings`, policy/fingerprint,
-`token` and `expires_in: 900`. No SMS body is returned. All suggestions require explicit
-selection; opening/refreshing never applies corrections.
+`token` and `expires_in: 900`. The `ledger` snapshot contains date, type, amount
+and account-specific direction and balance. Each source includes reporting
+account, currency, direction, date and `issues` explaining unusable evidence.
+No SMS body is returned. All suggestions require explicit selection;
+opening/refreshing never applies corrections.
 
 `POST /api/transactions/{id}/apply-revalidation/` accepts only a preview `token` and
 `selected` keys (1–4). It returns the updated Transaction. Invalid selections are

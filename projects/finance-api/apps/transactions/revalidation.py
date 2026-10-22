@@ -126,26 +126,36 @@ def inspect(record, *, lock=False, prepared=None):
             and account.pk == record.transfer_account_id
             else record.direction
         )
-        usable = bool(
-            path_valid
-            and account
-            and account.pk in endpoints
-            and account.user_id == user.pk
-            and account.currency == record.account.currency
-            and direction == expected
-            and day
-            and abs(day - record.date) <= timedelta(days=3)
-        )
+        issues = []
+        if not path_valid:
+            issues.append("The saved ledger account path or currency needs review.")
+        if not account or account.pk not in endpoints or account.user_id != user.pk:
+            issues.append("Reporting account does not match this ledger entry.")
+        elif account.currency != record.account.currency:
+            issues.append("Source account currency differs from the ledger currency.")
+        if direction != expected:
+            issues.append(
+                f"Source direction is {direction or 'unknown'}; ledger direction is {expected or 'unknown'} for this account."
+            )
+        if not day:
+            issues.append("Source date is unavailable.")
+        elif abs(day - record.date) > timedelta(days=3):
+            issues.append("Source date is more than three days from the ledger date.")
+        usable = not issues
         sources.append(
             {
                 "kind": kind,
                 "id": str(identifier),
                 "account": str(account.pk) if account else None,
                 "account_name": account.name if account else "Unknown account",
+                "currency": account.currency if account else None,
+                "direction": direction,
+                "date": day.isoformat() if day else None,
                 "amount": money(amount),
                 "balance_after": money(balance),
                 "usable": usable,
                 "has_fee": fee,
+                "issues": issues,
             }
         )
         if not usable:
@@ -169,6 +179,7 @@ def inspect(record, *, lock=False, prepared=None):
         )
         if candidate.raw_message.user_id != user.pk:
             sources[-1]["usable"] = False
+            sources[-1]["issues"].append("This SMS does not belong to this user.")
             warnings.append(
                 "An attached SMS has incompatible ownership. Review it manually."
             )
@@ -210,11 +221,13 @@ def inspect(record, *, lock=False, prepared=None):
             record.type != "transfer" or row.other_account_id != counterpart
         ):
             sources[-1]["usable"] = False
+            sources[-1]["issues"].append("The statement identifies a different transfer account path.")
             warnings.append(
                 "A statement identifies another account path. Review the transfer manually."
             )
         if row.batch.currency != record.account.currency:
             sources[-1]["usable"] = False
+            sources[-1]["issues"].append("Statement currency differs from the ledger currency.")
             warnings.append("A statement currency differs from the ledger account.")
     if record.raw_message_id and record.raw_message_id not in seen:
         messages.append(
@@ -281,6 +294,18 @@ def inspect(record, *, lock=False, prepared=None):
             warnings.append(
                 "Current SMS rules do not identify the same reporting account. Review the account manually."
             )
+            add(
+                "Current SMS parser",
+                message.pk,
+                parsed_account,
+                parsed["amount"],
+                parsed["balance_after"],
+                direction,
+                received.date(),
+                fee=bool(parsed.get("fee_amount")),
+            )
+            sources[-1]["usable"] = False
+            sources[-1]["issues"].append("Current SMS rules identify a different reporting account than the saved SMS.")
             continue
         day = received.date()
         add(
@@ -435,6 +460,21 @@ def inspect(record, *, lock=False, prepared=None):
         warnings.append(
             "No usable attached SMS or statement observations. Add or review evidence first."
         )
+    ledger = {
+        "date": record.date.isoformat(),
+        "type": record.type,
+        "amount": money(record.amount),
+        "accounts": [
+            {
+                "id": str(account_id),
+                "name": account.name,
+                "currency": account.currency,
+                "direction": "credit" if record.type == "transfer" and account_id == record.transfer_account_id else record.direction,
+                "balance_after": money(current.get(account_id)),
+            }
+            for account_id, account in endpoints.items()
+        ],
+    }
     fingerprint = hashlib.sha256(
         json.dumps(
             freeze(
@@ -472,6 +512,7 @@ def inspect(record, *, lock=False, prepared=None):
         "currency": record.account.currency,
         "policy": POLICY_VERSION,
         "suggestions": suggestions,
+        "ledger": ledger,
         "sources": sources,
         "warnings": sorted(set(warnings)),
         "fingerprint": fingerprint,

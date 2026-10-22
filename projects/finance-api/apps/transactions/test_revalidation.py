@@ -74,6 +74,9 @@ class RevalidationTests(APITestCase):
             {item["amount"] for item in response.data["sources"] if item["amount"]},
             {"100.00", "100.37"},
         )
+        self.assertEqual(response.data["ledger"]["amount"], "100.00")
+        self.assertEqual(response.data["ledger"]["accounts"][0]["balance_after"], "900.00")
+        self.assertTrue(all("direction" in source and "date" in source and "issues" in source for source in response.data["sources"]))
         self.record.refresh_from_db()
         self.assertEqual(self.record.updated_at, stamp)
         self.assertEqual(AuditLogEntry.objects.count(), 0)
@@ -217,7 +220,11 @@ class RevalidationTests(APITestCase):
             for name, value in changes.items():
                 setattr(self.row, name, value)
             self.row.save()
-            self.assertEqual(self.preview().data["suggestions"], [])
+            preview = self.preview().data
+            self.assertEqual(preview["suggestions"], [])
+            statement = next(source for source in preview["sources"] if source["kind"] == "Statement")
+            self.assertFalse(statement["usable"])
+            self.assertTrue(statement["issues"])
             self.row.direction = "debit"
             self.row.date = self.record.date
             self.row.other_account = None

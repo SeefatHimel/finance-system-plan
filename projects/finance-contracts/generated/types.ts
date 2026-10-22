@@ -1028,8 +1028,24 @@ export interface RevalidationPreview {
   token: string;
   expires_in: number;
   suggestions: RevalidationSuggestion[];
+  ledger: RevalidationLedger;
   sources: RevalidationSource[];
   warnings: string[];
+}
+
+export interface RevalidationLedger {
+  date: string;
+  type: string;
+  amount: string;
+  accounts: RevalidationLedgerAccount[];
+}
+
+export interface RevalidationLedgerAccount {
+  id: string;
+  name: string;
+  currency: string;
+  direction: string;
+  balance_after: string | null;
 }
 
 export interface RevalidationSource {
@@ -1037,10 +1053,14 @@ export interface RevalidationSource {
   id: string;
   account: string | null;
   account_name: string;
+  currency: string | null;
+  direction: string | null;
+  date: string | null;
   amount: string | null;
   balance_after: string | null;
   usable: boolean;
   has_fee: boolean;
+  issues: string[];
 }
 
 export interface RevalidationSuggestion {
