@@ -84,7 +84,7 @@ function ParserInspectionPanel({ preview, source, saved, busy, onClose, onCorrec
 }) {
   return <section className="revalidation-source-fix" aria-label="Current SMS parser comparison">
     <h3>Saved SMS and current parser</h3>
-    <p>The current parser re-reads the original SMS using today's rules. It is a comparison only; it has not changed your saved SMS or transfer.</p>
+    <p>The current parser re-reads the original SMS using the current rules. It is a comparison only; it has not changed your saved SMS or transfer.</p>
     <div className="revalidation-parser-comparison">
       <div><strong>Saved SMS</strong><span>{saved ? `${saved.account_name} · ${saved.direction || "unknown direction"}` : "No saved SMS interpretation found"}</span><span>{saved ? `Balance after ${formattedMoney(saved.balance_after, saved.currency ?? preview.currency)}` : ""}</span></div>
       <div><strong>Current parser</strong><span>{source.account_name} · {source.direction || "unknown direction"}</span><span>Balance after {formattedMoney(source.balance_after, source.currency ?? preview.currency)}</span></div>
@@ -109,10 +109,11 @@ export function TransactionRevalidationDialog({ transactionId, onClose, onEdit }
   const [sourceFix, setSourceFix] = useState<SourceFix | null>(null);
   const [parserInspect, setParserInspect] = useState<Source | null>(null);
   const { notify } = useToast();
+  const sourceFixId = sourceFix?.source.id;
 
   useEffect(() => {
-    if (sourceFix) document.getElementById(`revalidation-source-${sourceFix.source.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [sourceFix?.source.id]);
+    if (sourceFixId) document.getElementById(`revalidation-source-${sourceFixId}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [sourceFixId]);
 
   useEffect(() => {
     const controller = new AbortController();
