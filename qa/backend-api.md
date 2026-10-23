@@ -1,5 +1,16 @@
 # Backend API Q&A
 
+### How are ATM cash-withdrawal SMS classified?
+
+The shared bank parser recognizes ATM withdrawal wording, including `Cash WD`
+and `Cash W/D`, as `cash_out`. It preserves debit as the SMS source direction
+and defaults the review draft to a transfer. One active, same-currency Cash or
+Home cash account can be suggested as the destination; several require user
+choice and none leaves the transfer incomplete. A learned sender mapping cannot
+turn this source-backed default into Expense automatically. The user can select
+Expense in review if the cash was spent immediately. Reprocessing updates
+pending candidates; it never silently changes confirmed ledger entries.
+
 ### How can users check older transactions after rules change?
 
 `GET /api/transactions/issues/` scans a bounded, user-owned page without

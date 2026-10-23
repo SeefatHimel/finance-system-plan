@@ -1,5 +1,20 @@
 # finance-api
 
+## Cash-withdrawal SMS defaults
+
+The shared bank SMS parser recognizes ATM withdrawal wording, including `Cash WD`
+and `Cash W/D`, as `cash_out`. Its source direction is debit and its review draft
+defaults to a transfer into cash. If exactly one active Cash or Home cash account
+has the reporting account's currency, it is suggested as the destination. With
+several eligible cash accounts the user must choose one; with none the draft
+remains a transfer awaiting a destination. The user can choose Expense when the
+cash was spent immediately. This is a global parser rule, not a per-user learned
+mapping. No transfer or ledger entry is posted until the user confirms it.
+
+Existing pending SMS can use Re-run parser (or the bulk reprocess control) to
+adopt this default. Confirmed entries are not rewritten automatically; review
+their original SMS and edit any incorrect ledger classification separately.
+
 ## Generic bank-deposit evidence
 
 City Bank and EBL SMS that only report a deposit, amount, balance, and account

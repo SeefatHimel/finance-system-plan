@@ -953,10 +953,12 @@ class RawMessageImportApiTests(APITestCase):
         candidate = response.data["candidate"]
         self.assertEqual(candidate["provider"], "city_bank")
         self.assertEqual(candidate["message_kind"], "cash_out")
-        self.assertEqual(candidate["transaction_type"], "expense")
+        self.assertEqual(candidate["transaction_type"], "transfer")
+        self.assertEqual(candidate["source_direction"], "debit")
         self.assertEqual(candidate["amount"], "40000.00")
         self.assertEqual(candidate["account"], account.id)
-        self.assertFalse(candidate["possible_internal_transfer"])
+        self.assertTrue(candidate["possible_internal_transfer"])
+        self.assertIsNone(candidate["destination_account"])
 
     def test_city_bank_deposit_does_not_treat_date_year_as_amount(self):
         user = get_user_model().objects.create_user(username="himel", password="password")

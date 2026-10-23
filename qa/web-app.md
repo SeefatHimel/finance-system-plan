@@ -1,5 +1,14 @@
 # Web App Q&A
 
+### What does SMS review show for a cash withdrawal?
+
+It starts as a debit transfer out of the reporting account. The destination
+list highlights eligible Cash and Home cash accounts in the same currency;
+one may already be suggested, while multiple require an explicit selection.
+Without a cash account, the form explains that the user can add one or change
+Type to Expense when appropriate. The user still confirms the transfer path;
+no cash destination is inferred from weak card/account suffix evidence.
+
 ### What does Check transactions do?
 
 The Transactions action scans saved entries in pages of 50 and lists findings

@@ -33,7 +33,7 @@ _OTP_SECURITY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _TRANSACTION_ACTIVITY_PATTERN = re.compile(
-    r"\b(?:debited|credited|deposit(?:ed)?|purchase|withdraw(?:al|n)?|txn|transaction|transfer(?:red)?|payment|paid|cash[ -]?(?:in|out)|sent|received|fee|refund|reversal)\b",
+    r"\b(?:debited|credited|deposit(?:ed)?|purchase|withdraw(?:al|n)?|txn|transaction|transfer(?:red)?|payment|paid|cash[ -]?(?:in|out|wd|w/d)|sent|received|fee|refund|reversal)\b",
     re.IGNORECASE,
 )
 _NUMERIC_CONTENT_PATTERN = re.compile(r"\d")
@@ -205,6 +205,13 @@ def parse_raw_message(raw_message, *, sender_rule=None):
         parsed["parser_notes"] = (
             f"{parsed['parser_notes']} Applied the fallback transaction type for an unknown message format."
         )
+    if parsed["message_kind"] == ParsedMessageCandidate.MessageKind.CASH_OUT:
+        # A cash withdrawal moves money into a cash account by default. Older
+        # learned expense choices must not suppress the source-backed default.
+        parsed["transaction_type"] = ParsedMessageCandidate.TransactionType.TRANSFER
+        if mapping and mapping.transaction_type != ParsedMessageCandidate.TransactionType.TRANSFER:
+            parsed["category"] = None
+            parsed["parser_notes"] += " Ignored an older non-transfer choice for this cash withdrawal."
     from .transfer_suggestions import apply_transfer_suggestion
 
     apply_transfer_suggestion(parsed, raw_message.user, reporting_account, evidence_accounts)
@@ -445,19 +452,19 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
         transaction_type = ParsedMessageCandidate.TransactionType.REFUND
         confidence = Decimal("0.82") if amount is not None else Decimal("0.50")
         notes.append("Detected bank/card refund wording.")
+    elif _contains_any_phrase(
+        normalized,
+        ("atm txn", "atm withdrawal", "cash withdrawal", "withdrawal", "withdrawn"),
+    ) or re.search(r"\bcash\s+w(?:\s*/\s*)?d\b", normalized):
+        message_kind = ParsedMessageCandidate.MessageKind.CASH_OUT
+        transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
+        confidence = Decimal("0.86") if amount is not None else Decimal("0.54")
+        notes.append("Detected ATM cash-withdrawal wording.")
     elif _contains_any_phrase(normalized, ("fee", "charge", "vat")):
         message_kind = ParsedMessageCandidate.MessageKind.FEE
         transaction_type = ParsedMessageCandidate.TransactionType.FEE
         confidence = Decimal("0.80") if amount is not None else Decimal("0.48")
         notes.append("Detected bank/card fee or charge wording.")
-    elif _contains_any_phrase(
-        normalized,
-        ("atm txn", "atm withdrawal", "cash withdrawal", "withdrawal", "withdrawn"),
-    ):
-        message_kind = ParsedMessageCandidate.MessageKind.CASH_OUT
-        transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE
-        confidence = Decimal("0.86") if amount is not None else Decimal("0.54")
-        notes.append("Detected ATM cash-withdrawal wording.")
     elif _contains_any_phrase(normalized, ("used for", "purchase", "spent", "pos", "at")):
         message_kind = ParsedMessageCandidate.MessageKind.CARD_PURCHASE
         transaction_type = ParsedMessageCandidate.TransactionType.EXPENSE

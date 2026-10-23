@@ -70,6 +70,24 @@ def unique_named_account(user, text, reporting_account):
 
 
 def apply_transfer_suggestion(parsed, user, reporting_account, evidence_accounts):
+    if parsed["message_kind"] == ParsedMessageCandidate.MessageKind.CASH_OUT:
+        parsed["suggested_transfer_direction"] = "debit"
+        parsed["possible_internal_transfer"] = True
+        if parsed["destination_account"]:
+            return  # Keep an explicitly identified destination.
+        cash_accounts = list(Account.objects.filter(
+            user=user, is_active=True, type__in=(Account.Type.CASH, Account.Type.HOME_CASH),
+            currency=reporting_account.currency if reporting_account else "BDT",
+        ).exclude(pk=reporting_account.pk if reporting_account else None).order_by("display_order", "name")[:2])
+        if len(cash_accounts) == 1:
+            parsed["destination_account"] = cash_accounts[0]
+            parsed["transfer_suggestion_reason"] = "Only one active cash account uses this currency. Verify where the withdrawn cash went."
+        elif cash_accounts:
+            parsed["transfer_suggestion_reason"] = "Several cash accounts are available. Choose where the withdrawn cash went."
+        else:
+            parsed["transfer_suggestion_reason"] = "No cash account is available. Add one for this transfer, or change the type to Expense if the cash was spent immediately."
+        parsed["parser_notes"] += f" {parsed['transfer_suggestion_reason']}"
+        return
     if parsed["message_kind"] not in TRANSFER_KINDS or not reporting_account or not reporting_account.is_active:
         return
     source, destination, source_method, destination_method = evidence_accounts

@@ -1,5 +1,15 @@
 # API Contracts Q&A
 
+### What does an ATM cash-withdrawal candidate return?
+
+The existing parsed-candidate fields report `message_kind=cash_out`,
+`source_direction=debit`, `transaction_type=transfer`, and
+`suggested_transfer_direction=debit`. `destination_account` is suggested only
+when exactly one active, same-currency cash account is eligible; otherwise it
+is null and `transfer_suggestion_reason` explains the choice. The confirmation
+API still requires a destination for a transfer and accepts an explicit Expense
+choice. The response shape is unchanged.
+
 ### What does the transaction issue-scan response contain?
 
 `GET /api/transactions/issues/?limit=50&offset=0` returns `scanned`, `total`,

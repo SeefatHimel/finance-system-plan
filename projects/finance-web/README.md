@@ -1,5 +1,12 @@
 # finance-web
 
+ATM cash withdrawals in SMS review default to debit transfers. The destination
+selector puts active, same-currency Cash and Home cash accounts first. A sole
+cash account is suggested, while multiple accounts require a choice. If no cash
+account exists, create one before confirming the transfer or deliberately change
+the Type to Expense when the cash was spent immediately. The source SMS direction
+stays debit. Re-run parser on older pending messages to get the new default.
+
 When editing a transaction with an attached bank SMS, the editor warns if the
 SMS sender conflicts with the selected account's known bank provider. The
 source check must finish before an edit can be saved; if it fails, the reviewer
