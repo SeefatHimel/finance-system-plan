@@ -815,3 +815,13 @@ read-only ledger mismatch scan.
 ### What do the bKash archived direction endpoints guarantee?
 
 The import-level recheck is authenticated, owner-scoped, throttled and read-only; mismatched row identity yields no asserted fresh direction. The row-level review requires a saved archive, explicit PDF confirmation and the current row version. It preserves original extraction, audits the human correction, and can align a saved draft only when a linked ledger entry already agrees. Neither endpoint edits ledger transactions.
+
+### How does SMS confirmation handle a pending PDF match?
+
+`POST /api/messages/review/{id}/statement-matches/` accepts the SMS review
+draft and returns bounded statement suggestions plus a uniqueness flag. The
+confirm request can carry `distinct_statement_rows` and
+`acknowledge_distinct_statements`; without an exact acknowledged set, a
+corroborated pending row returns 409. This protects direct API callers as well
+as the web flow. The lookup is read-only, and the pair endpoint remains the
+way to attach both sources to one movement.

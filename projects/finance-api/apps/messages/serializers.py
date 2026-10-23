@@ -386,6 +386,10 @@ class MessageCandidateRejectSerializer(serializers.Serializer):
 
 
 class ParsedMessageConfirmSerializer(serializers.Serializer):
+    distinct_statement_rows = serializers.ListField(
+        child=serializers.UUIDField(), required=False, default=list, max_length=200
+    )
+    acknowledge_distinct_statements = serializers.BooleanField(required=False, default=False)
     account_perspective = serializers.BooleanField(required=False, default=False)
     account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none(), required=False)
     transfer_account = serializers.PrimaryKeyRelatedField(
@@ -429,6 +433,9 @@ class ParsedMessageConfirmSerializer(serializers.Serializer):
     remember_mapping = serializers.BooleanField(required=False, default=False)
 
     def validate(self, attrs):
+        dismissed = attrs["distinct_statement_rows"]
+        if len(dismissed) != len(set(dismissed)):
+            raise serializers.ValidationError({"distinct_statement_rows": "Review each statement row only once."})
         for field_name in (
             "sender_account_identifier",
             "sender_card_identifier",

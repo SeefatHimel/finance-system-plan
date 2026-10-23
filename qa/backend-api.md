@@ -1252,3 +1252,12 @@ migration or automatic financial rewrite.
 
 Parser changes do not rewrite saved evidence or ledger entries. An owner can reparse an encrypted archived PDF through the bounded worker and compare rows only when their position, date, time, type, amount and balance align. The comparison is read-only. After inspecting the PDF Out/In column, a version-checked action records a reviewed source direction separately from immutable `extracted`; it writes audit history. Optional saved-draft alignment is rejected when a linked ledger entry disagrees. The ledger issue scan uses the reviewed direction. Ledger changes remain separate reviewed transaction edits.
 An unresolved bKash draft cannot be posted while its direction disagrees with that original or reviewed PDF direction; this is a backend validation error, not merely a web warning.
+
+### Can confirming an SMS silently duplicate a pending statement movement?
+
+No. Before creating an SMS-backed ledger entry, the API runs the same bounded,
+type-independent corroborated match search used for unified review. A matching
+pending PDF row blocks ordinary confirmation with 409. The caller can review a
+unique pair and record both sources once, or explicitly acknowledge every current
+statement suggestion as a different movement. The server repeats the lookup
+under the user lock so stale, partial, and unchecked decisions cannot post.

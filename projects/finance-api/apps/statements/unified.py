@@ -3,6 +3,7 @@
 import base64
 import binascii
 import json
+from copy import copy
 from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal
@@ -362,6 +363,66 @@ def unique_pair_signals(user, row, candidate):
     if not signals or has_competing_sources(row, candidate):
         return None
     return signals
+
+
+def statement_matches_for_sms(candidate, draft=None):
+    """Bounded, type-independent lookup for an SMS confirmation decision.
+
+    Check the saved SMS as well as the proposed ledger fields. A form edit must
+    not make an existing source match disappear before the user reviews it.
+    """
+    from .models import StatementRow
+
+    variants = [candidate]
+    if draft:
+        proposed = copy(candidate)
+        for field in ("amount", "balance_after", "reference", "counterparty_text", "transaction_type"):
+            key = "type" if field == "transaction_type" else field
+            if key in draft:
+                setattr(proposed, field, draft[key])
+        if draft.get("account_perspective") and draft.get("account"):
+            if draft.get("type", candidate.transaction_type) == "transfer":
+                incoming = sms_observation(candidate)[1] == "credit"
+                if incoming:
+                    proposed.destination_account = draft["account"]
+                    if draft.get("transfer_account"):
+                        proposed.account = draft["transfer_account"]
+                else:
+                    proposed.account = draft["account"]
+                    if draft.get("transfer_account"):
+                        proposed.destination_account = draft["transfer_account"]
+            else:
+                proposed.account = draft["account"]
+                proposed.destination_account = None
+        variants.append(proposed)
+    accounts = {account.pk for item in variants if (account := sms_reporting_account(item))}
+    amounts = {item.amount for item in variants if item.amount is not None}
+    if not accounts or not amounts:
+        return [], False
+    received = timezone.localtime(candidate.raw_message.received_at).date()
+    low, high = received - timedelta(days=3), received + timedelta(days=3)
+    rows = list(amount_candidates(StatementRow.objects.filter(
+        batch__user_id=candidate.user_id,
+        batch__account_id__in=accounts,
+        state="pending",
+        transaction__isnull=True,
+        component="principal",
+    ), amounts).filter(
+        Q(date__range=(low, high)) | Q(value_date__range=(low, high))
+    ).select_related("batch__account", "other_account").order_by("id")[:10001])
+    if len(rows) > 10000:
+        return [], True
+    mark_fee_rows(rows)
+    matches = []
+    for row in rows:
+        signals = next((signals for item in variants if (signals := pair_signals(row, item))), None)
+        if signals:
+            matches.append({"row": row, "signals": signals, "unique": False})
+            if len(matches) > 200:
+                return [], True
+    if len(matches) == 1 and pair_signals(matches[0]["row"], candidate):
+        matches[0]["unique"] = not has_competing_sources(matches[0]["row"], candidate)
+    return matches, False
 
 
 def unique_pending_pairs_for_rows(rows):

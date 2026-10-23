@@ -1579,6 +1579,7 @@ paths:
     post:
       tags: [Messages]
       summary: Confirm a parsed SMS candidate as a transaction
+      description: Rechecks pending statement matches before posting. A corroborated match returns 409 unless every current statement row is explicitly acknowledged as a separate movement; review a unique pair through /api/review/pair/ to record it once.
       security:
         - bearerAuth: []
       requestBody:
@@ -1600,6 +1601,38 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ValidationError'
+  /api/messages/review/{id}/statement-matches/:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathId'
+    post:
+      tags: [Messages]
+      summary: Preview pending statement matches for an SMS review draft
+      description: Uses the same bounded corroborated-match check as SMS confirmation. No ledger or source is changed.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParsedMessageConfirmRequest'
+      responses:
+        '200':
+          description: Current pending statement suggestions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmsStatementMatchesResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ValidationError'
   /api/messages/review/{id}/ignore/:
     parameters:
       - $ref: '#/components/parameters/UuidPathId'
@@ -4929,6 +4962,17 @@ components:
     ParsedMessageConfirmRequest:
       type: object
       properties:
+        distinct_statement_rows:
+          type: array
+          maxItems: 200
+          items:
+            type: string
+            format: uuid
+          description: Exact current IDs of pending statement suggestions reviewed as different movements. Stale or partial lists return 409.
+        acknowledge_distinct_statements:
+          type: boolean
+          default: false
+          description: Required with distinct_statement_rows to add an SMS as a separate transaction despite pending statement suggestions.
         account_perspective:
           type: boolean
           default: false
@@ -8047,6 +8091,26 @@ components:
       - late_posting
       - reasons
       - strength
+    SmsStatementMatchesResponse:
+      type: object
+      required: [unavailable, matches]
+      properties:
+        unavailable:
+          type: boolean
+          description: The bounded statement lookup could not safely inspect all nearby rows; confirmation stays blocked.
+        matches:
+          type: array
+          items:
+            type: object
+            required: [statement, signals, unique]
+            properties:
+              statement:
+                $ref: '#/components/schemas/UnifiedPendingSource'
+              signals:
+                $ref: '#/components/schemas/UnifiedPendingMatch'
+              unique:
+                type: boolean
+                description: Both pending sources uniquely claim each other and can open pair review.
     UnifiedPendingPage:
       type: object
       properties:

@@ -77,6 +77,17 @@ class UnifiedPendingMatchSerializer(serializers.Serializer):
     reasons = serializers.ListField(child=serializers.CharField())
 
 
+class SmsStatementSuggestionSerializer(serializers.Serializer):
+    statement = UnifiedPendingSourceSerializer()
+    signals = UnifiedPendingMatchSerializer()
+    unique = serializers.BooleanField()
+
+
+class SmsStatementMatchesSerializer(serializers.Serializer):
+    unavailable = serializers.BooleanField()
+    matches = SmsStatementSuggestionSerializer(many=True)
+
+
 class UnifiedPendingItemSerializer(serializers.Serializer):
     id = serializers.CharField()
     statement = UnifiedPendingSourceSerializer()

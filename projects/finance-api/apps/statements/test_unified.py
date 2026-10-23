@@ -122,6 +122,100 @@ class UnifiedReviewTests(APITestCase):
         candidate.refresh_from_db()
         return candidate
 
+    def test_sms_review_checks_statement_before_adding_separate_ledger_entry(self):
+        lookup = reverse("message-candidate-statement-matches", args=[self.sms.id])
+        confirm = reverse("message-candidate-confirm", args=[self.sms.id])
+        draft = {
+            "account": str(self.account.id), "amount": "100.00",
+            "direction": "debit", "type": "expense",
+        }
+        matches = self.client.post(lookup, draft, format="json")
+        self.assertEqual(matches.status_code, 200, matches.data)
+        self.assertFalse(matches.data["unavailable"])
+        self.assertEqual(len(matches.data["matches"]), 1)
+        self.assertEqual(matches.data["matches"][0]["statement"]["id"], str(self.row.id))
+        self.assertTrue(matches.data["matches"][0]["unique"])
+        blocked = self.client.post(confirm, draft, format="json")
+        self.assertEqual(blocked.status_code, 409, blocked.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        self.sms.refresh_from_db()
+        self.assertEqual(self.sms.status, "needs_review")
+
+        separate = self.client.post(confirm, {
+            **draft, "distinct_statement_rows": [str(self.row.id)],
+            "acknowledge_distinct_statements": True,
+        }, format="json")
+        self.assertEqual(separate.status_code, 200, separate.data)
+        self.assertEqual(Transaction.objects.count(), 1)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.state, "pending")
+
+    def test_sms_review_requires_every_competing_statement_row(self):
+        other = StatementRow.objects.create(
+            batch=self.batch, position=2, component="principal",
+            source_fingerprint="synthetic-repeat", date=self.row.date,
+            time=self.row.time, direction=self.row.direction,
+            type=self.row.type, amount=self.row.amount,
+            balance_after=self.row.balance_after,
+            counterparty_text=self.row.counterparty_text,
+            note=self.row.note, classification_confirmed=True,
+            extracted={**self.row.extracted, "row": 2},
+        )
+        lookup = self.client.post(
+            reverse("message-candidate-statement-matches", args=[self.sms.id]),
+            {"account": str(self.account.id)}, format="json",
+        )
+        self.assertEqual(lookup.status_code, 200, lookup.data)
+        self.assertEqual(len(lookup.data["matches"]), 2)
+        self.assertTrue(all(not item["unique"] for item in lookup.data["matches"]))
+        confirm = reverse("message-candidate-confirm", args=[self.sms.id])
+        partial = self.client.post(confirm, {
+            "account": str(self.account.id),
+            "distinct_statement_rows": [str(self.row.id)],
+            "acknowledge_distinct_statements": True,
+        }, format="json")
+        self.assertEqual(partial.status_code, 409, partial.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        both = self.client.post(confirm, {
+            "account": str(self.account.id),
+            "distinct_statement_rows": [str(self.row.id), str(other.id)],
+            "acknowledge_distinct_statements": True,
+        }, format="json")
+        self.assertEqual(both.status_code, 200, both.data)
+
+    def test_sms_review_without_statement_match_adds_normally(self):
+        self.row.amount = Decimal("200.00")
+        self.row.save(update_fields=("amount",))
+        response = self.client.post(
+            reverse("message-candidate-confirm", args=[self.sms.id]),
+            {"account": str(self.account.id), "type": "expense"}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_sms_draft_edits_cannot_hide_the_saved_source_match(self):
+        draft = {
+            "account": str(self.wallet.id),
+            "amount": "250.00",
+            "type": "income",
+            "account_perspective": True,
+        }
+        response = self.client.post(
+            reverse("message-candidate-statement-matches", args=[self.sms.id]),
+            draft, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            [match["statement"]["id"] for match in response.data["matches"]],
+            [str(self.row.id)],
+        )
+        blocked = self.client.post(
+            reverse("message-candidate-confirm", args=[self.sms.id]),
+            draft, format="json",
+        )
+        self.assertEqual(blocked.status_code, 409, blocked.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+
     def test_statement_list_shows_type_different_unified_pair(self):
         self.sms.transaction_type = "transfer"
         self.sms.message_kind = "cash_out"

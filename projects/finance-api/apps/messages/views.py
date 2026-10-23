@@ -16,6 +16,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log, transaction_snapshot
+from apps.statements.unified_views import SmsStatementMatchesSerializer
 from apps.transactions.models import Transaction
 from apps.transactions.transfers import (
     add_transfer_evidence,
@@ -633,6 +634,35 @@ class SmsDevelopmentResetView(APIView):
         )
 
 
+@extend_schema(request=ParsedMessageConfirmSerializer, responses=SmsStatementMatchesSerializer)
+class MessageCandidateStatementMatchesView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, candidate_id):
+        candidate = get_object_or_404(
+            ParsedMessageCandidate.objects.select_related(
+                "raw_message", "account", "destination_account"
+            ), user=request.user, pk=candidate_id,
+        )
+        if candidate.status != ParsedMessageCandidate.Status.NEEDS_REVIEW or candidate.transaction_id:
+            return Response(
+                {"detail": "This SMS is no longer pending. Refresh the review."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        serializer = ParsedMessageConfirmSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        from apps.statements.unified import statement_matches_for_sms, summary
+
+        matches, unavailable = statement_matches_for_sms(candidate, serializer.validated_data)
+        return Response({
+            "unavailable": unavailable,
+            "matches": [
+                {"statement": summary(match["row"]), "signals": match["signals"], "unique": match["unique"]}
+                for match in matches
+            ],
+        }, headers={"Cache-Control": "private, no-store"})
+
+
 @extend_schema(request=ParsedMessageConfirmSerializer, responses=OpenApiTypes.OBJECT)
 class MessageCandidateConfirmView(APIView):
     permission_classes = (IsAuthenticated,)
@@ -749,6 +779,24 @@ class MessageCandidateConfirmView(APIView):
             return Response(
                 {"detail": "This SMS is already recorded in a transaction."},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.statements.unified import statement_matches_for_sms
+
+        statement_matches, matching_unavailable = statement_matches_for_sms(candidate, payload)
+        if matching_unavailable:
+            return Response(
+                {"detail": "Statement matching is temporarily too broad to verify safely. Narrow the saved statement period or review the statement before adding this SMS."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        matched_ids = {match["row"].pk for match in statement_matches}
+        dismissed_ids = set(payload["distinct_statement_rows"])
+        if matched_ids != dismissed_ids or (
+            matched_ids and not payload["acknowledge_distinct_statements"]
+        ):
+            return Response(
+                {"detail": "A pending statement may describe this SMS. Compare and link the sources once, or explicitly confirm that every suggested statement row is a separate movement."},
+                status=status.HTTP_409_CONFLICT,
             )
 
         from apps.transactions.recovery import ActionRecorder

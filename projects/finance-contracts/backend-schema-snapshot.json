@@ -1839,6 +1839,59 @@
         ]
       }
     },
+    "/api/messages/review/{candidate_id}/statement-matches/": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParsedMessageConfirm"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ParsedMessageConfirm"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ParsedMessageConfirm"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmsStatementMatches"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/messages/sender-rules/": {
       "get": {
         "responses": {
@@ -8007,6 +8060,10 @@
           "default": false,
           "type": "boolean"
         },
+        "acknowledge_distinct_statements": {
+          "default": false,
+          "type": "boolean"
+        },
         "amount": {
           "format": "decimal",
           "pattern": "^-?\\d{0,12}(?:\\.\\d{0,2})?$",
@@ -8033,6 +8090,14 @@
         },
         "direction": {
           "$ref": "#/components/schemas/Direction864Enum"
+        },
+        "distinct_statement_rows": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "type": "array"
         },
         "note": {
           "type": "string"
@@ -10278,6 +10343,43 @@
         "denied"
       ],
       "type": "string"
+    },
+    "SmsStatementMatches": {
+      "properties": {
+        "matches": {
+          "items": {
+            "$ref": "#/components/schemas/SmsStatementSuggestion"
+          },
+          "type": "array"
+        },
+        "unavailable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "matches",
+        "unavailable"
+      ],
+      "type": "object"
+    },
+    "SmsStatementSuggestion": {
+      "properties": {
+        "signals": {
+          "$ref": "#/components/schemas/UnifiedPendingMatch"
+        },
+        "statement": {
+          "$ref": "#/components/schemas/UnifiedPendingSource"
+        },
+        "unique": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "signals",
+        "statement",
+        "unique"
+      ],
+      "type": "object"
     },
     "Source6ccEnum": {
       "enum": [

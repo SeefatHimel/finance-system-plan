@@ -1233,6 +1233,18 @@ matches, and ledger transactions are not changed; existing PDFs need no re-uploa
 
 ### Combined pending SMS and statement review
 
+SMS confirmation now performs the reverse lookup before creating a ledger entry.
+`POST /api/messages/review/{candidate_id}/statement-matches/` previews nearby,
+independently corroborated pending PDF rows for the saved SMS and proposed review
+fields. The bounded result marks whether one pair is unique. The confirm endpoint
+repeats this lookup under the user transaction lock and returns 409 while a match
+exists. To record a genuinely separate repeat movement, the caller must send the
+exact current `distinct_statement_rows` IDs and
+`acknowledge_distinct_statements=true`; missing, stale, or partial IDs cannot
+bypass the check. When lookup capacity is exhausted, SMS posting stays blocked
+until the statement scope is narrowed. A unique pair uses `/api/review/pair/` to
+record one transaction with both sources. The preview never changes either source.
+
 `review.pending_sms_matches` on a statement row detail response suggests still
 pending SMS observations for the same account perspective, type, amount and date
 window. `POST /api/statements/rows/{id}/decide/` with `action=combine_sms`, row

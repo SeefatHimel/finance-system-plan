@@ -588,6 +588,8 @@ export interface ParsedMessageCandidate {
 }
 
 export interface ParsedMessageConfirmRequest {
+  distinct_statement_rows?: string[];
+  acknowledge_distinct_statements?: boolean;
   account_perspective?: boolean;
   account?: string;
   transfer_account?: string | null;
@@ -1703,6 +1705,15 @@ export interface UnifiedPendingMatch {
   conflict: boolean;
   late_posting: boolean;
   reasons: string[];
+}
+
+export interface SmsStatementMatchesResponse {
+  unavailable: boolean;
+  matches: {
+  statement: UnifiedPendingSource;
+  signals: UnifiedPendingMatch;
+  unique: boolean;
+}[];
 }
 
 export interface UnifiedPendingPage {
