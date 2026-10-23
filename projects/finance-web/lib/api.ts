@@ -1873,6 +1873,17 @@ const pendingSourceSchema = z.object({
   type: z.string(), description: z.string(), reference: z.string(), updated_at: z.string(), version: z.number().nullable(), batch: z.string().nullable(), needs_correction: z.boolean()
 });
 const pendingSignalsSchema = z.object({ strength: z.enum(["strong", "possible"]), conflict: z.boolean(), late_posting: z.boolean().default(false), reasons: z.array(z.string()) });
+const smsStatementMatchesSchema = z.object({
+  unavailable: z.boolean(),
+  matches: z.array(z.object({ statement: pendingSourceSchema, signals: pendingSignalsSchema, unique: z.boolean() }))
+});
+export type SmsStatementMatch = z.infer<typeof smsStatementMatchesSchema>["matches"][number];
+export async function findSmsStatementMatches(token: string, id: string, input: ConfirmMessageCandidateInput) {
+  const response = await authenticatedFetch(`/api/messages/review/${id}/statement-matches/`, token, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input)
+  });
+  return smsStatementMatchesSchema.parse(await response.json());
+}
 const pendingPairSchema = z.object({ id: z.string(), statement: pendingSourceSchema, sms: pendingSourceSchema, match: pendingSignalsSchema, needs_correction: z.boolean() });
 const unifiedPendingSchema = z.object({
   count: z.number(), offset: z.number(), limit: z.number(), next_cursor: z.string().nullable(),

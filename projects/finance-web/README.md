@@ -1492,6 +1492,13 @@ The sidebar exposes Dashboard, Transactions, Review inbox, Accounts and Reports.
 Planning and Settings are expandable, open automatically for their active route,
 and remain usable in collapsed and phone navigation. **Review inbox** groups
 **Matched sources**, **SMS** and **Statements** with a shared route switcher.
+In SMS Review, Confirm & add checks nearby saved statement rows before posting.
+A corroborated match opens an in-place comparison with a direct pair-review
+action; the existing SMS filters and form stay in place. Pair review starts from
+saved SMS values, so unsaved SMS edits must be reviewed there before confirming.
+The separate-transaction path requires marking every suggested PDF row as a
+different movement and a final acknowledgment. The server rechecks those IDs;
+an unavailable or changed lookup blocks posting rather than risking a duplicate.
 Existing `/review`, `/messages/review` and `/statements` links—including selected
 source IDs—still work. The badge specifically counts pending SMS, not the sum of
 all source types. SMS focus mode continues to cover the complete workspace and

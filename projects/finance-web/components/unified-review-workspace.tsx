@@ -31,7 +31,7 @@ function formatStatementDateTime(date: string | null, time: string | null) {
   return `${formatCalendarDate(date)} · ${formatClockTime(time)}`;
 }
 
-function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: { accounts: Account[]; categories: Category[]; pair: UnifiedPair; onCancel: () => void; onSaved: () => void; onEdit: () => void }) {
+export function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: { accounts: Account[]; categories: Category[]; pair: UnifiedPair; onCancel: () => void; onSaved: () => void; onEdit: () => void }) {
   const { notify } = useToast();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

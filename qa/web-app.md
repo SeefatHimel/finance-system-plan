@@ -1526,3 +1526,13 @@ statement report without presenting it as a proven ledger mismatch.
 
 Open the saved bKash import in Statements, expand Statement details, and run **Recheck saved directions**. If its PDF is missing, re-upload the identical PDF to the same account first. Compare the exact row and Out/In column with the archived PDF; the parser's suggestion alone is not proof. Explicitly save the verified source direction, optionally align the saved draft if the ledger already agrees, and use **Compare linked ledger entry** if a confirmed transaction still differs. The page states that recheck and source review do not change confirmed ledger entries.
 An unresolved bKash row cannot be added while its saved draft direction disagrees with the original or reviewed PDF direction. The review displays the exact blocker and asks for PDF verification.
+
+### What happens if an SMS being confirmed may match a saved statement?
+
+SMS Review shows an in-place comparison before adding to the ledger. A unique
+pair opens the existing two-source review without discarding SMS filters. Each
+suggested PDF row shows its account, date, direction, amount, description,
+reference, balance, and match evidence. If the movements are genuinely separate,
+the reviewer marks every suggestion as different and acknowledges the decision;
+the server verifies the exact current IDs again. Pair review uses saved SMS
+values, so any unsaved SMS edits must be checked again in that dialog.
