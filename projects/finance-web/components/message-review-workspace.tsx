@@ -53,7 +53,7 @@ import {
 import { useReviewFocus } from "@/components/use-review-focus";
 import { ModalDialog } from "@/components/modal-dialog";
 import { TransferMatchDialog } from "@/components/transfer-match-dialog";
-import { MessageChoiceLearning } from "@/components/message-choice-learning";
+import { useMessageChoiceToast } from "@/components/use-message-choice-toast";
 import { SmsStatementMatchDialog } from "@/components/sms-statement-match-dialog";
 import { getAccessToken } from "@/lib/auth-storage";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
@@ -115,6 +115,7 @@ function normalizedNote(candidate: ParsedMessageCandidate) {
 
 export function MessageReviewWorkspace() {
   const recovery = useTransactionRecovery();
+  const { actionFor, offer } = useMessageChoiceToast();
   const { notify } = useToast();
   const { session } = useAuth();
   const owner = session.status === "signed-in" ? session.user.id : null;
@@ -134,7 +135,6 @@ export function MessageReviewWorkspace() {
   const [statementPair, setStatementPair] = useState<UnifiedPair | null>(null);
   const [editStatementPair, setEditStatementPair] = useState<UnifiedPair | null>(null);
   const [statementMatchBusy, setStatementMatchBusy] = useState(false);
-  const [justSaved, setJustSaved] = useState<{ id: string; messageKind: string } | null>(null);
   const [paymentMethodDrafts, setPaymentMethodDrafts] = useState<Record<string, string>>({});
   const [accountDrafts, setAccountDrafts] = useState<Record<string, ReturnType<typeof accountReviewDefaults>>>({});
   const [matchError, setMatchError] = useFeedbackMessage("error");
@@ -384,8 +384,8 @@ export function MessageReviewWorkspace() {
         distinct_statement_rows: ids,
         acknowledge_distinct_statements: true,
       });
-      recovery.announce(saved.undo_action);
-      setJustSaved(saved.sender_rule ? { id: saved.id, messageKind: saved.message_kind } : null);
+      if (saved.undo_action) recovery.announce(saved.undo_action, saved.sender_rule ? [actionFor(saved.id)] : []);
+      else offer(saved.sender_rule ? saved.id : null, "SMS transaction saved.");
       setStatementDecision(null);
       await loadData(false);
     } catch (error) {
@@ -476,8 +476,8 @@ export function MessageReviewWorkspace() {
         setFieldErrors(errors); setActionError("Choose the other transfer account, or accept an existing match."); focusFieldError(formRef.current, errors); return;
       }
       const saved = await confirmMessageCandidate(accessToken, candidate.id, input);
-      recovery.announce(saved.undo_action);
-      setJustSaved(saved.sender_rule ? { id: saved.id, messageKind: saved.message_kind } : null);
+      if (saved.undo_action) recovery.announce(saved.undo_action, saved.sender_rule ? [actionFor(saved.id)] : []);
+      else offer(saved.sender_rule ? saved.id : null, "SMS transaction saved.");
       await loadData(false);
     } catch (error) {
       const errors = fieldErrorsFrom(error); setFieldErrors(errors); focusFieldError(formRef.current, errors);
@@ -509,8 +509,8 @@ export function MessageReviewWorkspace() {
       }
       const saved = match ? await linkTransfer(accessToken, { candidate: transferDecision.candidate.id, draft: transferDecision.input }, match, balanceChoices)
         : await confirmMessageCandidate(accessToken, transferDecision.candidate.id, transferDecision.input);
-      recovery.announce(saved.undo_action);
-      setJustSaved(transferDecision.candidate.sender_rule ? { id: transferDecision.candidate.id, messageKind: transferDecision.candidate.message_kind } : null);
+      if (saved.undo_action) recovery.announce(saved.undo_action, transferDecision.candidate.sender_rule ? [actionFor(transferDecision.candidate.id)] : []);
+      else offer(transferDecision.candidate.sender_rule ? transferDecision.candidate.id : null, "SMS transaction saved.");
       setTransferDecision(null);
       await loadData(false);
 
@@ -644,9 +644,6 @@ export function MessageReviewWorkspace() {
       {linkNotice ? <p className="form-warning" role="status"><Warning aria-hidden="true" size={18} />{linkNotice}</p> : null}
 
       <div className={`review-canvas${isFocused && !focusQueueOpen ? " review-canvas--queue-collapsed" : ""}`} ref={reviewSurface} role={isFocused ? "dialog" : undefined} aria-modal={isFocused || undefined} aria-label={isFocused ? "Focused SMS review" : undefined}>
-        {justSaved ? <ModalDialog labelledBy="sms-choice-learning-title" className="message-learning-dialog" onCancel={() => setJustSaved(null)}>
-          <MessageChoiceLearning key={justSaved.id} candidateId={justSaved.id} messageKind={justSaved.messageKind} onDone={() => setJustSaved(null)} titleId="sms-choice-learning-title" />
-        </ModalDialog> : null}
         <div className="review-focus-header" hidden={!isFocused}>
           <div><h2 className="review-focus-title" tabIndex={-1}>{activeCandidate ? `SMS review · ${formatCurrency(activeValues?.amount)}` : "SMS review"}</h2><span aria-live="polite" aria-atomic="true">{activeCandidate ? `${accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"} · ${activeIndex + 1} / ${filteredCandidates.length}` : "No messages match these filters"}</span></div>
           <div className="review-focus-header__actions">

@@ -10,10 +10,12 @@ Type to Expense when appropriate. The user still confirms the transfer path;
 no cash destination is inferred from weak card/account suffix evidence.
 When a saved cash-withdrawal route suggests a path, a button fills the cash
 destination and any strongly identified source for review. After recording,
-an optional action can teach future cash-out SMS from this reporting account
-across ATM locations. A conflicting route requires explicit replacement. The
-reviewer can continue without saving a rule, and weak source-account matches
-still require review.
+the success toast offers an optional **Save for similar SMS** action; it never
+blocks the next review. For cash withdrawals, this can teach future cash-out
+SMS from the same reporting account across ATM locations. A conflicting route
+requires an explicit replacement action in the toast. Dismissing the toast
+does not save a rule, and a cash route can be retried later from the recorded
+transaction's Sources. Weak source-account matches still require review.
 
 ### What does Check transactions do?
 

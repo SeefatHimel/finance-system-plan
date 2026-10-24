@@ -11,7 +11,7 @@ import { HelpTooltip } from "@/components/help-tooltip";
 
 const Context = createContext<{
   latest: TransactionAction | null; busy: boolean;
-  announce: (action?: TransactionAction | null) => void;
+  announce: (action?: TransactionAction | null, extraActions?: { label: string; onClick: () => void }[]) => void;
   undo: (action: TransactionAction) => void;
   edit: (id: string) => void;
   revalidate: (id: string) => void;
@@ -106,13 +106,13 @@ export function TransactionRecoveryProvider({ children }: { children: ReactNode 
     } finally { pending.current = false; if (ownerRef.current === owner) setBusy(false); }
   }, [edit, notify, owner, refresh]);
 
-  const announce = useCallback((action?: TransactionAction | null) => {
+  const announce = useCallback((action?: TransactionAction | null, extraActions: { label: string; onClick: () => void }[] = []) => {
     if (!action || owner === null || ownerRef.current !== owner) return;
     version.current++; setLatest(action);
     const actions = [];
     if (action.transaction) actions.push({ label: "Edit", onClick: () => edit(action.transaction!) });
     if (action.can_undo) actions.push({ label: "Undo", onClick: () => void undo(action) });
-    notify(action.label, "success", { actions, durationMs: 15000 });
+    notify(action.label, "success", { actions: [...actions, ...extraActions], durationMs: 15000 });
   }, [edit, notify, owner, undo]);
 
   return <Context.Provider value={{ latest, busy, announce, undo: action => void undo(action), edit, revalidate, create,

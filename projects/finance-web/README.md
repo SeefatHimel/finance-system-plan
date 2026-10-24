@@ -10,13 +10,14 @@ After recording, a separate optional action can save the reviewed cash route
 for future cash-out SMS from that reporting account, even when the ATM name
 changes. A conflicting saved route requires an explicit replacement decision;
 the current transaction is already safe and does not depend on that decision.
-A post-save dialog contains **Save for similar SMS** when the confirmed SMS has
-a recognized sender rule. It is not available before **Confirm & add**.
-Recording a matching SMS and statement together shows the same optional action
-after the pair is saved. If a cash-route save fails or the dialog is closed,
-open the recorded transaction's **Sources** and choose **Remember this cash
-withdrawal route** beside the attached SMS; retrying only saves the rule and
-does not record another transaction.
+A brief success toast contains **Save for similar SMS** when the confirmed SMS
+has a recognized sender rule. It is not available before **Confirm & add** and
+does not interrupt the next review. Recording a matching SMS and statement
+together offers the same optional toast action after the pair is saved.
+If a cash-route save fails or the toast is dismissed, open the recorded
+transaction's **Sources** and choose **Remember this cash withdrawal route**
+beside the attached SMS; retrying only saves the rule and does not record
+another transaction.
 A suggested path still needs review against the original SMS before recording.
 
 SMS review keeps a compact source amount, direction, and balance visible while
@@ -24,8 +25,9 @@ the full original message remains expandable. SMS + statement review opens both
 originals before the editor. Recording the pair is the routine final confirmation;
 only material differences (balance, account correction, competing sources, or
 possible duplicate ledger entries) require extra choices. The pair's optional
-SMS learning action appears after a successful save. No explicit learned rule is
-saved by default; prior confirmed history may still provide a review hint.
+SMS learning action appears in the success toast after a successful save. No
+explicit learned rule is saved by default; prior confirmed history may still
+provide a review hint.
 
 When editing a transaction with an attached bank SMS, the editor warns if the
 SMS sender conflicts with the selected account's known bank provider. The

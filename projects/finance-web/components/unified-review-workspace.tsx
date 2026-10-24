@@ -7,7 +7,7 @@ import { DatePeriodControls } from "@/components/date-period-controls";
 import { ModalDialog } from "@/components/modal-dialog";
 import { StatementRowDialog } from "@/components/statement-row-dialog";
 import { TransactionSourceMessages } from "@/components/transaction-source-messages";
-import { MessageChoiceLearning } from "@/components/message-choice-learning";
+import { useMessageChoiceToast } from "@/components/use-message-choice-toast";
 import { UnifiedPairEditor, initialPairDraft, savedPairDraft, type PairTypeChoice } from "@/components/unified-pair-editor";
 import { useToast } from "@/components/toast-provider";
 import { getAccessToken } from "@/lib/auth-storage";
@@ -42,8 +42,8 @@ function formatStatementDateTime(date: string | null, time: string | null) {
 
 export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, accounts, categories }: { accounts: Account[]; categories: Category[]; pair: UnifiedPair; smsFormInput?: ConfirmMessageCandidateInput; onCancel: () => void; onSaved: () => void; onEdit: () => void }) {
   const { notify } = useToast();
+  const { offer } = useMessageChoiceToast();
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [ackCompeting, setAckCompeting] = useState(false);
   const [ackSmsForm, setAckSmsForm] = useState(false);
   const [sourceEvidenceOpen, setSourceEvidenceOpen] = useState(true);
@@ -187,6 +187,7 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
     const balanceSource = pair.match.late_posting ? (ledger && !fillingMissingBalance ? "existing" : "sms") : ledger ? fillingMissingBalance ? balance : "existing" : balance;
     if (!balanceSource) return;
     setBusy(true);
+    let recorded = false;
     try {
       await confirmUnifiedPair(token, {
         statement: row.id, sms: pair.sms.id, statement_version: row.version, sms_updated_at: pair.sms.updated_at,
@@ -200,20 +201,19 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
         competing_source_tokens: pair.competing_sources.map(item => item.token), acknowledge_competing_sources: ackCompeting,
         remember_choices: false,
       });
-      notify("SMS and statement linked to one transaction. Both sources are kept.");
-      window.dispatchEvent(new Event("finance:transactions-changed"));
-      setSaved(true);
+      recorded = true;
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Could not match these sources.";
       if (message.includes("Ledger suggestions changed")) refreshLedgerReview();
       notify(message, "error");
     } finally { setBusy(false); }
+    if (recorded) {
+      window.dispatchEvent(new Event("finance:transactions-changed"));
+      onSaved();
+      // Show the toast after the decision dialog has closed.
+      window.setTimeout(() => offer(pair.sms.sender_rule ? pair.sms.id : null, "SMS and statement linked to one transaction. Both sources are kept."), 0);
+    }
   }
-
-  if (saved) return <ModalDialog labelledBy="unified-pair-saved-title" className="form-drawer statement-row-dialog unified-pair-dialog" onCancel={onSaved}>
-    <div className="form-drawer__header"><div><h2 id="unified-pair-saved-title">One transaction recorded</h2><p>The SMS and statement are both attached. The original sources remain available.</p></div><button className="icon-button" type="button" onClick={onSaved} aria-label="Close completed review">×</button></div>
-    {pair.sms.sender_rule ? <MessageChoiceLearning candidateId={pair.sms.id} messageKind={pair.sms.message_kind} onDone={onSaved} /> : <div className="statement-row-body"><button className="button button--primary" type="button" onClick={onSaved}>Done</button></div>}
-  </ModalDialog>;
 
   return <ModalDialog labelledBy="unified-pair-title" initialFocus="#unified-pair-summary" className="form-drawer statement-row-dialog unified-pair-dialog" busy={busy} onCancel={onCancel}>
     <div className="form-drawer__header"><div><h2 id="unified-pair-title">Review SMS + statement</h2><p>{pair.batch.account_name} · {pair.batch.currency} {row.amount}</p></div><button className="icon-button" type="button" disabled={busy} onClick={onCancel} aria-label="Close combined review">×</button></div>
