@@ -17,7 +17,8 @@ account across ATM locations. It updates eligible pending suggestions and future
 cash-out suggestions, without confirming them or overriding an SMS-identified
 destination. Weak source-account identity still requires explicit review;
 non-cash routes and expenses do not create this broad rule.
-A conflicting saved route returns 409; replacing it needs `replace_existing: true`.
+A conflicting saved route or category returns 409; replacing it needs
+`replace_existing: true`.
 The endpoint checks ownership, confirmed status, source direction, account path,
 and destination before writing. It does not change the recorded transaction.
 

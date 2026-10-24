@@ -697,8 +697,8 @@ class RememberConfirmedMessageChoiceView(APIView):
                 user=request.user, sender_rule=candidate.sender_rule, message_kind=candidate.message_kind,
                 reporting_account=source, counterparty_key=CASH_WITHDRAWAL_KEY,
             ).first()
-            if existing and existing.other_account_id != destination.pk and not replace_existing:
-                return Response({"detail": "A different cash destination is already saved for this SMS source. Replace it only if the new route should apply to future withdrawals.", "existing_account": existing.other_account.name}, status=status.HTTP_409_CONFLICT)
+            if existing and (existing.other_account_id != destination.pk or existing.category_id != record.category_id) and not replace_existing:
+                return Response({"detail": "A different cash route or category is already saved for this SMS source. Replace it only if the new choice should apply to future withdrawals.", "existing_account": existing.other_account.name}, status=status.HTTP_409_CONFLICT)
             remember_transfer_path(candidate, record, {"account": source, "direction": "debit", "counterparty_text": candidate.counterparty_text})
             return Response({"saved": True, "scope": "cash_withdrawal", "account": source.name, "destination": destination.name})
 
@@ -713,6 +713,9 @@ class RememberConfirmedMessageChoiceView(APIView):
             other = record.transfer_account if direction == Transaction.Direction.DEBIT else record.account
             if not source or not other or source.user_id != request.user.pk or other.user_id != request.user.pk:
                 return Response({"detail": "The transfer path must contain two owned accounts."}, status=status.HTTP_400_BAD_REQUEST)
+            reporting_account = sms_reporting_account(candidate)
+            if not reporting_account or reporting_account.pk != source.pk:
+                return Response({"detail": "The ledger transfer path differs from the original SMS reporting account. Correct it before learning."}, status=status.HTTP_400_BAD_REQUEST)
             key = counterparty_key(candidate.counterparty_text)
             if not key:
                 return Response({"detail": "This SMS has no reusable counterparty key."}, status=status.HTTP_400_BAD_REQUEST)
@@ -720,7 +723,8 @@ class RememberConfirmedMessageChoiceView(APIView):
                 user=request.user, sender_rule=candidate.sender_rule, message_kind=candidate.message_kind,
                 reporting_account=source, counterparty_key=key,
             ).first()
-            if existing and (existing.other_account_id != other.pk or existing.direction != direction) and not replace_existing:
+            if existing and (existing.other_account_id != other.pk or existing.direction != direction
+                             or existing.category_id != record.category_id) and not replace_existing:
                 return Response({"detail": "A different transfer route is already saved for this SMS source. Review it before replacing the rule.", "existing_account": existing.other_account.name}, status=status.HTTP_409_CONFLICT)
             remember_transfer_path(candidate, record, {"account": source, "direction": direction, "counterparty_text": candidate.counterparty_text})
             return Response({"saved": True, "scope": "counterparty", "account": source.name, "destination": other.name})
