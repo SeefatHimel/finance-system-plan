@@ -1581,6 +1581,18 @@ highlights are review clues, not automatic approval. Pairing action failures
 show as toast messages within the modal; loading failures that need a Retry
 control stay inline with that control.
 
+### How can someone inspect the exact original evidence without losing review state?
+
+The SMS and statement descriptions label each fact actually highlighted in the
+source text. A compact attention line calls out account, direction, amount,
+date, or reported-balance differences; delayed EBL posting is described as
+context when its value date matches the SMS. **View original PDF row** opens
+the archived PDF at the saved page in an overlay and displays its source row
+number, with a new-tab fallback for PDF viewers that ignore page positioning.
+The overlay uses existing read-only statement endpoints and leaves the SMS
+review form and filters in place. These cues support a human decision; they
+never approve or change a ledger entry automatically.
+
 ### How does combined review handle edited ledger suggestions and EBL dates?
 
 When a user edits matching fields, combined review checks ledger suggestions for

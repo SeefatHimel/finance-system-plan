@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
 import { ModalDialog } from "@/components/modal-dialog";
-import { SourceEvidenceText } from "@/components/source-evidence-text";
+import { SourceAttention } from "@/components/source-attention";
+import { SourceEvidenceLegend, SourceEvidenceText } from "@/components/source-evidence-text";
+import { StatementPdfReference } from "@/components/statement-pdf-reference";
 import { localDate } from "@/lib/date-period";
 import { agreeingSmsStatementEvidence, compareSmsStatementReports } from "@/lib/sms-statement-evidence";
 import type { ConfirmMessageCandidateInput, ParsedMessageCandidate, SmsStatementMatch } from "@/lib/api";
@@ -22,13 +24,15 @@ export function SmsStatementMatchDialog({ candidate, input, accountName, matches
   const [different, setDifferent] = useState<string[]>([]);
   const [acknowledged, setAcknowledged] = useState(false);
   const allReviewed = matches.every(match => different.includes(match.statement.id));
+  const smsFacts = { amount: candidate.amount, balanceAfter: candidate.balance_after, date: localDate(new Date(candidate.raw_message.received_at)), reference: candidate.reference, identifiers: [candidate.sender_account_identifier, candidate.sender_card_identifier, candidate.receiver_account_identifier, candidate.receiver_card_identifier], direction: candidate.source_direction };
   return <ModalDialog labelledBy="sms-statement-match-title" className="decision-modal sms-statement-match-dialog" busy={busy} onCancel={onCancel}>
     <h2 id="sms-statement-match-title">Choose how this SMS matches a statement</h2>
     <p>Compare the sources here. Pairing creates one transaction with both sources attached; you do not need to add the SMS first.</p>
     <div className="sms-statement-match-comparison">
     <section className="sms-statement-selected" aria-label="SMS being reviewed">
       <div className="sms-statement-selected__heading"><strong>SMS you are reviewing</strong><span>{candidate.raw_message.sender} · {formatTimestamp(candidate.raw_message.received_at)}</span></div>
-      <p className="statement-evidence-text">{candidate.raw_message.body ? <SourceEvidenceText text={candidate.raw_message.body} facts={{ amount: candidate.amount, balanceAfter: candidate.balance_after, date: localDate(new Date(candidate.raw_message.received_at)), reference: candidate.reference, identifiers: [candidate.sender_account_identifier, candidate.sender_card_identifier, candidate.receiver_account_identifier, candidate.receiver_card_identifier], direction: candidate.source_direction }} /> : "Original SMS unavailable under retention settings."}</p>
+      <p className="statement-evidence-text">{candidate.raw_message.body ? <SourceEvidenceText text={candidate.raw_message.body} facts={smsFacts} /> : "Original SMS unavailable under retention settings."}</p>
+      {candidate.raw_message.body ? <SourceEvidenceLegend text={candidate.raw_message.body} facts={smsFacts} /> : null}
       <p className="field__hint">Your current form: {accountName} · {input.type?.replaceAll("_", " ") ?? candidate.transaction_type.replaceAll("_", " ")} · {input.direction || candidate.source_direction || "Direction to review"} · {input.amount ?? candidate.amount ?? "Amount needed"} · balance after {input.balance_after ?? "Not reported"}{input.note ? ` · note: ${input.note}` : ""}</p>
     </section>
     <div className="sms-statement-match-list">
@@ -38,11 +42,15 @@ export function SmsStatementMatchDialog({ candidate, input, accountName, matches
           date: localDate(new Date(candidate.raw_message.received_at)),
           balance_after: candidate.balance_after,
         }, match.signals.late_posting);
+        const statementFacts = { amount: match.statement.amount, balanceAfter: match.statement.balance_after, date: match.statement.date, valueDate: match.statement.value_date, reference: match.statement.reference, identifiers: [candidate.sender_account_identifier, candidate.sender_card_identifier], direction: match.statement.direction };
         return <article className="sms-statement-match-card" key={match.statement.id}>
         <div className="sms-statement-match-card__heading"><strong>{match.statement.account_name} · {match.statement.currency} {match.statement.amount}</strong><span className={`status-badge ${match.unique && match.signals.strength === "strong" ? "status-badge--ok" : "status-badge--warning"}`}>{match.unique && match.signals.strength === "strong" ? "Strong match" : "Needs your decision"}</span></div>
+        <SourceAttention statement={match.statement} sms={{ account: candidate.account, direction: candidate.source_direction, amount: candidate.amount, date: smsFacts.date, balance_after: candidate.balance_after }} latePosting={match.signals.late_posting} />
         <p><strong>Statement</strong> · {match.statement.direction} · {match.statement.type.replaceAll("_", " ")}</p>
-        <p className="statement-evidence-text">{match.statement.description ? <SourceEvidenceText text={match.statement.description} facts={{ amount: match.statement.amount, balanceAfter: match.statement.balance_after, date: match.statement.date, valueDate: match.statement.value_date, reference: match.statement.reference, identifiers: [candidate.sender_account_identifier, candidate.sender_card_identifier], direction: match.statement.direction }} /> : "No statement description"}</p>
+        <p className="statement-evidence-text">{match.statement.description ? <SourceEvidenceText text={match.statement.description} facts={statementFacts} /> : "No statement description"}</p>
+        {match.statement.description ? <SourceEvidenceLegend text={match.statement.description} facts={statementFacts} /> : null}
         <p className="field__hint">Reference: {match.statement.reference || "Not reported"}</p>
+        <StatementPdfReference batchId={match.statement.batch} rowId={match.statement.id} />
         <div className="sms-statement-report-comparison" aria-label="Date and reported balance comparison">
           <div className={`sms-statement-report-comparison__item sms-statement-report-comparison__item--${comparison.date === "match" ? "match" : comparison.date === "unknown" ? "unknown" : "review"}`}>
             <strong>Date</strong>

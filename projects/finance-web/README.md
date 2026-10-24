@@ -1893,3 +1893,11 @@ statement description highlight only source facts present in that text:
 amount, reported balance, date, direction wording, identifiers, and reference.
 The structured PDF row fields remain beside the description when a value is
 printed in another column. Highlights aid comparison and never confirm a match.
+The review now labels the facts highlighted inside each original source and
+places account, direction, amount, date, and balance differences in a compact
+**Needs your attention** line. An EBL value date that matches an earlier SMS
+and its later posting-order balance are explained as context, not a confirmed
+discrepancy. **View original PDF row** opens the saved PDF at its recorded page
+in an overlay, with the page and source row number visible and a new-tab
+fallback. It uses the existing saved-row and original-PDF endpoints, so the
+current SMS filters and review form stay open.
