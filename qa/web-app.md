@@ -1101,7 +1101,9 @@ stays visible beside the main fields; less-used balance, reference, value date,
 and full source evidence are initially open for comparison. The final record
 action confirms the routine type, account path, and same-movement review.
 Only material differences keep targeted acknowledgments; learning appears as
-an optional action after saving. Balance choice stays independent. The source
+an optional action in a post-save dialog when the SMS has a sender rule. The
+dialog also appears in SMS focus mode so the choice cannot be hidden by the
+review grid. Balance choice stays independent. The source
 comparison can copy either description into the editable
 Final description / note, which stays visible below the merchant for routine
 edits; this resets acknowledgments and leaves originals intact.

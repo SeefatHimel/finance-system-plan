@@ -10,6 +10,10 @@ After recording, a separate optional action can save the reviewed cash route
 for future cash-out SMS from that reporting account, even when the ATM name
 changes. A conflicting saved route requires an explicit replacement decision;
 the current transaction is already safe and does not depend on that decision.
+A post-save dialog contains **Save for similar SMS** when the confirmed SMS has
+a recognized sender rule. It is not available before **Confirm & add** or after
+closing that dialog. Recording a matching SMS and statement together shows the
+same optional action after the pair is saved.
 A suggested path still needs review against the original SMS before recording.
 
 SMS review keeps a compact source amount, direction, and balance visible while

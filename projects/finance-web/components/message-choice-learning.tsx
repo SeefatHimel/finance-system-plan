@@ -5,7 +5,7 @@ import { getAccessToken } from "@/lib/auth-storage";
 import { rememberConfirmedMessageChoice } from "@/lib/api";
 
 /** Learning is a separate, optional decision after the transaction is saved. */
-export function MessageChoiceLearning({ candidateId, messageKind, onDone }: { candidateId: string; messageKind: string; onDone: () => void }) {
+export function MessageChoiceLearning({ candidateId, messageKind, onDone, titleId }: { candidateId: string; messageKind: string; onDone: () => void; titleId?: string }) {
   const [busy, setBusy] = useState(false);
   const [conflict, setConflict] = useState("");
   const [error, setError] = useState("");
@@ -28,7 +28,7 @@ export function MessageChoiceLearning({ candidateId, messageKind, onDone }: { ca
   }
 
   return <section className="message-learning" aria-label="Optional learning after review">
-    <div><strong>{saved ? "Choice saved for similar SMS" : "Transaction saved"}</strong>
+    <div><h2 id={titleId}>{saved ? "Choice saved for similar SMS" : "Transaction saved"}</h2>
       <p>{saved ? "Future suggestions can use this choice. Each message still needs review." : messageKind === "cash_out" ? "Want future withdrawals from this SMS source to suggest the same cash destination? This does not change the transaction you just saved." : "You can save this choice for similar messages from this SMS source. This does not change the transaction you just saved."}</p></div>
     {conflict ? <p className="form-warning" role="alert">{conflict}</p> : null}
     {error ? <p className="form-error" role="alert">{error}</p> : null}

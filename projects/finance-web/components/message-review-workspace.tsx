@@ -644,7 +644,9 @@ export function MessageReviewWorkspace() {
       {linkNotice ? <p className="form-warning" role="status"><Warning aria-hidden="true" size={18} />{linkNotice}</p> : null}
 
       <div className={`review-canvas${isFocused && !focusQueueOpen ? " review-canvas--queue-collapsed" : ""}`} ref={reviewSurface} role={isFocused ? "dialog" : undefined} aria-modal={isFocused || undefined} aria-label={isFocused ? "Focused SMS review" : undefined}>
-        {justSaved ? <MessageChoiceLearning key={justSaved.id} candidateId={justSaved.id} messageKind={justSaved.messageKind} onDone={() => setJustSaved(null)} /> : null}
+        {justSaved ? <ModalDialog labelledBy="sms-choice-learning-title" className="message-learning-dialog" onCancel={() => setJustSaved(null)}>
+          <MessageChoiceLearning key={justSaved.id} candidateId={justSaved.id} messageKind={justSaved.messageKind} onDone={() => setJustSaved(null)} titleId="sms-choice-learning-title" />
+        </ModalDialog> : null}
         <div className="review-focus-header" hidden={!isFocused}>
           <div><h2 className="review-focus-title" tabIndex={-1}>{activeCandidate ? `SMS review · ${formatCurrency(activeValues?.amount)}` : "SMS review"}</h2><span aria-live="polite" aria-atomic="true">{activeCandidate ? `${accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"} · ${activeIndex + 1} / ${filteredCandidates.length}` : "No messages match these filters"}</span></div>
           <div className="review-focus-header__actions">
