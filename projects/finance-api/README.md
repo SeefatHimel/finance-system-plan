@@ -615,8 +615,13 @@ existing timestamp, without backfilling past evidence links. Verify with
 `GET /api/transactions/{id}/source-messages/` returns the transaction's original
 SMS and messages attached through transfer evidence, deduplicated and ordered
 by received time then ID. Both transaction and message ownership are checked.
-Only ID, sender, body, received time, status and redaction time are returned;
-device identifiers and body hashes are omitted. Manual entries without linked
+Only ID, sender, body, received time, status, redaction time and a confirmed
+candidate's parsed summary are returned. The parsed summary includes its
+candidate ID and whether its recorded debit transfer is eligible to remember a
+same-currency Cash/Home cash route; the original SMS text and ownership checks
+remain authoritative for saving that optional rule. Other source observations
+cannot offer this action. No device identifiers or body hashes are returned;
+manual entries without linked
 SMS return an empty array. Redacted or excluded text returns `body: null` with
 remaining metadata. Responses are private and not cacheable. This read does
 not change ledger timestamps, audit history or retention; the transaction list

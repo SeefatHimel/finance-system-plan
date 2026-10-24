@@ -296,7 +296,11 @@ reverses it, and existing review responses reflect ignored pending notices.
 
 `GET /api/transactions/{id}/source-messages/` returns a deduplicated array of
 `TransactionSourceMessage`: ID, sender, nullable full body, received time, status
-and redaction time. It includes the primary SMS and linked transfer messages.
+and redaction time. A confirmed SMS attached to this transaction also has a
+parsed summary with `candidate_id` and `can_remember_cash_route`; only a verified
+debit transfer into an active same-currency cash account sets the latter true.
+The client may use that ID with the separate optional remember endpoint.
+It includes the primary SMS and linked transfer messages.
 No message gives an empty array; redacted/excluded text gives null. Transaction
 and message ownership are checked, with 401/404 for unauthenticated/foreign
 access. Responses use private/no-store caching; reading does not update ledger

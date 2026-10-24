@@ -772,7 +772,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
       {evidenceTransaction ? <ModalDialog labelledBy="transaction-sources-title" className="form-drawer transaction-sources-dialog" onCancel={() => setEvidenceTransaction(null)}>
         <div className="form-drawer__header"><div><h2 id="transaction-sources-title">Attached sources</h2><p>{formatCalendarDate(evidenceTransaction.date)} · {accountNames.get(evidenceTransaction.account) ?? "Account"} · {formatCurrency(evidenceTransaction.amount, currencyByAccount.get(evidenceTransaction.account))}</p></div><button className="icon-button" type="button" aria-label="Close attached sources" onClick={() => setEvidenceTransaction(null)}><X aria-hidden="true" size={20} /></button></div>
         <div className="transaction-sources-dialog__body"><p className="inline-note">These are the saved source observations for this ledger entry. Viewing them does not change the transaction.</p>
-          {evidenceTransaction.raw_message || evidenceTransaction.transfer_evidence.some(item => item.raw_message) ? <TransactionSourceMessages key={`sources-${evidenceTransaction.id}`} transactionId={evidenceTransaction.id} expanded showEmpty /> : null}
+          {evidenceTransaction.raw_message || evidenceTransaction.transfer_evidence.some(item => item.raw_message) ? <TransactionSourceMessages key={`sources-${evidenceTransaction.id}`} transactionId={evidenceTransaction.id} expanded showEmpty allowLearning /> : null}
           {evidenceTransaction.statement_evidence_count > 0 ? <TransactionStatementEvidence key={`statement-sources-${evidenceTransaction.id}`} transactionId={evidenceTransaction.id} expanded /> : null}
         </div>
       </ModalDialog> : null}

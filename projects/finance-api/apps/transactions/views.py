@@ -431,7 +431,7 @@ class TransactionViewSet(ModelViewSet):
         messages = RawMessage.objects.filter(
             user=request.user,
             pk__in=message_ids,
-        ).select_related("candidate").order_by("received_at", "id")
+        ).select_related("candidate__sender_rule").order_by("received_at", "id")
         return Response(
             TransactionSourceMessageSerializer(
                 messages, many=True, context={"transaction": record}

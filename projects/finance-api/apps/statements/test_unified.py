@@ -15,6 +15,7 @@ from apps.audit_logs.models import AuditLogEntry
 from apps.messages.models import (
     ParsedMessageCandidate,
     RawMessage,
+    SenderRule,
     SmsCapturePreference,
 )
 from apps.transactions.balance_reports import reported_values
@@ -543,6 +544,28 @@ class UnifiedReviewTests(APITestCase):
         self.assertTrue(response.data["unchanged"])
         self.assertEqual(Transaction.objects.count(), 1)
         self.assertEqual(self.client.get(reverse("unified-pending")).data["count"], 0)
+
+    def test_cash_withdrawal_pair_can_remember_its_route_after_recording(self):
+        cash = Account.objects.create(user=self.user, name="Synthetic home cash", type=Account.Type.HOME_CASH)
+        sender_rule = SenderRule.objects.create(user=self.user, account=self.account, name="Synthetic bank SMS", sender="SYNTHETIC", provider="ebl")
+        self.sms.raw_message.body = "Cash WD BDT100 from Synthetic ATM. Balance BDT 900.00."
+        self.sms.raw_message.save(update_fields=["body"])
+        self.sms.sender_rule = sender_rule
+        self.sms.message_kind = "cash_out"
+        self.sms.transaction_type = "transfer"
+        self.sms.source_direction = "debit"
+        self.sms.save(update_fields=["sender_rule", "message_kind", "transaction_type", "source_direction", "updated_at"])
+        self.row.type = "transfer"
+        self.row.other_account = cash
+        self.row.save(update_fields=["type", "other_account", "updated_at"])
+        self.row.refresh_from_db()
+        self.sms.refresh_from_db()
+
+        recorded = self.confirm(draft=self.draft())
+        self.assertEqual(recorded.status_code, 200, recorded.data)
+        remembered = self.client.post(reverse("message-candidate-remember", args=[self.sms.pk]), {}, format="json")
+        self.assertEqual(remembered.status_code, 200, remembered.data)
+        self.assertEqual(remembered.data["destination"], cash.name)
 
     def test_balance_choice_and_acknowledgments(self):
         response = self.confirm(acknowledge_match=False)

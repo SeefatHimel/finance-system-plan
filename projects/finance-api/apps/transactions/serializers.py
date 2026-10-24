@@ -44,6 +44,20 @@ class TransactionSourceMessageSerializer(serializers.ModelSerializer):
         ):
             return None
         return {
+            "candidate_id": str(candidate.pk),
+            "can_remember_cash_route": bool(
+                candidate.message_kind == "cash_out"
+                and candidate.sender_rule_id
+                and candidate.source_direction == Transaction.Direction.DEBIT
+                and record.type == Transaction.Type.TRANSFER
+                and record.transfer_account_id
+                and record.transfer_account.type in (Account.Type.CASH, Account.Type.HOME_CASH)
+                and record.transfer_account.is_active
+                and record.account.is_active
+                and record.account.currency == record.transfer_account.currency
+                and candidate.sender_rule.account_id == record.account_id
+                and candidate.account_id in (None, record.account_id)
+            ),
             "amount": str(candidate.amount) if candidate.amount is not None else None,
             "balance_after": str(candidate.balance_after)
             if candidate.balance_after is not None

@@ -8,7 +8,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import Account
 from apps.audit_logs.models import AuditLogEntry
-from apps.messages.models import ParsedMessageCandidate, RawMessage
+from apps.messages.models import ParsedMessageCandidate, RawMessage, SenderRule
 
 from .models import Transaction, TransferEvidence
 
@@ -88,9 +88,29 @@ class TransactionSourceMessagesTests(APITestCase):
         candidate.status = "confirmed"
         candidate.save()
         self.assertEqual(self.get_messages().data[0]["parsed"]["balance_after"], "500.00")
+        self.assertEqual(self.get_messages().data[0]["parsed"]["candidate_id"], str(candidate.pk))
+        self.assertFalse(self.get_messages().data[0]["parsed"]["can_remember_cash_route"])
         self.first.redact()
         self.assertEqual(self.get_messages().data[0]["parsed"]["amount"], "100.00")
         other = get_user_model().objects.create_user(username="foreign-parsed-owner")
         candidate.user = other
         candidate.save()
         self.assertIsNone(self.get_messages().data[0]["parsed"])
+
+    def test_confirmed_cash_withdrawal_can_reopen_optional_learning_from_sources(self):
+        self.b.type = Account.Type.HOME_CASH
+        self.b.save(update_fields=["type"])
+        self.first.body = "Cash WD BDT 100 from synthetic ATM. Balance BDT 500."
+        self.first.save(update_fields=["body"])
+        rule = SenderRule.objects.create(user=self.user, account=self.a, name="Demo SMS", sender="DEMO-A", provider="ebl")
+        candidate = ParsedMessageCandidate.objects.create(
+            user=self.user, raw_message=self.first, sender_rule=rule, account=self.a,
+            amount="100.00", message_kind="cash_out", transaction_type="transfer",
+            source_direction="debit", transaction=self.record, status="confirmed",
+        )
+        parsed = self.get_messages().data[0]["parsed"]
+        self.assertEqual(parsed["candidate_id"], str(candidate.pk))
+        self.assertTrue(parsed["can_remember_cash_route"])
+        self.b.type = Account.Type.BANK
+        self.b.save(update_fields=["type"])
+        self.assertFalse(self.get_messages().data[0]["parsed"]["can_remember_cash_route"])

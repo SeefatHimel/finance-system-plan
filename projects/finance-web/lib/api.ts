@@ -148,7 +148,7 @@ const rawMessageSchema = z.object({
 });
 
 const transactionSourceMessageSchema = z.object({
-  parsed: z.object({ amount: z.string().nullable(), balance_after: z.string().nullable(), reference: z.string(), type: z.string() }).nullable().optional(),
+  parsed: z.object({ candidate_id: z.string().optional(), can_remember_cash_route: z.boolean().optional(), amount: z.string().nullable(), balance_after: z.string().nullable(), reference: z.string(), type: z.string() }).nullable().optional(),
   id: z.string(),
   sender: z.string(),
   body: z.string().nullable(),

@@ -5,6 +5,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 
 import { listTransactionSourceMessages, type TransactionSourceMessage } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
+import { MessageChoiceLearning } from "@/components/message-choice-learning";
 
 type MessageState =
   | { status: "loading" }
@@ -13,11 +14,12 @@ type MessageState =
 
 const receivedTimeFormatter = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
-export function TransactionSourceMessages({ transactionId, expanded = false, showEmpty = false, loadOnExpand = false, onMessages, onLoadError }: { transactionId: string; expanded?: boolean; showEmpty?: boolean; loadOnExpand?: boolean; onMessages?: Dispatch<SetStateAction<TransactionSourceMessage[] | null>>; onLoadError?: Dispatch<SetStateAction<string>> }) {
+export function TransactionSourceMessages({ transactionId, expanded = false, showEmpty = false, loadOnExpand = false, allowLearning = false, onMessages, onLoadError }: { transactionId: string; expanded?: boolean; showEmpty?: boolean; loadOnExpand?: boolean; allowLearning?: boolean; onMessages?: Dispatch<SetStateAction<TransactionSourceMessage[] | null>>; onLoadError?: Dispatch<SetStateAction<string>> }) {
   const [state, setState] = useState<MessageState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState(expanded);
   const [requested, setRequested] = useState(!loadOnExpand || expanded);
+  const [learningCandidateId, setLearningCandidateId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!requested) return;
@@ -54,6 +56,9 @@ export function TransactionSourceMessages({ transactionId, expanded = false, sho
           <p><strong>{message.sender}</strong> · Received <time dateTime={message.received_at}>{receivedTimeFormatter.format(new Date(message.received_at))}</time></p>
           {message.parsed ? <p className="inline-note">SMS parsed amount: {message.parsed.amount ?? "Unknown"} · Reported balance after: {message.parsed.balance_after ?? "Not reported"}{message.parsed.reference ? ` · Reference: ${message.parsed.reference}` : ""}</p> : null}
           <p className="transaction-source-messages__body">{message.body ?? (message.status === "redacted" ? "Original SMS was redacted and is no longer available." : "Original SMS was removed or excluded and is no longer available.")}</p>
+          {allowLearning && message.parsed?.can_remember_cash_route && message.parsed.candidate_id ? learningCandidateId === message.parsed.candidate_id
+            ? <MessageChoiceLearning candidateId={message.parsed.candidate_id} messageKind="cash_out" onDone={() => setLearningCandidateId(null)} previouslySaved />
+            : <button className="button button--ghost button--small" type="button" onClick={() => setLearningCandidateId(message.parsed?.candidate_id ?? null)}>Remember this cash withdrawal route</button> : null}
         </article>
       )) : null}
       {state.status === "ready" && state.messages.some((message) => message.status === "redacted") ? <p className="inline-note">For an older redacted transaction SMS, choose Keep in <Link href="/sms-settings">SMS settings</Link>, then use the mobile History scan with Refresh previous imports. The original can return only if that exact SMS is still on your phone; manually redacted messages also require the explicit restore choice.</p> : null}

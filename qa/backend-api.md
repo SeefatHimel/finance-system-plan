@@ -21,6 +21,9 @@ A conflicting saved route or category returns 409; replacing it needs
 `replace_existing: true`.
 The endpoint checks ownership, confirmed status, source direction, account path,
 and destination before writing. It does not change the recorded transaction.
+The transaction source-messages response exposes an eligible confirmed
+candidate ID so a user can retry this optional action from a previously
+recorded transaction's Sources dialog after a server failure.
 
 ### How can users check older transactions after rules change?
 
