@@ -3486,7 +3486,8 @@
                 "possible",
                 "balance_differs",
                 "type_differs",
-                "needs_correction"
+                "needs_correction",
+                "needs_decision"
               ],
               "minLength": 1,
               "type": "string"
@@ -7650,6 +7651,10 @@
     },
     "PairDecision": {
       "properties": {
+        "acknowledge_competing_sources": {
+          "default": false,
+          "type": "boolean"
+        },
         "acknowledge_conflict": {
           "default": false,
           "type": "boolean"
@@ -7668,6 +7673,14 @@
         },
         "balance_source": {
           "$ref": "#/components/schemas/PairDecisionBalanceSourceEnum"
+        },
+        "competing_source_tokens": {
+          "items": {
+            "maxLength": 160,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
         },
         "dismissed_ledger_matches": {
           "items": {
@@ -7731,6 +7744,10 @@
         "batch": {
           "$ref": "#/components/schemas/StatementImport"
         },
+        "competing_sources": {
+          "items": {},
+          "type": "array"
+        },
         "match": {},
         "row": {
           "$ref": "#/components/schemas/SavedStatementRow"
@@ -7744,6 +7761,7 @@
       },
       "required": [
         "batch",
+        "competing_sources",
         "match",
         "row",
         "sms",
@@ -12717,6 +12735,9 @@
         "needs_correction": {
           "type": "boolean"
         },
+        "needs_decision": {
+          "type": "boolean"
+        },
         "sms": {
           "$ref": "#/components/schemas/UnifiedPendingSource"
         },
@@ -12728,6 +12749,7 @@
         "id",
         "match",
         "needs_correction",
+        "needs_decision",
         "sms",
         "statement"
       ],

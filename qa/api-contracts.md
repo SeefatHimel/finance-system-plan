@@ -594,22 +594,23 @@ a completed check found no eligible pending SMS.
 
 ### What is the unified pending-review contract?
 
-`/api/review/pending/` returns paginated unique one-to-one review pairs as
-`{statement, sms, match}` records, with account, statement-date and combined-source
+`/api/review/pending/` returns paginated possible review pairs as
+`{statement, sms, match, needs_decision}` records, with account, statement-date and combined-source
 search filters applied before pair pagination. The optional `condition` query
 parameter accepts `all`, `strong`, `possible`, `balance_differs`, `type_differs`,
-or `needs_correction` and also filters before pagination. It accepts an opaque cursor and
+`needs_correction`, or `needs_decision` and also filters before pagination. It accepts an opaque cursor and
 returns `next_cursor` plus matched/ambiguous/statement-only/SMS-only overview
 counts, which stay scoped to account and date but are independent of search and
-condition. Unmatched sources and one-to-many ambiguities remain in their individual
-workflows. Legacy offset remains accepted.
+condition. Unmatched sources remain in their individual workflows; one-to-many
+options appear as contested pairs. Legacy offset remains accepted.
 Reported balances less than BDT 1 apart may corroborate a pending pair and
 automatically use the higher exact report, without an extra balance choice. The unified confirm endpoint does
 not require `acknowledge_conflict` solely for that sub-Tk-1 source difference;
 Tk 1 or more and separate ledger conflicts still require it. Neither source
 report is rounded.
 `GET /api/review/pair/` returns owned pending-source evidence, normalized SMS
-account perspective and ledger suggestions.
+account perspective, ledger suggestions, and `competing_sources` with source
+summaries, retained text, and revision tokens.
 An optional pending-queue `source` filter bounds comparison work, while results
 remain matched pairs rather than separate source rows.
 The POST takes both IDs, statement version, SMS updated timestamp, balance choice
@@ -617,8 +618,11 @@ and explicit acknowledgments; it returns one transaction ID shared by both sourc
 An optional `draft` carries reviewed statement-row fields and its matching version.
 `type_choice` identifies `statement`, `sms`, or `custom` when parsed types differ;
 the final draft type must agree with that choice. The server saves edits and the
-pair decision atomically, rechecking a unique match for date, direction or amount
+pair decision atomically, rechecking the selected match for date, direction or amount
 changes while preserving the two original source observations.
+Contested confirmation requires exact `competing_source_tokens` from the preview
+and `acknowledge_competing_sources=true`; other sources remain pending. A changed
+competitor set returns 409, and a missing acknowledgment returns 400.
 400 means invalid values/missing review, 409 means stale/resolved/nonmatching
 sources, and 404 covers unavailable/foreign sources. Pair retries return unchanged
 without another movement. To create a separate pair despite ledger suggestions,
@@ -651,7 +655,7 @@ when the other source reports one; the chosen transfer balance becomes the
 effective account report. Apply the new transfer-evidence migration before API
 rollout.
 
-Queue, detail and POST all enforce reciprocal uniqueness. Account, currency,
+Queue, detail and POST all verify the selected pair and surface competitors. Account, currency,
 direction, amount and date are necessary, while reference, reported balance,
 normalized counterparty or known transfer counterpart supplies independent
 corroboration; amount/date alone does not create a pair.

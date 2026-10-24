@@ -1407,10 +1407,11 @@ has its own bounded scroll area so the result and action buttons remain reachabl
 The two sources in a reviewed pair still count as one new movement when the
 suggested ledger entries are confirmed to be separate.
 
-The queue shows each unique one-to-one SMS + statement match once, so its count is
-a count of review items rather than source observations. Unmatched sources and
-ambiguous repeated candidates stay in SMS review or Statements until they can be
-resolved safely. Compact rows separate match strength from balance conflicts, and
+The queue shows each possible SMS + statement pair, including contested choices.
+Its count is a count of pair options, not distinct source observations. Unmatched
+sources stay in SMS review or Statements. Contested pairs have a Needs match
+decision badge and show alternative original sources before confirmation.
+Compact rows separate match strength from balance conflicts, and
 stable cursors prevent page drift as earlier pairs are resolved. Account,
 statement-date and combined-source search filters apply before pair pagination.
 
@@ -1418,16 +1419,17 @@ One server transaction confirms the SMS candidate and links the statement row to
 one ledger entry. Both leave the pending queue together. SMS evidence is available
 in Transactions alongside the retained PDF evidence, subject to SMS-text retention.
 No sources are automatically posted and inferred matches do not prove identity.
-Multiple overlapping suggestions are kept out of this one-review-per-pair queue.
-That ambiguity check uses the complete pending account scope before the statement
-date filter is applied, so a nearby source outside the visible date range cannot
-make a pair look unique. Counterparty wording alone remains a possible match;
+Multiple overlapping suggestions remain available for an explicit choice. The
+server checks the complete pending account scope before confirmation, so a nearby
+source outside the visible date range cannot be silently ignored. Counterparty
+wording alone remains a possible match;
 strong matches require same-day reference, balance, or known account-path evidence.
 Different accounts, amounts or directions never pair. Up to three calendar days
 are allowed, with matching reference or balance required beyond one day. Every
 pair also needs matching reference, balance, counterparty wording or known transfer
 counterpart; amount/date by themselves are insufficient. Conflicting nonempty
-references are excluded. Detail and confirmation recheck reciprocal uniqueness.
+references are excluded. Confirmation rechecks the selected pair and all competing
+source revisions; alternatives remain pending after the chosen pair is recorded.
 Stale versions/timestamps fail without partial writes;
 retries of the same confirmed pair do not create another movement.
 Direct links to pending SMS load that candidate by ID even when it lies beyond
@@ -1500,9 +1502,11 @@ Planning and Settings are expandable, open automatically for their active route,
 and remain usable in collapsed and phone navigation. **Review inbox** groups
 **Matched sources**, **SMS** and **Statements** with a shared route switcher.
 In SMS Review, Confirm & add checks nearby saved statement rows before posting.
-A corroborated match opens an in-place comparison with a direct pair-review
-action; the existing SMS filters and form stay in place. Pair review starts from
-saved SMS values, so unsaved SMS edits must be reviewed there before confirming.
+A corroborated match opens an in-place comparison with the original SMS, current
+form choices, and each statement option. Even contested matches have a direct
+pair-review action; the existing SMS filters and form stay in place. Pair review
+starts from saved SMS evidence, carries compatible form edits into the final
+draft, and calls out identity changes for explicit review before confirming.
 The separate-transaction path requires marking every suggested PDF row as a
 different movement and a final acknowledgment. The server rechecks those IDs;
 an unavailable or changed lookup blocks posting rather than risking a duplicate.

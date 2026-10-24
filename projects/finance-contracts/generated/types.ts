@@ -1646,6 +1646,8 @@ export interface UnifiedPairDecision {
   transaction?: string | null;
   dismissed_ledger_matches?: string[];
   acknowledge_distinct_ledger_matches?: boolean;
+  competing_source_tokens?: string[];
+  acknowledge_competing_sources?: boolean;
   balance_source: UnifiedBalanceSourceEnum;
   type_choice?: UnifiedTypeChoiceEnum;
   draft?: UnifiedPairDraft;
@@ -1661,6 +1663,7 @@ export interface UnifiedPairDetail {
   sms: ParsedMessageCandidate;
   sms_summary: UnifiedPendingSource;
   match: unknown;
+  competing_sources: unknown[];
 }
 
 export interface UnifiedPairResult {
@@ -1676,6 +1679,7 @@ export interface UnifiedPendingItem {
   sms: UnifiedPendingSource;
   match: UnifiedPendingMatch;
   needs_correction: boolean;
+  needs_decision: boolean;
 }
 
 export type UnifiedPendingSmsStatusEnum = "none" | "unique" | "ambiguous" | "unavailable";

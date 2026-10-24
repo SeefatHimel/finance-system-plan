@@ -20,6 +20,7 @@ import {
   listUnifiedPending,
   type Account,
   type Category,
+  type ConfirmMessageCandidateInput,
   type UnifiedPair,
   type UnifiedPendingPage,
 } from "@/lib/api";
@@ -31,11 +32,14 @@ function formatStatementDateTime(date: string | null, time: string | null) {
   return `${formatCalendarDate(date)} · ${formatClockTime(time)}`;
 }
 
-export function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categories }: { accounts: Account[]; categories: Category[]; pair: UnifiedPair; onCancel: () => void; onSaved: () => void; onEdit: () => void }) {
+export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, accounts, categories }: { accounts: Account[]; categories: Category[]; pair: UnifiedPair; smsFormInput?: ConfirmMessageCandidateInput; onCancel: () => void; onSaved: () => void; onEdit: () => void }) {
   const { notify } = useToast();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [ackMatch, setAckMatch] = useState(false);
+  const [ackCompeting, setAckCompeting] = useState(false);
+  const [ackSmsForm, setAckSmsForm] = useState(false);
+  const [sourceEvidenceOpen, setSourceEvidenceOpen] = useState(pair.competing_sources.length > 0);
   const [ackConflict, setAckConflict] = useState(false);
   const [ackIssues, setAckIssues] = useState(false);
   const [checksOpen, setChecksOpen] = useState(true);
@@ -46,9 +50,29 @@ export function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categori
   const [ackDistinctLedgerMatches, setAckDistinctLedgerMatches] = useState(false);
   const [ledgerCleared, setLedgerCleared] = useState(false);
   const [balance, setBalance] = useState<BalanceChoice>(() => pair.match.late_posting ? "sms" : suggestedBalanceSource(pair.row.balance_after, pair.sms.balance_after, Number(pair.row.extracted.signed_fee) !== 0));
-  const [draft, setDraft] = useState(() => initialPairDraft(pair, categories));
+  const [draft, setDraft] = useState(() => {
+    const initial = initialPairDraft(pair, categories);
+    if (!smsFormInput) return initial;
+    return {
+      ...initial,
+      ...(smsFormInput.note !== undefined ? { note: smsFormInput.note } : {}),
+      ...(smsFormInput.counterparty_text !== undefined ? { counterparty_text: smsFormInput.counterparty_text } : {}),
+      ...(smsFormInput.reference !== undefined ? { reference: smsFormInput.reference } : {}),
+      ...(smsFormInput.date ? { date: smsFormInput.date } : {}),
+      ...(smsFormInput.time ? { time: smsFormInput.time } : {}),
+      ...(smsFormInput.type === initial.type && smsFormInput.category ? { category: smsFormInput.category } : {}),
+      ...(initial.type === "transfer" && smsFormInput.transfer_account ? { other_account: smsFormInput.transfer_account } : {}),
+    };
+  });
   const [typeChoice, setTypeChoice] = useState<PairTypeChoice>(() => pair.row.type === pair.sms.transaction_type ? "statement" : "");
   const row = pair.row;
+  const smsFormSourceChanged = Boolean(smsFormInput && (
+    (smsFormInput.account && smsFormInput.account !== pair.sms_summary.account)
+    || (smsFormInput.amount && Number(smsFormInput.amount) !== Number(pair.sms.amount))
+    || (smsFormInput.direction && smsFormInput.direction !== pair.sms_summary.direction)
+    || (smsFormInput.balance_after !== undefined && Number(smsFormInput.balance_after ?? "") !== Number(pair.sms.balance_after ?? ""))
+    || (smsFormInput.type && smsFormInput.type !== pair.sms.transaction_type)
+  ));
   const statementIncludesSeparateFee = Number(row.extracted.signed_fee) !== 0;
   const typeDiffers = row.type !== pair.sms.transaction_type;
   const draftChanged = JSON.stringify(draft) !== JSON.stringify(savedPairDraft(pair));
@@ -100,6 +124,8 @@ export function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categori
     ...(fillingMissingBalance && !balance ? ["Choose the source for this account’s missing reported balance."] : []),
     ...(fillingMissingBalance && statementIncludesSeparateFee && pair.sms.balance_after === null ? ["The statement balance includes a separate fee. Review the fee separately before filling this report."] : []),
     ...(!ackMatch ? ["Confirm that the SMS and statement describe the same movement."] : []),
+    ...(pair.competing_sources.length && !ackCompeting ? ["Compare the other possible sources and confirm why this pair is the same movement."] : []),
+    ...(smsFormSourceChanged && !ackSmsForm ? ["Review the SMS form edits against the saved source values."] : []),
     ...(needsConflict && !ackConflict ? ["Review and acknowledge the reported-balance difference."] : []),
     ...(needsDraftReview && !ackIssues ? ["Review the edited result against the original sources."] : []),
     ...(row.review.matches.length > 0 && !ledger && !separateLedgerMovement ? ["Choose an existing ledger movement or record this pair as a separate movement."] : []),
@@ -135,7 +161,9 @@ export function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categori
         dismissed_ledger_matches: separateLedgerMovement ? dismissedLedgerMatches : [],
         acknowledge_distinct_ledger_matches: separateLedgerMovement && ackDistinctLedgerMatches,
         type_choice: typeChoice || undefined, draft,
-        acknowledge_match: ackMatch, acknowledge_conflict: ackConflict, acknowledge_issues: ackIssues, remember_choices: remember,
+        acknowledge_match: ackMatch, acknowledge_conflict: ackConflict, acknowledge_issues: ackIssues,
+        competing_source_tokens: pair.competing_sources.map(item => item.token), acknowledge_competing_sources: ackCompeting,
+        remember_choices: remember,
       });
       notify("SMS and statement linked to one transaction. Both sources are kept.");
       window.dispatchEvent(new Event("finance:transactions-changed"));
@@ -160,8 +188,24 @@ export function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categori
         {originalBalanceDifference !== null && originalBalanceDifference !== "0.00" ? <span className={originalBalanceNeedsReview ? "unified-pair-summary__difference" : "inline-note"}>Reported balance difference: {pair.batch.currency} {originalBalanceDifference} (statement minus SMS){pair.match.late_posting ? " · Different reporting times; not a reconciliation mismatch" : smallSourceBalanceDifference ? " · Small difference under BDT 1" : ""}</span> : null}
         <span>Reported balances · Statement: {row.balance_after ?? "Not reported"} · SMS: {pair.sms.balance_after ?? "Not reported"}</span>
       </section>
+      {smsFormInput ? <section className="unified-sms-form-review" aria-label="Your SMS form choices">
+        <strong>Your SMS form choices are still here</strong>
+        <p>Note, description, reference, date, time and compatible category have been carried into the final draft below. The original SMS evidence is kept unchanged.</p>
+        <p className="field__hint">Form: {smsFormInput.type?.replaceAll("_", " ") ?? pair.sms.transaction_type.replaceAll("_", " ")} · {smsFormInput.direction ?? pair.sms_summary.direction} · amount {smsFormInput.amount ?? pair.sms.amount} · balance after {smsFormInput.balance_after ?? "Not reported"}{smsFormInput.note ? ` · note: ${smsFormInput.note}` : ""}</p>
+        {smsFormSourceChanged ? <p className="form-warning">Some form choices differ from the saved SMS source. Compare them with the original message and final transaction before confirming; changing the final entry does not rewrite original SMS evidence.</p> : null}
+      </section> : null}
+      {pair.competing_sources.length ? <section className="unified-competing-sources" aria-labelledby="unified-competing-title">
+        <h3 id="unified-competing-title">Other sources could describe this movement</h3>
+        <p>Choose this SMS and statement only after comparing the alternatives. Other sources stay pending; they are not attached or deleted.</p>
+        <div className="unified-competing-sources__list">{pair.competing_sources.map(item => <article key={item.token}>
+          <strong>{item.source.source === "sms" ? "Other pending SMS" : "Other statement row"} · {item.source.account_name}</strong>
+          <span>{formatStatementDateTime(item.source.date, item.source.time)} · {item.source.currency} {item.source.amount} · {item.source.direction}</span>
+          <span>Balance after: {item.source.balance_after ?? "Not reported"} · Reference: {item.source.reference || "Not reported"}</span>
+          <p>{item.source_text || item.source.description || "Original source text unavailable."}</p>
+        </article>)}</div>
+      </section> : null}
       <UnifiedPairEditor ledgerAmount={ledgerMatch?.amount} pair={pair} accounts={accounts} categories={categories} draft={draft} onDraftChange={updateDraft} typeChoice={typeChoice} onTypeChoice={choice => { setTypeChoice(choice); setAckMatch(false); }} busy={busy} />
-      <details className="unified-source-evidence"><summary>Compare original sources and parsed values</summary>
+      <details className="unified-source-evidence" open={sourceEvidenceOpen} onToggle={event => setSourceEvidenceOpen(event.currentTarget.open)}><summary>Compare original sources and parsed values</summary>
       <div className="statement-match-comparison">
         <section aria-label="Statement source"><h3>Statement</h3><dl>
           <div><dt>Date / time</dt><dd>{formatStatementDateTime(row.date, row.time)}</dd></div><div><dt>Amount / direction</dt><dd>{pair.batch.currency} {row.amount} · {row.direction}</dd></div>
@@ -218,6 +262,8 @@ export function PairDialog({ pair, onCancel, onSaved, onEdit, accounts, categori
         <label className="review-remember"><input type="checkbox" disabled={busy} checked={draft.classification_confirmed} onChange={event => setDraft({ ...draft, classification_confirmed: event.target.checked })} /><span>I reviewed the transaction type and account path.</span></label>
         {needsConflict ? <div className="statement-match-conflict"><strong>Review balance differences{originalBalanceNeedsReview && originalBalanceDifference !== null ? ` · original reports differ by ${pair.batch.currency} ${originalBalanceDifference}` : ""}</strong><p>Saved statement: {row.balance_after ?? "Not reported"} · SMS: {pair.sms.balance_after ?? "Not reported"}{draft.balance_after !== row.balance_after ? ` · edited statement draft: ${draft.balance_after ?? "Not reported"}` : ""}.</p>{smsLedgerDifference !== null && smsLedgerDifference !== "0.00" ? <p>SMS minus existing ledger balance: {pair.batch.currency} {smsLedgerDifference}.</p> : null}{ledgerMatch?.conflict ? <ul>{ledgerMatch.reasons.filter(reason => reason.includes("balance")).map(reason => <li key={reason}>{reason}</li>)}</ul> : null}<label className="review-remember"><input type="checkbox" disabled={busy} checked={ackConflict} onChange={event => setAckConflict(event.target.checked)} /><span>I reviewed the differing balances and my balance choice.</span></label></div> : null}
         {needsDraftReview ? <div className="unified-pair-checklist__item" aria-label="Source and draft discrepancies"><strong>Edited result and source checks</strong>{draftChanged ? <p className="inline-note">The server will recheck the match and statement draft together before recording anything.</p> : null}{sourceIssues.length || (!draftChanged && row.review.draft_issues.length) ? <details className="unified-check-details" open={checksOpen} onToggle={event => setChecksOpen(event.currentTarget.open)}><summary>Source checks ({sourceIssues.length + (draftChanged ? 0 : row.review.draft_issues.length)})</summary>{sourceIssues.length ? <><strong>Original statement checks</strong><ul>{sourceIssues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></> : null}{!draftChanged && row.review.draft_issues.length ? <><strong>Saved draft checks</strong><ul>{row.review.draft_issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></> : null}</details> : null}<label className="review-remember"><input type="checkbox" disabled={busy} checked={ackIssues} onChange={event => setAckIssues(event.target.checked)} /><span>I reviewed the edited result against both original sources.</span></label></div> : null}
+        {pair.competing_sources.length ? <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackCompeting} onChange={event => setAckCompeting(event.target.checked)} /><span>I compared the other possible sources and chose this SMS and statement as one movement. The alternatives will stay pending.</span></label> : null}
+        {smsFormSourceChanged ? <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackSmsForm} onChange={event => setAckSmsForm(event.target.checked)} /><span>I checked my SMS form edits against the saved SMS and final transaction.</span></label> : null}
         <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackMatch} onChange={event => setAckMatch(event.target.checked)} /><span>These sources describe the same money movement.</span></label>
       </section>
       <label className="review-remember unified-pair-remember"><input type="checkbox" disabled={busy} checked={remember} onChange={event => setRemember(event.target.checked)} /><span>Remember statement category and transfer choices. <small>Optional · not included in Check required.</small></span></label>
@@ -298,14 +344,14 @@ export function UnifiedReviewWorkspace() {
   const showPagination = cursorHistory.length > 0 || Boolean(page?.next_cursor);
 
   return <div className="workspace-grid"><section className="panel"><div className="panel__body">
-    <div className="unified-review-heading"><div><h2 className="section-title">Matched SMS + statement review</h2><p className="section-subtitle">Each row is one unique, independently corroborated movement. Review it once, keep both sources, and count it once.</p></div><button className="button" type="button" disabled={loading} onClick={refresh}>{loading ? "Refreshing…" : "Refresh matches"}</button></div>
+    <div className="unified-review-heading"><div><h2 className="section-title">SMS + statement review</h2><p className="section-subtitle">Compare possible pairs here. When more than one source fits, choose the correct pair before recording one transaction.</p></div><button className="button" type="button" disabled={loading} onClick={refresh}>{loading ? "Refreshing…" : "Refresh matches"}</button></div>
     <DatePeriodControls value={period} label="Matched transaction dates" description="Uses the statement transaction date · local timezone" onChange={value => { setPeriod(value); resetPagination(); }} />
-    <div className="unified-review-filters"><label className="field"><span className="field__label">Account</span><select className="field__control" value={account} onChange={event => { setAccount(event.target.value); resetPagination(); }}><option value="">All accounts</option>{accounts.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="field"><span className="field__label">Review condition</span><select className="field__control" value={condition} onChange={event => { setCondition(event.target.value); resetPagination(); }}><option value="all">SMS pairs found</option><option value="strong">Strong matches</option><option value="possible">Possible matches</option><option value="balance_differs">Balance differs</option><option value="type_differs">Type differs</option><option value="needs_correction">Needs correction</option></select></label><form onSubmit={event => { event.preventDefault(); setQuery(search); resetPagination(); }} className="unified-review-search"><label className="field"><span className="field__label">Search matched sources</span><input className="field__control" type="search" maxLength={255} value={search} onChange={event => setSearch(event.target.value)} /></label><button className="button" type="submit">Search</button></form></div>
-    {page ? <><div className="unified-review-overview" aria-label="Pending source overview"><span><strong>{page.overview.matched}</strong> SMS {page.overview.matched === 1 ? "pair" : "pairs"} found</span><span><strong>{page.overview.ambiguous}</strong> ambiguous · <Link href="/statements">review statements</Link> or <Link href="/messages/review">SMS</Link></span><Link href="/statements"><strong>{page.overview.statement_only}</strong> statement-only</Link><Link href="/messages/review"><strong>{page.overview.sms_only}</strong> SMS-only</Link></div><p className="field__hint">This list shows found SMS pairs. Overview counts include all pending sources for the selected dates and account, before the review condition and search.</p></> : null}
-    <p className="inline-note">{loading ? "Finding independently corroborated matches…" : error ? "Matches could not be loaded." : `${page?.count ?? 0} SMS ${page?.count === 1 ? "pair" : "pairs"} found`} · Nothing is added until you confirm.</p>
+    <div className="unified-review-filters"><label className="field"><span className="field__label">Account</span><select className="field__control" value={account} onChange={event => { setAccount(event.target.value); resetPagination(); }}><option value="">All accounts</option>{accounts.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="field"><span className="field__label">Review condition</span><select className="field__control" value={condition} onChange={event => { setCondition(event.target.value); resetPagination(); }}><option value="all">All possible pairs</option><option value="needs_decision">Needs match decision</option><option value="strong">Strong matches</option><option value="possible">Possible matches</option><option value="balance_differs">Balance differs</option><option value="type_differs">Type differs</option><option value="needs_correction">Needs correction</option></select></label><form onSubmit={event => { event.preventDefault(); setQuery(search); resetPagination(); }} className="unified-review-search"><label className="field"><span className="field__label">Search possible pairs</span><input className="field__control" type="search" maxLength={255} value={search} onChange={event => setSearch(event.target.value)} /></label><button className="button" type="submit">Search</button></form></div>
+    {page ? <><div className="unified-review-overview" aria-label="Pending source overview"><span><strong>{page.overview.matched}</strong> unique {page.overview.matched === 1 ? "pair" : "pairs"}</span><button className="button button--ghost button--small" type="button" onClick={() => { setCondition("needs_decision"); resetPagination(); }}><strong>{page.overview.ambiguous}</strong> sources need a match decision</button><Link href="/statements"><strong>{page.overview.statement_only}</strong> statement-only</Link><Link href="/messages/review"><strong>{page.overview.sms_only}</strong> SMS-only</Link></div><p className="field__hint">Possible pairs can share a source. Nothing is recorded until you review and confirm one choice.</p></> : null}
+    <p className="inline-note">{loading ? "Finding possible pairs…" : error ? "Matches could not be loaded." : `${page?.count ?? 0} possible ${page?.count === 1 ? "pair" : "pairs"} found`} · Nothing is added until you confirm.</p>
     {error ? <div className="form-error" role="alert"><strong>Could not load matched sources.</strong> Your filters are still selected. {error} <button className="button button--small" type="button" onClick={refresh}>Retry</button></div> : null}{settingsError ? <p className="form-error" role="alert">Could not load accounts and categories: {settingsError} <button className="button" type="button" onClick={() => setSettingsEpoch(value => value + 1)}>Retry</button></p> : !settingsReady ? <p role="status">Loading accounts and categories…</p> : null}{pairLoading ? <p role="status">Loading matched sources…</p> : null}
-    {!loading && !error && page?.count === 0 ? <div className="unified-review-empty" role="status"><h3>{condition === "all" && !query && !account && period.mode === "all" ? "No unique matches found" : "No pairs match these filters"}</h3><p>Ambiguous and unmatched sources stay in their individual review pages.</p><div className="statement-actions">{condition !== "all" || query || account || period.mode !== "all" ? <button className="button" type="button" onClick={clearFilters}>Clear filters</button> : null}<Link className="button" href="/messages/review">Review SMS</Link><Link className="button" href="/statements">Review statements</Link><button className="button" type="button" onClick={refresh}>Refresh matching</button></div></div> : null}
-    <div className="unified-review-list" aria-busy={loading}>{loading && !page ? Array.from({ length: 3 }, (_, index) => <div className="unified-review-skeleton" key={index} />) : page?.results.map(item => <article className="unified-review-item" key={item.id}><div className="unified-review-item__main"><header><strong>{item.statement.account_name}</strong><span className="unified-review-amount">{item.statement.amount === null ? "Amount needed" : `${item.statement.currency} ${item.statement.amount}`} · {item.statement.direction}</span></header><p><time dateTime={`${item.statement.date ?? ""}${item.statement.time ? `T${item.statement.time}` : ""}`}>{formatStatementDateTime(item.statement.date, item.statement.time)}</time></p><div className="unified-review-source-summary"><span><small>Statement</small>{item.statement.description || "No description"}</span><span><small>SMS</small>{item.sms.description || "No description"}</span></div></div><div className="unified-review-item__actions"><div className="unified-review-badges"><span className={`status-badge ${item.match.strength === "strong" ? "status-badge--ok" : "status-badge--idle"}`}>{item.match.strength === "strong" ? "Strong match" : "Review match"}</span>{item.match.conflict ? <span className="status-badge status-badge--warning">Balance differs</span> : null}{item.statement.type !== item.sms.type ? <span className="status-badge status-badge--warning">Type differs</span> : null}{item.needs_correction ? <span className="status-badge status-badge--warning">Needs correction</span> : null}</div><button className="button button--primary" type="button" disabled={loading || pairLoading || !settingsReady} onClick={() => setSelection({ statement: item.statement.id, sms: item.sms.id })}>Review pair</button></div></article>)}</div>
+    {!loading && !error && page?.count === 0 ? <div className="unified-review-empty" role="status"><h3>{condition === "all" && !query && !account && period.mode === "all" ? "No possible pairs found" : "No pairs match these filters"}</h3><p>Unmatched sources stay in their individual review pages.</p><div className="statement-actions">{condition !== "all" || query || account || period.mode !== "all" ? <button className="button" type="button" onClick={clearFilters}>Clear filters</button> : null}<Link className="button" href="/messages/review">Review SMS</Link><Link className="button" href="/statements">Review statements</Link><button className="button" type="button" onClick={refresh}>Refresh matching</button></div></div> : null}
+    <div className="unified-review-list" aria-busy={loading}>{loading && !page ? Array.from({ length: 3 }, (_, index) => <div className="unified-review-skeleton" key={index} />) : page?.results.map(item => <article className="unified-review-item" key={item.id}><div className="unified-review-item__main"><header><strong>{item.statement.account_name}</strong><span className="unified-review-amount">{item.statement.amount === null ? "Amount needed" : `${item.statement.currency} ${item.statement.amount}`} · {item.statement.direction}</span></header><p><time dateTime={`${item.statement.date ?? ""}${item.statement.time ? `T${item.statement.time}` : ""}`}>{formatStatementDateTime(item.statement.date, item.statement.time)}</time></p><div className="unified-review-source-summary"><span><small>Statement</small>{item.statement.description || "No description"}</span><span><small>SMS</small>{item.sms.description || "No description"}</span></div></div><div className="unified-review-item__actions"><div className="unified-review-badges">{item.needs_decision ? <span className="status-badge status-badge--warning">Needs match decision</span> : <span className={`status-badge ${item.match.strength === "strong" ? "status-badge--ok" : "status-badge--idle"}`}>{item.match.strength === "strong" ? "Strong match" : "Review match"}</span>}{item.match.conflict ? <span className="status-badge status-badge--warning">Balance differs</span> : null}{item.statement.type !== item.sms.type ? <span className="status-badge status-badge--warning">Type differs</span> : null}{item.needs_correction ? <span className="status-badge status-badge--warning">Needs correction</span> : null}</div><button className="button button--primary" type="button" disabled={loading || pairLoading || !settingsReady} onClick={() => setSelection({ statement: item.statement.id, sms: item.sms.id })}>{item.needs_decision ? "Choose this pair" : "Review pair"}</button></div></article>)}</div>
     {showPagination ? <div className="statement-actions unified-review-pagination"><button className="button" type="button" disabled={loading || cursorHistory.length === 0} onClick={() => { const history = cursorHistory.slice(0, -1); setCursor(cursorHistory[cursorHistory.length - 1] ?? ""); setCursorHistory(history); }}>Previous page</button><button className="button" type="button" disabled={loading || !page?.next_cursor} onClick={() => { if (!page?.next_cursor) return; setCursorHistory(history => [...history, cursor]); setCursor(page.next_cursor ?? ""); }}>Next page</button></div> : null}
   </div></section>
   {pair ? <PairDialog key={`${pair.row.id}:${pair.sms.id}:${pair.row.version}`} pair={pair} accounts={accounts} categories={categories} onCancel={() => { setSelection(null); setPair(null); }} onSaved={refresh} onEdit={() => { setEditPair(pair); setSelection(null); setPair(null); }} /> : null}

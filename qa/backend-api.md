@@ -990,11 +990,12 @@ stale edits roll back without partially resolving either source.
 The server requires explicit review acknowledgment for an edited result and
 balance-conflict acknowledgment if the edit creates a new reported-balance difference.
 
-The unified queue emits only reciprocal one-to-one matches and represents each
-pair once. An SMS or statement with zero candidates stays in its source workflow;
-any source with multiple overlapping candidates is also withheld until the
-ambiguity is resolved. Pair filtering and pagination therefore operate on review
-pairs rather than duplicated source observations. The optional `condition` filter
+The unified queue emits every evidence-backed pair option and marks overlapping
+choices `needs_decision`. An SMS or statement with zero candidates stays in its
+source workflow. Pair filtering and pagination operate on pair options, which
+may share a source. Confirmation requires the exact current competitor revision
+tokens and an explicit acknowledgment for contested choices, then leaves other
+sources pending. The optional `condition` filter
 selects match strength, balance difference, type disagreement, or correction need
 before cursor pagination. Overview totals still use the selected account and dates
 before condition and search filtering. Exact account, direction, amount
@@ -1016,11 +1017,11 @@ Suggestion responses include saved ledger-side time, reference, note, counterpar
 and balance so equal-amount candidates can be compared. A fallback flag identifies
 rows with no observation on the statement account; saved sender details never
 become receiving-account matching evidence.
-The queue, pair detail and confirmation endpoint all repeat reciprocal uniqueness
-checks. This prevents a stale or hand-crafted detail request from bypassing an
-ambiguity discovered after the queue loaded. Opaque cursors keep pagination stable
-as earlier pairs leave the queue; overview counts expose unmatched and ambiguous
-source work without mixing it into the matched queue.
+The queue, pair detail and confirmation endpoint recheck selected-pair evidence
+and competing sources. A stale or hand-crafted detail request cannot silently
+ignore an alternative discovered after the queue loaded. Opaque cursors keep
+pagination stable as earlier pairs leave the queue; overview counts distinguish
+unique, contested and unmatched source work.
 
 The queue builds that reciprocal graph across the full pending account scope before
 applying its display date range. A competing row immediately outside the selected
@@ -1189,7 +1190,8 @@ reviewed revalidation boundary (below); bulk compensation remains future work.
 For BDT only, a difference strictly below Tk 1.00 uses the higher exact amount or
 same-account balance at the normal reviewed link action, without an additional
 rounding confirmation. Matching still requires the correct owned account,
-direction, dates, independent evidence and reciprocal uniqueness. The full
+direction, dates and independent evidence. Contested choices require explicit
+comparison of the current alternatives. The full
 multi-source span must be below Tk 1.00; tolerances cannot chain. Contradictory
 known balances block a fuzzy amount pair. Source filters, list counts, detail and
 confirmation use the same bounded discovery. Larger/non-BDT differences keep

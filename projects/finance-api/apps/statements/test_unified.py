@@ -744,23 +744,34 @@ class UnifiedReviewTests(APITestCase):
         self.sms.balance_after = self.row.balance_after
         self.assertIsNotNone(pair_signals(self.row, self.sms))
 
-    def test_shared_claims_stay_out_of_unique_pair_queue(self):
-        self.candidate()
+    def test_shared_sms_claims_require_explicit_choice_and_leave_other_pending(self):
+        other = self.candidate()
         response = self.client.get(reverse("unified-pending"))
-        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["count"], 2)
+        self.assertTrue(all(item["needs_decision"] for item in response.data["results"]))
         self.assertEqual(response.data["overview"]["ambiguous"], 3)
-        self.assertEqual(
-            self.client.get(
-                reverse("unified-pair"),
-                {"statement": self.row.pk, "sms": self.sms.pk},
-            ).status_code,
-            400,
+        preview = self.client.get(
+            reverse("unified-pair"),
+            {"statement": self.row.pk, "sms": self.sms.pk},
         )
+        self.assertEqual(preview.status_code, 200, preview.data)
+        self.assertEqual(preview.data["competing_sources"][0]["source"]["id"], str(other.pk))
         self.assertEqual(self.confirm().status_code, 409)
+        tokens = [item["token"] for item in preview.data["competing_sources"]]
+        self.assertEqual(self.confirm(competing_source_tokens=tokens).status_code, 400)
         self.assertEqual(Transaction.objects.count(), 0)
+        confirmed = self.confirm(
+            competing_source_tokens=tokens, acknowledge_competing_sources=True
+        )
+        self.assertEqual(confirmed.status_code, 200, confirmed.data)
+        self.assertEqual(Transaction.objects.count(), 1)
+        other.refresh_from_db()
+        self.assertEqual(other.status, "needs_review")
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.state, "linked")
 
-    def test_many_statement_claims_cannot_open_or_confirm_direct_pair(self):
-        StatementRow.objects.create(
+    def test_shared_statement_claims_require_explicit_choice(self):
+        other = StatementRow.objects.create(
             batch=self.batch,
             position=2,
             component="principal",
@@ -776,15 +787,39 @@ class UnifiedReviewTests(APITestCase):
             classification_confirmed=True,
             extracted=self.row.extracted,
         )
-        self.assertEqual(self.client.get(reverse("unified-pending")).data["count"], 0)
-        self.assertEqual(
-            self.client.get(
-                reverse("unified-pair"),
-                {"statement": self.row.pk, "sms": self.sms.pk},
-            ).status_code,
-            400,
+        response = self.client.get(reverse("unified-pending"))
+        self.assertEqual(response.data["count"], 2)
+        self.assertTrue(all(item["needs_decision"] for item in response.data["results"]))
+        preview = self.client.get(
+            reverse("unified-pair"),
+            {"statement": self.row.pk, "sms": self.sms.pk},
         )
+        self.assertEqual(preview.status_code, 200, preview.data)
+        self.assertEqual(preview.data["competing_sources"][0]["source"]["id"], str(other.pk))
         self.assertEqual(self.confirm().status_code, 409)
+        result = self.confirm(
+            competing_source_tokens=[item["token"] for item in preview.data["competing_sources"]],
+            acknowledge_competing_sources=True,
+        )
+        self.assertEqual(result.status_code, 200, result.data)
+        other.refresh_from_db()
+        self.assertEqual(other.state, "pending")
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_competing_source_revision_must_be_refreshed_before_confirmation(self):
+        other = self.candidate()
+        preview = self.client.get(
+            reverse("unified-pair"),
+            {"statement": self.row.pk, "sms": self.sms.pk},
+        )
+        tokens = [item["token"] for item in preview.data["competing_sources"]]
+        other.counterparty_text = "Edited synthetic merchant"
+        other.save(update_fields=("counterparty_text", "updated_at"))
+        response = self.confirm(
+            competing_source_tokens=tokens, acknowledge_competing_sources=True
+        )
+        self.assertEqual(response.status_code, 409, response.data)
+        self.assertEqual(Transaction.objects.count(), 0)
 
     def test_date_filter_does_not_hide_competing_sources(self):
         StatementRow.objects.create(
@@ -808,7 +843,8 @@ class UnifiedReviewTests(APITestCase):
             {"start_date": "2026-01-02", "end_date": "2026-01-02"},
         )
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["count"], 1)
+        self.assertTrue(response.data["results"][0]["needs_decision"])
         self.assertEqual(response.data["overview"]["ambiguous"], 2)
 
     def test_amount_and_date_without_independent_evidence_are_not_a_match(self):

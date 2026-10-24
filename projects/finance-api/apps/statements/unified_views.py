@@ -16,7 +16,7 @@ from .serializers import (
     StatementImportSerializer,
     StatementRowEditSerializer,
 )
-from .unified import confirm_pair, queue, summary, unique_pair_signals
+from .unified import competing_sources, confirm_pair, pair_signals, queue, summary
 
 
 class PendingReviewFilters(serializers.Serializer):
@@ -24,7 +24,7 @@ class PendingReviewFilters(serializers.Serializer):
     condition = serializers.ChoiceField(
         choices=(
             "all", "strong", "possible", "balance_differs", "type_differs",
-            "needs_correction",
+            "needs_correction", "needs_decision",
         ),
         required=False,
         default="all",
@@ -94,6 +94,7 @@ class UnifiedPendingItemSerializer(serializers.Serializer):
     sms = UnifiedPendingSourceSerializer()
     match = UnifiedPendingMatchSerializer()
     needs_correction = serializers.BooleanField()
+    needs_decision = serializers.BooleanField()
 
 
 class UnifiedPendingOverviewSerializer(serializers.Serializer):
@@ -130,6 +131,10 @@ class PairDecision(PairSelection):
         child=serializers.UUIDField(), required=False, default=list, max_length=8
     )
     acknowledge_distinct_ledger_matches = serializers.BooleanField(default=False)
+    competing_source_tokens = serializers.ListField(
+        child=serializers.CharField(max_length=160), required=False, default=list, max_length=20
+    )
+    acknowledge_competing_sources = serializers.BooleanField(default=False)
     type_choice = serializers.ChoiceField(
         choices=("statement", "sms", "custom"), required=False
     )
@@ -152,6 +157,11 @@ class PairDecision(PairSelection):
             raise serializers.ValidationError(
                 {"dismissed_ledger_matches": "Do not dismiss suggestions when linking an existing transaction."}
             )
+        tokens = attrs["competing_source_tokens"]
+        if len(tokens) != len(set(tokens)):
+            raise serializers.ValidationError(
+                {"competing_source_tokens": "Review each competing source only once."}
+            )
         return attrs
 
 
@@ -161,6 +171,7 @@ class PairDetailSerializer(serializers.Serializer):
     sms = ParsedMessageCandidateSerializer()
     sms_summary = UnifiedPendingSourceSerializer()
     match = serializers.JSONField()
+    competing_sources = serializers.ListField(child=serializers.JSONField())
 
 
 class PairResultSerializer(serializers.Serializer):
@@ -214,13 +225,14 @@ class UnifiedPairView(NoStoreMixin, APIView):
         selection = PairSelection(data=request.query_params)
         selection.is_valid(raise_exception=True)
         row, candidate = selected_sources(request.user, selection.validated_data)
-        signals = unique_pair_signals(request.user, row, candidate)
+        signals = pair_signals(row, candidate)
         if not signals:
             raise ValidationError(
                 {
-                    "match": "These sources are no longer a unique one-to-one match. Refresh the queue."
+                    "match": "These sources are no longer a possible match. Refresh the queue."
                 }
             )
+        competition = competing_sources(row, candidate)
         states = list(row.batch.rows.values_list("state", flat=True))
         for name in ("total", "pending", "posted", "linked", "skipped"):
             setattr(
@@ -235,6 +247,7 @@ class UnifiedPairView(NoStoreMixin, APIView):
                 "sms": ParsedMessageCandidateSerializer(candidate).data,
                 "sms_summary": summary(candidate),
                 "match": signals,
+                "competing_sources": competition,
             }
         )
 

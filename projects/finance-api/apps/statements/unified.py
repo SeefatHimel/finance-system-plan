@@ -236,6 +236,68 @@ def has_competing_sources(row, candidate):
     return any(pair_signals(item, candidate) for item in rows.iterator())
 
 
+def competing_sources(row, candidate):
+    """Return the other pending sources that could claim the selected movement.
+
+    The tokens include source revisions so an explicit choice cannot silently
+    survive a competing source being edited between preview and confirmation.
+    """
+    from .models import StatementRow
+
+    days = dates_for(row)
+    low, high = min(days) - timedelta(days=3), max(days) + timedelta(days=3)
+    candidates = amount_candidates(ParsedMessageCandidate.objects.filter(
+        user_id=row.batch.user_id,
+        status="needs_review",
+        transaction__isnull=True,
+        raw_message__received_at__date__range=(low, high),
+    ), [row.amount], row.batch.currency).exclude(pk=candidate.pk).select_related(
+        "account", "destination_account", "raw_message"
+    )
+    received = timezone.localtime(candidate.raw_message.received_at).date()
+    low, high = received - timedelta(days=3), received + timedelta(days=3)
+    rows = amount_candidates(StatementRow.objects.filter(
+        batch__user_id=row.batch.user_id,
+        batch__account_id=row.batch.account_id,
+        state="pending",
+        transaction__isnull=True,
+    ), [candidate.amount], row.batch.currency).filter(
+        Q(date__range=(low, high)) | Q(value_date__range=(low, high))
+    ).exclude(pk=row.pk).select_related("batch__account", "other_account")
+
+    found = []
+    for item in candidates.iterator():
+        if pair_signals(row, item):
+            found.append({
+                "source": summary(item),
+                "source_text": item.raw_message.body if not item.raw_message.redacted_at else "",
+                "token": f"sms:{item.pk}:{item.updated_at.isoformat()}",
+            })
+            if len(found) > 20:
+                raise ValidationError({"match": "Too many competing sources to review here. Narrow the statement period and retry."})
+    for item in rows.iterator():
+        if pair_signals(item, candidate):
+            found.append({
+                "source": summary(item),
+                "source_text": item.extracted.get("description", ""),
+                "token": f"statement:{item.pk}:{item.version}",
+            })
+            if len(found) > 20:
+                raise ValidationError({"match": "Too many competing sources to review here. Narrow the statement period and retry."})
+    return sorted(found, key=lambda item: item["token"])
+
+
+def validate_competing_decision(row, candidate, payload):
+    current = competing_sources(row, candidate)
+    expected = [item["token"] for item in current]
+    submitted = sorted(payload.get("competing_source_tokens", []))
+    if submitted != expected:
+        raise ReviewConflict("Competing sources changed. Reload and compare them before pairing.")
+    if current and not payload.get("acknowledge_competing_sources"):
+        raise ValidationError({"acknowledge_competing_sources": "Compare the other possible sources and confirm your selected pair."})
+    return current
+
+
 def pending_sources(user, account_id=None, filters=None):
     from .models import StatementRow
 
@@ -569,60 +631,58 @@ def queue(user, filters):
     ambiguous_candidates = set()
     for row in rows:
         matches = row_matches[row.pk]
-        if len(matches) != 1:
-            if matches:
+        for candidate, signals in matches:
+            # Surface contested pairs instead of hiding them. Choosing one pair
+            # still requires reviewing every competing source at confirmation.
+            ambiguous = (
+                len(matches) != 1
+                or len(candidate_matches[candidate.pk]) != 1
+                or bool(
+                    (start_date or filters.get("source", "all") != "all")
+                    and has_competing_sources(row, candidate)
+                )
+            )
+            if ambiguous:
                 ambiguous_rows.add(row.pk)
-                ambiguous_candidates.update(candidate.pk for candidate, _ in matches)
-            continue
-        candidate, signals = matches[0]
-        # A pair enters this queue only when both sources claim exactly one another.
-        # Repeated equal movements remain in their individual review workflows.
-        if len(candidate_matches[candidate.pk]) != 1:
-            ambiguous_rows.add(row.pk)
-            ambiguous_candidates.add(candidate.pk)
-            continue
-        # The bounded display scope may omit a competing source just outside its
-        # date range or selected source. Verify uniqueness against the database.
-        if (start_date or filters.get("source", "all") != "all") and has_competing_sources(
-            row, candidate
-        ):
-            ambiguous_rows.add(row.pk)
-            ambiguous_candidates.add(candidate.pk)
-            continue
-        if not _row_in_date_scope(row, start_date, end_date):
-            continue
-        matched_rows.add(row.pk)
-        statement, sms = summary(row), summary(candidate)
-        item = {
-            "id": f"{row.pk}:{candidate.pk}",
-            "statement": statement,
-            "sms": sms,
-            "match": signals,
-            "needs_correction": statement["needs_correction"]
-            or sms["needs_correction"],
-        }
-        search = filters.get("search", "").casefold()
-        if (
-            search
-            and search
-            not in (
-                f"{statement['description']} {statement['reference']} "
-                f"{sms['description']} {sms['reference']} {statement['account_name']}"
-            ).casefold()
-        ):
-            continue
-        condition = filters.get("condition", "all")
-        if condition == "strong" and signals["strength"] != "strong":
-            continue
-        if condition == "possible" and signals["strength"] != "possible":
-            continue
-        if condition == "balance_differs" and not signals["conflict"]:
-            continue
-        if condition == "type_differs" and statement["type"] == sms["type"]:
-            continue
-        if condition == "needs_correction" and not item["needs_correction"]:
-            continue
-        items.append(item)
+                ambiguous_candidates.add(candidate.pk)
+            else:
+                matched_rows.add(row.pk)
+            if not _row_in_date_scope(row, start_date, end_date):
+                continue
+            statement, sms = summary(row), summary(candidate)
+            item = {
+                "id": f"{row.pk}:{candidate.pk}",
+                "statement": statement,
+                "sms": sms,
+                "match": signals,
+                "needs_correction": statement["needs_correction"]
+                or sms["needs_correction"],
+                "needs_decision": ambiguous,
+            }
+            search = filters.get("search", "").casefold()
+            if (
+                search
+                and search
+                not in (
+                    f"{statement['description']} {statement['reference']} "
+                    f"{sms['description']} {sms['reference']} {statement['account_name']}"
+                ).casefold()
+            ):
+                continue
+            condition = filters.get("condition", "all")
+            if condition == "needs_decision" and not ambiguous:
+                continue
+            if condition == "strong" and signals["strength"] != "strong":
+                continue
+            if condition == "possible" and signals["strength"] != "possible":
+                continue
+            if condition == "balance_differs" and not signals["conflict"]:
+                continue
+            if condition == "type_differs" and statement["type"] == sms["type"]:
+                continue
+            if condition == "needs_correction" and not item["needs_correction"]:
+                continue
+            items.append(item)
     items.sort(key=_item_key, reverse=True)
     offset, limit = filters.get("offset", 0), filters.get("limit", 50)
     cursor = filters.get("cursor", "").strip()
@@ -710,11 +770,12 @@ def confirm_pair(*, user, row, candidate, payload, request):
         raise ReviewConflict(
             "One source changed. Reload both sources before confirming."
         )
-    signals = unique_pair_signals(user, row, candidate)
+    signals = pair_signals(row, candidate)
     if not signals or sms_recorded_elsewhere(candidate):
         raise ReviewConflict(
             "These sources are no longer pending matches. Reload the queue."
         )
+    validate_competing_decision(row, candidate, payload)
     original_balance_after = row.balance_after
     late_posting = delayed_ebl_posting(row, timezone.localtime(candidate.raw_message.received_at).date())
     original_balance_needs_review = (
@@ -740,11 +801,12 @@ def confirm_pair(*, user, row, candidate, payload, request):
             # evidence that made the two original sources a unique pair. Changes
             # to the movement's date, direction or amount do need a fresh match.
             if (row.date, row.direction, row.amount) != identity_before:
-                signals = unique_pair_signals(user, row, candidate)
+                signals = pair_signals(row, candidate)
                 if not signals:
                     raise ValidationError(
-                        {"draft": "These edits no longer support a unique SMS and statement match. Correct the sources separately or restore the matching values."}
+                        {"draft": "These edits no longer support the selected SMS and statement match. Correct the sources separately or restore the matching values."}
                     )
+                validate_competing_decision(row, candidate, payload)
             touch(row, user, before_draft, {"decision": "unified_draft_edit"})
     type_choice = payload.get("type_choice")
     if original_type != candidate.transaction_type and not type_choice:

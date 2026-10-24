@@ -3289,9 +3289,10 @@ paths:
           - balance_differs
           - type_differs
           - needs_correction
+          - needs_decision
           type: string
           default: all
-        description: Filter confirmed-unique suggestions by the review condition, before pagination.
+        description: Filter possible pairs by the review condition, before pagination.
       - in: query
         name: account
         schema:
@@ -7915,6 +7916,17 @@ components:
           type: boolean
           default: false
           description: Required when ledger suggestions are dismissed for a separate movement.
+        competing_source_tokens:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 160
+          description: Exact revision tokens from the pair preview when other sources could claim this movement.
+        acknowledge_competing_sources:
+          type: boolean
+          default: false
+          description: Required to choose a contested pair after comparing its alternatives.
         balance_source:
           $ref: '#/components/schemas/UnifiedBalanceSourceEnum'
         type_choice:
@@ -7956,12 +7968,16 @@ components:
         sms_summary:
           $ref: '#/components/schemas/UnifiedPendingSource'
         match: {}
+        competing_sources:
+          type: array
+          items: {}
       required:
       - batch
       - match
       - row
       - sms
       - sms_summary
+      - competing_sources
     UnifiedPairResult:
       type: object
       properties:
@@ -7994,10 +8010,13 @@ components:
           $ref: '#/components/schemas/UnifiedPendingMatch'
         needs_correction:
           type: boolean
+        needs_decision:
+          type: boolean
       required:
       - id
       - match
       - needs_correction
+      - needs_decision
       - sms
       - statement
     UnifiedPendingSmsStatusEnum:

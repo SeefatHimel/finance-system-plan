@@ -35,6 +35,12 @@ another transaction.
 
 Shared API contract and integration documentation.
 
+Pending SMS/PDF pair results can include contested choices marked
+`needs_decision`. Pair detail returns `competing_sources` and revision tokens;
+confirming a contested pair requires the exact current tokens plus
+`acknowledge_competing_sources`. A changed alternative returns 409 so clients
+refresh the comparison before recording one transaction.
+
 Statement match suggestions expose the ledger `category_id` alongside its name.
 Link decisions with a different saved statement category submit an explicit
 `category_choice`: keep the ledger category, use the statement draft category,

@@ -1075,13 +1075,14 @@ selected filters and offer Retry.
 Unified review also separates an empty filtered result from a failed match
 request and retains the current filter choices on retry.
 
-Unified review (`/review`) lists only unique one-to-one pending pairs, one item per
-SMS + statement movement, with account, statement-date and combined-source search
-filters. The default **SMS pairs found** option shows those pairs; review
+Unified review (`/review`) lists possible pending pair options, including
+contested choices, with account, statement-date and combined-source search
+filters. The default queue shows those pairs; review
 condition also filters strong/possible matches, differing balances or types,
 and items needing correction before pagination. Overview totals remain
 for the selected account and date before condition/search filtering. Ambiguous
-sources link to the separate statement and SMS queues. Compact rows display match strength and balance conflict independently;
+choices have a **Needs match decision** filter and show alternative sources
+before confirmation. Compact rows display match strength and balance conflict independently;
 the scope summary links unmatched source counts back to their dedicated review
 pages. Each item opens an editable, prefilled result with original SMS/PDF evidence.
 Differing parsed types require an explicit choice; merchant, category, date/time,
@@ -1538,10 +1539,13 @@ An unresolved bKash row cannot be added while its saved draft direction disagree
 
 ### What happens if an SMS being confirmed may match a saved statement?
 
-SMS Review shows an in-place comparison before adding to the ledger. A unique
-pair opens the existing two-source review without discarding SMS filters. Each
+SMS Review shows an in-place comparison with the original SMS and current form
+before adding to the ledger. Any corroborated pair, including one with competing
+options, opens two-source review without discarding SMS filters. Competing
+sources are shown there and require an explicit choice and acknowledgment. Each
 suggested PDF row shows its account, date, direction, amount, description,
 reference, balance, and match evidence. If the movements are genuinely separate,
 the reviewer marks every suggestion as different and acknowledges the decision;
 the server verifies the exact current IDs again. Pair review uses saved SMS
-values, so any unsaved SMS edits must be checked again in that dialog.
+values; compatible unsaved form edits carry into the final draft, while changes
+to source identity are shown for explicit review before recording.

@@ -1884,17 +1884,18 @@ export async function findSmsStatementMatches(token: string, id: string, input: 
   });
   return smsStatementMatchesSchema.parse(await response.json());
 }
-const pendingPairSchema = z.object({ id: z.string(), statement: pendingSourceSchema, sms: pendingSourceSchema, match: pendingSignalsSchema, needs_correction: z.boolean() });
+const pendingPairSchema = z.object({ id: z.string(), statement: pendingSourceSchema, sms: pendingSourceSchema, match: pendingSignalsSchema, needs_correction: z.boolean(), needs_decision: z.boolean().default(false) });
 const unifiedPendingSchema = z.object({
   count: z.number(), offset: z.number(), limit: z.number(), next_cursor: z.string().nullable(),
   overview: z.object({ matched: z.number(), ambiguous: z.number(), statement_only: z.number(), sms_only: z.number() }),
   results: z.array(pendingPairSchema)
 });
-const unifiedPairSchema = z.object({ row: savedStatementRowSchema, batch: savedStatementSchema, sms: parsedMessageCandidateSchema, sms_summary: pendingSourceSchema, match: pendingSignalsSchema });
+const competingSourceSchema = z.object({ source: pendingSourceSchema, source_text: z.string(), token: z.string() });
+const unifiedPairSchema = z.object({ row: savedStatementRowSchema, batch: savedStatementSchema, sms: parsedMessageCandidateSchema, sms_summary: pendingSourceSchema, match: pendingSignalsSchema, competing_sources: z.array(competingSourceSchema).default([]) });
 export type UnifiedPendingPair = z.infer<typeof pendingPairSchema>;
 export type UnifiedPendingPage = z.infer<typeof unifiedPendingSchema>;
 export type UnifiedPair = z.infer<typeof unifiedPairSchema>;
-export type UnifiedPairDecision = { statement: string; sms: string; statement_version: number; sms_updated_at: string; transaction?: string | null; balance_source: "sms" | "statement" | "existing"; type_choice?: "statement" | "sms" | "custom"; draft?: StatementRowEdit; acknowledge_match: boolean; acknowledge_conflict: boolean; acknowledge_issues: boolean; remember_choices: boolean; dismissed_ledger_matches?: string[]; acknowledge_distinct_ledger_matches?: boolean };
+export type UnifiedPairDecision = { statement: string; sms: string; statement_version: number; sms_updated_at: string; transaction?: string | null; balance_source: "sms" | "statement" | "existing"; type_choice?: "statement" | "sms" | "custom"; draft?: StatementRowEdit; acknowledge_match: boolean; acknowledge_conflict: boolean; acknowledge_issues: boolean; acknowledge_competing_sources?: boolean; competing_source_tokens?: string[]; remember_choices: boolean; dismissed_ledger_matches?: string[]; acknowledge_distinct_ledger_matches?: boolean };
 export async function listUnifiedPending(token: string, filters: Record<string, string>, signal?: AbortSignal): Promise<UnifiedPendingPage> {
   const query = new URLSearchParams(filters);
   return unifiedPendingSchema.parse(await (await authenticatedFetch(`/api/review/pending/?${query}`, token, { signal })).json());

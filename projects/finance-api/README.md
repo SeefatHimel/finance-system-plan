@@ -1277,10 +1277,11 @@ selection described below requires the new transactions migration.
 
 ### Unified matched-pair review
 
-Authenticated, private/no-store `/api/review/pending/` returns one queue item for
-each unique one-to-one pending SMS and statement match, with account/date/search
-filters and stable cursor pagination; `condition` optionally selects `strong`,
-`possible`, `balance_differs`, `type_differs`, or `needs_correction` before
+Authenticated, private/no-store `/api/review/pending/` returns possible pending
+SMS and statement pairs, including overlapping matches that need a decision,
+with account/date/search filters and stable cursor pagination; `condition`
+optionally selects `needs_decision`, `strong`, `possible`, `balance_differs`,
+`type_differs`, or `needs_correction` before
 pagination. The overview still counts all pairs and unmatched sources in the
 selected account/date scope, before search and condition filtering. Legacy offset remains accepted for clients
 that have not migrated. The response also reports matched, ambiguous,
@@ -1296,9 +1297,9 @@ Conflicting nonempty references are rejected, and differing counterparty wording
 is exposed as negative evidence rather than presented as a strong match. Exact
 counterparty wording by itself produces a possible match; a strong label requires
 same-day reference, exact reported-balance, or known counterpart-account evidence.
-Unmatched sources and overlapping one-to-many candidates are excluded from this
-queue and remain in their individual review workflows. Balance conflicts can still
-form a unique review pair. The read-only
+Unmatched sources remain in their individual workflows. Overlapping one-to-many
+candidates appear with `needs_decision`; choosing one leaves alternatives pending.
+Balance conflicts can still form a review pair. The read-only
 `GET /api/review/pair/?statement=<uuid>&sms=<uuid>` returns original sources,
 statement draft validation and current ledger suggestions.
 Date filters narrow the source query before its safety cap; source-only views
@@ -1316,7 +1317,7 @@ It optionally accepts a full edited statement `draft` with the same version and 
 the type choice is required and must agree with the edited type. The server
 validates ownership, financial values and transfer account path, then saves the
 draft and confirms the pair in one database transaction. Date, direction and
-amount corrections must still support a unique match; metadata and balance
+amount corrections must still support the selected match; metadata and balance
 corrections retain the original evidence that established the pair.
 An edited draft requires explicit source-review acknowledgment. A BDT
 statement/SMS balance difference strictly below Tk 1 automatically uses the
@@ -1333,11 +1334,13 @@ must list every current suggested ledger UUID in
 under the user lock and returns 409 if they changed; missing review returns 400.
 It then applies the existing statement `allow_separate` safeguard and records
 one entry with both sources. Linking an existing entry cannot include dismissals.
-The detail and confirmation endpoints repeat the reciprocal one-to-one check, so a
-stale or hand-crafted pair URL cannot bypass ambiguity protection.
-Reciprocal uniqueness is calculated across the complete pending account scope
-before the display date range is applied, so filtering cannot hide a competing
-source and make an ambiguous relationship appear confirmable.
+Pair detail returns every nearby competing source with its revision token. For a
+contested pair, confirmation requires the exact `competing_source_tokens` and
+`acknowledge_competing_sources=true`. The server recomputes competitors under the
+user lock; changed competition returns 409 and missing acknowledgment returns 400.
+The selected SMS and statement must still pass the same evidence checks.
+Competitors are calculated across the complete pending account scope before the
+display date range is applied, so filtering cannot conceal an alternative.
 
 A new pair uses the reviewed draft classification/date/time, the selected scalar
 balance, masked SMS identifiers and one raw-message link. A source with no reported
