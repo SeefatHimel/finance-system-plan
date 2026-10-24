@@ -901,3 +901,7 @@ without saving. `sms_account_changed` tells clients to request explicit
 account-correction acknowledgment. Confirming with `sms_account` requires
 `acknowledge_sms_account_override` when it changes the saved parsed account;
 original SMS text and direction remain unchanged.
+The same read-only preview accepts an optional versioned statement `draft` and
+returns `ledger_matches` and `ledger_matching_truncated` evaluated against it.
+Clients should review those suggestions before sending exact dismissed IDs at
+confirmation; the server checks them again under the user lock.

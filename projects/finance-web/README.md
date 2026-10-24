@@ -1394,11 +1394,15 @@ SMS can be opened on demand. Missing receiving-account evidence is labeled as
 such, so sender details are not mistaken for a receiving-account report. A
 linkable candidate can be selected to keep its existing ledger balance. For a
 genuinely different movement, choose to record the SMS and statement as a
-separate transaction, mark every ledger suggestion as different, and explicitly
-confirm that review. This also works when a suggestion is already attached to
+separate transaction and use one explicit confirmation that all displayed ledger
+suggestions are different movements. This also works when a suggestion is already attached to
 another row in the same statement. The server rechecks the exact suggestion IDs
 before posting; new or changed suggestions require another review.
-An inline edit does not hide saved ledger suggestions; the API revalidates all
+Changing the final date, direction, amount, or other matching evidence refreshes
+ledger suggestions against that edited result before the record button is enabled.
+The original EBL posting date, printed value date, and both reported balances
+are highlighted in the source comparison; a balance reported at a different
+time is labeled for separate review. An inline edit does not hide saved ledger suggestions; the API revalidates all
 matching and posting rules atomically before it changes either source. A failed
 review leaves both sources pending and prompts a refresh or source correction.
 Editing after selecting an existing ledger entry clears that selection and shows

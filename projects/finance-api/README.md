@@ -1332,6 +1332,10 @@ must list every current suggested ledger UUID in
 `dismissed_ledger_matches` and set
 `acknowledge_distinct_ledger_matches=true`. The API recomputes those suggestions
 under the user lock and returns 409 if they changed; missing review returns 400.
+The read-only pair preview accepts an optional versioned statement `draft` and
+returns `ledger_matches` and `ledger_matching_truncated` for that edited result.
+This lets the client refresh suggestions before the user confirms a changed date
+or other matching field; it does not save the draft or weaken the final 409 guard.
 It then applies the existing statement `allow_separate` safeguard and records
 one entry with both sources. Linking an existing entry cannot include dismissals.
 Pair detail returns every nearby competing source with its revision token. For a

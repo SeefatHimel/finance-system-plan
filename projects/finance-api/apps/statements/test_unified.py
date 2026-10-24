@@ -1127,6 +1127,35 @@ class UnifiedReviewTests(APITestCase):
         self.assertEqual(response.status_code, 409, response.data)
         self.assertEqual(Transaction.objects.count(), 2)
 
+    def test_edited_pair_preview_uses_final_date_for_ledger_suggestions(self):
+        record = Transaction.objects.create(
+            user=self.user, account=self.account, amount="100.00",
+            date=date(2026, 1, 6), type="expense", direction="debit",
+            balance_after="900.07", note="Synthetic Cafe", source="manual",
+        )
+        original = self.client.get(
+            reverse("unified-pair"), {"statement": self.row.pk, "sms": self.sms.pk}
+        )
+        self.assertEqual(original.status_code, 200, original.data)
+        self.assertEqual(original.data["ledger_matches"], [])
+        edited = self.draft(date="2026-01-03")
+        preview = self.client.post(reverse("unified-pair-preview"), {
+            "statement": str(self.row.pk), "sms": str(self.sms.pk), "draft": edited,
+        }, format="json")
+        self.assertEqual(preview.status_code, 200, preview.data)
+        self.assertEqual(
+            [match["id"] for match in preview.data["ledger_matches"]],
+            [str(record.pk)],
+        )
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.date, date(2026, 1, 2))
+        response = self.confirm(
+            draft=edited, dismissed_ledger_matches=[str(record.pk)],
+            acknowledge_distinct_ledger_matches=True,
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(Transaction.objects.count(), 2)
+
     def test_incoming_transfer_keeps_receiving_reports_from_both_sources(self):
         self.row.direction = "credit"
         self.row.type = "transfer"

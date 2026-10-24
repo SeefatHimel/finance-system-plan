@@ -1663,6 +1663,7 @@ export interface UnifiedPairReviewedAccountSelection {
   statement: string;
   sms: string;
   sms_account?: string;
+  draft?: PatchedStatementRowEdit;
 }
 
 export interface UnifiedPairDetail {
@@ -1673,6 +1674,8 @@ export interface UnifiedPairDetail {
   match: unknown;
   competing_sources: unknown[];
   sms_account_changed: boolean;
+  ledger_matches: StatementMatch[];
+  ledger_matching_truncated: boolean;
 }
 
 export interface UnifiedPairResult {

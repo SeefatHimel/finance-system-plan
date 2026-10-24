@@ -1561,3 +1561,12 @@ changed in the current form does not appear as a source agreement. Those
 highlights are review clues, not automatic approval. Pairing action failures
 show as toast messages within the modal; loading failures that need a Retry
 control stay inline with that control.
+
+### How does combined review handle edited ledger suggestions and EBL dates?
+
+When a user edits matching fields, combined review checks ledger suggestions for
+the edited result before enabling Record. If the user confirms that all shown
+ledger entries are different movements, one checkbox covers the displayed list;
+they are still rechecked by the API at save time. The source comparison highlights
+the EBL printed value date separately from its posting date and shows both exact
+reported balances, distinguishing an agreement from different reporting times.

@@ -620,6 +620,9 @@ candidate. The pair decision must send the same account and
 then corrects the parsed reporting account atomically with the pair; original SMS
 text and captured direction remain unchanged. Edits to amount or direction do
 not manufacture a match.
+The preview can also take a versioned statement `draft` and returns ledger
+suggestions for that edited result. Confirmation still recomputes and compares
+the exact suggested IDs before writing, so a later change requires fresh review.
 An optional pending-queue `source` filter bounds comparison work, while results
 remain matched pairs rather than separate source rows.
 The POST takes both IDs, statement version, SMS updated timestamp, balance choice

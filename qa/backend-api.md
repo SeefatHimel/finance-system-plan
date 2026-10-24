@@ -1281,3 +1281,11 @@ Confirming requires a separate acknowledgment and saves the parsed account
 correction in the same transaction as the one-ledger-entry pair. The raw SMS
 body and source debit/credit direction are never rewritten. Draft amount and
 direction edits cannot create a false source match.
+
+### Why can ledger suggestions change while reviewing an SMS and statement pair?
+
+Changing the proposed transaction date or other matching evidence can change
+which ledger entries qualify. The read-only pair preview now accepts that edited
+draft and returns matching ledger suggestions without saving it. The final
+confirmation still recomputes the candidates under the user lock and rejects a
+stale list, so a concurrent change cannot be silently dismissed.

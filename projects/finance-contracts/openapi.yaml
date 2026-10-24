@@ -7998,6 +7998,8 @@ components:
         sms_account:
           type: string
           format: uuid
+        draft:
+          $ref: '#/components/schemas/PatchedStatementRowEdit'
       required:
       - statement
       - sms
@@ -8019,6 +8021,13 @@ components:
         sms_account_changed:
           type: boolean
           description: The reviewed reporting account differs from the saved parsed SMS account and requires acknowledgment on confirmation.
+        ledger_matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementMatch'
+          description: Current ledger suggestions for the optional edited draft, or the saved statement row when no draft is supplied.
+        ledger_matching_truncated:
+          type: boolean
       required:
       - batch
       - match
@@ -8027,6 +8036,8 @@ components:
       - sms_summary
       - competing_sources
       - sms_account_changed
+      - ledger_matches
+      - ledger_matching_truncated
     UnifiedPairResult:
       type: object
       properties:

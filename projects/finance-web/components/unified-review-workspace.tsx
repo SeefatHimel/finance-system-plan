@@ -23,10 +23,17 @@ import {
   type ConfirmMessageCandidateInput,
   type UnifiedPair,
   type UnifiedPendingPage,
+  type StatementMatch,
+  previewUnifiedPair,
 } from "@/lib/api";
 import { automaticBdtBalanceSource, coalescedSourceAmount, calendarDayDifference, insignificantBdtBalanceDifference, reportedBalanceNeedsAcknowledgment, statementBalanceDifference, suggestedBalanceSource, suggestedLinkedBalanceSource } from "@/lib/statement-review";
 
 type BalanceChoice = "" | "sms" | "statement";
+
+function ledgerSearchKey(draft: ReturnType<typeof savedPairDraft>) {
+  const { date, time, value_date, direction, amount, type, other_account, reference, balance_after, counterparty_text } = draft;
+  return JSON.stringify({ date, time, value_date, direction, amount, type, other_account, reference, balance_after, counterparty_text });
+}
 
 function formatStatementDateTime(date: string | null, time: string | null) {
   return `${formatCalendarDate(date)} · ${formatClockTime(time)}`;
@@ -45,7 +52,6 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
   const [remember, setRemember] = useState(false);
   const [ledger, setLedger] = useState("");
   const [separateLedgerMovement, setSeparateLedgerMovement] = useState(false);
-  const [dismissedLedgerMatches, setDismissedLedgerMatches] = useState<string[]>([]);
   const [ackDistinctLedgerMatches, setAckDistinctLedgerMatches] = useState(false);
   const [ledgerCleared, setLedgerCleared] = useState(false);
   const [balance, setBalance] = useState<BalanceChoice>(() => pair.match.late_posting ? "sms" : suggestedBalanceSource(pair.row.balance_after, pair.sms.balance_after, Number(pair.row.extracted.signed_fee) !== 0));
@@ -63,6 +69,45 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
       ...(initial.type === "transfer" && smsFormInput.transfer_account ? { other_account: smsFormInput.transfer_account } : {}),
     };
   });
+  const [ledgerReview, setLedgerReview] = useState<{ key: string; matches: StatementMatch[]; truncated: boolean; error: string }>({
+    key: ledgerSearchKey(savedPairDraft(pair)),
+    matches: pair.ledger_matches ?? pair.row.review.matches,
+    truncated: pair.ledger_matching_truncated ?? pair.row.review.matching_truncated,
+    error: "",
+  });
+  const [ledgerReviewRetry, setLedgerReviewRetry] = useState(0);
+  const currentLedgerKey = ledgerSearchKey(draft);
+  const ledgerReviewReady = ledgerReview.key === currentLedgerKey && !ledgerReview.error;
+  const ledgerMatches = ledgerReviewReady ? ledgerReview.matches : [];
+  function refreshLedgerReview() {
+    setLedgerReview(current => ({ ...current, key: "", error: "" }));
+    setLedger("");
+    setSeparateLedgerMovement(false);
+    setAckDistinctLedgerMatches(false);
+  }
+  useEffect(() => {
+    if (ledgerReviewReady) return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const token = getAccessToken();
+      if (!token) {
+        if (!cancelled) setLedgerReview({ key: currentLedgerKey, matches: [], truncated: false, error: "Session expired. Sign in again to refresh ledger suggestions." });
+        return;
+      }
+      try {
+        const latest = await previewUnifiedPair(token, pair.row.id, pair.sms.id, pair.sms_account_changed ? pair.sms_summary.account ?? undefined : undefined, draft);
+        if (cancelled) return;
+        const matches = latest.ledger_matches ?? latest.row.review.matches;
+        setLedger(value => matches.some(match => match.id === value) ? value : "");
+        if (!matches.length) setSeparateLedgerMovement(false);
+        setAckDistinctLedgerMatches(false);
+        setLedgerReview({ key: currentLedgerKey, matches, truncated: latest.ledger_matching_truncated ?? latest.row.review.matching_truncated, error: "" });
+      } catch (error) {
+        if (!cancelled) setLedgerReview({ key: currentLedgerKey, matches: [], truncated: false, error: error instanceof Error ? error.message : "Could not refresh ledger suggestions." });
+      }
+    }, 300);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [currentLedgerKey, ledgerReviewReady, ledgerReviewRetry, pair.row.id, pair.sms.id, pair.sms_account_changed, pair.sms_summary.account, draft]);
   const [typeChoice, setTypeChoice] = useState<PairTypeChoice>(() => pair.row.type === pair.sms.transaction_type ? "statement" : "");
   const row = pair.row;
   const smsFormSourceChanged = Boolean(smsFormInput && (
@@ -81,19 +126,21 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
   function updateDraft(value: typeof draft) {
     if (value.balance_after !== draft.balance_after) setBalance(pair.match.late_posting ? "sms" : suggestedBalanceSource(value.balance_after, pair.sms.balance_after, statementIncludesSeparateFee));
     if (ledger) setLedgerCleared(true);
-    setDraft(value); setLedger(""); setSeparateLedgerMovement(false); setDismissedLedgerMatches([]); setAckDistinctLedgerMatches(false); setAckMatch(false); setAckConflict(false); setAckIssues(false);
+    setDraft(value); setLedger(""); setSeparateLedgerMovement(false); setAckDistinctLedgerMatches(false); setAckMatch(false); setAckConflict(false); setAckIssues(false);
   }
   const sourceIssues = [
     ...row.extracted.issues,
     ...pair.batch.checks.filter(check => check.passed === false).map(check => `${check.label}: expected ${check.expected ?? "unknown"}, observed ${check.observed ?? "unknown"}.`),
     ...(!row.transaction && ["posted", "linked"].includes(row.state) ? ["The previous ledger entry was deleted. Verify this source before recording it again."] : []),
   ];
-  const ledgerSuggestionsReviewed = row.review.matches.every(match => dismissedLedgerMatches.includes(match.id));
-  const ledgerMatch = row.review.matches.find(match => match.id === ledger);
+  const ledgerMatch = ledgerMatches.find(match => match.id === ledger);
   const fillingMissingBalance = Boolean(ledgerMatch?.can_fill_missing_balance && (pair.sms.balance_after !== null || draft.balance_after !== null));
   const smsLedgerDifference = statementBalanceDifference(pair.sms.balance_after, ledgerMatch?.effective_balance_after ?? null);
   const originalBalanceDifference = statementBalanceDifference(row.balance_after, pair.sms.balance_after);
-  const sourceDateDifference = calendarDayDifference(row.date, localDate(new Date(pair.sms.raw_message.received_at)));
+  const sourceBalancesAgree = !pair.match.late_posting && row.balance_after !== null && pair.sms.balance_after !== null && Number(row.balance_after) === Number(pair.sms.balance_after);
+  const smsReceivedDate = localDate(new Date(pair.sms.raw_message.received_at));
+  const valueDateMatchesSms = Boolean(row.value_date && row.value_date === smsReceivedDate);
+  const sourceDateDifference = calendarDayDifference(row.date, smsReceivedDate);
   const smallSourceBalanceDifference = insignificantBdtBalanceDifference(row.balance_after, pair.sms.balance_after, pair.batch.currency);
   const originalBalanceNeedsReview = !pair.match.late_posting && pair.match.conflict && reportedBalanceNeedsAcknowledgment(row.balance_after, pair.sms.balance_after, pair.batch.currency);
   const editedBalanceNeedsReview = !pair.match.late_posting && reportedBalanceNeedsAcknowledgment(draft.balance_after, pair.sms.balance_after, pair.batch.currency);
@@ -129,11 +176,11 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
     ...(smsFormSourceChanged && !ackSmsForm ? ["Review the SMS form edits against the saved source values."] : []),
     ...(needsConflict && !ackConflict ? ["Review and acknowledge the reported-balance difference."] : []),
     ...(needsDraftReview && !ackIssues ? ["Review the edited result against the original sources."] : []),
-    ...(row.review.matches.length > 0 && !ledger && !separateLedgerMovement ? ["Choose an existing ledger movement or record this pair as a separate movement."] : []),
-    ...(separateLedgerMovement && !ledgerSuggestionsReviewed ? ["Mark each suggested ledger entry as a different movement."] : []),
-    ...(separateLedgerMovement && !ackDistinctLedgerMatches ? ["Confirm that the suggested ledger entries are different movements."] : []),
+    ...(!ledgerReviewReady ? [ledgerReview.error || "Checking ledger suggestions for the edited result."] : []),
+    ...(ledgerMatches.length > 0 && !ledger && !separateLedgerMovement ? ["Choose an existing ledger movement or record this pair as a separate movement."] : []),
+    ...(ledgerMatches.length > 0 && separateLedgerMovement && !ackDistinctLedgerMatches ? ["Confirm that the suggested ledger entries are different movements."] : []),
     ...(!draftChanged && !ledger && row.review.issues.length > 0 ? ["Correct the blocking statement issues before confirming."] : []),
-    ...(row.review.matching_truncated ? ["Narrow the statement ledger search before confirming."] : []),
+    ...(ledgerReviewReady && ledgerReview.truncated ? ["Narrow the statement ledger search before confirming."] : []),
   ];
   const automaticLedgerBalance = !pair.match.late_posting && ledgerMatch && ledgerMatch.effective_balance_after !== null ? automaticBdtBalanceSource({ sms: pair.sms.balance_after, statement: statementIncludesSeparateFee ? null : draft.balance_after, existing: ledgerMatch.effective_balance_after }, pair.batch.currency) : null;
   const automaticBalance = !pair.match.late_posting && automaticBdtBalanceSource({ sms: pair.sms.balance_after, statement: statementIncludesSeparateFee ? null : draft.balance_after }, pair.batch.currency);
@@ -161,7 +208,7 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
         sms_account: pair.sms_account_changed ? pair.sms_summary.account ?? undefined : undefined,
         acknowledge_sms_account_override: pair.sms_account_changed && ackSmsForm,
         transaction: ledger || null, balance_source: balanceSource,
-        dismissed_ledger_matches: separateLedgerMovement ? dismissedLedgerMatches : [],
+        dismissed_ledger_matches: separateLedgerMovement ? ledgerMatches.map(match => match.id) : [],
         acknowledge_distinct_ledger_matches: separateLedgerMovement && ackDistinctLedgerMatches,
         type_choice: typeChoice || undefined, draft,
         acknowledge_match: ackMatch, acknowledge_conflict: ackConflict, acknowledge_issues: ackIssues,
@@ -173,6 +220,7 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
       onSaved();
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Could not match these sources.";
+      if (message.includes("Ledger suggestions changed")) refreshLedgerReview();
       notify(message, "error");
     } finally { setBusy(false); }
   }
@@ -185,12 +233,13 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
       <section id="unified-pair-summary" tabIndex={-1} className="unified-pair-summary" aria-label="Source comparison">
         <strong>Same account and direction · amounts match within the rounding rule</strong>
         <span>Statement {formatStatementDateTime(row.date, row.time)} · SMS {formatTimestamp(pair.sms.raw_message.received_at)}</span>
+        {row.value_date ? <span className="unified-evidence-highlight unified-evidence-highlight--amber">Statement value date: {formatCalendarDate(row.value_date)}{valueDateMatchesSms ? " · matches SMS date" : " · compare with SMS date"}</span> : null}
         {pair.match.late_posting ? <span className="inline-note">EBL value date {formatCalendarDate(row.value_date)} aligns with the earlier SMS. The statement was posted later; its running balance belongs to posting order. Both reports stay attached.</span> : null}
         {pair.sms_account_changed ? <span className="unified-pair-summary__difference">Your selected SMS reporting account differs from the saved parser account. Confirming this pair will correct the parsed account; the original SMS and its direction stay unchanged.</span> : null}
         {typeDiffers ? <span className="unified-pair-summary__difference">Type differs</span> : null}
         {sourceDateDifference ? <span className="unified-pair-summary__difference">Dates differ by {Math.abs(sourceDateDifference)} calendar day{Math.abs(sourceDateDifference) === 1 ? "" : "s"}</span> : null}
         {originalBalanceDifference !== null && originalBalanceDifference !== "0.00" ? <span className={originalBalanceNeedsReview ? "unified-pair-summary__difference" : "inline-note"}>Reported balance difference: {pair.batch.currency} {originalBalanceDifference} (statement minus SMS){pair.match.late_posting ? " · Different reporting times; not a reconciliation mismatch" : smallSourceBalanceDifference ? " · Small difference under BDT 1" : ""}</span> : null}
-        <span>Reported balances · Statement: {row.balance_after ?? "Not reported"} · SMS: {pair.sms.balance_after ?? "Not reported"}</span>
+        <span className={`unified-evidence-highlight ${sourceBalancesAgree ? "unified-evidence-highlight--match" : "unified-evidence-highlight--amber"}`}>Reported balance after · Statement: {row.balance_after ?? "Not reported"} · SMS: {pair.sms.balance_after ?? "Not reported"}{sourceBalancesAgree ? " · agree" : " · review separately"}</span>
       </section>
       {smsFormInput ? <section className="unified-sms-form-review" aria-label="Your SMS form choices">
         <strong>Your SMS form choices are still here</strong>
@@ -212,25 +261,27 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
       <details className="unified-source-evidence" open={sourceEvidenceOpen} onToggle={event => setSourceEvidenceOpen(event.currentTarget.open)}><summary>Compare original sources and parsed values</summary>
       <div className="statement-match-comparison">
         <section aria-label="Statement source"><h3>Statement</h3><dl>
-          <div><dt>Date / time</dt><dd>{formatStatementDateTime(row.date, row.time)}</dd></div><div><dt>Amount / direction</dt><dd>{pair.batch.currency} {row.amount} · {row.direction}</dd></div>
+          <div><dt>Posting date / time</dt><dd>{formatStatementDateTime(row.date, row.time)}</dd></div>{row.value_date ? <div className="unified-evidence-highlight unified-evidence-highlight--amber"><dt>Printed value date</dt><dd>{formatCalendarDate(row.value_date)}{valueDateMatchesSms ? " · matches SMS date" : ""}</dd></div> : null}<div><dt>Amount / direction</dt><dd>{pair.batch.currency} {row.amount} · {row.direction}</dd></div>
           <div><dt>Account / path</dt><dd>{statementPath}</dd></div><div><dt>Type</dt><dd>{row.type.replaceAll("_", " ")}</dd></div><div><dt>Description</dt><dd>{statementDescription}</dd>{statementNote ? <button className="button button--ghost button--small unified-description-choice" type="button" disabled={busy || draft.note === statementNote} aria-pressed={draft.note === statementNote} onClick={() => updateDraft({ ...draft, note: statementNote })}>{draft.note === statementNote ? "Using as final note" : "Use as final note"}</button> : null}</div><div><dt>Reference</dt><dd>{row.reference || "Not reported"}</dd></div>
-          <div className={originalBalanceNeedsReview ? "statement-balance-value--conflict" : undefined}><dt>Reported balance after</dt><dd>{row.balance_after ?? "Not reported"}</dd></div>
+          <div className={`unified-evidence-highlight ${sourceBalancesAgree ? "unified-evidence-highlight--match" : "unified-evidence-highlight--amber"}`}><dt>Reported balance after</dt><dd>{row.balance_after ?? "Not reported"}</dd></div>
         </dl><details className="statement-match-reasons" open><summary>Original PDF row · page {row.extracted.page}</summary><p className="statement-evidence-text">{row.extracted.description}</p>{row.citytouch_printed_code ? <p>Citytouch code printed in PDF: {row.citytouch_printed_code}</p> : null}</details><button className="button" type="button" disabled={busy} onClick={onEdit}>Edit statement draft</button></section>
         <section aria-label="SMS source"><h3>SMS</h3><dl>
           <div><dt>Date / time</dt><dd>{formatTimestamp(pair.sms.raw_message.received_at)}</dd></div><div><dt>Amount / direction</dt><dd>{pair.sms_summary.currency} {pair.sms_summary.amount} · {pair.sms_summary.direction}</dd></div><div><dt>Saved parser account / path</dt><dd>{smsPath}</dd></div>{pair.sms_account_changed ? <div><dt>Reviewed reporting account</dt><dd>{pair.sms_summary.account_name}</dd></div> : null}<div><dt>Parsed type</dt><dd>{pair.sms.transaction_type.replaceAll("_", " ")}</dd></div>
-          <div><dt>Description</dt><dd>{smsDescription}</dd>{smsDescription ? <button className="button button--ghost button--small unified-description-choice" type="button" disabled={busy || draft.note === smsDescription} aria-pressed={draft.note === smsDescription} onClick={() => updateDraft({ ...draft, note: smsDescription })}>{draft.note === smsDescription ? "Using as final note" : "Use as final note"}</button> : null}</div><div><dt>Reference</dt><dd>{pair.sms.reference || "Not reported"}</dd></div><div className={originalBalanceNeedsReview ? "statement-balance-value--conflict" : undefined}><dt>Reported balance after</dt><dd>{pair.sms.balance_after ?? "Not reported"}</dd></div>
+          <div><dt>Description</dt><dd>{smsDescription}</dd>{smsDescription ? <button className="button button--ghost button--small unified-description-choice" type="button" disabled={busy || draft.note === smsDescription} aria-pressed={draft.note === smsDescription} onClick={() => updateDraft({ ...draft, note: smsDescription })}>{draft.note === smsDescription ? "Using as final note" : "Use as final note"}</button> : null}</div><div><dt>Reference</dt><dd>{pair.sms.reference || "Not reported"}</dd></div><div className={`unified-evidence-highlight ${sourceBalancesAgree ? "unified-evidence-highlight--match" : "unified-evidence-highlight--amber"}`}><dt>Reported balance after</dt><dd>{pair.sms.balance_after ?? "Not reported"}</dd></div>
         </dl><details className="statement-match-reasons" open><summary>Original SMS</summary><p className="statement-evidence-text">{pair.sms.raw_message.redacted_at || pair.sms.raw_message.status === "redacted" || !pair.sms.raw_message.body ? "Original SMS unavailable under retention settings." : pair.sms.raw_message.body}</p></details><Link className="button" href={`/messages/review?candidate=${pair.sms.id}&return=%2Freview`}>Correct SMS separately</Link></section>
       </div></details>
       <details className="raw-message"><summary>{pair.match.strength === "strong" ? "Strong" : "Possible"} match · evidence</summary><ul>{pair.match.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul></details>
       </div>
       <section className="unified-pair-decisions" aria-label="Finish review">
       <h3>Finish review</h3>
-      {row.review.matches.length ? <section className="unified-ledger-review" aria-labelledby="unified-ledger-title">
-        <h4 id="unified-ledger-title">Could this already be in the ledger?</h4>
+      <section className="unified-ledger-review" aria-labelledby="unified-ledger-title">
+        <div className="unified-ledger-review__header"><h4 id="unified-ledger-title">Could this already be in the ledger?</h4><button className="button button--ghost button--small" type="button" disabled={busy || !ledgerReviewReady} onClick={refreshLedgerReview}>Refresh suggestions</button></div>
         <p className="inline-note">Compare the saved ledger side and its original SMS with this pair. Matching amount and date alone do not identify one movement.</p>
         {ledgerCleared ? <p role="status" className="inline-note">Your edit cleared the ledger decision. Review these suggestions again.</p> : null}
+        {!ledgerReviewReady ? <div className="unified-ledger-loading" role="status">{ledgerReview.error ? <><span>{ledgerReview.error}</span><button className="button button--ghost button--small" type="button" onClick={() => setLedgerReviewRetry(value => value + 1)}>Retry suggestions</button></> : <><span className="evidence-spinner" aria-hidden="true" /> Checking ledger suggestions for the edited transaction…</>}</div> : null}
+        {ledgerReviewReady && ledgerMatches.length === 0 ? <p className="inline-note">No existing ledger movement is suggested for this edited result.</p> : null}
         <div className="unified-ledger-suggestions">
-          {row.review.matches.map(match => <article className="unified-ledger-suggestion" key={match.id}>
+          {ledgerMatches.map(match => <article className="unified-ledger-suggestion" key={match.id}>
             <div className="unified-ledger-suggestion__heading"><strong>{match.account_name}{match.transfer_account_name ? ` → ${match.transfer_account_name}` : ""} · {pair.batch.currency} {match.amount}</strong><span className={`status-badge ${match.can_link ? "status-badge--idle" : "status-badge--warning"}`}>{match.can_link ? "Can link" : "Cannot link"}</span></div>
             <p><strong>Saved ledger entry</strong> · {formatCalendarDate(match.ledger_date)}{match.ledger_time ? ` · ${formatClockTime(match.ledger_time)}` : " · time not recorded"} · {match.type.replaceAll("_", " ")}{match.category_name ? ` · ${match.category_name}` : ""} · {match.ledger_source}</p>
             {match.ledger_counterparty_text ? <p>Counterparty: {match.ledger_counterparty_text}</p> : null}
@@ -241,14 +292,13 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
             <p className="unified-ledger-suggestion__id" title={match.id}>Ledger ID {match.id.slice(0, 8)}</p>
             <TransactionSourceMessages key={match.id} transactionId={match.id} loadOnExpand showEmpty />
             <details className="statement-match-reasons" open={!match.can_link}><summary>Why suggested{match.can_link ? "" : " and why linking is unavailable"}</summary><ul>{match.reasons.map((reason, index) => <li key={`${match.id}-${index}`}>{reason}</li>)}</ul></details>
-            {match.can_link ? <label className="unified-ledger-choice"><input type="radio" name="unified-ledger-decision" checked={ledger === match.id} disabled={busy} onChange={() => { setBalance(match.can_fill_missing_balance ? suggestedLinkedBalanceSource(pair.sms.balance_after, draft.balance_after, statementIncludesSeparateFee, pair.batch.currency) : ""); setLedger(match.id); setSeparateLedgerMovement(false); setDismissedLedgerMatches([]); setAckDistinctLedgerMatches(false); setLedgerCleared(false); setAckConflict(false); }} /><span>This is the same movement · link both sources</span></label> : null}
-            {separateLedgerMovement ? <label className="unified-ledger-choice"><input type="checkbox" checked={dismissedLedgerMatches.includes(match.id)} disabled={busy} onChange={event => { setDismissedLedgerMatches(current => event.target.checked ? [...current, match.id] : current.filter(id => id !== match.id)); setAckDistinctLedgerMatches(false); }} /><span>This is a different movement</span></label> : null}
+            {match.can_link ? <label className="unified-ledger-choice"><input type="radio" name="unified-ledger-decision" checked={ledger === match.id} disabled={busy} onChange={() => { setBalance(match.can_fill_missing_balance ? suggestedLinkedBalanceSource(pair.sms.balance_after, draft.balance_after, statementIncludesSeparateFee, pair.batch.currency) : ""); setLedger(match.id); setSeparateLedgerMovement(false); setAckDistinctLedgerMatches(false); setLedgerCleared(false); setAckConflict(false); }} /><span>This is the same movement · link both sources</span></label> : null}
           </article>)}
         </div>
-        <label className="unified-ledger-choice unified-ledger-choice--separate"><input type="radio" name="unified-ledger-decision" checked={separateLedgerMovement} disabled={busy} onChange={() => { setLedger(""); setSeparateLedgerMovement(true); setDismissedLedgerMatches([]); setAckDistinctLedgerMatches(false); setAckConflict(false); }} /><span>Record SMS + statement as a separate transaction</span></label>
-        {separateLedgerMovement && ledgerSuggestionsReviewed ? <label className="review-remember"><input type="checkbox" checked={ackDistinctLedgerMatches} disabled={busy} onChange={event => setAckDistinctLedgerMatches(event.target.checked)} /><span>I verified that every ledger suggestion above is a different movement. Record this pair once as a new transaction.</span></label> : null}
+        {ledgerReviewReady && ledgerMatches.length ? <><label className="unified-ledger-choice unified-ledger-choice--separate"><input type="radio" name="unified-ledger-decision" checked={separateLedgerMovement} disabled={busy} onChange={() => { setLedger(""); setSeparateLedgerMovement(true); setAckDistinctLedgerMatches(false); setAckConflict(false); }} /><span>Record SMS + statement as a separate transaction</span></label>
+        {separateLedgerMovement ? <label className="review-remember"><input type="checkbox" checked={ackDistinctLedgerMatches} disabled={busy} onChange={event => setAckDistinctLedgerMatches(event.target.checked)} /><span>I reviewed all {ledgerMatches.length} suggested ledger {ledgerMatches.length === 1 ? "entry" : "entries"} and confirm {ledgerMatches.length === 1 ? "it is" : "they are"} different movements. Record this pair once as a new transaction.</span></label> : null}</> : null}
         <small className="field__hint">If one suggestion is the same movement but cannot be linked, review its statement evidence before recording another transaction.</small>
-      </section> : null}
+      </section>
       {ledger && !fillingMissingBalance ? <p role="status" className="inline-note">{pair.match.late_posting ? "EBL posted after the value date. This link keeps the earlier ledger balance and attaches the later statement report separately." : automaticLedgerBalance ? `Small rounding difference · using the higher balance automatically: ${automaticLedgerBalance === "sms" ? pair.sms.balance_after : automaticLedgerBalance === "statement" ? draft.balance_after : ledgerMatch?.effective_balance_after}. Both exact source values remain attached.` : `The saved balance selection for ${pair.batch.account_name} will be retained. Use Transactions to correct a known balance or a previously reviewed blank.`}</p> : null}
       {!ledger || fillingMissingBalance ? <fieldset className="statement-balance-choice">
         <legend>{fillingMissingBalance ? `Missing balance to add · ${pair.batch.account_name}` : "Balance to use in the ledger"}</legend>

@@ -1891,7 +1891,7 @@ const unifiedPendingSchema = z.object({
   results: z.array(pendingPairSchema)
 });
 const competingSourceSchema = z.object({ source: pendingSourceSchema, source_text: z.string(), token: z.string() });
-const unifiedPairSchema = z.object({ row: savedStatementRowSchema, batch: savedStatementSchema, sms: parsedMessageCandidateSchema, sms_summary: pendingSourceSchema, match: pendingSignalsSchema, competing_sources: z.array(competingSourceSchema).default([]), sms_account_changed: z.boolean().default(false) });
+const unifiedPairSchema = z.object({ row: savedStatementRowSchema, batch: savedStatementSchema, sms: parsedMessageCandidateSchema, sms_summary: pendingSourceSchema, match: pendingSignalsSchema, competing_sources: z.array(competingSourceSchema).default([]), sms_account_changed: z.boolean().default(false), ledger_matches: z.array(statementMatchSchema).optional(), ledger_matching_truncated: z.boolean().optional() });
 export type UnifiedPendingPair = z.infer<typeof pendingPairSchema>;
 export type UnifiedPendingPage = z.infer<typeof unifiedPendingSchema>;
 export type UnifiedPair = z.infer<typeof unifiedPairSchema>;
@@ -1904,10 +1904,10 @@ export async function getUnifiedPair(token: string, statement: string, sms: stri
   const query = new URLSearchParams({ statement, sms });
   return unifiedPairSchema.parse(await (await authenticatedFetch(`/api/review/pair/?${query}`, token, { signal })).json());
 }
-export async function previewUnifiedPair(token: string, statement: string, sms: string, smsAccount?: string): Promise<UnifiedPair> {
+export async function previewUnifiedPair(token: string, statement: string, sms: string, smsAccount?: string, draft?: StatementRowEdit): Promise<UnifiedPair> {
   const response = await authenticatedFetch("/api/review/pair/preview/", token, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ statement, sms, ...(smsAccount ? { sms_account: smsAccount } : {}) }),
+    body: JSON.stringify({ statement, sms, ...(smsAccount ? { sms_account: smsAccount } : {}), ...(draft ? { draft } : {}) }),
   });
   return unifiedPairSchema.parse(await response.json());
 }

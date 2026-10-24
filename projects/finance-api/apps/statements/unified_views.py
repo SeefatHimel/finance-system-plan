@@ -1,3 +1,5 @@
+from copy import copy
+
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers
@@ -121,6 +123,7 @@ class PairSelection(serializers.Serializer):
 
 class PairReviewedAccountSelection(PairSelection):
     sms_account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none(), required=False)
+    draft = StatementRowEditSerializer(required=False)
 
     def get_fields(self):
         fields = super().get_fields()
@@ -186,6 +189,8 @@ class PairDetailSerializer(serializers.Serializer):
     match = serializers.JSONField()
     competing_sources = serializers.ListField(child=serializers.JSONField())
     sms_account_changed = serializers.BooleanField()
+    ledger_matches = serializers.ListField(child=serializers.JSONField())
+    ledger_matching_truncated = serializers.BooleanField()
 
 
 class PairResultSerializer(serializers.Serializer):
@@ -292,6 +297,27 @@ def preview_pair(request, data):
             {"match": "These sources no longer share the same saved amount, direction and evidence. Refresh the suggestions."}
         )
     competition = competing_sources(row, projected)
+    row_data = StatementRowViewSet().representation(row)
+    reviewed_row = row
+    if draft := data.get("draft"):
+        if draft["version"] != row.version:
+            raise ValidationError({"draft": "The statement draft changed. Reload the pair."})
+        reviewed_row = copy(row)
+        for field, value in draft.items():
+            if field != "version":
+                setattr(reviewed_row, field, value)
+        if (row.date, row.direction, row.amount) != (
+            reviewed_row.date, reviewed_row.direction, reviewed_row.amount
+        ) and not pair_signals(reviewed_row, projected):
+            raise ValidationError({"draft": "These edits no longer support this SMS and statement pair."})
+    if reviewed_row is row:
+        ledger_matches = row_data["review"]["matches"]
+        ledger_matching_truncated = row_data["review"]["matching_truncated"]
+    else:
+        from .services import find_matches
+
+        matches, ledger_matching_truncated = find_matches([reviewed_row])
+        ledger_matches = matches[reviewed_row.pk]
     states = list(row.batch.rows.values_list("state", flat=True))
     for name in ("total", "pending", "posted", "linked", "skipped"):
         setattr(
@@ -301,12 +327,14 @@ def preview_pair(request, data):
         )
     return Response(
         {
-            "row": StatementRowViewSet().representation(row),
+            "row": row_data,
             "batch": StatementImportSerializer(row.batch).data,
             "sms": ParsedMessageCandidateSerializer(candidate).data,
             "sms_summary": summary(projected),
             "match": signals,
             "competing_sources": competition,
             "sms_account_changed": projected is not candidate,
+            "ledger_matches": ledger_matches,
+            "ledger_matching_truncated": ledger_matching_truncated,
         }
     )
