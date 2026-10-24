@@ -23,7 +23,7 @@ from apps.transactions.models import Transaction, TransferEvidence
 
 from .models import StatementImport, StatementRow
 from .services import review_context
-from .unified import pair_signals
+from .unified import pair_signals, summary
 
 
 class UnifiedReviewTests(APITestCase):
@@ -91,6 +91,11 @@ class UnifiedReviewTests(APITestCase):
         self.row.refresh_from_db()
         self.sms = self.candidate()
         self.client.force_authenticate(self.user)
+
+    def test_pending_source_summaries_include_printed_value_date(self):
+        self.row.value_date = date(2026, 1, 1)
+        self.assertEqual(summary(self.row)["value_date"], "2026-01-01")
+        self.assertIsNone(summary(self.sms)["value_date"])
 
     def candidate(
         self,

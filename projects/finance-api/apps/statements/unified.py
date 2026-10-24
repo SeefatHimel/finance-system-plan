@@ -392,6 +392,7 @@ def summary(source):
             "account": str(account.pk) if account else None,
             "account_name": account.name if account else "Account needed",
             "date": received.date().isoformat(),
+            "value_date": None,
             "time": received.time().replace(tzinfo=None, microsecond=0).isoformat(),
             "amount": str(source.amount) if source.amount is not None else None,
             "balance_after": str(source.balance_after)
@@ -416,6 +417,7 @@ def summary(source):
         "account": str(source.batch.account_id),
         "account_name": source.batch.account.name,
         "date": source.date.isoformat() if source.date else None,
+        "value_date": source.value_date.isoformat() if source.value_date else None,
         "time": source.time.isoformat() if source.time else None,
         "amount": str(source.amount) if source.amount is not None else None,
         "balance_after": str(source.balance_after)

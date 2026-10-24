@@ -607,6 +607,10 @@ returns `next_cursor` plus matched/ambiguous/statement-only/SMS-only overview
 counts, which stay scoped to account and date but are independent of search and
 condition. Unmatched sources remain in their individual workflows; one-to-many
 options appear as contested pairs. Legacy offset remains accepted.
+Each pending source summary includes a nullable `value_date`: statement rows
+expose their saved printed value date, while SMS summaries return `null`. This
+allows clients to distinguish a late statement posting from an SMS date mismatch
+without changing the original statement date or either reported balance.
 Reported balances less than BDT 1 apart may corroborate a pending pair and
 automatically use the higher exact report, without an extra balance choice. The unified confirm endpoint does
 not require `acknowledge_conflict` solely for that sub-Tk-1 source difference;
