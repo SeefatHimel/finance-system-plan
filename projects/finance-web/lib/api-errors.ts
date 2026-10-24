@@ -2,6 +2,7 @@ const fieldLabels: Record<string, string> = {
   account: "Account", transfer_account: "Other transfer account", amount: "Amount",
   balance_after: "Reported balance", category: "Category", type: "Type",
   direction: "Debit / credit", payment_method: "Payment method", reference: "Reference",
+  sms_account: "SMS reporting account", acknowledge_sms_account_override: "SMS account confirmation",
   allow_linked_correction: "Linked transfer correction", match_transaction: "Transfer match",
   match_candidate: "Matching message", candidate: "Message", non_field_errors: "",
   detail: "", error: "", message: ""

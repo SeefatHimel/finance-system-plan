@@ -1845,3 +1845,13 @@ checks still apply. Deploy API before web; no APK change or re-import is needed.
 Open **Statements → an existing bKash import → Statement details and reconciliation → Check saved debit and credit**. If the original PDF is missing, upload the identical file to the same account first; the saved import reopens without another set of rows. Enter the PDF password if needed and run **Recheck saved directions**. The comparison shows original extraction → current parser → reviewed PDF direction → saved draft → linked ledger for each row needing attention. Compare the exact page and row with the PDF; matching transaction labels alone do not establish debit or credit.
 
 For a verified row, choose **Out → debit** or **In → credit**, confirm that you checked the PDF, and save. Optionally align the saved draft; linked entries only allow this when the ledger already agrees. The original extraction stays available as audit evidence. If the ledger disagrees, use **Compare linked ledger entry** and review its correction separately. Rechecking and saving a reviewed PDF direction never change the ledger automatically. Changing a statement type or category now preserves the draft direction and warns immediately if it differs from the original PDF extraction.
+
+### Pair an SMS and statement from SMS review
+
+The comparison keeps the original SMS alongside each suggested statement row.
+**Review as one transaction** opens final review and does not save anything by
+itself. The separate-movement checkbox is only for deliberately adding the SMS
+without pairing that row. Final review shows competing sources and requires an
+explicit same-movement confirmation. If the form's selected reporting account
+corrects the saved SMS parser account, final review calls out that correction
+and asks for acknowledgment before saving the single linked transaction.

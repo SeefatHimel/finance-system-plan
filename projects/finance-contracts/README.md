@@ -895,3 +895,9 @@ ownership, stale-review and uniqueness checks remain mandatory.
 # Archived bKash direction review
 
 `POST /api/statements/imports/{id}/recheck-directions/` is a read-only, owner-scoped comparison of an archived PDF with saved principal rows and linked entries. It returns only rows needing attention and withholds a fresh direction when row identity does not match. `POST /api/statements/rows/{id}/review-source-direction/` stores a user's verified Out/In direction separately from immutable extraction; optional draft alignment requires any linked ledger entry to agree. Neither endpoint modifies a ledger transaction. Both are versioned in OpenAPI and the generated client.
+
+`POST /api/review/pair/preview/` accepts an optional reviewed `sms_account`
+without saving. `sms_account_changed` tells clients to request explicit
+account-correction acknowledgment. Confirming with `sms_account` requires
+`acknowledge_sms_account_override` when it changes the saved parsed account;
+original SMS text and direction remain unchanged.

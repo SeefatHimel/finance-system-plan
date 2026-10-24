@@ -3275,6 +3275,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/UnifiedPairResult'
           description: ''
+  /api/review/pair/preview/:
+    post:
+      operationId: pair_preview_create
+      description: Preview a pending SMS/statement pair using the SMS reporting account explicitly selected in review. This does not save the correction.
+      tags:
+      - Unified review
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnifiedPairReviewedAccountSelection'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnifiedPairDetail'
+          description: ''
   /api/review/pending/:
     get:
       operationId: pending_retrieve
@@ -7895,6 +7917,14 @@ components:
         sms:
           type: string
           format: uuid
+        sms_account:
+          type: string
+          format: uuid
+          description: Reviewed SMS reporting account; must be active and owned by the caller.
+        acknowledge_sms_account_override:
+          type: boolean
+          default: false
+          description: Required if sms_account corrects the saved parsed SMS reporting account. Original SMS text and direction stay unchanged.
         statement_version:
           type: integer
           minimum: 1
@@ -7956,6 +7986,21 @@ components:
       - sms_updated_at
       - statement
       - statement_version
+    UnifiedPairReviewedAccountSelection:
+      type: object
+      properties:
+        statement:
+          type: string
+          format: uuid
+        sms:
+          type: string
+          format: uuid
+        sms_account:
+          type: string
+          format: uuid
+      required:
+      - statement
+      - sms
     UnifiedPairDetail:
       type: object
       properties:
@@ -7971,6 +8016,9 @@ components:
         competing_sources:
           type: array
           items: {}
+        sms_account_changed:
+          type: boolean
+          description: The reviewed reporting account differs from the saved parsed SMS account and requires acknowledgment on confirmation.
       required:
       - batch
       - match
@@ -7978,6 +8026,7 @@ components:
       - sms
       - sms_summary
       - competing_sources
+      - sms_account_changed
     UnifiedPairResult:
       type: object
       properties:

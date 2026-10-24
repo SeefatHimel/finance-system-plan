@@ -36,12 +36,12 @@ export function SmsStatementMatchDialog({ candidate, input, accountName, matches
         <p>{match.statement.description || "No statement description"}</p>
         <p className="field__hint">Reference: {match.statement.reference || "Not reported"} · Balance after: {match.statement.balance_after ?? "Not reported"}</p>
         <details><summary>Why suggested</summary><ul>{match.signals.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul></details>
-        {!match.unique ? <p className="form-warning">Other pending sources may also match. You can compare them in the next step and choose this pair explicitly.</p> : null}
-        <div className="statement-actions"><button className="button button--primary" type="button" disabled={busy || different.includes(match.statement.id)} onClick={() => onReview(match)}>{match.unique ? "Review both sources · count once" : "Compare alternatives · choose this pair"}</button></div>
+        {!match.unique ? <p className="form-warning">Other pending sources may also match. Review them before the final confirmation.</p> : null}
+        <div className="statement-actions"><button className="button button--primary" type="button" disabled={busy || different.includes(match.statement.id)} onClick={() => onReview(match)}>Review as one transaction</button><span className="field__hint">Opens the final comparison; nothing is recorded yet.</span></div>
         <label className="review-remember"><input type="checkbox" checked={different.includes(match.statement.id)} disabled={busy} onChange={event => {
           setDifferent(current => event.target.checked ? [...current, match.statement.id] : current.filter(id => id !== match.statement.id));
           setAcknowledged(false);
-        }} /><span>This statement row is a different money movement.</span></label>
+        }} /><span>This statement is a different transaction. Only select this to add the SMS separately.</span></label>
       </article>)}
     </div>
     </div>

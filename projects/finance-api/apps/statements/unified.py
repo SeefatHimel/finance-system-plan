@@ -85,6 +85,22 @@ def sms_observation(candidate):
     return sms_reporting_account(candidate), direction, received
 
 
+def candidate_for_reviewed_account(candidate, account):
+    """Project an explicitly selected reporting account without changing SMS text."""
+    if account is None or sms_reporting_account(candidate) == account:
+        return candidate
+    proposed = copy(candidate)
+    _, direction, _ = sms_observation(candidate)
+    if candidate.transaction_type != "transfer":
+        proposed.account = account
+        proposed.destination_account = None
+    elif direction == "credit":
+        proposed.destination_account = account
+    else:
+        proposed.account = account
+    return proposed
+
+
 def pair_signals(row, candidate):
     account, direction, received = sms_observation(candidate)
     if (
@@ -430,33 +446,16 @@ def unique_pair_signals(user, row, candidate):
 def statement_matches_for_sms(candidate, draft=None):
     """Bounded, type-independent lookup for an SMS confirmation decision.
 
-    Check the saved SMS as well as the proposed ledger fields. A form edit must
-    not make an existing source match disappear before the user reviews it.
+    Check the saved SMS and an explicitly reviewed reporting account. Edits to
+    other ledger fields cannot manufacture a source match or hide a saved one.
     """
     from .models import StatementRow
 
     variants = [candidate]
-    if draft:
-        proposed = copy(candidate)
-        for field in ("amount", "balance_after", "reference", "counterparty_text", "transaction_type"):
-            key = "type" if field == "transaction_type" else field
-            if key in draft:
-                setattr(proposed, field, draft[key])
-        if draft.get("account_perspective") and draft.get("account"):
-            if draft.get("type", candidate.transaction_type) == "transfer":
-                incoming = sms_observation(candidate)[1] == "credit"
-                if incoming:
-                    proposed.destination_account = draft["account"]
-                    if draft.get("transfer_account"):
-                        proposed.account = draft["transfer_account"]
-                else:
-                    proposed.account = draft["account"]
-                    if draft.get("transfer_account"):
-                        proposed.destination_account = draft["transfer_account"]
-            else:
-                proposed.account = draft["account"]
-                proposed.destination_account = None
-        variants.append(proposed)
+    if draft and draft.get("account_perspective") and draft.get("account"):
+        # Amount, direction and balance are source evidence. A form edit must
+        # not manufacture a match that the saved SMS cannot corroborate.
+        variants.append(candidate_for_reviewed_account(candidate, draft["account"]))
     accounts = {account.pk for item in variants if (account := sms_reporting_account(item))}
     amounts = {item.amount for item in variants if item.amount is not None}
     if not accounts or not amounts:
@@ -770,6 +769,13 @@ def confirm_pair(*, user, row, candidate, payload, request):
         raise ReviewConflict(
             "One source changed. Reload both sources before confirming."
         )
+    original_candidate = candidate
+    candidate = candidate_for_reviewed_account(candidate, payload.get("sms_account"))
+    if candidate is not original_candidate and not payload.get("acknowledge_sms_account_override"):
+        raise ValidationError({
+            "acknowledge_sms_account_override":
+                "Confirm the SMS reporting account against the original message."
+        })
     signals = pair_signals(row, candidate)
     if not signals or sms_recorded_elsewhere(candidate):
         raise ReviewConflict(
@@ -1019,6 +1025,10 @@ def confirm_pair(*, user, row, candidate, payload, request):
                 record.save(update_fields=("balance_after", "updated_at"))
     from apps.reconciliation.evidence import finish_sms_link
 
+    if candidate is not original_candidate:
+        # This is a reviewed parser-account correction. The raw SMS and its
+        # captured debit/credit direction remain unchanged.
+        candidate.save(update_fields=("account", "destination_account", "updated_at"))
     finish_sms_link(candidate, record)
     row.state = "linked"
     touch(
@@ -1043,6 +1053,10 @@ def confirm_pair(*, user, row, candidate, payload, request):
             "statement_row": str(row.pk),
             "sms_candidate": str(candidate.pk),
             "decision": "unified_match",
+            "reviewed_sms_account_correction": {
+                "from": str(sms_reporting_account(original_candidate).pk) if sms_reporting_account(original_candidate) else None,
+                "to": str(sms_reporting_account(candidate).pk),
+            } if candidate is not original_candidate else None,
             "dismissed_ledger_matches": dismissed_ledger_matches,
         },
     )

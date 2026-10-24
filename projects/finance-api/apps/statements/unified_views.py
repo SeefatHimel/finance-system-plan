@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.models import Account
 from apps.messages.models import ParsedMessageCandidate
 from apps.messages.serializers import ParsedMessageCandidateSerializer
 
@@ -16,7 +17,7 @@ from .serializers import (
     StatementImportSerializer,
     StatementRowEditSerializer,
 )
-from .unified import competing_sources, confirm_pair, pair_signals, queue, summary
+from .unified import candidate_for_reviewed_account, competing_sources, confirm_pair, pair_signals, queue, summary
 
 
 class PendingReviewFilters(serializers.Serializer):
@@ -118,7 +119,18 @@ class PairSelection(serializers.Serializer):
     sms = serializers.UUIDField()
 
 
-class PairDecision(PairSelection):
+class PairReviewedAccountSelection(PairSelection):
+    sms_account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none(), required=False)
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get("request")
+        user_id = request.user.pk if request and request.user.is_authenticated else None
+        fields["sms_account"].queryset = Account.objects.filter(user_id=user_id, is_active=True)
+        return fields
+
+
+class PairDecision(PairReviewedAccountSelection):
     statement_version = serializers.IntegerField(min_value=1)
     sms_updated_at = serializers.DateTimeField()
     transaction = serializers.UUIDField(required=False, allow_null=True)
@@ -135,6 +147,7 @@ class PairDecision(PairSelection):
         child=serializers.CharField(max_length=160), required=False, default=list, max_length=20
     )
     acknowledge_competing_sources = serializers.BooleanField(default=False)
+    acknowledge_sms_account_override = serializers.BooleanField(default=False)
     type_choice = serializers.ChoiceField(
         choices=("statement", "sms", "custom"), required=False
     )
@@ -172,6 +185,7 @@ class PairDetailSerializer(serializers.Serializer):
     sms_summary = UnifiedPendingSourceSerializer()
     match = serializers.JSONField()
     competing_sources = serializers.ListField(child=serializers.JSONField())
+    sms_account_changed = serializers.BooleanField()
 
 
 class PairResultSerializer(serializers.Serializer):
@@ -224,32 +238,7 @@ class UnifiedPairView(NoStoreMixin, APIView):
     def get(self, request):
         selection = PairSelection(data=request.query_params)
         selection.is_valid(raise_exception=True)
-        row, candidate = selected_sources(request.user, selection.validated_data)
-        signals = pair_signals(row, candidate)
-        if not signals:
-            raise ValidationError(
-                {
-                    "match": "These sources are no longer a possible match. Refresh the queue."
-                }
-            )
-        competition = competing_sources(row, candidate)
-        states = list(row.batch.rows.values_list("state", flat=True))
-        for name in ("total", "pending", "posted", "linked", "skipped"):
-            setattr(
-                row.batch,
-                f"count_{name}",
-                len(states) if name == "total" else states.count(name),
-            )
-        return Response(
-            {
-                "row": StatementRowViewSet().representation(row),
-                "batch": StatementImportSerializer(row.batch).data,
-                "sms": ParsedMessageCandidateSerializer(candidate).data,
-                "sms_summary": summary(candidate),
-                "match": signals,
-                "competing_sources": competition,
-            }
-        )
+        return preview_pair(request, selection.validated_data)
 
     @extend_schema(
         request=PairDecision, responses=PairResultSerializer, tags=["Unified review"]
@@ -278,3 +267,46 @@ class UnifiedPairView(NoStoreMixin, APIView):
                 "unchanged": unchanged,
             }
         )
+
+
+class UnifiedPairPreviewView(NoStoreMixin, APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(
+        request=PairReviewedAccountSelection,
+        responses=PairDetailSerializer,
+        tags=["Unified review"],
+    )
+    def post(self, request):
+        selection = PairReviewedAccountSelection(data=request.data, context={"request": request})
+        selection.is_valid(raise_exception=True)
+        return preview_pair(request, selection.validated_data)
+
+
+def preview_pair(request, data):
+    row, candidate = selected_sources(request.user, data)
+    projected = candidate_for_reviewed_account(candidate, data.get("sms_account"))
+    signals = pair_signals(row, projected)
+    if not signals:
+        raise ValidationError(
+            {"match": "These sources no longer share the same saved amount, direction and evidence. Refresh the suggestions."}
+        )
+    competition = competing_sources(row, projected)
+    states = list(row.batch.rows.values_list("state", flat=True))
+    for name in ("total", "pending", "posted", "linked", "skipped"):
+        setattr(
+            row.batch,
+            f"count_{name}",
+            len(states) if name == "total" else states.count(name),
+        )
+    return Response(
+        {
+            "row": StatementRowViewSet().representation(row),
+            "batch": StatementImportSerializer(row.batch).data,
+            "sms": ParsedMessageCandidateSerializer(candidate).data,
+            "sms_summary": summary(projected),
+            "match": signals,
+            "competing_sources": competition,
+            "sms_account_changed": projected is not candidate,
+        }
+    )

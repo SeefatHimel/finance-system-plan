@@ -1274,3 +1274,10 @@ pending PDF row blocks ordinary confirmation with 409. The caller can review a
 unique pair and record both sources once, or explicitly acknowledge every current
 statement suggestion as a different movement. The server repeats the lookup
 under the user lock so stale, partial, and unchecked decisions cannot post.
+If the reviewer selects a reporting account that differs from the saved SMS
+parser account, suggestion lookup and pair preview both test that selected
+account against the unchanged SMS amount, direction and balance evidence.
+Confirming requires a separate acknowledgment and saves the parsed account
+correction in the same transaction as the one-ledger-entry pair. The raw SMS
+body and source debit/credit direction are never rewritten. Draft amount and
+direction edits cannot create a false source match.

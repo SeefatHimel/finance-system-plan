@@ -216,6 +216,95 @@ class UnifiedReviewTests(APITestCase):
         self.assertEqual(blocked.status_code, 409, blocked.data)
         self.assertEqual(Transaction.objects.count(), 0)
 
+    def test_reviewed_sms_account_matches_in_suggestion_preview_and_confirmation(self):
+        self.sms.account = self.wallet
+        self.sms.save(update_fields=("account", "updated_at"))
+        self.sms.refresh_from_db()
+        original_body = self.sms.raw_message.body
+        original_direction = self.sms.source_direction
+        lookup = self.client.post(
+            reverse("message-candidate-statement-matches", args=[self.sms.id]),
+            {"account": str(self.account.pk), "account_perspective": True}, format="json",
+        )
+        self.assertEqual(lookup.status_code, 200, lookup.data)
+        self.assertEqual(len(lookup.data["matches"]), 1)
+        self.assertEqual(lookup.data["matches"][0]["statement"]["id"], str(self.row.pk))
+
+        # A plain detail lookup still uses the saved candidate. The SMS flow
+        # previews the same explicitly selected account used by its suggestion.
+        old_detail = self.client.get(reverse("unified-pair"), {
+            "statement": self.row.pk, "sms": self.sms.pk,
+        })
+        self.assertEqual(old_detail.status_code, 400)
+        preview = self.client.post(reverse("unified-pair-preview"), {
+            "statement": str(self.row.pk), "sms": str(self.sms.pk),
+            "sms_account": str(self.account.pk),
+        }, format="json")
+        self.assertEqual(preview.status_code, 200, preview.data)
+        self.assertTrue(preview.data["sms_account_changed"])
+        self.assertEqual(preview.data["sms_summary"]["account"], str(self.account.pk))
+        self.assertEqual(str(preview.data["sms"]["account"]), str(self.wallet.pk))
+        self.assertEqual(Transaction.objects.count(), 0)
+
+        unacknowledged = self.confirm(sms_account=str(self.account.pk))
+        self.assertEqual(unacknowledged.status_code, 400, unacknowledged.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        confirmed = self.confirm(
+            sms_account=str(self.account.pk), acknowledge_sms_account_override=True,
+        )
+        self.assertEqual(confirmed.status_code, 200, confirmed.data)
+        self.sms.refresh_from_db()
+        self.sms.raw_message.refresh_from_db()
+        self.assertEqual(self.sms.account_id, self.account.pk)
+        self.assertEqual(self.sms.raw_message.body, original_body)
+        self.assertEqual(self.sms.source_direction, original_direction)
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_sms_form_amount_cannot_manufacture_statement_match(self):
+        self.sms.amount = Decimal("250.00")
+        self.sms.save(update_fields=("amount", "updated_at"))
+        response = self.client.post(
+            reverse("message-candidate-statement-matches", args=[self.sms.id]),
+            {"account": str(self.account.pk), "account_perspective": True,
+             "amount": "100.00", "direction": "debit"}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["matches"], [])
+
+    def test_transfer_suggestion_previews_selected_reporting_account(self):
+        self.row.type = "transfer"
+        self.row.date = date(2026, 1, 3)
+        self.row.save(update_fields=("type", "date", "updated_at"))
+        self.sms.account = self.wallet
+        self.sms.transaction_type = "transfer"
+        self.sms.message_kind = "cash_out"
+        self.sms.source_direction = "debit"
+        self.sms.save(update_fields=("account", "transaction_type", "message_kind", "source_direction", "updated_at"))
+        suggestion = self.client.post(
+            reverse("message-candidate-statement-matches", args=[self.sms.id]),
+            {"account": str(self.account.pk), "account_perspective": True,
+             "type": "transfer", "direction": "debit"}, format="json",
+        )
+        self.assertEqual(suggestion.status_code, 200, suggestion.data)
+        self.assertEqual(len(suggestion.data["matches"]), 1)
+        preview = self.client.post(reverse("unified-pair-preview"), {
+            "statement": str(self.row.pk), "sms": str(self.sms.pk),
+            "sms_account": str(self.account.pk),
+        }, format="json")
+        self.assertEqual(preview.status_code, 200, preview.data)
+        self.assertTrue(preview.data["sms_account_changed"])
+        self.assertEqual(preview.data["sms_summary"]["direction"], "debit")
+
+    def test_pair_preview_rejects_foreign_reporting_account(self):
+        foreign = Account.objects.create(
+            user=self.other_user, name="Foreign synthetic account", type="bank", currency="BDT",
+        )
+        preview = self.client.post(reverse("unified-pair-preview"), {
+            "statement": str(self.row.pk), "sms": str(self.sms.pk),
+            "sms_account": str(foreign.pk),
+        }, format="json")
+        self.assertEqual(preview.status_code, 400, preview.data)
+
     def test_statement_list_shows_type_different_unified_pair(self):
         self.sms.transaction_type = "transfer"
         self.sms.message_kind = "cash_out"

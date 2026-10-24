@@ -1891,11 +1891,11 @@ const unifiedPendingSchema = z.object({
   results: z.array(pendingPairSchema)
 });
 const competingSourceSchema = z.object({ source: pendingSourceSchema, source_text: z.string(), token: z.string() });
-const unifiedPairSchema = z.object({ row: savedStatementRowSchema, batch: savedStatementSchema, sms: parsedMessageCandidateSchema, sms_summary: pendingSourceSchema, match: pendingSignalsSchema, competing_sources: z.array(competingSourceSchema).default([]) });
+const unifiedPairSchema = z.object({ row: savedStatementRowSchema, batch: savedStatementSchema, sms: parsedMessageCandidateSchema, sms_summary: pendingSourceSchema, match: pendingSignalsSchema, competing_sources: z.array(competingSourceSchema).default([]), sms_account_changed: z.boolean().default(false) });
 export type UnifiedPendingPair = z.infer<typeof pendingPairSchema>;
 export type UnifiedPendingPage = z.infer<typeof unifiedPendingSchema>;
 export type UnifiedPair = z.infer<typeof unifiedPairSchema>;
-export type UnifiedPairDecision = { statement: string; sms: string; statement_version: number; sms_updated_at: string; transaction?: string | null; balance_source: "sms" | "statement" | "existing"; type_choice?: "statement" | "sms" | "custom"; draft?: StatementRowEdit; acknowledge_match: boolean; acknowledge_conflict: boolean; acknowledge_issues: boolean; acknowledge_competing_sources?: boolean; competing_source_tokens?: string[]; remember_choices: boolean; dismissed_ledger_matches?: string[]; acknowledge_distinct_ledger_matches?: boolean };
+export type UnifiedPairDecision = { statement: string; sms: string; statement_version: number; sms_updated_at: string; sms_account?: string; acknowledge_sms_account_override?: boolean; transaction?: string | null; balance_source: "sms" | "statement" | "existing"; type_choice?: "statement" | "sms" | "custom"; draft?: StatementRowEdit; acknowledge_match: boolean; acknowledge_conflict: boolean; acknowledge_issues: boolean; acknowledge_competing_sources?: boolean; competing_source_tokens?: string[]; remember_choices: boolean; dismissed_ledger_matches?: string[]; acknowledge_distinct_ledger_matches?: boolean };
 export async function listUnifiedPending(token: string, filters: Record<string, string>, signal?: AbortSignal): Promise<UnifiedPendingPage> {
   const query = new URLSearchParams(filters);
   return unifiedPendingSchema.parse(await (await authenticatedFetch(`/api/review/pending/?${query}`, token, { signal })).json());
@@ -1903,6 +1903,13 @@ export async function listUnifiedPending(token: string, filters: Record<string, 
 export async function getUnifiedPair(token: string, statement: string, sms: string, signal?: AbortSignal): Promise<UnifiedPair> {
   const query = new URLSearchParams({ statement, sms });
   return unifiedPairSchema.parse(await (await authenticatedFetch(`/api/review/pair/?${query}`, token, { signal })).json());
+}
+export async function previewUnifiedPair(token: string, statement: string, sms: string, smsAccount?: string): Promise<UnifiedPair> {
+  const response = await authenticatedFetch("/api/review/pair/preview/", token, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ statement, sms, ...(smsAccount ? { sms_account: smsAccount } : {}) }),
+  });
+  return unifiedPairSchema.parse(await response.json());
 }
 export async function confirmUnifiedPair(token: string, input: UnifiedPairDecision) {
   return z.object({ transaction: z.string(), statement: z.string(), sms: z.string(), unchanged: z.boolean() }).parse(await (await authenticatedFetch("/api/review/pair/", token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })).json());

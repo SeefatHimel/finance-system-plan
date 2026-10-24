@@ -85,7 +85,9 @@ class SourceRoundingTests(APITestCase):
     def test_nearby_competing_sms_keeps_queue_ambiguous(self):
         self.candidate(amount="100.37")
         response = self.client.get(reverse("unified-pending"))
-        self.assertEqual(response.data["count"], 0)
+        # The queue now exposes both contested options for explicit review.
+        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(response.data["overview"]["ambiguous"], 3)
         self.assertEqual(
             unique_pending_pairs_for_rows([self.row])[self.row.pk], "ambiguous"
         )

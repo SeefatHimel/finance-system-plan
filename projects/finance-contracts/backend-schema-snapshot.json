@@ -3464,6 +3464,49 @@
         ]
       }
     },
+    "/api/review/pair/preview/": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairReviewedAccountSelection"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PairReviewedAccountSelection"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PairReviewedAccountSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairDetail"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/review/pending/": {
       "get": {
         "parameters": [
@@ -7671,6 +7714,10 @@
           "default": false,
           "type": "boolean"
         },
+        "acknowledge_sms_account_override": {
+          "default": false,
+          "type": "boolean"
+        },
         "balance_source": {
           "$ref": "#/components/schemas/PairDecisionBalanceSourceEnum"
         },
@@ -7698,6 +7745,10 @@
           "type": "boolean"
         },
         "sms": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "sms_account": {
           "format": "uuid",
           "type": "string"
         },
@@ -7755,6 +7806,9 @@
         "sms": {
           "$ref": "#/components/schemas/ParsedMessageCandidate"
         },
+        "sms_account_changed": {
+          "type": "boolean"
+        },
         "sms_summary": {
           "$ref": "#/components/schemas/UnifiedPendingSource"
         }
@@ -7765,6 +7819,7 @@
         "match",
         "row",
         "sms",
+        "sms_account_changed",
         "sms_summary"
       ],
       "type": "object"
@@ -7792,6 +7847,27 @@
         "statement",
         "transaction",
         "unchanged"
+      ],
+      "type": "object"
+    },
+    "PairReviewedAccountSelection": {
+      "properties": {
+        "sms": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "sms_account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "statement": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sms",
+        "statement"
       ],
       "type": "object"
     },

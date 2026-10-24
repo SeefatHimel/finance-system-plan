@@ -1658,3 +1658,15 @@ After checking the actual Out/In column, `POST /api/statements/rows/{id}/review-
 An unresolved bKash principal draft whose debit/credit differs from its original or reviewed PDF direction cannot be added to the ledger. The row review lists this as a blocking issue; correct the draft or verify and save a source-direction correction first.
 
 The parser reads bKash Out/In by PDF column, not the transaction label. It checks consecutive reported balances and flags a contradiction without silently reversing the printed column, because missing movements or fee rows can make a balance jump ambiguous.
+
+# Pairing an SMS with a reviewed reporting account
+
+SMS statement-match lookup tests the saved candidate and the reporting account
+explicitly selected in the SMS form. It uses saved SMS amount, direction and
+balance evidence; edited form amounts or directions cannot create a match.
+`POST /api/review/pair/preview/` accepts `statement`, `sms`, and optional
+`sms_account` and runs the same pair and competitor checks read-only. If the
+selected account differs from the saved parsed account, confirmation through
+`POST /api/review/pair/` requires both `sms_account` and
+`acknowledge_sms_account_override=true`. The parsed account correction and
+pairing commit atomically. Original SMS text and captured direction are kept.

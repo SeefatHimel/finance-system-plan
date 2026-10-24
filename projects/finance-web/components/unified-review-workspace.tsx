@@ -39,7 +39,7 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
   const [ackMatch, setAckMatch] = useState(false);
   const [ackCompeting, setAckCompeting] = useState(false);
   const [ackSmsForm, setAckSmsForm] = useState(false);
-  const [sourceEvidenceOpen, setSourceEvidenceOpen] = useState(pair.competing_sources.length > 0);
+  const [sourceEvidenceOpen, setSourceEvidenceOpen] = useState(pair.competing_sources.length > 0 || pair.sms_account_changed);
   const [ackConflict, setAckConflict] = useState(false);
   const [ackIssues, setAckIssues] = useState(false);
   const [checksOpen, setChecksOpen] = useState(true);
@@ -67,6 +67,8 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
   const [typeChoice, setTypeChoice] = useState<PairTypeChoice>(() => pair.row.type === pair.sms.transaction_type ? "statement" : "");
   const row = pair.row;
   const smsFormSourceChanged = Boolean(smsFormInput && (
+    pair.sms_account_changed
+    ||
     (smsFormInput.account && smsFormInput.account !== pair.sms_summary.account)
     || (smsFormInput.amount && Number(smsFormInput.amount) !== Number(pair.sms.amount))
     || (smsFormInput.direction && smsFormInput.direction !== pair.sms_summary.direction)
@@ -103,7 +105,7 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
   const accountName = (id: string | null) => id ? accountNames.get(id) ?? "Account unknown" : "Account unknown";
   const otherName = accountName(row.other_account);
   const statementPath = row.type === "transfer" ? (row.direction === "credit" ? `${otherName} → ${pair.batch.account_name}` : `${pair.batch.account_name} → ${otherName}`) : pair.batch.account_name;
-  const smsPath = pair.sms.destination_account ? `${accountName(pair.sms.account)} → ${accountName(pair.sms.destination_account)}` : pair.sms_summary.account_name;
+  const smsPath = pair.sms.destination_account ? `${accountName(pair.sms.account)} → ${accountName(pair.sms.destination_account)}` : accountName(pair.sms.account);
   const statementNote = row.counterparty_text || row.note;
   const statementDescription = displayedStatementText(statementNote, row.extracted.description, row.citytouch_printed_code);
   const smsDescription = pair.sms.counterparty_text || pair.sms.message_kind.replaceAll("_", " ");
@@ -157,6 +159,8 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
     try {
       await confirmUnifiedPair(token, {
         statement: row.id, sms: pair.sms.id, statement_version: row.version, sms_updated_at: pair.sms.updated_at,
+        sms_account: pair.sms_account_changed ? pair.sms_summary.account ?? undefined : undefined,
+        acknowledge_sms_account_override: pair.sms_account_changed && ackSmsForm,
         transaction: ledger || null, balance_source: balanceSource,
         dismissed_ledger_matches: separateLedgerMovement ? dismissedLedgerMatches : [],
         acknowledge_distinct_ledger_matches: separateLedgerMovement && ackDistinctLedgerMatches,
@@ -183,6 +187,7 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
         <strong>Same account and direction · amounts match within the rounding rule</strong>
         <span>Statement {formatStatementDateTime(row.date, row.time)} · SMS {formatTimestamp(pair.sms.raw_message.received_at)}</span>
         {pair.match.late_posting ? <span className="inline-note">EBL value date {formatCalendarDate(row.value_date)} aligns with the earlier SMS. The statement was posted later; its running balance belongs to posting order. Both reports stay attached.</span> : null}
+        {pair.sms_account_changed ? <span className="unified-pair-summary__difference">Your selected SMS reporting account differs from the saved parser account. Confirming this pair will correct the parsed account; the original SMS and its direction stay unchanged.</span> : null}
         {typeDiffers ? <span className="unified-pair-summary__difference">Type differs</span> : null}
         {sourceDateDifference ? <span className="unified-pair-summary__difference">Dates differ by {Math.abs(sourceDateDifference)} calendar day{Math.abs(sourceDateDifference) === 1 ? "" : "s"}</span> : null}
         {originalBalanceDifference !== null && originalBalanceDifference !== "0.00" ? <span className={originalBalanceNeedsReview ? "unified-pair-summary__difference" : "inline-note"}>Reported balance difference: {pair.batch.currency} {originalBalanceDifference} (statement minus SMS){pair.match.late_posting ? " · Different reporting times; not a reconciliation mismatch" : smallSourceBalanceDifference ? " · Small difference under BDT 1" : ""}</span> : null}
@@ -213,7 +218,7 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
           <div className={originalBalanceNeedsReview ? "statement-balance-value--conflict" : undefined}><dt>Reported balance after</dt><dd>{row.balance_after ?? "Not reported"}</dd></div>
         </dl><details className="statement-match-reasons" open><summary>Original PDF row · page {row.extracted.page}</summary><p className="statement-evidence-text">{row.extracted.description}</p>{row.citytouch_printed_code ? <p>Citytouch code printed in PDF: {row.citytouch_printed_code}</p> : null}</details><button className="button" type="button" disabled={busy} onClick={onEdit}>Edit statement draft</button></section>
         <section aria-label="SMS source"><h3>SMS</h3><dl>
-          <div><dt>Date / time</dt><dd>{formatTimestamp(pair.sms.raw_message.received_at)}</dd></div><div><dt>Amount / direction</dt><dd>{pair.sms_summary.currency} {pair.sms_summary.amount} · {pair.sms_summary.direction}</dd></div><div><dt>Account / path</dt><dd>{smsPath}</dd></div><div><dt>Parsed type</dt><dd>{pair.sms.transaction_type.replaceAll("_", " ")}</dd></div>
+          <div><dt>Date / time</dt><dd>{formatTimestamp(pair.sms.raw_message.received_at)}</dd></div><div><dt>Amount / direction</dt><dd>{pair.sms_summary.currency} {pair.sms_summary.amount} · {pair.sms_summary.direction}</dd></div><div><dt>Saved parser account / path</dt><dd>{smsPath}</dd></div>{pair.sms_account_changed ? <div><dt>Reviewed reporting account</dt><dd>{pair.sms_summary.account_name}</dd></div> : null}<div><dt>Parsed type</dt><dd>{pair.sms.transaction_type.replaceAll("_", " ")}</dd></div>
           <div><dt>Description</dt><dd>{smsDescription}</dd>{smsDescription ? <button className="button button--ghost button--small unified-description-choice" type="button" disabled={busy || draft.note === smsDescription} aria-pressed={draft.note === smsDescription} onClick={() => updateDraft({ ...draft, note: smsDescription })}>{draft.note === smsDescription ? "Using as final note" : "Use as final note"}</button> : null}</div><div><dt>Reference</dt><dd>{pair.sms.reference || "Not reported"}</dd></div><div className={originalBalanceNeedsReview ? "statement-balance-value--conflict" : undefined}><dt>Reported balance after</dt><dd>{pair.sms.balance_after ?? "Not reported"}</dd></div>
         </dl><details className="statement-match-reasons" open><summary>Original SMS</summary><p className="statement-evidence-text">{pair.sms.raw_message.redacted_at || pair.sms.raw_message.status === "redacted" || !pair.sms.raw_message.body ? "Original SMS unavailable under retention settings." : pair.sms.raw_message.body}</p></details><Link className="button" href={`/messages/review?candidate=${pair.sms.id}&return=%2Freview`}>Correct SMS separately</Link></section>
       </div></details>
@@ -263,7 +268,7 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
         {needsConflict ? <div className="statement-match-conflict"><strong>Review balance differences{originalBalanceNeedsReview && originalBalanceDifference !== null ? ` · original reports differ by ${pair.batch.currency} ${originalBalanceDifference}` : ""}</strong><p>Saved statement: {row.balance_after ?? "Not reported"} · SMS: {pair.sms.balance_after ?? "Not reported"}{draft.balance_after !== row.balance_after ? ` · edited statement draft: ${draft.balance_after ?? "Not reported"}` : ""}.</p>{smsLedgerDifference !== null && smsLedgerDifference !== "0.00" ? <p>SMS minus existing ledger balance: {pair.batch.currency} {smsLedgerDifference}.</p> : null}{ledgerMatch?.conflict ? <ul>{ledgerMatch.reasons.filter(reason => reason.includes("balance")).map(reason => <li key={reason}>{reason}</li>)}</ul> : null}<label className="review-remember"><input type="checkbox" disabled={busy} checked={ackConflict} onChange={event => setAckConflict(event.target.checked)} /><span>I reviewed the differing balances and my balance choice.</span></label></div> : null}
         {needsDraftReview ? <div className="unified-pair-checklist__item" aria-label="Source and draft discrepancies"><strong>Edited result and source checks</strong>{draftChanged ? <p className="inline-note">The server will recheck the match and statement draft together before recording anything.</p> : null}{sourceIssues.length || (!draftChanged && row.review.draft_issues.length) ? <details className="unified-check-details" open={checksOpen} onToggle={event => setChecksOpen(event.currentTarget.open)}><summary>Source checks ({sourceIssues.length + (draftChanged ? 0 : row.review.draft_issues.length)})</summary>{sourceIssues.length ? <><strong>Original statement checks</strong><ul>{sourceIssues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></> : null}{!draftChanged && row.review.draft_issues.length ? <><strong>Saved draft checks</strong><ul>{row.review.draft_issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></> : null}</details> : null}<label className="review-remember"><input type="checkbox" disabled={busy} checked={ackIssues} onChange={event => setAckIssues(event.target.checked)} /><span>I reviewed the edited result against both original sources.</span></label></div> : null}
         {pair.competing_sources.length ? <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackCompeting} onChange={event => setAckCompeting(event.target.checked)} /><span>I compared the other possible sources and chose this SMS and statement as one movement. The alternatives will stay pending.</span></label> : null}
-        {smsFormSourceChanged ? <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackSmsForm} onChange={event => setAckSmsForm(event.target.checked)} /><span>I checked my SMS form edits against the saved SMS and final transaction.</span></label> : null}
+        {smsFormSourceChanged ? <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackSmsForm} onChange={event => setAckSmsForm(event.target.checked)} /><span>{pair.sms_account_changed ? "I verified the selected reporting account in the original SMS and approve correcting the saved parsed account." : "I checked my SMS form edits against the saved SMS and final transaction."}</span></label> : null}
         <label className="review-remember"><input type="checkbox" disabled={busy} checked={ackMatch} onChange={event => setAckMatch(event.target.checked)} /><span>These sources describe the same money movement.</span></label>
       </section>
       <label className="review-remember unified-pair-remember"><input type="checkbox" disabled={busy} checked={remember} onChange={event => setRemember(event.target.checked)} /><span>Remember statement category and transfer choices. <small>Optional · not included in Check required.</small></span></label>

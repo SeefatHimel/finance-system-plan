@@ -1641,6 +1641,8 @@ export type UnifiedPairDraft = PatchedStatementRowEdit & {
 export interface UnifiedPairDecision {
   statement: string;
   sms: string;
+  sms_account?: string;
+  acknowledge_sms_account_override?: boolean;
   statement_version: number;
   sms_updated_at: string;
   transaction?: string | null;
@@ -1657,6 +1659,12 @@ export interface UnifiedPairDecision {
   remember_choices?: boolean;
 }
 
+export interface UnifiedPairReviewedAccountSelection {
+  statement: string;
+  sms: string;
+  sms_account?: string;
+}
+
 export interface UnifiedPairDetail {
   row: SavedStatementRow;
   batch: StatementImport;
@@ -1664,6 +1672,7 @@ export interface UnifiedPairDetail {
   sms_summary: UnifiedPendingSource;
   match: unknown;
   competing_sources: unknown[];
+  sms_account_changed: boolean;
 }
 
 export interface UnifiedPairResult {

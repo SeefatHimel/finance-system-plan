@@ -1549,3 +1549,10 @@ the reviewer marks every suggestion as different and acknowledges the decision;
 the server verifies the exact current IDs again. Pair review uses saved SMS
 values; compatible unsaved form edits carry into the final draft, while changes
 to source identity are shown for explicit review before recording.
+The pair action is labelled **Review as one transaction** because it opens a
+second, final confirmation step. The distinct-movement checkbox is explicitly
+for adding the SMS separately and disables that pair action. If the account
+selected in the SMS form differs from the parser's saved account, the final
+review calls out the correction and requires an acknowledgment; choosing the
+pair uses that same selected account as the suggestion, so a valid suggestion
+does not fail merely because the saved parser account was stale.

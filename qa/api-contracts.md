@@ -611,6 +611,15 @@ report is rounded.
 `GET /api/review/pair/` returns owned pending-source evidence, normalized SMS
 account perspective, ledger suggestions, and `competing_sources` with source
 summaries, retained text, and revision tokens.
+`POST /api/review/pair/preview/` accepts the same source IDs and an optional
+owned `sms_account` chosen in the SMS form. It applies that account perspective
+to match and competitor checks without saving it, and returns
+`sms_account_changed` when the selected account differs from the saved parsed
+candidate. The pair decision must send the same account and
+`acknowledge_sms_account_override=true` after explicit source review. Confirmation
+then corrects the parsed reporting account atomically with the pair; original SMS
+text and captured direction remain unchanged. Edits to amount or direction do
+not manufacture a match.
 An optional pending-queue `source` filter bounds comparison work, while results
 remain matched pairs rather than separate source rows.
 The POST takes both IDs, statement version, SMS updated timestamp, balance choice

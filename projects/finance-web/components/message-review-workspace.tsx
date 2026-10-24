@@ -35,6 +35,7 @@ import {
   findSmsStatementMatches,
   findTransferMatches,
   getUnifiedPair,
+  previewUnifiedPair,
   getPendingMessageCandidate,
   linkTransfer,
   type ConfirmMessageCandidateInput,
@@ -367,7 +368,7 @@ export function MessageReviewWorkspace() {
     if (!token || !statementDecision) return;
     setStatementMatchBusy(true); setStatementMatchError(null);
     try {
-      setStatementPair(await getUnifiedPair(token, match.statement.id, statementDecision.candidate.id));
+      setStatementPair(await previewUnifiedPair(token, match.statement.id, statementDecision.candidate.id, statementDecision.input.account ?? undefined));
     } catch (error) {
       setStatementMatchError(error instanceof Error ? error.message : "Could not load this pair. Refresh the sources and try again.");
     } finally { setStatementMatchBusy(false); }
