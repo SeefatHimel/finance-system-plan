@@ -1156,6 +1156,33 @@ class UnifiedReviewTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(Transaction.objects.count(), 2)
 
+    def test_pair_preview_accepts_an_owned_transfer_destination(self):
+        preview = self.client.post(reverse("unified-pair-preview"), {
+            "statement": str(self.row.pk),
+            "sms": str(self.sms.pk),
+            "draft": self.draft(type="transfer", other_account=str(self.wallet.pk)),
+        }, format="json")
+        self.assertEqual(preview.status_code, 200, preview.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.type, "expense")
+        self.assertIsNone(self.row.other_account_id)
+
+    def test_pair_preview_rejects_same_or_foreign_transfer_destination(self):
+        foreign = Account.objects.create(
+            user=self.other_user, name="Other user's wallet",
+            type="mobile_wallet", currency="BDT",
+        )
+        for account in (self.account, foreign):
+            with self.subTest(account=account.pk):
+                preview = self.client.post(reverse("unified-pair-preview"), {
+                    "statement": str(self.row.pk),
+                    "sms": str(self.sms.pk),
+                    "draft": self.draft(type="transfer", other_account=str(account.pk)),
+                }, format="json")
+                self.assertEqual(preview.status_code, 400, preview.data)
+                self.assertIn("draft", preview.data)
+
     def test_incoming_transfer_keeps_receiving_reports_from_both_sources(self):
         self.row.direction = "credit"
         self.row.type = "transfer"

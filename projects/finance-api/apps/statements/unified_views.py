@@ -283,7 +283,12 @@ class UnifiedPairPreviewView(NoStoreMixin, APIView):
         tags=["Unified review"],
     )
     def post(self, request):
-        selection = PairReviewedAccountSelection(data=request.data, context={"request": request})
+        source_ids = PairSelection(data=request.data)
+        source_ids.is_valid(raise_exception=True)
+        row, _ = selected_sources(request.user, source_ids.validated_data)
+        selection = PairReviewedAccountSelection(
+            data=request.data, context={"request": request, "row": row}
+        )
         selection.is_valid(raise_exception=True)
         return preview_pair(request, selection.validated_data)
 

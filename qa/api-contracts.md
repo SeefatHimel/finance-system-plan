@@ -623,6 +623,10 @@ not manufacture a match.
 The preview can also take a versioned statement `draft` and returns ledger
 suggestions for that edited result. Confirmation still recomputes and compares
 the exact suggested IDs before writing, so a later change requires fresh review.
+For transfer drafts, both preview and confirmation validate the chosen destination
+against the selected statement row: it must be a different active account owned
+by the user and use the statement currency. Preview only checks; it does not
+save the draft or create a transaction.
 An optional pending-queue `source` filter bounds comparison work, while results
 remain matched pairs rather than separate source rows.
 The POST takes both IDs, statement version, SMS updated timestamp, balance choice
