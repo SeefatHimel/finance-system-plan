@@ -13,6 +13,7 @@ from apps.debts.views import DebtPaymentCreateView, DebtViewSet
 from apps.messages.views import (
     MessageCandidateBulkReprocessView,
     MessageCandidateConfirmView,
+    RememberConfirmedMessageChoiceView,
     MessageCandidateStatementMatchesView,
     MessageCandidateRejectView,
     MessageCandidateReprocessView,
@@ -116,6 +117,11 @@ urlpatterns = [
         "api/messages/review/<uuid:candidate_id>/confirm/",
         MessageCandidateConfirmView.as_view(),
         name="message-candidate-confirm",
+    ),
+    path(
+        "api/messages/review/<uuid:candidate_id>/remember/",
+        RememberConfirmedMessageChoiceView.as_view(),
+        name="message-candidate-remember",
     ),
     path(
         "api/messages/review/<uuid:candidate_id>/statement-matches/",

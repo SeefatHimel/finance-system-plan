@@ -5,6 +5,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import Account
 from apps.messages.models import ParsedMessageCandidate, RawMessage, SenderRule, TransferCounterpartyMapping
+from apps.messages.transfer_suggestions import CASH_WITHDRAWAL_KEY
 from apps.messages.parsers import parse_raw_message
 from apps.payment_methods.models import PaymentMethod
 from apps.transactions.models import Transaction
@@ -195,6 +196,112 @@ class TransferSuggestionTests(APITestCase):
         pending.refresh_from_db()
         self.assertEqual(pending.destination_account, other)
         self.assertEqual(parse_raw_message(self.raw())["destination_account"], other)
+
+    def test_remembered_cash_withdrawal_route_spans_atms_for_one_account(self):
+        home = Account.objects.create(user=self.user, name="Home cash", type=Account.Type.HOME_CASH)
+        travel = Account.objects.create(user=self.user, name="Travel cash", type=Account.Type.CASH)
+        first = self.imported("Cash WD BDT120 from North ATM. Balance BDT 8000.")
+        pending = self.imported("Cash WD BDT240 from South ATM. Balance BDT 7760.")
+        self.assertIsNone(pending.destination_account)
+        pending.account = None  # A weak masked identifier leaves the source for manual review.
+        pending.save(update_fields=["account"])
+
+        self.confirm(first, other=home)
+        route = TransferCounterpartyMapping.objects.get(counterparty_key=CASH_WITHDRAWAL_KEY)
+        self.assertEqual(route.reporting_account, self.bank)
+        self.assertEqual(route.other_account, home)
+        pending.refresh_from_db()
+        self.assertEqual(pending.destination_account, home)
+        self.assertIsNone(pending.account)
+        self.assertIn("Saved cash withdrawal route", pending.transfer_suggestion_reason)
+        future = parse_raw_message(self.raw("Cash WD BDT360 from East ATM. Balance BDT 7400."))
+        self.assertEqual(future["destination_account"], home)
+        self.assertEqual(future["suggested_transfer_direction"], "debit")
+        self.assertEqual(Transaction.objects.count(), 1)
+
+        revised = self.imported("Cash WD BDT120 from West ATM. Balance BDT 7280.")
+        waiting = self.imported("Cash WD BDT120 from Central ATM. Balance BDT 7160.")
+        self.confirm(revised, other=travel)
+        waiting.refresh_from_db()
+        self.assertEqual(waiting.destination_account, travel)
+        self.assertEqual(TransferCounterpartyMapping.objects.get(counterparty_key=CASH_WITHDRAWAL_KEY).other_account, travel)
+
+        second_bank = Account.objects.create(user=self.user, name="Second bank", type=Account.Type.BANK)
+        self.rule.account = second_bank
+        self.rule.save(update_fields=["account"])
+        other_source = parse_raw_message(self.raw("Cash WD BDT120 from East ATM. Balance BDT 7400."))
+        self.assertIsNone(other_source["destination_account"])
+
+    def test_cash_route_is_optional_after_save_and_replacement_is_explicit(self):
+        home = Account.objects.create(user=self.user, name="Home cash", type=Account.Type.HOME_CASH)
+        travel = Account.objects.create(user=self.user, name="Travel cash", type=Account.Type.CASH)
+        first = self.imported("Cash WD BDT120 from North ATM. Balance BDT 8000.")
+        endpoint = reverse("message-candidate-remember", kwargs={"candidate_id": first.pk})
+        self.assertEqual(self.client.post(endpoint, {}, format="json").status_code, 409)
+        self.confirm(first, other=home, remember=False)
+        self.assertFalse(TransferCounterpartyMapping.objects.exists())
+        response = self.client.post(endpoint, {}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        route = TransferCounterpartyMapping.objects.get(counterparty_key=CASH_WITHDRAWAL_KEY)
+        self.assertEqual(route.other_account, home)
+
+        second = self.imported("Cash WD BDT240 from South ATM. Balance BDT 7760.")
+        self.confirm(second, other=travel, remember=False)
+        replacement = reverse("message-candidate-remember", kwargs={"candidate_id": second.pk})
+        self.assertEqual(self.client.post(replacement, {}, format="json").status_code, 409)
+        route.refresh_from_db()
+        self.assertEqual(route.other_account, home)
+        self.assertEqual(self.client.post(replacement, {"replace_existing": True}, format="json").status_code, 200)
+        route.refresh_from_db()
+        self.assertEqual(route.other_account, travel)
+
+    def test_non_cash_rule_is_saved_only_after_a_confirmed_source(self):
+        candidate = self.imported(self.body("DEMO COUNTERPARTY"))
+        self.confirm(candidate, remember=False)
+        self.assertFalse(TransferCounterpartyMapping.objects.exists())
+        response = self.client.post(reverse("message-candidate-remember", kwargs={"candidate_id": candidate.pk}), {}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(TransferCounterpartyMapping.objects.count(), 1)
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_non_cash_destination_does_not_create_broad_withdrawal_rule(self):
+        Account.objects.create(user=self.user, name="Home cash", type=Account.Type.HOME_CASH)
+        Account.objects.create(user=self.user, name="Travel cash", type=Account.Type.CASH)
+        candidate = self.imported("Cash WD BDT120 from North ATM. Balance BDT 8000.")
+        self.confirm(candidate, other=self.wallet)
+        self.assertFalse(TransferCounterpartyMapping.objects.filter(counterparty_key=CASH_WITHDRAWAL_KEY).exists())
+        future = parse_raw_message(self.raw("Cash WD BDT120 from South ATM. Balance BDT 7880."))
+        self.assertIsNone(future["destination_account"])
+
+    def test_explicitly_selected_source_can_teach_route_when_parser_source_is_unknown(self):
+        home = Account.objects.create(user=self.user, name="Home cash", type=Account.Type.HOME_CASH)
+        candidate = self.imported("Cash WD BDT120 from North ATM. Balance BDT 8000.")
+        candidate.account = None
+        candidate.save(update_fields=["account"])
+        self.confirm(candidate, other=home)
+        route = TransferCounterpartyMapping.objects.get(counterparty_key=CASH_WITHDRAWAL_KEY)
+        self.assertEqual(route.reporting_account, self.bank)
+        self.assertEqual(route.other_account, home)
+
+    def test_new_route_replaces_provisional_cash_hint_but_not_identified_destination(self):
+        provisional = Account.objects.create(user=self.user, name="Travel cash", type=Account.Type.CASH)
+        pending = self.imported("Cash WD BDT240 from South ATM. Balance BDT 7760.")
+        self.assertEqual(pending.destination_account, provisional)
+        pending.account = None
+        pending.transfer_suggestion_reason = "Only three ending digits overlap. Choose the account."
+        pending.save(update_fields=["account", "transfer_suggestion_reason"])
+        identified = self.imported("Cash WD BDT360 from East ATM. Balance BDT 7400.")
+        identified.receiver_account_identifier = "***1234"
+        identified.save(update_fields=["receiver_account_identifier"])
+        home = Account.objects.create(user=self.user, name="Home cash", type=Account.Type.HOME_CASH)
+        first = self.imported("Cash WD BDT120 from North ATM. Balance BDT 8000.")
+
+        self.confirm(first, other=home)
+        pending.refresh_from_db()
+        identified.refresh_from_db()
+        self.assertEqual(pending.destination_account, home)
+        self.assertIsNone(pending.account)
+        self.assertEqual(identified.destination_account, provisional)
 
     def test_pending_identified_destination_is_not_replaced_by_learning(self):
         candidate = self.imported(self.body("DEMO COUNTERPARTY"))

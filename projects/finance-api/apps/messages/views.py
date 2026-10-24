@@ -663,6 +663,82 @@ class MessageCandidateStatementMatchesView(APIView):
         }, headers={"Cache-Control": "private, no-store"})
 
 
+class RememberConfirmedMessageChoiceView(APIView):
+    """Save an explicit, user-scoped rule only after the money movement exists."""
+
+    permission_classes = (IsAuthenticated,)
+
+    @transaction.atomic
+    def post(self, request, candidate_id):
+        from .models import TransferCounterpartyMapping
+        from .transfer_suggestions import CASH_ACCOUNT_TYPES, CASH_WITHDRAWAL_KEY, counterparty_key, remember_transfer_path
+
+        lock_transfer_user(request.user)
+        candidate = get_object_or_404(
+            ParsedMessageCandidate.objects.select_for_update().select_related("sender_rule", "raw_message", "transaction", "account"),
+            user=request.user, pk=candidate_id,
+        )
+        record = candidate.transaction
+        if candidate.status != ParsedMessageCandidate.Status.CONFIRMED or not record or record.user_id != request.user.pk:
+            return Response({"detail": "Record this SMS before saving a rule."}, status=status.HTTP_409_CONFLICT)
+        if not candidate.sender_rule_id:
+            return Response({"detail": "This SMS has no trusted sender rule to learn from."}, status=status.HTTP_400_BAD_REQUEST)
+        replace_existing = request.data.get("replace_existing") is True
+        if candidate.message_kind == ParsedMessageCandidate.MessageKind.CASH_OUT:
+            source = record.account
+            destination = record.transfer_account
+            if (record.type != Transaction.Type.TRANSFER or candidate.source_direction != Transaction.Direction.DEBIT
+                or not destination or destination.type not in CASH_ACCOUNT_TYPES or not destination.is_active
+                or not source.is_active or source.currency != destination.currency
+                or candidate.sender_rule.account_id != source.pk
+                or candidate.account_id not in (None, source.pk)):
+                return Response({"detail": "A cash route needs a verified debit SMS, its reporting account, and an active cash destination in the same currency."}, status=status.HTTP_400_BAD_REQUEST)
+            existing = TransferCounterpartyMapping.objects.select_for_update().filter(
+                user=request.user, sender_rule=candidate.sender_rule, message_kind=candidate.message_kind,
+                reporting_account=source, counterparty_key=CASH_WITHDRAWAL_KEY,
+            ).first()
+            if existing and existing.other_account_id != destination.pk and not replace_existing:
+                return Response({"detail": "A different cash destination is already saved for this SMS source. Replace it only if the new route should apply to future withdrawals.", "existing_account": existing.other_account.name}, status=status.HTTP_409_CONFLICT)
+            remember_transfer_path(candidate, record, {"account": source, "direction": "debit", "counterparty_text": candidate.counterparty_text})
+            return Response({"saved": True, "scope": "cash_withdrawal", "account": source.name, "destination": destination.name})
+
+        if not candidate.raw_message.body or is_generic_bank_deposit(provider=candidate.provider, message_kind=candidate.message_kind,
+                                   body=candidate.raw_message.body, counterparty_text=candidate.counterparty_text):
+            return Response({"detail": "This SMS does not have enough original detail for a safe reusable rule."}, status=status.HTTP_400_BAD_REQUEST)
+        direction = candidate.source_direction
+        if direction not in (Transaction.Direction.DEBIT, Transaction.Direction.CREDIT):
+            return Response({"detail": "Check the original SMS direction before saving a rule."}, status=status.HTTP_400_BAD_REQUEST)
+        if record.type == Transaction.Type.TRANSFER:
+            source = record.account if direction == Transaction.Direction.DEBIT else record.transfer_account
+            other = record.transfer_account if direction == Transaction.Direction.DEBIT else record.account
+            if not source or not other or source.user_id != request.user.pk or other.user_id != request.user.pk:
+                return Response({"detail": "The transfer path must contain two owned accounts."}, status=status.HTTP_400_BAD_REQUEST)
+            key = counterparty_key(candidate.counterparty_text)
+            if not key:
+                return Response({"detail": "This SMS has no reusable counterparty key."}, status=status.HTTP_400_BAD_REQUEST)
+            existing = TransferCounterpartyMapping.objects.select_for_update().filter(
+                user=request.user, sender_rule=candidate.sender_rule, message_kind=candidate.message_kind,
+                reporting_account=source, counterparty_key=key,
+            ).first()
+            if existing and (existing.other_account_id != other.pk or existing.direction != direction) and not replace_existing:
+                return Response({"detail": "A different transfer route is already saved for this SMS source. Review it before replacing the rule.", "existing_account": existing.other_account.name}, status=status.HTTP_409_CONFLICT)
+            remember_transfer_path(candidate, record, {"account": source, "direction": direction, "counterparty_text": candidate.counterparty_text})
+            return Response({"saved": True, "scope": "counterparty", "account": source.name, "destination": other.name})
+
+        if record.direction != direction or record.account_id != candidate.sender_rule.account_id:
+            return Response({"detail": "The ledger direction or account differs from the original SMS source. Correct it before learning."}, status=status.HTTP_400_BAD_REQUEST)
+        existing = SenderRuleMapping.objects.select_for_update().filter(sender_rule=candidate.sender_rule, message_kind=candidate.message_kind).first()
+        if existing and (existing.account_id != record.account_id or existing.transaction_type != record.type
+                         or existing.category_id != record.category_id or existing.payment_method_id != record.payment_method_id) and not replace_existing:
+            return Response({"detail": "A different choice is already saved for this SMS source. Review it before replacing the rule.", "existing_account": existing.account.name}, status=status.HTTP_409_CONFLICT)
+        SenderRuleMapping.objects.update_or_create(
+            sender_rule=candidate.sender_rule, message_kind=candidate.message_kind,
+            defaults={"user": request.user, "account": record.account, "payment_method": record.payment_method,
+                      "category": record.category, "transaction_type": record.type},
+        )
+        return Response({"saved": True, "scope": "message_type", "account": record.account.name})
+
+
 @extend_schema(request=ParsedMessageConfirmSerializer, responses=OpenApiTypes.OBJECT)
 class MessageCandidateConfirmView(APIView):
     permission_classes = (IsAuthenticated,)

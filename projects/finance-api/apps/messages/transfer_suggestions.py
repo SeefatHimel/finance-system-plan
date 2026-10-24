@@ -20,6 +20,9 @@ PROVIDER_ALIASES = {
     "ebl": ("ebl", "eastern bank"),
     "city_bank": ("city bank", "citybank"),
 }
+CASH_WITHDRAWAL_KEY = "cash_withdrawal"
+CASH_ACCOUNT_TYPES = (Account.Type.CASH, Account.Type.HOME_CASH)
+CASH_ROUTE_REASON = "Saved cash withdrawal route for this reporting account. Verify the account and cash destination."
 
 
 def normalized_name(value):
@@ -75,8 +78,23 @@ def apply_transfer_suggestion(parsed, user, reporting_account, evidence_accounts
         parsed["possible_internal_transfer"] = True
         if parsed["destination_account"]:
             return  # Keep an explicitly identified destination.
+        if reporting_account and reporting_account.is_active and parsed["sender_rule"]:
+            route = TransferCounterpartyMapping.objects.filter(
+                user=user, sender_rule=parsed["sender_rule"],
+                message_kind=ParsedMessageCandidate.MessageKind.CASH_OUT,
+                reporting_account=reporting_account,
+                counterparty_key=CASH_WITHDRAWAL_KEY, direction="debit",
+                other_account__user=user, other_account__is_active=True,
+                other_account__type__in=CASH_ACCOUNT_TYPES,
+                other_account__currency=reporting_account.currency,
+            ).exclude(other_account=reporting_account).select_related("other_account").first()
+            if route:
+                parsed["destination_account"] = route.other_account
+                parsed["transfer_suggestion_reason"] = CASH_ROUTE_REASON
+                parsed["parser_notes"] += f" {CASH_ROUTE_REASON}"
+                return
         cash_accounts = list(Account.objects.filter(
-            user=user, is_active=True, type__in=(Account.Type.CASH, Account.Type.HOME_CASH),
+            user=user, is_active=True, type__in=CASH_ACCOUNT_TYPES,
             currency=reporting_account.currency if reporting_account else "BDT",
         ).exclude(pk=reporting_account.pk if reporting_account else None).order_by("display_order", "name")[:2])
         if len(cash_accounts) == 1:
@@ -162,14 +180,32 @@ def apply_transfer_suggestion(parsed, user, reporting_account, evidence_accounts
 
 
 def remember_transfer_path(candidate, record, observation):
-    key = counterparty_key(observation.get("counterparty_text", candidate.counterparty_text))
     reporting_account = observation.get("account")
-    if not candidate.sender_rule_id or not key or not reporting_account:
+    if not candidate.sender_rule_id or not reporting_account:
         return
     direction = observation["direction"]
     other = record.account if direction == "credit" else record.transfer_account
     if not other or other == reporting_account:
         return
+    cash_out = candidate.message_kind == ParsedMessageCandidate.MessageKind.CASH_OUT
+    if cash_out:
+        # ATM names vary by location; remember the cash destination for this
+        # reporting account, not the counterparty text. An expense or a path to
+        # another bank account must never teach a broad cash-withdrawal route.
+        if (
+            direction != "debit" or record.type != "transfer"
+            or other.type not in CASH_ACCOUNT_TYPES
+            or other.currency != reporting_account.currency
+            # Short masked identifiers deliberately clear candidate.account;
+            # the reviewer must still choose the sender-rule account explicitly.
+            or (candidate.account_id or candidate.sender_rule.account_id) != reporting_account.pk
+        ):
+            return
+        key = CASH_WITHDRAWAL_KEY
+    else:
+        key = counterparty_key(observation.get("counterparty_text", candidate.counterparty_text))
+        if not key:
+            return
     TransferCounterpartyMapping.objects.update_or_create(
         user=candidate.user, sender_rule=candidate.sender_rule, message_kind=candidate.message_kind,
         reporting_account=reporting_account, counterparty_key=key,
@@ -179,19 +215,42 @@ def remember_transfer_path(candidate, record, observation):
     # unrelated counterparties, accounts and explicit endpoints remain untouched.
     pending = ParsedMessageCandidate.objects.filter(
         user=candidate.user, sender_rule=candidate.sender_rule, message_kind=candidate.message_kind, status="needs_review",
-    ).select_related("account", "destination_account", "payment_method", "destination_payment_method")
+    ).select_related("account", "destination_account", "payment_method", "destination_payment_method", "sender_rule")
     fields = ("account", "destination_account", "payment_method", "destination_payment_method", "category",
               "transaction_type", "possible_internal_transfer", "suggested_transfer_direction", "transfer_suggestion_reason", "parser_notes")
     for item in pending:
-        if counterparty_key(item.counterparty_text) != key:
+        if not cash_out and counterparty_key(item.counterparty_text) != key:
             continue
         incoming = item.suggested_transfer_direction == "credit" if item.suggested_transfer_direction else item.message_kind in INCOMING
         observed = (item.destination_account or item.account) if incoming else item.account
+        if cash_out and observed is None and item.sender_rule.account_id == reporting_account.pk:
+            # A short identifier can clear the pending source while the sender
+            # rule still supplies a route hint; keep the source unselected.
+            observed = reporting_account
         if observed != reporting_account:
             continue
+        replaceable_cash_hint = (
+            item.destination_account is not None
+            and item.destination_account.type in CASH_ACCOUNT_TYPES
+            and not item.destination_payment_method_id
+            and not item.receiver_account_identifier
+            and not item.receiver_card_identifier
+            and (
+                item.transfer_suggestion_reason.startswith(("Only one active cash account", CASH_ROUTE_REASON))
+                # Weak source-identifier review can replace the provisional
+                # cash reason while leaving its destination in place.
+                or item.account_id is None
+            )
+        )
+        if cash_out and item.destination_account and not replaceable_cash_hint:
+            continue  # Keep a destination identified by the original SMS.
         parsed = {field: getattr(item, field) for field in fields}
         parsed.update(message_kind=item.message_kind, sender_rule=item.sender_rule, counterparty_text=item.counterparty_text)
+        if cash_out:
+            parsed["destination_account"] = None  # Re-evaluate the previous hint against the new route.
         apply_transfer_suggestion(parsed, item.user, observed, (item.account, item.destination_account, item.payment_method, item.destination_payment_method))
+        if cash_out and item.account_id is None:
+            parsed["account"] = None
         for field in fields:
             setattr(item, field, parsed[field])
         item.save(update_fields=(*fields, "updated_at"))

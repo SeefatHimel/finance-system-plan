@@ -8,8 +8,17 @@ defaults to a transfer into cash. If exactly one active Cash or Home cash accoun
 has the reporting account's currency, it is suggested as the destination. With
 several eligible cash accounts the user must choose one; with none the draft
 remains a transfer awaiting a destination. The user can choose Expense when the
-cash was spent immediately. This is a global parser rule, not a per-user learned
-mapping. No transfer or ledger entry is posted until the user confirms it.
+cash was spent immediately. The transfer default is global. After a user confirms
+a debit transfer to a same-currency Cash or Home cash account, the optional
+`POST /api/messages/review/{candidate_id}/remember/` action can make its
+destination a user-owned, reporting-account-specific
+suggestion across ATM locations. Explicit SMS destination evidence takes
+priority, and no transfer or ledger entry is posted until the user confirms it.
+This endpoint accepts only a confirmed, owned SMS. A different existing rule
+returns 409; `replace_existing: true` is required to replace it. Other message
+types can save a scoped sender/message-kind or counterparty rule only when their
+saved direction and account path agree with the SMS source. The reviewed ledger
+entry remains unchanged by learning.
 
 Existing pending SMS can use Re-run parser (or the bulk reprocess control) to
 adopt this default. Confirmed entries are not rewritten automatically; review

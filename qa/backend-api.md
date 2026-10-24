@@ -10,6 +10,16 @@ choice and none leaves the transfer incomplete. A learned sender mapping cannot
 turn this source-backed default into Expense automatically. The user can select
 Expense in review if the cash was spent immediately. Reprocessing updates
 pending candidates; it never silently changes confirmed ledger entries.
+Confirming a cash-out transfer into a same-currency Cash or Home cash account
+can be followed by an optional `POST /api/messages/review/{id}/remember/` call.
+That saves a destination for that sender rule and reporting
+account across ATM locations. It updates eligible pending suggestions and future
+cash-out suggestions, without confirming them or overriding an SMS-identified
+destination. Weak source-account identity still requires explicit review;
+non-cash routes and expenses do not create this broad rule.
+A conflicting saved route returns 409; replacing it needs `replace_existing: true`.
+The endpoint checks ownership, confirmed status, source direction, account path,
+and destination before writing. It does not change the recorded transaction.
 
 ### How can users check older transactions after rules change?
 
