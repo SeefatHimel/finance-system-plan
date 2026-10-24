@@ -59,6 +59,17 @@ with saved and merchant note suggestions nearby. Balance, reference, and value
 date remain under More transaction details.
 The originals remain attached as evidence when the user edits the final note.
 
+### How are important original SMS and statement details highlighted during pairing?
+
+The possible-pair dialog and final combined review mark amount, reported
+balance, date, direction wording, identifiers and reference only when those
+values actually appear in the source text. Structured statement fields show
+the PDF's values even when its description column does not contain them.
+Separate date and balance comparisons call out differences; for a later-posted
+EBL entry, the printed value date and posting date are distinguished and its
+posting-order balance is not called a confirmed transaction-time gap. Color
+does not replace the written comparison or the final user decision.
+
 ### How does the statement review show shared category hints?
 
 The row list says a review suggestion is available, rather than calling every

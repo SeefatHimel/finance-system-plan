@@ -11,6 +11,20 @@ type StatementEvidence = {
 
 export type AgreeingEvidence = { label: string; value: string };
 
+type ReportSource = { date: string | null; balance_after: string | null; value_date?: string | null };
+
+/** Compare original reports without treating delayed statement posting as a false mismatch. */
+export function compareSmsStatementReports(statement: ReportSource, sms: ReportSource, latePosting: boolean) {
+  const date = !statement.date || !sms.date ? "unknown"
+    : statement.date === sms.date ? "match"
+    : statement.value_date && statement.value_date === sms.date ? "value_date_match"
+    : "different";
+  const balance = statement.balance_after === null || sms.balance_after === null ? "unknown"
+    : Number(statement.balance_after) === Number(sms.balance_after) ? "match"
+    : latePosting ? "different_reporting_times" : "different";
+  return { date, balance } as const;
+}
+
 /** Present only source details the server corroborated; never imply that a pair is confirmed. */
 export function agreeingSmsStatementEvidence(
   statement: StatementEvidence,

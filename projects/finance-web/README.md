@@ -1885,3 +1885,11 @@ statement, such as direction, amount, or a reported balance. These clues do
 not confirm identity, and uncertain or later-posted balances are not shown as
 exact agreement. Action failures appear in a toast while the comparison stays
 open for retry; persistent queue-loading failures retain an inline Retry.
+The suggested-pair card and unified queue call out differing source dates and
+reported balances. EBL's printed value date is shown separately from the later
+posting date; later-posting running balances are labeled as reports from
+different times, not as a confirmed ledger gap. Original SMS text and the
+statement description highlight only source facts present in that text:
+amount, reported balance, date, direction wording, identifiers, and reference.
+The structured PDF row fields remain beside the description when a value is
+printed in another column. Highlights aid comparison and never confirm a match.

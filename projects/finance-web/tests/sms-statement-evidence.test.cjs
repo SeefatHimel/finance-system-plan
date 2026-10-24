@@ -10,7 +10,7 @@ const compiled = ts.transpileModule(source, {
 }).outputText;
 const moduleShim = { exports: {} };
 new Function('module', 'exports', compiled)(moduleShim, moduleShim.exports);
-const { agreeingSmsStatementEvidence } = moduleShim.exports;
+const { agreeingSmsStatementEvidence, compareSmsStatementReports } = moduleShim.exports;
 
 const statement = {
   account: 'bank', account_name: 'Synthetic bank', amount: '100.00',
@@ -31,4 +31,21 @@ test('does not highlight an edited account, rounded amount or later balance as e
     { account: 'other-account', amount: '99.63', source_direction: '' },
     { late_posting: true, reasons: ['Reported balances agree.'] });
   assert.deepEqual(details, []);
+});
+
+test('distinguishes a real date and balance difference from missing reports', () => {
+  const sms = { date: '2026-07-25', balance_after: '743678.60' };
+  assert.deepEqual(compareSmsStatementReports(
+    { date: '2026-07-26', value_date: null, balance_after: '743600.00' }, sms, false,
+  ), { date: 'different', balance: 'different' });
+  assert.deepEqual(compareSmsStatementReports(
+    { date: null, balance_after: null }, sms, false,
+  ), { date: 'unknown', balance: 'unknown' });
+});
+
+test('EBL value date can match an earlier SMS without treating posting-order balances as a discrepancy', () => {
+  assert.deepEqual(compareSmsStatementReports(
+    { date: '2026-07-26', value_date: '2026-07-25', balance_after: '743600.00' },
+    { date: '2026-07-25', balance_after: '743678.60' }, true,
+  ), { date: 'value_date_match', balance: 'different_reporting_times' });
 });

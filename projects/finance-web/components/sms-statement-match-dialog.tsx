@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
 import { ModalDialog } from "@/components/modal-dialog";
-import { agreeingSmsStatementEvidence } from "@/lib/sms-statement-evidence";
+import { SourceEvidenceText } from "@/components/source-evidence-text";
+import { localDate } from "@/lib/date-period";
+import { agreeingSmsStatementEvidence, compareSmsStatementReports } from "@/lib/sms-statement-evidence";
 import type { ConfirmMessageCandidateInput, ParsedMessageCandidate, SmsStatementMatch } from "@/lib/api";
 
 export function SmsStatementMatchDialog({ candidate, input, accountName, matches, busy, onCancel, onReview, onSeparate, onRefresh }: {
@@ -26,17 +28,36 @@ export function SmsStatementMatchDialog({ candidate, input, accountName, matches
     <div className="sms-statement-match-comparison">
     <section className="sms-statement-selected" aria-label="SMS being reviewed">
       <div className="sms-statement-selected__heading"><strong>SMS you are reviewing</strong><span>{candidate.raw_message.sender} · {formatTimestamp(candidate.raw_message.received_at)}</span></div>
-      <p className="statement-evidence-text">{candidate.raw_message.body || "Original SMS unavailable under retention settings."}</p>
+      <p className="statement-evidence-text">{candidate.raw_message.body ? <SourceEvidenceText text={candidate.raw_message.body} facts={{ amount: candidate.amount, balanceAfter: candidate.balance_after, date: localDate(new Date(candidate.raw_message.received_at)), reference: candidate.reference, identifiers: [candidate.sender_account_identifier, candidate.sender_card_identifier, candidate.receiver_account_identifier, candidate.receiver_card_identifier], direction: candidate.source_direction }} /> : "Original SMS unavailable under retention settings."}</p>
       <p className="field__hint">Your current form: {accountName} · {input.type?.replaceAll("_", " ") ?? candidate.transaction_type.replaceAll("_", " ")} · {input.direction || candidate.source_direction || "Direction to review"} · {input.amount ?? candidate.amount ?? "Amount needed"} · balance after {input.balance_after ?? "Not reported"}{input.note ? ` · note: ${input.note}` : ""}</p>
     </section>
     <div className="sms-statement-match-list">
       {matches.map(match => {
         const evidence = agreeingSmsStatementEvidence(match.statement, candidate, match.signals);
+        const comparison = compareSmsStatementReports(match.statement, {
+          date: localDate(new Date(candidate.raw_message.received_at)),
+          balance_after: candidate.balance_after,
+        }, match.signals.late_posting);
         return <article className="sms-statement-match-card" key={match.statement.id}>
         <div className="sms-statement-match-card__heading"><strong>{match.statement.account_name} · {match.statement.currency} {match.statement.amount}</strong><span className={`status-badge ${match.unique && match.signals.strength === "strong" ? "status-badge--ok" : "status-badge--warning"}`}>{match.unique && match.signals.strength === "strong" ? "Strong match" : "Needs your decision"}</span></div>
-        <p><strong>Statement</strong> · {formatCalendarDate(match.statement.date)}{match.statement.time ? ` · ${formatClockTime(match.statement.time)}` : ""} · {match.statement.direction} · {match.statement.type.replaceAll("_", " ")}</p>
-        <p>{match.statement.description || "No statement description"}</p>
-        <p className="field__hint">Reference: {match.statement.reference || "Not reported"} · Balance after: {match.statement.balance_after ?? "Not reported"}</p>
+        <p><strong>Statement</strong> · {match.statement.direction} · {match.statement.type.replaceAll("_", " ")}</p>
+        <p className="statement-evidence-text">{match.statement.description ? <SourceEvidenceText text={match.statement.description} facts={{ amount: match.statement.amount, balanceAfter: match.statement.balance_after, date: match.statement.date, valueDate: match.statement.value_date, reference: match.statement.reference, identifiers: [candidate.sender_account_identifier, candidate.sender_card_identifier], direction: match.statement.direction }} /> : "No statement description"}</p>
+        <p className="field__hint">Reference: {match.statement.reference || "Not reported"}</p>
+        <div className="sms-statement-report-comparison" aria-label="Date and reported balance comparison">
+          <div className={`sms-statement-report-comparison__item sms-statement-report-comparison__item--${comparison.date === "match" ? "match" : comparison.date === "unknown" ? "unknown" : "review"}`}>
+            <strong>Date</strong>
+            <span>SMS: {formatTimestamp(candidate.raw_message.received_at)}</span>
+            <span>Statement posted: {formatCalendarDate(match.statement.date)}{match.statement.time ? ` · ${formatClockTime(match.statement.time)}` : ""}</span>
+            {match.statement.value_date ? <span>Statement value date: {formatCalendarDate(match.statement.value_date)}</span> : null}
+            <b>{comparison.date === "match" ? "Dates match" : comparison.date === "value_date_match" ? "Value date matches SMS; posting date differs" : comparison.date === "different" ? "Dates differ · check the timing" : "Date not available for comparison"}</b>
+          </div>
+          <div className={`sms-statement-report-comparison__item sms-statement-report-comparison__item--${comparison.balance === "match" ? "match" : comparison.balance === "unknown" ? "unknown" : "review"}`}>
+            <strong>Reported balance after</strong>
+            <span>SMS: {candidate.balance_after ?? "Not reported"}</span>
+            <span>Statement: {match.statement.balance_after ?? "Not reported"}</span>
+            <b>{comparison.balance === "match" ? "Balances match" : comparison.balance === "different_reporting_times" ? "Different reporting times · compare separately" : comparison.balance === "different" ? "Balances differ · review before pairing" : "One balance is not reported"}</b>
+          </div>
+        </div>
         {evidence.length ? <div className="sms-statement-agreement" aria-label="Source details that agree"><strong>Details that agree</strong><ul>{evidence.map(item => <li key={item.label}><span>{item.label}</span><strong>{item.value}</strong></li>)}</ul><span className="field__hint">These clues support review; they do not confirm the pair.</span></div> : null}
         <details><summary>Why suggested</summary><ul>{match.signals.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul></details>
         {!match.unique ? <p className="form-warning">Other pending sources may also match. Review them before the final confirmation.</p> : null}
