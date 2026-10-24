@@ -1137,6 +1137,19 @@ export async function confirmMessageCandidate(
   return parsedMessageCandidateSchema.parse(await response.json());
 }
 
+export async function rememberConfirmedMessageChoice(
+  accessToken: string,
+  id: string,
+  replaceExisting = false
+): Promise<{ saved: true; scope: string; account: string; destination?: string }> {
+  const response = await authenticatedFetch(`/api/messages/review/${id}/remember/`, accessToken, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ replace_existing: replaceExisting })
+  });
+  return await response.json();
+}
+
 export async function ignoreMessageCandidate(
   accessToken: string,
   id: string

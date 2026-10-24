@@ -6,6 +6,19 @@ cash account is suggested, while multiple accounts require a choice. If no cash
 account exists, create one before confirming the transfer or deliberately change
 the Type to Expense when the cash was spent immediately. The source SMS direction
 stays debit. Re-run parser on older pending messages to get the new default.
+After recording, a separate optional action can save the reviewed cash route
+for future cash-out SMS from that reporting account, even when the ATM name
+changes. A conflicting saved route requires an explicit replacement decision;
+the current transaction is already safe and does not depend on that decision.
+A suggested path still needs review against the original SMS before recording.
+
+SMS review keeps a compact source amount, direction, and balance visible while
+the full original message remains expandable. SMS + statement review opens both
+originals before the editor. Recording the pair is the routine final confirmation;
+only material differences (balance, account correction, competing sources, or
+possible duplicate ledger entries) require extra choices. The pair's optional
+SMS learning action appears after a successful save. No explicit learned rule is
+saved by default; prior confirmed history may still provide a review hint.
 
 When editing a transaction with an attached bank SMS, the editor warns if the
 SMS sender conflicts with the selected account's known bank provider. The
@@ -1326,9 +1339,9 @@ statement type, SMS type or a different type; date/time, category, merchant,
 reference and note suggestions remain individually editable. Amount stays tied
 to the matched source amounts and must be corrected in source review. The two
 originals, match reasons and reported balances remain expandable for comparison.
-**Check review items** can mark the type/account-path and applicable balance or
-source-review acknowledgments after the type choice. The reviewer still confirms
-the SMS and statement describe the same movement individually.
+The final record action confirms the type/account path and that the SMS and
+statement describe one movement. Balance differences, competing sources and
+account corrections retain their own explicit checks.
 A BDT statement/SMS balance difference below Tk 1 does not show the amber
 conflict banner or checkbox in unified review. For a new transaction, the higher balance is selected initially and the user may
 choose the other; both source values remain visible. Missing-report enrichment
@@ -1367,11 +1380,10 @@ The current merchant also offers a one-click note suggestion when it is readable
 it updates as the merchant changes and never replaces a typed note automatically.
 The statement shortcut uses its saved wording rather than copying a separately
 retained full Citytouch code into the ledger note.
-Finish review groups required acknowledgments, including the type and account-path
-check, in one checklist. Check required marks the currently applicable items
-together after any differing transaction type is chosen; later edits or changed
-choices reset them as before. The optional Remember choices setting stays separate
-and is never checked by that action. Balance decisions remain independent.
+Finish review shows only applicable differences. The final record action confirms
+the routine classification and match review; changing a material choice resets
+its targeted acknowledgment. Learning is offered after saving, and balance
+decisions remain independent.
 A verified Citytouch mapping can prefill the merchant and a compatible active
 category. If the mapping suggests a different type, its category waits until the
 reviewer chooses that type. An existing saved compatible category takes precedence

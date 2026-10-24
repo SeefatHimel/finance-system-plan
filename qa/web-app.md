@@ -8,6 +8,12 @@ one may already be suggested, while multiple require an explicit selection.
 Without a cash account, the form explains that the user can add one or change
 Type to Expense when appropriate. The user still confirms the transfer path;
 no cash destination is inferred from weak card/account suffix evidence.
+When a saved cash-withdrawal route suggests a path, a button fills the cash
+destination and any strongly identified source for review. After recording,
+an optional action can teach future cash-out SMS from this reporting account
+across ATM locations. A conflicting route requires explicit replacement. The
+reviewer can continue without saving a rule, and weak source-account matches
+still require review.
 
 ### What does Check transactions do?
 
@@ -1092,13 +1098,11 @@ classification/date/time and chosen balance. The combined dialog places the
 editable result and Finish review decisions side by side on desktop and stacks
 them on smaller screens. A compact source strip receives initial focus. The note
 stays visible beside the main fields; less-used balance, reference, value date,
-and full source evidence open on demand without losing draft values or waiving
-the existing confirmation checks. Required acknowledgments, including
-the type and account-path check, share one Finish review checklist. Check review items
-marks the applicable items after a differing type is chosen, while the reviewer
-must personally confirm that both sources describe the same movement. The separate optional
-Remember setting is excluded, and edits reset confirmations. Balance choice stays
-independent. The source comparison can copy either description into the editable
+and full source evidence are initially open for comparison. The final record
+action confirms the routine type, account path, and same-movement review.
+Only material differences keep targeted acknowledgments; learning appears as
+an optional action after saving. Balance choice stays independent. The source
+comparison can copy either description into the editable
 Final description / note, which stays visible below the merchant for routine
 edits; this resets acknowledgments and leaves originals intact.
 A readable current merchant also offers an optional note suggestion; selecting

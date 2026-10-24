@@ -53,6 +53,7 @@ import {
 import { useReviewFocus } from "@/components/use-review-focus";
 import { ModalDialog } from "@/components/modal-dialog";
 import { TransferMatchDialog } from "@/components/transfer-match-dialog";
+import { MessageChoiceLearning } from "@/components/message-choice-learning";
 import { SmsStatementMatchDialog } from "@/components/sms-statement-match-dialog";
 import { getAccessToken } from "@/lib/auth-storage";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
@@ -133,6 +134,7 @@ export function MessageReviewWorkspace() {
   const [statementPair, setStatementPair] = useState<UnifiedPair | null>(null);
   const [editStatementPair, setEditStatementPair] = useState<UnifiedPair | null>(null);
   const [statementMatchBusy, setStatementMatchBusy] = useState(false);
+  const [justSaved, setJustSaved] = useState<{ id: string; messageKind: string } | null>(null);
   const [paymentMethodDrafts, setPaymentMethodDrafts] = useState<Record<string, string>>({});
   const [accountDrafts, setAccountDrafts] = useState<Record<string, ReturnType<typeof accountReviewDefaults>>>({});
   const [matchError, setMatchError] = useFeedbackMessage("error");
@@ -383,6 +385,7 @@ export function MessageReviewWorkspace() {
         acknowledge_distinct_statements: true,
       });
       recovery.announce(saved.undo_action);
+      setJustSaved(saved.sender_rule ? { id: saved.id, messageKind: saved.message_kind } : null);
       setStatementDecision(null);
       await loadData(false);
     } catch (error) {
@@ -451,7 +454,7 @@ export function MessageReviewWorkspace() {
         reference: String(formData.get("reference") ?? ""),
         receiver_account_identifier: String(formData.get("receiver_account_identifier") ?? ""),
         receiver_card_identifier: String(formData.get("receiver_card_identifier") ?? ""),
-        remember_mapping: formData.get("remember_mapping") === "on",
+        remember_mapping: false,
         sender_account_identifier: String(formData.get("sender_account_identifier") ?? ""),
         sender_card_identifier: String(formData.get("sender_card_identifier") ?? ""),
         time: String(formData.get("time") ?? "") || null,
@@ -474,6 +477,7 @@ export function MessageReviewWorkspace() {
       }
       const saved = await confirmMessageCandidate(accessToken, candidate.id, input);
       recovery.announce(saved.undo_action);
+      setJustSaved(saved.sender_rule ? { id: saved.id, messageKind: saved.message_kind } : null);
       await loadData(false);
     } catch (error) {
       const errors = fieldErrorsFrom(error); setFieldErrors(errors); focusFieldError(formRef.current, errors);
@@ -506,6 +510,7 @@ export function MessageReviewWorkspace() {
       const saved = match ? await linkTransfer(accessToken, { candidate: transferDecision.candidate.id, draft: transferDecision.input }, match, balanceChoices)
         : await confirmMessageCandidate(accessToken, transferDecision.candidate.id, transferDecision.input);
       recovery.announce(saved.undo_action);
+      setJustSaved(transferDecision.candidate.sender_rule ? { id: transferDecision.candidate.id, messageKind: transferDecision.candidate.message_kind } : null);
       setTransferDecision(null);
       await loadData(false);
 
@@ -639,6 +644,7 @@ export function MessageReviewWorkspace() {
       {linkNotice ? <p className="form-warning" role="status"><Warning aria-hidden="true" size={18} />{linkNotice}</p> : null}
 
       <div className={`review-canvas${isFocused && !focusQueueOpen ? " review-canvas--queue-collapsed" : ""}`} ref={reviewSurface} role={isFocused ? "dialog" : undefined} aria-modal={isFocused || undefined} aria-label={isFocused ? "Focused SMS review" : undefined}>
+        {justSaved ? <MessageChoiceLearning key={justSaved.id} candidateId={justSaved.id} messageKind={justSaved.messageKind} onDone={() => setJustSaved(null)} /> : null}
         <div className="review-focus-header" hidden={!isFocused}>
           <div><h2 className="review-focus-title" tabIndex={-1}>{activeCandidate ? `SMS review · ${formatCurrency(activeValues?.amount)}` : "SMS review"}</h2><span aria-live="polite" aria-atomic="true">{activeCandidate ? `${accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"} · ${activeIndex + 1} / ${filteredCandidates.length}` : "No messages match these filters"}</span></div>
           <div className="review-focus-header__actions">
@@ -737,6 +743,12 @@ export function MessageReviewWorkspace() {
                   </div>;
                 })}
 
+                {activeCandidate.message_kind === "cash_out" && activeCandidate.destination_account && (accountDraft?.account !== activeCandidate.account || accountDraft?.other !== activeCandidate.destination_account) ? <div className="review-identity-hint" role="group" aria-label="Cash withdrawal route suggestion">
+                  <strong>Suggested cash route</strong>
+                  <p>{activeCandidate.transfer_suggestion_reason || "Check the cash destination against the original SMS."} {activeCandidate.account ? "Review the source account too." : "The source account still needs your choice because its identifier is a weak match."}</p>
+                  <button className="button button--ghost" type="button" disabled={workingCandidateId === activeCandidate.id} onClick={() => updateAccountDraft({ ...(activeCandidate.account ? { account: activeCandidate.account } : {}), other: activeCandidate.destination_account ?? "", direction: "debit" })}>{activeCandidate.account ? `Use ${accountNameById.get(activeCandidate.account) ?? "source account"} → ${accountNameById.get(activeCandidate.destination_account) ?? "cash account"}` : `Use ${accountNameById.get(activeCandidate.destination_account) ?? "cash account"} as destination`}</button>
+                </div> : null}
+
 
                 {classification?.type === "transfer" ? <div className="review-transfer-path" aria-label="Transfer path"><span>Money moves</span><strong>{accountNameById.get((accountDraft?.direction === "credit" ? accountDraft.other : accountDraft?.account) ?? "") ?? "Choose From account"} → {accountNameById.get((accountDraft?.direction === "credit" ? accountDraft.account : accountDraft?.other) ?? "") ?? "Choose To account"}</strong></div> : null}
                 <div className="review-editor-layout compact-editor">
@@ -754,7 +766,7 @@ export function MessageReviewWorkspace() {
                         <optgroup label="Other accounts">{reviewState.accounts.filter(account => account.id !== accountDraft?.account && !cashDestinationChoices.some(cash => cash.id === account.id)).map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</optgroup>
                       </> : reviewState.accounts.filter(account => account.id !== accountDraft?.account).map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
                     </select>
-                    {activeCandidate.message_kind === "cash_out" ? <span className="field__hint">Cash withdrawal defaults to a debit transfer into cash. {cashDestinationChoices.length === 0 ? "No active cash account in this currency. Add one to record the transfer, or change Type to Expense if the cash was spent immediately." : cashDestinationChoices.length > 1 ? "Choose which cash account received the money." : "Check that this cash account received the money."}</span> : null}
+                    {activeCandidate.message_kind === "cash_out" ? <span className="field__hint">Cash withdrawal defaults to a debit transfer into cash. {activeCandidate.transfer_suggestion_reason && activeCandidate.destination_account ? `${activeCandidate.transfer_suggestion_reason} ` : ""}{cashDestinationChoices.length === 0 ? "No active cash account in this currency. Add one to record the transfer, or change Type to Expense if the cash was spent immediately." : cashDestinationChoices.length > 1 ? "Choose which cash account received the money." : "Check that this cash account received the money."}</span> : null}
                     {activeCandidate.message_kind !== "cash_out" && activeCandidate.transfer_suggestion_reason && accountDraft?.account === accountReviewDefaults(activeCandidate).account && accountDraft?.other === accountReviewDefaults(activeCandidate).other && accountDraft?.direction === accountReviewDefaults(activeCandidate).direction ? <span className="field__hint" role="status">{accountDraft?.other ? `Suggested: ${reviewState.accounts.find((account) => account.id === accountDraft.other)?.name ?? "saved account"}. ` : ""}{activeCandidate.transfer_suggestion_reason}</span> : null}
                     <FieldError prefix="review" field="transfer_account" errors={fieldErrors} />
                   </label> : null}
@@ -774,11 +786,11 @@ export function MessageReviewWorkspace() {
                     </div>
                   </details>
                   <details className="review-identifiers field--wide" open={!accountDraft?.account || Number(activeCandidate.confidence) < 0.65}><summary>Masked sender and receiver identifiers</summary><fieldset className="review-identifier-grid field--wide"><legend>Masked sender and receiver identifiers</legend><p>These values help match a saved payment method. Store only masked values or a safe suffix, never a full card number. Choose ledger accounts using the account selectors above.</p><label className="field"><span className="field__label">Sender account</span><input className="field__control" defaultValue={nativeDrafts.current.text(activeCandidate.id, "sender_account_identifier", activeCandidate.sender_account_identifier)} name="sender_account_identifier" {...feedback("sender_account_identifier")} /><FieldError prefix="review" field="sender_account_identifier" errors={fieldErrors} /></label><label className="field"><span className="field__label">Sender card</span><input className="field__control" defaultValue={nativeDrafts.current.text(activeCandidate.id, "sender_card_identifier", activeCandidate.sender_card_identifier)} name="sender_card_identifier" {...feedback("sender_card_identifier")} /><FieldError prefix="review" field="sender_card_identifier" errors={fieldErrors} /></label><label className="field"><span className="field__label">Receiver account</span><input className="field__control" defaultValue={nativeDrafts.current.text(activeCandidate.id, "receiver_account_identifier", activeCandidate.receiver_account_identifier)} name="receiver_account_identifier" {...feedback("receiver_account_identifier")} /><FieldError prefix="review" field="receiver_account_identifier" errors={fieldErrors} /></label><label className="field"><span className="field__label">Receiver card</span><input className="field__control" defaultValue={nativeDrafts.current.text(activeCandidate.id, "receiver_card_identifier", activeCandidate.receiver_card_identifier)} name="receiver_card_identifier" {...feedback("receiver_card_identifier")} /><FieldError prefix="review" field="receiver_card_identifier" errors={fieldErrors} /></label></fieldset></details>
-                  <label className="field field--wide review-remember"><input defaultChecked={nativeDrafts.current.remember(activeCandidate.id)} name="remember_mapping" type="checkbox" /><span><strong>Use these choices for similar messages</strong><small>Saved after confirmation. Transfer choices are scoped to this reporting account and counterparty; other messages keep their own choices.</small></span></label>
                 </div>
                 </div>
 
-                <details className="raw-message" open={Number(activeCandidate.confidence) < 0.65 || Boolean(activeCandidate.raw_message.duplicate_of)}><summary>Original SMS and parser evidence</summary><p>SMS parsed direction: {activeCandidate.source_direction ? formatLabel(activeCandidate.source_direction) : "Unknown — check the message"}</p><p>{activeCandidate.raw_message.body}</p><p>{activeCandidate.parser_notes}</p>{activeCandidate.raw_message.status !== "redacted" ? <div className="raw-message-actions"><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleReprocess(activeCandidate)} type="button">{reprocessingCandidateId === activeCandidate.id ? <ButtonBusy label="Re-running parser" /> : <><ArrowClockwise aria-hidden="true" size={18} />Re-run parser</>}</button><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleRedact(activeCandidate)} type="button">Redact original SMS now</button></div> : <span className="status-badge status-badge--ok">Original SMS redacted</span>}</details>
+                <section className="review-source-strip" aria-label="Original SMS summary"><strong>From the SMS</strong><span>{activeCandidate.source_direction ? formatLabel(activeCandidate.source_direction) : "Direction unknown"} · {activeCandidate.amount ? formatCurrency(activeCandidate.amount) : "Amount unknown"} · balance after {activeCandidate.balance_after ?? "not reported"}</span></section>
+                <details className="raw-message" open={Number(activeCandidate.confidence) < 0.65 || Boolean(activeCandidate.raw_message.duplicate_of)}><summary>Read original SMS and parser evidence</summary><p>SMS parsed direction: {activeCandidate.source_direction ? formatLabel(activeCandidate.source_direction) : "Unknown — check the message"}</p><p>{activeCandidate.raw_message.body}</p><p>{activeCandidate.parser_notes}</p>{activeCandidate.raw_message.status !== "redacted" ? <div className="raw-message-actions"><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleReprocess(activeCandidate)} type="button">{reprocessingCandidateId === activeCandidate.id ? <ButtonBusy label="Re-running parser" /> : <><ArrowClockwise aria-hidden="true" size={18} />Re-run parser</>}</button><button className="button button--ghost" disabled={reprocessingCandidateId === activeCandidate.id || workingCandidateId === activeCandidate.id} onClick={() => void handleRedact(activeCandidate)} type="button">Redact original SMS now</button></div> : <span className="status-badge status-badge--ok">Original SMS redacted</span>}</details>
 
                 </div>
                 <div className="review-sticky-actions"><div className="review-action-status"><strong>{accountNameById.get(accountDraft?.account ?? "") ?? "Account not selected"}</strong><span>{activeCorrections.length ? `${activeCorrections.length} correction(s) needed` : ""}</span></div><div className="review-detail__pager" role="group" aria-label="Message navigation"><button aria-label="Previous message" disabled={activeIndex <= 0} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex - 1]?.id ?? activeCandidate.id)} type="button"><ArrowLeft size={18} /></button><span>{activeIndex + 1} / {filteredCandidates.length}</span><button aria-label="Next message" disabled={activeIndex >= filteredCandidates.length - 1} onClick={() => setActiveCandidateId(filteredCandidates[activeIndex + 1]?.id ?? activeCandidate.id)} type="button"><ArrowRight size={18} /></button><button hidden={isFocused} className="review-focus-toggle" aria-label={isFocused ? "Exit focus mode" : "Enter focus mode"} aria-pressed={isFocused} title={isFocused ? "Exit focus mode (Escape)" : "Focus on the review workspace"} onClick={event => { if (!isFocused) { prepareFocus(event.currentTarget); setFocusQueueOpen(window.matchMedia("(min-width: 821px)").matches); } setFocusMode(current => !current); }} type="button">{isFocused ? <CornersIn size={19} aria-hidden="true" /> : <CornersOut size={19} aria-hidden="true" />}</button></div><button className="button button--danger" disabled={workingCandidateId === activeCandidate.id} onClick={() => setRejectDraft({ candidate: activeCandidate, note: "", reason: "not_transaction", redact: true, scope: "message" })} type="button">Reject</button><button className="button button--primary" disabled={workingCandidateId === activeCandidate.id} type="submit">{workingCandidateId === activeCandidate.id ? <ButtonBusy label={lookupInProgress ? "Finding matches" : "Confirming"} /> : "Confirm & add"}</button></div>

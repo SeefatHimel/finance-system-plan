@@ -120,13 +120,10 @@ test('temporary filter exclusion and message navigation retain sparse native dra
   drafts.capture('first', 'reference', 'SYNTHETIC-DRAFT');
   drafts.capture('first', 'note', '');
   drafts.capture('first', 'date', '2026-01-02');
-  drafts.capture('first', 'remember_mapping', false);
   assert.equal(drafts.text('first', 'reference', 'parsed'), 'SYNTHETIC-DRAFT');
   assert.equal(drafts.text('first', 'note', 'parsed'), '');
   assert.equal(drafts.text('first', 'date', 'parsed'), '2026-01-02');
-  assert.equal(drafts.remember('first'), false);
   assert.equal(drafts.text('second', 'reference', 'other parsed'), 'other parsed');
-  assert.equal(drafts.remember('second'), true);
 });
 test('parser resets discard only their own drafts; bulk resets and new workspaces retain no previous edits', () => {
   const drafts = createReviewDrafts();
