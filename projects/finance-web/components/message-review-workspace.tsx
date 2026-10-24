@@ -17,7 +17,7 @@ import { CalendarDateInput } from "@/components/calendar-date-input";
 import { parseCalendarDate } from "@/lib/calendar-date";
 import { allDates, dateInPeriod, type DatePeriod } from "@/lib/date-period";
 
-import { useFeedbackMessage } from "@/components/toast-provider";
+import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
 import { ArrowClockwise, ArrowLeft, ArrowRight, ArrowsLeftRight, CheckCircle, CornersIn, CornersOut, DotsThree, FunnelSimple, Info, List, MagnifyingGlass, Warning, X } from "@phosphor-icons/react";
 import type React from "react";
@@ -34,7 +34,6 @@ import {
   confirmMessageCandidate,
   findSmsStatementMatches,
   findTransferMatches,
-  getUnifiedPair,
   previewUnifiedPair,
   getPendingMessageCandidate,
   linkTransfer,
@@ -115,6 +114,7 @@ function normalizedNote(candidate: ParsedMessageCandidate) {
 
 export function MessageReviewWorkspace() {
   const recovery = useTransactionRecovery();
+  const { notify } = useToast();
   const { session } = useAuth();
   const owner = session.status === "signed-in" ? session.user.id : null;
   const ownerRef = useRef(owner); ownerRef.current = owner;
@@ -133,7 +133,6 @@ export function MessageReviewWorkspace() {
   const [statementPair, setStatementPair] = useState<UnifiedPair | null>(null);
   const [editStatementPair, setEditStatementPair] = useState<UnifiedPair | null>(null);
   const [statementMatchBusy, setStatementMatchBusy] = useState(false);
-  const [statementMatchError, setStatementMatchError] = useState<string | null>(null);
   const [paymentMethodDrafts, setPaymentMethodDrafts] = useState<Record<string, string>>({});
   const [accountDrafts, setAccountDrafts] = useState<Record<string, ReturnType<typeof accountReviewDefaults>>>({});
   const [matchError, setMatchError] = useFeedbackMessage("error");
@@ -358,7 +357,6 @@ export function MessageReviewWorkspace() {
     const result = await findSmsStatementMatches(token, candidate.id, input);
     if (result.unavailable) throw new Error("Too many statement rows to check safely. Review a shorter statement period before adding this SMS.");
     if (!result.matches.length) return false;
-    setStatementMatchError(null);
     setStatementDecision({ candidate, input, matches: result.matches });
     return true;
   }
@@ -366,18 +364,18 @@ export function MessageReviewWorkspace() {
   async function openStatementPair(match: SmsStatementMatch) {
     const token = getAccessToken();
     if (!token || !statementDecision) return;
-    setStatementMatchBusy(true); setStatementMatchError(null);
+    setStatementMatchBusy(true);
     try {
       setStatementPair(await previewUnifiedPair(token, match.statement.id, statementDecision.candidate.id, statementDecision.input.account ?? undefined));
     } catch (error) {
-      setStatementMatchError(error instanceof Error ? error.message : "Could not load this pair. Refresh the sources and try again.");
+      notify(error instanceof Error ? error.message : "Could not load this pair. Refresh the sources and try again.", "error");
     } finally { setStatementMatchBusy(false); }
   }
 
   async function addSeparateSms(ids: string[]) {
     const token = getAccessToken();
     if (!token || !statementDecision) return;
-    setStatementMatchBusy(true); setStatementMatchError(null);
+    setStatementMatchBusy(true);
     try {
       const saved = await confirmMessageCandidate(token, statementDecision.candidate.id, {
         ...statementDecision.input,
@@ -388,14 +386,14 @@ export function MessageReviewWorkspace() {
       setStatementDecision(null);
       await loadData(false);
     } catch (error) {
-      setStatementMatchError(error instanceof Error ? error.message : "Statement matches changed. Refresh and compare them again.");
+      notify(error instanceof Error ? error.message : "Statement matches changed. Refresh and compare them again.", "error");
     } finally { setStatementMatchBusy(false); }
   }
 
   async function refreshStatementMatches() {
     const token = getAccessToken();
     if (!token || !statementDecision) return;
-    setStatementMatchBusy(true); setStatementMatchError(null);
+    setStatementMatchBusy(true);
     try {
       const result = await findSmsStatementMatches(token, statementDecision.candidate.id, statementDecision.input);
       if (result.unavailable) throw new Error("Too many statement rows to check safely. Review a shorter statement period before adding this SMS.");
@@ -406,7 +404,7 @@ export function MessageReviewWorkspace() {
         setActionMessage("No pending statement match remains. Review the SMS and confirm it again.");
       }
     } catch (error) {
-      setStatementMatchError(error instanceof Error ? error.message : "Could not refresh statement suggestions.");
+      notify(error instanceof Error ? error.message : "Could not refresh statement suggestions.", "error");
     } finally { setStatementMatchBusy(false); }
   }
 
@@ -415,8 +413,8 @@ export function MessageReviewWorkspace() {
     setEditStatementPair(null);
     if (!token) return;
     setStatementMatchBusy(true);
-    try { setStatementPair(await getUnifiedPair(token, pair.row.id, pair.sms.id)); }
-    catch (error) { setStatementMatchError(error instanceof Error ? error.message : "The pair changed. Refresh both sources."); }
+    try { setStatementPair(await previewUnifiedPair(token, pair.row.id, pair.sms.id, statementDecision?.input.account ?? undefined)); }
+    catch (error) { notify(error instanceof Error ? error.message : "The pair changed. Refresh both sources.", "error"); }
     finally { setStatementMatchBusy(false); }
   }
 
@@ -809,7 +807,7 @@ export function MessageReviewWorkspace() {
       </ModalDialog> : null}
       {rejectDraft ? <ModalDialog labelledBy="reject-title" busy={workingCandidateId === rejectDraft.candidate.id} onCancel={() => setRejectDraft(null)}><button aria-label="Close rejection options" className="decision-modal__close" disabled={workingCandidateId === rejectDraft.candidate.id} onClick={() => setRejectDraft(null)} type="button"><X size={20} /></button><h2 id="reject-title">Reject this message</h2><p>Choose whether to reject only this message or remember a skip rule. Skipping a recognized promotional, OTP/security or balance-notice type applies across your trusted senders and keeps transaction messages enabled. Undo the rule in SMS settings.</p><form onSubmit={(event) => void handleReject(event)}><label className="field"><span className="field__label">Reason</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, reason: event.target.value })} value={rejectDraft.reason}>{[["not_transaction", "Not a transaction"], ["otp_security", "OTP or security"], ["duplicate", "Duplicate"], ["wrong_provider_account", "Wrong provider or account"], ["personal", "Personal or non-financial"], ["unsupported_format", "Unsupported format"], ["other", "Other"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field"><span className="field__label">Apply to</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, scope: event.target.value as RejectDraft["scope"] })} value={rejectDraft.scope}><option value="message">Only this message</option><option value="kind">This message and skip its non-transaction type</option><option value="sender">This message and disable {rejectDraft.candidate.raw_message.sender}</option><option value="provider">This message and exclude all {formatLabel(rejectDraft.candidate.provider)} messages</option></select></label><label className="field"><span className="field__label">Note (optional)</span><input className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, note: event.target.value })} value={rejectDraft.note} /></label><label className="review-remember"><input checked={rejectDraft.redact} onChange={(event) => setRejectDraft({ ...rejectDraft, redact: event.target.checked })} type="checkbox" /><span><strong>Redact original SMS now</strong><small>Parsed metadata remains for audit and duplicate protection.</small></span></label><div className="decision-modal__actions"><button className="button button--ghost" disabled={workingCandidateId === rejectDraft.candidate.id} onClick={() => setRejectDraft(null)} type="button">Cancel</button><button className="button button--danger" disabled={workingCandidateId === rejectDraft.candidate.id} type="submit">{workingCandidateId === rejectDraft.candidate.id ? <ButtonBusy label="Rejecting" /> : "Reject message"}</button></div></form></ModalDialog> : null}
       {transferDecision ? <TransferMatchDialog original={transferComparison(transferDecision.input, id => accountNameById.get(id))} originalSource="SMS awaiting confirmation" matches={transferDecision.matches} busy={workingCandidateId !== null} error={matchError} onAccept={(match, choices) => void handleTransferDecision(match, choices)} separateLabel={transferDecision.lookupOnly ? "Back to review" : undefined} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
-      {statementDecision && !statementPair && !editStatementPair ? <SmsStatementMatchDialog key={statementDecision.candidate.id + statementDecision.matches.map(match => `${match.statement.id}:${match.statement.updated_at}`).join(":")} candidate={statementDecision.candidate} input={statementDecision.input} accountName={accountNameById.get(statementDecision.input.account ?? "") ?? "Account not selected"} matches={statementDecision.matches} busy={statementMatchBusy} error={statementMatchError} onCancel={() => { setStatementDecision(null); setStatementMatchError(null); }} onReview={match => void openStatementPair(match)} onSeparate={ids => void addSeparateSms(ids)} onRefresh={() => void refreshStatementMatches()} /> : null}
+      {statementDecision && !statementPair && !editStatementPair ? <SmsStatementMatchDialog key={statementDecision.candidate.id + statementDecision.matches.map(match => `${match.statement.id}:${match.statement.updated_at}`).join(":")} candidate={statementDecision.candidate} input={statementDecision.input} accountName={accountNameById.get(statementDecision.input.account ?? "") ?? "Account not selected"} matches={statementDecision.matches} busy={statementMatchBusy} onCancel={() => setStatementDecision(null)} onReview={match => void openStatementPair(match)} onSeparate={ids => void addSeparateSms(ids)} onRefresh={() => void refreshStatementMatches()} /> : null}
       {statementPair && reviewState.status === "ready" ? <PairDialog key={`${statementPair.row.id}:${statementPair.row.version}`} pair={statementPair} smsFormInput={statementDecision?.input} accounts={reviewState.accounts} categories={reviewState.categories} onCancel={() => setStatementPair(null)} onSaved={() => { setStatementPair(null); setStatementDecision(null); void loadData(false); }} onEdit={() => { setEditStatementPair(statementPair); setStatementPair(null); }} /> : null}
       {editStatementPair && reviewState.status === "ready" ? <StatementRowDialog editOnly key={editStatementPair.row.id} row={editStatementPair.row} batch={editStatementPair.batch} accounts={reviewState.accounts} categories={reviewState.categories} onCancel={() => void reopenStatementPair(editStatementPair)} onReload={() => void reopenStatementPair(editStatementPair)} onNext={async () => reopenStatementPair(editStatementPair)} onChange={() => void reopenStatementPair(editStatementPair)} /> : null}
     </div>

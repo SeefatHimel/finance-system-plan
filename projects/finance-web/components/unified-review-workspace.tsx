@@ -35,7 +35,6 @@ function formatStatementDateTime(date: string | null, time: string | null) {
 export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, accounts, categories }: { accounts: Account[]; categories: Category[]; pair: UnifiedPair; smsFormInput?: ConfirmMessageCandidateInput; onCancel: () => void; onSaved: () => void; onEdit: () => void }) {
   const { notify } = useToast();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const [ackMatch, setAckMatch] = useState(false);
   const [ackCompeting, setAckCompeting] = useState(false);
   const [ackSmsForm, setAckSmsForm] = useState(false);
@@ -155,7 +154,7 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
     if (!token || blocked || (!balance && !ledger)) return;
     const balanceSource = pair.match.late_posting ? (ledger && !fillingMissingBalance ? "existing" : "sms") : ledger ? fillingMissingBalance ? balance : "existing" : balance;
     if (!balanceSource) return;
-    setBusy(true); setError("");
+    setBusy(true);
     try {
       await confirmUnifiedPair(token, {
         statement: row.id, sms: pair.sms.id, statement_version: row.version, sms_updated_at: pair.sms.updated_at,
@@ -174,7 +173,7 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
       onSaved();
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Could not match these sources.";
-      setError(message); notify(message, "error");
+      notify(message, "error");
     } finally { setBusy(false); }
   }
 
@@ -274,7 +273,6 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
       <label className="review-remember unified-pair-remember"><input type="checkbox" disabled={busy} checked={remember} onChange={event => setRemember(event.target.checked)} /><span>Remember statement category and transfer choices. <small>Optional · not included in Check required.</small></span></label>
       </section>
       </div>
-      {error ? <p className="form-error" role="alert">{error} Close and refresh the queue if either source changed.</p> : null}
     </div>
     <footer className="statement-row-footer">
       <div id="unified-confirm-requirements" className="unified-confirm-requirements" aria-live="polite">

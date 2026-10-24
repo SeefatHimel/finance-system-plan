@@ -1855,3 +1855,8 @@ without pairing that row. Final review shows competing sources and requires an
 explicit same-movement confirmation. If the form's selected reporting account
 corrects the saved SMS parser account, final review calls out that correction
 and asks for acknowledgment before saving the single linked transaction.
+The comparison highlights exact details that agree in the saved SMS and
+statement, such as direction, amount, or a reported balance. These clues do
+not confirm identity, and uncertain or later-posted balances are not shown as
+exact agreement. Action failures appear in a toast while the comparison stays
+open for retry; persistent queue-loading failures retain an inline Retry.

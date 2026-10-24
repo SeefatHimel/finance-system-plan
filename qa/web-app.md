@@ -1556,3 +1556,8 @@ selected in the SMS form differs from the parser's saved account, the final
 review calls out the correction and requires an acknowledgment; choosing the
 pair uses that same selected account as the suggestion, so a valid suggestion
 does not fail merely because the saved parser account was stale.
+The comparison calls out only corroborated saved-source details, so an account
+changed in the current form does not appear as a source agreement. Those
+highlights are review clues, not automatic approval. Pairing action failures
+show as toast messages within the modal; loading failures that need a Retry
+control stay inline with that control.

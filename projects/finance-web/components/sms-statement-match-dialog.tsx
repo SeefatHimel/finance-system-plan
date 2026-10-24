@@ -3,15 +3,15 @@
 import { useState } from "react";
 import { formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
 import { ModalDialog } from "@/components/modal-dialog";
+import { agreeingSmsStatementEvidence } from "@/lib/sms-statement-evidence";
 import type { ConfirmMessageCandidateInput, ParsedMessageCandidate, SmsStatementMatch } from "@/lib/api";
 
-export function SmsStatementMatchDialog({ candidate, input, accountName, matches, busy, error, onCancel, onReview, onSeparate, onRefresh }: {
+export function SmsStatementMatchDialog({ candidate, input, accountName, matches, busy, onCancel, onReview, onSeparate, onRefresh }: {
   candidate: ParsedMessageCandidate;
   input: ConfirmMessageCandidateInput;
   accountName: string;
   matches: SmsStatementMatch[];
   busy: boolean;
-  error: string | null;
   onCancel: () => void;
   onReview: (match: SmsStatementMatch) => void;
   onSeparate: (ids: string[]) => void;
@@ -30,11 +30,14 @@ export function SmsStatementMatchDialog({ candidate, input, accountName, matches
       <p className="field__hint">Your current form: {accountName} · {input.type?.replaceAll("_", " ") ?? candidate.transaction_type.replaceAll("_", " ")} · {input.direction || candidate.source_direction || "Direction to review"} · {input.amount ?? candidate.amount ?? "Amount needed"} · balance after {input.balance_after ?? "Not reported"}{input.note ? ` · note: ${input.note}` : ""}</p>
     </section>
     <div className="sms-statement-match-list">
-      {matches.map(match => <article className="sms-statement-match-card" key={match.statement.id}>
+      {matches.map(match => {
+        const evidence = agreeingSmsStatementEvidence(match.statement, candidate, match.signals);
+        return <article className="sms-statement-match-card" key={match.statement.id}>
         <div className="sms-statement-match-card__heading"><strong>{match.statement.account_name} · {match.statement.currency} {match.statement.amount}</strong><span className={`status-badge ${match.unique && match.signals.strength === "strong" ? "status-badge--ok" : "status-badge--warning"}`}>{match.unique && match.signals.strength === "strong" ? "Strong match" : "Needs your decision"}</span></div>
         <p><strong>Statement</strong> · {formatCalendarDate(match.statement.date)}{match.statement.time ? ` · ${formatClockTime(match.statement.time)}` : ""} · {match.statement.direction} · {match.statement.type.replaceAll("_", " ")}</p>
         <p>{match.statement.description || "No statement description"}</p>
         <p className="field__hint">Reference: {match.statement.reference || "Not reported"} · Balance after: {match.statement.balance_after ?? "Not reported"}</p>
+        {evidence.length ? <div className="sms-statement-agreement" aria-label="Source details that agree"><strong>Details that agree</strong><ul>{evidence.map(item => <li key={item.label}><span>{item.label}</span><strong>{item.value}</strong></li>)}</ul><span className="field__hint">These clues support review; they do not confirm the pair.</span></div> : null}
         <details><summary>Why suggested</summary><ul>{match.signals.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul></details>
         {!match.unique ? <p className="form-warning">Other pending sources may also match. Review them before the final confirmation.</p> : null}
         <div className="statement-actions"><button className="button button--primary" type="button" disabled={busy || different.includes(match.statement.id)} onClick={() => onReview(match)}>Review as one transaction</button><span className="field__hint">Opens the final comparison; nothing is recorded yet.</span></div>
@@ -42,12 +45,11 @@ export function SmsStatementMatchDialog({ candidate, input, accountName, matches
           setDifferent(current => event.target.checked ? [...current, match.statement.id] : current.filter(id => id !== match.statement.id));
           setAcknowledged(false);
         }} /><span>This statement is a different transaction. Only select this to add the SMS separately.</span></label>
-      </article>)}
+      </article>})}
     </div>
     </div>
     {allReviewed ? <label className="review-remember"><input type="checkbox" checked={acknowledged} disabled={busy} onChange={event => setAcknowledged(event.target.checked)} /><span>I compared every suggested statement row and confirm this SMS is a separate transaction.</span></label> : null}
     {busy ? <p role="status">Checking current statement evidence…</p> : null}
-    {error ? <p className="form-error" role="alert">{error}</p> : null}
     <div className="decision-modal__actions"><button className="button" type="button" disabled={busy} onClick={onCancel}>Back to SMS</button><button className="button button--ghost" type="button" disabled={busy} onClick={onRefresh}>Refresh suggestions</button><button className="button button--danger" type="button" disabled={busy || !allReviewed || !acknowledged} onClick={() => onSeparate(different)}>Add as separate transaction</button></div>
   </ModalDialog>;
 }
