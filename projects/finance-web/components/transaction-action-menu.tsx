@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { createPortal } from "react-dom";
 
 /** Portal keeps row actions out of the table's horizontal clipping boundary. */
-export function TransactionActionMenu({ label, children }: { label: string; children: ReactNode }) {
+export function TransactionActionMenu({ label, children, icon }: { label: string; children: ReactNode; icon?: ReactNode }) {
   const trigger = useRef<HTMLButtonElement>(null);
   const popup = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -33,7 +33,7 @@ export function TransactionActionMenu({ label, children }: { label: string; chil
     return () => { document.removeEventListener("pointerdown", outside); window.removeEventListener("scroll", scroll, true); window.removeEventListener("resize", scroll); };
   }, [open]);
   return <>
-    <button ref={trigger} className="button button--ghost transaction-actions-trigger" type="button" aria-label={label} aria-expanded={open} onClick={() => setOpen(value => !value)}><DotsThree size={22} weight="bold" aria-hidden="true" /></button>
+    <button ref={trigger} className="button button--ghost transaction-actions-trigger" type="button" aria-label={label} title={label} aria-expanded={open} onClick={() => setOpen(value => !value)}>{icon ?? <DotsThree size={22} weight="bold" aria-hidden="true" />}</button>
     {open ? createPortal(<div ref={popup} className="transaction-actions-menu" role="group" aria-label={label} style={position}
       onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); } }}
       onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}

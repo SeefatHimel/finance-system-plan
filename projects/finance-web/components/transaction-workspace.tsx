@@ -1,6 +1,6 @@
 "use client";
 import { TransactionActionMenu } from "@/components/transaction-action-menu";
-import { transactionColumnPreferences, transactionPage, transactionPageParams } from "@/lib/transaction-list";
+import { transactionColumnPreferences, transactionPage, transactionPageParams, transactionPeriodFilters, transactionPeriodCaption } from "@/lib/transaction-list";
 import { AccountLabel } from "@/components/account-avatar";
 import { displayLabel, formatCurrency, formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
 
@@ -11,11 +11,11 @@ import { localDay, localTime } from "../../finance-contracts/quick-add";
 
 import { identifierLabel, useIdentifierView } from "@/components/identifier-view";
 
-import { RecentTransactionAction, useTransactionRecovery } from "@/components/transaction-recovery";
+import { useTransactionRecovery } from "@/components/transaction-recovery";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useFeedbackMessage } from "@/components/toast-provider";
+import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
-import { Plus, SlidersHorizontal, X } from "@phosphor-icons/react";
+import { Plus, SlidersHorizontal, X, FunnelSimple, MagnifyingGlass, SortDescending, DownloadSimple, ArrowCounterClockwise, CaretLeft, CaretRight, CalendarBlank, SpinnerGap } from "@phosphor-icons/react";
 import type React from "react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -59,8 +59,7 @@ import { TransactionStatementEvidence } from "@/components/transaction-statement
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
 import { accountBoundBalances, editableReportedBalance, transferBalancePayload } from "@/lib/transaction-balances";
-import { DatePeriodControls } from "@/components/date-period-controls";
-import { periodFromFilters, periodLabel, type DatePeriod } from "@/lib/date-period";
+import { periodFromFilters, periodLabel, shiftPeriod, dailyPeriod, monthPeriod, allDates, dateRangeError, type DatePeriod } from "@/lib/date-period";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
 
 import { FieldError } from "@/components/field-error";
@@ -148,6 +147,7 @@ type TransactionWorkspaceProps = {
 export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, onEmbeddedClose, onEmbeddedSaved }: TransactionWorkspaceProps = {}) {
   const isEmbedded = Boolean(embeddedEditId || embeddedCreate);
   const recovery = useTransactionRecovery();
+  const { dismiss: dismissToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const editorForm = useRef<HTMLFormElement>(null);
@@ -180,7 +180,8 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
   const tableScroll = useRef<HTMLDivElement>(null);
   const listTop = useRef<HTMLDivElement>(null);
   const restorePosition = useRef<{ y: number; x: number } | null>(null);
-  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  const [filterPanel, setFilterPanel] = useState<{ filters: TransactionFilterState; period: DatePeriod } | null>(null);
+  const [filterDateError, setFilterDateError] = useState("");
   const [dateView, setDateView] = useState<DatePeriod["mode"]>("monthly");
   const filtersRef = useRef(filters);
   const setFilters = useCallback((next: TransactionFilterState) => {
@@ -197,7 +198,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
   const [transferDecision, setTransferDecision] = useState<{ input: CreateTransactionInput; matches: TransferMatch[]; mergeId?: string } | null>(null);
   const [matchError, setMatchError] = useFeedbackMessage("error");
   const [formError, setFormError] = useFeedbackMessage("error");
-  const [formMessage, setFormMessage] = useFeedbackMessage("success");
+  const [, setFormMessage] = useFeedbackMessage("success");
   const [clockEdit, setClockEdit] = useState<{ value: string } | null>(null);
   const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
   const [evidenceTransaction, setEvidenceTransaction] = useState<Transaction | null>(null);
@@ -205,7 +206,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [exportMessage, setExportMessage] = useFeedbackMessage("success");
+  const [, setExportMessage] = useFeedbackMessage("success");
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState("");
   const [editingSourceMessages, setEditingSourceMessages] = useState<TransactionSourceMessage[] | null>(null);
@@ -495,11 +496,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
 
   function selectPeriod(period: DatePeriod) {
     setDateView(period.mode);
-    const nextFilters = { ...filtersRef.current,
-      month: period.mode === "monthly" ? period.start.slice(0, 7) : "",
-      start_date: period.mode === "daily" || period.mode === "custom" ? period.start : "",
-      end_date: period.mode === "daily" || period.mode === "custom" ? period.end : ""
-    };
+    const nextFilters = { ...filtersRef.current, ...transactionPeriodFilters(period) };
     setFilters(nextFilters);
     applyFilterUrl(nextFilters, period.mode);
     markPending(nextFilters);
@@ -507,11 +504,47 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
   }
 
   function selectOrdering(ordering: TransactionFilterState["ordering"]) {
-    const nextFilters: TransactionFilterState = { ...filtersRef.current, ordering, month: ordering !== "-date" ? "" : currentMonth(), start_date: "", end_date: "", date_field: ordering === "-created_at" ? "created_at" : ordering === "-updated_at" ? "updated_at" : "date" };
-    setDateView(ordering === "-date" ? "monthly" : "all");
+    const nextFilters = { ...filtersRef.current, ordering };
     setFilters(nextFilters);
-    applyFilterUrl(nextFilters, ordering === "-date" ? "monthly" : "all");
+    applyFilterUrl(nextFilters);
     void loadData(nextFilters, false);
+  }
+
+  function refreshFilters(next: TransactionFilterState, debounce = false) {
+    setFilters(next);
+    applyFilterUrl(next);
+    if (debounce) {
+      markPending(next);
+      dataRequests.current.schedule(ticket => { void requestData(next, false, ticket); }, 300);
+    } else void loadData(next, false);
+  }
+  function openFilters() {
+    dismissToast();
+    setFilterDateError("");
+    setFilterPanel({ filters: { ...filtersRef.current }, period: periodFromFilters(filtersRef.current, dateView) });
+  }
+  function changePanelMode(mode: DatePeriod["mode"]) {
+    if (!filterPanel) return;
+    const start = filterPanel.period.start || currentDate();
+    setFilterDateError("");
+    setFilterPanel({ ...filterPanel, period: mode === "all" ? { ...allDates } : mode === "monthly" ? monthPeriod(start.slice(0, 7)) : mode === "daily" ? dailyPeriod(start) : { mode, start, end: filterPanel.period.end || start } });
+  }
+  function applyPanelFilters(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!filterPanel) return;
+    const period = filterPanel.period;
+    const error = period.mode !== "all" ? dateRangeError(period.start, period.end) : "";
+    if (error) {
+      setFilterDateError(error);
+      event.currentTarget.querySelector<HTMLElement>("[aria-label='Start date'], [aria-label='Selected date']")?.focus();
+      return;
+    }
+    const next = { ...filterPanel.filters, ...transactionPeriodFilters(period) };
+    setDateView(period.mode);
+    setFilters(next);
+    applyFilterUrl(next, period.mode);
+    void loadData(next, false);
+    setFilterPanel(null);
   }
 
   function toggleColumn(column: TransactionColumn) {
@@ -533,7 +566,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
       month: "",
       start_date: "",
       end_date: "",
-      date_field: filtersRef.current.date_field,
+      date_field: "date",
       ordering: filtersRef.current.ordering,
       search: "",
       source: "",
@@ -788,10 +821,15 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     );
   }
 
-  const advancedFilterCount = [filters.type, filters.direction, filters.source, filters.category, filters.date_field !== "date" ? filters.date_field : ""].filter(Boolean).length;
-  const hasUnappliedFilters = (["search", "account", "type", "direction", "source", "category", "date_field"] as const).some(key => filters[key] !== displayedFilters[key]);
-  const appliedFilterSummary = [displayedFilters.type, displayedFilters.direction, displayedFilters.source,
-    displayedFilters.category ? categoryNames.get(displayedFilters.category) ?? "Selected category" : "", displayedFilters.date_field === "date" ? "" : displayedFilters.date_field === "created_at" ? "Added date" : "Updated date"].filter(Boolean).join(" · ");
+  const advancedFilterCount = [displayedFilters.type, displayedFilters.direction, displayedFilters.source, displayedFilters.category, displayedFilters.date_field !== "date" ? displayedFilters.date_field : ""].filter(Boolean).length;
+  const activeFilterChips: { key: "account" | "category" | "direction" | "source" | "type" | "search" | "date_field"; label: string }[] = [
+    ...(displayedFilters.account ? [{ key: "account" as const, label: accountNames.get(displayedFilters.account) ?? "Selected account" }] : []),
+    ...(displayedFilters.search ? [{ key: "search" as const, label: `Search: ${displayedFilters.search}` }] : []),
+    ...(["type", "direction", "source"] as const).flatMap(key => displayedFilters[key] ? [{ key, label: displayLabel(displayedFilters[key]) }] : []),
+    ...(displayedFilters.category ? [{ key: "category" as const, label: categoryNames.get(displayedFilters.category) ?? "Selected category" }] : []),
+    ...(displayedFilters.date_field !== "date" ? [{ key: "date_field" as const, label: displayedFilters.date_field === "created_at" ? "Added date" : "Updated date" }] : []),
+  ];
+  const activePeriod = periodFromFilters(filters, dateView);
 
   const editingTransaction = editingRecord ?? undefined;
   const sourceWarnings = editorMode === "edit" && loadState.status === "ready" ? smsEvidenceWarnings({
@@ -878,6 +916,25 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
   return (
     <div className={isEmbedded ? "" : "workspace-grid"}>
       {isEmbedded && !editorMode ? <ModalDialog className="form-drawer embedded-editor-status" labelledBy="embedded-editor-pending-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-pending-title">Opening transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body">{formError ? <p role="alert">{formError}</p> : <p role="status">Preparing {embeddedCreate ? "full entry" : "saved entry and sources"}…</p>}{formError && embeddedEditId ? <button className="button button--ghost" type="button" onClick={() => void selectTransactionForEdit(embeddedEditId)}>Retry</button> : null}</div></ModalDialog> : null}
+      {filterPanel ? <ModalDialog className="form-drawer transaction-filter-dialog" labelledBy="transaction-filter-title" onCancel={() => setFilterPanel(null)}>
+        <div className="form-drawer__header"><div><h2 id="transaction-filter-title">Filter transactions</h2><p>Choose what appears in the list.</p></div><button className="icon-button" type="button" aria-label="Close filters" onClick={() => setFilterPanel(null)}><X size={20} /></button></div>
+        <form onSubmit={applyPanelFilters} noValidate className="transaction-filter-dialog__form">
+          <div className="transaction-filter-dialog__fields">
+            <label className="field"><span className="field__label">Date view</span><select className="field__control" value={filterPanel.period.mode} onChange={event => changePanelMode(event.target.value as DatePeriod["mode"])}><option value="monthly">Monthly</option><option value="daily">Daily</option><option value="custom">Custom range</option><option value="all">All dates</option></select></label>
+            {filterPanel.period.mode === "all" ? null : filterPanel.period.mode === "custom" ? <>
+              <label className="field"><span className="field__label">Start date</span><CalendarDateInput aria-label="Start date" aria-invalid={Boolean(filterDateError)} aria-describedby={filterDateError ? "transaction-filter-date-error" : undefined} value={filterPanel.period.start} onChange={start => { setFilterDateError(""); setFilterPanel({ ...filterPanel, period: { ...filterPanel.period, start } }); }} /></label>
+              <label className="field"><span className="field__label">End date</span><CalendarDateInput aria-label="End date" aria-invalid={Boolean(filterDateError)} aria-describedby={filterDateError ? "transaction-filter-date-error" : undefined} min={filterPanel.period.start} value={filterPanel.period.end} onChange={end => { setFilterDateError(""); setFilterPanel({ ...filterPanel, period: { ...filterPanel.period, end } }); }} /></label>
+            </> : <label className="field"><span className="field__label">{filterPanel.period.mode === "monthly" ? "Month (choose any day)" : "Day"}</span><CalendarDateInput aria-label="Selected date" aria-invalid={Boolean(filterDateError)} aria-describedby={filterDateError ? "transaction-filter-date-error" : undefined} value={filterPanel.period.start} onChange={start => { setFilterDateError(""); setFilterPanel({ ...filterPanel, period: start ? filterPanel.period.mode === "monthly" ? monthPeriod(start.slice(0, 7)) : dailyPeriod(start) : { ...filterPanel.period, start: "", end: "" } }); }} /></label>}
+            {filterDateError ? <p className="field-error field--wide" id="transaction-filter-date-error" role="alert">{filterDateError}</p> : null}
+            <label className="field"><span className="field__label">Date basis</span><select className="field__control" value={filterPanel.filters.date_field} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, date_field: event.target.value as TransactionFilterState["date_field"] } })}><option value="date">Transaction date</option><option value="created_at">Added date</option><option value="updated_at">Updated date</option></select></label>
+            <label className="field"><span className="field__label">Type</span><select className="field__control" value={filterPanel.filters.type} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, type: event.target.value as TransactionFilterState["type"] } })}><option value="">All types</option>{transactionTypes.map(type => <option key={type} value={type}>{displayLabel(type)}</option>)}</select></label>
+            <label className="field"><span className="field__label">Category</span><select className="field__control" value={filterPanel.filters.category} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, category: event.target.value } })}><option value="">All categories</option>{loadState.status === "ready" ? loadState.categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>) : null}</select></label>
+            <label className="field"><span className="field__label">Debit / credit</span><select className="field__control" value={filterPanel.filters.direction} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, direction: event.target.value as TransactionFilterState["direction"] } })}><option value="">All directions</option><option value="debit">Debit</option><option value="credit">Credit</option></select></label>
+            <label className="field"><span className="field__label">Source</span><select className="field__control" value={filterPanel.filters.source} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, source: event.target.value as TransactionFilterState["source"] } })}><option value="">All sources</option>{transactionSources.map(source => <option key={source} value={source}>{displayLabel(source)}</option>)}</select></label>
+          </div>
+          <div className="transaction-editor-actions"><button className="button button--ghost" type="button" onClick={() => { setFilterDateError(""); setFilterPanel({ ...filterPanel, period: { ...allDates }, filters: { ...filterPanel.filters, type: "", category: "", direction: "", source: "", date_field: "date" } }); }}>Reset</button><button className="button button--ghost" type="button" onClick={() => setFilterPanel(null)}>Cancel</button><button className="button button--primary" type="submit">Apply filters</button></div>
+        </form>
+      </ModalDialog> : null}
       {displayOptionsOpen ? <ModalDialog className="form-drawer transaction-display-dialog" labelledBy="transaction-display-title" onCancel={() => setDisplayOptionsOpen(false)}>
         <div className="form-drawer__header"><h2 id="transaction-display-title">Transaction display</h2><button className="icon-button" type="button" aria-label="Close display options" onClick={() => setDisplayOptionsOpen(false)}><X size={20} /></button></div>
         <div className="transaction-display-body">
@@ -1169,253 +1226,28 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
 
       {!isEmbedded ? <section className="panel transaction-list-panel">
         <div className="panel__body">
-          <div className="report-header transaction-list-header">
-            <div className="transaction-list-context"><RecentTransactionAction /><Link className="button button--ghost button--small" href="/checks">Evidence health</Link></div>
-            <button
-              className="button button--primary"
-              onClick={() => openNewTransaction()}
-              type="button"
-            >
-              <Plus aria-hidden="true" size={17} />
-              Add transaction
-            </button>
-          </div>
-
-          {formMessage ? <p className="form-success">{formMessage}</p> : null}
-
-          <form className="transaction-filters" onSubmit={handleFilterSubmit}>
-            <div className="transaction-filter-primary">
-              <label className="field">
-                <span className="field__label" id="transaction-search-label">
-                  Search
-                </span>
-                <input
-                  className="field__control"
-                  name="search"
-                  onChange={(event) =>
-                    setFilters({ ...filters, search: event.target.value })
-                  }
-                  aria-labelledby="transaction-search-label"
-                  maxLength={256}
-                  placeholder="Search all transaction fields"
-                  type="search"
-                  value={filters.search}
-                />
-              </label>
-              <label className="field">
-                <span className="field__label">Account</span>
-                <select
-                  className="field__control"
-                  name="account"
-                  onChange={(event) =>
-                    setFilters({ ...filters, account: event.target.value })
-                  }
-                  value={filters.account}
-                >
-                  <option value="">All accounts</option>
-                  {loadState.accounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span className="field__label">Sort</span>
-                <select
-                  className="field__control"
-                  aria-label="Transaction ordering"
-                  value={filters.ordering}
-                  onChange={(event) =>
-                    selectOrdering(
-                      event.target.value as TransactionFilterState["ordering"],
-                    )
-                  }
-                >
-                  <option value="-date">Transaction date</option>
-                  <option value="-created_at">Recently added</option>
-                  <option value="-updated_at">Recently updated</option>
-                </select>
-              </label>
-              <button className="button button--primary" type="submit">
-                Apply filters
-              </button>
-              <button
-                className="button button--ghost"
-                onClick={clearFilters}
-                type="button"
-              >
-                Clear
-              </button>
+          <form className="transaction-commandbar" role="search" aria-label="Search transactions" onSubmit={handleFilterSubmit}>
+            <label className="field transaction-commandbar__search"><span className="sr-only">Search</span><MagnifyingGlass size={18} aria-hidden="true" /><input className="field__control" type="search" name="search" aria-label="Search transactions" placeholder="Search transactions…" maxLength={256} value={filters.search} onChange={event => refreshFilters({ ...filtersRef.current, search: event.target.value }, true)} /></label>
+            <label className="field transaction-commandbar__account"><span className="sr-only">Account</span><select className="field__control" aria-label="Account" value={filters.account} onChange={event => refreshFilters({ ...filtersRef.current, account: event.target.value })}><option value="">All accounts</option>{loadState.accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+            <div className="transaction-date-navigator" role="group" aria-label="Transaction date navigation">
+              {activePeriod.mode === "monthly" || activePeriod.mode === "daily" ? <button className="icon-button" type="button" aria-label={`Previous ${activePeriod.mode === "daily" ? "day" : "month"}`} title={`Previous ${activePeriod.mode === "daily" ? "day" : "month"}`} onClick={() => selectPeriod(shiftPeriod(activePeriod, -1))}><CaretLeft size={17} aria-hidden="true" /></button> : null}
+              <button className="transaction-date-navigator__label" type="button" aria-haspopup="dialog" aria-label={`Choose dates: ${transactionPeriodCaption(activePeriod)}`} title={`${periodLabel(activePeriod)} · ${filters.date_field === "date" ? "Transaction date" : filters.date_field === "created_at" ? "Added date" : "Updated date"}`} onClick={openFilters}><CalendarBlank size={17} aria-hidden="true" /><span>{transactionPeriodCaption(activePeriod)}</span></button>
+              {activePeriod.mode === "monthly" || activePeriod.mode === "daily" ? <button className="icon-button" type="button" aria-label={`Next ${activePeriod.mode === "daily" ? "day" : "month"}`} title={`Next ${activePeriod.mode === "daily" ? "day" : "month"}`} onClick={() => selectPeriod(shiftPeriod(activePeriod, 1))}><CaretRight size={17} aria-hidden="true" /></button> : null}
             </div>
-            <DatePeriodControls
-              label="Transaction dates"
-              description={
-                filters.date_field === "date"
-                  ? "Based on transaction date"
-                  : `Based on ${filters.date_field === "created_at" ? "added" : "updated"} date · Asia/Dhaka`
-              }
-              value={periodFromFilters(filters, dateView)}
-              onChange={selectPeriod}
-              compact
-            />
-            <details
-              className="transaction-advanced-filters"
-              open={advancedFiltersOpen}
-              onToggle={(event) => setAdvancedFiltersOpen(event.currentTarget.open)}
-            >
-              <summary>
-                <SlidersHorizontal aria-hidden="true" size={17} />
-                More filters{advancedFilterCount ? ` (${advancedFilterCount})` : ""}
-              </summary>
-              <div className="transaction-filter-secondary">
-                <label className="field">
-                  <span className="field__label">Type</span>
-                  <select
-                    className="field__control"
-                    name="type"
-                    onChange={(event) =>
-                      setFilters({
-                        ...filters,
-                        type: event.target.value as TransactionFilterState["type"],
-                      })
-                    }
-                    value={filters.type}
-                  >
-                    <option value="">All types</option>
-                    {transactionTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {displayLabel(type)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span className="field__label">Debit / credit</span>
-                  <select
-                    className="field__control"
-                    name="direction"
-                    onChange={(event) =>
-                      setFilters({
-                        ...filters,
-                        direction: event.target
-                          .value as TransactionFilterState["direction"],
-                      })
-                    }
-                    value={filters.direction}
-                  >
-                    <option value="">All directions</option>
-                    <option value="debit">Debit</option>
-                    <option value="credit">Credit</option>
-                  </select>
-                </label>
-                <label className="field">
-                  <span className="field__label">Source</span>
-                  <select
-                    className="field__control"
-                    name="source"
-                    onChange={(event) =>
-                      setFilters({
-                        ...filters,
-                        source: event.target
-                          .value as TransactionFilterState["source"],
-                      })
-                    }
-                    value={filters.source}
-                  >
-                    <option value="">All sources</option>
-                    {transactionSources.map((source) => (
-                      <option key={source} value={source}>
-                        {source}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span className="field__label">Category</span>
-                  <select
-                    className="field__control"
-                    name="category"
-                    onChange={(event) =>
-                      setFilters({ ...filters, category: event.target.value })
-                    }
-                    value={filters.category}
-                  >
-                    <option value="">All categories</option>
-                    {loadState.categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span className="field__label">Filter date</span>
-                  <select
-                    aria-label="Filter date"
-                    className="field__control"
-                    value={filters.date_field}
-                    onChange={(event) => {
-                      const nextFilters = {
-                        ...filtersRef.current,
-                        date_field: event.target
-                          .value as TransactionFilterState["date_field"],
-                      };
-                      setFilters(nextFilters);
-                    }}
-                  >
-                    <option value="date">Transaction date</option>
-                    <option value="created_at">Added date</option>
-                    <option value="updated_at">Updated date</option>
-                  </select>
-                </label>
-              </div>
-            </details>
-            {hasUnappliedFilters ? (
-              <small className="field__hint" role="status">
-                Filter changes are not applied yet.
-              </small>
-            ) : null}
-            {appliedFilterSummary ? (
-              <p className="transaction-applied-filters">{appliedFilterSummary}</p>
-            ) : null}
+            <button className="button button--ghost transaction-filter-trigger" type="button" aria-label={advancedFilterCount ? `Filters, ${advancedFilterCount} active` : "Filters"} title="Filters" aria-haspopup="dialog" aria-expanded={Boolean(filterPanel)} onClick={openFilters}><FunnelSimple size={20} aria-hidden="true" />{advancedFilterCount ? <span>{advancedFilterCount}</span> : null}</button>
+            <button className="button button--primary transaction-commandbar__add" type="button" onClick={() => openNewTransaction()}><Plus size={17} aria-hidden="true" />Add transaction</button>
           </form>
-
-          {exportMessage ? <p className="section-subtitle">{exportMessage}</p> : null}
-
-          <div className="transaction-table-toolbar" ref={listTop}>
-            <div>
-              <p className="section-subtitle">
-                {loadState.transactions.length} {loadState.transactions.length === 1 ? "transaction" : "transactions"} · {displayedFilters.ordering === "-updated_at" ? "Recently updated" : displayedFilters.ordering === "-created_at" ? "Recently added" : "By transaction date"}
-              </p>
-              {isRefreshing ? (
-                <span className="transaction-refresh-state">
-                  <ButtonBusy
-                    label={`Loading ${periodLabel(periodFromFilters(requestedFilters))}. Showing ${periodLabel(periodFromFilters(displayedFilters))} results until ready.`}
-                  />
-                </span>
-              ) : null}
-              {refreshError ? (
-                <div className="transaction-refresh-error" role="alert">
-                  <p className="form-error">
-                    {refreshError} Showing{" "}
-                    {periodLabel(periodFromFilters(displayedFilters))} results.
-                  </p>
-                  <button
-                    className="button button--ghost button--small"
-                    onClick={() => void loadData(requestedFilters, false)}
-                    type="button"
-                  >
-                    Retry loading transactions
-                  </button>
-                </div>
-              ) : null}
-            </div>
-            <div className="transaction-toolbar-actions">
-              <button className="button button--ghost button--small" disabled={isExporting} onClick={() => void handleExportTransactions()} type="button">{isExporting ? <ButtonBusy label="Exporting" /> : "Export CSV"}</button>
-              <button className="button button--ghost button--small" type="button" onClick={() => setDisplayOptionsOpen(true)}><SlidersHorizontal size={17} aria-hidden="true" />Display</button>
+          <div className="transaction-table-toolbar transaction-table-toolbar--compact" ref={listTop}>
+            <div className="transaction-result-meta"><span>{loadState.transactions.length} {loadState.transactions.length === 1 ? "transaction" : "transactions"}</span>{isRefreshing ? <span role="status" className="transaction-refresh-state"><ButtonBusy label="Updating" /></span> : null}{refreshError ? <button className="icon-button" type="button" title={refreshError} aria-label="Retry loading transactions" onClick={() => void loadData(requestedFilters, false)}><ArrowCounterClockwise size={18} aria-hidden="true" /></button> : null}</div>
+            <div className="transaction-toolbar-actions transaction-toolbar-actions--icons" role="group" aria-label="Transaction tools">
+              <TransactionActionMenu label="Sort transactions" icon={<SortDescending size={19} aria-hidden="true" />}>{([['-date', 'Transaction date'], ['-created_at', 'Recently added'], ['-updated_at', 'Recently updated']] as const).map(([value, label]) => <button className="button button--ghost" type="button" aria-pressed={displayedFilters.ordering === value} key={value} onClick={() => selectOrdering(value)}>{label}</button>)}</TransactionActionMenu>
+              <button className="icon-button" type="button" aria-label={isExporting ? "Exporting CSV" : "Export CSV"} title="Export CSV" disabled={isExporting} onClick={() => void handleExportTransactions()}>{isExporting ? <SpinnerGap className="spin" size={19} aria-hidden="true" /> : <DownloadSimple size={19} aria-hidden="true" />}</button>
+              <button className="icon-button" type="button" aria-label="Display options" title="Display options" onClick={() => setDisplayOptionsOpen(true)}><SlidersHorizontal size={19} aria-hidden="true" /></button>
+              {activeFilterChips.length || activePeriod.mode !== "all" ? <button className="icon-button" type="button" aria-label="Clear all filters" title="Clear all filters" onClick={clearFilters}><ArrowCounterClockwise size={19} aria-hidden="true" /></button> : null}
+              <TransactionActionMenu label="More transaction tools"><Link className="button button--ghost" href="/checks">Evidence health</Link>{recovery.latest && !recovery.latest.undone ? <><span className="transaction-menu-note">Last action: {recovery.latest.label}</span>{recovery.latest.transaction ? <button className="button button--ghost" type="button" onClick={() => recovery.edit(recovery.latest!.transaction!)}>Edit latest transaction</button> : null}<button className="button button--ghost" type="button" disabled={recovery.busy || !recovery.latest.can_undo} onClick={() => recovery.undo(recovery.latest!)}>Undo latest action</button></> : null}</TransactionActionMenu>
             </div>
           </div>
+          {activeFilterChips.length ? <div className="transaction-filter-chips" aria-label="Applied filters">{activeFilterChips.map(chip => <button type="button" key={chip.key} className="transaction-filter-chip" title={`Remove ${chip.label}`} aria-label={`Remove ${chip.label}`} onClick={() => refreshFilters({ ...filtersRef.current, [chip.key]: chip.key === "date_field" ? "date" : "" })}><span>{chip.label}</span><X size={12} aria-hidden="true" /></button>)}</div> : null}
 
           {loadState.transactions.length === 0 ? (
             <div className="empty-state">

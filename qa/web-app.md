@@ -229,11 +229,17 @@ revalidation and transfer matching open in place. History retains its audit-log
 route. One bounded Display dialog manages optional balances, identifiers and
 columns, migrating existing separate Time preferences.
 
-Daily/monthly/custom/all-date filtering, account, category, direction, source,
-type, search and ordering remain available with one Apply filters action. Date
-navigation refreshes immediately. The complete filtered collection is paged in
-the browser in groups of 25, 50 or 100. CSV exports all applied results, not just
-the current page or unsubmitted filter edits.
+Search and account stay visible beside compact date navigation and a filter
+icon. Search refreshes after a 300 ms pause or Enter; account/date changes refresh
+in place. Secondary daily/monthly/custom/all-date, category, direction, source,
+type and date-basis choices open in a dialog (bottom sheet on mobile), and stay
+drafts until Apply. Cancel/Escape discard them; invalid dates keep the dialog
+open. Applied filters have removable chips and the icon shows a count. Named
+icons expose Sort, Export, Display, Clear and More tools. Sort preserves dates;
+Evidence health and latest-action Edit/Undo live in More tools. Export notices
+and new actions use the shared toasts instead of lasting header rows. The complete
+filtered collection is paged in the browser in groups of 25, 50 or 100. CSV
+exports all applied results, not just the current page or unsubmitted filters.
 
 The URL retains filters, page and page size. History preserves Next.js metadata
 and stores scroll offsets so Back/Forward can restore the list after loading.

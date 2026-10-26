@@ -21,3 +21,22 @@ export function transactionColumnPreferences(value: unknown, allowed: readonly s
   const selected = new Set(value.map(item => item === "time" ? "date" : item));
   return allowed.filter(column => selected.has(column));
 }
+
+export function transactionPeriodFilters(period: { mode: string; start: string; end: string }) {
+  return {
+    month: period.mode === "monthly" ? period.start.slice(0, 7) : "",
+    start_date: period.mode === "daily" || period.mode === "custom" ? period.start : "",
+    end_date: period.mode === "daily" || period.mode === "custom" ? period.end : "",
+  };
+}
+
+export function transactionPeriodCaption(period: { mode: string; start: string; end: string }) {
+  if (period.mode === "all") return "All dates";
+  const format = (value: string, options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
+  if (period.mode === "monthly") return format(period.start, { month: "long", year: "numeric" });
+  if (period.mode === "daily") return format(period.start, { day: "numeric", month: "short", year: "numeric" });
+  // Include both years for ranges crossing New Year so the compact label stays unambiguous.
+  const options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", ...(period.start.slice(0, 4) !== period.end.slice(0, 4) ? { year: "numeric" } : {}) };
+  return `${format(period.start, options)} – ${format(period.end, options)}`;
+}

@@ -6,7 +6,7 @@ const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const output = mkdtempSync(join(tmpdir(), 'finance-transaction-list-'));
 execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/transaction-list.ts'], { cwd: resolve(__dirname, '..') });
-const { transactionPage, transactionPageParams, transactionColumnPreferences } = require(join(output, 'transaction-list.js'));
+const { transactionPage, transactionPageParams, transactionColumnPreferences, transactionPeriodFilters, transactionPeriodCaption } = require(join(output, 'transaction-list.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
 
 test('pagination keeps every filtered record reachable, including the final partial page', () => {
@@ -33,4 +33,18 @@ test('existing column choices migrate time to combined date and time, discard un
   assert.deepEqual(transactionColumnPreferences(['time', 'date', 'amount', 'removed', 'amount'], allowed), ['date', 'amount']);
   assert.deepEqual(transactionColumnPreferences(['time'], allowed), ['date']);
   assert.deepEqual(transactionColumnPreferences({date: true}, allowed), []);
+});
+
+test('date modes replace incompatible date filters instead of carrying stale month or range values', () => {
+  assert.deepEqual(transactionPeriodFilters({mode:'all',start:'',end:''}), {month:'',start_date:'',end_date:''});
+  assert.deepEqual(transactionPeriodFilters({mode:'monthly',start:'2026-10-01',end:'2026-10-31'}), {month:'2026-10',start_date:'',end_date:''});
+  assert.deepEqual(transactionPeriodFilters({mode:'daily',start:'2026-10-27',end:'2026-10-27'}), {month:'',start_date:'2026-10-27',end_date:'2026-10-27'});
+  assert.deepEqual(transactionPeriodFilters({mode:'custom',start:'2026-09-28',end:'2026-10-27'}), {month:'',start_date:'2026-09-28',end_date:'2026-10-27'});
+});
+test('compact date captions distinguish months, days and ranges without timezone date shifts', () => {
+  assert.equal(transactionPeriodCaption({mode:'all',start:'',end:''}), 'All dates');
+  assert.equal(transactionPeriodCaption({mode:'monthly',start:'2026-10-01',end:'2026-10-31'}), 'October 2026');
+  assert.equal(transactionPeriodCaption({mode:'daily',start:'2026-10-27',end:'2026-10-27'}), '27 Oct 2026');
+  assert.equal(transactionPeriodCaption({mode:'custom',start:'2026-09-28',end:'2026-10-27'}), '28 Sept – 27 Oct');
+  assert.equal(transactionPeriodCaption({mode:'custom',start:'2026-12-28',end:'2027-01-05'}), '28 Dec 2026 – 5 Jan 2027');
 });
