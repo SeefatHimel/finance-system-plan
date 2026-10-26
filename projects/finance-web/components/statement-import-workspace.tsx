@@ -21,7 +21,7 @@ import { StatementDirectionRecheck } from "@/components/statement-direction-rech
 import { displayedStatementText } from "@/lib/statement-citytouch";
 import { useToast } from "@/components/toast-provider";
 
-const labels: Record<string, string> = { ebl_bank: "EBL bank", city_bank: "City Bank", bkash: "bKash", new: "Not in ledger", possible_match: "Possible match", needs_correction: "Needs review", posted: "Added", linked: "Linked", skipped: "Skipped", pending: "Pending" };
+const labels: Record<string, string> = { ebl_bank: "EBL bank", ebl_credit_card: "EBL credit card", city_bank: "City Bank", bkash: "bKash", new: "Not in ledger", possible_match: "Possible match", needs_correction: "Needs review", posted: "Added", linked: "Linked", skipped: "Skipped", pending: "Pending" };
 const emptyFilters = { state: "", sms_status: "", direction: "", type: "", category: "", search: "", date_from: "", date_to: "", ordering: "source" };
 
 function StatementDescriptionCell({ row }: { row: SavedStatementRow }) {
@@ -29,7 +29,7 @@ function StatementDescriptionCell({ row }: { row: SavedStatementRow }) {
   const primary = displayedStatementText(row.counterparty_text || row.extracted.provider_type || "Statement movement", source, row.citytouch_printed_code);
   const note = displayedStatementText(row.note, source, row.citytouch_printed_code);
   const showCode = row.citytouch_printed_code && !`${primary} ${note}`.includes(row.citytouch_printed_code);
-  return <td><strong>{primary}</strong><div>{note}</div>{showCode ? <small>Citytouch code: {row.citytouch_printed_code}</small> : null}{row.reference ? <small>Reference: {row.reference}</small> : null}</td>;
+  return <td><strong>{primary}</strong><div>{note}</div>{showCode ? <small>Citytouch code: {row.citytouch_printed_code}</small> : null}{row.reference ? <small>Reference: {row.reference}</small> : null}{row.extracted.printed_direction_marker ? <small>Printed card {row.extracted.printed_direction_marker === "D" ? "debit (charge)" : "credit (payment or credit)"} · Source {row.extracted.source_currency} {row.extracted.source_amount} · Settlement {row.extracted.settlement_currency} {row.extracted.amount}</small> : null}</td>;
 }
 
 function StatementLedgerCell({ row }: { row: SavedStatementRow }) {
@@ -200,6 +200,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const token = getAccessToken(); if (!token || !account || !file || uploading || identifying) return;
     if (file.size > 4 * 1024 * 1024 || !file.name.toLowerCase().endsWith(".pdf")) { setUploadError(fail(new Error("Choose a statement PDF no larger than 4 MiB."), "Invalid file.")); return; }
+    if (!uploadAccounts.some(a => a.id === account)) { setUploadError("Choose an account of the statement's recognized type."); return; }
     const controller = new AbortController(); uploadRequest.current = controller;
     const unlock = password; setPassword(""); setUploading(true); setUploadError(null);
     try {
@@ -254,17 +255,18 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
     setSelectedRow(null); notify("No more unresolved rows after this row in the current filters.");
   }
   function filter(key: keyof typeof emptyFilters, value: string) { setFilters((old) => ({ ...old, [key]: value })); }
-  const uploadAccounts = accounts.filter((a) => a.is_active && a.currency === "BDT" && ["bank", "savings", "mobile_wallet"].includes(a.type));
+  const eligibleTypes = identification?.profile === "ebl_credit_card" ? ["credit_card"] : identification?.profile === "bkash" ? ["mobile_wallet"] : identification?.profile ? ["bank", "savings"] : ["bank", "savings", "mobile_wallet", "credit_card"];
+  const uploadAccounts = accounts.filter((a) => a.is_active && a.currency === "BDT" && eligibleTypes.includes(a.type));
   return <div className="workspace-grid statement-preview">
     <details className="panel statement-library" open={libraryOpen} onToggle={event => setLibraryOpen(event.currentTarget.open)}><summary>{batchId ? "Upload or choose another statement" : "Statement library"}</summary><div className="workspace-grid">
     <section className="panel"><div className="panel__body">
-      <h2 className="section-title">Import a statement PDF</h2><p className="section-subtitle">Upload an EBL bank, City Bank savings, or bKash digital statement, then review matches and approve new movements.</p>
+      <h2 className="section-title">Import a statement PDF</h2><p className="section-subtitle">Upload an EBL bank or credit-card, City Bank savings, or bKash digital statement, then review matches and approve new movements.</p>
       <p><Link href="/statement-counterparties">Identify recurring statement codes</Link></p>
       <p className="inline-note">Uploads save a draft and an encrypted copy of the original PDF, without adding transactions. Passwords are never stored.</p>
       {setupError ? <p role="alert" className="form-error">{setupError}</p> : null}
       <form className="form-grid" autoComplete="off" onSubmit={upload}>
-        <label className="field"><span className="field__label">Statement account</span><select className="field__control" required disabled={setupLoading || uploading} value={account} onChange={(e) => setAccount(e.target.value)}><option value="">{setupLoading ? "Loading accounts…" : "Choose the reporting account"}</option>{uploadAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-        <label className="field"><span className="field__label">Statement PDF</span><input className="field__control" type="file" accept=".pdf,application/pdf" required disabled={uploading} onChange={(e) => { const selected = e.target.files?.[0] ?? null; setFile(selected); setPassword(""); setUploadError(null); void identifyFile(selected, ""); }} /><span className="field__hint">Up to 4 MiB and 30 pages. Digital bank/wallet statements; scans and card billing statements are unsupported.</span></label>
+        <label className="field"><span className="field__label">Statement account</span><select className="field__control" required disabled={setupLoading || uploading} value={uploadAccounts.some(a => a.id === account) ? account : ""} onChange={(e) => setAccount(e.target.value)}><option value="">{setupLoading ? "Loading accounts…" : "Choose the reporting account"}</option>{uploadAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.type.replaceAll("_", " ")}</option>)}</select></label>
+        <label className="field"><span className="field__label">Statement PDF</span><input className="field__control" type="file" accept=".pdf,application/pdf" required disabled={uploading} onChange={(e) => { const selected = e.target.files?.[0] ?? null; setFile(selected); setPassword(""); setUploadError(null); void identifyFile(selected, ""); }} /><span className="field__hint">Up to 4 MiB and 30 pages. Digital EBL credit-card statements are supported; scans still need OCR.</span></label>
         <DocumentPasswordField id="statement-document-unlock" disabled={uploading} value={password} onChange={value => { setPassword(value); identityRequest.current?.abort(); identityRequest.current = null; setIdentifying(false); setIdentification(null); setIdentityError(null); }} />
         {file ? <div className="field--wide" aria-live="polite">
           {identifying ? <p className="inline-note">Checking the statement account…</p> : null}
@@ -277,9 +279,9 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
             {identification?.account_suggestion?.account && identification.account_suggestion.account !== account ? <button className="button" type="button" disabled={uploading || setupLoading} onClick={() => setAccount(identification.account_suggestion?.account ?? "")}>Use suggested account</button> : null}
           </div>
         </div> : null}
-        <div className="statement-actions"><button className="button button--primary" type="submit" disabled={setupLoading || uploading || identifying || !account || !file}>{uploading ? "Reading statement…" : "Upload & review"}</button>{uploading ? <button className="button" type="button" onClick={() => { uploadRequest.current?.abort(); uploadRequest.current = null; setUploading(false); notify("Preview request cancelled. If a draft finishes saving, it will appear in import history."); }}>Cancel upload</button> : null}</div>
+        <div className="statement-actions"><button className="button button--primary" type="submit" disabled={setupLoading || uploading || identifying || !uploadAccounts.some(a => a.id === account) || !file}>{uploading ? "Reading statement…" : "Upload & review"}</button>{uploading ? <button className="button" type="button" onClick={() => { uploadRequest.current?.abort(); uploadRequest.current = null; setUploading(false); notify("Preview request cancelled. If a draft finishes saving, it will appear in import history."); }}>Cancel upload</button> : null}</div>
       </form>
-      {!setupLoading && !setupError && !uploadAccounts.length ? <p>Add an active BDT bank or wallet account in Accounts first.</p> : null}
+      {!setupLoading && !setupError && !uploadAccounts.length ? <p>Add an active BDT account of the selected statement type in Accounts first.</p> : null}
       {uploading ? <p role="status">Extracting rows and checking balances. You can keep navigating.</p> : null}
       {uploadError ? <p role="alert" className="form-error">{uploadError}</p> : null}
     </div></section>
@@ -335,9 +337,9 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
         {rows?.count === 0 && !rowsLoading && !rowsError && !filtersPending ? <div className="empty-state empty-state--centered empty-state--compact" role="status"><strong>No rows match these filters</strong><span>Try another search or clear the row filters.</span><button className="button button--ghost" type="button" onClick={() => { setFilters(emptyFilters); setRowPeriod(allDates); }}>Clear filters</button></div> : null}
         {rows?.results.length ? <div className="statement-table-wrap" tabIndex={0} role="region" aria-label="Statement review rows" aria-busy={rowsLoading}>
           <table className="statement-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="Select unresolved rows on this page" disabled={rowsLoading || filtersPending || bulkBusy} checked={Boolean(rows?.results.some(row => row.state === "pending")) && rows!.results.filter(row => row.state === "pending").every(row => selectedIds.includes(row.id))} onChange={event => setSelectedIds(event.target.checked ? rows?.results.filter(row => row.state === "pending" && !row.transaction).map(row => row.id) ?? [] : [])} /></th>{["Page / row", "Date / time", "Description", "Type / category", "Amount", "Balance after", "Ledger / SMS suggestions", "Review", "Actions"].map((name) => <th key={name} scope="col">{name}</th>)}</tr></thead><tbody>{rows?.results.map((row) => <tr key={row.id}>
-            <td><input type="checkbox" aria-label={`Select source row ${row.position} ${row.component}`} checked={selectedIds.includes(row.id)} disabled={row.state !== "pending" || Boolean(row.transaction) || rowsLoading || filtersPending || bulkBusy} onChange={event => setSelectedIds(old => event.target.checked ? [...old, row.id] : old.filter(id => id !== row.id))} /></td><td>{row.extracted.page} / {row.extracted.row}<br /><small>{row.component}</small></td><td>{formatCalendarDate(row.date)}{row.time ? <><br />{row.time}</> : null}{row.value_date ? <><br /><small>Value: {formatCalendarDate(row.value_date)}</small></> : null}</td>
+            <td><input type="checkbox" aria-label={`Select source row ${row.position} ${row.component}`} checked={selectedIds.includes(row.id)} disabled={row.state !== "pending" || Boolean(row.transaction) || rowsLoading || filtersPending || bulkBusy} onChange={event => setSelectedIds(old => event.target.checked ? [...old, row.id] : old.filter(id => id !== row.id))} /></td><td>{row.extracted.page} / {row.extracted.row}<br /><small>{row.component}</small></td><td>{formatCalendarDate(row.date)}{row.time ? <><br />{row.time}</> : null}{row.value_date ? <><br /><small>Value: {formatCalendarDate(row.value_date)}</small></> : null}{row.extracted.statement_date ? <><br /><small>Statement: {formatCalendarDate(row.extracted.statement_date)}</small></> : null}</td>
             <StatementDescriptionCell row={row} />
-            <td>{row.type.replaceAll("_", " ")}<br /><small>{row.direction} · {categories.find((c) => c.id === row.category)?.name ?? "Uncategorized"}</small></td><td>{batch.currency} {row.amount ?? "Missing"}</td><td>{row.balance_after ?? "Not reported"}</td>
+            <td>{row.type.replaceAll("_", " ")}<br /><small>{row.direction} · {categories.find((c) => c.id === row.category)?.name ?? "Uncategorized"}</small></td><td>{batch.currency} {row.amount ?? "Missing"}</td><td>{row.balance_after ?? (batch.profile === "ebl_credit_card" ? "Not printed" : "Not reported")}</td>
             <StatementLedgerCell row={row} />
             <StatementReviewCell row={row} />
             <td><button className="button button--small" type="button" disabled={filtersPending || rowsLoading || rowLoading || bulkBusy || setupLoading || setupError !== null} onClick={() => void reviewRow(row.id)}>Review row</button></td>

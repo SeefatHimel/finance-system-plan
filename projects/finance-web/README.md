@@ -727,7 +727,7 @@ transaction and SMS review. The API enforces the same account ownership rule.
 
 ## Statement PDF Imports
 
-The authenticated `/statements` page accepts supported BDT bank/wallet PDFs and
+The authenticated `/statements` page accepts supported BDT bank, wallet, and EBL electronic credit-card PDFs and
 saves review drafts. Uploading does not post transactions. Choose the reporting
 account, upload a PDF, inspect original checks, then review rows individually or
 explicitly approve validated new rows on the visible page (maximum 50).
@@ -763,9 +763,16 @@ Multipart uploads use the cookie proxy with session refresh and body limits.
 Passwords clear on submission and are never stored in the browser. Cancellation
 aborts the response; a server draft may still finish and appear in history, but
 upload never posts. Limits are 4 MiB, 30 pages and supported digital layouts;
-scans and credit-card billing statements remain unsupported. Original PDFs are
+scans and other card billing statements remain unsupported. EBL card statements
+require a BDT credit-card account. Review shows the printed D/C marker, source
+and settlement amounts, and statement date. The monthly outstanding is checked,
+while per-row reported balances stay blank because they are not printed. Original PDFs are
 retained encrypted and downloadable by their owner; unlock passwords are discarded.
 Masked rows remain the review evidence.
+
+For EBL card credit rows, payment receipts start as transfers and cash-back offers
+start as Interest & Rewards income when the category exists. Other credit wording
+is flagged for individual review. A transfer still needs the paying account.
 
 ### Faster statement review
 

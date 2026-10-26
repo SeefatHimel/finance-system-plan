@@ -668,9 +668,17 @@ reporting account clears it with an inline explanation. SMS review and Add follo
 the same rule. Explicit blank input clears the report without later restoration.
 Other linked reports are read-only here.
 
-## Can users upload bank and wallet statement PDFs?
+## Can users upload bank, wallet, and EBL credit-card statement PDFs?
 
 Yes. Statements saves supported digital BDT imports and resumes them from history.
+The EBL electronic credit-card layout accepts a single-month PDF or a
+chronological multi-month PDF for one card and requires a BDT credit-card account. The
+review displays its printed D/C marker, settlement and source amounts, and
+statement date. Its monthly outstanding is checked, but no per-row balance is
+fabricated. Card payment receipts start as transfers needing the paying account;
+cash-back offers start as Interest & Rewards income when the category exists.
+Unrecognized credits need individual review. Other card layouts and scanned
+PDFs are not yet supported.
 Review filters and the sort selector apply across all rows before pagination. Sort
 by statement order (the default), date in either direction, or amount in either
 direction; changing the order returns to page one and clears row selection.
@@ -686,7 +694,7 @@ The cookie proxy keeps auth refresh and upload limits. Passwords clear on submit
 cancelled responses cannot overwrite the UI. A cancelled server upload may save
 a draft but never posts. Resolved drafts require unlink/reopen before editing;
 ledger corrections remain in Transactions, with original statement rows available
-on demand. Scans/card billing layouts and automatic posting remain unsupported.
+on demand. Scans, other card billing layouts, and automatic posting remain unsupported.
 
 ### How can users review a large statement efficiently?
 
