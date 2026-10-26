@@ -94,11 +94,11 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.17**, Android version code **18**. It includes
-retained navigation/drafts, immediate review updates with safe retry recovery,
-and original SMS/statement-row expansion. Existing profile/appearance features
-require the API with `PATCH /api/auth/me/`. No new migration or queue reset is
-introduced by this release.
+The current release is **0.1.18**, Android version code **19**. It includes
+the mobile appearance and Quick Add improvements, the compact Activity actions,
+and the optional similar-SMS choice during review. Existing profile/appearance
+features require the API with `PATCH /api/auth/me/`. No new migration, native
+module, permission or queue reset is introduced by this release.
 
 ## 5. Build the signed APK
 
@@ -121,7 +121,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.17.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.18.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -444,3 +444,16 @@ Back/keyboard, scroll restoration, unknown save outcomes, paired-source rollback
 large fonts/TalkBack and logout/relogin. Original statement cards show extracted
 row evidence rather than the whole PDF. No new API route, permission, dependency
 or native module is added. Build/signature tests do not replace phone checks.
+
+## Appearance and Quick Add release 0.1.18
+
+Upgrade in place with the same signing key and verify **0.1.18/code 19**. Run
+mobile typecheck, the full JavaScript suite and the native SMS module tests before
+assembly. Compare the new signature with the previous release, then retain a
+versioned APK and SHA-256 checksum outside Git.
+
+On a phone, check System/Light/Dark across shared forms and planning tools;
+Quick Add shortcuts, entry type, Today/Yesterday/Now, date/time edits, keyboard
+focus, and large text; Activity filters and scroll; and Review's pinned decision
+bar and optional similar-SMS choice. An Android export checks bundling but does
+not replace installation and physical-device checks.

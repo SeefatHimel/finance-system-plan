@@ -23,7 +23,7 @@ function harness(os = "android") {
   };
   let resume;
   const api = {
-    listAccounts: async () => [{ id: "cash", name: "Cash", is_active: true }],
+    listAccounts: async () => [{ id: "cash", name: "Cash", currency: "BDT", is_active: true }],
     listCategories: async () => [],
     listQuickPresets: async () => [preset],
   };
@@ -55,6 +55,7 @@ function harness(os = "android") {
     new Function("module", "exports", "require", code)(mod, mod.exports, (name) => {
       if (name === "react" || name === "react/jsx-runtime") return require(name);
       if (name === "react-native") return native;
+      if (name === "@expo/vector-icons") return { MaterialCommunityIcons: "MaterialCommunityIcons" };
       if (name === "react-native-safe-area-context") return { useSafeAreaInsets: () => ({ top: 24, bottom: 24 }) };
       if (name === "expo-secure-store") return {
         getItemAsync: async () => null, setItemAsync: async () => {}, deleteItemAsync: async () => {},
@@ -79,6 +80,7 @@ function harness(os = "android") {
       }); });
     },
     async openEntry() { await act(async () => ref.current.open(preset.id)); },
+    async openLauncher() { await act(async () => ref.current.open()); },
     async manage() { await act(async () => ref.current.manage()); },
     async shown() { await act(async () => tree.root.findByType("Modal").props.onShow()); },
     async flushFrames() { await act(async () => {
@@ -92,9 +94,10 @@ function harness(os = "android") {
       for (const node of tree.root.findAllByType("View").filter(node => node.props.onLayout)) node.props.onLayout({ nativeEvent: { layout: { width } } });
     }); },
     keyboardView() { return tree.root.findByType("KeyboardAvoidingView"); },
+    button(label) { return tree.root.findAllByType("Pressable").find((node) =>
+      node.props.accessibilityLabel === label || node.findAllByType("Text").some((text) => text.props.children === label)); },
     async press(label) { await act(async () => {
-      const button = tree.root.findAllByType("Pressable").find((node) =>
-        node.props.accessibilityLabel === label || node.findAllByType("Text").some((text) => text.props.children === label));
+      const button = this.button(label);
       assert.ok(button, `Missing button: ${label}`);
       button.props.onPress();
     }); },
@@ -205,5 +208,32 @@ test("Quick Add keeps optional fields and exact date/time mounted through collap
     assert.equal(note.props.value, "Keep the optional draft"); assert.equal(amount.props.value, "125.50");
     assert.equal(date.props.value, "2026-10-02"); assert.equal(time.props.value, "17:08:29");
     assert.deepEqual(h.focused, ["Amount"]);
+  } finally { await h.dispose(); }
+});
+
+test("Now changes only the time; a selected backdated entry keeps its date", async () => {
+  const h = harness();
+  await h.mount();
+  try {
+    await h.openEntry();
+    await h.press("Yesterday");
+    assert.equal(h.button("Yesterday").props.accessibilityState.selected, true);
+    await h.press("Now");
+    assert.equal(h.button("Yesterday").props.accessibilityState.selected, true);
+    assert.equal(h.button("Now").props.accessibilityState.selected, true);
+    await h.press("Income, money in");
+    assert.equal(h.button("Income, money in").props.accessibilityState.checked, true);
+  } finally { await h.dispose(); }
+});
+
+test("choosing an account adds its currency without remounting the amount input", async () => {
+  const h = harness();
+  await h.mount();
+  try {
+    await h.openLauncher();
+    await h.press("Blank entry");
+    const amount = h.input("Amount");
+    await h.press("Cash");
+    assert.equal(h.input("Amount"), amount);
   } finally { await h.dispose(); }
 });

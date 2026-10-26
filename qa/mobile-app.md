@@ -8,6 +8,21 @@ form keeps unsaved edits when an access token refreshes; server validation stays
 visible if Save fails. System, Light and Dark are local device preferences in
 AsyncStorage, and System follows the OS appearance. They do not change ledger
 data, and web/mobile appearance preferences are independent.
+The shared mobile theme also reaches Activity, Accounts, Quick Add, editor and
+selection modals, disclosures, and native date/time fields. Planning tools use
+the navy surface in Dark mode. Appearance changes do not remount workspace
+drafts.
+
+### How does mobile review limit clutter and learned choices?
+
+Only Confirm and Reject stay pinned during normal review; completed save and
+recovery controls appear inside the Review scroll area. An uncertain save
+replaces the pinned bar with status actions and blocks another write until it
+is resolved. The optional “Use these choices for similar SMS”
+checkbox is under More details and starts off, so a normal confirmation does not
+silently create a reusable sender mapping. Activity keeps its main actions on
+one row and moves Reset filters into the filter sheet. Advanced tools keep the
+bottom tabs and provide native date controls for planning dates.
 
 ### How are dates shown and stored on mobile?
 
@@ -462,6 +477,11 @@ Only Save records an entry; editing a draft does not change a preset. Today/Now,
 Yesterday, native calendar/clock and exact text input make timestamps easy to
 correct. Android's native clock and iOS's spinner require the committed native
 picker dependency to be included in the next installed build.
+The launcher names each preset's money direction and fits its content, while
+Manage/Refresh and the counted See all control remain easy to find. Quick entry
+shows expense/income before the amount and groups optional controls below the
+main form. Today/Yesterday choose the date; Now chooses the time without
+overwriting an already selected date.
 
 ## How does Quick Add avoid losing keyboard focus in its popup?
 

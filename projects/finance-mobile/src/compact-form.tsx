@@ -1,7 +1,7 @@
 import { Children, useState, type ReactNode } from "react";
 import { Text, View, useWindowDimensions } from "react-native";
 import { NativeDateField, NativeTimeField } from "./native-time-field";
-import { ui } from "./mobile-ui";
+import { useMobileUi } from "./mobile-ui";
 
 /** Change only cell widths: never reparent fields when layout or font size changes. */
 export function CompactFields({ children, minFieldWidth = 260, maxColumns = 3 }: {
@@ -31,6 +31,7 @@ export function CompactDateTime({ date, time, disabled, onDate, onTime }: {
   onDate: (date: string) => void;
   onTime: (time: string) => void;
 }) {
+  const ui = useMobileUi();
   return <CompactFields minFieldWidth={180} maxColumns={2}>
     <View key="date" style={{ gap: 6 }}>
       <Text style={ui.muted}>Date</Text>

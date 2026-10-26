@@ -8,6 +8,12 @@ device's setting. The profile follows the same identity as the web app. The
 backend containing this endpoint must be deployed before using profile edits in
 the 0.1.16 APK.
 
+The appearance choice now reaches shared forms, Account and Activity cards,
+Quick Add, editor and selector modals, and native date/time inputs. The older
+planning tools use navy cards in Dark mode and retain their light palette in
+Light mode. Advanced tools keep the bottom tabs visible, while their own header
+still provides Back. A device rebuild is required to see these native UI changes.
+
 ## Recovering older transaction SMS originals
 
 After the API migration, transaction-related SMS uses **Keep** retention by
@@ -418,6 +424,12 @@ Account/category choices are shortlists derived from favorites with searchable
 See all. A shortcut prefills a draft; only Save records it. Overrides do not edit
 the preset, and applying another preset retains typed amount/note/merchant.
 Full entry carries the draft into the existing detailed tools for advanced types.
+The launcher fits its content when there are only a few shortcuts; each shortcut
+shows whether it is money in or money out. Manage and Refresh stay in the header,
+and See all includes the number of available presets. The quick-entry form puts
+the expense/income choice first, then amount, category, date/time and account.
+More details and alternate shortcuts stay collapsed. The Now control changes
+only the time, so selecting it after Yesterday does not silently reset the date.
 
 Quick Add waits for the native popup's `onShow` event before focusing Amount or
 Preset name, and focuses once when switching from the preset manager to an editor.
@@ -663,6 +675,8 @@ use an Apply/Cancel sheet with searchable account/category/type choices. Date
 modes are All, Daily, Monthly and Custom (inclusive, at most 366 days). Sorting
 supports transaction date, recently added and recently updated; date filters
 always refer to the transaction date. Added/updated grouping uses Asia/Dhaka.
+The Activity header keeps Filters, Refresh and Add on one row. Reset filters is
+inside the filter sheet; pull-to-refresh remains available on the list.
 
 The virtualized timeline has pull-to-refresh, retry and explicit Load more.
 Duplicate page IDs are deduplicated; failed appends retain the loaded rows;
@@ -692,6 +706,11 @@ longer mixed into every planning tool.
 Tapping a Home review card selects its candidate ID before opening SMS review.
 Selection follows that ID across queue reordering; removing the selected message
 falls back to the nearest available item. Each candidate keeps its own draft.
+Completed save/recovery messages sit in the scrollable review content. Only
+the decision bar stays pinned above the tabs; an unresolved save replaces it
+with status actions and blocks another decision. “Use these
+choices for similar SMS” is an optional checkbox under More details, off by
+default; ordinary confirmation records this message without learning a mapping.
 
 Run `npm run typecheck`, `npm run test:activity` and `npm run test:navigation`
 for timeline/selection and retained-state regressions, or

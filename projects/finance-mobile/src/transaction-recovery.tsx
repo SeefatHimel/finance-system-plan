@@ -5,7 +5,7 @@ import {
   undoTransactionAction,
   type TransactionAction,
 } from "./api";
-import { ActionButton, ui } from "./mobile-ui";
+import { ActionButton, useMobileUi } from "./mobile-ui";
 import { formatTimestamp } from "../../finance-contracts/presentation";
 export function useTransactionRecovery(
   token: string,
@@ -210,6 +210,7 @@ export function RecoveryCard({
   compact?: boolean;
   blocked?: boolean;
 }) {
+  const ui = useMobileUi();
   const action = recovery.latest;
   if (compact && !recovery.notice && !recovery.error) return null;
   return (

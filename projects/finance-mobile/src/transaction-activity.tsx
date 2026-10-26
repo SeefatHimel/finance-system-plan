@@ -21,6 +21,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeDateField } from "./native-time-field";
+import { lightMobileStyles } from "./theme-styles";
+import { useLightAppearance } from "./mobile-theme";
 import {
   activityDateError,
   activityDay,
@@ -70,6 +72,7 @@ function Button({
   onPress: () => void;
   disabled?: boolean;
 }) {
+  const s = useActivityStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -96,6 +99,7 @@ function ActivityFilterSheet({
   onApply: (value: ActivityFilters) => void;
   onClose: () => void;
 }) {
+  const s = useActivityStyles();
   const [draft, setDraft] = useState(value),
     [picker, setPicker] = useState<"account" | "category" | "type" | null>(
       null,
@@ -280,10 +284,7 @@ function ActivityFilterSheet({
               <Button
                 label="Reset filters"
                 onPress={() => {
-                  setDraft({
-                    ...initialActivityFilters(),
-                    search: value.search,
-                  });
+                  setDraft(initialActivityFilters());
                   setError("");
                 }}
               />
@@ -315,6 +316,7 @@ function TransactionDetails({
   categories: Category[];
   onClose: () => void;
 }) {
+  const s = useActivityStyles();
   const name = (id: string | null) =>
     accounts.find((item) => item.id === id)?.name ?? "Unknown account";
   const currency =
@@ -405,6 +407,7 @@ export function TransactionActivity({
   onEdit,
   focused = true,
 }: Props) {
+  const s = useActivityStyles();
   const query = activityQuery(filters),
     key = JSON.stringify(query);
   const tokenRef = useRef(token);
@@ -508,22 +511,17 @@ export function TransactionActivity({
               value={filters.search}
               onChangeText={(search) => onFiltersChange({ ...filters, search })}
             />
-            <View style={s.wrap}>
+            <View style={s.toolbar}>
               <Button
                 label={`Activity filters${activeCount ? ` (${activeCount})` : ""}`}
                 onPress={() => setFilterSheet(true)}
               />
-              <Button label="Quick Add manual entry" onPress={onQuickAdd} />
-              <Button
-                label="Refresh activity"
-                onPress={refresh}
-              />
-              {activeCount || filters.search || filters.ordering !== "-date" ? (
-                <Button
-                  label="Clear activity filters"
-                  onPress={() => onFiltersChange(initialActivityFilters())}
-                />
-              ) : null}
+              <Pressable accessibilityRole="button" accessibilityLabel="Refresh activity" onPress={refresh} style={s.iconButton}>
+                <Text style={s.buttonText}>↻</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Quick Add manual entry" onPress={onQuickAdd} style={[s.button, s.addButton]}>
+                <Text style={s.buttonText}>+ Add</Text>
+              </Pressable>
             </View>
             <Text style={s.muted}>
               {sortLabel}
@@ -668,7 +666,7 @@ export function TransactionActivity({
     </View>
   );
 }
-const s = StyleSheet.create({
+const darkActivityStyles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#081421" },
   content: { padding: 16, paddingBottom: 28, gap: 10 },
   contentHeader: { gap: 10, marginBottom: 10 },
@@ -690,6 +688,9 @@ const s = StyleSheet.create({
     gap: 8,
     alignItems: "center",
   },
+  toolbar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  iconButton: { minWidth: 48, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "#132a3b" },
+  addButton: { marginLeft: "auto" },
   button: {
     minHeight: 48,
     backgroundColor: "#132a3b",
@@ -765,3 +766,7 @@ const s = StyleSheet.create({
   },
   amount: { color: "#55e6a5", fontSize: 30, fontWeight: "700" },
 });
+const lightActivityStyles = lightMobileStyles(darkActivityStyles);
+function useActivityStyles() {
+  return useLightAppearance() ? lightActivityStyles : darkActivityStyles;
+}

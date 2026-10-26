@@ -3,7 +3,7 @@ import type { Account, Category } from "./api";
 import { ClassificationFields } from "./classification-fields";
 import { CompactFields, CompactDateTime } from "./compact-form";
 import { Disclosure } from "./disclosure";
-import { InputField, SearchSelect, ui } from "./mobile-ui";
+import { InputField, SearchSelect, useMobileUi } from "./mobile-ui";
 
 export type ManualEntryDraft = {
   account: string; category: string; type: string; direction: string;
@@ -14,6 +14,7 @@ export function ManualEntryFields({ draft, accounts, categories, busy, error, on
   draft: ManualEntryDraft; accounts: Account[]; categories: Category[];
   busy: boolean; error?: string; onChange: (patch: Partial<ManualEntryDraft>) => void;
 }) {
+  const ui = useMobileUi();
   const options = accounts.filter(item => item.is_active !== false || item.id === draft.account || item.id === draft.transfer_account)
     .map(item => ({ id: item.id, name: item.name, detail: item.currency }));
   const name = accounts.find(item => item.id === draft.account)?.name ?? "Choose account";

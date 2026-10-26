@@ -1,5 +1,5 @@
 import { Text, View } from "react-native";
-import { ui, ActionButton } from "./mobile-ui";
+import { useMobileUi, ActionButton } from "./mobile-ui";
 import type { Account } from "./api";
 import {
   displayLabel,
@@ -15,6 +15,7 @@ export function AccountSummary({
   cached?: boolean;
   onReview: () => void;
 }) {
+  const ui = useMobileUi();
   const comparison = account.reported_balance_comparison;
   return (
     <View style={ui.card}>

@@ -15,6 +15,7 @@ import {
   presentationColors,
 } from "../../finance-contracts/presentation";
 import { localTime } from "../../finance-contracts/quick-add";
+import { useLightAppearance } from "./mobile-theme";
 
 export function NativeTimeField({
   value,
@@ -29,6 +30,7 @@ export function NativeTimeField({
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
+  const isLight = useLightAppearance();
   const [ios, setIos] = useState<Date | null>(null);
   function open() {
     if (disabled) return;
@@ -58,7 +60,7 @@ export function NativeTimeField({
         accessibilityState={{ disabled }}
         onPress={open}
         style={{
-          backgroundColor: presentationColors.selected,
+          backgroundColor: isLight ? "#e3f5ec" : presentationColors.selected,
           borderRadius: 8,
           padding: 12,
           minHeight: 48,
@@ -66,7 +68,7 @@ export function NativeTimeField({
           justifyContent: "center",
         }}
       >
-        <Text style={{ color: presentationColors.accent, fontWeight: "700" }}>
+        <Text style={{ color: isLight ? "#117e5d" : presentationColors.accent, fontWeight: "700" }}>
           {compact ? "◷" : "Choose time on clock"}
         </Text>
       </Pressable>
@@ -77,18 +79,8 @@ export function NativeTimeField({
         onChangeText={onChange}
         keyboardType="numbers-and-punctuation"
         placeholder="HH:MM"
-        placeholderTextColor="#91a7c2"
-        style={{
-          ...(compact ? { flex: 1, minWidth: 0 } : {}),
-          minHeight: 48,
-          fontSize: 16,
-          backgroundColor: "#0a1725",
-          color: "white",
-          borderWidth: 1,
-          borderColor: "#294158",
-          padding: 12,
-          borderRadius: 8,
-        }}
+        placeholderTextColor={isLight ? "#607782" : "#91a7c2"}
+        style={[dateTimeInput(isLight), compact ? { flex: 1, minWidth: 0 } : null]}
       />
       {ios ? (
         <Modal
@@ -106,7 +98,7 @@ export function NativeTimeField({
           >
             <View
               style={{
-                backgroundColor: "#102238",
+                backgroundColor: isLight ? "#ffffff" : "#102238",
                 padding: 20,
                 borderRadius: 12,
               }}
@@ -115,7 +107,7 @@ export function NativeTimeField({
                 value={ios}
                 mode="time"
                 display="spinner"
-                themeVariant="dark"
+                themeVariant={isLight ? "light" : "dark"}
                 onChange={(_event, date) => {
                   if (date) setIos(date);
                 }}
@@ -128,7 +120,7 @@ export function NativeTimeField({
                   setIos(null);
                 }}
               >
-                <Text style={{ color: "#55e6a5", padding: 12 }}>
+                <Text style={{ color: isLight ? "#117e5d" : "#55e6a5", padding: 12 }}>
                   Apply time
                 </Text>
               </Pressable>
@@ -137,7 +129,7 @@ export function NativeTimeField({
                 style={{ minHeight: 48, justifyContent: "center" }}
                 onPress={() => setIos(null)}
               >
-                <Text style={{ color: "white", padding: 12 }}>Cancel</Text>
+                <Text style={{ color: isLight ? "#213846" : "#e7eef7", padding: 12 }}>Cancel</Text>
               </Pressable>
             </View>
           </View>
@@ -160,6 +152,7 @@ export function NativeDateField({
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
+  const isLight = useLightAppearance();
   const [ios, setIos] = useState<Date | null>(null);
   function open() {
     if (disabled) return;
@@ -193,7 +186,7 @@ export function NativeDateField({
         accessibilityState={{ disabled }}
         onPress={open}
         style={{
-          backgroundColor: presentationColors.selected,
+          backgroundColor: isLight ? "#e3f5ec" : presentationColors.selected,
           borderRadius: 8,
           padding: 12,
           minHeight: 48,
@@ -201,7 +194,7 @@ export function NativeDateField({
           justifyContent: "center",
         }}
       >
-        <Text style={{ color: presentationColors.accent, fontWeight: "700" }}>
+        <Text style={{ color: isLight ? "#117e5d" : presentationColors.accent, fontWeight: "700" }}>
           {compact ? "▦" : `Choose date${formatCalendarDate(value) !== "Unknown date" ? ` · ${formatCalendarDate(value)}` : ""}`}
         </Text>
       </Pressable>
@@ -211,18 +204,8 @@ export function NativeDateField({
         editable={!disabled}
         onChangeText={onChange}
         placeholder="YYYY-MM-DD"
-        placeholderTextColor="#91a7c2"
-        style={{
-          ...(compact ? { flex: 1, minWidth: 0 } : {}),
-          minHeight: 48,
-          fontSize: 16,
-          backgroundColor: "#0a1725",
-          color: "white",
-          borderWidth: 1,
-          borderColor: "#294158",
-          padding: 12,
-          borderRadius: 8,
-        }}
+        placeholderTextColor={isLight ? "#607782" : "#91a7c2"}
+        style={[dateTimeInput(isLight), compact ? { flex: 1, minWidth: 0 } : null]}
       />
       {ios ? (
         <Modal transparent onRequestClose={() => setIos(null)}>
@@ -236,7 +219,7 @@ export function NativeDateField({
           >
             <View
               style={{
-                backgroundColor: "#102238",
+                backgroundColor: isLight ? "#ffffff" : "#102238",
                 padding: 20,
                 borderRadius: 12,
               }}
@@ -245,7 +228,7 @@ export function NativeDateField({
                 value={ios}
                 mode="date"
                 display="spinner"
-                themeVariant="dark"
+                themeVariant={isLight ? "light" : "dark"}
                 onChange={(_event, date) => {
                   if (date) setIos(date);
                 }}
@@ -261,7 +244,7 @@ export function NativeDateField({
                   setIos(null);
                 }}
               >
-                <Text style={{ color: "#55e6a5", padding: 12 }}>
+                <Text style={{ color: isLight ? "#117e5d" : "#55e6a5", padding: 12 }}>
                   Apply date
                 </Text>
               </Pressable>
@@ -270,7 +253,7 @@ export function NativeDateField({
                 style={{ minHeight: 48, justifyContent: "center" }}
                 onPress={() => setIos(null)}
               >
-                <Text style={{ color: "white", padding: 12 }}>Cancel</Text>
+                <Text style={{ color: isLight ? "#213846" : "#e7eef7", padding: 12 }}>Cancel</Text>
               </Pressable>
             </View>
           </View>
@@ -278,4 +261,10 @@ export function NativeDateField({
       ) : null}
     </View>
   );
+}
+
+function dateTimeInput(isLight: boolean) {
+  return { minHeight: 48, fontSize: 16, backgroundColor: isLight ? "#ffffff" : "#0a1725",
+    color: isLight ? "#142b36" : "#f6f8fc", borderWidth: 1,
+    borderColor: isLight ? "#d6e4e0" : "#294158", padding: 12, borderRadius: 8 };
 }

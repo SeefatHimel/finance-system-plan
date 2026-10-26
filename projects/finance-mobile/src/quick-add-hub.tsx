@@ -1,4 +1,7 @@
 import { presentationColors } from "../../finance-contracts/presentation";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { lightMobileStyles } from "./theme-styles";
+import { useLightAppearance } from "./mobile-theme";
 import {
   forwardRef,
   useCallback,
@@ -19,6 +22,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -87,6 +91,9 @@ const secureStore = {
 
 export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
   function QuickAddHub(props, ref) {
+    const s = useQuickAddStyles();
+    const isLight = useLightAppearance();
+    const { height: windowHeight, width: windowWidth } = useWindowDimensions();
     const { scope } = props;
     const [data, setData] = useState<Data>(emptyData),
       [ready, setReady] = useState(false);
@@ -453,6 +460,15 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
     const activeAccounts = data.accounts.filter((a) => a.is_active !== false);
     const enabled = data.presets.filter((p) => p.is_enabled),
       favorites = enabled.filter((p) => p.is_favorite).slice(0, 6);
+    const visiblePresetCount = all ? enabled.length : favorites.length;
+    const launcherHeight = Math.min(
+      Math.max(180, 0.94 * (windowHeight - insets.top - insets.bottom - 20)),
+      210 + visiblePresetCount * 88 + (enabled.length > favorites.length ? 62 : 0)
+        + (!enabled.length ? 34 : 0) + (queue.length ? 120 + queue.length * 110 : 0),
+    );
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayDay = localDay(yesterday);
     function editPending(entry: Pending) {
       if (!isRejectedEntry({ status: entry.status })) return;
       const input = entry.input;
@@ -506,7 +522,7 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
               { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 8 },
             ]}
           >
-            <View style={s.sheet}>
+            <View style={[s.sheet, surface === "launcher" ? [s.launcherSheet, { height: launcherHeight }] : null]}>
               <View style={s.heading}>
                 <Text style={s.title}>
                   {surface === "entry"
@@ -519,11 +535,22 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                         ? "Quick Add presets"
                         : "Quick Add"}
                 </Text>
-                <Action
-                  label="Close"
-                  disabled={busy}
-                  onPress={() => setSurface(null)}
-                />
+                <View style={s.headingActions}>
+                  {surface === "launcher" ? <>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Manage Quick Add presets"
+                      accessibilityState={{ disabled: busy }} disabled={busy}
+                      onPress={() => { setSurface("manager"); void refresh(); }} style={[s.headerAction, busy ? { opacity: 0.45 } : null]}>
+                      <MaterialCommunityIcons name="cog-outline" size={19} color={isLight ? "#087b8c" : "#91a7c2"} />
+                      {windowWidth >= 380 ? <Text style={s.bold}>Manage</Text> : null}
+                    </Pressable>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Refresh Quick Add presets"
+                      accessibilityState={{ disabled: busy }} disabled={busy}
+                      onPress={() => void refresh()} style={[s.headerIconAction, busy ? { opacity: 0.45 } : null]}>
+                      <MaterialCommunityIcons name="refresh" size={23} color={isLight ? "#087b8c" : "#91a7c2"} />
+                    </Pressable>
+                  </> : null}
+                  <Action label="Close" disabled={busy} onPress={() => setSurface(null)} />
+                </View>
               </View>
               <ScrollView
                 pointerEvents={busy ? "none" : "auto"}
@@ -549,43 +576,43 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                     {(all ? enabled : favorites).map((p) => (
                       <Pressable
                         accessibilityRole="button"
+                        accessibilityLabel={`${p.name}, ${p.type === "income" ? "money in" : "money out"}, ${data.accounts.find((a) => a.id === p.account)?.name ?? "choose account"}. Open prefilled entry`}
                         key={p.id}
-                        style={s.tile}
+                        style={s.presetTile}
                         onPress={() => open(p.id)}
                       >
-                        <Text style={s.bold}>{p.name}</Text>
-                        <Text style={s.muted}>
-                          {data.accounts.find((a) => a.id === p.account)
-                            ?.name ?? "Choose account"}{" "}
-                          ·{" "}
-                          {data.categories.find((c) => c.id === p.category)
-                            ?.name ?? "Uncategorized"}
-                          {!p.available ? " · Needs active options" : ""}
-                        </Text>
+                        <View style={[s.directionIcon, p.type === "income" ? s.incomeIcon : s.expenseIcon]}>
+                          <MaterialCommunityIcons name={p.type === "income" ? "plus" : "minus"} size={26}
+                            color={p.type === "income" ? (isLight ? "#117e5d" : "#55e6a5") : (isLight ? "#b82946" : "#ff9399")} />
+                        </View>
+                        <View style={s.presetContent}>
+                          <Text style={s.presetTitle}>{p.name}</Text>
+                          <Text style={s.muted}>
+                            {p.type === "income" ? "Money in" : "Money out"} · {data.accounts.find((a) => a.id === p.account)?.name ?? "Choose account"} · {data.categories.find((c) => c.id === p.category)?.name ?? "Uncategorized"}
+                            {!p.available ? " · Needs active options" : ""}
+                          </Text>
+                        </View>
+                        <MaterialCommunityIcons name="chevron-right" size={24} color={isLight ? "#607782" : "#91a7c2"} />
                       </Pressable>
                     ))}
                     {enabled.length > favorites.length && !all ? (
-                      <Action
-                        label="See all presets"
-                        onPress={() => setAll(true)}
-                      />
+                      <Pressable accessibilityRole="button" accessibilityLabel={`See all ${enabled.length} Quick Add presets`}
+                        onPress={() => setAll(true)} style={s.seeAllAction}>
+                        <Text style={s.seeAllText}>See all presets ({enabled.length})</Text>
+                        <MaterialCommunityIcons name="chevron-down" size={20} color={isLight ? "#087b8c" : "#32d8f2"} />
+                      </Pressable>
+                    ) : all && enabled.length > favorites.length ? (
+                      <Pressable accessibilityRole="button" accessibilityLabel="Show favorite Quick Add presets"
+                        onPress={() => setAll(false)} style={s.seeAllAction}>
+                        <Text style={s.seeAllText}>Show favorites</Text>
+                        <MaterialCommunityIcons name="chevron-up" size={20} color={isLight ? "#087b8c" : "#32d8f2"} />
+                      </Pressable>
                     ) : null}
                     {!enabled.length ? (
                       <Text style={s.muted}>
                         Create your first preset or use a blank entry.
                       </Text>
                     ) : null}
-                    <Action
-                      label="Manage presets"
-                      onPress={() => {
-                        setSurface("manager");
-                        void refresh();
-                      }}
-                    />
-                    <Action
-                      label="Refresh presets"
-                      onPress={() => void refresh()}
-                    />
                     {queue.length ? (
                       <>
                         <Text style={s.bold}>
@@ -651,100 +678,50 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                 ) : null}
                 {surface === "entry" ? (
                   <>
-                    <CompactFields>
-                      <Field
-                        label="Amount"
-                        value={draft.amount}
-                        onChange={(amount) => choose({ amount })}
-                        numeric
-                        inputRef={primaryInput}
-                      />
-                      <Choices
-                        label="Account"
-                        value={draft.account}
-                        options={activeAccounts}
-                        favorites={data.presets
-                          .filter((p) => p.is_enabled && p.is_favorite)
-                          .map((p) => p.account)
-                          .filter((id): id is string => Boolean(id))}
-                        onChange={(account) => choose({ account })}
-                        limit={4}
-                      />
-                      <Choices
-                        label="Category"
-                        value={draft.category}
-                        options={data.categories.filter(
-                          (c) =>
-                            c.is_active !== false &&
-                            categoryFits(c.kind, draft.type),
-                        )}
-                        favorites={data.presets
-                          .filter((p) => p.is_enabled && p.is_favorite)
-                          .map((p) => p.category)
-                          .filter((id): id is string => Boolean(id))}
-                        onChange={(category) => choose({ category })}
-                        allowEmpty
-                      />
-                      <View style={{ gap: 8 }}>
-                        <Text style={s.muted}>
-                          {draft.type === "expense"
-                            ? "Expense · Money out"
-                            : "Income · Money in"}
+                    <View accessibilityRole="radiogroup" accessibilityLabel="Entry type" style={s.entryTypeGroup}>
+                      {(["expense", "income"] as const).map((type) => <Pressable key={type}
+                        accessibilityRole="radio" accessibilityLabel={type === "expense" ? "Expense, money out" : "Income, money in"}
+                        accessibilityState={{ checked: draft.type === type }}
+                        onPress={() => choose({
+                          type,
+                          category: data.categories.some((c) => c.id === draft.category && categoryFits(c.kind, type)) ? draft.category : "",
+                        })}
+                        style={[s.entryTypeOption, draft.type === type ? type === "expense" ? s.entryExpenseSelected : s.entryIncomeSelected : null]}>
+                        <Text style={[s.entryTypeText, draft.type === type ? { color: type === "expense" ? (isLight ? "#b82946" : "#ff9399") : (isLight ? "#117e5d" : "#55e6a5") } : null]}>
+                          {type === "expense" ? "− Expense · Money out" : "+ Income · Money in"}
                         </Text>
-                        <Action
-                          label="Change entry type"
-                          onPress={() => {
-                            const type =
-                              draft.type === "expense" ? "income" : "expense";
-                            choose({
-                              type,
-                              category: data.categories.some(
-                                (c) =>
-                                  c.id === draft.category &&
-                                  categoryFits(c.kind, type),
-                              )
-                                ? draft.category
-                                : "",
-                            });
-                          }}
-                        />
-                      </View>
-                    </CompactFields>
-                    <View style={s.row}>
-                      <Action
-                        label="Today"
-                        onPress={() =>
-                          choose({ dateMode: "today", date: localDay() })
-                        }
-                      />
-                      <Action
-                        label="Yesterday"
-                        onPress={() => {
-                          const date = new Date();
-                          date.setDate(date.getDate() - 1);
-                          choose({ dateMode: "custom", date: localDay(date) });
-                        }}
-                      />
-                      <Action
-                        label="Now"
-                        onPress={() =>
-                          choose({ dateMode: "today", timeMode: "now" })
-                        }
-                      />
+                      </Pressable>)}
                     </View>
-                    <Text style={s.muted}>
-                      {draft.dateMode === "today" ? "Today" : draft.date} ·{" "}
-                      {draft.timeMode === "now"
-                        ? "Current time at Save"
-                        : draft.timeMode === "none"
-                          ? "Time unknown"
-                          : draft.time}{" "}
-                      · Local timezone
-                    </Text>
-                    <Action
-                      label="Change date/time"
-                      onPress={() => setTimeOpen(!timeOpen)}
-                    />
+                    <View style={s.entryStack}>
+                      <Field label="Amount" value={draft.amount} onChange={(amount) => choose({ amount })}
+                        numeric inputRef={primaryInput} prefix={data.accounts.find((a) => a.id === draft.account)?.currency ?? ""} />
+                      <Choices label="Category" value={draft.category}
+                        options={data.categories.filter((c) => c.is_active !== false && categoryFits(c.kind, draft.type))}
+                        favorites={data.presets.filter((p) => p.is_enabled && p.is_favorite).map((p) => p.category).filter((id): id is string => Boolean(id))}
+                        onChange={(category) => choose({ category })} allowEmpty inlineSeeAll />
+                      <Text style={s.muted}>Date & time</Text>
+                      <View style={s.row}>
+                        <Action label="Today" selected={draft.dateMode === "today"}
+                          onPress={() => choose({ dateMode: "today", date: localDay() })} />
+                        <Action label="Yesterday" selected={draft.dateMode === "custom" && draft.date === yesterdayDay}
+                          onPress={() => choose({ dateMode: "custom", date: yesterdayDay })} />
+                        <Action label="Now" selected={draft.timeMode === "now"}
+                          onPress={() => choose({ timeMode: "now" })} />
+                      </View>
+                      <View style={s.dateSummaryRow}>
+                        <Text style={[s.muted, s.dateSummaryText]}>
+                          {draft.dateMode === "today" ? "Today" : draft.date} · {draft.timeMode === "now" ? "Current time at Save" : draft.timeMode === "none" ? "Time unknown" : draft.time} · Local timezone
+                        </Text>
+                        <Pressable accessibilityRole="button" accessibilityLabel="Change date/time"
+                          accessibilityState={{ expanded: timeOpen }} onPress={() => setTimeOpen(!timeOpen)} style={s.customDateAction}>
+                          <MaterialCommunityIcons name="pencil-outline" size={17} color={isLight ? "#087b8c" : "#32d8f2"} />
+                          <Text style={s.seeAllText}>Custom</Text>
+                        </Pressable>
+                      </View>
+                      <Choices label="Account" value={draft.account} options={activeAccounts}
+                        favorites={data.presets.filter((p) => p.is_enabled && p.is_favorite).map((p) => p.account).filter((id): id is string => Boolean(id))}
+                        onChange={(account) => choose({ account })} limit={4} inlineSeeAll />
+                    </View>
                     <View style={{ display: timeOpen ? "flex" : "none", gap: 8 }}
                       accessibilityElementsHidden={!timeOpen} importantForAccessibility={timeOpen ? "auto" : "no-hide-descendants"}>
                       <CompactDateTime date={draft.dateMode === "today" ? localDay() : draft.date} time={draft.time} disabled={busy}
@@ -758,20 +735,12 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                         <Field label="Note" value={draft.note} onChange={note => choose({ note })} maxLength={2000} />
                       </CompactFields>
                     </Disclosure>
-                    <Text style={s.muted}>
-                      Apply another preset; typed amount/note are retained.
-                    </Text>
-                    <View style={s.row}>
-                      {enabled
-                        .filter((p) => p.available)
-                        .map((p) => (
-                          <Action
-                            key={p.id}
-                            label={p.name}
-                            onPress={() => open(p.id)}
-                          />
-                        ))}
-                    </View>
+                    {enabled.some((p) => p.available) ? <Disclosure label="Other shortcuts">
+                      <Text style={s.muted}>Apply another preset; typed amount and note are retained.</Text>
+                      <View style={s.row}>
+                        {enabled.filter((p) => p.available).map((p) => <Action key={p.id} label={p.name} onPress={() => open(p.id)} />)}
+                      </View>
+                    </Disclosure> : null}
                   </>
                 ) : null}
                 {surface === "manager" ? (
@@ -1046,6 +1015,7 @@ function Action({
   primary?: boolean;
   selected?: boolean;
 }) {
+  const s = useQuickAddStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -1082,6 +1052,7 @@ function Field({
   numeric,
   inputRef,
   maxLength,
+  prefix,
 }: {
   label: string;
   value: string;
@@ -1089,20 +1060,24 @@ function Field({
   numeric?: boolean;
   inputRef?: RefObject<TextInput | null>;
   maxLength?: number;
+  prefix?: string;
 }) {
+  const s = useQuickAddStyles();
+  const isLight = useLightAppearance();
+  const input = <TextInput
+    accessibilityLabel={label}
+    ref={inputRef}
+    value={value}
+    onChangeText={onChange}
+    keyboardType={numeric ? "decimal-pad" : "default"}
+    maxLength={maxLength}
+    style={prefix !== undefined ? s.prefixedInput : s.input}
+    placeholderTextColor={isLight ? "#607782" : "#91a7c2"}
+  />;
   return (
     <View style={{ gap: 6 }}>
       <Text style={s.muted}>{label}</Text>
-      <TextInput
-        accessibilityLabel={label}
-        ref={inputRef}
-        value={value}
-        onChangeText={onChange}
-        keyboardType={numeric ? "decimal-pad" : "default"}
-        maxLength={maxLength}
-        style={s.input}
-        placeholderTextColor="#91a7c2"
-      />
+      {prefix !== undefined ? <View style={s.prefixedInputRow}>{prefix ? <Text style={s.prefixText}>{prefix}</Text> : null}{input}</View> : input}
     </View>
   );
 }
@@ -1115,6 +1090,7 @@ function Choices({
   allowEmpty,
   emptyLabel = "Uncategorized",
   limit = 6,
+  inlineSeeAll = false,
 }: {
   label: string;
   value: string;
@@ -1124,7 +1100,10 @@ function Choices({
   allowEmpty?: boolean;
   emptyLabel?: string;
   limit?: number;
+  inlineSeeAll?: boolean;
 }) {
+  const s = useQuickAddStyles();
+  const isLight = useLightAppearance();
   const [all, setAll] = useState(false),
     [query, setQuery] = useState("");
   const shortlist = options
@@ -1134,13 +1113,19 @@ function Choices({
   const shown = (
     all ? options : shortlist.length ? shortlist : options.slice(0, limit)
   ).filter((o) => o.name.toLowerCase().includes(query.toLowerCase()));
+  const toggleLabel = all ? "Show favorites" : `See all ${label === "Category" ? "categories" : "accounts"}`;
   return (
     <View style={{ gap: 8 }}>
-      <Text style={s.muted}>
-        {label}:{" "}
-        {options.find((o) => o.id === value)?.name ??
-          (allowEmpty ? emptyLabel : "Choose account")}
-      </Text>
+      <View style={s.choiceHeading}>
+        <Text style={s.muted}>
+          {inlineSeeAll ? label : `${label}: ${options.find((o) => o.id === value)?.name ?? (allowEmpty ? emptyLabel : "Choose account")}`}
+        </Text>
+        {inlineSeeAll ? <Pressable accessibilityRole="button" accessibilityLabel={toggleLabel}
+          accessibilityState={{ expanded: all }} onPress={() => setAll(!all)} style={s.choiceSeeAll}>
+          <Text style={s.seeAllText}>{all ? "Show less" : "See all"}</Text>
+          <MaterialCommunityIcons name={all ? "chevron-up" : "chevron-down"} size={17} color={isLight ? "#087b8c" : "#32d8f2"} />
+        </Pressable> : null}
+      </View>
       {all ? (
         <Field
           label={`Search ${label.toLowerCase()}`}
@@ -1157,7 +1142,7 @@ function Choices({
             onPress={() => onChange(o.id)}
           />
         ))}
-        {allowEmpty ? (
+        {allowEmpty && (all || !value) ? (
           <Action
             label={emptyLabel}
             selected={!value}
@@ -1165,18 +1150,18 @@ function Choices({
           />
         ) : null}
       </View>
-      <Action
+      {!inlineSeeAll ? <Action
         label={
           all
             ? "Show favorites"
             : `See all ${label.includes("category") || label === "Category" ? "categories" : "accounts"}`
         }
         onPress={() => setAll(!all)}
-      />
+      /> : null}
     </View>
   );
 }
-const s = StyleSheet.create({
+const darkQuickAddStyles = StyleSheet.create({
   scrim: {
     flex: 1,
     backgroundColor: "#0009",
@@ -1192,6 +1177,7 @@ const s = StyleSheet.create({
     borderRadius: 18,
     overflow: "hidden",
   },
+  launcherSheet: { flex: 0 },
   heading: {
     padding: 14,
     flexDirection: "row",
@@ -1199,10 +1185,32 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     gap: 8,
   },
+  headingActions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  headerAction: { minHeight: 48, minWidth: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "#183344" },
+  headerIconAction: { minHeight: 48, minWidth: 48, alignItems: "center", justifyContent: "center", borderRadius: 8 },
   title: { color: "#f5f8fc", fontSize: 21, fontWeight: "700", flexShrink: 1 },
   scroll: { flex: 1 },
   body: { padding: 16, gap: 14 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  presetTile: { minHeight: 74, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: "#294158", borderRadius: 10, padding: 12 },
+  directionIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  incomeIcon: { backgroundColor: "#12382f" },
+  expenseIcon: { backgroundColor: "#321f27" },
+  presetContent: { flex: 1, minWidth: 0, gap: 3 },
+  presetTitle: { color: "#f5f8fc", fontSize: 17, fontWeight: "700" },
+  seeAllAction: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
+  seeAllText: { color: "#32d8f2", fontSize: 14, fontWeight: "600" },
+  entryTypeGroup: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  entryTypeOption: { minHeight: 48, minWidth: 144, flexGrow: 1, justifyContent: "center", alignItems: "center", borderRadius: 8, backgroundColor: "#183344", paddingHorizontal: 12 },
+  entryExpenseSelected: { backgroundColor: "#321f27", borderWidth: 1, borderColor: "#6a3440" },
+  entryIncomeSelected: { backgroundColor: "#12382f", borderWidth: 1, borderColor: "#55e6a5" },
+  entryTypeText: { color: "#91a7c2", fontSize: 14, fontWeight: "700", textAlign: "center" },
+  entryStack: { gap: 16 },
+  dateSummaryRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  dateSummaryText: { flexGrow: 1, flexShrink: 1 },
+  customDateAction: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 8 },
+  choiceHeading: { minHeight: 28, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  choiceSeeAll: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 4 },
   footer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1240,6 +1248,9 @@ const s = StyleSheet.create({
     fontSize: 17,
     minHeight: 46,
   },
+  prefixedInputRow: { minHeight: 50, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#294158", borderRadius: 8, backgroundColor: "#081521", paddingLeft: 12 },
+  prefixText: { color: "#91a7c2", fontSize: 15, marginRight: 8 },
+  prefixedInput: { minHeight: 48, flex: 1, color: "white", fontSize: 21, fontWeight: "700", paddingHorizontal: 4, paddingVertical: 8 },
   tile: {
     borderWidth: 1,
     borderColor: "#294158",
@@ -1260,3 +1271,7 @@ const s = StyleSheet.create({
     zIndex: 100,
   },
 });
+const lightQuickAddStyles = lightMobileStyles(darkQuickAddStyles);
+function useQuickAddStyles() {
+  return useLightAppearance() ? lightQuickAddStyles : darkQuickAddStyles;
+}

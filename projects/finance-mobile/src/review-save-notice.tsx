@@ -1,5 +1,5 @@
 import { ActivityIndicator, Text, View } from "react-native";
-import { ActionButton, ui } from "./mobile-ui";
+import { ActionButton, useMobileUi } from "./mobile-ui";
 import type { useReviewMutation } from "./review-mutation";
 import type { ParsedMessageCandidate } from "./api";
 
@@ -7,6 +7,7 @@ export function ReviewSaveNotice({ review, candidates, onReview, onEdit }: {
   review: ReturnType<typeof useReviewMutation>; onReview: (id: string) => void; onEdit: (id: string) => void;
   candidates: ParsedMessageCandidate[];
 }) {
+  const ui = useMobileUi();
   const operation = review.operation;
   if (!operation) return null;
   const failed = operation.phase === "failed", unknown = operation.phase === "unknown";

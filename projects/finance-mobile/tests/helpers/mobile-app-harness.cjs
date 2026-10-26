@@ -42,6 +42,7 @@ async function mobileAppHarness(t, overrides = {}) {
     "./src/session": { loadSession: async () => session, saveSession: async value => { session = value; }, clearSession: async () => { session = null; } },
     "./src/secure-sms-queue": { loadSecureSmsQueue: async () => "[]", saveSecureSmsQueue: async () => {} },
     "./src/quick-add-hub": { QuickAddHub: QuickAdd },
+    "./src/native-time-field": { NativeDateField: "NativeDateField", NativeTimeField: "NativeTimeField" },
     "./src/theme-preference": { loadThemePreference: async () => "system", saveThemePreference: async () => {} },
     "./modules/finance-sms-capture/src": {
       isNativeSmsCaptureAvailable: () => false, getNativeSmsBackgroundSyncStatus: async () => null,

@@ -25,7 +25,7 @@ import {
   ModalFrame,
   SearchSelect,
   SourceMessage,
-  ui,
+  useMobileUi,
 } from "./mobile-ui";
 import { ClassificationFields } from "./classification-fields";
 import { CompactFields, CompactDateTime } from "./compact-form";
@@ -52,6 +52,7 @@ export function TransactionEditor({
   isCurrent?: () => boolean;
   onSaved: (row: Transaction) => void;
 }) {
+  const ui = useMobileUi();
   const [row, setRow] = useState<Transaction | null>(null),
     [draft, setDraft] = useState<TransactionDraft | null>(null),
     [loading, setLoading] = useState(true),

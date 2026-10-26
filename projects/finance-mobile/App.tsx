@@ -1,7 +1,7 @@
 import { useReviewMutation, reviewSnapshots, restoreReviewRows, type ReviewDecision } from "./src/review-mutation";
 import { ReviewSaveNotice } from "./src/review-save-notice";
 import { reviewDraftError } from "./src/review-validation";
-import { ActionButton, SourceMessage, ui as darkUi } from "./src/mobile-ui";
+import { ActionButton, SourceMessage, ui as darkUi, useMobileUi } from "./src/mobile-ui";
 import { SyncSummary, useServerSyncStatus } from "./src/sync-summary";
 import { ManualEntryFields, type ManualEntryDraft } from "./src/manual-entry-fields";
 import { ReviewFields, type ReviewDraft } from "./src/review-fields";
@@ -25,6 +25,7 @@ import { NativeDateField, NativeTimeField } from "./src/native-time-field";
 import { smsSyncPresentation, smsSyncDiagnostics } from "./src/sms-sync-presentation";
 import { localDay, localTime, type QuickPreset, type QuickDraft } from "../finance-contracts/quick-add";
 import { StatusBar } from "expo-status-bar";
+import { MobileThemeProvider } from "./src/mobile-theme";
 import { useFonts } from "expo-font";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -131,7 +132,7 @@ import { clearSession, loadSession, saveSession } from "./src/session";
 import { loadSecureSmsQueue, saveSecureSmsQueue } from "./src/secure-sms-queue";
 import { ProfileScreen } from "./src/profile-screen";
 import { loadThemePreference, saveThemePreference, type ThemePreference } from "./src/theme-preference";
-import { lightMobileStyles } from "./src/theme-styles";
+import { darkenLegacyMobileStyles, lightMobileStyles } from "./src/theme-styles";
 
 type ViewState = "idle" | "loading" | "success" | "error";
 type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
@@ -762,15 +763,9 @@ function candidateReviewReason(candidate: ParsedMessageCandidate) {
 }
 
 export default function App() {
-  return <SafeAreaProvider initialMetrics={initialWindowMetrics}><FinanceApp /></SafeAreaProvider>;
-}
-
-function FinanceApp() {
   const [themePreference, setThemePreference] = useState<ThemePreference>("system");
   const systemScheme = useColorScheme();
   const isLight = (themePreference === "system" ? systemScheme : themePreference) === "light";
-  const styles = isLight ? lightStyles : darkStyles;
-  const ui = isLight ? lightUi : darkUi;
   useEffect(() => {
     void loadThemePreference().then(setThemePreference).catch(() => {});
   }, []);
@@ -781,6 +776,25 @@ function FinanceApp() {
     setThemePreference(preference);
     void saveThemePreference(preference).catch(() => {});
   }
+  return <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+    <MobileThemeProvider isLight={isLight}>
+      <FinanceApp themePreference={themePreference} isLight={isLight} chooseTheme={chooseTheme} />
+    </MobileThemeProvider>
+  </SafeAreaProvider>;
+}
+
+function PlanningDateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const ui = useMobileUi();
+  return <View style={{ gap: 6 }}><Text style={ui.muted}>{label}</Text><NativeDateField label={label} value={value} onChange={onChange} /></View>;
+}
+
+function FinanceApp({ themePreference, isLight, chooseTheme }: {
+  themePreference: ThemePreference;
+  isLight: boolean;
+  chooseTheme: (preference: ThemePreference) => void;
+}) {
+  const styles = isLight ? lightStyles : darkStyles;
+  const ui = isLight ? lightUi : darkUi;
   const quickHub = useRef<QuickAddHandle>(null);
   const [editingTransaction, setEditingTransaction] = useState<{ id: string; scope: string } | null>(null);
   const reviewSubmitting = useRef<object | null>(null);
@@ -935,6 +949,7 @@ function FinanceApp() {
   const [reviewCandidateServerCount, setReviewCandidateCount] = useState(0);
   const [reviewActionCandidateId, setReviewActionCandidateId] = useState("");
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewCandidateDraft>>({});
+  const [reviewRememberChoices, setReviewRememberChoices] = useState<Record<string, boolean>>({});
   const [reviewCandidateIndex, setReviewCandidateIndex] = useState(0);
   const [reviewCandidateId, setReviewCandidateId] = useState<string | null>(null);
   const reviewMutation = useReviewMutation({
@@ -1499,7 +1514,7 @@ function FinanceApp() {
         note: draft.note.trim(),
         payment_method: draft.paymentMethodId || null,
         reference: draft.reference.trim(),
-        remember_mapping: true,
+        remember_mapping: Boolean(reviewRememberChoices[candidate.id]),
         time: draft.time.trim() || null,
         transfer_account: draft.transactionType === "transfer" ? draft.transferAccountId : null,
         type: draft.transactionType
@@ -1653,7 +1668,7 @@ function FinanceApp() {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.17",
+          app_version: "0.1.18",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1675,7 +1690,7 @@ function FinanceApp() {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.17",
+        app_version: "0.1.18",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1752,7 +1767,7 @@ function FinanceApp() {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.17",
+            app_version: "0.1.18",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1767,7 +1782,7 @@ function FinanceApp() {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.17",
+          app_version: "0.1.18",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -2555,6 +2570,7 @@ function FinanceApp() {
     setReviewCandidateIndex(0);
     setReviewCandidateCount(0);
     setReviewDrafts({});
+    setReviewRememberChoices({});
     setEditingTransaction(null);
     reviewSubmitting.current = null; manualSubmitting.current = null; transferSubmitting.current = null;
     reconciliationRequest.current++;
@@ -3408,22 +3424,8 @@ function FinanceApp() {
             style={styles.input}
             value={debtPrincipal}
           />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setDebtOpenedAt}
-            placeholder="Opened date (YYYY-MM-DD)"
-            style={styles.input}
-            value={debtOpenedAt}
-          />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setDebtDueDate}
-            placeholder="Due date (optional)"
-            style={styles.input}
-            value={debtDueDate}
-          />
+          <PlanningDateField label="Opened date" value={debtOpenedAt} onChange={setDebtOpenedAt} />
+          <PlanningDateField label="Due date (optional)" value={debtDueDate} onChange={setDebtDueDate} />
           <TextInput
             autoCapitalize="sentences"
             onChangeText={setDebtNote}
@@ -3460,14 +3462,7 @@ function FinanceApp() {
             style={styles.input}
             value={debtPaymentAmount}
           />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setDebtPaymentDate}
-            placeholder="Paid date (YYYY-MM-DD)"
-            style={styles.input}
-            value={debtPaymentDate}
-          />
+          <PlanningDateField label="Paid date" value={debtPaymentDate} onChange={setDebtPaymentDate} />
           <TextInput
             autoCapitalize="sentences"
             onChangeText={setDebtPaymentNote}
@@ -3564,22 +3559,8 @@ function FinanceApp() {
             style={styles.input}
             value={cardMinimumDue}
           />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setCardStatementDate}
-            placeholder="Statement date (YYYY-MM-DD)"
-            style={styles.input}
-            value={cardStatementDate}
-          />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setCardDueDate}
-            placeholder="Due date (YYYY-MM-DD)"
-            style={styles.input}
-            value={cardDueDate}
-          />
+          <PlanningDateField label="Statement date" value={cardStatementDate} onChange={setCardStatementDate} />
+          <PlanningDateField label="Due date" value={cardDueDate} onChange={setCardDueDate} />
           <TextInput
             autoCapitalize="none"
             autoCorrect={false}
@@ -3624,14 +3605,7 @@ function FinanceApp() {
             style={styles.input}
             value={cardPaymentAmount}
           />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setCardPaymentDate}
-            placeholder="Paid date (YYYY-MM-DD)"
-            style={styles.input}
-            value={cardPaymentDate}
-          />
+          <PlanningDateField label="Paid date" value={cardPaymentDate} onChange={setCardPaymentDate} />
           <TextInput
             autoCapitalize="sentences"
             onChangeText={setCardPaymentNote}
@@ -3745,14 +3719,7 @@ function FinanceApp() {
               </Pressable>
             ))}
           </View>
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setRecurringNextDueDate}
-            placeholder="Next due date (YYYY-MM-DD)"
-            style={styles.input}
-            value={recurringNextDueDate}
-          />
+          <PlanningDateField label="Next due date" value={recurringNextDueDate} onChange={setRecurringNextDueDate} />
           <TextInput
             keyboardType="number-pad"
             onChangeText={setRecurringReminderDays}
@@ -3796,14 +3763,7 @@ function FinanceApp() {
             style={styles.input}
             value={recurringPaymentAmount}
           />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            onChangeText={setRecurringPaymentDate}
-            placeholder="Paid date (YYYY-MM-DD)"
-            style={styles.input}
-            value={recurringPaymentDate}
-          />
+          <PlanningDateField label="Paid date" value={recurringPaymentDate} onChange={setRecurringPaymentDate} />
           <TextInput
             autoCapitalize="sentences"
             onChangeText={setRecurringPaymentNote}
@@ -4169,6 +4129,8 @@ function FinanceApp() {
         <Text style={styles.mobilePageTitle}>SMS review</Text>
         <Text style={styles.mobilePageSubtitle}>Verify uncertain fields before they enter your ledger.</Text>
       </View>
+      {!reviewMutation.blocked ? <ReviewSaveNotice review={reviewMutation} candidates={reviewCandidates} onReview={id => openReviewCandidate(id)} onEdit={openTransactionEditor} /> : null}
+      {!reviewMutation.operation ? <RecoveryCard compact recovery={recovery} blocked={reviewMutation.blocked} onEdit={openTransactionEditor} /> : null}
       <Pressable onPress={handleLoadReviewCandidates} style={styles.mobileSecondaryAction}>
         <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
         <Text style={styles.mobileSecondaryActionText}>Refresh inbox</Text>
@@ -4246,7 +4208,7 @@ function FinanceApp() {
               </View>;
             })}
 
-            <ReviewFields error={reviewState === "error" ? reviewMessage : ""} draft={draft} accounts={accounts} categories={categories} paymentMethods={paymentMethods} busy={isWorking} onChange={patch => updateReviewDraft(candidate, patch)} />
+            <ReviewFields error={reviewState === "error" ? reviewMessage : ""} draft={draft} accounts={accounts} categories={categories} paymentMethods={paymentMethods} busy={isWorking} onChange={patch => updateReviewDraft(candidate, patch)} rememberChoices={Boolean(reviewRememberChoices[candidate.id])} onRememberChoicesChange={value => setReviewRememberChoices(current => ({ ...current, [candidate.id]: value }))} />
 
           </View>
           </>
@@ -4370,8 +4332,8 @@ function FinanceApp() {
           {showSmsDiagnostics ? (
             <View style={{ gap: 10 }}>
               <Text style={styles.mobileRowMeta}>Includes sync counts, stage and error codes. SMS text and login tokens are excluded.</Text>
-              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.17", getApiBaseUrl())}</Text>
-              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.17", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
+              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.18", getApiBaseUrl())}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.18", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
                 <Text style={styles.mobileSecondaryActionText}>Share diagnostics</Text>
               </Pressable>
             </View>
@@ -5181,11 +5143,9 @@ function FinanceApp() {
         <RetainedNavigation navigation={navigation} onRouteChange={changeWorkspace} render={renderWorkspace} />
       </MobileQueryProvider>
 
-      {selectedReviewCandidate ? <View style={[ui.card, { borderRadius: 0, padding: 12 }]}><Text accessibilityLiveRegion="polite" style={selectedReviewIssue || reviewState === "error" ? ui.error : ui.muted}>{reviewState === "error" && reviewMessage ? reviewMessage : selectedReviewIssue || `Ready · ${formatCurrency(selectedReviewDraft?.amount)}`}</Text><View style={ui.row}><ActionButton label="Reject message" disabled={Boolean(reviewActionCandidateId) || reviewMutation.blocked || transferBusy} onPress={() => confirmRejectReviewCandidate(selectedReviewCandidate)} /><ActionButton label={reviewActionCandidateId ? "Save in progress…" : "Confirm & add"} primary disabled={Boolean(reviewActionCandidateId) || reviewMutation.blocked || transferBusy} onPress={() => void handleConfirmReviewCandidate(selectedReviewCandidate)} /></View></View> : null}
-      <ReviewSaveNotice review={reviewMutation} candidates={reviewCandidates} onReview={id => openReviewCandidate(id)} onEdit={openTransactionEditor} />
-      <RecoveryCard compact recovery={recovery} blocked={reviewMutation.blocked} onEdit={openTransactionEditor} />
+      {currentWorkspace.route === "review" && reviewMutation.blocked ? <ReviewSaveNotice review={reviewMutation} candidates={reviewCandidates} onReview={id => openReviewCandidate(id)} onEdit={openTransactionEditor} /> : selectedReviewCandidate ? <View style={[ui.card, { borderRadius: 0, padding: 12 }]}><Text accessibilityLiveRegion="polite" style={selectedReviewIssue || reviewState === "error" ? ui.error : ui.muted}>{reviewState === "error" && reviewMessage ? reviewMessage : selectedReviewIssue || `Ready · ${formatCurrency(selectedReviewDraft?.amount)}`}</Text><View style={ui.row}><ActionButton label="Reject message" disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => confirmRejectReviewCandidate(selectedReviewCandidate)} /><ActionButton label={reviewActionCandidateId ? "Save in progress…" : "Confirm & add"} primary disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => void handleConfirmReviewCandidate(selectedReviewCandidate)} /></View></View> : null}
       {editorSurface}
-      {!advancedTool ? <View style={styles.mobileTabBar}>
+      <View style={styles.mobileTabBar}>
         {tabItems.map((item) => {
           const isActive = activeTab === item.key;
           return (
@@ -5205,7 +5165,7 @@ function FinanceApp() {
             </Pressable>
           );
         })}
-      </View> : null}
+      </View>
 
       <Modal animationType="fade" onRequestClose={closeDrawer} transparent visible={drawerVisible}>
         <View style={styles.mobileDrawerLayer}>
@@ -6655,6 +6615,7 @@ const styles = StyleSheet.create({
     borderColor: "#cbd5e1",
     borderRadius: 8,
     borderWidth: 1,
+    color: "#0f172a",
     fontSize: 14,
     paddingHorizontal: 12,
     paddingVertical: 10
@@ -6664,6 +6625,7 @@ const styles = StyleSheet.create({
     borderColor: "#cbd5e1",
     borderRadius: 8,
     borderWidth: 1,
+    color: "#0f172a",
     fontSize: 12,
     minHeight: 84,
     paddingHorizontal: 12,
@@ -6849,6 +6811,6 @@ const styles = StyleSheet.create({
   }
 });
 
-const darkStyles = styles;
+const darkStyles = darkenLegacyMobileStyles(styles);
 const lightStyles = lightMobileStyles(styles);
 const lightUi = lightMobileStyles(darkUi);

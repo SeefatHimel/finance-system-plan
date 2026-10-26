@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { formatTimestamp } from "../../finance-contracts/presentation";
+import { lightMobileStyles } from "./theme-styles";
+import { useLightAppearance } from "./mobile-theme";
 export const ui = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#081421" },
   content: { padding: 16, gap: 14 },
@@ -71,6 +73,11 @@ export const ui = StyleSheet.create({
     borderColor: "#294158",
   },
 });
+const lightUi = lightMobileStyles(ui);
+
+export function useMobileUi() {
+  return useLightAppearance() ? lightUi : ui;
+}
 export function ActionButton({
   label,
   text,
@@ -84,6 +91,8 @@ export function ActionButton({
   primary?: boolean;
   disabled?: boolean;
 }) {
+  const ui = useMobileUi();
+  const isLight = useLightAppearance();
   return (
     <Pressable
       accessibilityRole="button"
@@ -96,7 +105,7 @@ export function ActionButton({
       <Text
         style={[
           ui.text,
-          { fontWeight: "700", color: primary ? "#08261d" : "#e7eef7" },
+          { fontWeight: "700", color: primary ? "#08261d" : isLight ? "#213846" : "#e7eef7" },
         ]}
       >
         {text ?? label}
@@ -108,12 +117,14 @@ export function InputField({
   label,
   ...props
 }: TextInputProps & { label: string }) {
+  const ui = useMobileUi();
+  const isLight = useLightAppearance();
   return (
     <View style={{ gap: 6 }}>
       <Text style={ui.muted}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
-        placeholderTextColor="#91a7c2"
+        placeholderTextColor={isLight ? "#607782" : "#91a7c2"}
         {...props}
         style={[ui.input, props.style]}
       />
@@ -136,6 +147,7 @@ export function SearchSelect({
   emptyLabel?: string;
   disabled?: boolean;
 }) {
+  const ui = useMobileUi();
   const [open, setOpen] = useState(false),
     [query, setQuery] = useState("");
   const selected =
@@ -239,6 +251,7 @@ export function SourceMessage({
     status?: string;
   };
 }) {
+  const ui = useMobileUi();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const inlineExpanded = fullBody || expanded;
@@ -305,6 +318,7 @@ export function ModalFrame({
   children: React.ReactNode;
   footer: React.ReactNode;
 }) {
+  const ui = useMobileUi();
   return (
     <Modal
       visible

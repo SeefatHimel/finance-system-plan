@@ -2,7 +2,7 @@ import { CompactFields } from "./compact-form";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import type { Category } from "./api";
-import { SearchSelect, ActionButton, ui } from "./mobile-ui";
+import { SearchSelect, ActionButton, useMobileUi } from "./mobile-ui";
 import {
   categoryTypes,
   directionForType,
@@ -26,6 +26,7 @@ export function ClassificationFields({
     direction?: string;
   }) => void;
 }) {
+  const ui = useMobileUi();
   const [proposal, setProposal] = useState<{
     label: string;
     options: { type: string; category: string }[];

@@ -1,6 +1,6 @@
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import type { Account, Category, PaymentMethod } from "./api";
-import { InputField, SearchSelect, ui } from "./mobile-ui";
+import { InputField, SearchSelect, useMobileUi } from "./mobile-ui";
 import { CompactFields, CompactDateTime } from "./compact-form";
 import { ClassificationFields } from "./classification-fields";
 import { Disclosure } from "./disclosure";
@@ -28,6 +28,8 @@ export function ReviewFields({
   paymentMethods,
   busy,
   error,
+  rememberChoices,
+  onRememberChoicesChange,
   onChange,
 }: {
   draft: ReviewDraft;
@@ -36,8 +38,11 @@ export function ReviewFields({
   paymentMethods: PaymentMethod[];
   busy: boolean;
   error?: string;
+  rememberChoices: boolean;
+  onRememberChoicesChange: (value: boolean) => void;
   onChange: (patch: Partial<ReviewDraft>) => void;
 }) {
+  const ui = useMobileUi();
   const accountOptions = accounts
     .filter(
       (item) =>
@@ -166,6 +171,11 @@ export function ReviewFields({
             onChange={(paymentMethodId) => onChange({ paymentMethodId })}
           />
         </CompactFields>
+        <Pressable accessibilityRole="checkbox" accessibilityLabel="Use these choices for similar SMS" accessibilityState={{ checked: rememberChoices, disabled: busy }}
+          disabled={busy} onPress={() => onRememberChoicesChange(!rememberChoices)} style={ui.button}>
+          <Text style={ui.text}>{rememberChoices ? "☑" : "☐"} Use these choices for similar SMS</Text>
+          <Text style={ui.muted}>Optional. Saves a suggestion for this sender and message kind after confirmation.</Text>
+        </Pressable>
       </Disclosure>
     </View>
   );

@@ -10,11 +10,11 @@ const fail = message => Object.assign(new Error(message), { status: 400 });
 
 test("App advances instantly, retains the next edits, restores the failed draft and safely retries rejection", async t => {
   const pending = deferred(), rows = [candidate("a"), candidate("b"), candidate("c")];
-  let posts = 0, rejection, reads = 0;
+  let posts = 0, rejection, reads = 0, remembered;
   const h = await mobileAppHarness(t, {
     listMessageCandidates: async () => { reads++; return { count: rows.length, results: [...rows] }; },
     getMessageCandidate: async (_token, id) => rows.find(row => row.id === id),
-    confirmMessageCandidate: async () => { posts++; return pending.promise; },
+    confirmMessageCandidate: async (_token, _id, input) => { posts++; remembered = input.remember_mapping; return pending.promise; },
     rejectMessageCandidate: async (_token, id, payload) => {
       rejection = payload;
       if (posts++ === 1) throw fail("Cannot reject this entry yet");
@@ -29,10 +29,12 @@ test("App advances instantly, retains the next edits, restores the failed draft 
   const before = { ...h.fields().props.draft };
   await act(async () => button(h.tree, "Confirm & add").props.onPress());
   assert.equal(posts, 1);
+  assert.equal(remembered, false, "ordinary confirmation does not silently save a sender mapping");
   assert.match(text(h.tree), /Message 1 of 2/);
   assert.equal(h.fields().props.draft.reference, "DEMO-b");
   assert.equal(h.fields().props.busy, false, "the next form stays editable");
-  assert(button(h.tree, "Save in progress…").props.disabled);
+  assert.equal(button(h.tree, "Confirm & add"), undefined, "pending save replaces the decision bar");
+  assert.match(text(h.tree), /Saving review decision/);
   await act(async () => h.fields().props.onChange({ note: "Newer next draft", amount: "44.19" }));
   await act(async () => pending.reject(fail("Amount: cannot save this value")));
   assert.match(text(h.tree), /Entry and edits restored/);
@@ -52,6 +54,25 @@ test("App advances instantly, retains the next edits, restores the failed draft 
   assert.equal(rejection.exclude_sender, false);
   assert(reads > 1, "successful rejection refreshes the inbox in the background");
   assert.equal(h.fields().props.draft.note, "Newer next draft");
+});
+
+test("SMS review learns similar-message choices only after explicit opt in", async t => {
+  const pending = deferred();
+  let remembered;
+  const h = await mobileAppHarness(t, {
+    listMessageCandidates: async () => ({ count: 1, results: [candidate("learn")] }),
+    getMessageCandidate: async () => candidate("learn"),
+    confirmMessageCandidate: async (_token, _id, input) => { remembered = input.remember_mapping; return pending.promise; },
+  });
+  await h.review();
+  await act(async () => button(h.tree, "More details").props.onPress());
+  const remember = button(h.tree, "Use these choices for similar SMS");
+  assert.equal(remember.props.accessibilityState.checked, false);
+  await act(async () => remember.props.onPress());
+  assert.equal(button(h.tree, "Use these choices for similar SMS").props.accessibilityState.checked, true);
+  await act(async () => button(h.tree, "Confirm & add").props.onPress());
+  assert.equal(remembered, true);
+  await act(async () => pending.reject(fail("Test stops before a financial write")));
 });
 
 test("App holds both source drafts until explicit transfer acceptance and rolls back a failed link", async t => {

@@ -689,3 +689,10 @@ Release 0.1.17 uses Android code 18 and packages retained navigation, immediate
 review save recovery and original source expansion. No new dependency, permission,
 API contract or migration is needed for these client changes. Mobile shows
 extracted statement-row evidence; the web PDF viewer remains separate.
+
+### Mobile appearance and Quick Add APK 0.1.18
+
+Version 0.1.18 uses Android code 19. Run `npm run typecheck`, `npm test` and
+the native SMS module unit tests, then follow the signed release guide. The
+installed app needs a new APK for the shared appearance, compact Activity and
+review controls, and Quick Add changes. The server API and database do not change.

@@ -66,6 +66,8 @@ function nativeHarness(api = {}, os = "android", modules = {}) {
         if (name === "react" || name === "react/jsx-runtime")
           return require(name);
         if (name === "react-native") return native;
+        if (name === "@react-native-community/datetimepicker")
+          return { __esModule: true, default: "DateTimePicker", DateTimePickerAndroid: { open() {} } };
         if (name === "react-native-safe-area-context")
           return { SafeAreaView: "SafeAreaView" };
         if (name === "./api") return api;

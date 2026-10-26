@@ -5,7 +5,7 @@ import type { NativeSmsBackgroundSyncStatus } from "../modules/finance-sms-captu
 import { smsSyncSummary } from "./sms-sync-presentation";
 import { formatTimestamp } from "../../finance-contracts/presentation";
 import { Disclosure } from "./disclosure";
-import { ui } from "./mobile-ui";
+import { useMobileUi } from "./mobile-ui";
 export function useServerSyncStatus(
   token: string,
   scope: string | null,
@@ -62,6 +62,7 @@ export function SyncSummary({
   pending: number;
   server: ReturnType<typeof useServerSyncStatus>;
 }) {
+  const ui = useMobileUi();
   const summary = smsSyncSummary(status, pending);
   return (
     <View style={ui.card}>

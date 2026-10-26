@@ -1,10 +1,11 @@
 import { Text, View } from "react-native";
 import type { StatementSource } from "./api";
-import { ui } from "./mobile-ui";
+import { useMobileUi } from "./mobile-ui";
 import { formatCalendarDate, formatClockTime } from "../../finance-contracts/presentation";
 
 /** Read-only extraction. Never substitute reviewed ledger/draft fields as originals. */
 export function StatementSourceEvidence({ source }: { source: StatementSource }) {
+  const ui = useMobileUi();
   const original = source.extracted;
   const text = original?.raw_text || original?.description;
   return <View style={ui.card}>
