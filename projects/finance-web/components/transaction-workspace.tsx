@@ -1,4 +1,6 @@
 "use client";
+import { TransactionActionMenu } from "@/components/transaction-action-menu";
+import { transactionColumnPreferences, transactionPage, transactionPageParams } from "@/lib/transaction-list";
 import { AccountLabel } from "@/components/account-avatar";
 import { displayLabel, formatCurrency, formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
 
@@ -78,11 +80,10 @@ type LoadState =
 
 const transactionSources: TransactionSource[] = ["web", "mobile", "sms", "import", "system"];
 
-type TransactionColumn = "date" | "time" | "description" | "account" | "category" | "source" | "balance" | "senderIdentifiers" | "receiverIdentifiers" | "amount";
+type TransactionColumn = "date" | "description" | "account" | "category" | "source" | "balance" | "senderIdentifiers" | "receiverIdentifiers" | "amount";
 
 const transactionColumns: { id: TransactionColumn; label: string }[] = [
-  { id: "date", label: "Date" },
-  { id: "time", label: "Time" },
+  { id: "date", label: "Date & time" },
   { id: "description", label: "Description" },
   { id: "account", label: "Account" },
   { id: "category", label: "Category" },
@@ -94,8 +95,8 @@ const transactionColumns: { id: TransactionColumn; label: string }[] = [
 ];
 
 const allTransactionColumns = transactionColumns.map((column) => column.id);
-const defaultTransactionColumns: TransactionColumn[] = ["date", "time", "description", "account", "category", "amount"];
-const transactionColumnsStorageKey = "finance.transactions.columns.v1";
+const defaultTransactionColumns: TransactionColumn[] = ["date", "description", "account", "category", "amount"];
+const transactionColumnsStorageKey = "finance.transactions.columns.v2";
 
 type TransactionFilterState = Required<Pick<TransactionFilters, "direction" | "source" | "type">> & {
   account: string;
@@ -150,6 +151,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
   const router = useRouter();
   const searchParams = useSearchParams();
   const editorForm = useRef<HTMLFormElement>(null);
+  const editorDirty = useRef(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const feedback = (field: string) => ({ "aria-invalid": Boolean(fieldErrors[field]), "aria-describedby": fieldErrors[field] ? `transaction-error-${field}` : undefined });
   const saveInFlight = useRef(false);
@@ -172,6 +174,12 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     source: "",
     type: ""
   });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [displayOptionsOpen, setDisplayOptionsOpen] = useState(false);
+  const tableScroll = useRef<HTMLDivElement>(null);
+  const listTop = useRef<HTMLDivElement>(null);
+  const restorePosition = useRef<{ y: number; x: number } | null>(null);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [dateView, setDateView] = useState<DatePeriod["mode"]>("monthly");
   const filtersRef = useRef(filters);
@@ -319,45 +327,111 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
       void loadData(filtersRef.current);
       return () => requests.cancel();
     }
-    const searchParams = new URLSearchParams(window.location.search);
-    const requestedSearch = searchParams.get("search")?.trim() ?? "";
-    const requestedOrdering = searchParams.get("ordering");
-    const ordering = requestedOrdering === "-created_at" || requestedOrdering === "-updated_at" ? requestedOrdering : "-date";
-    const requestedFilters: TransactionFilterState = {
-      account: searchParams.get("account") ?? "",
-      category: searchParams.get("category") ?? "",
-      direction: (searchParams.get("direction") ?? "") as TransactionFilterState["direction"],
-      month: searchParams.has("start_date") || searchParams.has("end_date") ? "" : searchParams.has("month") ? searchParams.get("month") ?? "" : requestedSearch || ordering !== "-date" ? "" : currentMonth(),
-      start_date: searchParams.get("start_date") ?? "",
-      end_date: searchParams.get("end_date") ?? "",
-      date_field: searchParams.get("date_field") === "created_at" ? "created_at" : searchParams.get("date_field") === "updated_at" ? "updated_at" : "date",
-      ordering,
-      search: requestedSearch,
-      source: (searchParams.get("source") ?? "") as TransactionFilterState["source"],
-      type: (searchParams.get("type") ?? "") as TransactionFilterState["type"]
+    const restore = () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const pagination = transactionPageParams(searchParams);
+      setPage(pagination.page); setPageSize(pagination.pageSize);
+      restorePosition.current = window.history.state?.financeTransactionPosition ?? null;
+      const requestedSearch = searchParams.get("search")?.trim() ?? "";
+      const requestedOrdering = searchParams.get("ordering");
+      const ordering = requestedOrdering === "-created_at" || requestedOrdering === "-updated_at" ? requestedOrdering : "-date";
+      const requestedFilters: TransactionFilterState = {
+        account: searchParams.get("account") ?? "",
+        category: searchParams.get("category") ?? "",
+        direction: (searchParams.get("direction") ?? "") as TransactionFilterState["direction"],
+        month: searchParams.has("start_date") || searchParams.has("end_date") ? "" : searchParams.has("month") ? searchParams.get("month") ?? "" : requestedSearch || ordering !== "-date" ? "" : currentMonth(),
+        start_date: searchParams.get("start_date") ?? "",
+        end_date: searchParams.get("end_date") ?? "",
+        date_field: searchParams.get("date_field") === "created_at" ? "created_at" : searchParams.get("date_field") === "updated_at" ? "updated_at" : "date",
+        ordering,
+        search: requestedSearch,
+        source: (searchParams.get("source") ?? "") as TransactionFilterState["source"],
+        type: (searchParams.get("type") ?? "") as TransactionFilterState["type"]
+      };
+      setFilters(requestedFilters);
+      setDateView(periodFromFilters(requestedFilters, searchParams.get("date_view") ?? undefined).mode);
+      void loadData(requestedFilters);
     };
-    setFilters(requestedFilters);
-    setDateView(periodFromFilters(requestedFilters, searchParams.get("date_view") ?? undefined).mode);
-    void loadData(requestedFilters);
-    return () => requests.cancel();
+    restore();
+    window.addEventListener("popstate", restore);
+    return () => { requests.cancel(); window.removeEventListener("popstate", restore); };
   }, [isEmbedded, loadData, setFilters]);
 
   useEffect(() => {
     if (isEmbedded) return;
+    // Contain touchpad edge gestures on this workspace; Back buttons still work.
+    const root = document.documentElement;
+    const previous = root.style.overscrollBehaviorX;
+    root.style.overscrollBehaviorX = "none";
+    return () => { root.style.overscrollBehaviorX = previous; };
+  }, [isEmbedded]);
+
+  useEffect(() => {
+    if (!editorMode) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!editorDirty.current || saveInFlight.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [editorMode]);
+
+  useEffect(() => {
+    if (isEmbedded) return;
     try {
-      const stored = window.localStorage.getItem(transactionColumnsStorageKey);
+      const stored = window.localStorage.getItem(transactionColumnsStorageKey) ?? window.localStorage.getItem("finance.transactions.columns.v1");
       if (!stored) return;
       const parsed = JSON.parse(stored) as unknown;
       if (!Array.isArray(parsed)) return;
-      const allowed = new Set<TransactionColumn>(allTransactionColumns);
-      const restored = parsed.filter((value): value is TransactionColumn =>
-        typeof value === "string" && allowed.has(value as TransactionColumn)
-      );
+      const restored = transactionColumnPreferences(parsed, allTransactionColumns) as TransactionColumn[];
       if (restored.length > 0) setVisibleColumns(restored);
     } catch {
       // Fall back to the compact default table when storage is unavailable.
     }
   }, [isEmbedded]);
+
+  useEffect(() => {
+    if (isEmbedded || loadState.status !== "ready") return;
+    let frame = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const pathname = window.location.pathname;
+    if (restorePosition.current) {
+      const position = restorePosition.current;
+      frame = requestAnimationFrame(() => {
+        if (tableScroll.current) tableScroll.current.scrollLeft = position.x;
+        window.scrollTo(0, position.y);
+        restorePosition.current = null;
+      });
+    }
+    const remember = () => {
+      clearTimeout(timer);
+      if (window.location.pathname !== pathname || restorePosition.current || document.body.style.overflow === "hidden") return;
+      try {
+        window.history.replaceState({ ...window.history.state,
+          financeTransactionPosition: { y: window.scrollY, x: tableScroll.current?.scrollLeft ?? 0 }
+        }, "");
+      } catch { /* Position recovery is optional when the browser limits history writes. */ }
+    };
+    // Debounce history writes so continuous touchpad scrolling cannot hit browser quotas.
+    const queue = () => { clearTimeout(timer); timer = setTimeout(remember, 150); };
+    const beforeLink = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest("a[href]")) remember();
+    };
+    const table = tableScroll.current;
+    window.addEventListener("scroll", queue, { passive: true });
+    table?.addEventListener("scroll", queue, { passive: true });
+    window.addEventListener("pagehide", remember);
+    document.addEventListener("click", beforeLink, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+      window.removeEventListener("scroll", queue);
+      table?.removeEventListener("scroll", queue);
+      window.removeEventListener("pagehide", remember);
+      document.removeEventListener("click", beforeLink, true);
+    };
+  }, [isEmbedded, loadState]);
 
   useEffect(() => {
     const refresh = () => { void loadData(filtersRef.current); };
@@ -366,6 +440,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
   }, [loadData]);
   const openNewTransaction = useCallback((defaults?: { type: TransactionType; account: string; category: string; amount: string; note: string; counterparty_text: string; date: string; time: string }) => {
     editLoad.current?.abort();
+    editorDirty.current = false;
     transferAccountDraft.current = null;
     saveKey.current = `manual-entry:${crypto.randomUUID()}`;
     setEditingRecord(null); setEditingTransactionId("");
@@ -388,6 +463,8 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     consumeFullDraft();
   }, [embeddedCreate, fullDraft, consumeFullDraft, openNewTransaction]);
   function closeEditor() {
+    if (editorDirty.current && !window.confirm("Discard the unsaved transaction changes?")) return;
+    editorDirty.current = false;
     editLoad.current?.abort();
     setEditorMode(null);
     if (isEmbedded) { onEmbeddedClose?.(); return; }
@@ -403,14 +480,17 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     void loadData(filtersRef.current, false);
   }
 
-  function applyFilterUrl(nextFilters: TransactionFilterState, view = dateView) {
+  function applyFilterUrl(nextFilters: TransactionFilterState, view = dateView, nextPage = 1, size = pageSize) {
+    setPage(nextPage);
     const params = new URLSearchParams();
     params.set("month", nextFilters.month);
     params.set("date_view", view);
+    if (nextPage > 1) params.set("page", String(nextPage));
+    if (size !== 25) params.set("page_size", String(size));
     Object.entries(nextFilters).forEach(([key, value]) => {
       if (value) params.set(key, value);
     });
-    window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params.toString()}` : ""}`);
+    window.history.replaceState({ ...window.history.state, financeTransactionPosition: null }, "", `${window.location.pathname}${params.size ? `?${params.toString()}` : ""}`);
   }
 
   function selectPeriod(period: DatePeriod) {
@@ -478,11 +558,11 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     setIsExporting(true);
 
     try {
-      const blob = await exportTransactionsCsv(accessToken, filters);
+      const blob = await exportTransactionsCsv(accessToken, displayedFilters);
       const objectUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
-      link.download = `transactions-${filters.month || (filters.start_date ? `${filters.start_date}-to-${filters.end_date}` : "all")}.csv`;
+      link.download = `transactions-${displayedFilters.month || (displayedFilters.start_date ? `${displayedFilters.start_date}-to-${displayedFilters.end_date}` : "all")}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -510,6 +590,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
         const saved = await createTransaction(accessToken, transferDecision.input); recovery.announce(saved.undo_action);
       }
       setTransferDecision(null);
+      editorDirty.current = false;
       closeEditor();
       await loadData(filters);
     } catch (error) {
@@ -573,6 +654,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     try {
     const transaction = await getTransaction(token, transactionId, controller.signal);
     if (controller.signal.aborted) return;
+    editorDirty.current = false;
     setEditingRecord(transaction);
     setEditingTransactionId(transactionId);
     setEditingSourceMessages(null); setEditingSourceError(""); setSourceWarningsReviewed(false);
@@ -655,6 +737,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
           allow_linked_correction: allowLinkedCorrection, category: editingCategoryId || null,
           transfer_account: editingType === "transfer" ? editingTransferAccountId : null });
       }
+      editorDirty.current = false;
       closeEditor(); recovery.announce(saved.undo_action);
       if (isEmbedded) {
         onEmbeddedSaved?.(saved);
@@ -730,14 +813,34 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
       (editingTransaction.statement_evidence_count > 0 && editingTransaction.direction !== editingDirection)
     ));
 
+  const pagination = transactionPage(loadState.status === "ready" ? loadState.transactions.length : 0, page, pageSize);
+  const pageTransactions = loadState.status === "ready" ? loadState.transactions.slice(pagination.start, pagination.end) : [];
+  function changePage(next: number, size = pageSize) {
+    const bounded = transactionPage(loadState.status === "ready" ? loadState.transactions.length : 0, next, size);
+    setPageSize(size);
+    applyFilterUrl(displayedFilters, dateView, bounded.current, size);
+    listTop.current?.scrollIntoView({ block: "start", behavior: "instant" });
+  }
+  function fullText(text: string, label: string) {
+    return <HelpTooltip label={`${label}: ${text}`} textTrigger={<span>{text}</span>}>{text}</HelpTooltip>;
+  }
+  function sourceBadges(transaction: Transaction) {
+    const sms = transaction.source === "sms" || transaction.raw_message || transaction.transfer_evidence.some(item => item.raw_message || item.source === "sms");
+    return <span className="transaction-badges">
+      <span className="transaction-mini-badge">{displayLabel(transaction.type)}</span>
+      {sms ? <span className="transaction-mini-badge transaction-mini-badge--source" title={transaction.raw_message || transaction.transfer_evidence.some(item => item.raw_message) ? "Saved SMS evidence is attached" : "Recorded from SMS; the original message may no longer be available"}>SMS</span> : null}
+      {transaction.statement_evidence_count > 0 ? <span className="transaction-mini-badge transaction-mini-badge--source" title={`${transaction.statement_evidence_count} attached statement rows`}>PDF</span> : null}
+      {!sms && !transaction.statement_evidence_count ? <span className="transaction-mini-badge">{transaction.source === "web" ? "Manual" : displayLabel(transaction.source)}</span> : null}
+      {transaction.needs_review ? <span className="transaction-mini-badge transaction-mini-badge--review">Needs review</span> : null}
+    </span>;
+  }
   function columnContent(column: TransactionColumn, transaction: Transaction) {
     const methods = loadState.status === "ready" ? loadState.paymentMethods : [];
     switch (column) {
-      case "date": return <time dateTime={transaction.date}>{formatCalendarDate(transaction.date)}</time>;
-      case "time": return formatTransactionTime(transaction.time);
-      case "description": return <><span className="transaction-ledger-primary">{transaction.counterparty_text || transaction.reference || transaction.note || displayLabel(transaction.type)}</span><span className="transaction-ledger-secondary">{displayLabel(transaction.type)} · {transaction.type === "transfer" && !displayedFilters.account ? "Internal movement" : displayLabel(transaction.account_direction)}{transaction.reference ? ` · ${transaction.reference}` : ""}</span>{transaction.needs_review ? <span className="status-badge status-badge--idle">Needs review</span> : null}</>;
-      case "account": return <span className="account-path"><AccountLabel account={accountAppearances.get(transaction.account)} fallback="Unknown" />{transaction.type === "transfer" ? <><span aria-label="to">→</span><AccountLabel account={accountAppearances.get(transaction.transfer_account ?? "")} fallback="Unknown" /></> : null}</span>;
-      case "category": return transaction.category ? categoryNames.get(transaction.category) ?? "Unknown" : "None";
+      case "date": return <><time dateTime={transaction.date}>{formatCalendarDate(transaction.date)}</time><span className="transaction-ledger-secondary">{formatTransactionTime(transaction.time)}</span></>;
+      case "description": return <><div className="transaction-ledger-primary">{fullText(transaction.counterparty_text || transaction.reference || transaction.note || displayLabel(transaction.type), "Full description")}</div>{sourceBadges(transaction)}</>;
+      case "account": return <span className="account-path">{fullTextAccount(transaction.account)}{transaction.type === "transfer" ? <><span aria-label="to">→</span>{fullTextAccount(transaction.transfer_account ?? "")}</> : null}</span>;
+      case "category": return <span className={`transaction-category transaction-category--${transaction.type === "transfer" ? "transfer" : transaction.account_direction === "credit" ? "credit" : "debit"}`}>{fullText(transaction.category ? categoryNames.get(transaction.category) ?? "Unknown" : "Uncategorized", "Category")}</span>;
       case "source": return displayLabel(transaction.source);
       case "balance": return transaction.type === "transfer" && transaction.transfer_evidence.length ? transaction.transfer_evidence.map(item => <span className="transaction-ledger-secondary" key={item.id}>{accountNames.get(item.account)}: {item.balance_after === null ? "No reported balance" : formatCurrency(item.balance_after, currencyByAccount.get(item.account))}{item.reference ? ` · ${item.reference}` : ""}</span>) : transaction.balance_after !== null ? formatCurrency(transaction.balance_after, currencyByAccount.get(transaction.account)) : "—";
       case "senderIdentifiers": return <><span>{identifierView.format(transaction.sender_account_identifier, identifierLabel(transaction.sender_account_identifier, "account", methods, accountNames, transaction.direction === "debit" ? transaction.account : undefined))}</span><span className="transaction-ledger-secondary">{transaction.sender_card_identifier ? `Card ${identifierView.format(transaction.sender_card_identifier, identifierLabel(transaction.sender_card_identifier, "card", methods, accountNames, transaction.direction === "debit" ? transaction.account : undefined))}` : "No card identifier"}</span></>;
@@ -748,6 +851,10 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
       case "amount": return <>{transaction.type === "transfer" && !displayedFilters.account ? "" : transaction.account_direction === "credit" ? "+" : "−"}{formatCurrency(transaction.amount, currencyByAccount.get(transaction.account))}</>;
     }
   }
+  function fullTextAccount(id: string) {
+    const account = accountAppearances.get(id);
+    return <HelpTooltip label={`Account: ${account?.name ?? "Unknown"}`} textTrigger={<AccountLabel account={account} fallback="Unknown" />}>{account?.name ?? "Unknown account"}</HelpTooltip>;
+  }
   function amountClass(transaction: Transaction) {
     return `transaction-ledger-amount${transaction.type === "transfer" && !displayedFilters.account ? " transaction-ledger-amount--transfer" : transaction.account_direction === "credit" ? " transaction-ledger-amount--credit" : ""}`;
   }
@@ -756,25 +863,42 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     return <time dateTime={stamp}>{formatTimestamp(stamp)}</time>;
   }
   function transactionActions(transaction: Transaction) {
-    return <div className="list-row__actions">
-      {transaction.statement_evidence_count > 0 || transaction.raw_message || transaction.transfer_evidence.some(item => item.raw_message) ? <button className="button button--ghost" onClick={() => setEvidenceTransaction(transaction)} type="button">Sources</button> : null}
-      {transaction.type === "transfer" ? <button className="button button--ghost" disabled={isSubmitting} onClick={() => void handleFindPostedMatch(transaction)} type="button">Find match</button> : null}
+    return <div className="list-row__actions transaction-row-actions">
       <button className="button button--ghost" onClick={() => void selectTransactionForEdit(transaction.id)} type="button">Edit</button>
-      <button className="button button--ghost" onClick={() => setRevalidationId(transaction.id)} type="button">Revalidate</button>
-      <Link className="button button--ghost" href={`/audit-logs?entity_type=transactions.transaction&entity_id=${transaction.id}`}>History</Link>
-      <button className="button button--danger" disabled={deletingTransactionId === transaction.id} onClick={() => void handleDeleteTransaction(transaction)} type="button">{deletingTransactionId === transaction.id ? <ButtonBusy label="Deleting" /> : "Delete"}</button>
+      <TransactionActionMenu label={`More actions for ${transaction.counterparty_text || displayLabel(transaction.type)} on ${formatCalendarDate(transaction.date)}`}>
+        <button className="button button--ghost" onClick={() => setEvidenceTransaction(transaction)} type="button">Details & sources</button>
+        {transaction.type === "transfer" ? <button className="button button--ghost" disabled={isSubmitting} onClick={() => void handleFindPostedMatch(transaction)} type="button">Find match</button> : null}
+        <button className="button button--ghost" onClick={() => setRevalidationId(transaction.id)} type="button">Revalidate</button>
+        <Link className="button button--ghost" href={`/audit-logs?entity_type=transactions.transaction&entity_id=${transaction.id}`}>History</Link>
+        <button className="button button--danger" disabled={deletingTransactionId === transaction.id} onClick={() => void handleDeleteTransaction(transaction)} type="button">{deletingTransactionId === transaction.id ? <ButtonBusy label="Deleting" /> : "Delete"}</button>
+      </TransactionActionMenu>
     </div>;
   }
 
   return (
     <div className={isEmbedded ? "" : "workspace-grid"}>
       {isEmbedded && !editorMode ? <ModalDialog className="form-drawer embedded-editor-status" labelledBy="embedded-editor-pending-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-pending-title">Opening transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body">{formError ? <p role="alert">{formError}</p> : <p role="status">Preparing {embeddedCreate ? "full entry" : "saved entry and sources"}…</p>}{formError && embeddedEditId ? <button className="button button--ghost" type="button" onClick={() => void selectTransactionForEdit(embeddedEditId)}>Retry</button> : null}</div></ModalDialog> : null}
+      {displayOptionsOpen ? <ModalDialog className="form-drawer transaction-display-dialog" labelledBy="transaction-display-title" onCancel={() => setDisplayOptionsOpen(false)}>
+        <div className="form-drawer__header"><h2 id="transaction-display-title">Transaction display</h2><button className="icon-button" type="button" aria-label="Close display options" onClick={() => setDisplayOptionsOpen(false)}><X size={20} /></button></div>
+        <div className="transaction-display-body">
+          {identifierView.control}
+          <fieldset><legend>Visible columns</legend>{transactionColumns.map(column => <label key={column.id}><input type="checkbox" checked={visibleColumns.includes(column.id)} disabled={visibleColumns.length === 1 && visibleColumns.includes(column.id)} onChange={() => toggleColumn(column.id)} />{column.label}</label>)}</fieldset>
+          <div className="transaction-filter-actions"><button className="button button--ghost" type="button" onClick={() => { setVisibleColumns(allTransactionColumns); persistVisibleColumns(allTransactionColumns); }}>Show all</button><button className="button button--ghost" type="button" onClick={() => { setVisibleColumns(defaultTransactionColumns); persistVisibleColumns(defaultTransactionColumns); }}>Reset default</button></div>
+        </div><div className="transaction-editor-actions"><button className="button button--primary" type="button" onClick={() => setDisplayOptionsOpen(false)}>Done</button></div>
+      </ModalDialog> : null}
       {revalidationId ? <TransactionRevalidationDialog key={revalidationId} transactionId={revalidationId} onClose={() => setRevalidationId(null)} onEdit={() => { const id = revalidationId; setRevalidationId(null); void selectTransactionForEdit(id); }} /> : null}
       {categoryChoice.confirmation}
       {clockEdit ? <QuickTimePicker value={clockEdit.value} onCancel={() => setClockEdit(null)} onApply={time => { setEditingTime(time); setClockEdit(null); }} /> : null}
       {evidenceTransaction ? <ModalDialog labelledBy="transaction-sources-title" className="form-drawer transaction-sources-dialog" onCancel={() => setEvidenceTransaction(null)}>
-        <div className="form-drawer__header"><div><h2 id="transaction-sources-title">Attached sources</h2><p>{formatCalendarDate(evidenceTransaction.date)} · {accountNames.get(evidenceTransaction.account) ?? "Account"} · {formatCurrency(evidenceTransaction.amount, currencyByAccount.get(evidenceTransaction.account))}</p></div><button className="icon-button" type="button" aria-label="Close attached sources" onClick={() => setEvidenceTransaction(null)}><X aria-hidden="true" size={20} /></button></div>
-        <div className="transaction-sources-dialog__body"><p className="inline-note">These are the saved source observations for this ledger entry. Viewing them does not change the transaction.</p>
+        <div className="form-drawer__header"><div><h2 id="transaction-sources-title">Transaction details & sources</h2><p>{formatCalendarDate(evidenceTransaction.date)} · {accountNames.get(evidenceTransaction.account) ?? "Account"} · {formatCurrency(evidenceTransaction.amount, currencyByAccount.get(evidenceTransaction.account))}</p></div><button className="icon-button" type="button" aria-label="Close attached sources" onClick={() => setEvidenceTransaction(null)}><X aria-hidden="true" size={20} /></button></div>
+        <div className="transaction-sources-dialog__body">
+          <dl className="transaction-detail-grid">
+            <div><dt>Description</dt><dd>{evidenceTransaction.counterparty_text || "—"}</dd></div>
+            <div><dt>Note</dt><dd>{evidenceTransaction.note || "—"}</dd></div>
+            <div><dt>Reference</dt><dd>{evidenceTransaction.reference || "—"}</dd></div>
+            {transactionColumns.filter(column => column.id !== "description").map(column => <div key={column.id}><dt>{column.label}</dt><dd>{columnContent(column.id, evidenceTransaction)}</dd></div>)}
+          </dl>
+          <p className="inline-note">These are the saved source observations for this ledger entry. Viewing them does not change the transaction.</p>
           {evidenceTransaction.raw_message || evidenceTransaction.transfer_evidence.some(item => item.raw_message) ? <TransactionSourceMessages key={`sources-${evidenceTransaction.id}`} transactionId={evidenceTransaction.id} expanded showEmpty allowLearning /> : null}
           {evidenceTransaction.statement_evidence_count > 0 ? <TransactionStatementEvidence key={`statement-sources-${evidenceTransaction.id}`} transactionId={evidenceTransaction.id} expanded /> : null}
         </div>
@@ -809,6 +933,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
 
           <form className="transaction-form drawer-form" noValidate ref={editorForm} onSubmit={handleSave}
             onChangeCapture={event => {
+              editorDirty.current = true;
               const target = event.target as HTMLInputElement;
               if (target.name) setFieldErrors(current => { const next = { ...current }; delete next[target.name]; return next; });
               if (["account", "category", "counterparty_text", "note"].includes(target.name)) setSourceWarningsReviewed(false);
@@ -1042,15 +1167,10 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
         </ModalDialog>
       ) : null}
 
-      {!isEmbedded ? <section className="panel">
+      {!isEmbedded ? <section className="panel transaction-list-panel">
         <div className="panel__body">
           <div className="report-header transaction-list-header">
-            <div>
-              <h2 className="section-title">Transactions</h2>
-              <p className="section-subtitle">
-                Search and review synced activity first. Add a manual record only when automation cannot capture it.
-              </p>
-            </div>
+            <div className="transaction-list-context"><RecentTransactionAction /><Link className="button button--ghost button--small" href="/checks">Evidence health</Link></div>
             <button
               className="button button--primary"
               onClick={() => openNewTransaction()}
@@ -1061,8 +1181,6 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
             </button>
           </div>
 
-          <RecentTransactionAction />
-          <Link className="button button--ghost" href="/checks">Evidence health</Link>
           {formMessage ? <p className="form-success">{formMessage}</p> : null}
 
           <form className="transaction-filters" onSubmit={handleFilterSubmit}>
@@ -1252,19 +1370,6 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
                   </select>
                 </label>
               </div>
-              <div className="transaction-filter-actions">
-                <button className="button button--primary" type="submit">
-                  Apply advanced filters
-                </button>
-                <button
-                  className="button button--ghost"
-                  disabled={isExporting}
-                  onClick={() => void handleExportTransactions()}
-                  type="button"
-                >
-                  {isExporting ? <ButtonBusy label="Exporting" /> : "Export CSV"}
-                </button>
-              </div>
             </details>
             {hasUnappliedFilters ? (
               <small className="field__hint" role="status">
@@ -1278,14 +1383,10 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
 
           {exportMessage ? <p className="section-subtitle">{exportMessage}</p> : null}
 
-          <div className="transaction-table-toolbar">
+          <div className="transaction-table-toolbar" ref={listTop}>
             <div>
               <p className="section-subtitle">
-                {displayedFilters.ordering === "-updated_at"
-                  ? "Latest saved changes first, including new entries, edits and linked transfer evidence. Transaction dates may be older."
-                  : displayedFilters.ordering === "-created_at"
-                    ? "Newest ledger additions first. Transaction dates may be older; edits do not change added time."
-                    : `${loadState.transactions.length} ${loadState.transactions.length === 1 ? "transaction" : "transactions"} · By transaction date`}
+                {loadState.transactions.length} {loadState.transactions.length === 1 ? "transaction" : "transactions"} · {displayedFilters.ordering === "-updated_at" ? "Recently updated" : displayedFilters.ordering === "-created_at" ? "Recently added" : "By transaction date"}
               </p>
               {isRefreshing ? (
                 <span className="transaction-refresh-state">
@@ -1310,54 +1411,10 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
                 </div>
               ) : null}
             </div>
-            <details className="transaction-display-options">
-              <summary>Display options</summary>
-              <div className="transaction-display-options__body">
-                {identifierView.control}
-                <details className="column-picker">
-                  <summary>
-                    <SlidersHorizontal aria-hidden="true" size={17} />
-                    Columns{" "}
-                    <span>
-                      {visibleColumns.length}/{transactionColumns.length}
-                    </span>
-                  </summary>
-                  <div className="column-picker__menu">
-                    <strong>Visible columns</strong>
-                    {transactionColumns.map((column) => (
-                      <label key={column.id}>
-                        <input
-                          checked={visibleColumns.includes(column.id)}
-                          onChange={() => toggleColumn(column.id)}
-                          type="checkbox"
-                        />
-                        <span>{column.label}</span>
-                      </label>
-                    ))}
-                    <button
-                      className="button button--ghost button--small"
-                      onClick={() => {
-                        setVisibleColumns(allTransactionColumns);
-                        persistVisibleColumns(allTransactionColumns);
-                      }}
-                      type="button"
-                    >
-                      Show all
-                    </button>
-                    <button
-                      className="button button--ghost button--small"
-                      type="button"
-                      onClick={() => {
-                        setVisibleColumns(defaultTransactionColumns);
-                        persistVisibleColumns(defaultTransactionColumns);
-                      }}
-                    >
-                      Reset default
-                    </button>
-                  </div>
-                </details>
-              </div>
-            </details>
+            <div className="transaction-toolbar-actions">
+              <button className="button button--ghost button--small" disabled={isExporting} onClick={() => void handleExportTransactions()} type="button">{isExporting ? <ButtonBusy label="Exporting" /> : "Export CSV"}</button>
+              <button className="button button--ghost button--small" type="button" onClick={() => setDisplayOptionsOpen(true)}><SlidersHorizontal size={17} aria-hidden="true" />Display</button>
+            </div>
           </div>
 
           {loadState.transactions.length === 0 ? (
@@ -1366,14 +1423,14 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
             </div>
           ) : (<>
             <div className="transaction-mobile-list" aria-busy={isRefreshing}>
-              {loadState.transactions.map(transaction => <article className="transaction-card" key={transaction.id} aria-label={`Transaction on ${formatCalendarDate(transaction.date)}`}>
+              {pageTransactions.map(transaction => <article className="transaction-card" key={transaction.id} aria-label={`Transaction on ${formatCalendarDate(transaction.date)}`}>
                 <div className="transaction-card__heading">
                   {visibleColumns.includes("description") ? <div>{columnContent("description", transaction)}</div> : null}
                   {visibleColumns.includes("amount") ? <strong className={amountClass(transaction)}>{columnContent("amount", transaction)}</strong> : null}
                 </div>
                 <dl className="transaction-card__details">
                   {displayedFilters.ordering !== "-date" ? <div><dt>{displayedFilters.ordering === "-updated_at" ? "Updated" : "Added"}</dt><dd>{activityTime(transaction)}</dd></div> : null}
-                  {transactionColumns.filter(column => visibleColumns.includes(column.id) && ["date", "time", "account", "category"].includes(column.id)).map(column => <div key={column.id}><dt>{column.label}</dt><dd>{columnContent(column.id, transaction)}</dd></div>)}
+                  {transactionColumns.filter(column => visibleColumns.includes(column.id) && ["date", "account", "category"].includes(column.id)).map(column => <div key={column.id}><dt>{column.label}</dt><dd>{columnContent(column.id, transaction)}</dd></div>)}
                 </dl>
                 {visibleColumns.some(column => ["source", "balance", "senderIdentifiers", "receiverIdentifiers"].includes(column)) ? <details><summary>More details</summary><dl className="transaction-card__details">
                   {transactionColumns.filter(column => visibleColumns.includes(column.id) && ["source", "balance", "senderIdentifiers", "receiverIdentifiers"].includes(column.id)).map(column => <div key={column.id}><dt>{column.label}</dt><dd>{columnContent(column.id, transaction)}</dd></div>)}
@@ -1381,34 +1438,30 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
                 {transactionActions(transaction)}
               </article>)}
             </div>
-            <div className="table-wrap transaction-desktop-list" aria-busy={isRefreshing}>
-              <table className="data-table">
+            <div className="table-wrap transaction-desktop-list" ref={tableScroll} aria-busy={isRefreshing} role="region" aria-label="Transaction table, scroll horizontally for more columns" tabIndex={0}>
+              <table className="data-table transaction-data-table">
                 <thead>
                   <tr>
-                    {displayedFilters.ordering === "-created_at" ? <th>Added</th> : null}
-                    {displayedFilters.ordering === "-updated_at" ? <th>Updated</th> : null}
-                    {visibleColumns.includes("date") ? <th>Date</th> : null}
-                    {visibleColumns.includes("time") ? <th>Time</th> : null}
-                    {visibleColumns.includes("description") ? <th>Description</th> : null}
-                    {visibleColumns.includes("account") ? <th>Account</th> : null}
-                    {visibleColumns.includes("category") ? <th>Category</th> : null}
-                    {visibleColumns.includes("source") ? <th>Source</th> : null}
-                    {visibleColumns.includes("balance") ? <th>Reported balance</th> : null}
-                    {visibleColumns.includes("senderIdentifiers") ? <th>Sender identifiers</th> : null}
-                    {visibleColumns.includes("receiverIdentifiers") ? <th>Receiver identifiers</th> : null}
-                    {visibleColumns.includes("amount") ? <th>Amount</th> : null}
-                    <th>Actions</th>
+                    {displayedFilters.ordering === "-created_at" ? <th className="transaction-col--activity" scope="col">Added</th> : null}
+                    {displayedFilters.ordering === "-updated_at" ? <th className="transaction-col--activity" scope="col">Updated</th> : null}
+                    {transactionColumns.filter(column => visibleColumns.includes(column.id)).map(column => <th className={`transaction-col--${column.id}`} scope="col" key={column.id}>{column.label}</th>)}
+                    <th className="transaction-col--actions" scope="col">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {loadState.transactions.map(transaction => <tr key={transaction.id}>
-                    {displayedFilters.ordering !== "-date" ? <td>{activityTime(transaction)}</td> : null}
-                    {transactionColumns.filter(column => visibleColumns.includes(column.id)).map(column => <td key={column.id} className={column.id === "amount" ? amountClass(transaction) : undefined}>{columnContent(column.id, transaction)}</td>)}
+                  {pageTransactions.map(transaction => <tr key={transaction.id}>
+                    {displayedFilters.ordering !== "-date" ? <td className="transaction-col--activity">{activityTime(transaction)}</td> : null}
+                    {transactionColumns.filter(column => visibleColumns.includes(column.id)).map(column => <td key={column.id} className={`transaction-col--${column.id}${column.id === "amount" ? ` ${amountClass(transaction)}` : ""}`}>{columnContent(column.id, transaction)}</td>)}
                     <td>{transactionActions(transaction)}</td>
                   </tr>)}
                 </tbody>
               </table>
             </div>
+            <nav className="transaction-pagination" aria-label="Transaction pages">
+              <span>Showing {pagination.start + 1}–{pagination.end} of {loadState.transactions.length} transactions</span>
+              <label>Rows <select aria-label="Rows per page" value={pageSize} disabled={isRefreshing} onChange={event => changePage(1, Number(event.target.value))}>{[25, 50, 100].map(size => <option value={size} key={size}>{size}</option>)}</select></label>
+              <div><button className="button button--ghost button--small" type="button" disabled={pagination.current === 1 || isRefreshing} onClick={() => changePage(pagination.current - 1)}>Previous</button><span aria-live="polite">{pagination.current} / {pagination.pages}</span><button className="button button--ghost button--small" type="button" disabled={pagination.current === pagination.pages || isRefreshing} onClick={() => changePage(pagination.current + 1)}>Next</button></div>
+            </nav>
           </>)}
         </div>
       </section> : null}

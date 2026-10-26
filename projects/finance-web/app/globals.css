@@ -4189,3 +4189,82 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 .bulk-revalidation .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .bulk-revalidation .transaction-revalidation__body { align-content: start; grid-auto-rows: max-content; overscroll-behavior: contain; }
+
+/* Compact transaction ledger: preserve the app theme and keep evidence on demand. */
+.app-topbar { background: var(--background); }
+.transaction-list-panel .panel__body { min-width: 0; }
+.transaction-list-header { gap: 12px; margin-bottom: 10px; }
+.transaction-list-context { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.transaction-list-context .recent-action { margin: 0; }
+.transaction-list-panel .transaction-filters { margin-block: 10px 16px; gap: 8px; }
+.transaction-list-panel .transaction-filter-primary .field__control { min-height: 42px; padding-block: 9px; }
+.transaction-list-panel .transaction-filter-primary > .button { min-height: 42px; }
+.transaction-list-panel .date-period-fields--single .field__label { display: none; }
+.transaction-list-panel .date-period-controls .date-period-caption { font-size: 12px; }
+.transaction-table-toolbar { scroll-margin-top: 110px; }
+.transaction-toolbar-actions { display: flex; align-items: center; flex-shrink: 0; gap: 8px; }
+.transaction-desktop-list { overscroll-behavior-x: contain; min-width: 0; }
+.transaction-data-table { table-layout: fixed; width: 100%; min-width: 900px; }
+.transaction-data-table th { color: var(--muted); background: var(--background); font-size: 11px; text-transform: none; letter-spacing: 0; }
+.transaction-data-table td { padding-block: 16px; overflow-wrap: normal; }
+.transaction-col--activity { width: 175px; }
+.transaction-col--date { width: 120px; white-space: nowrap; }
+.transaction-col--description { width: 230px; }
+.transaction-col--account { width: 230px; }
+.transaction-col--category { width: 180px; }
+.transaction-col--source { width: 90px; }
+.transaction-col--balance { width: 205px; }
+.transaction-col--senderIdentifiers, .transaction-col--receiverIdentifiers { width: 200px; }
+.transaction-data-table .transaction-col--balance,
+.transaction-data-table .transaction-col--senderIdentifiers,
+.transaction-data-table .transaction-col--receiverIdentifiers { overflow-wrap: anywhere; }
+.transaction-col--amount { width: 165px; }
+.transaction-col--actions { width: 125px; }
+.transaction-data-table th.transaction-col--amount, .transaction-data-table td.transaction-col--amount { text-align: right; }
+.help-trigger.help-trigger--text { appearance: none; background: transparent; border: 0; border-radius: 3px; color: inherit; cursor: help; display: block; font: inherit; height: auto; line-height: inherit; margin: 0; max-width: 100%; min-height: 0; padding: 0; text-align: left; width: 100%; }
+.help-trigger--text > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.help-trigger--text:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.help-trigger--text > .account-label { display: inline-flex; }
+/* Two account lines keep the receiving account beside its direction arrow. */
+.transaction-list-panel .account-path { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 4px; min-width: 0; }
+.transaction-list-panel .account-path > .help-trigger:first-child { grid-column: 1 / -1; }
+.transaction-list-panel .account-path > span[aria-label="to"] { align-self: center; color: var(--muted); font-size: 13px; line-height: normal; margin: 0; }
+.transaction-list-panel .account-label { max-width: 100%; }
+.transaction-list-panel .account-label > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
+.transaction-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+.transaction-mini-badge { border: 1px solid var(--panel-border); border-radius: 5px; color: var(--muted); font-size: 11px; font-weight: 600; line-height: 1.3; padding: 2px 5px; white-space: nowrap; }
+.transaction-mini-badge--source { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.transaction-mini-badge--review { color: var(--warning); }
+.transaction-category { display: inline-block; max-width: 100%; border: 1px solid var(--panel-border); border-radius: 999px; color: var(--muted); padding: 4px 9px; font-size: 12px; }
+.transaction-category--credit { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.transaction-row-actions { flex-wrap: nowrap; gap: 6px; }
+.transaction-row-actions > .button { min-height: 34px; padding: 7px 10px; font-size: 12px; }
+.transaction-row-actions .transaction-actions-trigger { padding: 5px; min-width: 34px; }
+.transaction-actions-menu { position: fixed; z-index: 100; display: grid; gap: 5px; width: 205px; max-height: calc(100dvh - 16px); overflow-y: auto; overscroll-behavior: contain; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 8px; box-shadow: var(--shadow); }
+.transaction-actions-menu .button { justify-content: flex-start; text-align: left; min-height: 38px; }
+.transaction-display-dialog { max-width: 480px; }
+.transaction-display-body { padding: 20px; overflow-y: auto; display: grid; gap: 18px; }
+.transaction-display-body fieldset { margin: 0; border: 1px solid var(--panel-border); padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.transaction-display-body legend { color: var(--muted); font-size: 13px; }
+.transaction-display-body fieldset label { display: flex; align-items: center; gap: 8px; min-height: 34px; font-size: 13px; }
+.transaction-display-body input[type="checkbox"] { accent-color: var(--accent); }
+.transaction-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 16px; margin-top: 4px; border-top: 1px solid var(--panel-border); color: var(--muted); font-size: 12px; }
+.transaction-pagination > div, .transaction-pagination label { display: flex; align-items: center; gap: 10px; }
+.transaction-pagination select { border: 1px solid var(--panel-border); border-radius: 6px; background: var(--panel); color: var(--foreground); padding: 6px; }
+.transaction-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 0; }
+.transaction-detail-grid dt { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+.transaction-detail-grid dd { margin: 0; overflow-wrap: anywhere; }
+.transaction-detail-grid .help-trigger--text > span { white-space: normal; }
+@media (max-width: 640px) {
+  .transaction-list-header { align-items: flex-start; }
+  .transaction-list-context .recent-action { font-size: 11px; }
+  .transaction-list-panel .transaction-table-toolbar { flex-direction: row; flex-wrap: wrap; gap: 10px; }
+  .transaction-list-panel .transaction-table-toolbar > div:first-child { min-width: 0; }
+  .transaction-toolbar-actions { margin-left: auto; }
+  .transaction-list-panel .transaction-card .button { flex: none; }
+  .transaction-list-panel .transaction-card__heading > div { min-width: 0; }
+  .transaction-card .transaction-ledger-primary { max-width: 100%; }
+  .transaction-list-panel .transaction-card { padding: 14px; }
+  .transaction-pagination > span { width: 100%; }
+  .transaction-detail-grid { grid-template-columns: 1fr; }
+}

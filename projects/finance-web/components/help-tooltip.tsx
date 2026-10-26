@@ -5,7 +5,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 import { createPortal } from "react-dom";
 
 /** Hover/focus help on desktop; tap to toggle on touch devices. */
-export function HelpTooltip({ label, children, warning = false }: { label: string; children: ReactNode; warning?: boolean }) {
+export function HelpTooltip({ label, children, warning = false, textTrigger }: { label: string; children: ReactNode; warning?: boolean; textTrigger?: ReactNode }) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -54,11 +54,11 @@ export function HelpTooltip({ label, children, warning = false }: { label: strin
 
   const Icon = warning ? WarningCircle : Info;
   return <>
-    <button ref={trigger} type="button" className={`help-trigger${warning ? " help-trigger--warning" : ""}`} aria-label={label} aria-expanded={open} aria-describedby={open ? id : undefined}
+    <button ref={trigger} type="button" className={`help-trigger${warning ? " help-trigger--warning" : ""}${textTrigger ? " help-trigger--text" : ""}`} aria-label={label} aria-expanded={open} aria-describedby={open ? id : undefined}
       onPointerEnter={event => { if (event.pointerType === "mouse") { cancelClose(); setOpen(true); } }} onPointerLeave={leave}
       onFocus={() => { cancelClose(); setOpen(true); }} onBlur={close}
       onClick={event => { event.preventDefault(); event.stopPropagation(); cancelClose(); pinned.current = !pinned.current; setOpen(pinned.current); }}>
-      <Icon size={18} aria-hidden="true" weight={warning ? "fill" : "regular"} />
+      {textTrigger ?? <Icon size={18} aria-hidden="true" weight={warning ? "fill" : "regular"} />}
     </button>
     {open ? createPortal(<div ref={content} id={id} role="tooltip" className="help-tooltip" style={position} onPointerEnter={cancelClose} onPointerLeave={leave}>{children}</div>, trigger.current?.closest("dialog") ?? document.body) : null}
   </>;

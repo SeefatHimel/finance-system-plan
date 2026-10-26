@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:auth": "node --test tests/auth-session.test.cjs tests/auth-refresh.test.cjs",
+    "test:transactions": "node --test tests/transaction-list.test.cjs tests/transaction-workflows.test.cjs",
     "test:workflows": "node --test tests/transaction-workflows.test.cjs",
     "test:focus": "node --test tests/review-focus.test.cjs",
     "test:dates": "node --test tests/date-health.test.cjs",
