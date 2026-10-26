@@ -1,17 +1,19 @@
 "use client";
 
+import { AccountLabel } from "@/components/account-avatar";
 import { useState } from "react";
 import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { transferBalanceConflicts } from "../../finance-contracts/transfer-comparison";
 import { HelpTooltip } from "@/components/help-tooltip";
 import { ModalDialog } from "@/components/modal-dialog";
-import type { TransferMatch, TransferBalanceChoice } from "@/lib/api";
+import type { Account, TransferMatch, TransferBalanceChoice } from "@/lib/api";
 import type { transferComparison } from "../../finance-contracts/transfer-comparison";
 
-export function TransferMatchDialog({ original, originalSource, matches, busy, error, merging = false, separateLabel = "Keep separate", onAccept, onSeparate, onCancel }: {
+export function TransferMatchDialog({ original, originalSource, matches, accounts, busy, error, merging = false, separateLabel = "Keep separate", onAccept, onSeparate, onCancel }: {
   original: ReturnType<typeof transferComparison>;
   originalSource: string;
   matches: TransferMatch[];
+  accounts: Account[];
   busy: boolean;
   error: string | null;
   merging?: boolean;
@@ -27,7 +29,7 @@ export function TransferMatchDialog({ original, originalSource, matches, busy, e
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         <article aria-label="Entry being reviewed" className="transfer-match-card transfer-match-original">
           <h3>This entry</h3>
-          <strong>{original.account_name} → {original.transfer_account_name}</strong>
+          <strong className="account-path"><AccountLabel account={accounts.find(account => account.id === original.account)} fallback={original.account_name} /><span aria-label="to">→</span><AccountLabel account={accounts.find(account => account.id === original.transfer_account)} fallback={original.transfer_account_name} /></strong>
           <p>BDT {original.amount} · {formatCalendarDate(original.date)} · {original.time ? original.time.slice(0, 5) : "Time not provided"}</p>
           {original.counterparty_text || original.note ? <p className="transfer-match-description" title={[original.counterparty_text, original.note].filter(Boolean).join(" · ")}>{[original.counterparty_text, original.note].filter(Boolean).join(" · ")}</p> : null}
           <p className="transfer-match-source">{originalSource}</p>
@@ -35,7 +37,7 @@ export function TransferMatchDialog({ original, originalSource, matches, busy, e
         </article>
       </header>
       <div className="transfer-match-list" aria-label="Possible matching entries">
-        {matches.map(match => <MatchCard key={`${match.kind}:${match.id}`} match={match} original={original} busy={busy} merging={merging} onAccept={onAccept} />)}
+        {matches.map(match => <MatchCard key={`${match.kind}:${match.id}`} match={match} accounts={accounts} original={original} busy={busy} merging={merging} onAccept={onAccept} />)}
       </div>
       <div className="decision-modal__actions">
         <button className="button button--ghost" disabled={busy} onClick={onCancel} type="button">Cancel</button>
@@ -53,8 +55,8 @@ function BalanceList({ reports }: { reports: { account: string; account_name: st
   </div>;
 }
 
-function MatchCard({ match, original, busy, merging, onAccept }: {
-  match: TransferMatch; original: ReturnType<typeof transferComparison>; busy: boolean; merging: boolean;
+function MatchCard({ match, accounts, original, busy, merging, onAccept }: {
+  match: TransferMatch; accounts: Account[]; original: ReturnType<typeof transferComparison>; busy: boolean; merging: boolean;
   onAccept: (match: TransferMatch, choices: TransferBalanceChoice[]) => void;
 }) {
   const [choices, setChoices] = useState<Record<string, "existing" | "incoming">>({});
@@ -62,7 +64,7 @@ function MatchCard({ match, original, busy, merging, onAccept }: {
   const name = (account: string) => account === match.account ? match.account_name : match.transfer_account_name;
   return <article className="transfer-match-card">
 <div className="inline-help"><h3>Suggested match</h3><HelpTooltip label="Why this match was suggested">{match.reason}</HelpTooltip></div>
-    <strong>{match.account_name} → {match.transfer_account_name}</strong>
+    <strong className="account-path"><AccountLabel account={accounts.find(account => account.id === match.account)} fallback={match.account_name} /><span aria-label="to">→</span><AccountLabel account={accounts.find(account => account.id === match.transfer_account)} fallback={match.transfer_account_name} /></strong>
     <p>BDT {match.amount} · {formatCalendarDate(match.date)} · {match.time ? match.time.slice(0, 5) : "Time not provided"}</p>
     <p className="transfer-match-source">{match.kind === "candidate" ? "Other account’s pending SMS" : "Already recorded transfer"}</p>
     <BalanceList reports={match.reported_balances.map(report => ({ ...report, account_name: name(report.account) }))} />

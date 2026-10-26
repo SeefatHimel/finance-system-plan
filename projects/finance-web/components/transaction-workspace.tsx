@@ -1,4 +1,5 @@
 "use client";
+import { AccountLabel } from "@/components/account-avatar";
 import { displayLabel, formatCurrency, formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
 
 import { QuickTimePicker } from "./quick-time-picker";
@@ -666,6 +667,8 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     finally { saveInFlight.current = false; setIsUpdating(false); }
   }
 
+  const accountAppearances = useMemo(() => new Map(loadState.status === "ready" ? loadState.accounts.map(account => [account.id, account]) : []), [loadState]);
+
   const accountNames = useMemo(() => {
     if (loadState.status !== "ready") {
       return new Map<string, string>();
@@ -733,7 +736,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
       case "date": return <time dateTime={transaction.date}>{formatCalendarDate(transaction.date)}</time>;
       case "time": return formatTransactionTime(transaction.time);
       case "description": return <><span className="transaction-ledger-primary">{transaction.counterparty_text || transaction.reference || transaction.note || displayLabel(transaction.type)}</span><span className="transaction-ledger-secondary">{displayLabel(transaction.type)} · {transaction.type === "transfer" && !displayedFilters.account ? "Internal movement" : displayLabel(transaction.account_direction)}{transaction.reference ? ` · ${transaction.reference}` : ""}</span>{transaction.needs_review ? <span className="status-badge status-badge--idle">Needs review</span> : null}</>;
-      case "account": return <>{accountNames.get(transaction.account) ?? "Unknown"}{transaction.type === "transfer" ? ` → ${accountNames.get(transaction.transfer_account ?? "") ?? "Unknown"}` : ""}</>;
+      case "account": return <span className="account-path"><AccountLabel account={accountAppearances.get(transaction.account)} fallback="Unknown" />{transaction.type === "transfer" ? <><span aria-label="to">→</span><AccountLabel account={accountAppearances.get(transaction.transfer_account ?? "")} fallback="Unknown" /></> : null}</span>;
       case "category": return transaction.category ? categoryNames.get(transaction.category) ?? "Unknown" : "None";
       case "source": return displayLabel(transaction.source);
       case "balance": return transaction.type === "transfer" && transaction.transfer_evidence.length ? transaction.transfer_evidence.map(item => <span className="transaction-ledger-secondary" key={item.id}>{accountNames.get(item.account)}: {item.balance_after === null ? "No reported balance" : formatCurrency(item.balance_after, currencyByAccount.get(item.account))}{item.reference ? ` · ${item.reference}` : ""}</span>) : transaction.balance_after !== null ? formatCurrency(transaction.balance_after, currencyByAccount.get(transaction.account)) : "—";
@@ -1409,7 +1412,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
           </>)}
         </div>
       </section> : null}
-      {transferDecision ? <TransferMatchDialog original={transferComparison(transferDecision.input, id => accountNames.get(id))} originalSource={transferDecision.mergeId ? "Recorded transfer selected" : "New manual transfer"} matches={transferDecision.matches} busy={isSubmitting} error={matchError} merging={Boolean(transferDecision.mergeId)} onAccept={(match, choices) => void handleTransferDecision(match, choices)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
+      {transferDecision ? <TransferMatchDialog accounts={loadState.status === "ready" ? loadState.accounts : []} original={transferComparison(transferDecision.input, id => accountNames.get(id))} originalSource={transferDecision.mergeId ? "Recorded transfer selected" : "New manual transfer"} matches={transferDecision.matches} busy={isSubmitting} error={matchError} merging={Boolean(transferDecision.mergeId)} onAccept={(match, choices) => void handleTransferDecision(match, choices)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
     </div>
   );
 }

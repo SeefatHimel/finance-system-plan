@@ -16,6 +16,8 @@ export function transferComparison(draft: {
   const sender = incoming ? draft.transfer_account : draft.account;
   const receiver = incoming ? draft.account : draft.transfer_account;
   return {
+    account: sender ?? null,
+    transfer_account: receiver ?? null,
     reported_balances: (draft.reported_balances ?? (draft.account && draft.balance_after != null ? [{ account: draft.account, balance_after: draft.balance_after }] : [])).map(item => ({ ...item, account_name: accountName(item.account) ?? "Unknown account" })),
     account_name: sender ? accountName(sender) ?? "Unknown sender" : "Unknown sender",
     transfer_account_name: receiver ? accountName(receiver) ?? "Unknown destination" : "Unknown destination",

@@ -69,6 +69,7 @@ const currentUserSchema = z.object({
 });
 
 const accountSchema = z.object({
+  logo: z.string().default(""),
   identity: z.object({
     id: z.string(), provider: z.string(), identifier: z.string(),
     identifier_kind: z.enum(["any", "account", "card"]),
@@ -851,6 +852,7 @@ export async function createAccount(
   const response = await authenticatedFetch("/api/accounts/", accessToken, {
     body: JSON.stringify({
       currency: input.currency ?? "BDT",
+      logo: input.logo,
       identity: input.identity,
       name: input.name,
       starting_balance: financialNumber(input.starting_balance || "0.00", "starting balance"),

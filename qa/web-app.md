@@ -1609,3 +1609,13 @@ ledger entries are different movements, one checkbox covers the displayed list;
 they are still rechecked by the API at save time. The source comparison highlights
 the EBL printed value date separately from its posting date and shows both exact
 reported balances, distinguishing an agreement from different reporting times.
+
+## What happens when an account has no custom logo?
+
+A shared circular avatar shows the first grapheme of its name, with a color
+chosen deterministically from the account ID. The account name stays visible.
+Add/Edit account offers an optional image preview with replace/remove controls;
+the change saves with the form and cancellation discards it. Uploaded images
+replace the initial across the account list, lanes, transaction paths and review
+summaries. Unreadable images fall back to the initial, and native account select
+options remain text. Errors use the existing toast feedback.

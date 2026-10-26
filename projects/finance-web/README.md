@@ -1908,3 +1908,22 @@ discrepancy. **View original PDF row** opens the saved PDF at its recorded page
 in an overlay, with the page and source row number visible and a new-tab
 fallback. It uses the existing saved-row and original-PDF endpoints, so the
 current SMS filters and review form stay open.
+
+## Account logos and initials
+
+Accounts → Add/Edit account includes an optional image upload with immediate
+preview, replace and remove actions. PNG/JPEG/WebP files up to 1 MiB save only
+with the account form; cancelling discards the draft. Invalid files use the
+existing error toast and leave the stored account unchanged. The API normalizes
+the saved image to a small, metadata-free WebP. Deploy the API migration first.
+
+The shared AccountAvatar/AccountLabel components display logos in account rows,
+timeline headers and account menus, transaction account paths, SMS review
+status/transfer paths, transfer matches, and credit-card account rows. Without
+a logo, a circular avatar shows the name's first grapheme; its color is stable
+from account ID across reloads and renames. Names remain visible for accounts
+sharing initials. Native select options retain their text labels. Older API
+responses without `logo` use the same fallback.
+
+Verify with `node --test tests/account-avatar.test.cjs` alongside the existing
+workflow tests, typecheck and build.

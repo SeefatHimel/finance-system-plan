@@ -1,4 +1,5 @@
 "use client";
+import { AccountLabel } from "@/components/account-avatar";
 import { formatCurrency, formatCalendarDate as formatDate, formatTimestamp } from "../../finance-contracts/presentation";
 
 import {
@@ -236,6 +237,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
 
     return {
       accountById,
+      accountAppearances: new Map(state.accounts.map(account => [account.id, account])),
       currencyByAccount: new Map(state.accounts.map(account => [account.id, account.currency])),
       captureCount: state.summary.automated_count + state.summary.pending_count,
       cashFlow: buildCashFlowData(state.report.daily),
@@ -371,7 +373,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
                     <tr key={transaction.id}>
                       <td>{formatDate(transaction.date)}</td>
                       <td><span className="transaction-description-icon"><Receipt aria-hidden="true" size={17} /></span><strong>{transaction.counterparty_text || transaction.note || transaction.reference || titleCase(transaction.type)}</strong><small>{transaction.reference || titleCase(transaction.type)}</small></td>
-                      <td>{movement.path}</td>
+                      <td><span className="account-path"><AccountLabel account={dashboardData.accountAppearances.get(transaction.account)} />{transaction.type === "transfer" ? <><span aria-label="to">→</span><AccountLabel account={dashboardData.accountAppearances.get(transaction.transfer_account ?? "")} fallback="Choose destination" /></> : null}</span></td>
                       <td>{transaction.category ? dashboardData.categoryById.get(transaction.category) ?? "Uncategorized" : "Uncategorized"}</td>
                       <td><span className="table-source-icon">{transaction.source === "sms" ? <ChatCenteredText aria-hidden="true" size={16} /> : transaction.source === "mobile" ? <DeviceMobile aria-hidden="true" size={16} /> : <FileText aria-hidden="true" size={16} />}{sourceLabel(transaction.source)}</span></td>
                       <td className="import-cell">{isAutomated ? "Verified" : "Manual"}</td>

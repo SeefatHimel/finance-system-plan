@@ -1,4 +1,5 @@
 "use client";
+import { AccountLabel } from "@/components/account-avatar";
 
 import { coalescedSourceAmount } from "@/lib/statement-review";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
@@ -60,7 +61,6 @@ export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftCh
   const categoryChoice = useCategoryTypeChoice(categories);
   const received = receivedParts(pair);
   const typeDiffers = pair.row.type !== pair.sms.transaction_type;
-  const accountName = (id: string | null) => accounts.find(account => account.id === id)?.name ?? "Choose the other account";
   const categoryName = (id: string | null) => categories.find(category => category.id === id && category.is_active)?.name ?? null;
   const smsOther = pair.sms_summary.direction === "credit" ? pair.sms.account : pair.sms.destination_account;
   const mappedMerchant = pair.row.review.suggestion?.counterparty_text;
@@ -147,7 +147,7 @@ export function UnifiedPairEditor({ pair, accounts, categories, draft, onDraftCh
       </div>
 
     </fieldset>
-    {draft.type === "transfer" ? <p className="unified-path-preview">Money moves: {draft.direction === "credit" ? `${accountName(draft.other_account)} → ${pair.batch.account_name}` : `${pair.batch.account_name} → ${accountName(draft.other_account)}`}</p> : null}
+    {draft.type === "transfer" ? <p className="unified-path-preview account-path">Money moves: <AccountLabel account={accounts.find(account => account.id === (draft.direction === "credit" ? draft.other_account : pair.batch.account))} fallback="From account" /><span aria-label="to">→</span><AccountLabel account={accounts.find(account => account.id === (draft.direction === "credit" ? pair.batch.account : draft.other_account))} fallback="To account" /></p> : null}
     <details className="unified-more-fields"><summary>More transaction details <span>Balance, reference, value date{draft.reference || draft.value_date || draft.balance_after !== null ? " · contains values" : ""}</span></summary>
       <fieldset className="statement-edit-fields" disabled={busy}><legend className="visually-hidden">Additional transaction fields</legend>
         <div className="field"><label className="field__label" htmlFor="unified-draft-balance">Statement draft balance after</label><input id="unified-draft-balance" aria-describedby="unified-draft-balance-help" className="field__control" type="number" step="0.01" value={draft.balance_after ?? ""} onChange={event => setField("balance_after", event.target.value || null)} /><small id="unified-draft-balance-help" className="statement-choice-help">Original PDF balance stays in the source evidence.</small></div>

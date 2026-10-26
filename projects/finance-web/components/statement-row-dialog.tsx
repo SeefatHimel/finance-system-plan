@@ -1,4 +1,5 @@
 "use client";
+import { AccountLabel } from "@/components/account-avatar";
 
 import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { CalendarDateInput } from "@/components/calendar-date-input";
@@ -142,7 +143,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
   }
   return <>
     <ModalDialog labelledBy="statement-row-title" className="form-drawer statement-row-dialog" busy={busy} onCancel={onCancel}>
-      <div className="form-drawer__header"><div><h2 id="statement-row-title">Review statement {row.component === "fee" ? "fee" : "transaction"}</h2><p>{batch.account_name} · Page {source.page}, source row {source.row}</p></div><button type="button" className="icon-button" aria-label="Close statement row" disabled={busy} onClick={onCancel}>×</button></div>
+      <div className="form-drawer__header"><div><h2 id="statement-row-title">Review statement {row.component === "fee" ? "fee" : "transaction"}</h2><p><AccountLabel account={accounts.find(account => account.id === batch.account)} fallback={batch.account_name} /> · Page {source.page}, source row {source.row}</p></div><button type="button" className="icon-button" aria-label="Close statement row" disabled={busy} onClick={onCancel}>×</button></div>
       <div className="statement-row-body" onKeyDown={handleShortcuts}>
         <details className="raw-message" open={batch.profile === "ebl_credit_card" ? true : undefined}><summary>Original extracted row · {source.amount ?? "Unreadable amount"} {batch.currency}</summary>
           <p>{source.date ?? "Unknown date"}{source.time ? ` · ${source.time}` : ""} · {source.provider_type || "Unknown source type"} · Original parser direction: {source.direction === "credit" ? "Credit" : source.direction === "debit" ? "Debit" : "Unknown"}{row.reviewed_source_direction ? ` · Reviewed PDF direction: ${row.reviewed_source_direction}` : ""}</p>
@@ -212,7 +213,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
             </div></details>
             <label className="review-remember field--wide"><input type="checkbox" checked={draft.classification_confirmed} onChange={(e) => setField("classification_confirmed", e.target.checked)} /><span>Reviewed transaction type <small className="statement-choice-help">Confirm whether this involves your own accounts; this checkbox does not change the type.</small></span></label>
           </fieldset>
-          {draft.type === "transfer" ? <p>Transfer path: {draft.direction === "credit" ? `${accounts.find((a) => a.id === draft.other_account)?.name ?? "Other account"} → ${batch.account_name}` : `${batch.account_name} → ${accounts.find((a) => a.id === draft.other_account)?.name ?? "Other account"}`}</p> : null}
+          {draft.type === "transfer" ? <p className="account-path">Transfer path: <AccountLabel account={accounts.find(account => account.id === (draft.direction === "credit" ? draft.other_account : batch.account))} fallback="From account" /><span aria-label="to">→</span><AccountLabel account={accounts.find(account => account.id === (draft.direction === "credit" ? batch.account : draft.other_account))} fallback="To account" /></p> : null}
           {!editOnly && !isResolved ? <div className="statement-actions"><button className="button" type="submit" disabled={busy || !dirty}>Save draft & refresh matches</button><button className="button" type="button" disabled={busy || !dirty} onClick={() => void save(true)}>Save & next</button></div> : null}
         </form>
         <p className="inline-note">{editOnly ? "Alt+S saves the draft and returns to comparison." : "Shortcuts: Alt+S saves; Alt+Shift+S saves and moves next; Alt+Right opens the next unresolved row."}</p>

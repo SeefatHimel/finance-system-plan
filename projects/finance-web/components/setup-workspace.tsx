@@ -29,6 +29,8 @@ import { ModalDialog } from "@/components/modal-dialog";
 import { ButtonBusy, LoadingState } from "@/components/loading-state";
 import { HelpTooltip } from "@/components/help-tooltip";
 import { AccountIdentityFields } from "@/components/account-identity-fields";
+import { AccountAvatar } from "@/components/account-avatar";
+import { AccountLogoField } from "@/components/account-logo-field";
 import { accountIdentityInput, emptyAccountIdentity, type AccountIdentityDraft } from "@/lib/account-identity";
 
 type SetupState =
@@ -99,7 +101,7 @@ function LatestReportedBalance({ account }: { account: Account }) {
 
 export function SetupWorkspace() {
   const [setupState, setSetupState] = useState<SetupState>({ status: "loading" });
-  const [accountError, setAccountError] = useFeedbackMessage("error");
+  const [, setAccountError] = useFeedbackMessage("error");
   const [categoryError, setCategoryError] = useFeedbackMessage("error");
   const [isSavingAccount, setIsSavingAccount] = useState(false);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
@@ -117,9 +119,16 @@ export function SetupWorkspace() {
   const [activeTab, setActiveTab] = useState<SetupTab>("accounts");
   const [drawer, setDrawer] = useState<SetupDrawer>(null);
   const [accountIdentity, setAccountIdentity] = useState<AccountIdentityDraft>(emptyAccountIdentity);
+  const [accountLogo, setAccountLogo] = useState("");
+  const [logoReading, setLogoReading] = useState(false);
   useEffect(() => {
     if (drawer !== "account-edit") revealAccountId.current = "";
-    if (drawer === null) setAccountIdentity(emptyAccountIdentity());
+    if (drawer === null) {
+      setAccountIdentity(emptyAccountIdentity());
+      setAccountLogo("");
+      setEditingAccountName("");
+      setLogoReading(false);
+    }
   }, [drawer]);
   const [, setNotice] = useFeedbackMessage("success");
   const [accountSearch, setAccountSearch] = useState("");
@@ -186,6 +195,7 @@ export function SetupWorkspace() {
 
   async function handleAccountSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (logoReading) return;
     const accessToken = getAccessToken();
 
     if (!accessToken) {
@@ -200,6 +210,7 @@ export function SetupWorkspace() {
 
     try {
       const account = await createAccount(accessToken, {
+        logo: accountLogo,
         identity: accountIdentityInput(accountIdentity),
         currency: String(formData.get("currency") ?? "BDT"),
         name: String(formData.get("name") ?? ""),
@@ -316,6 +327,7 @@ export function SetupWorkspace() {
       ? setupState.accounts.find((account) => account.id === accountId)
       : null;
     setEditingAccountName(selected?.name ?? "");
+    setAccountLogo(selected?.logo ?? "");
     setEditingAccountType((selected?.type ?? "cash") as AccountType);
     setAccountError(null);
     setAccountIdentity(selected?.identity ? {
@@ -361,6 +373,7 @@ export function SetupWorkspace() {
 
   async function handleAccountUpdate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (logoReading) return;
     const accessToken = getAccessToken();
     if (!accessToken) {
       setAccountError("Sign in before updating an account.");
@@ -375,6 +388,7 @@ export function SetupWorkspace() {
     setIsUpdatingAccount(true);
     try {
       const account = await updateAccount(accessToken, editingAccountId, {
+        logo: accountLogo,
         identity: accountIdentityInput(accountIdentity),
         name: editingAccountName,
         type: editingAccountType
@@ -517,7 +531,7 @@ export function SetupWorkspace() {
                         <th className="align-right">Actions</th>
                       </tr></thead>
                       <tbody>{visibleAccounts.map((account) => <tr key={account.id}>
-                        <td><strong>{account.name}</strong>{account.identity?.is_active ? <small className="meta"> {account.identity.identifier || account.identity.additional_identifiers[0]?.value || "Aliases saved"}</small> : null}</td>
+                        <td><span className="account-label"><AccountAvatar account={account} size="medium" /><span><strong>{account.name}</strong>{account.identity?.is_active ? <small className="meta"> {account.identity.identifier || account.identity.additional_identifiers[0]?.value || "Aliases saved"}</small> : null}</span></span></td>
                         {visibleAccountColumns.includes("type") ? <td><span className="type-label">{displayLabel(account.type)}</span></td> : null}
                         {visibleAccountColumns.includes("currency") ? <td>{account.currency}</td> : null}
                         {visibleAccountColumns.includes("ledgerBalance") ? <td className="amount-cell">{formatAccountBalance(account, account.ledger_balance)}</td> : null}
@@ -563,9 +577,9 @@ export function SetupWorkspace() {
 
           {drawer === "account-edit" && accountIdentity.enabled ? <button className="button button--ghost" type="button" onClick={() => void revealAccountNumbers()}>Show saved full numbers</button> : null}
 
-          {drawer === "account-create" ? <form className="drawer-form" onSubmit={handleAccountSubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" /></label><label className="field"><span className="field__label">Type</span><select className="field__control" name="type" required onChange={event => { if (!accountIdentity.identifier && !accountIdentity.additional_identifiers.length) setAccountIdentity(current => ({ ...current, identifier_kind: event.target.value === "credit_card" ? "card" : "account", provider: ["bank", "card", "other"].includes(current.provider) ? event.target.value === "credit_card" ? "card" : event.target.value === "mobile_wallet" ? "other" : "bank" : current.provider })); }}>{accountTypes.map((type) => <option key={type} value={type}>{displayLabel(type)}</option>)}</select></label><label className="field"><span className="field__label">Starting balance</span><input className="field__control" min="0" name="starting_balance" step="0.01" type="number" /></label><label className="field"><span className="field__label">Currency</span><select className="field__control" defaultValue="BDT" name="currency"><option value="BDT">BDT</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label><AccountIdentityFields value={accountIdentity} onChange={setAccountIdentity} disabled={isSavingAccount || isUpdatingAccount} />{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingAccount} type="submit">{isSavingAccount ? <ButtonBusy label="Saving" /> : "Add account"}</button></div></form> : null}
+          {drawer === "account-create" ? <form className="drawer-form" onSubmit={handleAccountSubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" onChange={event => setEditingAccountName(event.target.value)} /></label><label className="field"><span className="field__label">Type</span><select className="field__control" name="type" required onChange={event => { if (!accountIdentity.identifier && !accountIdentity.additional_identifiers.length) setAccountIdentity(current => ({ ...current, identifier_kind: event.target.value === "credit_card" ? "card" : "account", provider: ["bank", "card", "other"].includes(current.provider) ? event.target.value === "credit_card" ? "card" : event.target.value === "mobile_wallet" ? "other" : "bank" : current.provider })); }}>{accountTypes.map((type) => <option key={type} value={type}>{displayLabel(type)}</option>)}</select></label><label className="field"><span className="field__label">Starting balance</span><input className="field__control" min="0" name="starting_balance" step="0.01" type="number" /></label><label className="field"><span className="field__label">Currency</span><select className="field__control" defaultValue="BDT" name="currency"><option value="BDT">BDT</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label><AccountLogoField name={editingAccountName || "Account"} value={accountLogo} onChange={setAccountLogo} onBusy={setLogoReading} onError={setAccountError} disabled={isSavingAccount || isUpdatingAccount} /><AccountIdentityFields value={accountIdentity} onChange={setAccountIdentity} disabled={isSavingAccount || isUpdatingAccount} /><div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingAccount || logoReading} type="submit">{isSavingAccount ? <ButtonBusy label="Saving" /> : "Add account"}</button></div></form> : null}
 
-          {drawer === "account-edit" ? <form className="drawer-form" onSubmit={handleAccountUpdate}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" onChange={(event) => setEditingAccountName(event.target.value)} required type="text" value={editingAccountName} /></label><label className="field"><span className="field__label">Type</span><select className="field__control" onChange={(event) => setEditingAccountType(event.target.value as AccountType)} value={editingAccountType}>{accountTypes.map((type) => <option key={type} value={type}>{displayLabel(type)}</option>)}</select></label><AccountIdentityFields value={accountIdentity} onChange={setAccountIdentity} disabled={isSavingAccount || isUpdatingAccount} />{accountError ? <p className="form-error">{accountError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isUpdatingAccount} type="submit">{isUpdatingAccount ? <ButtonBusy label="Updating" /> : "Save changes"}</button></div></form> : null}
+          {drawer === "account-edit" ? <form className="drawer-form" onSubmit={handleAccountUpdate}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" onChange={(event) => setEditingAccountName(event.target.value)} required type="text" value={editingAccountName} /></label><label className="field"><span className="field__label">Type</span><select className="field__control" onChange={(event) => setEditingAccountType(event.target.value as AccountType)} value={editingAccountType}>{accountTypes.map((type) => <option key={type} value={type}>{displayLabel(type)}</option>)}</select></label><AccountLogoField name={editingAccountName || "Account"} accountId={editingAccountId} value={accountLogo} onChange={setAccountLogo} onBusy={setLogoReading} onError={setAccountError} disabled={isSavingAccount || isUpdatingAccount} /><AccountIdentityFields value={accountIdentity} onChange={setAccountIdentity} disabled={isSavingAccount || isUpdatingAccount} /><div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isUpdatingAccount || logoReading} type="submit">{isUpdatingAccount ? <ButtonBusy label="Updating" /> : "Save changes"}</button></div></form> : null}
 
           {drawer === "category-create" ? <form className="drawer-form" onSubmit={handleCategorySubmit}><label className="field"><span className="field__label">Name</span><input autoFocus className="field__control" name="name" required type="text" /></label><label className="field"><span className="field__label">Kind</span><select className="field__control" name="kind" required>{categoryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></label>{categoryError ? <p className="form-error">{categoryError}</p> : null}<div className="drawer-form__actions"><button className="button button--ghost" disabled={isSavingAccount || isSavingCategory || isUpdatingAccount || isUpdatingCategory} onClick={() => setDrawer(null)} type="button">Cancel</button><button className="button button--primary" disabled={isSavingCategory} type="submit">{isSavingCategory ? <ButtonBusy label="Saving" /> : "Add category"}</button></div></form> : null}
 

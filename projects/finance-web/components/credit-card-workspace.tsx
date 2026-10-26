@@ -1,4 +1,5 @@
 "use client";
+import { AccountLabel } from "@/components/account-avatar";
 
 import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { DatedList } from "@/components/dated-list";
@@ -408,7 +409,7 @@ export function CreditCardWorkspace() {
                 <tbody>
                   {bills.map((bill) => (
                     <tr key={bill.id}>
-                      <td>{accountNames.get(bill.account) ?? bill.account}</td>
+                      <td><AccountLabel account={state.status === "ready" ? state.accounts.find(account => account.id === bill.account) : undefined} fallback={accountNames.get(bill.account) ?? "Credit card"} /></td>
                       <td>{formatCalendarDate(bill.statement_date)}</td>
                       <td>{dueLabel(bill)}</td>
                       <td>{formatMoney(bill.statement_balance)}</td>
