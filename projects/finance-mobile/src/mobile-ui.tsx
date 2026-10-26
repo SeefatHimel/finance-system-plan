@@ -85,12 +85,14 @@ export function ActionButton({
   onPress,
   primary = false,
   disabled = false,
+  compact = false,
 }: {
   label: string;
   text?: string;
   onPress: () => void;
   primary?: boolean;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   const ui = useMobileUi();
   const isLight = useLightAppearance();
@@ -101,11 +103,12 @@ export function ActionButton({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[ui.button, primary && ui.primary, disabled && { opacity: 0.5 }]}
+      style={[ui.button, compact && { paddingHorizontal: 10, paddingVertical: 8 }, primary && ui.primary, disabled && { opacity: 0.5 }]}
     >
       <Text
         style={[
           ui.text,
+          compact && { fontSize: 14, lineHeight: 20 },
           { fontWeight: "700", color: primary ? "#08261d" : isLight ? "#213846" : "#e7eef7" },
         ]}
       >
@@ -116,18 +119,19 @@ export function ActionButton({
 }
 export function InputField({
   label,
+  compact = false,
   ...props
-}: TextInputProps & { label: string }) {
+}: TextInputProps & { label: string; compact?: boolean }) {
   const ui = useMobileUi();
   const isLight = useLightAppearance();
   return (
-    <View style={{ gap: 6 }}>
-      <Text style={ui.muted}>{label}</Text>
+    <View style={{ gap: compact ? 4 : 6 }}>
+      <Text style={[ui.muted, compact && { fontSize: 12, lineHeight: 17 }]}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
         placeholderTextColor={isLight ? "#607782" : "#91a7c2"}
         {...props}
-        style={[ui.input, props.style]}
+        style={[ui.input, compact && { fontSize: 14, paddingHorizontal: 10, paddingVertical: 8 }, props.style]}
       />
     </View>
   );
@@ -140,6 +144,7 @@ export function SearchSelect({
   onChange,
   emptyLabel,
   disabled = false,
+  compact = false,
 }: {
   label: string;
   value: string;
@@ -147,6 +152,7 @@ export function SearchSelect({
   onChange: (value: string) => void;
   emptyLabel?: string;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   const ui = useMobileUi();
   const [open, setOpen] = useState(false),
@@ -160,26 +166,26 @@ export function SearchSelect({
     setOpen(false);
   }
   return (
-    <View style={{ gap: 6 }}>
-      <Text style={ui.muted}>{label}</Text>
+    <View style={{ gap: compact ? 4 : 6 }}>
+      <Text style={[ui.muted, compact && { fontSize: 12, lineHeight: 17 }]}>{label}</Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${selected}`}
         accessibilityState={{ expanded: open, disabled }}
         disabled={disabled}
-        style={ui.button}
+        style={[ui.button, compact && { paddingHorizontal: 10, paddingVertical: 8 }]}
         onPress={() => {
           setQuery("");
           setOpen(true);
         }}
       >
-        <Text style={ui.text}>{selected} ▾</Text>
+        <Text style={[ui.text, compact && { fontSize: 14, lineHeight: 20 }]}>{selected} ▾</Text>
       </Pressable>
       {open ? (
         <Modal visible animationType="slide" onRequestClose={close}>
           <SafeAreaView style={ui.screen}>
             <View style={ui.header}>
-              <Text accessibilityRole="header" style={ui.title}>
+              <Text accessibilityRole="header" style={[ui.title, compact && { fontSize: 18 }]}>
                 {label}
               </Text>
               <ActionButton
@@ -188,7 +194,7 @@ export function SearchSelect({
               />
             </View>
             <View style={{ padding: 16 }}>
-              <InputField
+              <InputField compact={compact}
                 label={`Search ${label.toLowerCase()}`}
                 value={query}
                 onChangeText={setQuery}
@@ -222,12 +228,12 @@ export function SearchSelect({
                     close();
                   }}
                 >
-                  <Text style={ui.text}>
+                  <Text style={[ui.text, compact && { fontSize: 14, lineHeight: 20 }]}>
                     {item.id === value ? "✓ " : ""}
                     {item.name}
                   </Text>
                   {item.detail ? (
-                    <Text style={ui.muted}>{item.detail}</Text>
+                    <Text style={[ui.muted, compact && { fontSize: 12, lineHeight: 17 }]}>{item.detail}</Text>
                   ) : null}
                 </Pressable>
               )}
@@ -273,17 +279,17 @@ export function SourceMessage({
     : body;
   return (
     <View style={compact ? [ui.card, { padding: 12, gap: 5 }] : ui.card}>
-      <Text style={ui.muted}>
+      <Text style={compact ? [ui.muted, { fontSize: 12, lineHeight: 17 }] : ui.muted}>
         {compact ? "Original SMS · " : ""}{message.sender} · {formatTimestamp(message.received_at)}
       </Text>
-      <Text selectable={inlineExpanded} numberOfLines={inlineExpanded ? undefined : compact ? 2 : 3} style={compact ? [ui.text, { fontSize: 14, lineHeight: 20 }] : ui.text}>
+      <Text selectable={inlineExpanded} numberOfLines={inlineExpanded ? undefined : compact ? 2 : 3} style={compact ? [ui.text, { fontSize: 13, lineHeight: 19 }] : ui.text}>
         {sourceText}
       </Text>
       <View style={ui.row}>
         {!fullBody ? <Pressable accessibilityRole="button"
           accessibilityLabel={expanded ? "Collapse original SMS" : compact ? "Show full original SMS" : "Expand original SMS"}
-          accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={ui.button}>
-          <Text style={[ui.text, { fontSize: compact ? 14 : 16, fontWeight: "700" }]}>{expanded ? "Show less" : compact ? "Show full SMS" : "▸ Expand SMS"}</Text>
+          accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={[ui.button, compact && { paddingHorizontal: 10, paddingVertical: 8 }]}>
+          <Text style={[ui.text, { fontSize: compact ? 13 : 16, lineHeight: compact ? 19 : 24, fontWeight: "700" }]}>{expanded ? "Show less" : compact ? "Show full SMS" : "▸ Expand SMS"}</Text>
         </Pressable> : null}
         {!compact ? <ActionButton label="View full SMS" onPress={() => setOpen(true)} /> : null}
       </View>

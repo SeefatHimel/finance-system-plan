@@ -55,8 +55,9 @@ export function ReviewFields({
     accounts.find((item) => item.id === draft.accountId)?.name ??
     "Choose reporting account";
   return (
-    <View style={{ gap: 14 }}>
+    <View style={{ gap: 10 }}>
       <ClassificationFields
+        compact
         type={draft.transactionType}
         category={draft.categoryId}
         categories={categories}
@@ -73,19 +74,19 @@ export function ReviewFields({
         }
       />
       {draft.balanceNotice ? (
-        <Text accessibilityRole="alert" style={ui.error}>
+        <Text accessibilityRole="alert" style={[ui.error, { fontSize: 13, lineHeight: 19 }]}>
           {draft.balanceNotice}
         </Text>
       ) : null}
-      <CompactFields>
-        <SearchSelect key="direction"
+      <CompactFields gap={8}>
+        <SearchSelect compact key="direction"
           label="Direction for reporting account"
           value={draft.direction}
           options={[{ id: "debit", name: "Debit · money out" }, { id: "credit", name: "Credit · money in" }]}
           onChange={(direction) => onChange({ direction })}
           disabled={busy}
         />
-        <SearchSelect key="account"
+        <SearchSelect compact key="account"
           label="Reporting account"
           value={draft.accountId}
           options={accountOptions}
@@ -102,12 +103,13 @@ export function ReviewFields({
         />
         {draft.transactionType === "transfer" ? (
           <View key="transfer" style={{ gap: 8 }}>
-            <Text style={ui.text}>
+            <Text style={[ui.text, { fontSize: 14, lineHeight: 20 }]}>
               {draft.direction === "credit"
                 ? `${draft.transferAccountId ? (accounts.find((item) => item.id === draft.transferAccountId)?.name ?? "Unknown account") : "Choose sender"} → ${name}`
                 : `${name} → ${draft.transferAccountId ? (accounts.find((item) => item.id === draft.transferAccountId)?.name ?? "Unknown account") : "Choose destination"}`}
             </Text>
             <SearchSelect
+              compact
               label={`Other transfer account · ${draft.direction === "credit" ? "From" : "To"}`}
               value={draft.transferAccountId}
               options={accountOptions.filter(
@@ -119,14 +121,14 @@ export function ReviewFields({
             />
           </View>
         ) : null}
-        <InputField key="amount"
+        <InputField compact key="amount"
           label="Transaction amount"
           value={draft.amount}
           editable={!busy}
           keyboardType="decimal-pad"
           onChangeText={(amount) => onChange({ amount })}
         />
-        <InputField key="balance"
+        <InputField compact key="balance"
           label={`Reported balance after · ${name}`}
           value={draft.balanceAfter}
           editable={!busy}
@@ -140,9 +142,9 @@ export function ReviewFields({
             })
           }
         />
-        <CompactDateTime key="datetime" date={draft.date} time={draft.time} disabled={busy}
+        <CompactDateTime dense key="datetime" date={draft.date} time={draft.time} disabled={busy}
           onDate={date => onChange({ date })} onTime={time => onChange({ time })} />
-        <InputField key="merchant"
+        <InputField compact key="merchant"
           label="Merchant / counterparty"
           value={draft.counterpartyText}
           editable={!busy}
@@ -151,15 +153,15 @@ export function ReviewFields({
         />
       </CompactFields>
       <Disclosure label="More details" revealKey={error}>
-        <CompactFields>
-          <InputField
+        <CompactFields gap={8}>
+          <InputField compact
             label="Reference"
             value={draft.reference}
             editable={!busy}
             maxLength={160}
             onChangeText={(reference) => onChange({ reference })}
           />
-          <InputField
+          <InputField compact
             label="Note"
             value={draft.note}
             editable={!busy}
@@ -168,6 +170,7 @@ export function ReviewFields({
             onChangeText={(note) => onChange({ note })}
           />
           <SearchSelect
+            compact
             label="Payment method"
             value={draft.paymentMethodId}
             options={paymentMethods
@@ -180,8 +183,8 @@ export function ReviewFields({
         </CompactFields>
         <Pressable accessibilityRole="checkbox" accessibilityLabel="Use these choices for similar SMS" accessibilityState={{ checked: rememberChoices, disabled: busy }}
           disabled={busy} onPress={() => onRememberChoicesChange(!rememberChoices)} style={ui.button}>
-          <Text style={ui.text}>{rememberChoices ? "☑" : "☐"} Use these choices for similar SMS</Text>
-          <Text style={ui.muted}>Optional. Saves a suggestion for this sender and message kind after confirmation.</Text>
+          <Text style={[ui.text, { fontSize: 14, lineHeight: 20 }]}>{rememberChoices ? "☑" : "☐"} Use these choices for similar SMS</Text>
+          <Text style={[ui.muted, { fontSize: 12, lineHeight: 17 }]}>Optional. Saves a suggestion for this sender and message kind after confirmation.</Text>
         </Pressable>
       </Disclosure>
     </View>

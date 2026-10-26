@@ -22,11 +22,13 @@ export function NativeTimeField({
   onChange,
   label,
   compact = false,
+  smallText = false,
   disabled = false,
 }: {
   value: string;
   label?: string;
   compact?: boolean;
+  smallText?: boolean;
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
@@ -80,7 +82,7 @@ export function NativeTimeField({
         keyboardType="numbers-and-punctuation"
         placeholder="HH:MM"
         placeholderTextColor={isLight ? "#607782" : "#91a7c2"}
-        style={[dateTimeInput(isLight), compact ? { flex: 1, minWidth: 0 } : null]}
+        style={[dateTimeInput(isLight), smallText ? { fontSize: 14 } : null, compact ? { flex: 1, minWidth: 0 } : null]}
       />
       {ios ? (
         <Modal
@@ -144,11 +146,13 @@ export function NativeDateField({
   onChange,
   label,
   compact = false,
+  smallText = false,
   disabled = false,
 }: {
   value: string;
   label?: string;
   compact?: boolean;
+  smallText?: boolean;
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
@@ -205,7 +209,7 @@ export function NativeDateField({
         onChangeText={onChange}
         placeholder="YYYY-MM-DD"
         placeholderTextColor={isLight ? "#607782" : "#91a7c2"}
-        style={[dateTimeInput(isLight), compact ? { flex: 1, minWidth: 0 } : null]}
+        style={[dateTimeInput(isLight), smallText ? { fontSize: 14 } : null, compact ? { flex: 1, minWidth: 0 } : null]}
       />
       {ios ? (
         <Modal transparent onRequestClose={() => setIos(null)}>

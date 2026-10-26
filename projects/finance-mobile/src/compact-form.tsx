@@ -4,14 +4,14 @@ import { NativeDateField, NativeTimeField } from "./native-time-field";
 import { useMobileUi } from "./mobile-ui";
 
 /** Change only cell widths: never reparent fields when layout or font size changes. */
-export function CompactFields({ children, minFieldWidth = 260, maxColumns = 3 }: {
+export function CompactFields({ children, minFieldWidth = 260, maxColumns = 3, gap = 12 }: {
   children: ReactNode;
   minFieldWidth?: number;
   maxColumns?: number;
+  gap?: number;
 }) {
   const [width, setWidth] = useState(0);
   const { fontScale } = useWindowDimensions();
-  const gap = 12;
   const columns = Math.max(1, Math.min(maxColumns,
     Math.floor((width + gap) / (minFieldWidth * Math.max(1, fontScale) + gap))));
   const cellWidth = width > 0 ? (width - gap * (columns - 1)) / columns : "100%";
@@ -24,22 +24,23 @@ export function CompactFields({ children, minFieldWidth = 260, maxColumns = 3 }:
   </View>;
 }
 
-export function CompactDateTime({ date, time, disabled, onDate, onTime }: {
+export function CompactDateTime({ date, time, disabled, onDate, onTime, dense = false }: {
   date: string;
   time: string;
   disabled?: boolean;
+  dense?: boolean;
   onDate: (date: string) => void;
   onTime: (time: string) => void;
 }) {
   const ui = useMobileUi();
-  return <CompactFields minFieldWidth={180} maxColumns={2}>
-    <View key="date" style={{ gap: 6 }}>
-      <Text style={ui.muted}>Date</Text>
-      <NativeDateField compact disabled={disabled} label="Transaction date" value={date} onChange={onDate} />
+  return <CompactFields minFieldWidth={180} maxColumns={2} gap={dense ? 8 : 12}>
+    <View key="date" style={{ gap: dense ? 4 : 6 }}>
+      <Text style={[ui.muted, dense && { fontSize: 12, lineHeight: 17 }]}>Date</Text>
+      <NativeDateField compact smallText={dense} disabled={disabled} label="Transaction date" value={date} onChange={onDate} />
     </View>
-    <View key="time" style={{ gap: 6 }}>
-      <Text style={ui.muted}>Time</Text>
-      <NativeTimeField compact disabled={disabled} label="Transaction time" value={time} onChange={onTime} />
+    <View key="time" style={{ gap: dense ? 4 : 6 }}>
+      <Text style={[ui.muted, dense && { fontSize: 12, lineHeight: 17 }]}>Time</Text>
+      <NativeTimeField compact smallText={dense} disabled={disabled} label="Transaction time" value={time} onChange={onTime} />
     </View>
   </CompactFields>;
 }

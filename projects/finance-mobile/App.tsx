@@ -1663,7 +1663,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.20",
+          app_version: "0.1.21",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1685,7 +1685,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.20",
+        app_version: "0.1.21",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1762,7 +1762,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.20",
+            app_version: "0.1.21",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1777,7 +1777,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.20",
+          app_version: "0.1.21",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -4005,7 +4005,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const renderActivity = (focused: boolean) => <TransactionActivity focused={focused} onEdit={openTransactionEditor} key={localDataScope ?? "signed-out"} scope={localDataScope ?? ""} token={accessToken} accounts={accounts} categories={categories} filters={activityFilters} onFiltersChange={setActivityFilters} cached={transactions} pendingCount={transactionQueue.length + quickPendingCount} onQuickAdd={() => quickHub.current?.open()} />;
 
   const renderReview = () => (
-    <View style={styles.mobileSectionStack}>
+    <View style={styles.mobileReviewStack}>
       {!reviewMutation.blocked ? <ReviewSaveNotice review={reviewMutation} candidates={reviewCandidates} onReview={id => openReviewCandidate(id)} onEdit={openTransactionEditor} /> : null}
       {!reviewMutation.operation ? <RecoveryCard compact recovery={recovery} blocked={reviewMutation.blocked} onEdit={openTransactionEditor} /> : null}
       <InlineFeedback loadingLabel="Refreshing review inbox…" message={reviewState === "error" ? reviewMessage : ""} state={reviewState} />
@@ -4023,8 +4023,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           <>
           <View style={styles.mobileReviewPager}>
             <View style={styles.mobileRowBody}>
-              <Text style={styles.mobileRowTitle}>Review {index + 1} of {reviewCandidateCount}</Text>
-              <Text style={styles.mobileRowMeta}>Check the SMS, then confirm or edit</Text>
+              <Text style={styles.mobileReviewPagerTitle}>Review {index + 1} of {reviewCandidateCount}</Text>
+              <Text style={styles.mobileReviewPagerMeta}>Check the SMS before saving</Text>
             </View>
             <Pressable
               accessibilityLabel="Previous message"
@@ -4047,13 +4047,6 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
             </Pressable>
           </View>
           <View key={candidate.id} style={styles.mobileReviewCard}>
-            <View style={styles.mobileHeroHeader}>
-              <InstitutionMark name={candidate.provider || candidate.raw_message.sender} size={38} />
-              <View style={styles.mobileRowBody}>
-                <Text style={styles.mobileRowTitle}>{candidate.provider || candidate.raw_message.sender}</Text>
-                <Text style={styles.mobileRowMeta}>{formatMobileDate(candidate.raw_message.received_at)} · {inputTimeFromTimestamp(candidate.raw_message.received_at)}</Text>
-              </View>
-            </View>
             <SourceMessage key={candidate.id} message={candidate.raw_message} compact highlightValues={[candidate.amount, candidate.balance_after]} />
             <View style={styles.mobileReviewSummary}>
               <View style={styles.mobileReviewAmountRow}>
@@ -4086,15 +4079,15 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
               const reporting = hint.role === (draft.direction === "credit" ? "receiver" : "sender");
               if (!reporting && draft.transactionType !== "transfer") return null;
               return <View key={hint.role} style={styles.mobileSmsQuote}>
-                <Text style={styles.mobileRowTitle}>Check {hint.role} account · {hint.observed_identifiers.join(" / ")}</Text>
-                <Text style={styles.mobileRowMeta}>{hint.reason}</Text>
+                <Text style={styles.mobileReviewSummaryPrimary}>Check {hint.role} account · {hint.observed_identifiers.join(" / ")}</Text>
+                <Text style={styles.mobileReviewSummaryMeta}>{hint.reason}</Text>
                 {hint.choices.map(choice => <Pressable key={choice.payment_method} accessibilityRole="button"
                   accessibilityState={{ selected: (reporting ? draft.accountId === choice.account && draft.paymentMethodId === choice.payment_method : draft.transferAccountId === choice.account), disabled: isWorking || (!reporting && draft.accountId === choice.account) }}
                   disabled={isWorking || (!reporting && draft.accountId === choice.account)} style={styles.mobileSecondaryAction}
                   onPress={() => updateReviewDraft(candidate, reporting
                     ? { accountId: choice.account, paymentMethodId: choice.payment_method, transferAccountId: draft.transferAccountId === choice.account ? "" : draft.transferAccountId }
                     : { transferAccountId: choice.account })}>
-                  <Text style={styles.mobileSecondaryActionText}>{(reporting ? draft.accountId === choice.account && draft.paymentMethodId === choice.payment_method : draft.transferAccountId === choice.account) ? "Selected · " : ""}{choice.name} · {choice.method_name}</Text>
+                  <Text style={[styles.mobileSecondaryActionText, { fontSize: 13 }]}>{(reporting ? draft.accountId === choice.account && draft.paymentMethodId === choice.payment_method : draft.transferAccountId === choice.account) ? "Selected · " : ""}{choice.name} · {choice.method_name}</Text>
                 </Pressable>)}
                 {!hint.choices.length ? <Text style={styles.mobileRowMeta}>No compatible saved identifier. Choose the account below after checking the SMS.</Text> : null}
               </View>;
@@ -4374,8 +4367,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           {showSmsDiagnostics ? (
             <View style={{ gap: 10 }}>
               <Text style={styles.mobileRowMeta}>Includes sync counts, stage and error codes. SMS text and login tokens are excluded.</Text>
-              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.20", getApiBaseUrl())}</Text>
-              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.20", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
+              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.21", getApiBaseUrl())}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.21", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
                 <Text style={styles.mobileSecondaryActionText}>Share diagnostics</Text>
               </Pressable>
             </View>
@@ -5024,7 +5017,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         <RetainedNavigation navigation={navigation} onRouteChange={changeWorkspace} render={renderWorkspace} />
       </MobileQueryProvider>
 
-      {currentWorkspace.route === "review" && reviewMutation.blocked ? <ReviewSaveNotice review={reviewMutation} candidates={reviewCandidates} onReview={id => openReviewCandidate(id)} onEdit={openTransactionEditor} /> : selectedReviewCandidate ? <View style={[ui.card, { borderRadius: 0, padding: 12 }]}><Text accessibilityLiveRegion="polite" style={selectedReviewIssue || reviewState === "error" ? ui.error : ui.muted}>{reviewState === "error" && reviewMessage ? reviewMessage : selectedReviewIssue || `Ready · ${formatCurrency(selectedReviewDraft?.amount)}`}</Text><View style={ui.row}><ActionButton label="Reject message" disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => confirmRejectReviewCandidate(selectedReviewCandidate)} /><ActionButton label={reviewActionCandidateId ? "Save in progress…" : "Confirm & add"} primary disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => void handleConfirmReviewCandidate(selectedReviewCandidate)} /></View></View> : null}
+      {currentWorkspace.route === "review" && reviewMutation.blocked ? <ReviewSaveNotice review={reviewMutation} candidates={reviewCandidates} onReview={id => openReviewCandidate(id)} onEdit={openTransactionEditor} /> : selectedReviewCandidate ? <View style={[ui.card, { borderRadius: 0, paddingHorizontal: 12, paddingVertical: 8 }]}><Text accessibilityLiveRegion="polite" style={[selectedReviewIssue || reviewState === "error" ? ui.error : ui.muted, { fontSize: 13, lineHeight: 19 }]}>{reviewState === "error" && reviewMessage ? reviewMessage : selectedReviewIssue || `Ready · ${formatCurrency(selectedReviewDraft?.amount)}`}</Text><View style={ui.row}><ActionButton compact label="Reject message" disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => confirmRejectReviewCandidate(selectedReviewCandidate)} /><ActionButton compact label={reviewActionCandidateId ? "Save in progress…" : "Confirm & add"} primary disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => void handleConfirmReviewCandidate(selectedReviewCandidate)} /></View></View> : null}
       {editorSurface}
       <View style={styles.mobileTabBar}>
         {tabItems.map((item) => {
@@ -5954,13 +5947,13 @@ const styles = StyleSheet.create({
   },
   mobileReviewAmount: {
     color: "#f6f8fc",
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800"
   },
-  mobileReviewDirection: { fontSize: 13, fontWeight: "800" },
-  mobileReviewSummary: { gap: 5, paddingTop: 5 },
-  mobileReviewSummaryPrimary: { color: "#f6f8fc", fontSize: 15, fontWeight: "700", lineHeight: 21 },
-  mobileReviewSummaryMeta: { color: "#91a7c2", fontSize: 13, lineHeight: 18 },
+  mobileReviewDirection: { fontSize: 12, fontWeight: "800" },
+  mobileReviewSummary: { gap: 4, paddingTop: 3 },
+  mobileReviewSummaryPrimary: { color: "#f6f8fc", fontSize: 14, fontWeight: "700", lineHeight: 20 },
+  mobileReviewSummaryMeta: { color: "#91a7c2", fontSize: 12, lineHeight: 17 },
   mobileReviewIssue: { color: "#ffb6b6", fontSize: 13, lineHeight: 19, marginTop: 4 },
   mobileReviewEditAction: { alignItems: "center", alignSelf: "flex-start", flexDirection: "row", gap: 6, justifyContent: "center", minHeight: 48, paddingHorizontal: 6 },
   mobileReviewEditText: { color: "#32d8f2", fontSize: 14, fontWeight: "700" },
@@ -5969,9 +5962,12 @@ const styles = StyleSheet.create({
     borderColor: "#263a52",
     borderRadius: 18,
     borderWidth: 1,
-    gap: 10,
-    padding: 14
+    gap: 8,
+    padding: 12
   },
+  mobileReviewStack: { gap: 10 },
+  mobileReviewPagerTitle: { color: "#f6f8fc", fontSize: 13, fontWeight: "700" },
+  mobileReviewPagerMeta: { color: "#91a7c2", fontSize: 12, marginTop: 2 },
   mobileReviewPager: {
     alignItems: "center",
     borderBottomColor: "#263a52",
@@ -6174,10 +6170,9 @@ const styles = StyleSheet.create({
     borderColor: "#263a52",
     borderRadius: 14,
     borderWidth: 1,
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 16,
-    padding: 13
+    gap: 6,
+    marginTop: 8,
+    padding: 10
   },
   mobileSmsQuoteText: {
     color: "#a9bad0",

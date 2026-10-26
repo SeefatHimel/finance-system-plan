@@ -778,8 +778,12 @@ as warnings. **Edit details** reveals the existing mounted correction controls,
 including an explicit debit/credit selector and account suggestions, without
 resetting edits when collapsed. Confirm validates the complete draft and opens
 the controls on a missing required value. Existing API validation, transfer
-matching and save recovery still apply. This is mobile UI only and needs a new
-installed app build plus a physical-device layout and accessibility check.
+matching and save recovery still apply. This is mobile UI only; install the
+0.1.21 app build for this layout and check it on a physical device.
+
+Release 0.1.21 tightens only the Review typography and spacing, removes a
+duplicate provider/date row, and stacks identifier suggestions vertically.
+Native font scaling and 48dp touch targets remain enabled.
 
 ### How do native review and saved-entry editing avoid losing corrections?
 

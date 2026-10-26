@@ -14,12 +14,14 @@ export function ClassificationFields({
   category,
   categories,
   disabled,
+  compact = false,
   onChange,
 }: {
   type: string;
   category: string;
   categories: Category[];
   disabled?: boolean;
+  compact?: boolean;
   onChange: (value: {
     type: string;
     category: string;
@@ -62,9 +64,10 @@ export function ClassificationFields({
     }
   }
   return (
-    <View style={{ gap: 12 }}>
-      <CompactFields minFieldWidth={180} maxColumns={2}>
+    <View style={{ gap: compact ? 8 : 12 }}>
+      <CompactFields minFieldWidth={180} maxColumns={2} gap={compact ? 8 : 12}>
         <SearchSelect
+          compact={compact}
           label="Transaction type"
           value={type}
           options={transactionTypes.map((id) => ({ id, name: displayLabel(id) }))}
@@ -72,6 +75,7 @@ export function ClassificationFields({
           disabled={disabled}
         />
         <SearchSelect
+          compact={compact}
           label="Category"
           value={category}
           options={categories

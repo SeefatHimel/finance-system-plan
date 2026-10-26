@@ -1,6 +1,6 @@
 # finance-mobile
 
-## Mobile layout and startup (0.1.20)
+## Mobile layout and startup (0.1.21)
 
 The signed Android app opens an account-scoped saved session immediately, then
 checks the API in the background. A sleeping backend no longer holds the whole
@@ -15,7 +15,7 @@ next inbox page near the end of the loaded window. Capture leads with Scan; comp
 available behind a labelled control. Accounts and preset-management rows open
 details on demand, while balance mismatches stay visible on collapsed rows.
 
-### Compact SMS review (0.1.20)
+### Compact SMS review (0.1.21)
 
 Review starts with a two-line excerpt of the original SMS, highlighted parsed
 amount and reported balance, and a concise proposed transaction summary. The
@@ -25,15 +25,18 @@ warnings, and a changed reporting balance stay visible before confirmation.
 collapsing it does not discard draft edits. Debit/credit is corrected explicitly
 in that form. Confirm still validates every field and opens corrections when a
 required value is missing. This is an app-only UI change; the existing review
-API and saved transaction rules remain the same. Install the 0.1.20 build to
-see this screen; physical-phone layout/accessibility checks are still needed.
+API and saved transaction rules remain the same. The 0.1.21 build removes the
+duplicate provider/date row, uses smaller Review text, and stacks account hints
+vertically so they do not force narrow text columns. Buttons and inputs keep
+48dp touch targets and Android font scaling stays enabled. Install the new build
+to see this screen; physical-phone layout/accessibility checks are still needed.
 
 Institution badges use local initials and distinct colors for recognized bank and
 wallet names, with a neutral fallback for custom accounts. They are not bank or
 wallet logos; no external image request is needed at runtime. This release does
 not change transaction classification, saved financial data, SMS permissions or
 backend APIs. See [the signed release guide](docs/signed-android-release.md)
-for the 0.1.20 build and physical-device checks.
+for the 0.1.21 build and physical-device checks.
 
 The **More → Profile & appearance** screen lets a signed-in user update their
 first name, last name and email through `PATCH /api/auth/me/`. Username stays
