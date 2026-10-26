@@ -671,11 +671,18 @@ class RememberConfirmedMessageChoiceView(APIView):
     @transaction.atomic
     def post(self, request, candidate_id):
         from .models import TransferCounterpartyMapping
-        from .transfer_suggestions import CASH_ACCOUNT_TYPES, CASH_WITHDRAWAL_KEY, counterparty_key, remember_transfer_path
+        from .transfer_suggestions import (
+            CASH_ACCOUNT_TYPES,
+            CASH_WITHDRAWAL_KEY,
+            counterparty_key,
+            remember_transfer_path,
+        )
 
         lock_transfer_user(request.user)
         candidate = get_object_or_404(
-            ParsedMessageCandidate.objects.select_for_update().select_related("sender_rule", "raw_message", "transaction", "account"),
+            ParsedMessageCandidate.objects.select_related(
+                "sender_rule", "raw_message", "transaction", "account"
+            ).select_for_update(of=("self",)),
             user=request.user, pk=candidate_id,
         )
         record = candidate.transaction
