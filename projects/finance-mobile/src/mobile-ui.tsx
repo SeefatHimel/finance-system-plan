@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { formatTimestamp } from "../../finance-contracts/presentation";
 import { lightMobileStyles } from "./theme-styles";
 import { useLightAppearance } from "./mobile-theme";
+import { reviewSourceSegments } from "./review-source-highlights";
 export const ui = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#081421" },
   content: { padding: 16, gap: 14 },
@@ -240,9 +241,14 @@ export function SearchSelect({
 export function SourceMessage({
   message,
   fullBody = false,
+  compact = false,
+  highlightValues = [],
 }: {
   /** A surrounding source section already owns collapse/expand. */
   fullBody?: boolean;
+  /** Review keeps the source in place but initially shows only a short excerpt. */
+  compact?: boolean;
+  highlightValues?: (string | null | undefined)[];
   message: {
     sender: string;
     received_at: string;
@@ -252,6 +258,7 @@ export function SourceMessage({
   };
 }) {
   const ui = useMobileUi();
+  const isLight = useLightAppearance();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const inlineExpanded = fullBody || expanded;
@@ -259,21 +266,26 @@ export function SourceMessage({
     message.redacted_at || message.status === "redacted" || !message.body
       ? "Original SMS is unavailable or was removed by your retention choice."
       : message.body;
+  const sourceText = highlightValues.length
+    ? reviewSourceSegments(body, highlightValues).map((segment, index) => (
+      <Text key={index} style={segment.highlighted ? { color: isLight ? "#117e5d" : "#55e6a5", fontWeight: "800" } : undefined}>{segment.text}</Text>
+    ))
+    : body;
   return (
-    <View style={ui.card}>
+    <View style={compact ? [ui.card, { padding: 12, gap: 5 }] : ui.card}>
       <Text style={ui.muted}>
-        {message.sender} · {formatTimestamp(message.received_at)}
+        {compact ? "Original SMS · " : ""}{message.sender} · {formatTimestamp(message.received_at)}
       </Text>
-      <Text selectable={inlineExpanded} numberOfLines={inlineExpanded ? undefined : 3} style={ui.text}>
-        {body}
+      <Text selectable={inlineExpanded} numberOfLines={inlineExpanded ? undefined : compact ? 2 : 3} style={compact ? [ui.text, { fontSize: 14, lineHeight: 20 }] : ui.text}>
+        {sourceText}
       </Text>
       <View style={ui.row}>
         {!fullBody ? <Pressable accessibilityRole="button"
-          accessibilityLabel={expanded ? "Collapse original SMS" : "Expand original SMS"}
+          accessibilityLabel={expanded ? "Collapse original SMS" : compact ? "Show full original SMS" : "Expand original SMS"}
           accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={ui.button}>
-          <Text style={[ui.text, { fontWeight: "700" }]}>{expanded ? "▾ Collapse SMS" : "▸ Expand SMS"}</Text>
+          <Text style={[ui.text, { fontSize: compact ? 14 : 16, fontWeight: "700" }]}>{expanded ? "Show less" : compact ? "Show full SMS" : "▸ Expand SMS"}</Text>
         </Pressable> : null}
-        <ActionButton label="View full SMS" onPress={() => setOpen(true)} />
+        {!compact ? <ActionButton label="View full SMS" onPress={() => setOpen(true)} /> : null}
       </View>
       {open ? (
         <Modal
@@ -296,7 +308,7 @@ export function SourceMessage({
                 {message.sender} · {formatTimestamp(message.received_at)}
               </Text>
               <Text selectable style={ui.text}>
-                {body}
+                {sourceText}
               </Text>
             </ScrollView>
           </SafeAreaView>

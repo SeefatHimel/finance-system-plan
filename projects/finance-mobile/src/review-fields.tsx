@@ -78,6 +78,13 @@ export function ReviewFields({
         </Text>
       ) : null}
       <CompactFields>
+        <SearchSelect key="direction"
+          label="Direction for reporting account"
+          value={draft.direction}
+          options={[{ id: "debit", name: "Debit · money out" }, { id: "credit", name: "Credit · money in" }]}
+          onChange={(direction) => onChange({ direction })}
+          disabled={busy}
+        />
         <SearchSelect key="account"
           label="Reporting account"
           value={draft.accountId}

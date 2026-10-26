@@ -15,22 +15,21 @@ test("mobile review expands full SMS inline, retains draft/input identity and ne
     provider: "demo", confidence: "0.9", counterparty_text: "Synthetic Cafe", payment_method: null, raw_message: message };
   const h = await mobileAppHarness(t, { listMessageCandidates: async () => ({ count: 1, results: [candidate] }), confirmMessageCandidate: async () => { writes++; } });
   await h.review();
+  await act(async () => button(h.tree, "Edit transaction details").props.onPress());
   await act(async () => button(h.tree, "More details").props.onPress());
   await act(async () => input(h.tree, "Note").props.onChangeText("Keep exact unsaved notes"));
   const field = input(h.tree, "Note"), before = { ...h.fields().props.draft };
-  await act(async () => button(h.tree, "Expand original SMS").props.onPress());
-  const body = h.fields().parent.findAllByType("Text").find(node => node.props.children === message.body);
-  assert.equal(body.props.numberOfLines, undefined); assert.equal(body.props.selectable, true);
+  await act(async () => button(h.tree, "Show full original SMS").props.onPress());
+  const body = h.tree.root.findAllByType("Text").find(node => node.props.selectable && node.props.numberOfLines === undefined);
+  assert(body); assert(text(h.tree).includes(message.body));
   assert.equal(button(h.tree, "Collapse original SMS").props.accessibilityState.expanded, true);
-  await act(async () => button(h.tree, "View full SMS").props.onPress());
-  assert(h.tree.root.findByType("Modal").findAllByType("Text").some(node => node.props.selectable && node.props.children === message.body));
-  await act(async () => button(h.tree, "Close original SMS").props.onPress());
+  assert.equal(button(h.tree, "View full SMS"), undefined, "compact review keeps the full source inline");
   await act(async () => h.nav.navigate("more"));
   await act(async () => h.nav.goBack());
   assert.equal(input(h.tree, "Note"), field); assert.deepEqual(h.fields().props.draft, before);
   assert.equal(button(h.tree, "Collapse original SMS").props.accessibilityState.expanded, true);
   await act(async () => button(h.tree, "Collapse original SMS").props.onPress());
-  assert.equal(body.props.numberOfLines, 3); assert.equal(writes, 0);
+  assert.equal(body.props.numberOfLines, 2); assert.equal(writes, 0);
 });
 
 test("editor source sections reveal full originals with one toggle without changing edits, consent or requests", async t => {

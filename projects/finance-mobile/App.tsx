@@ -9,7 +9,7 @@ import { AccountSummary } from "./src/account-summary";
 import { InstitutionMark } from "./src/institution-mark";
 import { TransactionEditor } from "./src/transaction-editor";
 import { RecoveryCard, useTransactionRecovery } from "./src/transaction-recovery";
-import { PRODUCT_NAME, formatCurrency, formatCalendarDate, timestampFields, presentationColors } from "../finance-contracts/presentation";
+import { PRODUCT_NAME, displayLabel, formatCurrency, formatCalendarDate, timestampFields, presentationColors } from "../finance-contracts/presentation";
 import { TransactionActivity } from "./src/transaction-activity";
 import { initialActivityFilters } from "./src/activity-model";
 import { WorkspaceScrollView } from "./src/retained-scroll";
@@ -721,14 +721,6 @@ function titleCase(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function confidencePercent(value: string) {
-  const score = Number(value);
-  if (Number.isNaN(score)) {
-    return "unknown";
-  }
-  return `${Math.round(score * 100)}%`;
-}
-
 function confidenceLabel(value: string) {
   const score = Number(value);
   if (Number.isNaN(score)) {
@@ -953,6 +945,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const [reviewActionCandidateId, setReviewActionCandidateId] = useState("");
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewCandidateDraft>>({});
   const [reviewRememberChoices, setReviewRememberChoices] = useState<Record<string, boolean>>({});
+  const [reviewEditCandidateId, setReviewEditCandidateId] = useState<string | null>(null);
   const [reviewCandidateIndex, setReviewCandidateIndex] = useState(0);
   const [reviewCandidateId, setReviewCandidateId] = useState<string | null>(null);
   const reviewMutation = useReviewMutation({
@@ -1495,7 +1488,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
 
     const draft = getReviewDraft(candidate);
     const issue = reviewDraftError(draft, accounts, categories, paymentMethods);
-    if (issue) { setReviewState("error"); setReviewMessage(issue); return; }
+    if (issue) { setReviewEditCandidateId(candidate.id); setReviewState("error"); setReviewMessage(issue); return; }
     const normalizedAmount = draft.amount.trim().replaceAll(",", "");
     const operation = {};
     reviewSubmitting.current = operation;
@@ -1670,7 +1663,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.19",
+          app_version: "0.1.20",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1692,7 +1685,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.19",
+        app_version: "0.1.20",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1769,7 +1762,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.19",
+            app_version: "0.1.20",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1784,7 +1777,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.19",
+          app_version: "0.1.20",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -4021,12 +4014,17 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         const candidate = reviewCandidates[index];
         const draft = getReviewDraft(candidate);
         const isWorking = reviewActionCandidateId === candidate.id;
+        const isEditing = reviewEditCandidateId === candidate.id;
+        const reviewIssue = reviewDraftError(draft, accounts, categories, paymentMethods);
+        const reportingAccount = accounts.find(account => account.id === draft.accountId)?.name;
+        const otherAccount = accounts.find(account => account.id === draft.transferAccountId)?.name;
+        const category = categories.find(item => item.id === draft.categoryId)?.name;
         return (
           <>
           <View style={styles.mobileReviewPager}>
             <View style={styles.mobileRowBody}>
-              <Text style={styles.mobileRowTitle}>SMS review</Text>
-              <Text style={styles.mobileRowMeta}>{index + 1} of {reviewCandidateCount} · check the original before saving</Text>
+              <Text style={styles.mobileRowTitle}>Review {index + 1} of {reviewCandidateCount}</Text>
+              <Text style={styles.mobileRowMeta}>Check the SMS, then confirm or edit</Text>
             </View>
             <Pressable
               accessibilityLabel="Previous message"
@@ -4050,26 +4048,40 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           </View>
           <View key={candidate.id} style={styles.mobileReviewCard}>
             <View style={styles.mobileHeroHeader}>
-              <InstitutionMark name={candidate.provider || candidate.raw_message.sender} size={44} />
+              <InstitutionMark name={candidate.provider || candidate.raw_message.sender} size={38} />
               <View style={styles.mobileRowBody}>
                 <Text style={styles.mobileRowTitle}>{candidate.provider || candidate.raw_message.sender}</Text>
                 <Text style={styles.mobileRowMeta}>{formatMobileDate(candidate.raw_message.received_at)} · {inputTimeFromTimestamp(candidate.raw_message.received_at)}</Text>
               </View>
-              <Text style={styles.mobileConfidence}>{confidencePercent(candidate.confidence)}</Text>
             </View>
-            <SourceMessage message={candidate.raw_message} />
-            <View style={styles.mobileReviewAmountRow}>
-              <Text style={styles.mobileReviewAmount}>{formatCurrency(draft.amount)}</Text>
-              <Pressable accessibilityRole="button" accessibilityState={{ disabled: isWorking }}
-                accessibilityLabel={`Switch to ${draft.direction === "credit" ? "debit / money sent" : "credit / money received"}`}
-                accessibilityHint={`Changes direction for ${accounts.find(account => account.id === draft.accountId)?.name ?? "the selected account"}.`}
-                disabled={isWorking} onPress={() => updateReviewDraft(candidate, { direction: draft.direction === "credit" ? "debit" : "credit" })}
-                style={[styles.mobileReviewDirectionToggle, { borderColor: draft.direction === "credit" ? "#49e0a4" : "#ff7c82", opacity: isWorking ? 0.55 : 1 }]}>
-                <Text style={{ color: draft.direction === "credit" ? "#49e0a4" : "#ff7c82", fontWeight: "700" }}>{draft.direction === "credit" ? "Credit" : "Debit"}</Text>
-                <MaterialCommunityIcons color={draft.direction === "credit" ? "#49e0a4" : "#ff7c82"} name="swap-horizontal" size={19} />
+            <SourceMessage key={candidate.id} message={candidate.raw_message} compact highlightValues={[candidate.amount, candidate.balance_after]} />
+            <View style={styles.mobileReviewSummary}>
+              <View style={styles.mobileReviewAmountRow}>
+                <Text style={styles.mobileReviewAmount}>{formatCurrency(draft.amount)}</Text>
+                <Text style={[styles.mobileReviewDirection, { color: draft.direction === "credit" ? (isLight ? "#117e5d" : "#55e6a5") : (isLight ? "#b82946" : "#ff9298") }]}>
+                  {draft.direction === "credit" ? "Money in" : "Money out"}
+                </Text>
+              </View>
+              {draft.counterpartyText.trim() ? <Text numberOfLines={1} style={styles.mobileReviewSummaryPrimary}>{draft.counterpartyText.trim()}</Text> : null}
+              <Text style={styles.mobileReviewSummaryMeta}>
+                {draft.transactionType === "transfer" && draft.direction === "credit"
+                  ? `${otherAccount ?? "Choose sender"} → ${reportingAccount ?? "Choose account"}`
+                  : `${reportingAccount ?? "Choose account"}${draft.transactionType === "transfer" ? ` → ${otherAccount ?? "Choose destination"}` : ""}`}
+              </Text>
+              <Text style={styles.mobileReviewSummaryMeta}>
+                {displayLabel(draft.transactionType)}{category ? ` · ${category}` : ""} · {formatCalendarDate(draft.date)}{draft.time ? `, ${draft.time}` : ""}
+              </Text>
+              {draft.balanceAfter.trim() ? <Text style={styles.mobileReviewSummaryMeta}>Reported balance after · {formatCurrency(draft.balanceAfter)}</Text> : null}
+              {(candidate.identity_suggestions ?? []).length ? <Text accessibilityRole="alert" style={styles.mobileReviewIssue}>Check the account against the masked identifiers in the SMS.</Text> : null}
+              {reviewIssue ? <Text accessibilityRole="alert" style={styles.mobileReviewIssue}>{reviewIssue}</Text> : null}
+              {draft.balanceNotice ? <Text accessibilityRole="alert" style={styles.mobileReviewIssue}>{draft.balanceNotice}</Text> : null}
+              <Pressable accessibilityRole="button" accessibilityState={{ expanded: isEditing }} accessibilityLabel={isEditing ? "Close transaction details" : "Edit transaction details"}
+                onPress={() => setReviewEditCandidateId(isEditing ? null : candidate.id)} style={styles.mobileReviewEditAction}>
+                <Text style={styles.mobileReviewEditText}>{isEditing ? "Done editing" : reviewIssue ? "Fix details" : "Edit details"}</Text>
+                <MaterialCommunityIcons color={isLight ? "#087b8c" : "#32d8f2"} name={isEditing ? "chevron-up" : "chevron-right"} size={20} />
               </Pressable>
             </View>
-            <Text style={styles.mobileRowMeta}>{draft.direction === "credit" ? "Money into" : "Money out of"} {accounts.find(account => account.id === draft.accountId)?.name ?? "the selected account"}</Text>
+            <View style={{ display: isEditing ? "flex" : "none", gap: 14 }} accessibilityElementsHidden={!isEditing} importantForAccessibility={isEditing ? "auto" : "no-hide-descendants"}>
             {(candidate.identity_suggestions ?? []).map(hint => {
               const reporting = hint.role === (draft.direction === "credit" ? "receiver" : "sender");
               if (!reporting && draft.transactionType !== "transfer") return null;
@@ -4089,7 +4101,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
             })}
 
             <ReviewFields error={reviewState === "error" ? reviewMessage : ""} draft={draft} accounts={accounts} categories={categories} paymentMethods={paymentMethods} busy={isWorking} onChange={patch => updateReviewDraft(candidate, patch)} rememberChoices={Boolean(reviewRememberChoices[candidate.id])} onRememberChoicesChange={value => setReviewRememberChoices(current => ({ ...current, [candidate.id]: value }))} />
-
+            </View>
           </View>
           {loadedReviewCandidates.length < reviewCandidateServerCount ? <Pressable disabled={reviewState === "loading" || reviewMutation.blocked} onPress={() => void (reviewMutation.paginationDirty ? handleLoadReviewCandidates() : handleLoadMoreReviewCandidates())} style={styles.mobileReviewLoadMore}><Text style={styles.mobileTextButtonText}>{reviewMutation.paginationDirty ? "Refresh messages to continue" : reviewState === "loading" ? "Loading more messages…" : "Load more messages"}</Text></Pressable> : null}
           </>
@@ -4362,8 +4374,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           {showSmsDiagnostics ? (
             <View style={{ gap: 10 }}>
               <Text style={styles.mobileRowMeta}>Includes sync counts, stage and error codes. SMS text and login tokens are excluded.</Text>
-              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.19", getApiBaseUrl())}</Text>
-              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.19", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
+              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.20", getApiBaseUrl())}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.20", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
                 <Text style={styles.mobileSecondaryActionText}>Share diagnostics</Text>
               </Pressable>
             </View>
@@ -5139,8 +5151,7 @@ function TransferBalanceMatchCard({ match, original, busy, onAccept }: {
 const styles = StyleSheet.create({
   mobileHelpRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
   mobileHelpIcon: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  mobileReviewAmountRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, marginTop: 12, marginBottom: 8 },
-  mobileReviewDirectionToggle: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 8, minHeight: 48, paddingHorizontal: 12, backgroundColor: "#102238" },
+  mobileReviewAmountRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 2 },
   transferMatchOverlay: { flex: 1, justifyContent: "center", padding: 12, backgroundColor: "rgba(0,0,0,0.65)" },
   transferMatchPanel: { height: "96%", maxWidth: 1100, width: "100%", alignSelf: "center", borderRadius: 18, padding: 16, backgroundColor: "#081421", gap: 10 },
   transferMatchWarning: { backgroundColor: "#2b2414", borderRadius: 8, color: "#ffbf4d", padding: 10, fontSize: 13 },
@@ -5275,18 +5286,6 @@ const styles = StyleSheet.create({
   },
   mobileChoiceTextActive: {
     color: presentationColors.accent
-  },
-  mobileConfidence: {
-    backgroundColor: "#113d38",
-    borderColor: "#18745f",
-    borderRadius: 999,
-    borderWidth: 1,
-    color: "#55e6c5",
-    fontSize: 13,
-    fontWeight: "800",
-    overflow: "hidden",
-    paddingHorizontal: 10,
-    paddingVertical: 6
   },
   mobileConfidenceBlock: {
     alignItems: "flex-end"
@@ -5955,15 +5954,23 @@ const styles = StyleSheet.create({
   },
   mobileReviewAmount: {
     color: "#f6f8fc",
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "800"
   },
+  mobileReviewDirection: { fontSize: 13, fontWeight: "800" },
+  mobileReviewSummary: { gap: 5, paddingTop: 5 },
+  mobileReviewSummaryPrimary: { color: "#f6f8fc", fontSize: 15, fontWeight: "700", lineHeight: 21 },
+  mobileReviewSummaryMeta: { color: "#91a7c2", fontSize: 13, lineHeight: 18 },
+  mobileReviewIssue: { color: "#ffb6b6", fontSize: 13, lineHeight: 19, marginTop: 4 },
+  mobileReviewEditAction: { alignItems: "center", alignSelf: "flex-start", flexDirection: "row", gap: 6, justifyContent: "center", minHeight: 48, paddingHorizontal: 6 },
+  mobileReviewEditText: { color: "#32d8f2", fontSize: 14, fontWeight: "700" },
   mobileReviewCard: {
     backgroundColor: "#0e1c2c",
     borderColor: "#263a52",
     borderRadius: 18,
     borderWidth: 1,
-    padding: 16
+    gap: 10,
+    padding: 14
   },
   mobileReviewPager: {
     alignItems: "center",

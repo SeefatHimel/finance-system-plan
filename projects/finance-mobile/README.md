@@ -1,6 +1,6 @@
 # finance-mobile
 
-## Mobile layout and startup (0.1.19)
+## Mobile layout and startup (0.1.20)
 
 The signed Android app opens an account-scoped saved session immediately, then
 checks the API in the background. A sleeping backend no longer holds the whole
@@ -10,18 +10,30 @@ and returns to sign-in. Cold starts without a saved session still show sign-in.
 
 Home now leads with the next SMS requiring review, shows compact account balances
 in their own currencies, Quick Add shortcuts and three recent entries. Activity
-keeps transaction amounts to the right on narrow screens. Review puts the
-original SMS ahead of editable fields and preloads the next inbox page near the
-end of the loaded window. Capture leads with Scan; completed setup details stay
+keeps transaction amounts to the right on narrow screens. Review preloads the
+next inbox page near the end of the loaded window. Capture leads with Scan; completed setup details stay
 available behind a labelled control. Accounts and preset-management rows open
 details on demand, while balance mismatches stay visible on collapsed rows.
+
+### Compact SMS review (0.1.20)
+
+Review starts with a two-line excerpt of the original SMS, highlighted parsed
+amount and reported balance, and a concise proposed transaction summary. The
+full selectable SMS expands inline. Missing required values, account-identity
+warnings, and a changed reporting balance stay visible before confirmation.
+**Edit details** reveals the mounted correction form and account suggestions;
+collapsing it does not discard draft edits. Debit/credit is corrected explicitly
+in that form. Confirm still validates every field and opens corrections when a
+required value is missing. This is an app-only UI change; the existing review
+API and saved transaction rules remain the same. Install the 0.1.20 build to
+see this screen; physical-phone layout/accessibility checks are still needed.
 
 Institution badges use local initials and distinct colors for recognized bank and
 wallet names, with a neutral fallback for custom accounts. They are not bank or
 wallet logos; no external image request is needed at runtime. This release does
 not change transaction classification, saved financial data, SMS permissions or
 backend APIs. See [the signed release guide](docs/signed-android-release.md)
-for the 0.1.19 build and physical-device checks.
+for the 0.1.20 build and physical-device checks.
 
 The **More → Profile & appearance** screen lets a signed-in user update their
 first name, last name and email through `PATCH /api/auth/me/`. Username stays
@@ -541,13 +553,10 @@ review header shows its local received time alongside the date. This JavaScript
 UI change requires a new installed app build; it is not included in the already
 produced 0.1.7 APK.
 
-The primary SMS review screen places a compact Debit/Credit button and change
-icon beside the amount, replacing its two direction choices further down.
-The reporting-account caption and accessibility hint explain the scope. A tap
-updates only the existing candidate direction draft, retaining edited values,
-selected accounts and classification; it does not confirm the message. The
-44px button has a textual state and is disabled during confirmation. This source
-UI change requires the next installed app build.
+The compact SMS review summary displays the proposed debit/credit direction as
+read-only evidence. To correct it, open **Edit details** and select the direction
+for the reporting account. That changes only the draft and keeps the original
+SMS visible for comparison; confirmation remains a separate action.
 
 ### Transfer matching balance conflicts
 

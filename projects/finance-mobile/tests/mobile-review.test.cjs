@@ -311,6 +311,45 @@ test("review validation preserves zero, allows grouped reported balances and rej
   );
 });
 
+test("compact source keeps the original available and highlights parsed money without treating masked card digits as amounts", async () => {
+  const { reviewSourceSegments } = nativeHarness().load("review-source-highlights");
+  const body = "Cash WD BDT40000 from card 447780**5025. Balance BDT 702818.6";
+  const segments = reviewSourceSegments(body, ["40000.00", "702818.60", "5025.00"]);
+  assert.equal(segments.map(segment => segment.text).join(""), body);
+  assert.deepEqual(segments.filter(segment => segment.highlighted).map(segment => segment.text), ["40000", "702818.6"]);
+  const small = reviewSourceSegments("01/07/2026 Balance BDT 0.00", ["0.00"]);
+  assert.deepEqual(small.filter(segment => segment.highlighted).map(segment => segment.text), ["0.00"]);
+
+  const { SourceMessage } = nativeHarness().load("mobile-ui");
+  let tree;
+  await act(async () => { tree = create(React.createElement(SourceMessage, {
+    compact: true,
+    highlightValues: ["40000.00", "702818.60"],
+    message: { sender: "Demo bank", received_at: "2026-07-27T12:00:00Z", body },
+  })); });
+  assert.equal(tree.root.findAllByType("Text").find(node => node.props.numberOfLines === 2)?.props.numberOfLines, 2);
+  assert(button(tree, "Show full original SMS"));
+  await act(async () => button(tree, "Show full original SMS").props.onPress());
+  assert(tree.root.findAllByType("Text").some(node => node.props.selectable && node.props.numberOfLines === undefined));
+  await act(async () => tree.unmount());
+});
+
+test("review details still allow an explicit debit or credit correction", async () => {
+  const { ReviewFields } = nativeHarness().load("review-fields");
+  const changes = [];
+  let tree;
+  await act(async () => { tree = create(React.createElement(ReviewFields, {
+    draft: { transactionType: "expense", direction: "debit", accountId: "bank", transferAccountId: "", categoryId: "", amount: "20.00", balanceAfter: "", date: "2026-10-01", time: "", counterpartyText: "", reference: "", note: "", paymentMethodId: "" },
+    accounts: [{ id: "bank", name: "Demo bank", currency: "BDT", is_active: true }],
+    categories: [], paymentMethods: [], busy: false, rememberChoices: false,
+    onRememberChoicesChange() {}, onChange: patch => changes.push(patch),
+  })); });
+  await act(async () => button(tree, "Direction for reporting account: Debit · money out").props.onPress());
+  await act(async () => button(tree, "Credit · money in").props.onPress());
+  assert.deepEqual(changes, [{ direction: "credit" }]);
+  await act(async () => tree.unmount());
+});
+
 test("a non-transfer editor never resurrects historical transfer balances", () => {
   const row = {
     ...base,

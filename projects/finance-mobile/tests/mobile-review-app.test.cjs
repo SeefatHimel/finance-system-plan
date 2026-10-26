@@ -8,6 +8,21 @@ const candidate = (id, extra = {}) => ({ id, status: "needs_review", transaction
   raw_message: { id: `sms-${id}`, sender: "DEMO", body: "Synthetic test fixture", received_at: "2026-10-01T12:34:56Z", status: "parsed" }, ...extra });
 const fail = message => Object.assign(new Error(message), { status: 400 });
 
+test("review starts compact and opens corrections when a required account is missing", async t => {
+  let writes = 0;
+  const h = await mobileAppHarness(t, {
+    listMessageCandidates: async () => ({ count: 1, results: [candidate("needs-account", { account: null })] }),
+    confirmMessageCandidate: async () => { writes++; },
+  });
+  await h.review();
+  assert.equal(button(h.tree, "Edit transaction details").props.accessibilityState.expanded, false);
+  assert.match(text(h.tree), /Choose an active reporting account/);
+  assert.match(text(h.tree), /Original SMS/);
+  await act(async () => button(h.tree, "Confirm & add").props.onPress());
+  assert.equal(writes, 0);
+  assert.equal(button(h.tree, "Close transaction details").props.accessibilityState.expanded, true);
+});
+
 test("a sleeping API does not keep a saved session behind the startup gate", async t => {
   const wake = deferred();
   const h = await mobileAppHarness(t, { getCurrentUser: () => wake.promise });
@@ -32,6 +47,7 @@ test("App advances instantly, retains the next edits, restores the failed draft 
     },
   });
   await h.review();
+  await act(async () => button(h.tree, "Edit transaction details").props.onPress());
   await act(async () => button(h.tree, "More details").props.onPress());
   await act(async () => input(h.tree, "Note").props.onChangeText("Exact first draft"));
   await act(async () => input(h.tree, "Reference").props.onChangeText("EDITED-A"));
@@ -39,7 +55,7 @@ test("App advances instantly, retains the next edits, restores the failed draft 
   await act(async () => button(h.tree, "Confirm & add").props.onPress());
   assert.equal(posts, 1);
   assert.equal(remembered, false, "ordinary confirmation does not silently save a sender mapping");
-  assert.match(text(h.tree), /1 of 2 · check the original before saving/);
+  assert.match(text(h.tree), /Review 1 of 2/);
   assert.equal(h.fields().props.draft.reference, "DEMO-b");
   assert.equal(h.fields().props.busy, false, "the next form stays editable");
   assert.equal(button(h.tree, "Confirm & add"), undefined, "pending save replaces the decision bar");
@@ -74,6 +90,7 @@ test("SMS review learns similar-message choices only after explicit opt in", asy
     confirmMessageCandidate: async (_token, _id, input) => { remembered = input.remember_mapping; return pending.promise; },
   });
   await h.review();
+  await act(async () => button(h.tree, "Edit transaction details").props.onPress());
   await act(async () => button(h.tree, "More details").props.onPress());
   const remember = button(h.tree, "Use these choices for similar SMS");
   assert.equal(remember.props.accessibilityState.checked, false);
@@ -100,9 +117,9 @@ test("App holds both source drafts until explicit transfer acceptance and rolls 
   await act(async () => h.fields().props.onChange({ note: "Counterpart draft" }));
   await act(async () => button(h.tree, "Previous message").props.onPress());
   await act(async () => button(h.tree, "Confirm & add").props.onPress());
-  assert.match(text(h.tree), /1 of 3 · check the original before saving/); assert.equal(links, 0);
+  assert.match(text(h.tree), /Review 1 of 3/); assert.equal(links, 0);
   await act(async () => h.textButton("Confirm as one transfer").props.onPress());
-  assert.equal(links, 1); assert.match(text(h.tree), /1 of 1 · check the original before saving/);
+  assert.equal(links, 1); assert.match(text(h.tree), /Review 1 of 1/);
   assert.equal(h.tree.root.findAllByType("Modal").length, 0);
   await act(async () => pending.reject(fail("Reported balances changed. Review again.")));
   assert.match(text(h.tree), /Reported balances changed/);

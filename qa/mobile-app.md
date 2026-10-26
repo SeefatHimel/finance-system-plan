@@ -768,6 +768,19 @@ Changing a known reporting account during SMS review now omits the original
 account’s parsed balance and shows a visible warning; zero balances remain valid.
 Type/direction corrections alone do not clear that account’s balance.
 
+### How does the compact mobile SMS Review keep evidence and corrections available?
+
+The pending Review screen leads with a short original-SMS excerpt and a proposed
+amount, direction, account path, type, date and reported balance. Parsed monetary
+values are highlighted in the unchanged SMS text. The full selectable original
+expands inline; masked identifiers and missing or invalid fields remain visible
+as warnings. **Edit details** reveals the existing mounted correction controls,
+including an explicit debit/credit selector and account suggestions, without
+resetting edits when collapsed. Confirm validates the complete draft and opens
+the controls on a missing required value. Existing API validation, transfer
+matching and save recovery still apply. This is mobile UI only and needs a new
+installed app build plus a physical-device layout and accessibility check.
+
 ### How do native review and saved-entry editing avoid losing corrections?
 
 Stable field components retain typing through lookup/token refreshes. Searchable
