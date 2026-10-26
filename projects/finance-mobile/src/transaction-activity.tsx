@@ -8,6 +8,7 @@ import {
 import { useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRetainedScroll } from "./retained-scroll";
+import { InstitutionMark } from "./institution-mark";
 import {
   ActivityIndicator,
   FlatList,
@@ -603,29 +604,23 @@ export function TransactionActivity({
               ) : null}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`View transaction: ${row.counterparty_text || title(row.type)}, ${money(row.amount, currency)}, ${row.date}`}
+                accessibilityLabel={`View transaction: ${row.counterparty_text || row.note || category || title(row.type)}, ${money(row.amount, currency)}, ${row.date}`}
                 onPress={() => setSelected(row)}
                 style={[s.row, tone === "transfer" ? s.transferRow : tone === "credit" ? s.creditRow : s.debitRow]}
               >
-                <View style={[s.typeIcon, tone === "transfer" ? s.transferIcon : tone === "credit" ? s.creditIcon : s.debitIcon]}>
-                  <Text style={[s.typeIconText, tone === "transfer" ? s.transferText : tone === "credit" ? s.credit : s.debitText]}>
-                    {transfer ? "↔" : receiving ? "↓" : "↑"}
-                  </Text>
-                </View>
+                <InstitutionMark name={accountNames.get(row.account) ?? "Unknown account"} type={accounts.find(item => item.id === row.account)?.type} size={36} />
                 <View style={s.rowBody}>
                   <Text numberOfLines={2} style={s.rowTitle}>
                     {transfer
                       ? `${accountNames.get(row.account) ?? "Unknown"} → ${accountNames.get(row.transfer_account ?? "") ?? "Unknown"}`
-                      : row.counterparty_text || row.note || title(row.type)}
+                      : row.counterparty_text || row.note || category || title(row.type)}
                   </Text>
-                  <Text style={s.muted}>
+                  <Text numberOfLines={1} style={s.muted}>
                     {title(row.type)}{category ? ` · ${category}` : ""} ·{" "}
                     {transfer
                       ? "Between accounts"
                       : (accountNames.get(row.account) ?? "Unknown account")}
-                  </Text>
-                  <Text style={s.muted}>
-                    {row.time?.slice(0, 5) || "Time not reported"} · {title(row.source)}
+                    {` · ${row.time?.slice(0, 5) || "Time not reported"} · ${title(row.source)}`}
                     {filters.ordering !== "-date" ? ` · ${dateLabel(row.date)}` : ""}
                   </Text>
                 </View>
@@ -713,7 +708,6 @@ const darkActivityStyles = StyleSheet.create({
     padding: 14,
     gap: 8,
     flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "center",
     borderLeftWidth: 3,
@@ -721,7 +715,7 @@ const darkActivityStyles = StyleSheet.create({
   debitRow: { borderLeftColor: "#ff9399" },
   creditRow: { borderLeftColor: "#55e6a5" },
   transferRow: { borderLeftColor: "#75b8ff" },
-  rowBody: { flexGrow: 1, flexShrink: 1, minWidth: 140, gap: 4 },
+  rowBody: { flex: 1, minWidth: 0, gap: 3 },
   rowTitle: { color: "#f6f8fc", fontSize: 15, fontWeight: "700" },
   typeIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   typeIconText: { fontSize: 18, fontWeight: "700" },
@@ -734,7 +728,9 @@ const darkActivityStyles = StyleSheet.create({
     color: "#d8e3f0",
     fontSize: 15,
     fontWeight: "700",
-    flexShrink: 1,
+    flexShrink: 0,
+    maxWidth: "42%",
+    textAlign: "right",
   },
   credit: { color: "#55e6a5" },
   day: {

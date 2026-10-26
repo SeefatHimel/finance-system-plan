@@ -1,5 +1,28 @@
 # finance-mobile
 
+## Mobile layout and startup (0.1.19)
+
+The signed Android app opens an account-scoped saved session immediately, then
+checks the API in the background. A sleeping backend no longer holds the whole
+screen behind startup; cached account and activity data remain marked as saved
+snapshots until refreshed. An invalid session still clears local account state
+and returns to sign-in. Cold starts without a saved session still show sign-in.
+
+Home now leads with the next SMS requiring review, shows compact account balances
+in their own currencies, Quick Add shortcuts and three recent entries. Activity
+keeps transaction amounts to the right on narrow screens. Review puts the
+original SMS ahead of editable fields and preloads the next inbox page near the
+end of the loaded window. Capture leads with Scan; completed setup details stay
+available behind a labelled control. Accounts and preset-management rows open
+details on demand, while balance mismatches stay visible on collapsed rows.
+
+Institution badges use local initials and distinct colors for recognized bank and
+wallet names, with a neutral fallback for custom accounts. They are not bank or
+wallet logos; no external image request is needed at runtime. This release does
+not change transaction classification, saved financial data, SMS permissions or
+backend APIs. See [the signed release guide](docs/signed-android-release.md)
+for the 0.1.19 build and physical-device checks.
+
 The **More → Profile & appearance** screen lets a signed-in user update their
 first name, last name and email through `PATCH /api/auth/me/`. Username stays
 read-only. Appearance offers System, Light and Dark; the device keeps this

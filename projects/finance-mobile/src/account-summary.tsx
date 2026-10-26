@@ -1,6 +1,8 @@
-import { Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
 import { useMobileUi, ActionButton } from "./mobile-ui";
 import type { Account } from "./api";
+import { InstitutionMark } from "./institution-mark";
 import {
   displayLabel,
   formatCalendarDate,
@@ -17,32 +19,28 @@ export function AccountSummary({
 }) {
   const ui = useMobileUi();
   const comparison = account.reported_balance_comparison;
+  const [expanded, setExpanded] = useState(false);
+  const hasDifference = comparison === "mismatch" && account.type !== "credit_card";
   return (
     <View style={ui.card}>
-      <View style={ui.row}>
-        <Text accessibilityRole="header" style={[ui.title, { flexGrow: 1 }]}>
-          {account.name}
-        </Text>
-        <Text style={ui.muted}>
-          {account.is_active === false
-            ? "Inactive"
-            : account.is_active === true
-              ? "Active"
-              : "Saved"}
-        </Text>
-      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${account.name}, ledger balance ${formatCurrency(account.ledger_balance, account.currency)}${hasDifference ? ", reported balance needs review" : ""}`}
+        accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={ui.row}>
+        <InstitutionMark name={account.name} type={account.type} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={ui.title}>{account.name}</Text>
+          <Text style={ui.muted}>{displayLabel(account.type)} · {account.currency}{account.is_active === false ? " · Inactive" : ""}</Text>
+        </View>
+        <View style={{ alignItems: "flex-end", flexShrink: 1 }}>
+          <Text numberOfLines={1} adjustsFontSizeToFit style={ui.text}>{formatCurrency(account.ledger_balance, account.currency)}</Text>
+          <Text style={hasDifference ? ui.error : ui.muted}>{hasDifference ? "Check balance · " : "Details · "}{expanded ? "⌃" : "⌄"}</Text>
+        </View>
+      </Pressable>
+      {expanded ? <>
       {cached ? (
         <Text style={ui.muted}>
           Saved account snapshot · refresh when connected
         </Text>
       ) : null}
-      <Text style={ui.muted}>
-        {displayLabel(account.type)} · {account.currency}
-      </Text>
-      <Text style={ui.muted}>Ledger balance</Text>
-      <Text style={ui.title}>
-        {formatCurrency(account.ledger_balance, account.currency)}
-      </Text>
       <Text style={ui.muted}>
         Latest reported balance
         {account.latest_reported_balance_date
@@ -85,6 +83,7 @@ export function AccountSummary({
           Check report timing before comparing with today's balance.
         </Text>
       ) : null}
+      </> : null}
     </View>
   );
 }

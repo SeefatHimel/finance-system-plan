@@ -1,5 +1,26 @@
 # Mobile App Q&A
 
+### How does the app behave while a free backend wakes up?
+
+When a saved session exists, mobile shows the authenticated workspace and its
+account-scoped cached snapshot immediately while the API verifies the token and
+refreshes data in the background. A connectivity delay does not block navigation.
+If the token is rejected and refresh also fails with an authentication error, the
+app clears local account data and returns to sign-in. Cached values are labelled
+as snapshots; they are not presented as newly verified balances.
+
+### What changed in the mobile review flow and account visuals?
+
+The next SMS to review appears prominently on Home. Review displays the source
+SMS before editable fields, and loads more candidates as the user approaches the
+end of the current window. Capture puts scanning first and groups completed
+setup controls. Accounts and preset-management rows expand on demand; an account
+balance discrepancy remains visible even when its detail is closed. Activity
+keeps the amount in a dedicated right-hand column. Bank and wallet badges use
+local text/color identifiers, not third-party logos, and custom names receive
+initials. Each account balance retains its own currency; the app does not combine
+different accounts into a misleading single total.
+
 ### How does mobile profile editing and appearance work?
 
 More → Profile & appearance reads the authenticated user and PATCHes only first

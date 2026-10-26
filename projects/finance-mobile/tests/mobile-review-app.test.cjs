@@ -8,6 +8,15 @@ const candidate = (id, extra = {}) => ({ id, status: "needs_review", transaction
   raw_message: { id: `sms-${id}`, sender: "DEMO", body: "Synthetic test fixture", received_at: "2026-10-01T12:34:56Z", status: "parsed" }, ...extra });
 const fail = message => Object.assign(new Error(message), { status: 400 });
 
+test("a sleeping API does not keep a saved session behind the startup gate", async t => {
+  const wake = deferred();
+  const h = await mobileAppHarness(t, { getCurrentUser: () => wake.promise });
+  assert.match(text(h.tree), /Account balances/);
+  await h.review();
+  assert.match(text(h.tree), /Nothing to review/);
+  await act(async () => wake.resolve({ id: "synthetic-owner", username: "demo" }));
+});
+
 test("App advances instantly, retains the next edits, restores the failed draft and safely retries rejection", async t => {
   const pending = deferred(), rows = [candidate("a"), candidate("b"), candidate("c")];
   let posts = 0, rejection, reads = 0, remembered;
@@ -30,7 +39,7 @@ test("App advances instantly, retains the next edits, restores the failed draft 
   await act(async () => button(h.tree, "Confirm & add").props.onPress());
   assert.equal(posts, 1);
   assert.equal(remembered, false, "ordinary confirmation does not silently save a sender mapping");
-  assert.match(text(h.tree), /Message 1 of 2/);
+  assert.match(text(h.tree), /1 of 2 · check the original before saving/);
   assert.equal(h.fields().props.draft.reference, "DEMO-b");
   assert.equal(h.fields().props.busy, false, "the next form stays editable");
   assert.equal(button(h.tree, "Confirm & add"), undefined, "pending save replaces the decision bar");
@@ -91,9 +100,9 @@ test("App holds both source drafts until explicit transfer acceptance and rolls 
   await act(async () => h.fields().props.onChange({ note: "Counterpart draft" }));
   await act(async () => button(h.tree, "Previous message").props.onPress());
   await act(async () => button(h.tree, "Confirm & add").props.onPress());
-  assert.match(text(h.tree), /Message 1 of 3/); assert.equal(links, 0);
+  assert.match(text(h.tree), /1 of 3 · check the original before saving/); assert.equal(links, 0);
   await act(async () => h.textButton("Confirm as one transfer").props.onPress());
-  assert.equal(links, 1); assert.match(text(h.tree), /Message 1 of 1/);
+  assert.equal(links, 1); assert.match(text(h.tree), /1 of 1 · check the original before saving/);
   assert.equal(h.tree.root.findAllByType("Modal").length, 0);
   await act(async () => pending.reject(fail("Reported balances changed. Review again.")));
   assert.match(text(h.tree), /Reported balances changed/);
@@ -112,7 +121,7 @@ test("App ignores a pre-save refresh response and keeps the last pending decisio
     confirmMessageCandidate: async () => { posts++; return save.promise; },
   });
   await h.review();
-  await act(async () => { void h.textButton("Refresh inbox").props.onPress(); });
+  await act(async () => { void button(h.tree, "Refresh SMS review inbox").props.onPress(); });
   await act(async () => button(h.tree, "Confirm & add").props.onPress());
   assert.match(text(h.tree), /Review decision pending/); assert.match(text(h.tree), /Saving review decision/);
   await act(async () => refresh.resolve({ count: 1, results: [row] }));

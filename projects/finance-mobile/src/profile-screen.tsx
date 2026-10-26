@@ -86,7 +86,7 @@ export function ProfileScreen({ accessToken, isLight, onSignOut, preference, set
     </View>
     <View style={[sheet.hero, { backgroundColor: isLight ? "#e7f7f0" : "#14392e", borderColor: isLight ? "#c5e8d9" : "#28624a" }]}>
       <View style={sheet.heroGlow} />
-      <View style={[sheet.avatar, { backgroundColor: isLight ? "#d0eee0" : "#205943" }]}><Text style={sheet.avatarText}>{initials}</Text></View>
+      <View style={[sheet.avatar, { backgroundColor: isLight ? "#d0eee0" : "#205943" }]}><Text style={[sheet.avatarText, { color: isLight ? "#0c7054" : "#e7fff1" }]}>{initials}</Text></View>
       <Text style={[sheet.heroName, { color: ink }]}>{fullName}</Text>
       <Text style={[sheet.heroMeta, { color: muted }]}>@{username}</Text>
       {user?.email ? <Text style={[sheet.heroMeta, { color: muted }]}>{user.email}</Text> : null}

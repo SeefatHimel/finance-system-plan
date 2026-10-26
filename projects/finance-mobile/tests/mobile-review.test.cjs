@@ -10,6 +10,14 @@ const {
   act,
 } = require("./helpers/native-harness.cjs");
 const model = nativeHarness().load("transaction-draft");
+test("institution badges identify supported names without inventing a logo for custom accounts", () => {
+  const { institutionBadge } = nativeHarness().load("institution-mark");
+  assert.equal(institutionBadge("EBL savings").label, "EBL");
+  assert.equal(institutionBadge("bKash").label, "b");
+  assert.equal(institutionBadge("Dutch-Bangla Bank").label, "DB");
+  assert.equal(institutionBadge("Home Cash", "cash").label, "cash");
+  assert.equal(institutionBadge("My Joint Savings").label, "MJ");
+});
 const base = {
   id: "demo-entry",
   type: "expense",
@@ -261,6 +269,8 @@ test("account mismatch compares the ledger at the dated report; credit card refe
       React.createElement(AccountSummary, { account, onReview: () => {} }),
     );
   });
+  assert.match(text(tree), /Check balance/);
+  await act(async () => tree.root.findAllByType("Pressable").find(node => node.props.accessibilityLabel?.startsWith("Demo bank, ledger balance")).props.onPress());
   assert.match(text(tree), /Ledger at report: BDT 200.00/);
   assert.match(text(tree), /Reported minus ledger at report: BDT 0.07/);
   assert(button(tree, "Review balance difference for Demo bank"));

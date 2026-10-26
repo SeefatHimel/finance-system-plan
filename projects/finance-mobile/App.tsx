@@ -6,6 +6,7 @@ import { SyncSummary, useServerSyncStatus } from "./src/sync-summary";
 import { ManualEntryFields, type ManualEntryDraft } from "./src/manual-entry-fields";
 import { ReviewFields, type ReviewDraft } from "./src/review-fields";
 import { AccountSummary } from "./src/account-summary";
+import { InstitutionMark } from "./src/institution-mark";
 import { TransactionEditor } from "./src/transaction-editor";
 import { RecoveryCard, useTransactionRecovery } from "./src/transaction-recovery";
 import { PRODUCT_NAME, formatCurrency, formatCalendarDate, timestampFields, presentationColors } from "../finance-contracts/presentation";
@@ -137,7 +138,6 @@ import { darkenLegacyMobileStyles, lightMobileStyles } from "./src/theme-styles"
 type ViewState = "idle" | "loading" | "success" | "error";
 type SmsPermissionState = "unknown" | "checking" | "granted" | "denied";
 type SmsScanMode = "new" | "history";
-type HomeFeed = "review" | "captured";
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 type ReviewCandidateDraft = ReviewDraft;
 function isIncomingReview(candidate: ParsedMessageCandidate) {
@@ -796,12 +796,15 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const styles = isLight ? lightStyles : darkStyles;
   const ui = isLight ? lightUi : darkUi;
   const quickHub = useRef<QuickAddHandle>(null);
+  const sessionGeneration = useRef(0);
   const [editingTransaction, setEditingTransaction] = useState<{ id: string; scope: string } | null>(null);
   const reviewSubmitting = useRef<object | null>(null);
   const reviewLoadRequest = useRef(0);
   const manualSubmitting = useRef<object | null>(null), transferSubmitting = useRef<object | null>(null), reconciliationRequest = useRef(0);
   const [quickFavorites, setQuickFavorites] = useState<QuickPreset[]>([]);
   const [quickPendingCount, setQuickPendingCount] = useState(0);
+  const [captureSetupOpen, setCaptureSetupOpen] = useState(false);
+  const [serverVerifiedEpoch, setServerVerifiedEpoch] = useState(0);
   const [txCounterparty, setTxCounterparty] = useState("");
   const [iconsLoaded, iconFontError] = useFonts(MaterialCommunityIcons.font);
   const [result, setResult] = useState<HealthResult | null>(null);
@@ -1008,7 +1011,6 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     Keyboard.dismiss();
     if (navigation.isReady() && navigation.canGoBack()) navigation.goBack();
   }
-  const [homeFeed, setHomeFeed] = useState<HomeFeed>("review");
   const [drawerVisible, setDrawerVisible] = useState(false);
   const drawerTranslateX = useRef(new Animated.Value(-320)).current;
 
@@ -1668,7 +1670,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.18",
+          app_version: "0.1.19",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1690,7 +1692,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.18",
+        app_version: "0.1.19",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1767,7 +1769,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.18",
+            app_version: "0.1.19",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1782,7 +1784,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.18",
+          app_version: "0.1.19",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -2611,6 +2613,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   };
 
   const handleLogin = async () => {
+    sessionGeneration.current += 1;
     setAuthState("loading");
     setAuthMessage("");
 
@@ -2974,6 +2977,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const switchTab = (nextTab: MainTab) => navigateWorkspace(nextTab);
 
   const handleLogout = async () => {
+    sessionGeneration.current += 1;
     let sessionRefreshToken = refreshToken.trim();
     clearLocalAccountState();
     setAccessToken("");
@@ -3012,6 +3016,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   };
 
   useEffect(() => {
+    const generation = sessionGeneration.current;
     void loadHealth();
     void refreshSmsPermissionState();
     void refreshSmsBackgroundStatus();
@@ -3029,29 +3034,48 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
 
         setUsername(storedSession.username);
         const nativeSession = await getNativeSmsBackgroundSyncSession();
+        if (generation !== sessionGeneration.current) return;
         const sessionToRestore = nativeSession?.username === storedSession.username
           ? { ...storedSession, access: nativeSession.access, refresh: nativeSession.refresh }
           : storedSession;
+        // The saved token and account-scoped cache can render immediately. A
+        // sleeping API must not hold the entire app on the restoration screen.
+        setAccessToken(sessionToRestore.access);
+        setRefreshToken(sessionToRestore.refresh);
+        setAuthState("ok");
+        setAuthMessage("Checking your connection…");
+        setSessionRestoring(false);
         try {
           await getCurrentUser(sessionToRestore.access);
+          if (generation !== sessionGeneration.current) return;
           await saveSession({ ...sessionToRestore, username: storedSession.username });
           setAccessToken(sessionToRestore.access);
           setRefreshToken(sessionToRestore.refresh);
           setAuthState("ok");
           setAuthMessage("Session restored.");
+          // Initial data requests can time out while the host wakes. Retry
+          // them once the authenticated API has answered, keeping cached rows.
+          setServerVerifiedEpoch(epoch => epoch + 1);
         } catch (error) {
+          if (generation !== sessionGeneration.current) return;
           if (error instanceof AuthenticationError) {
             try {
               const tokens = await recoverStoredSession(sessionToRestore);
+              if (generation !== sessionGeneration.current) return;
               await saveSession({ ...tokens, username: storedSession.username });
               setAccessToken(tokens.access);
               setRefreshToken(tokens.refresh);
               setAuthState("ok");
               setAuthMessage("Session refreshed.");
+              setServerVerifiedEpoch(epoch => epoch + 1);
               return;
             } catch (refreshError) {
+              if (generation !== sessionGeneration.current) return;
               if (refreshError instanceof AuthenticationError) {
                 await clearSession();
+                clearLocalAccountState();
+                setAccessToken("");
+                setRefreshToken("");
                 setAuthState("error");
                 setAuthMessage("Your previous session expired. Sign in again.");
                 return;
@@ -3059,6 +3083,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
             }
           }
 
+          if (generation !== sessionGeneration.current) return;
           setAccessToken(sessionToRestore.access);
           setRefreshToken(sessionToRestore.refresh);
           setAuthState("ok");
@@ -3066,6 +3091,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         }
       })
       .catch(() => {
+        if (generation !== sessionGeneration.current) return;
         setAuthState("error");
         setAuthMessage("Could not restore the saved session.");
       })
@@ -3202,8 +3228,9 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       handleLoadReviewCandidates(),
       handleLoadSmsSettings()
     ]);
-  // Identity/cache hydration starts this load; token rotation must not reload workspaces.
-  }, [cacheReadyScope, localDataScope]);
+  // Identity/cache hydration starts this load; API wake-up gets one retry.
+  // Token rotation alone must not reload workspaces.
+  }, [cacheReadyScope, localDataScope, serverVerifiedEpoch]);
 
   useEffect(() => {
     if (accessToken.trim() && username.trim() && rawQueue.length > 0) {
@@ -3891,29 +3918,22 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   ];
   const drawerItems = mobileDestinations;
   const primaryCandidate = reviewCandidates[0] ?? null;
-  const additionalCandidates = reviewCandidates.slice(1, 3);
   const recentTransactions = transactions.slice(0, 8);
   const homeAccounts = accounts.filter(account => account.is_active !== false).slice(0, 3);
 
   const renderTransactionRow = (transaction: Transaction) => {
     const isIncome = transaction.type !== "transfer" && (transaction.type === "income" || transaction.direction === "credit");
-    const icon: IconName = transaction.type === "transfer" ? "swap-horizontal" : isIncome ? "bank-transfer-in" : "cart-outline";
     const title = transaction.type === "transfer" ? `${accountName(transaction.account)} → ${accountName(transaction.transfer_account)}` : transaction.counterparty_text || transaction.note || titleCase(transaction.type);
     const isTransfer = transaction.type === "transfer";
     const categoryName = categories.find(category => category.id === transaction.category)?.name;
 
     return (
       <View key={transaction.id} style={styles.mobileListRow}>
-        <View style={[styles.mobileRowIcon, isTransfer ? null : isIncome ? styles.mobileRowIconSuccess : styles.mobileRowIconDebit]}>
-          <MaterialCommunityIcons color={isTransfer ? "#75b8ff" : isIncome ? "#55e6a5" : "#ff9399"} name={icon} size={21} />
-        </View>
+        <InstitutionMark name={accountName(transaction.account)} type={accounts.find(account => account.id === transaction.account)?.type} size={38} />
         <View style={styles.mobileRowBody}>
           <Text numberOfLines={1} style={styles.mobileRowTitle}>{title}</Text>
           <Text numberOfLines={1} style={styles.mobileRowMeta}>
-            {titleCase(transaction.type)}{categoryName ? ` · ${categoryName}` : ""} · {accountName(transaction.account)}
-          </Text>
-          <Text numberOfLines={1} style={styles.mobileRowMeta}>
-            {formatMobileDate(transaction.date)}{transaction.time ? ` at ${transaction.time.slice(0, 5)}` : ""} · {transaction.source || "Ledger"}
+            {categoryName || titleCase(transaction.type)} · {accountName(transaction.account)} · {formatMobileDate(transaction.date)} · {transaction.source || "Ledger"}
           </Text>
           {transaction.type === "transfer" ? transaction.transfer_evidence?.map((item) => <Text key={item.id} style={styles.mobileRowMeta}>{accountName(item.account)} · {item.direction}{item.reference ? ` · ${item.reference}` : ""}{item.balance_after !== null ? ` · balance ${formatCurrency(item.balance_after, accounts.find(account => account.id === item.account)?.currency ?? "BDT")}` : ""}</Text>) : null}
         </View>
@@ -3930,40 +3950,20 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     setReviewCandidateId(id);
     setReviewCandidateIndex(index);
     switchTab("review");
+    if (index >= reviewCandidates.length - 3 && loadedReviewCandidates.length < reviewCandidateServerCount) {
+      void handleLoadMoreReviewCandidates();
+    }
   }
-
-  const renderCompactCandidate = (candidate: ParsedMessageCandidate) => {
-    const confidence = confidencePercent(candidate.confidence);
-    const confidenceScore = Number(candidate.confidence);
-    const isLowConfidence = Number.isFinite(confidenceScore) && confidenceScore < 0.8;
-    return (
-      <Pressable
-        key={candidate.id}
-        onPress={() => openReviewCandidate(candidate.id)}
-        style={({ pressed }) => [styles.mobileQueueRow, pressed ? styles.mobilePressed : null]}
-      >
-        <View style={styles.mobileProviderIcon}>
-          <MaterialCommunityIcons color="#32d8f2" name="message-text-outline" size={21} />
-        </View>
-        <View style={styles.mobileRowBody}>
-          <Text style={styles.mobileRowTitle}>{candidate.provider || candidate.raw_message.sender}</Text>
-          <Text numberOfLines={1} style={styles.mobileRowMeta}>
-            {candidate.counterparty_text || titleCase(candidate.transaction_type)}
-          </Text>
-          <Text style={styles.mobileQueueAmount}>{formatCurrency(candidate.amount)}</Text>
-        </View>
-        <View style={styles.mobileQueueAside}>
-          <Text style={[styles.mobileConfidence, isLowConfidence ? styles.mobileConfidenceWarning : null]}>
-            {confidence}
-          </Text>
-          <MaterialCommunityIcons color="#91a7c2" name="chevron-right" size={24} />
-        </View>
-      </Pressable>
-    );
-  };
 
   const renderHome = () => (
     <View style={styles.mobileSectionStack}>
+      {primaryCandidate ? <Pressable accessibilityRole="button" onPress={() => openReviewCandidate(primaryCandidate.id)} style={styles.mobileHomePriority}>
+        <View style={styles.mobileRowBody}>
+          <Text style={styles.mobileHomePriorityTitle}>{reviewCandidateCount} to review</Text>
+          <Text numberOfLines={1} style={styles.mobileRowMeta}>Next: {primaryCandidate.provider || primaryCandidate.raw_message.sender} · {formatCurrency(primaryCandidate.amount)}</Text>
+        </View>
+        <MaterialCommunityIcons color="#55e6a5" name="chevron-right" size={22} />
+      </Pressable> : reviewState === "loading" ? <View accessibilityLiveRegion="polite" style={styles.mobileSectionHeader}><ActivityIndicator color="#55e6a5" size="small" /><Text style={styles.mobileSectionMeta}>Checking messages to review…</Text></View> : null}
       {homeAccounts.length ? (
         <View style={styles.mobileSection}>
           <View style={styles.mobileSectionHeader}>
@@ -3976,148 +3976,36 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mobileBalanceCards}>
             {homeAccounts.map(account => (
               <View key={account.id} style={styles.mobileBalanceCard}>
-                <Text numberOfLines={1} style={styles.mobileBalanceName}>{account.name}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <InstitutionMark name={account.name} type={account.type} size={27} />
+                  <Text numberOfLines={1} style={[styles.mobileBalanceName, { flex: 1 }]}>{account.name}</Text>
+                </View>
                 <Text adjustsFontSizeToFit numberOfLines={1} style={styles.mobileBalanceAmount}>{formatCurrency(account.ledger_balance, account.currency)}</Text>
-                <Text style={styles.mobileRowMeta}>Ledger balance · {titleCase(account.type)}</Text>
               </View>
             ))}
           </ScrollView>
         </View>
-      ) : null}
+      ) : dataState === "loading" ? <View accessibilityLiveRegion="polite" style={styles.mobileSectionHeader}><ActivityIndicator color="#55e6a5" size="small" /><Text style={styles.mobileSectionMeta}>Loading account balances…</Text></View> : null}
       <View><Text style={styles.mobileFieldLabel}>Quick Add</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>{quickFavorites.map(preset => <Pressable accessibilityRole="button" key={preset.id} onPress={() => quickHub.current?.open(preset.id)} style={styles.mobileChoice}><Text style={styles.mobileChoiceText}>{preset.name}</Text></Pressable>)}<Pressable accessibilityRole="button" onPress={() => quickHub.current?.open()} style={styles.mobileChoice}><Text style={styles.mobileChoiceText}>{quickFavorites.length ? "See all" : "Add manual entry"}</Text></Pressable></ScrollView></View>
-      <View style={styles.mobileSegmentedControl}>
-        <Pressable
-          accessibilityRole="tab" accessibilityState={{ selected: homeFeed === "review" }}
-          onPress={() => setHomeFeed("review")}
-          style={[styles.mobileSegment, homeFeed === "review" ? styles.mobileSegmentActive : null]}
-        >
-          <MaterialCommunityIcons color={homeFeed === "review" ? presentationColors.accent : "#9eb0c7"} name="clipboard-text-outline" size={20} />
-          <Text style={[styles.mobileSegmentText, homeFeed === "review" ? styles.mobileSegmentTextActive : null]}>
-            To review ({reviewCandidateCount})
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="tab" accessibilityState={{ selected: homeFeed === "captured" }}
-          onPress={() => setHomeFeed("captured")}
-          style={[styles.mobileSegment, homeFeed === "captured" ? styles.mobileSegmentActive : null]}
-        >
-          <MaterialCommunityIcons color={homeFeed === "captured" ? presentationColors.accent : "#9eb0c7"} name="format-list-bulleted" size={20} />
-          <Text style={[styles.mobileSegmentText, homeFeed === "captured" ? styles.mobileSegmentTextActive : null]}>
-            Activity ({transactionTotal ?? `${transactions.length} saved`})
-          </Text>
-        </Pressable>
+      <View style={styles.mobileSection}>
+        <View style={styles.mobileSectionHeader}>
+          <Text style={styles.mobileSectionTitle}>Recent activity</Text>
+          <Pressable accessibilityRole="button" onPress={() => switchTab("activity")} style={styles.mobileTextButton}>
+            <Text style={styles.mobileTextButtonText}>View all</Text>
+          </Pressable>
+        </View>
+        {recentTransactions.length ? (
+          <View style={styles.mobileGroupedList}>{recentTransactions.slice(0, 3).map(renderTransactionRow)}</View>
+        ) : <Text style={styles.mobileStateText}>No transactions recorded yet.</Text>}
       </View>
-
-      <Pressable
-        onPress={() => switchTab("capture")}
-        style={({ pressed }) => [styles.mobileScanBanner, pressed ? styles.mobilePressed : null]}
-      >
+      <Pressable onPress={() => switchTab("capture")} style={({ pressed }) => [styles.mobileScanBanner, pressed ? styles.mobilePressed : null]}>
         <MaterialCommunityIcons color="#55e6a5" name="message-flash-outline" size={22} />
         <View style={styles.mobileRowBody}>
           <Text style={styles.mobileScanBannerTitle}>Scan phone messages</Text>
-          <Text style={styles.mobileScanBannerMeta}>
-            {pendingSmsCount ? `${pendingSmsCount} message(s) waiting to sync` : "Find new and historical transactions"}
-          </Text>
+          <Text style={styles.mobileScanBannerMeta}>{pendingSmsCount ? `${pendingSmsCount} waiting to sync` : "New messages and history"}</Text>
         </View>
         <MaterialCommunityIcons color="#32d8f2" name="chevron-right" size={23} />
       </Pressable>
-
-      {homeFeed === "review" ? (
-        <>
-          {reviewState === "loading" && !primaryCandidate ? (
-            <View style={styles.mobileCenteredState}>
-              <ActivityIndicator color="#32d8f2" />
-              <Text style={styles.mobileStateText}>Checking captured messages…</Text>
-            </View>
-          ) : primaryCandidate ? (
-            <View style={styles.mobileHeroCard}>
-              <View style={styles.mobileHeroHeader}>
-                <View style={styles.mobileProviderIconLarge}>
-                  <MaterialCommunityIcons color="#32d8f2" name="wallet-outline" size={28} />
-                </View>
-                <View style={styles.mobileRowBody}>
-                  <Text style={styles.mobileHeroProvider}>{primaryCandidate.provider || primaryCandidate.raw_message.sender}</Text>
-                  <Text style={styles.mobileHeroDate}>{formatMobileDate(primaryCandidate.raw_message.received_at)}</Text>
-                </View>
-                <View style={styles.mobileConfidenceBlock}>
-                  <Text style={styles.mobileConfidenceLarge}>{confidencePercent(primaryCandidate.confidence)}</Text>
-                  <Text style={styles.mobileConfidenceLabel}>confidence</Text>
-                </View>
-              </View>
-              <Text style={styles.mobileHeroAmount}>{formatCurrency(primaryCandidate.amount)}</Text>
-              <Text style={styles.mobileHeroDescription}>
-                {primaryCandidate.counterparty_text || titleCase(primaryCandidate.transaction_type)}
-              </Text>
-              <View style={styles.mobileSuggestionRow}>
-                <MaterialCommunityIcons color="#91a7c2" name="tag-outline" size={18} />
-                <Text style={styles.mobileSuggestionText}>
-                  {titleCase(primaryCandidate.transaction_type)} · {accountName(primaryCandidate.account)}
-                </Text>
-              </View>
-              <View style={styles.mobileSmsQuote}>
-                <MaterialCommunityIcons color="#91a7c2" name="message-processing-outline" size={20} />
-                <Text numberOfLines={3} style={styles.mobileSmsQuoteText}>{primaryCandidate.raw_message.body}</Text>
-              </View>
-              <View style={styles.mobileActionRow}>
-                <Pressable
-                  disabled={Boolean(reviewActionCandidateId) || reviewMutation.blocked || transferBusy}
-                  onPress={() => void handleConfirmReviewCandidate(primaryCandidate)}
-                  style={({ pressed }) => [styles.mobilePrimaryButton, pressed ? styles.mobilePressed : null]}
-                >
-                  {reviewActionCandidateId === primaryCandidate.id ? (
-                    <ActivityIndicator color="#06141f" />
-                  ) : (
-                    <MaterialCommunityIcons color="#06141f" name="check" size={22} />
-                  )}
-                  <Text style={styles.mobilePrimaryButtonText}>Confirm & add</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => openReviewCandidate(primaryCandidate.id)}
-                  style={({ pressed }) => [styles.mobileOutlineButton, pressed ? styles.mobilePressed : null]}
-                >
-                  <MaterialCommunityIcons color="#dce8f6" name="pencil-outline" size={20} />
-                  <Text style={styles.mobileOutlineButtonText}>Edit</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.mobileEmptyState}>
-              <View style={styles.mobileEmptyIcon}>
-                <MaterialCommunityIcons color="#55e6a5" name="check-decagram-outline" size={34} />
-              </View>
-              <Text style={styles.mobileEmptyTitle}>{reviewMutation.blocked ? "Review decision pending" : "Inbox clear"}</Text>
-              <Text style={styles.mobileEmptyCopy}>{reviewMutation.blocked ? "Your edits are kept while the server decision is checked." : "New SMS transactions that need your attention will appear here."}</Text>
-              <Pressable onPress={handleLoadReviewCandidates} style={styles.mobileTextButton}>
-                <Text style={styles.mobileTextButtonText}>Check again</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {additionalCandidates.length ? (
-            <View style={styles.mobileSection}>
-              <View style={styles.mobileSectionHeader}>
-                <Text style={styles.mobileSectionTitle}>More to review</Text>
-                <Text style={styles.mobileSectionMeta}>Oldest first</Text>
-              </View>
-              <View style={styles.mobileGroupedList}>{additionalCandidates.map(renderCompactCandidate)}</View>
-            </View>
-          ) : null}
-        </>
-      ) : (
-        <View style={styles.mobileSection}>
-          <View style={styles.mobileSectionHeader}>
-            <Text style={styles.mobileSectionTitle}>Recent activity</Text>
-            <Pressable onPress={handleLoadTransactions} style={styles.mobileIconAction}>
-              <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
-            </Pressable>
-          </View>
-          {recentTransactions.length ? (
-            <View style={styles.mobileGroupedList}>{recentTransactions.slice(0, 5).map(renderTransactionRow)}</View>
-          ) : (
-            <Text style={styles.mobileStateText}>No captured transactions yet.</Text>
-          )}
-        </View>
-      )}
     </View>
   );
 
@@ -4125,17 +4013,9 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
 
   const renderReview = () => (
     <View style={styles.mobileSectionStack}>
-      <View style={styles.mobilePageIntro}>
-        <Text style={styles.mobilePageTitle}>SMS review</Text>
-        <Text style={styles.mobilePageSubtitle}>Verify uncertain fields before they enter your ledger.</Text>
-      </View>
       {!reviewMutation.blocked ? <ReviewSaveNotice review={reviewMutation} candidates={reviewCandidates} onReview={id => openReviewCandidate(id)} onEdit={openTransactionEditor} /> : null}
       {!reviewMutation.operation ? <RecoveryCard compact recovery={recovery} blocked={reviewMutation.blocked} onEdit={openTransactionEditor} /> : null}
-      <Pressable onPress={handleLoadReviewCandidates} style={styles.mobileSecondaryAction}>
-        <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
-        <Text style={styles.mobileSecondaryActionText}>Refresh inbox</Text>
-      </Pressable>
-      <InlineFeedback loadingLabel="Refreshing review inbox…" message={reviewMessage} state={reviewState} />
+      <InlineFeedback loadingLabel="Refreshing review inbox…" message={reviewState === "error" ? reviewMessage : ""} state={reviewState} />
       {reviewCandidates.length ? (() => {
         const index = reviewSelection(reviewCandidates, reviewCandidateId, reviewCandidateIndex);
         const candidate = reviewCandidates[index];
@@ -4144,6 +4024,10 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         return (
           <>
           <View style={styles.mobileReviewPager}>
+            <View style={styles.mobileRowBody}>
+              <Text style={styles.mobileRowTitle}>SMS review</Text>
+              <Text style={styles.mobileRowMeta}>{index + 1} of {reviewCandidateCount} · check the original before saving</Text>
+            </View>
             <Pressable
               accessibilityLabel="Previous message"
               disabled={index === 0}
@@ -4152,10 +4036,6 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
             >
               <MaterialCommunityIcons color={index === 0 ? "#50647e" : "#32d8f2"} name="chevron-left" size={23} />
             </Pressable>
-            <View style={styles.mobileRowBody}>
-              <Text style={styles.mobileRowTitle}>Message {index + 1} of {reviewCandidateCount}</Text>
-              <Text style={styles.mobileRowMeta}>Confirm or reject before moving on</Text>
-            </View>
             <Pressable
               accessibilityLabel="Next message"
               disabled={index >= reviewCandidates.length - 1}
@@ -4164,19 +4044,20 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
             >
               <MaterialCommunityIcons color={index >= reviewCandidates.length - 1 ? "#50647e" : "#32d8f2"} name="chevron-right" size={23} />
             </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Refresh SMS review inbox" onPress={handleLoadReviewCandidates} style={styles.mobileIconAction}>
+              <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
+            </Pressable>
           </View>
-          {loadedReviewCandidates.length < reviewCandidateServerCount ? <Pressable disabled={reviewState === "loading" || reviewMutation.blocked} onPress={() => void (reviewMutation.paginationDirty ? handleLoadReviewCandidates() : handleLoadMoreReviewCandidates())} style={styles.mobileSecondaryAction}><Text style={styles.mobileSecondaryActionText}>{reviewMutation.paginationDirty ? "Refresh inbox before loading more" : `Load more messages (${reviewCandidates.length} loaded)`}</Text></Pressable> : null}
           <View key={candidate.id} style={styles.mobileReviewCard}>
             <View style={styles.mobileHeroHeader}>
-              <View style={styles.mobileProviderIcon}>
-                <MaterialCommunityIcons color="#32d8f2" name="message-text-outline" size={21} />
-              </View>
+              <InstitutionMark name={candidate.provider || candidate.raw_message.sender} size={44} />
               <View style={styles.mobileRowBody}>
                 <Text style={styles.mobileRowTitle}>{candidate.provider || candidate.raw_message.sender}</Text>
                 <Text style={styles.mobileRowMeta}>{formatMobileDate(candidate.raw_message.received_at)} · {inputTimeFromTimestamp(candidate.raw_message.received_at)}</Text>
               </View>
               <Text style={styles.mobileConfidence}>{confidencePercent(candidate.confidence)}</Text>
             </View>
+            <SourceMessage message={candidate.raw_message} />
             <View style={styles.mobileReviewAmountRow}>
               <Text style={styles.mobileReviewAmount}>{formatCurrency(draft.amount)}</Text>
               <Pressable accessibilityRole="button" accessibilityState={{ disabled: isWorking }}
@@ -4189,7 +4070,6 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
               </Pressable>
             </View>
             <Text style={styles.mobileRowMeta}>{draft.direction === "credit" ? "Money into" : "Money out of"} {accounts.find(account => account.id === draft.accountId)?.name ?? "the selected account"}</Text>
-            <SourceMessage message={candidate.raw_message} />
             {(candidate.identity_suggestions ?? []).map(hint => {
               const reporting = hint.role === (draft.direction === "credit" ? "receiver" : "sender");
               if (!reporting && draft.transactionType !== "transfer") return null;
@@ -4211,12 +4091,14 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
             <ReviewFields error={reviewState === "error" ? reviewMessage : ""} draft={draft} accounts={accounts} categories={categories} paymentMethods={paymentMethods} busy={isWorking} onChange={patch => updateReviewDraft(candidate, patch)} rememberChoices={Boolean(reviewRememberChoices[candidate.id])} onRememberChoicesChange={value => setReviewRememberChoices(current => ({ ...current, [candidate.id]: value }))} />
 
           </View>
+          {loadedReviewCandidates.length < reviewCandidateServerCount ? <Pressable disabled={reviewState === "loading" || reviewMutation.blocked} onPress={() => void (reviewMutation.paginationDirty ? handleLoadReviewCandidates() : handleLoadMoreReviewCandidates())} style={styles.mobileReviewLoadMore}><Text style={styles.mobileTextButtonText}>{reviewMutation.paginationDirty ? "Refresh messages to continue" : reviewState === "loading" ? "Loading more messages…" : "Load more messages"}</Text></Pressable> : null}
           </>
         );
-      })() : (
+      })() : reviewState === "loading" ? null : (
         <View style={styles.mobileEmptyState}>
-          <Text style={styles.mobileEmptyTitle}>{reviewMutation.blocked ? "Review decision pending" : "Nothing to review"}</Text>
-          <Text style={styles.mobileEmptyCopy}>{reviewMutation.blocked ? "Your edits are kept while the server decision is checked." : "No captured messages currently require a decision."}</Text>
+          <Text style={styles.mobileEmptyTitle}>{reviewMutation.blocked ? "Review decision pending" : reviewState === "error" ? "Review inbox unavailable" : "Nothing to review"}</Text>
+          <Text style={styles.mobileEmptyCopy}>{reviewMutation.blocked ? "Your edits are kept while the server decision is checked." : reviewState === "error" ? "Check the connection and try again. No review decision was changed." : "No captured messages currently require a decision."}</Text>
+          <Pressable accessibilityRole="button" onPress={handleLoadReviewCandidates} style={styles.mobileTextButton}><Text style={styles.mobileTextButtonText}>Check again</Text></Pressable>
         </View>
       )}
     </View>
@@ -4224,15 +4106,13 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
 
   const renderAccounts = () => (
     <View style={styles.mobileSectionStack}>
-      <View style={styles.mobilePageIntro}>
-        <Text style={styles.mobilePageTitle}>Accounts</Text>
-        <Text style={styles.mobilePageSubtitle}>The bank and wallet accounts connected to your ledger.</Text>
+      <View style={styles.mobileSectionHeader}>
+        <Text style={styles.mobileSectionTitle}>Accounts</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Refresh accounts" onPress={handleLoadReferenceData} style={styles.mobileIconAction}>
+          <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
+        </Pressable>
       </View>
-      <Pressable onPress={handleLoadReferenceData} style={styles.mobileSecondaryAction}>
-        <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
-        <Text style={styles.mobileSecondaryActionText}>Refresh accounts</Text>
-      </Pressable>
-      <InlineFeedback loadingLabel="Refreshing accounts…" message={dataMessage} state={dataState} />
+      <InlineFeedback loadingLabel="Refreshing accounts…" message={dataState === "error" ? dataMessage : ""} state={dataState} />
       <View style={{ gap: 12 }}>{accounts.map(account => <AccountSummary key={account.id} account={account} cached={dataState !== "ok"} onReview={() => { navigateWorkspace("reconciliation"); void handleLoadReconciliation(account.id); }} />)}</View>
       {!accounts.length ? <Text style={styles.mobileStateText}>No accounts loaded yet.</Text> : null}
     </View>
@@ -4265,13 +4145,163 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
 
     return (
       <View style={styles.mobileSectionStack}>
-        <View style={styles.mobilePageIntro}>
-          <Text style={styles.mobilePageTitle}>SMS automation</Text>
-          <Text style={styles.mobilePageSubtitle}>
-            Scan old and new bank messages, skip anything already processed, and send new matches to review.
-          </Text>
+        <View style={styles.mobileSectionHeader}>
+          <Text style={styles.mobileSectionTitle}>SMS capture</Text>
+          <Text style={styles.mobileSectionMeta}>{smsSync.label}{pendingSmsCount ? ` · ${pendingSmsCount} waiting` : ""}</Text>
+        </View>
+        <View style={styles.mobileSection}>
+          <View style={styles.mobileSectionHeader}>
+            <Text style={styles.mobileSectionTitle}>Scan messages</Text>
+            <Text style={styles.mobileSectionMeta}>{pendingSmsCount} waiting</Text>
+          </View>
+          <Text style={styles.mobileFieldLabel}>Choose what to scan</Text>
+          <View style={styles.mobileSegmentedControl}>
+            <Pressable
+              onPress={() => {
+                setSmsScanMode("new");
+                setSmsReprocessExisting(false);
+                setSmsRestoreRedacted(false);
+              }}
+              style={[styles.mobileSegment, smsScanMode === "new" ? styles.mobileSegmentActive : null]}
+            >
+              <MaterialCommunityIcons
+                color={smsScanMode === "new" ? presentationColors.accent : "#9eb0c7"}
+                name="message-plus-outline"
+                size={19}
+              />
+              <Text style={[styles.mobileSegmentText, smsScanMode === "new" ? styles.mobileSegmentTextActive : null]}>
+                New only
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setSmsScanMode("history")}
+              style={[styles.mobileSegment, smsScanMode === "history" ? styles.mobileSegmentActive : null]}
+            >
+              <MaterialCommunityIcons
+                color={smsScanMode === "history" ? presentationColors.accent : "#9eb0c7"}
+                name="history"
+                size={19}
+              />
+              <Text
+                style={[styles.mobileSegmentText, smsScanMode === "history" ? styles.mobileSegmentTextActive : null]}
+              >
+                Import history
+              </Text>
+            </Pressable>
+          </View>
+
+          {smsScanMode === "history" ? (
+            <View style={styles.mobileHistoryOptions}>
+              <View style={styles.mobileRangeRow}>
+                <View style={styles.mobileRangeField}>
+                  <Text style={styles.mobileFieldLabel}>From</Text>
+                  <View style={styles.mobileInputWrap}>
+                    <MaterialCommunityIcons color="#7890ad" name="calendar-start" size={19} />
+                    <TextInput
+                      autoCapitalize="none"
+                      onChangeText={setSmsScanFrom}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#5f7590"
+                      style={styles.mobileInput}
+                      value={smsScanFrom}
+                    />
+                  </View>
+                </View>
+                <View style={styles.mobileRangeField}>
+                  <Text style={styles.mobileFieldLabel}>Through</Text>
+                  <View style={styles.mobileInputWrap}>
+                    <MaterialCommunityIcons color="#7890ad" name="calendar-end" size={19} />
+                    <TextInput
+                      autoCapitalize="none"
+                      onChangeText={setSmsScanTo}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#5f7590"
+                      style={styles.mobileInput}
+                      value={smsScanTo}
+                    />
+                  </View>
+                </View>
+              </View>
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: smsReprocessExisting }}
+                onPress={() => {
+                  setSmsReprocessExisting((current) => !current);
+                  setSmsRestoreRedacted(false);
+                }}
+                style={({ pressed }) => [styles.mobileOptionRow, pressed ? styles.mobilePressed : null]}
+              >
+                <View style={styles.mobileRowBody}>
+                  <Text style={styles.mobileRowTitle}>Refresh previous imports</Text>
+                  <Text style={styles.mobileRowMeta}>Re-run pending items and restore original text for matching transaction SMS. Confirmed transactions stay unchanged.</Text>
+                </View>
+                <View style={[styles.mobileToggle, smsReprocessExisting ? styles.mobileToggleActive : null]}>
+                  <View style={[styles.mobileToggleKnob, smsReprocessExisting ? styles.mobileToggleKnobActive : null]} />
+                </View>
+              </Pressable>
+              {smsReprocessExisting ? <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: smsRestoreRedacted }}
+                onPress={() => setSmsRestoreRedacted((current) => !current)}
+                style={({ pressed }) => [styles.mobileOptionRow, pressed ? styles.mobilePressed : null]}
+              >
+                <View style={styles.mobileRowBody}>
+                  <Text style={styles.mobileRowTitle}>Restore text I previously removed</Text>
+                  <Text style={styles.mobileRowMeta}>This explicitly restores matching transaction SMS even if you manually redacted them. Leave off to respect past redactions.</Text>
+                </View>
+                <View style={[styles.mobileToggle, smsRestoreRedacted ? styles.mobileToggleActive : null]}>
+                  <View style={[styles.mobileToggleKnob, smsRestoreRedacted ? styles.mobileToggleKnobActive : null]} />
+                </View>
+              </Pressable> : null}
+            </View>
+          ) : (
+            <Text style={styles.mobileStateText}>Fast scan. Previously processed messages stay skipped.</Text>
+          )}
+          <Pressable
+            disabled={rawQueueState === "loading" || !canReadSms || enabledRules.length === 0}
+            onPress={() => void handleScanAndSyncSms()}
+            style={({ pressed }) => [
+              styles.mobilePrimaryWideButton,
+              rawQueueState === "loading" || !canReadSms || enabledRules.length === 0
+                ? styles.mobilePrimaryWideButtonDisabled
+                : null,
+              pressed ? styles.mobilePressed : null
+            ]}
+          >
+            {rawQueueState === "loading" ? (
+              <ActivityIndicator color="#06141f" />
+            ) : (
+              <MaterialCommunityIcons color="#06141f" name="sync" size={22} />
+            )}
+            <Text style={styles.mobilePrimaryButtonText}>
+              {rawQueueState === "loading"
+                ? "Syncing messages…"
+                : smsScanMode === "history"
+                  ? "Scan selected history"
+                  : "Scan new messages"}
+            </Text>
+          </Pressable>
+          {rawQueueMessage ? (
+            <View style={[styles.mobileSyncResult, rawQueueState === "error" ? styles.mobileSyncResultError : null]}>
+              <MaterialCommunityIcons
+                color={rawQueueState === "error" ? "#ff9399" : "#55e6a5"}
+                name={rawQueueState === "error" ? "alert-circle-outline" : "check-circle-outline"}
+                size={20}
+              />
+              <Text style={[styles.mobileSyncResultText, rawQueueState === "error" ? styles.mobileErrorText : null]}>
+                {rawQueueMessage}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
+        {completedSetupSteps === setupSteps.length ? <Pressable accessibilityRole="button"
+          accessibilityState={{ expanded: captureSetupOpen }} onPress={() => setCaptureSetupOpen(value => !value)}
+          style={styles.mobileSecondaryAction}>
+          <MaterialCommunityIcons color="#32d8f2" name="cog-outline" size={20} />
+          <Text style={styles.mobileSecondaryActionText}>{captureSetupOpen ? "Hide capture settings" : "Sender rules and sync details"}</Text>
+        </Pressable> : null}
+        {(completedSetupSteps < setupSteps.length || captureSetupOpen) ? <>
         <View style={styles.mobileAutomationHero}>
           <View style={styles.mobileAutomationIcon}>
             <MaterialCommunityIcons color="#06141f" name="message-flash-outline" size={30} />
@@ -4332,8 +4362,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           {showSmsDiagnostics ? (
             <View style={{ gap: 10 }}>
               <Text style={styles.mobileRowMeta}>Includes sync counts, stage and error codes. SMS text and login tokens are excluded.</Text>
-              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.18", getApiBaseUrl())}</Text>
-              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.18", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
+              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.19", getApiBaseUrl())}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.19", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
                 <Text style={styles.mobileSecondaryActionText}>Share diagnostics</Text>
               </Pressable>
             </View>
@@ -4754,151 +4784,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           </View>
         </View>
 
-        <View style={styles.mobileSection}>
-          <View style={styles.mobileSectionHeader}>
-            <Text style={styles.mobileSectionTitle}>4. Scan and sync</Text>
-            <Text style={styles.mobileSectionMeta}>{pendingSmsCount} waiting</Text>
-          </View>
-          <Text style={styles.mobileFieldLabel}>Choose what to scan</Text>
-          <View style={styles.mobileSegmentedControl}>
-            <Pressable
-              onPress={() => {
-                setSmsScanMode("new");
-                setSmsReprocessExisting(false);
-                setSmsRestoreRedacted(false);
-              }}
-              style={[styles.mobileSegment, smsScanMode === "new" ? styles.mobileSegmentActive : null]}
-            >
-              <MaterialCommunityIcons
-                color={smsScanMode === "new" ? presentationColors.accent : "#9eb0c7"}
-                name="message-plus-outline"
-                size={19}
-              />
-              <Text style={[styles.mobileSegmentText, smsScanMode === "new" ? styles.mobileSegmentTextActive : null]}>
-                New only
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setSmsScanMode("history")}
-              style={[styles.mobileSegment, smsScanMode === "history" ? styles.mobileSegmentActive : null]}
-            >
-              <MaterialCommunityIcons
-                color={smsScanMode === "history" ? presentationColors.accent : "#9eb0c7"}
-                name="history"
-                size={19}
-              />
-              <Text
-                style={[styles.mobileSegmentText, smsScanMode === "history" ? styles.mobileSegmentTextActive : null]}
-              >
-                Import history
-              </Text>
-            </Pressable>
-          </View>
-
-          {smsScanMode === "history" ? (
-            <View style={styles.mobileHistoryOptions}>
-              <View style={styles.mobileRangeRow}>
-                <View style={styles.mobileRangeField}>
-                  <Text style={styles.mobileFieldLabel}>From</Text>
-                  <View style={styles.mobileInputWrap}>
-                    <MaterialCommunityIcons color="#7890ad" name="calendar-start" size={19} />
-                    <TextInput
-                      autoCapitalize="none"
-                      onChangeText={setSmsScanFrom}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#5f7590"
-                      style={styles.mobileInput}
-                      value={smsScanFrom}
-                    />
-                  </View>
-                </View>
-                <View style={styles.mobileRangeField}>
-                  <Text style={styles.mobileFieldLabel}>Through</Text>
-                  <View style={styles.mobileInputWrap}>
-                    <MaterialCommunityIcons color="#7890ad" name="calendar-end" size={19} />
-                    <TextInput
-                      autoCapitalize="none"
-                      onChangeText={setSmsScanTo}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#5f7590"
-                      style={styles.mobileInput}
-                      value={smsScanTo}
-                    />
-                  </View>
-                </View>
-              </View>
-              <Pressable
-                accessibilityRole="switch"
-                accessibilityState={{ checked: smsReprocessExisting }}
-                onPress={() => {
-                  setSmsReprocessExisting((current) => !current);
-                  setSmsRestoreRedacted(false);
-                }}
-                style={({ pressed }) => [styles.mobileOptionRow, pressed ? styles.mobilePressed : null]}
-              >
-                <View style={styles.mobileRowBody}>
-                  <Text style={styles.mobileRowTitle}>Refresh previous imports</Text>
-                  <Text style={styles.mobileRowMeta}>Re-run pending items and restore original text for matching transaction SMS. Confirmed transactions stay unchanged.</Text>
-                </View>
-                <View style={[styles.mobileToggle, smsReprocessExisting ? styles.mobileToggleActive : null]}>
-                  <View style={[styles.mobileToggleKnob, smsReprocessExisting ? styles.mobileToggleKnobActive : null]} />
-                </View>
-              </Pressable>
-              {smsReprocessExisting ? <Pressable
-                accessibilityRole="switch"
-                accessibilityState={{ checked: smsRestoreRedacted }}
-                onPress={() => setSmsRestoreRedacted((current) => !current)}
-                style={({ pressed }) => [styles.mobileOptionRow, pressed ? styles.mobilePressed : null]}
-              >
-                <View style={styles.mobileRowBody}>
-                  <Text style={styles.mobileRowTitle}>Restore text I previously removed</Text>
-                  <Text style={styles.mobileRowMeta}>This explicitly restores matching transaction SMS even if you manually redacted them. Leave off to respect past redactions.</Text>
-                </View>
-                <View style={[styles.mobileToggle, smsRestoreRedacted ? styles.mobileToggleActive : null]}>
-                  <View style={[styles.mobileToggleKnob, smsRestoreRedacted ? styles.mobileToggleKnobActive : null]} />
-                </View>
-              </Pressable> : null}
-            </View>
-          ) : (
-            <Text style={styles.mobileStateText}>Fast scan. Previously processed messages stay skipped.</Text>
-          )}
-          <Pressable
-            disabled={rawQueueState === "loading" || !canReadSms || enabledRules.length === 0}
-            onPress={() => void handleScanAndSyncSms()}
-            style={({ pressed }) => [
-              styles.mobilePrimaryWideButton,
-              rawQueueState === "loading" || !canReadSms || enabledRules.length === 0
-                ? styles.mobilePrimaryWideButtonDisabled
-                : null,
-              pressed ? styles.mobilePressed : null
-            ]}
-          >
-            {rawQueueState === "loading" ? (
-              <ActivityIndicator color="#06141f" />
-            ) : (
-              <MaterialCommunityIcons color="#06141f" name="sync" size={22} />
-            )}
-            <Text style={styles.mobilePrimaryButtonText}>
-              {rawQueueState === "loading"
-                ? "Syncing messages…"
-                : smsScanMode === "history"
-                  ? "Scan selected history"
-                  : "Scan new messages"}
-            </Text>
-          </Pressable>
-          {rawQueueMessage ? (
-            <View style={[styles.mobileSyncResult, rawQueueState === "error" ? styles.mobileSyncResultError : null]}>
-              <MaterialCommunityIcons
-                color={rawQueueState === "error" ? "#ff9399" : "#55e6a5"}
-                name={rawQueueState === "error" ? "alert-circle-outline" : "check-circle-outline"}
-                size={20}
-              />
-              <Text style={[styles.mobileSyncResultText, rawQueueState === "error" ? styles.mobileErrorText : null]}>
-                {rawQueueMessage}
-              </Text>
-            </View>
-          ) : null}
-        </View>
+        </> : null}
 
         {__DEV__ && Platform.OS === "android" ? (
           <View style={[styles.mobileSection, styles.mobileDangerZone]}>
@@ -4940,7 +4826,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const renderMore = () => (
     <View style={styles.mobileSectionStack}>
       <View style={styles.mobilePageIntro}><Text style={styles.mobilePageTitle}>More</Text><Text style={styles.mobilePageSubtitle}>Accounts, planning and settings.</Text></View>
-      <RecoveryCard recovery={recovery} blocked={reviewMutation.blocked} onEdit={openTransactionEditor} />
+      <RecoveryCard compact recovery={recovery} blocked={reviewMutation.blocked} onEdit={openTransactionEditor} />
       <Text accessibilityRole="header" style={styles.mobileFieldLabel}>Accounts</Text>
       <View style={styles.mobileGroupedList}>{mobileDestinations.filter(item => item.id === "accounts").map(destinationRow)}</View>
       <Text accessibilityRole="header" style={styles.mobileFieldLabel}>Planning</Text>
@@ -5105,10 +4991,10 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         <Pressable accessibilityRole="button" accessibilityLabel="Quick Add manual entry" onPress={() => quickHub.current?.open()} style={styles.mobileHeaderButton}><MaterialCommunityIcons color="#55e6a5" name="plus" size={24} /></Pressable>
         <View style={styles.mobileHeaderTitleWrap}>
           <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.mobileAppTitle}>{PRODUCT_NAME}</Text>
-          <Text numberOfLines={2} style={styles.mobileAppSubtitle}>Bank & wallet SMS to insights</Text>
         </View>
         <Pressable
-          accessibilityLabel="Refresh server and SMS synchronization status"
+          accessibilityRole="button"
+          accessibilityLabel={`Sync status: ${smsPermissionState !== "granted" ? "Setup required" : state === "error" && !smsSync.running ? "Connection needs attention" : smsSync.label}. Refresh status`}
           onPress={() => void Promise.all([loadHealth(), refreshSmsBackgroundStatus()])}
           style={styles.mobileSyncChip}
         >
@@ -5117,24 +5003,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           ) : (
             <View style={[styles.mobileSyncDot, smsSync.tone === "waiting" ? styles.mobileSyncDotWaiting : null, state === "error" || smsSync.tone === "error" ? styles.mobileSyncDotError : null]} />
           )}
-          <View style={{ flexShrink: 1 }}>
-            <Text style={styles.mobileSyncTitle}>
-              {smsPermissionState !== "granted"
-                ? "Setup"
-                : state === "error" && !smsSync.running ? "Connection" : smsSync.label}
-            </Text>
-            <Text style={styles.mobileSyncMeta}>
-              {smsBackgroundStatus?.pendingCountKnown === false || smsBackgroundStatus?.queueReadable === false ? "Count unavailable" : pendingSmsCount
-                ? `${pendingSmsCount} queued`
-                : smsBackgroundStatus?.state === "running"
-                  ? "SMS syncing"
-                  : smsBackgroundStatus?.state === "error"
-                    ? "SMS needs attention"
-                    : smsPermissionState === "granted"
-                      ? smsBackgroundStatus ? "Device queue checked" : "Status not checked"
-                      : "Permission needed"}
-            </Text>
-          </View>
+          <Text numberOfLines={1} style={styles.mobileSyncTitle}>{smsPermissionState !== "granted" ? "Setup" : state === "error" && !smsSync.running ? "Connection" : pendingSmsCount ? `${pendingSmsCount} queued` : smsSync.label}</Text>
         </Pressable>
       </View> : null}
 
@@ -5323,9 +5192,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     flexDirection: "row",
     gap: 11,
-    minHeight: 76,
+    minHeight: 58,
     paddingHorizontal: 16,
-    paddingVertical: 10
+    paddingVertical: 6
   },
   mobileAppSubtitle: {
     color: "#91a7c2",
@@ -5661,8 +5530,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     gap: 4,
-    minWidth: 190,
-    padding: 14
+    minWidth: 145,
+    padding: 10
   },
   mobileBalanceName: {
     color: "#a8b8cc",
@@ -5671,7 +5540,7 @@ const styles = StyleSheet.create({
   },
   mobileBalanceAmount: {
     color: "#f6f8fc",
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: "800"
   },
   mobileHeroDate: {
@@ -6098,14 +5967,15 @@ const styles = StyleSheet.create({
   },
   mobileReviewPager: {
     alignItems: "center",
-    backgroundColor: "#0e1c2c",
-    borderColor: "#263a52",
-    borderRadius: 14,
-    borderWidth: 1,
+    borderBottomColor: "#263a52",
+    borderBottomWidth: 1,
     flexDirection: "row",
-    gap: 12,
-    padding: 10
+    gap: 4,
+    paddingVertical: 4
   },
+  mobileReviewLoadMore: { alignItems: "center", minHeight: 44, justifyContent: "center" },
+  mobileHomePriority: { alignItems: "center", backgroundColor: "#103128", borderColor: "#2a805c", borderRadius: 14, borderWidth: 1, flexDirection: "row", gap: 8, minHeight: 60, paddingHorizontal: 14 },
+  mobileHomePriorityTitle: { color: "#66e8ae", fontSize: 16, fontWeight: "800" },
   mobileRoot: {
     backgroundColor: "#081421",
     flex: 1
@@ -6350,7 +6220,7 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
   mobileSyncChip: {
-    maxWidth: "38%",
+    maxWidth: "34%",
     flexShrink: 1,
     alignItems: "center",
     backgroundColor: "#0e2131",
@@ -6359,9 +6229,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     gap: 8,
-    minHeight: 48,
-    paddingHorizontal: 10,
-    paddingVertical: 6
+    minHeight: 34,
+    paddingHorizontal: 9,
+    paddingVertical: 4
   },
   mobileSyncDot: {
     backgroundColor: "#35e4ad",
@@ -6384,7 +6254,7 @@ const styles = StyleSheet.create({
   },
   mobileSyncTitle: {
     color: "#55e6a5",
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "800"
   },
   mobileSystemCard: {

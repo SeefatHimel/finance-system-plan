@@ -108,6 +108,7 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
     );
     const [all, setAll] = useState(false),
       [timeOpen, setTimeOpen] = useState(false);
+    const [managerActionsId, setManagerActionsId] = useState<string | null>(null);
     const [error, setError] = useState(""),
       [notice, setNotice] = useState(""),
       [busy, setBusy] = useState(false),
@@ -746,8 +747,7 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                 {surface === "manager" ? (
                   <>
                     <Text style={s.muted}>
-                      Enable and favorite the shortcuts you want to see. Move
-                      them into your preferred order.
+                      Tap a shortcut to edit it. More options holds the occasional actions.
                     </Text>
                     <Action
                       label="Create preset"
@@ -756,26 +756,24 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                     />
                     {data.presets.map((p, index) => (
                       <View key={p.id} style={s.tile}>
-                        <Text style={s.bold}>{p.name}</Text>
-                        <Text style={s.muted}>
-                          {p.type} ·{" "}
-                          {data.accounts.find((a) => a.id === p.account)
-                            ?.name ?? "Choose account"}{" "}
-                          ·{" "}
-                          {data.categories.find((c) => c.id === p.category)
-                            ?.name ?? "Uncategorized"}
-                        </Text>
-                        <Text style={s.muted}>
-                          {p.is_enabled ? "Enabled" : "Disabled"} ·{" "}
-                          {p.is_favorite ? "Favorite" : "See all"}
-                          {!p.available ? " · Needs active options" : ""}
-                        </Text>
-                        <View style={s.row}>
-                          <Action
-                            label={`Edit ${p.name}`}
-                            disabled={busy}
-                            onPress={() => edit(p)}
-                          />
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${p.name}`}
+                          disabled={busy} onPress={() => edit(p)} style={s.managerPresetRow}>
+                          <View style={s.presetContent}>
+                            <Text style={s.presetTitle}>{p.name}</Text>
+                            <Text style={s.muted}>
+                              {p.type} · {data.accounts.find((a) => a.id === p.account)?.name ?? "Choose account"} · {data.categories.find((c) => c.id === p.category)?.name ?? "Uncategorized"}
+                            </Text>
+                            <Text style={s.muted}>{p.is_enabled ? "Enabled" : "Disabled"} · {p.is_favorite ? "Favorite" : "See all"}{!p.available ? " · Needs active options" : ""}</Text>
+                          </View>
+                          <MaterialCommunityIcons name="chevron-right" size={22} color={isLight ? "#607782" : "#91a7c2"} />
+                        </Pressable>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`More options for ${p.name}`}
+                          accessibilityState={{ expanded: managerActionsId === p.id }}
+                          onPress={() => setManagerActionsId(current => current === p.id ? null : p.id)} style={s.managerMore}>
+                          <Text style={s.seeAllText}>{managerActionsId === p.id ? "Hide options" : "More options"}</Text>
+                          <MaterialCommunityIcons name={managerActionsId === p.id ? "chevron-up" : "dots-horizontal"} size={20} color={isLight ? "#087b8c" : "#32d8f2"} />
+                        </Pressable>
+                        {managerActionsId === p.id ? <View style={s.row}>
                           <Action
                             label={`Duplicate ${p.name}`}
                             disabled={busy}
@@ -820,7 +818,7 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                               }
                             />
                           ))}
-                        </View>
+                        </View> : null}
                       </View>
                     ))}
                   </>
@@ -1258,6 +1256,8 @@ const darkQuickAddStyles = StyleSheet.create({
     padding: 14,
     gap: 8,
   },
+  managerPresetRow: { flexDirection: "row", alignItems: "center", minHeight: 64, gap: 8 },
+  managerMore: { minHeight: 44, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 2 },
   notice: {
     position: "absolute",
     bottom: 90,

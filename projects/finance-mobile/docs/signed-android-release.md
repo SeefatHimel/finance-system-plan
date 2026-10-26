@@ -94,11 +94,11 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.18**, Android version code **19**. It includes
-the mobile appearance and Quick Add improvements, the compact Activity actions,
-and the optional similar-SMS choice during review. Existing profile/appearance
-features require the API with `PATCH /api/auth/me/`. No new migration, native
-module, permission or queue reset is introduced by this release.
+The current release is **0.1.19**, Android version code **20**. It includes
+faster saved-session rendering while a free backend wakes, a more compact Home,
+Activity, Review, Capture and Accounts layout, and offline institution badges.
+Existing profile/appearance features require the API with `PATCH /api/auth/me/`.
+No new migration, native module, permission or queue reset is introduced.
 
 ## 5. Build the signed APK
 
@@ -121,7 +121,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.18.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.19.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -457,3 +457,21 @@ Quick Add shortcuts, entry type, Today/Yesterday/Now, date/time edits, keyboard
 focus, and large text; Activity filters and scroll; and Review's pinned decision
 bar and optional similar-SMS choice. An Android export checks bundling but does
 not replace installation and physical-device checks.
+
+## Compact workspace release 0.1.19
+
+Upgrade in place with the same signing key and verify **0.1.19/code 20**. Build
+with `EXPO_PUBLIC_API_BASE_URL=https://finance-system-plan.onrender.com` set in
+the shell or the private `.env`; otherwise the release bundle falls back to the
+Android emulator address. Check the bundled API address before sharing the APK.
+
+On a phone, cold-start with the API unavailable or asleep: a saved user should
+reach cached Home/Activity, with snapshot labels, without waiting behind the
+splash. When the API wakes, accounts and the review inbox should refresh. An
+invalid saved session must return to sign-in and must not show another account's
+cache. Check Home, Activity and account amounts at narrow width and large font;
+amounts must remain associated with the right row and retain their currency.
+Review an SMS with its original visible above the edit fields, move near the end
+of a loaded inbox page, and verify additional messages arrive. Check Capture
+Scan with completed and incomplete setup, account discrepancy disclosure, and
+Quick Add preset options. No automated host test replaces this on-device check.
