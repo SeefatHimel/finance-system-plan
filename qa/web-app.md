@@ -220,22 +220,29 @@ and users should be able to persist the columns that matter to them.
 
 ## What does the current transactions page do?
 
-The current transactions page uses the saved local JWT access token to load
-accounts, categories, and transactions from the Django API. The synced ledger
-and its filters are the primary surface; manual create/edit forms open in a
-focused, viewport-centered dialog only when requested. The compact table combines type, direction,
-reference, and counterparty context into a scannable description while keeping
-reported balance, signed amount, history, edit, and delete actions visible. It
-supports filters for daily/monthly/custom dates, type, account, category, debit/credit direction,
-source, and search text. Search matches transaction id/reference,
-sent-to/received-from text, note, and backend duplicate key. It supports
-updating and deleting transaction rows, and can download a CSV export using the
-same active filters. Each transaction row also links to the audit log page
-filtered to that transaction id. Transaction date and time are independently
-editable. Previous/current/next month controls refresh without a form submit,
-and the column picker remembers the browser's visible-column preference. The
-picker includes sender and receiver identifier evidence, allowing masked
-account/card suffixes to be shown only when useful.
+The transaction workspace loads the user's accounts, categories, payment methods
+and filtered ledger through the existing authenticated API. Date and time share
+one column; type and SMS/PDF provenance appear as small badges. Long descriptions,
+account names and categories are bounded and reveal full text on hover, keyboard
+focus or touch. Edit stays visible beside an actions disclosure; sources,
+revalidation and transfer matching open in place. History retains its audit-log
+route. One bounded Display dialog manages optional balances, identifiers and
+columns, migrating existing separate Time preferences.
+
+Daily/monthly/custom/all-date filtering, account, category, direction, source,
+type, search and ordering remain available with one Apply filters action. Date
+navigation refreshes immediately. The complete filtered collection is paged in
+the browser in groups of 25, 50 or 100. CSV exports all applied results, not just
+the current page or unsubmitted filter edits.
+
+The URL retains filters, page and page size. History preserves Next.js metadata
+and stores scroll offsets so Back/Forward can restore the list after loading.
+Horizontal edge-gesture containment is scoped to this workspace where supported;
+normal browser navigation remains available. Unsaved input changes prompt before
+Cancel/Close and before full-document unload; drafts are not cached and this does
+not protect against all same-document navigation or crashes. The implementation
+is frontend-only. See `projects/finance-web/docs/transaction-ledger.md` for behavior,
+limitations and verification commands.
 
 ## How does dashboard transaction search work?
 
