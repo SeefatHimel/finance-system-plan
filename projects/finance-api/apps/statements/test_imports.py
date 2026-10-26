@@ -62,6 +62,82 @@ class SavedStatementTests(APITestCase):
         self.assertEqual(response["Cache-Control"], "no-store")
         return StatementImport.objects.get(pk=response.data["id"])
 
+    def test_ebl_card_credit_drafts_distinguish_payment_and_cashback(self):
+        card = Account.objects.create(
+            user=self.user, name="Synthetic card", type="credit_card", currency="BDT"
+        )
+        transfer_category, _ = Category.objects.get_or_create(
+            user=self.user, name="Account Transfer", defaults={"kind": "transfer"}
+        )
+        rewards_category, _ = Category.objects.get_or_create(
+            user=self.user, name="Interest & Rewards", defaults={"kind": "income"}
+        )
+        payment = self.upload(synthetic_pdf("ebl_credit_card"), account=card)
+        cashback = self.upload(synthetic_pdf(
+            "ebl_credit_card", card_credit_description="CASH BACK OFFER - EBL"
+        ), account=card)
+        payment_credit = payment.rows.get(direction="credit")
+        cashback_credit = cashback.rows.get(direction="credit")
+        self.assertEqual((payment_credit.type, payment_credit.category), ("transfer", transfer_category))
+        self.assertEqual((cashback_credit.type, cashback_credit.category), ("income", rewards_category))
+        self.assertIsNone(payment_credit.other_account)
+        self.assertIsNone(payment_credit.balance_after)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_ebl_card_ten_month_import_preserves_all_pending_movements(self):
+        card = Account.objects.create(
+            user=self.user, name="Synthetic card", type="credit_card", currency="BDT"
+        )
+        batch = self.upload(synthetic_pdf(
+            "ebl_credit_card", page_count=10,
+            card_credit_description="CASH BACK OFFER - EBL",
+        ), account=card)
+        self.assertEqual(batch.rows.count(), 20)
+        self.assertEqual(batch.rows.filter(type="income", direction="credit").count(), 10)
+        self.assertEqual(batch.rows.filter(type="expense", direction="debit").count(), 10)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_ebl_card_payment_requires_paying_account_before_posting(self):
+        card = Account.objects.create(
+            user=self.user, name="Synthetic card", type="credit_card", currency="BDT"
+        )
+        payment_batch = self.upload(synthetic_pdf("ebl_credit_card"), account=card)
+        payment = payment_batch.rows.get(direction="credit")
+        self.assertEqual(self.decide(payment).status_code, 400)
+        self.assertEqual(Transaction.objects.count(), 0)
+        edited = self.edit(
+            payment, other_account=str(self.bank.id), classification_confirmed=True
+        )
+        self.assertEqual(edited.status_code, 200, edited.data)
+        payment.refresh_from_db()
+        result = self.decide(payment)
+        self.assertEqual(result.status_code, 200, result.data)
+        payment.refresh_from_db()
+        self.assertEqual(payment.transaction.type, "transfer")
+        self.assertEqual(payment.transaction.direction, "debit")
+        self.assertEqual(payment.transaction.account_id, self.bank.id)
+        self.assertEqual(payment.transaction.transfer_account_id, card.id)
+        self.assertTrue(payment.transaction.transfer_evidence.filter(account=card, direction="credit").exists())
+
+    def test_ebl_card_cashback_posts_as_reward_income(self):
+        card = Account.objects.create(
+            user=self.user, name="Synthetic card", type="credit_card", currency="BDT"
+        )
+        rewards, _ = Category.objects.get_or_create(
+            user=self.user, name="Interest & Rewards", defaults={"kind": "income"}
+        )
+        batch = self.upload(synthetic_pdf(
+            "ebl_credit_card", card_credit_description="CASH BACK OFFER - EBL"
+        ), account=card)
+        cashback = batch.rows.get(direction="credit")
+        self.assertEqual(cashback.category, rewards)
+        result = self.decide(cashback)
+        self.assertEqual(result.status_code, 200, result.data)
+        cashback.refresh_from_db()
+        self.assertEqual(cashback.transaction.type, "income")
+        self.assertEqual(cashback.transaction.direction, "credit")
+        self.assertEqual(cashback.transaction.account_id, card.id)
+
     def test_original_pdf_is_encrypted_and_old_import_can_be_restored(self):
         batch = self.upload()
         source = StatementOriginalFile.objects.get(batch=batch)

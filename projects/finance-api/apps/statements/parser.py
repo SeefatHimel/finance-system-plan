@@ -31,6 +31,8 @@ PROFILES = {
     "city_bank": {"out": "WITHDRAWAL", "in": "DEPOSIT", "balance": "BALANCE"},
     "bkash": {"out": "Out", "in": "In", "fee": "Charge/Fee", "balance": "Balance"},
 }
+CARD_SUMMARY_MONEY = re.compile(r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?")
+CARD_DATE = re.compile(r"\d{2}-[A-Za-z]{3}-\d{2}")
 
 
 class StatementParseError(Exception):
@@ -43,7 +45,7 @@ class StatementParseError(Exception):
 def parse_date(value):
     for fmt in ("%d-%b-%Y", "%d-%b-%y", "%d-%m-%Y", "%d %b %Y"):
         try:
-            return datetime.strptime(value, fmt).date().isoformat()  # noqa: DTZ007 -- local statement date, not an instant
+            return datetime.strptime(value, fmt).date().isoformat()  # Local statement date, not an instant.
         except ValueError:
             pass
     return None
@@ -69,6 +71,13 @@ def lines(words):
 
 
 def detect_profile(text):
+    if (
+        "Electronic Credit Card Statement" in text
+        and "EBL" in text
+        and "Transaction Details" in text
+        and "Settlement" in text
+    ):
+        return "ebl_credit_card"
     if "bKash Statement" in text and "Charge/Fee" in text:
         return "bkash"
     if "Statement of Account" in text and "WITHDRAWAL" in text and "DEPOSIT" in text:
@@ -77,7 +86,7 @@ def detect_profile(text):
         return "ebl_bank"
     raise StatementParseError(
         "unsupported_layout",
-        "This statement layout is not supported yet. Use an EBL bank, City Bank savings, or bKash digital statement.",
+        "This statement layout is not supported yet. Use an EBL bank or credit-card, City Bank savings, or bKash digital statement.",
     )
 
 
@@ -102,6 +111,207 @@ def find_header(words, profile):
 
 def money(value):
     return format(value, ".2f") if value is not None else None
+
+
+def card_summary_amount(words, label, width, height):
+    headings = [
+        word for word in words
+        if word["text"] == label
+        and width * .35 < word["x0"] < width * .55
+        and word["top"] < height * .35
+    ]
+    if len(headings) != 1:
+        return None
+    values = [
+        word for word in words
+        if abs(word["top"] - headings[0]["top"]) < 4
+        and width * .58 < word["x0"] < width * .69
+        and CARD_SUMMARY_MONEY.fullmatch(word["text"])
+    ]
+    return Decimal(values[0]["text"].replace(",", "")) if len(values) == 1 else None
+
+
+def extract_ebl_credit_card(pages):
+    """Read card settlement movements without inventing reported row balances.
+
+    The printed monthly outstanding is a liability, not the bank-account running
+    balance expected by the other statement profiles. Keep it in reconciliation
+    checks only; the source D/C marker and BDT settlement amount define each row.
+    """
+    from apps.messages.identifiers import sanitize_financial_identifier
+
+    rows, checks, warnings = [], [], [
+        "This card statement reports monthly outstanding, not a balance after each transaction. Row balances remain unreported."
+    ]
+    card_hint = None
+    previous_closing = None
+    for page_number, (width, height, words, text) in enumerate(pages, 1):
+        if detect_profile(text) != "ebl_credit_card" or not .98 < width / 595 < 1.02:
+            raise StatementParseError(
+                "unsupported_page", f"Page {page_number} is not the supported EBL credit-card layout; no rows were imported."
+            )
+        card_match = re.search(r"Card\s+No\s*:\s*([\d*Xx•…-]{5,})", text)
+        date_match = re.search(r"Statement\s+Date\s*:\s*(" + CARD_DATE.pattern + r")", text, re.IGNORECASE)
+        if not card_match or not date_match or not parse_date(date_match[1]):
+            raise StatementParseError(
+                "unsupported_page", f"Page {page_number} lacks a readable card identifier or statement date."
+            )
+        hint = sanitize_financial_identifier(card_match[1])
+        if not hint or (card_hint is not None and hint != card_hint):
+            raise StatementParseError(
+                "account_mismatch", "The PDF contains more than one card. Import each card separately."
+            )
+        card_hint = hint
+        opening = card_summary_amount(words, "Previous", width, height)
+        closing = card_summary_amount(words, "Total", width, height)
+        if opening is None or closing is None:
+            raise StatementParseError(
+                "unsupported_page", f"Page {page_number} has an unreadable previous balance or total outstanding."
+            )
+        footer = [
+            word for word in words
+            if word["text"] == "Outstanding:" and word["top"] > height * .35
+        ]
+        if len(footer) != 1:
+            raise StatementParseError(
+                "unsupported_page", f"Page {page_number} has an unreadable transaction table boundary."
+            )
+        anchors = sorted((
+            word for word in words
+            if word["x0"] < width * .13
+            and height * .35 < word["top"] < footer[0]["top"]
+            and CARD_DATE.fullmatch(word["text"])
+        ), key=lambda word: word["top"])
+        if not anchors:
+            raise StatementParseError("no_transactions", f"Page {page_number} has no dated card movements.")
+        page_rows = []
+        for anchor in anchors:
+            line = sorted((
+                word for word in words if abs(word["top"] - anchor["top"]) < 3
+            ), key=lambda word: word["x0"])
+            markers = [word for word in line if word["x0"] > width * .94 and word["text"] in {"D", "C"}]
+            if not markers:
+                description = " ".join(word["text"] for word in line if width * .14 < word["x0"] < width * .62)
+                if re.search(r"Previous\s+Ban?lance|Previous\s+Balance", description, re.IGNORECASE):
+                    continue
+            if len(markers) != 1:
+                raise StatementParseError(
+                    "unsupported_page", f"Page {page_number} has a dated row without one readable D/C marker."
+                )
+            cells = [
+                word for word in line
+                if width * .62 < word["x0"] < markers[0]["x0"]
+            ]
+            if len(cells) != 4 or not (
+                re.fullmatch(r"[A-Z]{3}", cells[0]["text"])
+                and MONEY.fullmatch(cells[1]["text"])
+                and re.fullmatch(r"[A-Z]{3}", cells[2]["text"])
+                and MONEY.fullmatch(cells[3]["text"])
+            ):
+                raise StatementParseError(
+                    "unsupported_page", f"Page {page_number} has an unreadable source or settlement amount."
+                )
+            if cells[2]["text"] != "BDT":
+                raise StatementParseError("unsupported_currency", "Only BDT card settlements are supported.")
+            source_amount = Decimal(cells[1]["text"].replace(",", ""))
+            settlement_amount = Decimal(cells[3]["text"].replace(",", ""))
+            if not 0 < settlement_amount < Decimal(1000000000000):
+                raise StatementParseError("invalid_amount", f"Page {page_number} has an invalid card settlement amount.")
+            description = " ".join(
+                word["text"] for word in line
+                if width * .14 < word["x0"] < cells[0]["x0"]
+            ).strip()
+            date = parse_date(anchor["text"])
+            if not date or not description:
+                raise StatementParseError("unsupported_page", f"Page {page_number} has an incomplete dated row.")
+            payment_credit = bool(re.search(
+                r"\bPMT\s+RECV\b|\bPAYMENT\s+RECEIVED\b", description, re.IGNORECASE
+            ))
+            cashback_credit = bool(re.search(r"\bCASH\s*BACK\b", description, re.IGNORECASE))
+            printed_direction = "debit" if markers[0]["text"] == "D" else "credit"
+            source_issues = []
+            if printed_direction == "credit" and not (payment_credit or cashback_credit):
+                source_issues.append(
+                    "Card credit wording is not recognized as a payment or cash-back reward. Check its type and category."
+                )
+            elif printed_direction == "debit" and (payment_credit or cashback_credit):
+                source_issues.append(
+                    "Printed card debit conflicts with payment or cash-back wording. Check the original PDF."
+                )
+            row = {
+                "id": f"{page_number}:{len(page_rows) + 1}",
+                "page": page_number,
+                "row": len(page_rows) + 1,
+                "date": date,
+                "time": None,
+                "posting_date": date,
+                "value_date": None,
+                "statement_date": parse_date(date_match[1]),
+                "description": mask_identifiers(description[:2000]),
+                "provider_type": "Card payment" if payment_credit else "Cash back" if cashback_credit else "Card movement",
+                "reference": "",
+                "direction": printed_direction,
+                "printed_direction_marker": markers[0]["text"],
+                "amount": money(settlement_amount),
+                "source_currency": cells[0]["text"],
+                "source_amount": money(source_amount),
+                "settlement_currency": cells[2]["text"],
+                "signed_fee": "0.00",
+                "balance_after": None,
+                "issues": source_issues,
+                "bounds": [round(anchor["x0"], 2), round(anchor["top"], 2), round(width, 2), round(markers[0]["bottom"], 2)],
+            }
+            page_rows.append(row)
+        if not page_rows:
+            raise StatementParseError("no_transactions", f"Page {page_number} has no card movements to import.")
+        observed = opening + sum(
+            (Decimal(row["amount"]) if row["printed_direction_marker"] == "D" else -Decimal(row["amount"]))
+            for row in page_rows
+        )
+        page_balances_match = closing == observed
+        checks.append({
+            "label": f"Page {page_number} outstanding debt",
+            "expected": money(closing),
+            "observed": money(observed),
+            "passed": page_balances_match,
+        })
+        previous_balances_match = previous_closing is None or previous_closing == opening
+        if previous_closing is not None:
+            checks.append({
+                "label": f"Page {page_number} previous outstanding",
+                "expected": money(previous_closing),
+                "observed": money(opening),
+                "passed": previous_balances_match,
+            })
+        if not page_balances_match or not previous_balances_match:
+            for row in page_rows:
+                row["issues"].append(
+                    "This page does not reconcile with the printed monthly outstanding. Verify the original PDF before recording this row."
+                )
+        previous_closing = closing
+        rows.extend(page_rows)
+        if len(rows) > MAX_ROWS:
+            raise StatementParseError("row_limit", "This statement contains too many rows. Export a shorter period.")
+    if any(not check["passed"] for check in checks):
+        warnings.append("A monthly card outstanding total does not reconcile. Verify the printed PDF before recording rows.")
+    dates = [row["date"] for row in rows]
+    return {
+        "profile": "ebl_credit_card",
+        "parser_version": PARSER_VERSION,
+        "currency": "BDT",
+        "page_count": len(pages),
+        "period_start": min(dates),
+        "period_end": max(dates),
+        "account_hint": card_hint,
+        "rows": rows,
+        "checks": checks,
+        "warnings": warnings,
+        "opening_balance": None,
+        "closing_balance": None,
+        "balance_transitions_checked": 0,
+        "needs_review_count": sum(bool(row["issues"]) for row in rows),
+        "can_post": False,
+    }
 
 
 def extract_statement(data: bytes, password="", *, include_private_identifiers=False):
@@ -160,6 +370,8 @@ def extract_statement(data: bytes, password="", *, include_private_identifiers=F
             "This PDF contains pages without readable text. Scanned statements need OCR, which is not supported yet.",
         )
     profile = detect_profile(pages[0][3])
+    if profile == "ebl_credit_card":
+        return extract_ebl_credit_card(pages)
     full_text = "\n".join(p[3] for p in pages)
     if profile == "city_bank" and not re.search(
         r"Currency\s*:\s*BDT\b", full_text, re.IGNORECASE
@@ -323,7 +535,7 @@ def extract_statement(data: bytes, password="", *, include_private_identifiers=F
                 else None
             )
             event_time = (
-                datetime.strptime(time_match[1], "%I:%M:%S %p").time().isoformat()  # noqa: DTZ007 -- printed local time
+                datetime.strptime(time_match[1], "%I:%M:%S %p").time().isoformat()  # Printed local time.
                 if time_match
                 else None
             )

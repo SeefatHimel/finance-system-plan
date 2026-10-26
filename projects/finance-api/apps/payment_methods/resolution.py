@@ -173,7 +173,13 @@ def text_identifier_evidence(text):
 
 
 def statement_account_suggestion(*, user, profile, hint, methods=None):
-    eligible_types = {"mobile_wallet"} if profile == "bkash" else {"bank", "savings"}
+    eligible_types = (
+        {"mobile_wallet"} if profile == "bkash"
+        else {"credit_card"} if profile == "ebl_credit_card"
+        else {"bank", "savings"}
+    )
+    provider = "ebl" if profile in {"ebl_bank", "ebl_credit_card"} else profile
+    evidence_kind = "card" if profile == "ebl_credit_card" else "account"
     if methods is None:
         methods = PaymentMethod.objects.filter(
             user=user,
@@ -190,8 +196,8 @@ def statement_account_suggestion(*, user, profile, hint, methods=None):
         ]
     matches = matching_methods(
         user=user,
-        evidence=[("account", hint)],
-        provider="ebl" if profile == "ebl_bank" else profile,
+        evidence=[(evidence_kind, hint)],
+        provider=provider,
         methods=methods,
     )
     accounts = {m.account_id for m in matches}
@@ -203,8 +209,8 @@ def statement_account_suggestion(*, user, profile, hint, methods=None):
     ]
     if not unique_method(
         user=user,
-        evidence=[("account", hint)],
-        provider="ebl" if profile == "ebl_bank" else profile,
+        evidence=[(evidence_kind, hint)],
+        provider=provider,
         methods=methods,
     ):
         return {

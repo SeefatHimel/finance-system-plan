@@ -71,7 +71,7 @@ def pattern(row):
         label,
         row.component,
         row.extracted.get("provider_type"),
-        row.reviewed_source_direction or row.extracted.get("direction"),
+        getattr(row, "reviewed_source_direction", None) or row.extracted.get("direction"),
     ]
     return hashlib.sha256(repr(source).encode()).hexdigest(), label
 

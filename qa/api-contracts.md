@@ -375,6 +375,13 @@ UUIDs; page/row IDs identify positions within this preview only. Decimal amounts
 are strings, absent time/balances are nullable, and `can_post` is false. A matching
 identifier suffix is only a hint.
 
+For EBL electronic credit-card PDFs, each row additionally carries optional
+`statement_date`, `source_currency`, `source_amount`, `settlement_currency`, and
+`printed_direction_marker` (`D` or `C`). The `amount` is the BDT settlement
+amount; `balance_after` remains null because monthly outstanding is not a
+reported balance after that row. The selected account must be a BDT credit-card
+account. All other profiles keep their existing row contract.
+
 Generated clients send FormData without a JSON Content-Type, and shared schema
 types map binary values to Blob. A preview does not establish duplicate identity
 or authorize posting; saved review/decision contracts are separate.

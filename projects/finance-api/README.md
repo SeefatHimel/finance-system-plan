@@ -733,10 +733,20 @@ no database migration is required.
 
 ## Statement PDF Imports
 
-The Statements workflow now saves drafts, suggests existing transactions, and
-supports explicit create/link/skip decisions. BDT EBL bank, City Bank savings,
-and bKash digital layouts are supported. Scans and credit-card billing layouts
-remain unsupported pending separate extraction and accounting validation.
+The Statements workflow saves drafts, suggests existing transactions, and
+supports explicit create/link/skip decisions. BDT EBL bank, EBL electronic
+credit-card, City Bank savings, and bKash digital layouts are supported. Scans
+and other card billing layouts remain unsupported. Select an active BDT
+credit-card account for the EBL card layout. The importer retains each printed
+D/C marker, source and settlement amount, and statement date. It checks monthly
+outstanding totals for a single-month PDF or a chronological multi-month PDF
+for one card, but leaves per-row reported balances empty because the PDF
+does not print them. Credit rows explicitly marked `PMT RECV` start as transfer
+drafts with Account Transfer, and require the user to select the paying account.
+`CASH BACK` credits start as income with Interest & Rewards when that active
+category exists. Unrecognized credit wording requires individual review.
+Importing only saves review drafts and an encrypted PDF; it never posts
+automatically.
 
 - `POST /api/statements/preview/`: stateless extraction; `can_post=false`.
 - `POST /api/statements/imports/`: multipart account/file/optional password; saves

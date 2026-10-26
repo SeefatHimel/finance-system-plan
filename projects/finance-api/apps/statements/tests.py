@@ -2,6 +2,7 @@
 
 import io
 import subprocess
+from datetime import date
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -20,7 +21,7 @@ from apps.transactions.models import Transaction
 from .parser import MAX_BYTES, StatementParseError, extract_statement
 
 
-def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_count=1, account_identifier="9876543210123", city_first_description="PURCHASE CARD SYNTH SHOP", bkash_details=None, bkash_funding_type="Card to bKash", bkash_rows=None, bkash_totals=None):
+def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_count=1, account_identifier="9876543210123", city_first_description="PURCHASE CARD SYNTH SHOP", bkash_details=None, bkash_funding_type="Card to bKash", bkash_rows=None, bkash_totals=None, card_credit_description="PMT RECV SYNTHETIC"):
     stream = io.BytesIO()
     c = canvas.Canvas(
         stream,
@@ -124,6 +125,43 @@ def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_cou
                 for edge, value in [(387, out), (444, inc), (499, fee), (560, balance)]:
                     if value:
                         number(edge, y, value)
+        elif profile == "ebl_credit_card":
+            month = page + 1
+            if month > 12:
+                raise ValueError("Synthetic card fixture supports at most twelve months")
+            statement_date = date(2026, month, 28).strftime("%d-%b-%y")
+            purchase_date = date(2026, month, 1).strftime("%d-%b-%y")
+            payment_date = date(2026, month, 2).strftime("%d-%b-%y")
+            opening = 1000 + 80 * page
+            closing = opening + 80
+            text(20, 800, "EBL Electronic Credit Card Statement")
+            text(20, 782, f"Card No: {account_identifier}")
+            text(20, 765, f"Statement Date: {statement_date}")
+            text(240, 700, "Previous Balance")
+            text(370, 700, f"{opening:,.2f}")
+            text(240, 680, "Total Outstanding")
+            text(370, 680, f"{closing + (10 if bad_balance else 0):,.2f}")
+            text(20, 620, "Transaction Details")
+            text(20, 605, "Date")
+            text(85, 605, "Description")
+            text(370, 605, "Source Currency+Amount")
+            text(488, 605, "Settlement Currency+Amount")
+            text(20, 522, purchase_date)
+            text(85, 522, "SYNTHETIC CARD PURCHASE")
+            text(372, 522, "BDT")
+            text(405, 522, "100.00")
+            text(488, 522, "BDT")
+            text(520, 522, "100.00")
+            text(573, 522, "D")
+            text(20, 500, payment_date)
+            text(85, 500, card_credit_description)
+            text(372, 500, "BDT")
+            text(405, 500, "20.00")
+            text(488, 500, "BDT")
+            text(520, 500, "20.00")
+            text(573, 500, "C")
+            text(388, 350, "Total")
+            text(415, 350, "Outstanding:")
         elif profile == "scan":
             c.rect(20, 20, 200, 100)
         else:
@@ -134,6 +172,46 @@ def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_cou
 
 
 class StatementParserTests(SimpleTestCase):
+    def test_ebl_card_keeps_printed_direction_and_no_row_balance(self):
+        result = extract_statement(synthetic_pdf("ebl_credit_card"))
+        self.assertEqual(result["profile"], "ebl_credit_card")
+        self.assertEqual([row["direction"] for row in result["rows"]], ["debit", "credit"])
+        self.assertEqual([row["printed_direction_marker"] for row in result["rows"]], ["D", "C"])
+        self.assertEqual([row["amount"] for row in result["rows"]], ["100.00", "20.00"])
+        self.assertTrue(all(row["balance_after"] is None for row in result["rows"]))
+        self.assertTrue(all(check["passed"] for check in result["checks"]))
+        self.assertNotIn("9876543210123", str(result))
+
+    def test_ebl_card_outstanding_discrepancy_is_visible(self):
+        result = extract_statement(synthetic_pdf("ebl_credit_card", bad_balance=True))
+        self.assertFalse(result["checks"][0]["passed"])
+        self.assertTrue(any("does not reconcile" in warning for warning in result["warnings"]))
+        self.assertTrue(all(row["issues"] for row in result["rows"]))
+
+    def test_ebl_card_ten_month_combination_reconciles_each_month(self):
+        result = extract_statement(synthetic_pdf("ebl_credit_card", page_count=10))
+        self.assertEqual(result["page_count"], 10)
+        self.assertEqual(len(result["rows"]), 20)
+        self.assertEqual(len(result["checks"]), 19)
+        self.assertTrue(all(check["passed"] for check in result["checks"]))
+        self.assertEqual(result["needs_review_count"], 0)
+        self.assertEqual(result["period_start"], "2026-01-01")
+        self.assertEqual(result["period_end"], "2026-10-02")
+
+    def test_ebl_card_payment_cashback_and_unknown_credit_wording(self):
+        payment = extract_statement(synthetic_pdf("ebl_credit_card"))["rows"][1]
+        cashback = extract_statement(synthetic_pdf(
+            "ebl_credit_card", card_credit_description="CASH BACK OFFER - EBL"
+        ))["rows"][1]
+        unknown = extract_statement(synthetic_pdf(
+            "ebl_credit_card", card_credit_description="UNIDENTIFIED CREDIT"
+        ))["rows"][1]
+        self.assertEqual(payment["provider_type"], "Card payment")
+        self.assertEqual(cashback["provider_type"], "Cash back")
+        self.assertEqual(payment["issues"], [])
+        self.assertEqual(cashback["issues"], [])
+        self.assertTrue(unknown["issues"])
+
     def test_bkash_identical_send_money_labels_keep_opposite_pdf_columns(self):
         pdf = synthetic_pdf("bkash", bkash_rows=[
             (620, "Send Money", "100.00", None, None, "900.00"),
@@ -444,6 +522,15 @@ class StatementPreviewApiTests(APITestCase):
         self.account.type = "mobile_wallet"
         self.account.save()
         self.assertEqual(self.upload(synthetic_pdf("bkash")).status_code, 200)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_card_statement_requires_card_account(self):
+        self.assertEqual(self.upload(synthetic_pdf("ebl_credit_card")).status_code, 400)
+        self.account.type = "credit_card"
+        self.account.save()
+        response = self.upload(synthetic_pdf("ebl_credit_card"))
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["profile"], "ebl_credit_card")
         self.assertEqual(Transaction.objects.count(), 0)
 
     @patch("apps.statements.views.subprocess.run")

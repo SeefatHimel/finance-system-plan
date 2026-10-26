@@ -101,14 +101,19 @@ class StatementPreviewView(APIView):
         if not include_private_identifiers:
             for row in preview["rows"]:
                 row.pop("bkash_identifier", None)
-        if account and (preview["profile"] == "bkash") != (
-            account.type == "mobile_wallet"
-        ):
+        allowed_types = (
+            {"mobile_wallet"} if preview["profile"] == "bkash"
+            else {"credit_card"} if preview["profile"] == "ebl_credit_card"
+            else {"bank", "savings"}
+        )
+        if account and account.type not in allowed_types:
+            account_guidance = {
+                "bkash": "Choose a wallet account for this bKash statement.",
+                "ebl_credit_card": "Choose a credit-card account for this EBL card statement.",
+            }.get(preview["profile"], "Choose a bank or savings account for this bank statement.")
             raise ValidationError(
                 {
-                    "account": [
-                        "Choose a wallet account for bKash or a bank/savings account for a bank statement."
-                    ]
+                    "account": [account_guidance]
                 }
             )
         preview["account"] = str(account.id) if account else None

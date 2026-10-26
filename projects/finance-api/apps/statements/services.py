@@ -167,6 +167,7 @@ def save_import(*, user, account, digest, preview):
         closing_balance=ledger_money(preview["closing_balance"]),
     )
     bill_categories = {}
+    card_categories = {}
     if batch.profile == "bkash":
         from apps.categories.models import Category
 
@@ -174,6 +175,13 @@ def save_import(*, user, account, digest, preview):
             user=user, name__in=["Utilities & Bills", "Electricity", "Internet", "Mobile Recharge"],
             kind="expense", is_active=True,
         )}
+    elif batch.profile == "ebl_credit_card":
+        from apps.categories.models import Category
+
+        card_categories = {category.name: category for category in Category.objects.filter(
+            user=user, name__in=["Account Transfer", "Interest & Rewards"], is_active=True,
+        ) if (category.name == "Account Transfer" and category.kind == Category.Kind.TRANSFER)
+        or (category.name == "Interest & Rewards" and category.kind == Category.Kind.INCOME)}
     records = []
     for position, original in enumerate(preview["rows"], 1):
         original = {**original, "issues": list(original["issues"])}
@@ -188,13 +196,35 @@ def save_import(*, user, account, digest, preview):
                 "A source value exceeds the ledger limit. Correct it before recording."
             )
         direction = original["direction"]
+        card_payment = (
+            batch.profile == "ebl_credit_card"
+            and direction == "credit"
+            and original["provider_type"] == "Card payment"
+        )
+        card_cashback = (
+            batch.profile == "ebl_credit_card"
+            and direction == "credit"
+            and original["provider_type"] == "Cash back"
+        )
         kind = "income" if direction == "credit" else "expense"
-        if direction == "credit" and re.search(
+        if card_cashback:
+            kind = "income"
+        elif card_payment:
+            kind = "transfer"
+        elif direction == "credit" and re.search(
             r"reverse|refund|reversal", original["description"], re.IGNORECASE
         ):
             kind = "refund"
         elif bkash_funding_credit(original, batch.profile):
             kind = "transfer"
+        if card_payment:
+            category = card_categories.get("Account Transfer")
+        elif card_cashback:
+            category = card_categories.get("Interest & Rewards")
+        elif direction == "debit" and bill_name:
+            category = bill_categories.get(bill_name) or bill_categories.get("Utilities & Bills")
+        else:
+            category = None
         common = {
             "batch": batch,
             "position": position,
@@ -206,10 +236,7 @@ def save_import(*, user, account, digest, preview):
             "reference": original["reference"],
             "counterparty_text": clean_merchant(original["description"]),
             "note": original["description"],
-            "category": (
-                bill_categories.get(bill_name)
-                or bill_categories.get("Utilities & Bills")
-            ) if direction == "debit" and bill_name else None,
+            "category": category,
         }
         records.append(
             StatementRow(
@@ -287,12 +314,17 @@ def financial_issues(row):
 
 def posting_issues(row):
     issues = financial_issues(row)
-    if row.batch.profile == "bkash" and row.component == "principal":
+    if row.batch.profile in {"bkash", "ebl_credit_card"} and row.component == "principal":
         source_direction = row.reviewed_source_direction or row.extracted.get("direction")
         if source_direction in {"debit", "credit"} and row.direction != source_direction:
-            issues.append(
-                "Saved debit/credit disagrees with the bKash PDF direction. "
+            source_name = "bKash PDF" if row.batch.profile == "bkash" else "credit-card PDF"
+            guidance = (
                 "Check the original Out/In column, then correct the draft or review the source direction before adding."
+                if row.batch.profile == "bkash"
+                else "Check the original printed D/C marker, then correct the draft before adding."
+            )
+            issues.append(
+                f"Saved debit/credit disagrees with the {source_name} direction. {guidance}"
             )
     if not row.batch.account.is_active:
         issues.append("The reporting account is inactive.")

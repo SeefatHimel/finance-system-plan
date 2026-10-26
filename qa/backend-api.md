@@ -673,6 +673,16 @@ provider's reported balance. No schema or migration change is needed.
 
 ## How do statement imports protect ledger correctness?
 
+The EBL electronic credit-card importer is a distinct supported profile. It
+requires a BDT credit-card account and keeps the PDF's D/C column, source and
+settlement amounts, and statement date with each immutable extracted row. It
+reconciles each monthly outstanding across a single-month or chronological
+multi-month file from one card, but never treats it as a
+per-transaction running balance. Explicit `PMT RECV` credits become Account
+Transfer drafts that need a paying account. `CASH BACK` credits become income
+drafts under an active Interest & Rewards category; other credit wording is
+flagged. No card row is posted by upload alone.
+
 Bounded authenticated extraction runs outside database locks. Saved imports are
 unique per user/account/file digest. Immutable masked source rows and editable
 versioned drafts are separate. Decisions acquire the same user lock as ledger

@@ -48,9 +48,10 @@ class StatementPreviewRequestSerializer(StatementIdentifyRequestSerializer):
             Account.Type.BANK,
             Account.Type.SAVINGS,
             Account.Type.MOBILE_WALLET,
+            Account.Type.CREDIT_CARD,
         }:
             raise serializers.ValidationError(
-                "Choose a bank, savings, or wallet account. Credit-card statement layouts are not supported yet."
+                "Choose a bank, savings, wallet, or credit-card account."
             )
         if value.currency != "BDT":
             raise serializers.ValidationError(
@@ -122,6 +123,11 @@ class StatementRowSerializer(serializers.Serializer):
     posting_date = serializers.DateField(allow_null=True)
     value_date = serializers.DateField(allow_null=True)
     description = serializers.CharField()
+    statement_date = serializers.DateField(allow_null=True, required=False)
+    source_currency = serializers.CharField(required=False)
+    source_amount = serializers.CharField(required=False)
+    settlement_currency = serializers.CharField(required=False)
+    printed_direction_marker = serializers.ChoiceField(choices=["D", "C"], required=False)
     citytouch_printed_code = serializers.CharField(allow_null=True, required=False)
     provider_type = serializers.CharField()
     reference = serializers.CharField()

@@ -13,7 +13,9 @@ class RecurringBillApiTests(APITestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="himel", password="password")
         self.account = Account.objects.create(user=self.user, name="Bank", type=Account.Type.BANK)
-        self.category = Category.objects.create(user=self.user, name="Internet", kind=Category.Kind.EXPENSE)
+        self.category, _ = Category.objects.get_or_create(
+            user=self.user, name="Internet", defaults={"kind": Category.Kind.EXPENSE}
+        )
         self.client.force_authenticate(self.user)
 
     def test_user_can_create_recurring_bill(self):
