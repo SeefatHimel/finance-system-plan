@@ -1698,3 +1698,17 @@ selected account differs from the saved parsed account, confirmation through
 `POST /api/review/pair/` requires both `sms_account` and
 `acknowledge_sms_account_override=true`. The parsed account correction and
 pairing commit atomically. Original SMS text and captured direction are kept.
+
+## Custom account logos
+
+Account create and update accept an optional `logo` PNG, JPEG or WebP base64
+data URL (up to 1 MiB decoded and 16 million pixels). The server verifies the
+raster image, strips metadata, preserves the full image with transparent square
+padding, and saves a 128px WebP in the account record. An empty string removes
+it; omission preserves it. Account responses return the small normalized data
+URL through existing owner-scoped authenticated endpoints. No public media URL,
+external fetch, object store or persistent local upload directory is needed.
+
+Run `python manage.py migrate` for `accounts.0003_account_logo` before deploying
+the web UI. Existing accounts default to an empty logo. Pillow is an explicit
+runtime dependency. Logos do not alter identity matching, balances or entries.

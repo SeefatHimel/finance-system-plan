@@ -1805,6 +1805,32 @@
         ]
       }
     },
+    "/api/messages/review/{candidate_id}/remember/": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {}
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/messages/review/{candidate_id}/reprocess/": {
       "post": {
         "parameters": [
@@ -5834,6 +5860,10 @@
           "readOnly": true,
           "type": "string"
         },
+        "logo": {
+          "maxLength": 1398136,
+          "type": "string"
+        },
         "name": {
           "maxLength": 120,
           "type": "string"
@@ -7799,6 +7829,13 @@
           "items": {},
           "type": "array"
         },
+        "ledger_matches": {
+          "items": {},
+          "type": "array"
+        },
+        "ledger_matching_truncated": {
+          "type": "boolean"
+        },
         "match": {},
         "row": {
           "$ref": "#/components/schemas/SavedStatementRow"
@@ -7816,6 +7853,8 @@
       "required": [
         "batch",
         "competing_sources",
+        "ledger_matches",
+        "ledger_matching_truncated",
         "match",
         "row",
         "sms",
@@ -7852,6 +7891,9 @@
     },
     "PairReviewedAccountSelection": {
       "properties": {
+        "draft": {
+          "$ref": "#/components/schemas/StatementRowEdit"
+        },
         "sms": {
           "format": "uuid",
           "type": "string"
@@ -8298,6 +8340,10 @@
         },
         "ledger_balance_at_latest_report": {
           "readOnly": true,
+          "type": "string"
+        },
+        "logo": {
+          "maxLength": 1398136,
           "type": "string"
         },
         "name": {
@@ -9220,6 +9266,13 @@
         "ids"
       ],
       "type": "object"
+    },
+    "PrintedDirectionMarkerEnum": {
+      "enum": [
+        "D",
+        "C"
+      ],
+      "type": "string"
     },
     "ProfileEnum": {
       "enum": [
@@ -11740,6 +11793,9 @@
           "nullable": true,
           "type": "string"
         },
+        "printed_direction_marker": {
+          "$ref": "#/components/schemas/PrintedDirectionMarkerEnum"
+        },
         "provider_type": {
           "type": "string"
         },
@@ -11749,7 +11805,21 @@
         "row": {
           "type": "integer"
         },
+        "settlement_currency": {
+          "type": "string"
+        },
         "signed_fee": {
+          "type": "string"
+        },
+        "source_amount": {
+          "type": "string"
+        },
+        "source_currency": {
+          "type": "string"
+        },
+        "statement_date": {
+          "format": "date",
+          "nullable": true,
           "type": "string"
         },
         "time": {

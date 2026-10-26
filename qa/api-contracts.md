@@ -870,3 +870,12 @@ confirm request can carry `distinct_statement_rows` and
 corroborated pending row returns 409. This protects direct API callers as well
 as the web flow. The lookup is read-only, and the pair endpoint remains the
 way to attach both sources to one movement.
+
+## How do clients customize an account logo?
+
+Create or PATCH an owned account with optional `logo`, a PNG/JPEG/WebP base64
+data URL up to 1 MiB decoded. The API verifies and normalizes it to a metadata-free
+128px WebP and returns the small embedded image in Account. An empty string
+removes it; omission preserves it. No remote URLs, anonymous image endpoint or
+ledger mutation is introduced. Existing accounts and older clients use the
+empty-logo fallback. Deploy migration `accounts.0003_account_logo` first.

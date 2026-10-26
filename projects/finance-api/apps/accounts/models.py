@@ -25,6 +25,7 @@ class Account(models.Model):
     name = models.CharField(max_length=120)
     type = models.CharField(max_length=32, choices=Type.choices)
     currency = models.CharField(max_length=3, default="BDT")
+    logo = models.TextField(blank=True, default="")
     identity_method = models.OneToOneField(
         "payment_methods.PaymentMethod",
         on_delete=models.SET_NULL,

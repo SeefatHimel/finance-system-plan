@@ -905,3 +905,13 @@ The same read-only preview accepts an optional versioned statement `draft` and
 returns `ledger_matches` and `ledger_matching_truncated` evaluated against it.
 Clients should review those suggestions before sending exact dismissed IDs at
 confirmation; the server checks them again under the user lock.
+
+## Account logo field
+
+`Account`, `AccountCreateRequest` and `AccountPatchRequest` support optional
+`logo`: a PNG/JPEG/WebP base64 data URL, up to 1 MiB decoded (maximum encoded
+length 1398136), or an empty string to remove it. Omitted updates preserve the
+current image. Responses use a normalized 128px WebP data URL or an empty
+string. External URLs and SVG are not accepted. Logos use existing account
+ownership permissions and require the account-logo API migration before the
+new web client. Older clients may omit or ignore this additive field.

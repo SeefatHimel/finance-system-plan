@@ -2,14 +2,16 @@ from django.db import transaction
 from rest_framework import serializers
 
 from apps.payment_methods.models import PaymentMethod
-from apps.payment_methods.serializers import AccountIdentitySerializer
 from apps.payment_methods.secure_identifiers import retain_originals
+from apps.payment_methods.serializers import AccountIdentitySerializer
 from apps.transactions.services import calculate_account_balance_summaries
 
+from .logos import AccountLogoField
 from .models import Account
 
 
 class AccountSerializer(serializers.ModelSerializer):
+    logo = AccountLogoField(required=False, allow_blank=True)
     identity = AccountIdentitySerializer(
         source="identity_method", required=False, allow_null=True
     )
@@ -27,6 +29,7 @@ class AccountSerializer(serializers.ModelSerializer):
             "name",
             "type",
             "currency",
+            "logo",
             "identity",
             "starting_balance",
             "ledger_balance",

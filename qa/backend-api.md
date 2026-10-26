@@ -1313,3 +1313,12 @@ which ledger entries qualify. The read-only pair preview now accepts that edited
 draft and returns matching ledger suggestions without saving it. The final
 confirmation still recomputes the candidates under the user lock and rejects a
 stale list, so a concurrent change cannot be silently dismissed.
+
+## How are uploaded account logos stored safely?
+
+The account serializer validates bounded PNG/JPEG/WebP data URLs, verifies
+image content and dimensions, strips embedded metadata, and resizes to a 128px
+WebP. The small result lives in the owned account record and is returned only
+through authenticated account APIs. No local media disk or public asset URL is
+required. Omission keeps the logo; an empty string removes it. A schema migration
+defaults existing logos to empty. Uploading changes appearance only.

@@ -4230,6 +4230,10 @@ components:
       required:
         [id, name, type, currency, starting_balance, ledger_balance, latest_reported_balance, latest_reported_balance_date, is_active, display_order, created_at, updated_at]
       properties:
+        logo:
+          type: string
+          maxLength: 1398136
+          description: Optional PNG, JPEG or WebP base64 data URL up to 1 MiB decoded. Saved as a metadata-free 128px WebP. Empty string removes the logo; omission preserves it on updates.
         identity:
           nullable: true
           allOf:
@@ -4296,6 +4300,10 @@ components:
       type: object
       required: [name, type]
       properties:
+        logo:
+          type: string
+          maxLength: 1398136
+          description: Optional PNG, JPEG or WebP base64 data URL up to 1 MiB decoded. Saved as a metadata-free 128px WebP. Empty string removes the logo; omission preserves it on updates.
         identity:
           nullable: true
           allOf:
@@ -4323,6 +4331,10 @@ components:
     AccountPatchRequest:
       type: object
       properties:
+        logo:
+          type: string
+          maxLength: 1398136
+          description: Optional PNG, JPEG or WebP base64 data URL up to 1 MiB decoded. Saved as a metadata-free 128px WebP. Empty string removes the logo; omission preserves it on updates.
         identity:
           nullable: true
           allOf:

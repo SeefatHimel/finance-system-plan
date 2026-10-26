@@ -284,6 +284,7 @@ export interface AuditLogEntry {
 }
 
 export interface Account {
+  logo?: string;
   identity?: AccountIdentity | null;
   id: string;
   name: string;
@@ -303,6 +304,7 @@ export interface Account {
 }
 
 export interface AccountCreateRequest {
+  logo?: string;
   identity?: AccountIdentityInput | null;
   name: string;
   type: AccountType;
@@ -313,6 +315,7 @@ export interface AccountCreateRequest {
 }
 
 export interface AccountPatchRequest {
+  logo?: string;
   identity?: AccountIdentityPatchInput | null;
   name?: string;
   type?: AccountType;
