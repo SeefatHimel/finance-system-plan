@@ -26,3 +26,21 @@ The API must deploy before the web client; no migration is required. Historical
 transactions are not automatically reclassified or undone. Verify any earlier
 manually applied EBL recipient suggestion against its original source before
 editing it. Possible bank-charge hints remain separate review decisions.
+
+## Skip without identifying
+
+Use **Skip / don’t identify** for an unknown or one-off clue. No name or label is
+needed. The default **Not skipped** filter hides it on later visits and imports;
+**Skipped → Restore identifier** brings it back. The skip toast also offers Undo.
+Any saved rule for that scope is paused until restoration. Statement and ledger
+transactions are never skipped or deleted. Identifying a restored clue is optional.
+
+## Remove the old incorrect EBL metadata and rules
+
+Choose **Clear incorrect EBL data**. A preview shows how many retired numeric
+values and old EBL recipient rules belong to your account. Cancel makes no
+changes. **Clear incorrect data** confirms only that preview; if it becomes stale,
+preview again. Correct masked evidence, source statements and financial records
+stay saved. Previously applied manual transaction edits are not reversed.
+This action is separate from scanning a PDF, and requires the updated API.
+The skip feature also requires API migration `statements.0012_identifier_skip`.

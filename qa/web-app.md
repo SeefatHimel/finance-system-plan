@@ -1650,3 +1650,18 @@ by provider and preserve filters. Partial or failed scans use error toasts and
 list affected PDFs; directory load failures offer retry without pretending the
 result is empty. Dates use the shared formatter and long labels wrap on mobile.
 See `projects/finance-web/docs/ebl-statement-codes.md` for end-user steps.
+
+### Is identifying every statement clue mandatory?
+
+No. Every clue offers **Skip / don’t identify**, including read-only EBL account
+clues and already mapped clues. It requires no name and hides the clue under the
+default Not skipped view; Skipped and All remain available. A toast offers Undo,
+and Skipped offers Restore identifier. Skipping pauses a saved rule but never
+skips a statement/ledger transaction. Filters remain intact; an empty review view
+points users to Skipped instead of telling them to import again.
+
+The separate Clear incorrect EBL data action first previews owner-scoped counts
+in a modal with Cancel initially focused. Only its final action removes the
+retired identifier metadata and disabled EBL rules. Stale confirmation requires
+another preview, and errors use toasts. The modal states that source statements,
+correct masks, financial values and past manual edits remain unchanged.

@@ -1818,6 +1818,7 @@ export async function getStatementSummary(token: string, id: string, signal?: Ab
 const statementCounterpartyCodeSchema = z.object({
   account: z.string(), account_name: z.string(), profile: z.enum(["city_bank", "bkash", "ebl_bank"]), code: z.string(), printed_code: z.string().nullable(), direction: z.enum(["debit", "credit"]),
   count: z.number(), pending_count: z.number(), last_seen: z.string().nullable(),
+  skipped: z.boolean().default(false),
   examples: z.array(z.object({ date: z.string().nullable(), amount: z.string().nullable(), description: z.string() })),
   mapping: z.object({ id: z.string(), party_kind: z.enum(["owned", "external"]), label: z.string(), other_account: z.string().nullable(), suggested_type: z.string(), category: z.string().nullable(), note_template: z.string().default(""), updated_at: z.string() }).nullable()
 });
@@ -1832,6 +1833,22 @@ export async function saveStatementCounterpartyCode(token: string, input: Statem
 }
 export async function forgetStatementCounterpartyCode(token: string, id: string) {
   await authenticatedFetch(`/api/statements/counterparty-codes/${id}/`, token, { method: "DELETE" });
+}
+export async function setStatementIdentifierSkipped(token: string, row: StatementCounterpartyCode, skipped: boolean) {
+  const { account, profile, code, direction } = row;
+  return z.object({ skipped: z.boolean() }).parse(await (await authenticatedFetch("/api/statements/counterparty-codes/skip/", token, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account, profile, code, direction, skipped }),
+  })).json());
+}
+const eblCleanupPreviewSchema = z.object({ retired_identifiers: z.number().int().nonnegative(), retired_rules: z.number().int().nonnegative(), revision: z.string() });
+export type EblCleanupPreview = z.infer<typeof eblCleanupPreviewSchema>;
+export async function previewRetiredEblCleanup(token: string): Promise<EblCleanupPreview> {
+  return eblCleanupPreviewSchema.parse(await (await authenticatedFetch("/api/statements/counterparty-codes/cleanup-ebl/", token)).json());
+}
+export async function clearRetiredEblIdentifiers(token: string, revision: string) {
+  return z.object({ cleared_identifiers: z.number().int().nonnegative(), deleted_rules: z.number().int().nonnegative() }).parse(await (await authenticatedFetch("/api/statements/counterparty-codes/cleanup-ebl/", token, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision }),
+  })).json());
 }
 export async function reviewSelectedStatementRows(token: string, id: string, rows: { id: string; version: number }[], action: "create" | "skip") {
   return z.object({ added: z.number(), skipped: z.number(), unchanged: z.number(), unresolved: z.array(z.object({ id: z.string(), reason: z.string() })) }).parse(await (await authenticatedFetch(`/api/statements/imports/${id}/review_selected/`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows, action }) })).json());
