@@ -61,7 +61,8 @@ export function StatementCounterpartyDirectory() {
   const [refresh, setRefresh] = useState(0);
   const [recovering, setRecovering] = useState(false);
   const [recoveryResult, setRecoveryResult] = useState<{
-    found: number; scanned: number; updated: number; issues: { id: string; label: string; reason: string }[];
+    providers: { profile: string; label: string; found: number; scanned: number; updated: number }[];
+    issues: { id: string; label: string; reason: string }[];
   } | null>(null);
 
   useEffect(() => {
@@ -102,26 +103,30 @@ export function StatementCounterpartyDirectory() {
         offset += page.results.length;
         if (!page.next || !page.results.length) break;
       }
-      let scanned = 0;
-      let updated = 0;
+      const providers = [
+        { profile: "ebl_bank", label: "EBL bank", found: 0, scanned: 0, updated: 0 },
+        { profile: "bkash", label: "bKash", found: 0, scanned: 0, updated: 0 },
+      ];
       const issues: { id: string; label: string; reason: string }[] = [];
       for (const item of imports) {
+        const provider = providers.find((value) => value.profile === item.profile)!;
+        provider.found += 1;
         const label = `${item.account_name} · ${item.period_start ? formatCalendarDate(item.period_start) : "unknown"}–${item.period_end ? formatCalendarDate(item.period_end) : "unknown"}`;
         if (!item.has_original_file) {
           issues.push({ id: item.id, label, reason: "Saved PDF unavailable. Re-upload the identical statement." });
           continue;
         }
         try {
-          updated += await refreshStatementIdentifiers(token, item.id);
-          scanned += 1;
+          provider.updated += await refreshStatementIdentifiers(token, item.id);
+          provider.scanned += 1;
         } catch (reason) {
           issues.push({ id: item.id, label, reason: reason instanceof Error ? reason.message : "Could not read this saved PDF. Open it to enter a PDF password if needed." });
         }
       }
-      setRecoveryResult({ found: imports.length, scanned, updated, issues });
-      setQuery(""); setAccountFilter(""); setStatusFilter(""); setProfileFilter(""); setShown(50);
+      setRecoveryResult({ providers, issues });
+      setShown(50);
       setRefresh((value) => value + 1);
-      notify(imports.length ? `Scanned ${scanned} saved EBL/bKash statement${scanned === 1 ? "" : "s"}; found ${updated} new identifier${updated === 1 ? "" : "s"}.` : "No saved EBL/bKash statements were found.");
+      notify(imports.length ? `Scan finished. ${providers.map((provider) => `${provider.label}: ${provider.updated} rows updated`).join("; ")}. See the scan results for details.` : "No saved EBL/bKash statements were found.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not list saved statements.");
     } finally {
@@ -177,7 +182,11 @@ export function StatementCounterpartyDirectory() {
     <div className="statement-code-recovery">
       <p>Missing EBL or bKash identifiers? Older imports may need their saved PDFs scanned again. Reloading the import list does not extract identifiers. A password-protected PDF must be refreshed from its own statement review.</p>
       <button className="button" type="button" disabled={recovering} onClick={() => void recoverIdentifiers()}>{recovering ? "Scanning saved EBL/bKash PDFs…" : "Find identifiers in saved EBL/bKash PDFs"}</button>
-      {recoveryResult ? <div role="status"><p>{recoveryResult.found ? `Scanned ${recoveryResult.scanned} saved EBL/bKash PDFs and added identifiers to ${recoveryResult.updated} rows. If none were added, the rows may already have identifiers or lack a repeatable clue.` : "No saved EBL/bKash statements were found."}</p>{recoveryResult.issues.length ? <ul>{recoveryResult.issues.map((issue) => <li key={issue.id}><Link href={`/statements?import=${encodeURIComponent(issue.id)}`}>{issue.label}</Link>: {issue.reason}</li>)}</ul> : null}</div> : null}
+      {recoveryResult ? <div role="status">
+        <ul>{recoveryResult.providers.map((provider) => <li key={provider.profile}><strong>{provider.label}:</strong> {provider.found ? `scanned ${provider.scanned} of ${provider.found} saved PDFs; added identifier metadata to ${provider.updated} rows.` : "No saved PDFs found."}</li>)}</ul>
+        <p>These are statement row counts, not unique recipients. Zero added rows can mean identifiers were already saved or no supported printed clue was found. Your current filters are unchanged.</p>
+        {recoveryResult.issues.length ? <ul>{recoveryResult.issues.map((issue) => <li key={issue.id}><Link href={`/statements?import=${encodeURIComponent(issue.id)}`}>{issue.label}</Link>: {issue.reason}</li>)}</ul> : null}
+      </div> : null}
     </div>
     <div className="statement-code-filters">
       <label className="field"><span className="field__label">Search code or name</span><input className="field__control" type="search" value={query} onChange={(event) => { setQuery(event.target.value); setShown(50); }} /></label>

@@ -6,6 +6,9 @@
    entries. If a PDF needs a password, open its statement review, expand Statement
    details and reconciliation, enter the password and choose **Refresh identifiers
    from saved PDF**. If the archive is unavailable, re-upload the identical file.
+   Results list EBL and bKash separately. Counts refer to rows receiving missing
+   metadata, not unique recipients; zero additions can mean metadata was already
+   saved or no supported clue was found. Your filters stay selected after scanning.
 3. Compare the printed code with the original statement before choosing Identify.
    The numeric value is an unverified clue; neither the masked card nor the NPSB
    operation label proves who received the payment. A `//` reference identifies a
@@ -28,5 +31,7 @@ The web schema accepts the additive `ebl_bank` counterparty-code profile and
 preserves City Bank/bKash behavior. This feature needs API and web deployment;
 there is no schema migration or automatic financial-data backfill. Recognition
 is deliberately restricted to supported digital EBL bank NPSB descriptions with
-one full double-pipe-delimited identifier. Unseen layouts, partial digits and
+one full identifier after `||` and before a closing `|` (including `||digits|DC`
+and `||digits||DC`). Older imports missing this metadata can be scanned again
+after deploying the updated API. Unseen layouts, partial digits and
 ambiguous descriptions require manual review.

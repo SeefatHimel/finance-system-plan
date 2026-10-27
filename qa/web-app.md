@@ -1645,5 +1645,8 @@ not update existing ledger entries.
 Find identifiers in saved EBL/bKash PDFs scans archived imports. Password-protected
 files can be refreshed from their statement review with the password; missing
 archives need the identical PDF re-uploaded. Only missing identifier metadata is
-filled, preserving notes, classifications and posted entries. See
+filled, preserving notes, classifications and posted entries. Scan results show
+EBL and bKash separately, counting updated statement rows rather than unique
+recipients. Zero additions may mean metadata was already saved or the extracted
+row lacks a supported clue. Scanning preserves the current directory filters. See
 `projects/finance-web/docs/ebl-statement-codes.md` for the end-user steps.
