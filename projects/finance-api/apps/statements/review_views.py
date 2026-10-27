@@ -59,6 +59,7 @@ from .services import (
 from .uploads import BoundedStatementUploadHandler
 from .views import (
     StatementDirectionRecheckThrottle,
+    StatementIdentifierRefreshThrottle,
     StatementPreviewThrottle,
     StatementPreviewView,
 )
@@ -142,7 +143,9 @@ class StatementImportViewSet(
     def get_throttles(self):
         if self.action == "recheck_directions":
             return [StatementDirectionRecheckThrottle()]
-        return [StatementPreviewThrottle()] if self.action in {"create", "refresh_identifiers"} else []
+        if self.action == "refresh_identifiers":
+            return [StatementIdentifierRefreshThrottle()]
+        return [StatementPreviewThrottle()] if self.action == "create" else []
 
     def get_queryset(self):
         if not self.request.user.is_authenticated:

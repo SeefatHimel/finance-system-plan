@@ -287,7 +287,7 @@ paths:
       - $ref: '#/components/parameters/UuidPathId'
       security:
       - bearerAuth: []
-      description: Owner-scoped and throttled. Verify the retained bKash PDF and saved row fingerprints, then fill missing encrypted recurring identifiers only. Original extraction, reviewed drafts and ledger entries remain unchanged.
+      description: Owner-scoped, limited to 20 PDF requests/hour/user independently of upload/preview. Failed refresh requests also count. Verify the retained bKash or EBL bank PDF and saved row fingerprints, then fill missing encrypted recurring identifiers only. Original extraction, reviewed drafts and ledger entries remain unchanged.
       requestBody:
         content:
           application/json:
@@ -305,7 +305,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFoundError'
         '429':
-          description: Refresh rate exceeded.
+          description: Identifier refresh rate exceeded (20 PDF requests/hour/user); upload/preview allowance is separate.
         '503':
           description: Archive decryption or extraction unavailable.
   /api/statements/imports/{id}/recheck-directions/:

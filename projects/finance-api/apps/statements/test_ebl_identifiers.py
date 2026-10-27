@@ -1,5 +1,6 @@
 """Synthetic EBL identifiers, independent charge hints and archived recovery."""
 
+import time
 from copy import deepcopy
 from datetime import date
 from decimal import Decimal
@@ -284,6 +285,27 @@ class EblIdentifierTests(APITestCase):
             ValidationError, "Archived statement rows do not match"
         ):
             refresh_statement_identifiers(batch, broken, strict=True)
+
+    def test_archived_refresh_does_not_consume_or_depend_on_upload_allowance(self):
+        batch, _ = self.upload()
+        url = reverse("statement-import-refresh-identifiers", args=[batch.pk])
+        upload_key = f"throttle_statement_preview_{self.user.pk}"
+        refresh_key = f"throttle_statement_identifier_refresh_{self.user.pk}"
+        cache.set(upload_key, [time.time()] * 10, 3600)
+
+        response = self.client.post(url, {}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(len(cache.get(upload_key)), 10)
+
+        cache.delete(upload_key)
+        cache.set(refresh_key, [time.time()] * 20, 3600)
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, 429)
+        # An exhausted refresh allowance must still permit a separate upload.
+        self.upload()
+        self.assertEqual(len(cache.get(upload_key)), 1)
+
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, 404)
 
     def test_refresh_of_posted_source_cannot_rewrite_ledger(self):
         batch, _ = self.upload()

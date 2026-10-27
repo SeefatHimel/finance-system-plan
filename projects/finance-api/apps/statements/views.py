@@ -42,6 +42,12 @@ class StatementDirectionRecheckThrottle(StatementPreviewThrottle):
     rate = "20/hour"
 
 
+class StatementIdentifierRefreshThrottle(StatementPreviewThrottle):
+    # Enriching saved PDF metadata must not spend the upload/preview allowance.
+    scope = "statement_identifier_refresh"
+    rate = "20/hour"
+
+
 def extract_pdf_bytes(data, password="", *, include_private_identifiers=False):
     """Run the bounded PDF worker for imports and archived-source refreshes."""
     payload = {

@@ -1749,4 +1749,8 @@ or re-upload the identical PDF. The same archive digest, position/fingerprint,
 password and ownership checks used for bKash apply. Only missing encrypted code
 metadata and its row version change, including on posted evidence; classifications,
 amounts, links, notes and ledger entries remain unchanged. No migration is needed.
+Identifier refresh has its own per-user limit of 20 PDF requests/hour, separate
+from upload/preview, recognition and direction rechecks. A bulk scan counts one
+request per PDF; failed requests also count. Exhausting it returns 429 and does
+not block uploading a new statement.
 Deploy the API before the web client. Scanned PDFs still require supported OCR.

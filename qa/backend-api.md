@@ -1342,3 +1342,6 @@ party counts. Suggestions never rewrite drafts or ledger money. Archived EBL
 identifier recovery checks ownership, digest, password and exact fingerprints,
 then fills only missing encrypted metadata and versions. Posted entries stay
 unchanged; no migration is required.
+Identifier refresh uses a separate 20 PDF requests/hour/user allowance, so scans
+cannot exhaust the upload/preview budget and vice versa. Failed refresh requests
+count, and the endpoint returns 429 when its own allowance is exhausted.
