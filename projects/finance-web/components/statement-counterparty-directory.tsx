@@ -29,7 +29,9 @@ function initialChoice(row: StatementCounterpartyCode): StatementCounterpartyCod
 
 function codeLabel(row: StatementCounterpartyCode) {
   if (row.profile === "city_bank") return row.code;
-  if (row.profile === "ebl_bank") return `EBL NPSB · ${row.code.replace(/^npsb:code:/, "")} (printed identifier)`;
+  if (row.profile === "ebl_bank") return row.code.startsWith("npsb:masked:")
+    ? `Masked card/account · ${row.code.slice("npsb:masked:".length)}`
+    : "Retired EBL movement field";
   const [kind, valueKind, ...value] = row.code.split(":");
   const title: Record<string, string> = { recharge: "Mobile recharge", send: "Send money", payment: "Payment", bill: "Pay bill" };
   return `${title[kind] ?? "bKash"} · ${value.join(":")}${valueKind === "phone" ? " (number)" : ""}`;
@@ -89,7 +91,7 @@ export function StatementCounterpartyDirectory() {
   const visible = useMemo(() => rows.filter((row) =>
     (!accountFilter || row.account === accountFilter)
     && (!profileFilter || row.profile === profileFilter)
-    && (!statusFilter || (statusFilter === "mapped" ? Boolean(row.mapping) : !row.mapping))
+    && (!statusFilter || (row.profile !== "ebl_bank" && (statusFilter === "mapped" ? Boolean(row.mapping) : !row.mapping)))
     && (!query || `${row.code} ${row.account_name} ${row.mapping?.label ?? ""}`.toLowerCase().includes(query.toLowerCase().trim()))
   ), [rows, accountFilter, profileFilter, statusFilter, query]);
   const shownRows = visible.slice(0, shown);
@@ -180,20 +182,20 @@ export function StatementCounterpartyDirectory() {
 
   return <div className="panel"><div className="panel__body statement-code-page">
     <h2 className="section-title">Statement identifiers</h2>
-    <p className="section-subtitle">Identify printed EBL NPSB identifiers and repeatable Citytouch/bKash clues. Each mapping belongs to one reporting account and debit or credit direction. Verify the original PDF before naming a party.</p>
+    <p className="section-subtitle">Review masked EBL card/account clues and identify recurring Citytouch/bKash parties. Party mappings belong to one reporting account and debit or credit direction.</p>
     <details className="statement-code-help"><summary>How to read statement identifiers</summary>
     <p className="inline-note">In <strong>CT-FT-***1234-***5678</strong>, the first part identifies a movement. We use every visible digit of the second part as a possible party clue. When only four digits are available, different parties can share that suffix. Verify it against your records before saving. Debit means money left the reporting account; credit means money arrived.</p>
     <p className="inline-note">Bank operation and ledger purpose are separate. A Citytouch fund transfer can be an internal transfer, a payment, or another type. Your choice suggests details for pending rows; it never posts or changes a transaction automatically.</p>
-    <p className="inline-note">EBL NPSB identifiers are printed clues, not verified recipients. The masked card may identify your own reporting card. A // movement reference can connect a transfer and a possible charge; it is never a recurring party code. Verify who the numeric identifier represents before naming or mapping it. Possible fee rows stay separate and do not inherit transfer mappings.</p>
+    <p className="inline-note">EBL shows the repeated masked value, including its trailing star, as read-only card/account evidence. It may be your own sending card; it does not establish a recipient. The following numeric field and // movement references are not recurring party identifiers. Older EBL recipient rules based on that field are no longer applied. Existing transactions stay unchanged; possible charges remain separate.</p>
     <p className="inline-note">For bKash, recipient/recharge numbers and merchant or biller labels can repeat. A TRX ID identifies just one movement, so it is never used as a recurring code. Verify any suggestion before recording.</p>
     </details>
     <p><Link href="/statements">Back to statement reviews</Link></p>
     <div className="statement-code-recovery">
-      <p>Missing EBL or bKash identifiers? Older imports may need their saved PDFs scanned again. Reloading the import list does not extract identifiers. A password-protected PDF must be refreshed from its own statement review.</p>
+      <p>EBL masked clues are read from saved statement rows. Scanning can correct older EBL identifier metadata or recover missing bKash identifiers. It does not change transactions. Open a password-protected PDF in its statement review to refresh it.</p>
       <button className="button" type="button" disabled={recovering} onClick={() => void recoverIdentifiers()}>{recovering ? "Scanning saved EBL/bKash PDFs…" : "Find identifiers in saved EBL/bKash PDFs"}</button>
       {recoveryResult ? <div role="status">
-        <ul>{recoveryResult.providers.map((provider) => <li key={provider.profile}><strong>{provider.label}:</strong> {provider.found ? `scanned ${provider.scanned} of ${provider.found} saved PDFs; added identifier metadata to ${provider.updated} rows.` : "No saved PDFs found."}</li>)}</ul>
-        <p>These are statement row counts, not unique recipients. Zero added rows can mean identifiers were already saved or no supported printed clue was found. Your current filters are unchanged.</p>
+        <ul>{recoveryResult.providers.map((provider) => <li key={provider.profile}><strong>{provider.label}:</strong> {provider.found ? `scanned ${provider.scanned} of ${provider.found} saved PDFs; updated identifier metadata on ${provider.updated} rows.` : "No saved PDFs found."}</li>)}</ul>
+        <p>These are statement row counts, not unique recipients. Zero updates can mean metadata was already correct or no supported clue was found. Your current filters are unchanged.</p>
         {recoveryResult.issues.length ? <ul>{recoveryResult.issues.map((issue) => <li key={issue.id}><Link href={`/statements?import=${encodeURIComponent(issue.id)}`}>{issue.label}</Link>: {issue.reason}</li>)}</ul> : null}
       </div> : null}
     </div>
@@ -212,9 +214,9 @@ export function StatementCounterpartyDirectory() {
       const isEditing = editing === key && draft;
       const otherOptions = accounts.filter((account) => account.id !== row.account && account.is_active && account.currency === accounts.find((value) => value.id === row.account)?.currency);
       return <article className="statement-code-card" key={key}>
-        <div className="statement-code-card__heading"><div><h3>{row.account_name} · {codeLabel(row)}</h3><p>{row.direction === "debit" ? "Money out" : "Money in"} · {row.count} observed · {row.pending_count} pending{row.last_seen ? ` · last seen ${formatCalendarDate(row.last_seen)}` : ""}{row.profile === "city_bank" && row.code.length === 4 ? " · only four digits available" : ""}</p></div><span className={row.mapping ? "status-badge status-badge--ok" : "status-badge status-badge--warning"}>{row.mapping ? "Saved" : "Unidentified"}</span></div>
+        <div className="statement-code-card__heading"><div><h3>{row.account_name} · {codeLabel(row)}</h3><p>{row.direction === "debit" ? "Money out" : "Money in"} · {row.count} observed · {row.pending_count} pending{row.last_seen ? ` · last seen ${formatCalendarDate(row.last_seen)}` : ""}{row.profile === "city_bank" && row.code.length === 4 ? " · only four digits available" : ""}</p></div><span className={row.profile === "ebl_bank" ? "status-badge" : row.mapping ? "status-badge status-badge--ok" : "status-badge status-badge--warning"}>{row.profile === "ebl_bank" ? row.code.startsWith("npsb:masked:") ? "Account clue" : "Retired reference" : row.mapping ? "Saved" : "Unidentified"}</span></div>
         {row.examples.length ? <details className="statement-code-examples"><summary>Recent masked statement rows</summary><ul>{row.examples.map((example, index) => <li key={`${example.date}-${index}`}>{formatCalendarDate(example.date)} · {example.amount ?? "Amount unknown"} · {example.description}</li>)}</ul></details> : null}
-        {!isEditing ? <><p>{row.mapping ? `${row.mapping.label} · ${row.mapping.party_kind === "owned" ? "My account" : "External party"}${row.mapping.suggested_type ? ` · ${row.mapping.suggested_type.replaceAll("_", " ")}` : " · no type suggestion"}` : "Check who or what this identifier represents."}</p><button className="button" type="button" onClick={() => open(row)}>{row.mapping ? "Edit mapping" : "Identify"}</button></> :
+        {row.profile === "ebl_bank" ? <><p>{row.code.startsWith("npsb:masked:") ? "This printed masked value may identify the sending card/account. It does not identify the recipient, so it cannot set a transfer destination or merchant rule." : "This movement field was incorrectly used as a recurring identifier and is retired. The corrected API must be deployed before masked card/account evidence can be shown. Do not use this field as a recipient rule."}</p><Link className="button" href="/accounts">Review account recognition</Link></> : !isEditing ? <><p>{row.mapping ? `${row.mapping.label} · ${row.mapping.party_kind === "owned" ? "My account" : "External party"}${row.mapping.suggested_type ? ` · ${row.mapping.suggested_type.replaceAll("_", " ")}` : " · no type suggestion"}` : "Check who or what this identifier represents."}</p><button className="button" type="button" onClick={() => open(row)}>{row.mapping ? "Edit mapping" : "Identify"}</button></> :
           <form className="statement-code-form" onSubmit={save}>
             <label className="field"><span className="field__label">Who is this?</span><select className="field__control" value={draft.party_kind} onChange={(event) => setDraft({ ...draft, party_kind: event.target.value as "owned" | "external", other_account: null, suggested_type: "", category: null })}><option value="external">External person, business, or bank</option><option value="owned">Another account I track</option></select></label>
             <label className="field"><span className="field__label">Display name</span><input className="field__control" required maxLength={120} value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} placeholder="e.g. Rent recipient" /></label>

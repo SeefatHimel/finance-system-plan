@@ -1,41 +1,28 @@
-# Identify EBL statement clues
+# Review EBL masked card/account clues
 
-1. Open **Settings → Statement codes** and select **EBL bank** in Statement type.
-2. If older imports have no identifiers, choose **Find identifiers in saved
-   EBL/bKash PDFs**. The action scans existing archived PDFs without adding ledger
-   entries. If a PDF needs a password, open its statement review, expand Statement
-   details and reconciliation, enter the password and choose **Refresh identifiers
-   from saved PDF**. If the archive is unavailable, re-upload the identical file.
-   Results list EBL and bKash separately. Counts refer to rows receiving missing
-   metadata, not unique recipients; zero additions can mean metadata was already
-   saved or no supported clue was found. Your filters stay selected after scanning.
-   An incomplete scan shows an error toast and links the affected statements;
-   it is not reported as a successful scan. Identifier scans have a separate limit
-   of 20 PDF requests per hour; failed requests count. If the service cannot load
-   the directory, use **Retry loading identifiers** without clearing your filters.
-3. Compare the printed code with the original statement before choosing Identify.
-   The numeric value is an unverified clue; neither the masked card nor the NPSB
-   operation label proves who received the payment. A `//` reference identifies a
-   movement and may be shared by its charge; it is not a recurring recipient rule.
-4. Choose an external party or another owned account, enter a verified display
-   name and optionally suggest a compatible transaction type/category/note. An
-   internal transfer requires a different active owned account in the same currency.
-5. Save the verified mapping. Review the relevant pending statement row and use
-   **Apply suggested choices** if correct, then save/review it normally. Existing
-   ledger transactions are not updated by the mapping or identifier scan.
+1. Open **Settings → Statement codes** and choose **EBL bank**.
+2. The displayed value is the printed masked card/account, including any trailing
+   star. Different movement references with the same mask are grouped together.
+   Possible companion fees are excluded from the principal movement count.
+3. Treat it as account-recognition evidence. It may identify your own sending
+   card, and cannot establish who received the money. Use **Review account
+   recognition** to check your saved account/card details in Accounts.
+4. EBL clues have no recipient-rule editor. Old EBL rules based on the numeric
+   field after the mask are no longer applied. They are not automatically
+   converted to masked-card rules. Citytouch/bKash rules continue to work.
 
-A possible separate charge can be suggested for the following row when its
-reference, date, debit direction, adjacency, bounded amount and exact balance
-step corroborate the pair. The fee remains its own row and does not inherit the
-transfer destination. Recognized pairs are not treated as sub-taka rounding
-variants of one transaction. Check the original PDF; a small amount alone is insufficient.
-Saving or removing a mapping never combines amounts or changes original sources.
+Saved masked descriptions are enough to show EBL clues; re-uploading is not
+required. **Find identifiers in saved EBL/bKash PDFs** can correct retired EBL
+metadata and recover missing bKash identifiers. Password-protected PDFs must be
+refreshed from their own statement review using the transient password. A missing
+archive needs the identical PDF. Integrity and saved-row checks still apply.
+Results show updated rows by provider, not unique recipients. Scanning preserves
+filters and leaves originals, reviewed financial values and posted transactions
+unchanged. Identifier scans allow 20 PDF requests/hour, including failed requests,
+independently of uploads. Incomplete scans show error toasts and affected PDFs;
+loading errors offer **Retry loading identifiers**.
 
-The web schema accepts the additive `ebl_bank` counterparty-code profile and
-preserves City Bank/bKash behavior. This feature needs API and web deployment;
-there is no schema migration or automatic financial-data backfill. Recognition
-is deliberately restricted to supported digital EBL bank NPSB descriptions with
-one full identifier after `||` and before a closing `|` (including `||digits|DC`
-and `||digits||DC`). Older imports missing this metadata can be scanned again
-after deploying the updated API. Unseen layouts, partial digits and
-ambiguous descriptions require manual review.
+The API must deploy before the web client; no migration is required. Historical
+transactions are not automatically reclassified or undone. Verify any earlier
+manually applied EBL recipient suggestion against its original source before
+editing it. Possible bank-charge hints remain separate review decisions.

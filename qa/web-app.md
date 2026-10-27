@@ -1633,25 +1633,20 @@ replace the initial across the account list, lanes, transaction paths and review
 summaries. Unreadable images fall back to the initial, and native account select
 options remain text. Errors use the existing toast feedback.
 
-### How can users identify EBL bank statement codes and recover older imports?
+### How are EBL masked card/account clues distinguished from recipient rules?
 
-Statement codes includes an EBL bank filter and labels NPSB numeric clues as
-printed identifiers requiring verification. Users may name an external party or
-select another owned account and save compatible classification suggestions.
-They apply those suggestions explicitly in pending-row review; a possible charge
-stays separate and never inherits the transfer destination. Saving a mapping does
-not update existing ledger entries.
+Statement codes groups the printed EBL mask, preserving its trailing star,
+across changing movement references. It is labeled **Account clue**, has no
+recipient editor, and links to Accounts to review recognition details. It may
+identify the sending card; it cannot establish the other account or merchant.
+Old EBL recipient rules are no longer applied, and the UI states this explicitly.
+Only Citytouch/bKash rules appear under Needs identification or Saved filters.
+EBL masks are available under All, scoped by statement type/account/search.
 
-Find identifiers in saved EBL/bKash PDFs scans archived imports. Password-protected
-files can be refreshed from their statement review with the password; missing
-archives need the identical PDF re-uploaded. Only missing identifier metadata is
-filled, preserving notes, classifications and posted entries. Scan results show
-EBL and bKash separately, counting updated statement rows rather than unique
-recipients. Zero additions may mean metadata was already saved or the extracted
-row lacks a supported clue. Scanning preserves the current directory filters. See
-`projects/finance-web/docs/ebl-statement-codes.md` for the end-user steps.
-Partial or failed scans use persistent error toasts and list affected PDFs;
-listing failures also show a toast. Directory load errors offer an explicit retry
-without clearing filters and do not masquerade as an empty directory. Long account
-names and identifiers wrap inside mobile cards, and last-seen dates use the shared
-calendar formatter.
+Saved masked descriptions suffice for the directory; no rescan is required.
+Scanning can recover missing metadata or correct retired EBL numeric codes,
+without altering financial values or posted entries. Results count updated rows
+by provider and preserve filters. Partial or failed scans use error toasts and
+list affected PDFs; directory load failures offer retry without pretending the
+result is empty. Dates use the shared formatter and long labels wrap on mobile.
+See `projects/finance-web/docs/ebl-statement-codes.md` for end-user steps.
