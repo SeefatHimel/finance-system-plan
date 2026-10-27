@@ -1344,3 +1344,25 @@ digest, password, row position and fingerprint. It changes only encrypted code,
 version and timestamp; repeated refresh is idempotent. Its separate 20 PDF
 requests/hour/user budget cannot consume upload/preview allowance. No migration
 is required.
+
+### Can users decline to identify a statement clue?
+
+Yes. `StatementIdentifierSkip` stores an optional, scoped preference separately
+from verified mappings and financial rows. No name is required. Skipping pauses
+its saved code rule; restoration or explicitly saving a mapping resumes it.
+Code hashes keep private bKash/EBL values out of the preference index. Directory
+responses include skipped state even for read-only EBL clues. Other independent
+parser hints continue to work. User-level transaction locks serialize preference
+and rule writes; repeated requests cannot create duplicate scoped preferences.
+
+### How are the incorrect EBL identifiers actually removed?
+
+An authenticated preview counts only the owner's retired numeric code metadata
+and disabled EBL rules, issuing a signed revision bound to that owner and exact
+row versions/rules for 15 minutes. Confirmation locks/revalidates the plan and
+atomically clears metadata and deletes only previewed rules. It records counts in
+audit history and bumps affected row versions so open reviews must refresh.
+Unchanged correct masks, originals, classifications, linked transactions and other
+owners/providers are protected. Expired, altered or stale previews return 409;
+decryption failure aborts before writes. Cleanup does not reverse past manual
+financial edits. Migration 0012 creates only the skip preference table.

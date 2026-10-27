@@ -663,6 +663,13 @@ class MessageCandidateStatementMatchesView(APIView):
         }, headers={"Cache-Control": "private, no-store"})
 
 
+@extend_schema(
+    request={"application/json": {"type": "object", "properties": {"replace_existing": {"type": "boolean", "default": False}}}},
+    responses={200: {"type": "object", "required": ["saved", "scope", "account"], "properties": {
+        "saved": {"type": "boolean"}, "scope": {"type": "string", "enum": ["cash_withdrawal", "counterparty", "message_type"]},
+        "account": {"type": "string"}, "destination": {"type": "string"},
+    }}},
+)
 class RememberConfirmedMessageChoiceView(APIView):
     """Save an explicit, user-scoped rule only after the money movement exists."""
 

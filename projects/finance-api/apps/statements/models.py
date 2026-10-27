@@ -197,3 +197,21 @@ class StatementCounterpartyCode(models.Model):
             )
         ]
         indexes: ClassVar = [models.Index(fields=("user", "account", "code"))]
+
+
+class StatementIdentifierSkip(models.Model):
+    """Optional owner-scoped dismissal, separate from verified party mappings."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
+    profile = models.CharField(max_length=32)
+    code = models.CharField(max_length=64)
+    direction = models.CharField(max_length=16, choices=Transaction.Direction.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints: ClassVar = [models.UniqueConstraint(
+            fields=("user", "account", "profile", "code", "direction"),
+            name="statement_identifier_skip_scope",
+        )]

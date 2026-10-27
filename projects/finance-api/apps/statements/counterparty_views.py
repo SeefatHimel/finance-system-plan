@@ -14,11 +14,12 @@ from rest_framework.views import APIView
 from apps.accounts.models import Account
 from apps.categories.models import Category
 from apps.transactions.models import Transaction
+from apps.transactions.transfers import lock_transfer_user
 
 from .bkash_identifiers import CODE as BKASH_CODE
 from .bkash_identifiers import mapping_code
 from .counterparties import observed_codes
-from .models import StatementCounterpartyCode
+from .models import StatementCounterpartyCode, StatementIdentifierSkip
 
 
 class CodeMappingInputSerializer(serializers.Serializer):
@@ -158,6 +159,7 @@ class ObservedCodeSerializer(serializers.Serializer):
     last_seen = serializers.DateField(allow_null=True)
     examples = CodeExampleSerializer(many=True)
     mapping = CodeMappingOutputSerializer(allow_null=True)
+    skipped = serializers.BooleanField()
 
 
 class ObservedCodeListSerializer(serializers.Serializer):
@@ -196,6 +198,9 @@ class StatementCounterpartyCodeView(APIView):
             user=request.user
         ).select_related("account", "other_account", "category")
         saved = {(m.account_id, m.profile, m.code, m.direction): m for m in mappings}
+        skipped = set(StatementIdentifierSkip.objects.filter(user=request.user).values_list(
+            "account_id", "profile", "code", "direction",
+        ))
         keys = set(observed)
         # Legacy Citytouch mappings remain visible even if their source row was removed.
         keys.update(
@@ -221,6 +226,7 @@ class StatementCounterpartyCodeView(APIView):
                     "last_seen": stats.get("last_seen"),
                     "examples": stats.get("examples", []),
                     "mapping": mapping_data(mapping) if mapping else None,
+                    "skipped": (account_id, profile, mapping_code(profile, account_id, code), direction) in skipped,
                 }
             )
         return Response(
@@ -234,6 +240,7 @@ class StatementCounterpartyCodeView(APIView):
     )
     @transaction.atomic
     def post(self, request):
+        lock_transfer_user(request.user)
         serializer = CodeMappingInputSerializer(
             data=request.data, context={"request": request}
         )
@@ -273,6 +280,10 @@ class StatementCounterpartyCodeView(APIView):
                 "note_template": values.get("note_template", ""),
             },
         )
+        StatementIdentifierSkip.objects.filter(
+            user=request.user, account=account, profile=profile,
+            code=stored_code, direction=direction,
+        ).delete()
         return Response(CodeMappingOutputSerializer(mapping_data(mapping)).data)
 
 

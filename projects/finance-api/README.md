@@ -1743,3 +1743,29 @@ updated timestamp change; source snapshots, classifications, notes, links and
 ledger entries are untouched. The per-user refresh allowance is 20 PDF
 requests/hour, separate from uploads/previews; failed refresh requests count.
 No schema migration is needed. Deploy the API before the web client.
+
+## Optional identifier review and retired EBL cleanup
+
+Identification is optional. `POST /api/statements/counterparty-codes/skip/` takes
+`account`, `profile`, `code`, `direction` and `skipped`; it needs no party name.
+A separate `StatementIdentifierSkip` preference persists per user/account/provider/
+code/direction. bKash and EBL values use the same scoped digest as mapping keys.
+The directory always returns a `skipped` boolean, including read-only EBL clues.
+Skipped saved rules are paused, not deleted. Restoring resumes them; explicitly
+saving a mapping also removes its skip preference. Other independent parsing and
+account-recognition hints are unaffected. No source or transaction is skipped.
+
+`GET /api/statements/counterparty-codes/cleanup-ebl/` previews only the current
+user's retired `npsb:code:<digits>` metadata and disabled EBL mapping records.
+It returns counts and a signed, owner-bound revision valid for 15 minutes.
+Confirming with POST `{revision}` clears those metadata values, increments only
+affected statement row versions, deletes the previewed EBL rules and records
+counts in audit history. Correct masked clues, other users/providers, originals,
+classifications, links and ledger entries are excluded. Changed/expired previews
+return 409; decrypt failures return 503 without writes. New empty previews make
+repeated cleanup a harmless zero-count operation. Old manual financial edits are
+not undone by metadata cleanup. Archived originals can later recover correct masks.
+
+Deploy `statements.0012_identifier_skip` with `python manage.py migrate` before
+releasing the API and web UI. The migration creates preferences only; it performs
+no automatic financial or cleanup mutation. Cleanup remains an explicit action.

@@ -13,15 +13,15 @@ from apps.debts.views import DebtPaymentCreateView, DebtViewSet
 from apps.messages.views import (
     MessageCandidateBulkReprocessView,
     MessageCandidateConfirmView,
-    RememberConfirmedMessageChoiceView,
-    MessageCandidateStatementMatchesView,
     MessageCandidateRejectView,
     MessageCandidateReprocessView,
+    MessageCandidateStatementMatchesView,
     MessageReviewDetailView,
     MessageReviewListView,
     RawMessageBatchImportView,
     RawMessageImportView,
     RawMessageRedactView,
+    RememberConfirmedMessageChoiceView,
     SenderRuleViewSet,
     SmsCapturePreferenceView,
     SmsDevelopmentResetView,
@@ -43,8 +43,16 @@ from apps.statements.counterparty_views import (
     StatementCounterpartyCodeDetailView,
     StatementCounterpartyCodeView,
 )
+from apps.statements.identifier_actions import (
+    RetiredEblCleanupView,
+    StatementIdentifierSkipView,
+)
 from apps.statements.review_views import StatementImportViewSet, StatementRowViewSet
-from apps.statements.unified_views import UnifiedPairPreviewView, UnifiedPairView, UnifiedPendingView
+from apps.statements.unified_views import (
+    UnifiedPairPreviewView,
+    UnifiedPairView,
+    UnifiedPendingView,
+)
 from apps.statements.views import StatementIdentifyView, StatementPreviewView
 from apps.transactions.views import TransactionViewSet
 
@@ -75,6 +83,8 @@ urlpatterns = [
     path("api/review/pair/", UnifiedPairView.as_view(), name="unified-pair"),
     path("api/review/pair/preview/", UnifiedPairPreviewView.as_view(), name="unified-pair-preview"),
     path("api/statements/counterparty-codes/", StatementCounterpartyCodeView.as_view(), name="statement-counterparty-codes"),
+    path("api/statements/counterparty-codes/skip/", StatementIdentifierSkipView.as_view(), name="statement-identifier-skip"),
+    path("api/statements/counterparty-codes/cleanup-ebl/", RetiredEblCleanupView.as_view(), name="retired-ebl-cleanup"),
     path("api/statements/counterparty-codes/<uuid:pk>/", StatementCounterpartyCodeDetailView.as_view(), name="statement-counterparty-code-detail"),
     path("api/health/", include("apps.health.urls")),
     path("api/statements/preview/", StatementPreviewView.as_view(), name="statement-preview"),

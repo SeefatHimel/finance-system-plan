@@ -8,7 +8,7 @@ from .citytouch import citytouch_code, citytouch_printed_code, visible_code
 from .ebl_identifiers import CODE as EBL_CODE
 from .ebl_identifiers import identifier as ebl_identifier
 from .ebl_identifiers import mark_possible_fees
-from .models import StatementCounterpartyCode, StatementRow
+from .models import StatementCounterpartyCode, StatementIdentifierSkip, StatementRow
 
 
 def code_for_row(row):
@@ -113,15 +113,21 @@ def code_suggestions(rows):
         profile__in={key[1] for key in keys},
     ).select_related("other_account", "category")
     mapped = {(m.account_id, m.profile, m.code, m.direction): m for m in mappings}
+    skipped = set(StatementIdentifierSkip.objects.filter(
+        user_id=user_id, account_id__in={key[0] for key in keys},
+        profile__in={key[1] for key in keys},
+        code__in={mapping_code(key[1], key[0], key[2]) for key in keys},
+    ).values_list("account_id", "profile", "code", "direction"))
     result = {}
     for row in rows:
         if row.batch.profile == "ebl_bank":
             continue  # A repeated masked reporting card cannot identify a payee.
         code = code_for_row(row)
-        mapping = mapped.get((
+        key = (
             row.batch.account_id, row.batch.profile,
             mapping_code(row.batch.profile, row.batch.account_id, code), row.direction,
-        )) if code else None
+        ) if code else None
+        mapping = mapped.get(key) if key not in skipped else None
         if not mapping:
             continue
         owned = mapping.party_kind == "owned" and mapping.other_account_id
