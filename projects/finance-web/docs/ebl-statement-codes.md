@@ -1,15 +1,21 @@
-# Review EBL masked card/account clues
+# Map EBL statement identifiers
 
-1. Open **Settings → Statement codes** and choose **EBL bank**.
-2. The displayed value is the printed masked card/account, including any trailing
-   star. Different movement references with the same mask are grouped together.
-   Possible companion fees are excluded from the principal movement count.
-3. Treat it as account-recognition evidence. It may identify your own sending
-   card, and cannot establish who received the money. Use **Review account
-   recognition** to check your saved account/card details in Accounts.
-4. EBL clues have no recipient-rule editor. Old EBL rules based on the numeric
-   field after the mask are no longer applied. They are not automatically
-   converted to masked-card rules. Citytouch/bKash rules continue to work.
+1. Open **Settings → Statement codes**, then **Filters → EBL bank**.
+2. Find the printed masked card/account, including its trailing star. Different
+   movement references with the same mask are grouped; possible fees are separate.
+3. Choose **Identify** on the card. Check recent masked rows, choose an external
+   party or another account you track, and enter a name. Optionally suggest a
+   transaction type, category, and note, just as for a bKash identifier.
+4. For an internal transfer, select a different active account in the same
+   currency. The mask itself may identify the sending card; verify its meaning
+   before mapping it to a destination or merchant.
+5. **Save verified mapping** keeps you on this page. It supplies suggestions for
+   pending reviews; apply them after checking the movement. Use **Edit mapping**,
+   **Forget mapping**, **Skip**, or **Restore identifier** here whenever needed.
+
+Old rules based on changing numeric movement fields remain disabled. Only an
+explicit save against the printed mask enables a new EBL mapping. Saving a rule
+does not change existing drafts, confirmed transactions, or original statements.
 
 Saved masked descriptions are enough to show EBL clues; re-uploading is not
 required. **Find identifiers in saved EBL/bKash PDFs** can correct retired EBL
@@ -22,7 +28,8 @@ unchanged. Identifier scans allow 20 PDF requests/hour, including failed request
 independently of uploads. Incomplete scans show error toasts and affected PDFs;
 loading errors offer **Retry loading identifiers**.
 
-The API must deploy before the web client; no migration is required. Historical
+Deploy API migration `statements.0013_verified_ebl_mask_mapping` and the API
+before this web client. Historical
 transactions are not automatically reclassified or undone. Verify any earlier
 manually applied EBL recipient suggestion against its original source before
 editing it. Possible bank-charge hints remain separate review decisions.
@@ -40,7 +47,7 @@ transactions are never skipped or deleted. Identifying a restored clue is option
 Choose **Clear incorrect EBL data**. A preview shows how many retired numeric
 values and old EBL recipient rules belong to your account. Cancel makes no
 changes. **Clear incorrect data** confirms only that preview; if it becomes stale,
-preview again. Correct masked evidence, source statements and financial records
+preview again. Verified mask mappings, correct masked evidence, source statements and financial records
 stay saved. Previously applied manual transaction edits are not reversed.
 This action is separate from scanning a PDF, and requires the updated API.
 The skip feature also requires API migration `statements.0012_identifier_skip`.

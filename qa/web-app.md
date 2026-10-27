@@ -1633,27 +1633,25 @@ replace the initial across the account list, lanes, transaction paths and review
 summaries. Unreadable images fall back to the initial, and native account select
 options remain text. Errors use the existing toast feedback.
 
-### How are EBL masked card/account clues distinguished from recipient rules?
+### Can EBL identifiers use the same mapping editor as bKash?
 
-Statement codes groups the printed EBL mask, preserving its trailing star,
-across changing movement references. It is labeled **Account clue**, has no
-recipient editor, and links to Accounts to review recognition details. It may
-identify the sending card; it cannot establish the other account or merchant.
-Old EBL recipient rules are no longer applied, and the UI states this explicitly.
-Only Citytouch/bKash rules appear under Needs identification or Saved filters.
-EBL masks are available under All, scoped by statement type/account/search.
+Yes. EBL masks offer Identify / Edit mapping, external or owned party, name,
+optional transaction type, category and note, plus Skip / Restore / Forget.
+EBL participates in Needs identification and Saved filter counts. The editor
+opens in place; it does not send the user to Accounts. A short explanation says
+the printed mask may be the sending card, so the user must verify its meaning.
+There is no extra confirmation checkbox or mandatory account creation.
 
-Saved masked descriptions suffice for the directory; no rescan is required.
-Scanning can recover missing metadata or correct retired EBL numeric codes,
-without altering financial values or posted entries. Results count updated rows
-by provider and preserve filters. Partial or failed scans use error toasts and
-list affected PDFs; directory load failures offer retry without pretending the
-result is empty. Dates use the shared formatter and long labels wrap on mobile.
+Mappings suggest details for review only; saving them does not modify existing
+drafts or posted transactions. Possible fees stay separate. Old movement-code
+rules remain disabled until a valid mask is explicitly mapped; verified mask
+mappings survive the old-data cleanup action. Deploy API migration 0013 before
+the updated client. Scanning still preserves original financial data and filters.
 See `projects/finance-web/docs/ebl-statement-codes.md` for end-user steps.
 
 ### Is identifying every statement clue mandatory?
 
-No. Every clue offers **Skip / don’t identify**, including read-only EBL account
+No. Every clue offers **Skip / don’t identify**, including EBL account
 clues and already mapped clues. It requires no name and hides the clue under the
 default Not skipped view; Skipped and All remain available. A toast offers Undo,
 and Skipped offers Restore identifier. Skipping pauses a saved rule but never
