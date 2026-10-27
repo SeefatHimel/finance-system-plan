@@ -1713,44 +1713,33 @@ Run `python manage.py migrate` for `accounts.0003_account_logo` before deploying
 the web UI. Existing accounts default to an empty logo. Pillow is an explicit
 runtime dependency. Logos do not alter identity matching, balances or entries.
 
-## EBL bank statement identifiers
+## EBL bank statement clues
 
-The statement-code directory also supports `ebl_bank` (bank/savings accounts).
-Only one unambiguous, fully printed 6–24 digit value after a double opening
-pipe and before a closing pipe in `NPSB [FUND] TRANSFER` is retained as
-`npsb:code:<digits>`. Both `||<digits>|DC` and `||<digits>||DC` are supported,
-including spaced separators. Older imports affected by the former double-closing
-pipe requirement can recover the missing metadata by scanning their saved PDFs.
-It is an **unverified printed clue**, not proof of a recipient account. Card
-masks, bare digits, partial suffixes, ambiguous multiple values and `//` movement
-references never become recurring party identifiers. Private extraction retains
-this clue in encrypted `StatementRow.source_code`; normal previews and immutable
-masked descriptions omit the full value. Mapping indexes use an account-scoped
-SHA-256 digest, as bKash identifiers do.
+EBL NPSB descriptions expose masked card/account evidence, not a verified payee.
+The parser preserves one unambiguous printed mask (including its trailing star)
+as `npsb:masked:<printed mask>`. The numeric field following the separator and
+`//` references vary by movement and are never recurring party identifiers.
+A repeated sending-card mask does not establish the recipient or transfer destination.
 
-The existing owner-scoped counterparty-code endpoints accept EBL mappings for a
-verified label, external party or owned destination, compatible type/category and
-optional note. Suggestions are scoped by user, reporting account, profile, code
-and direction. Saving a mapping neither posts nor rewrites a transaction.
+The directory reads masks from immutable saved descriptions, including old rows
+whose encrypted `source_code` incorrectly retained `npsb:code:<digits>`. It groups
+non-fee observations under the mask without requiring an archive rescan. EBL
+observations are read-only: mapping POSTs return 400 and all old EBL recipient
+mappings are ignored. Stored mapping records remain untouched; they are never
+silently converted to rules for the mask. Citytouch/bKash mapping behavior is unchanged.
 
-An adjacent NPSB debit pair can show a **possible separate bank charge** hint
-only when the immutable source reports share exactly one reference/date, the
-second amount is positive, smaller than the principal and at most BDT 100, and
-its balance is exactly the preceding balance minus that amount. Conflicting
-retained codes, more than two rows per reference/date, other currencies and
-missing/nonfinite values do not qualify. This is review-only, not a bank fee
-schedule. Companion charge rows do not inflate observed party counts or inherit
-owned-account mappings. Recognized pairs are also excluded from sub-taka rounding
-matching, so a near-equal charge cannot collapse into its principal. Reviewed classifications are respected; money, original
-observations and posted ledger entries stay separate and unchanged.
+A possible separate charge hint still requires two adjacent BDT NPSB debits,
+matching source date and movement reference, a smaller positive second amount
+at most BDT 100, and an exact balance step. Ambiguous groups, conflicting retained
+codes and missing values do not qualify. Charges remain separate, do not inherit
+transfer routes and do not inflate the directory's principal movement counts.
+Reviewed classifications and posted ledger values remain unchanged.
 
-Old EBL imports can use `POST /api/statements/imports/{id}/refresh-identifiers/`
-or re-upload the identical PDF. The same archive digest, position/fingerprint,
-password and ownership checks used for bKash apply. Only missing encrypted code
-metadata and its row version change, including on posted evidence; classifications,
-amounts, links, notes and ledger entries remain unchanged. No migration is needed.
-Identifier refresh has its own per-user limit of 20 PDF requests/hour, separate
-from upload/preview, recognition and direction rechecks. A bulk scan counts one
-request per PDF; failed requests also count. Exhausting it returns 429 and does
-not block uploading a new statement.
-Deploy the API before the web client. Scanned PDFs still require supported OCR.
+`POST /api/statements/imports/{id}/refresh-identifiers/` or re-uploading the
+identical PDF can fill missing metadata and replace retired EBL numeric codes
+with the printed mask. Ownership, archive digest, transient password and exact
+position/fingerprint checks apply. Only encrypted metadata, row version and
+updated timestamp change; source snapshots, classifications, notes, links and
+ledger entries are untouched. The per-user refresh allowance is 20 PDF
+requests/hour, separate from uploads/previews; failed refresh requests count.
+No schema migration is needed. Deploy the API before the web client.

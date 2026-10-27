@@ -1323,25 +1323,24 @@ through authenticated account APIs. No local media disk or public asset URL is
 required. Omission keeps the logo; an empty string removes it. A schema migration
 defaults existing logos to empty. Uploading changes appearance only.
 
-### How are EBL NPSB statement codes identified without guessing recipients?
+### Why are EBL masked card/account clues read-only?
 
-The parser retains exactly one full 6–24 digit numeric clue following `||`
-and ending at a pipe from NPSB transfer descriptions before masking general text.
-EBL commonly prints `||<digits>|DC`; both single and double closing pipes work.
-Regression coverage uses this single-closing layout through PDF import and
-archived recovery, alongside the double-closing variant. Normal previews
-omit it; encrypted source-code metadata preserves it and mappings store a scoped
-digest. Card masks, ambiguous values and per-movement `//` references are excluded.
-A user verifies the clue before saving an account/direction-scoped mapping.
+A numeric field after the mask can vary per transfer; repetition within a
+transfer/charge pair does not make it a recurring recipient identifier. The
+highlighted masked value is retained exactly, including its trailing star, as
+`npsb:masked:<mask>`. It may identify the reporting card, so it cannot establish
+an owned destination or payee. The directory groups masks from saved original
+text even when old metadata is missing or contains a retired numeric code.
 
-Possible charge rows require a two-row adjacent BDT debit pair sharing source
-date/reference, a smaller positive second amount up to BDT 100, and an exact
-balance step. Conflicting retained codes, ambiguous groups and missing values
-block the hint. Fee rows do not inherit transfer mappings or inflate observed
-party counts. Suggestions never rewrite drafts or ledger money. Archived EBL
-identifier recovery checks ownership, digest, password and exact fingerprints,
-then fills only missing encrypted metadata and versions. Posted entries stay
-unchanged; no migration is required.
-Identifier refresh uses a separate 20 PDF requests/hour/user allowance, so scans
-cannot exhaust the upload/preview budget and vice versa. Failed refresh requests
-count, and the endpoint returns 429 when its own allowance is exhausted.
+All EBL recipient mappings are ignored, and mapping POSTs return 400, including
+updates to old rules. They are not converted or deleted. Existing posted entries
+and reviewed drafts remain unchanged. Regression tests use the same mask with
+changing movement fields and verify that legacy rules cannot produce routes.
+Possible charge hints still require adjacent BDT debits, same source date/reference,
+small bounded second amount and exact balance step; principal and fee stay separate.
+
+Archive refresh can replace retired EBL metadata after verifying ownership,
+digest, password, row position and fingerprint. It changes only encrypted code,
+version and timestamp; repeated refresh is idempotent. Its separate 20 PDF
+requests/hour/user budget cannot consume upload/preview allowance. No migration
+is required.

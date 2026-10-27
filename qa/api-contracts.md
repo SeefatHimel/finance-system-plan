@@ -882,12 +882,18 @@ removes it; omission preserves it. No remote URLs, anonymous image endpoint or
 ledger mutation is introduced. Existing accounts and older clients use the
 empty-logo fallback. Deploy migration `accounts.0003_account_logo` first.
 
-### What changes when EBL is added to the statement-code directory?
+### Why does EBL use read-only masked evidence in the statement-code directory?
 
-The existing code mapping/list profile enum gains `ebl_bank`, using the typed
-`npsb:code:<digits>` format for a full printed clue requiring user verification.
-The owner-scoped archive identifier-refresh endpoint also accepts EBL bank
-imports. Its password input and `updated_rows` response remain unchanged. Mapping
-and recovery operations never post ledger entries; code metadata is encrypted,
-index keys are digests, and companion-charge hints are separate from party rules.
-Deploy the additive API change before the new web client; no migration is needed.
+The list retains profile `ebl_bank`, but reports `npsb:masked:<printed mask>`,
+including the trailing star. The numeric field after the mask was incorrectly
+exposed as a recurring code; it and per-movement references no longer qualify.
+EBL observations have null mapping. Mapping POSTs reject EBL with 400, even for
+previously saved rules; the legacy input enum value remains for wire compatibility.
+Old rules are ignored, never automatically converted to routes for the mask.
+
+Masks can be derived from saved original descriptions without a PDF scan. Archive
+refresh's existing `updated_rows` count includes replacement of retired EBL
+numeric metadata after the same integrity and exact-row checks. Only encrypted
+metadata, row versions and timestamps change; financial originals, reviewed
+drafts and posted transactions are preserved. No migration or new endpoint is
+needed. Deploy the API before the corrected web client.

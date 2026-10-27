@@ -24,7 +24,8 @@ from .services import refresh_statement_identifiers, source_fingerprint
 from .tests import synthetic_pdf
 
 PRINTED = "111122****123*||765432109876|DC"
-CODE = "npsb:code:765432109876"
+CODE = "npsb:masked:111122****123*"
+RETIRED = "npsb:code:765432109876"
 
 
 class EblIdentifierTests(APITestCase):
@@ -58,9 +59,11 @@ class EblIdentifierTests(APITestCase):
         )
 
     def row(
-        self, position, *, amount="100.00", balance="900.00", ref="SYNTH-ONE", code=CODE
+        self, position, *, amount="100.00", balance="900.00", ref="SYNTH-ONE", code=CODE,
+        movement_code="765432109876",
     ):
-        description = f"NPSB FUND TRANSFER {PRINTED} TO NPSB ACCOUNT //{ref}"
+        printed = PRINTED.replace("765432109876", movement_code)
+        description = f"NPSB FUND TRANSFER {printed} TO NPSB ACCOUNT //{ref}"
         original = {
             "description": mask_identifiers(description),
             "date": "2026-01-02",
@@ -108,25 +111,18 @@ class EblIdentifierTests(APITestCase):
         self.assertIn(response.status_code, (200, 201), response.data)
         return StatementImport.objects.get(pk=response.data["id"]), pdf
 
-    def test_extracts_only_unambiguous_full_delimited_clue(self):
+    def test_extracts_mask_including_trailing_star_never_movement_field(self):
         self.assertEqual(identifier(f"NPSB FUND TRANSFER {PRINTED}"), CODE)
-        self.assertEqual(
-            identifier("NPSB FUND TRANSFER 111122****123*||765432109876||DC"),
-            CODE,
-        )
         self.assertEqual(identifier(f"NPSB TRANSFER {PRINTED} {PRINTED}"), CODE)
-        self.assertEqual(identifier("NPSB FUND TRANSFER | | 765432109876 | | DC"), CODE)
-        self.assertEqual(identifier("NPSB FUND TRANSFER | | 765432109876 | DC"), CODE)
+        self.assertEqual(identifier(PRINTED.replace("765432109876", "765432109877") + " NPSB TRANSFER"), CODE)
+        self.assertEqual(identifier("NPSB TRANSFER 111122****123*||765432109876||DC"), CODE)
         for text in [
             "NPSB FUND TRANSFER //999VMT123456789",
-            "NPSB FUND TRANSFER Card 111122****123*",
+            "NPSB FUND TRANSFER ||765432109876|DC",
             "NPSB FUND TRANSFER 765432109876",
             "NPSB FUND TRANSFER ||***9876||",
-            "NPSB FUND TRANSFER ||76543|DC",
-            "NPSB FUND TRANSFER ||765432109876DC",
-            "NPSB FUND TRANSFER |765432109876|DC",
             f"CARD PURCHASE {PRINTED}",
-            f"NPSB TRANSFER {PRINTED} ||765432109877||",
+            f"NPSB TRANSFER {PRINTED} 111122****124*",
         ]:
             self.assertIsNone(identifier(text), text)
         self.assertEqual(movement_reference("//SYNTH-ONE //SYNTH-ONE"), "SYNTH-ONE")
@@ -144,35 +140,37 @@ class EblIdentifierTests(APITestCase):
             source_fingerprint(private["rows"][0], "principal"),
         )
 
-    def test_mapping_never_turns_companion_charge_into_transfer(self):
-        principal = self.row(1)
-        fee = self.row(2, amount="9.99", balance="890.01")
+    def test_retired_and_masked_rules_cannot_suggest_a_payee_or_transfer(self):
+        from .bkash_identifiers import mapping_code
+        from .counterparties import code_suggestions
+
+        principal = self.row(1, code=RETIRED)
+        fee = self.row(2, amount="9.99", balance="890.01", code=RETIRED)
         url = reverse("statement-counterparty-codes")
+        for code in [RETIRED, CODE]:
+            # Even a previously saved rule cannot turn a reporting mask or
+            # movement reference into an owned destination.
+            StatementCounterpartyCode.objects.create(
+                user=self.user, account=self.bank, profile="ebl_bank",
+                code=mapping_code("ebl_bank", self.bank.pk, code), direction="debit",
+                party_kind="owned", label="Obsolete synthetic recipient",
+                other_account=self.wallet, suggested_type="transfer",
+            )
+            response = self.client.post(url, self.payload(code=code), format="json")
+            self.assertEqual(response.status_code, 400, response.data)
         listed = self.client.get(url)
         self.assertEqual(listed.data["count"], 1)
-        self.assertEqual(listed.data["results"][0]["count"], 1)
-        response = self.client.post(
-            url,
-            self.payload(
-                party_kind="owned",
-                other_account=str(self.wallet.pk),
-                suggested_type="transfer",
-            ),
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(listed.data["results"][0]["code"], CODE)
+        self.assertIsNone(listed.data["results"][0]["mapping"])
+        self.assertEqual(code_suggestions([principal, fee]), {})
         result = suggestions([principal, fee])
-        self.assertEqual(result[principal.id]["type"], "transfer")
-        self.assertEqual(result[principal.id]["other_account"], str(self.wallet.id))
-        self.assertEqual(result[fee.id]["type"], "fee")
-        self.assertIsNone(result[fee.id]["other_account"])
+        self.assertNotIn(principal.pk, result)
+        self.assertEqual(result[fee.pk]["type"], "fee")
+        self.assertIsNone(result[fee.pk]["other_account"])
         fee.refresh_from_db()
         self.assertEqual(fee.type, "expense")
         self.assertEqual(fee.amount, Decimal("9.99"))
         self.assertEqual(Transaction.objects.count(), 0)
-        mapping = StatementCounterpartyCode.objects.get(pk=response.data["id"])
-        self.assertEqual(len(mapping.code), 64)
-        self.assertNotIn("765432109876", mapping.code)
         fee.classification_confirmed = True
         fee.save(update_fields=["classification_confirmed"])
         self.assertNotIn(fee.pk, suggestions([fee]))
@@ -200,7 +198,7 @@ class EblIdentifierTests(APITestCase):
         fee.position = 3
         self.assertEqual(possible_fee_ids([principal, fee]), set())
         fee.position = 2
-        fee.source_code = "npsb:code:765432109877"
+        fee.source_code = "npsb:masked:111122****124*"
         self.assertEqual(possible_fee_ids([principal, fee]), set())
         fee.source_code = CODE
         extra = self.row(3, amount="1.00", balance="897.00")
@@ -209,40 +207,25 @@ class EblIdentifierTests(APITestCase):
     def test_independent_references_count_as_separate_movements(self):
         self.row(1)
         self.row(2, amount="2.00", balance="898.00")
-        self.row(3, ref="SYNTH-TWO", amount="200.00", balance="698.00")
-        self.row(4, ref="SYNTH-TWO", amount="2.00", balance="696.00")
+        for position, amount, balance in [(3, "200.00", "698.00"), (4, "2.00", "696.00")]:
+            self.row(position, ref="SYNTH-TWO", amount=amount, balance=balance,
+                     code="npsb:code:765432109877", movement_code="765432109877")
         response = self.client.get(reverse("statement-counterparty-codes"))
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["code"], CODE)
         self.assertEqual(response.data["results"][0]["count"], 2)
 
-    def test_scoping_unobserved_and_foreign_codes(self):
-        row = self.row(1)
+    def test_ebl_clues_are_owner_scoped_and_derive_from_immutable_masks(self):
+        row = self.row(1, code=RETIRED)
+        row.counterparty_text = "Edited merchant"
+        row.note = "Edited note"
+        row.save(update_fields=["counterparty_text", "note"])
         url = reverse("statement-counterparty-codes")
-        for changes in [
-            {"code": "npsb:code:765432109877"},
-            {"code": "999VMT123456789"},
-            {"account": str(self.wallet.pk)},
-            {"suggested_type": "income"},
-        ]:
-            self.assertEqual(
-                self.client.post(
-                    url, self.payload(**changes), format="json"
-                ).status_code,
-                400,
-                changes,
-            )
-        saved = self.client.post(url, self.payload(), format="json")
-        self.assertEqual(saved.status_code, 200, saved.data)
-        self.assertEqual(
-            suggestions([row])[row.pk]["counterparty_text"], "Verified synthetic party"
-        )
+        listed = self.client.get(url)
+        self.assertEqual(listed.data["results"][0]["code"], CODE)
+        self.assertNotIn("765432109876", str(listed.data))
         self.client.force_authenticate(self.other)
         self.assertEqual(self.client.get(url).data["count"], 0)
-        self.assertEqual(
-            self.client.delete(
-                reverse("statement-counterparty-code-detail", args=[saved.data["id"]])
-            ).status_code,
-            404,
-        )
 
     def test_import_and_archived_refresh_preserve_decisions_and_ledger(self):
         batch, pdf = self.upload()
@@ -256,7 +239,7 @@ class EblIdentifierTests(APITestCase):
             )
             self.assertNotIn("765432109876", cursor.fetchone()[0])
         StatementRow.objects.filter(pk=row.pk).update(
-            source_code="", note="My saved decision"
+            source_code=RETIRED, note="My saved decision"
         )
         before_version = row.version
         response = self.client.post(
@@ -320,7 +303,7 @@ class EblIdentifierTests(APITestCase):
             note="Reviewed ledger note",
         )
         StatementRow.objects.filter(pk=row.pk).update(
-            source_code="",
+            source_code=RETIRED,
             transaction=entry,
             state="posted",
             classification_confirmed=True,

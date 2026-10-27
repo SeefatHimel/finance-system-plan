@@ -282,6 +282,8 @@ def refresh_statement_identifiers(batch, preview, *, strict=False):
     """Enrich identical archived rows without replacing source or ledger decisions."""
     if batch.profile not in {"bkash", "ebl_bank"} or preview.get("profile") != batch.profile:
         return 0
+    from .ebl_identifiers import RETIRED_CODE
+
     original_rows = preview.get("rows", [])
     saved = list(batch.rows.select_for_update().filter(component="principal").order_by("position"))
     mismatch = len(saved) != len(original_rows) or any(
@@ -295,7 +297,8 @@ def refresh_statement_identifiers(batch, preview, *, strict=False):
     changed = 0
     for row, original in zip(saved, original_rows):
         code = original.get("bkash_identifier" if batch.profile == "bkash" else "ebl_identifier")
-        if not code or row.source_code:
+        replace_retired = batch.profile == "ebl_bank" and RETIRED_CODE.fullmatch(row.source_code or "")
+        if not code or (row.source_code and not replace_retired):
             continue
         row.source_code = code
         row.version += 1

@@ -287,7 +287,7 @@ paths:
       - $ref: '#/components/parameters/UuidPathId'
       security:
       - bearerAuth: []
-      description: Owner-scoped, limited to 20 PDF requests/hour/user independently of upload/preview. Failed refresh requests also count. Verify the retained bKash or EBL bank PDF and saved row fingerprints, then fill missing encrypted recurring identifiers only. Original extraction, reviewed drafts and ledger entries remain unchanged.
+      description: Owner-scoped, limited to 20 PDF requests/hour/user independently of upload/preview. Failed refresh requests also count. Verify the retained bKash or EBL bank PDF and saved row fingerprints, then recover missing identifier metadata or replace retired EBL numeric metadata with its printed mask. EBL masks are read-only account evidence, not recipient rules. Original extraction, reviewed drafts and ledger entries remain unchanged.
       requestBody:
         content:
           application/json:
@@ -8268,8 +8268,8 @@ components:
       required: [account, code, direction, party_kind, label]
       properties:
         account: {type: string, format: uuid}
-        profile: {type: string, enum: [city_bank, bkash, ebl_bank], default: city_bank}
-        code: {type: string, maxLength: 150, description: Citytouch second code, typed bKash identifier, or unverified delimited EBL npsb:code numeric clue from an observed principal row; never a movement reference.}
+        profile: {type: string, enum: [city_bank, bkash, ebl_bank], default: city_bank, description: EBL is retained for wire compatibility but mapping POSTs reject it with 400; EBL observations are read-only account evidence.}
+        code: {type: string, maxLength: 150, description: Citytouch second code or typed bKash recipient identifier. EBL masked clues are read-only and cannot create or update recipient mappings.}
         direction: {type: string, enum: [debit, credit]}
         party_kind: {type: string, enum: [owned, external]}
         label: {type: string, maxLength: 120}

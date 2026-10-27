@@ -6,6 +6,7 @@ from .bkash_identifiers import CODE as BKASH_CODE
 from .bkash_identifiers import mapping_code
 from .citytouch import citytouch_code, citytouch_printed_code, visible_code
 from .ebl_identifiers import CODE as EBL_CODE
+from .ebl_identifiers import identifier as ebl_identifier
 from .ebl_identifiers import mark_possible_fees
 from .models import StatementCounterpartyCode, StatementRow
 
@@ -21,8 +22,12 @@ def code_for_row(row):
         )
     if row.batch.profile == "bkash" and BKASH_CODE.fullmatch(row.source_code or ""):
         return row.source_code
-    if row.batch.profile == "ebl_bank" and EBL_CODE.fullmatch(row.source_code or ""):
-        return row.source_code
+    if row.batch.profile == "ebl_bank":
+        # Old source_code values used a changing movement field. Ignore them;
+        # the original masked description already contains the stable clue.
+        return ebl_identifier(row.extracted.get("description", "")) or (
+            row.source_code if EBL_CODE.fullmatch(row.source_code or "") else None
+        )
     return None
 
 
@@ -95,7 +100,7 @@ def code_suggestions(rows):
     mark_possible_fees(rows)
     keys = {
         (row.batch.account_id, row.batch.profile, code_for_row(row), row.direction)
-        for row in rows
+        for row in rows if row.batch.profile != "ebl_bank"
     }
     keys = {key for key in keys if key[2]}
     if not keys:
@@ -110,6 +115,8 @@ def code_suggestions(rows):
     mapped = {(m.account_id, m.profile, m.code, m.direction): m for m in mappings}
     result = {}
     for row in rows:
+        if row.batch.profile == "ebl_bank":
+            continue  # A repeated masked reporting card cannot identify a payee.
         code = code_for_row(row)
         mapping = mapped.get((
             row.batch.account_id, row.batch.profile,

@@ -1,21 +1,22 @@
-"""Conservative EBL NPSB clues; printed identifiers are not proof of a payee."""
+"""Masked EBL card/account evidence, separate from movement references and payees."""
 
 import re
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 
-CODE = re.compile(r"^npsb:code:\d{6,24}$")
+CODE = re.compile(r"^npsb:masked:\d{4,6}\*{2,}\d{2,4}\*?$")
+RETIRED_CODE = re.compile(r"^npsb:code:\d{6,24}$")
 OPERATION = re.compile(r"\bNPSB\s+(?:FUND\s+)?TRANSFER\b", re.IGNORECASE)
-PRINTED = re.compile(r"\|(?:\s*\|)+\s*(\d{6,24})\s*(?=\|)")
+PRINTED = re.compile(r"(?<![A-Za-z0-9*])(\d{4,6}\*{2,}\d{2,4}\*?)(?![A-Za-z0-9*])")
 REFERENCE = re.compile(r"//\s*([A-Z0-9][A-Z0-9-]{5,63})(?![A-Z0-9-])", re.IGNORECASE)
 
 
 def identifier(description):
-    """Retain one full printed clue after ||; EBL commonly closes it with a single |."""
+    """Retain the printed mask, including its trailing star; never infer its owner."""
     if not OPERATION.search(description or ""):
         return None
     found = set(PRINTED.findall(description or ""))
-    return f"npsb:code:{next(iter(found))}" if len(found) == 1 else None
+    return f"npsb:masked:{next(iter(found))}" if len(found) == 1 else None
 
 
 def movement_reference(description):

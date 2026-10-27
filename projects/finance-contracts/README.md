@@ -918,17 +918,18 @@ new web client. Older clients may omit or ignore this additive field.
 
 ### EBL statement-code profile
 
-`StatementCodeMappingInput.profile` and `StatementCounterpartyCode.profile` also
-accept `ebl_bank`. The observed code is `npsb:code:<6–24 full printed digits>`;
-it is a clue requiring user verification, never a `//` movement reference or
-masked reporting card. Existing validation/ownership, per-account direction
-scope and no-store responses apply. EBL bank/savings mappings suggest pending
-row metadata only. Possible companion charges remain separate review hints and
-do not inherit transfer identity mappings or count as independent observations.
+Observed codes support `ebl_bank` as read-only masked card/account evidence:
+`npsb:masked:<printed mask>`, preserving the trailing star. This does not identify
+a payee. The formerly exposed `npsb:code:<digits>` movement field is retired and
+never produces recipient suggestions. EBL mapping POSTs return 400, including
+updates to existing mappings. The input enum retains the legacy value for wire
+compatibility, but clients must not offer an EBL recipient editor. Output mapping
+is null for EBL clues. Citytouch/bKash mapping contracts remain unchanged.
 
-The existing `POST /api/statements/imports/{id}/refresh-identifiers/` additionally
-supports EBL bank archives with the same optional password, digest/fingerprint
-checks and `updated_rows` response. Only missing encrypted code evidence and its
-version change; no financial values, source snapshots, links or ledger entries
-are rewritten. API deployment must precede the web client. No new route or model
-migration is required.
+The directory can derive masks from immutable saved text without a PDF scan.
+Archived identifier refresh still returns `updated_rows`; the count includes
+replacement of retired EBL numeric metadata as well as newly recovered evidence.
+Ownership, optional password, integrity and exact-row checks apply. Only encrypted
+code metadata, row version and timestamp change. Originals and ledger values stay
+unchanged; saved EBL rules remain stored but ignored. No migration is needed;
+deploy the API before the web client.
