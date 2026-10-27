@@ -5,17 +5,23 @@ from collections import defaultdict
 from .bkash_identifiers import CODE as BKASH_CODE
 from .bkash_identifiers import mapping_code
 from .citytouch import citytouch_code, citytouch_printed_code, visible_code
+from .ebl_identifiers import CODE as EBL_CODE
+from .ebl_identifiers import mark_possible_fees
 from .models import StatementCounterpartyCode, StatementRow
 
 
 def code_for_row(row):
     if row.component != "principal":
         return None
+    if row.batch.profile == "ebl_bank" and (row.type == "fee" or getattr(row, "_ebl_possible_fee", False)):
+        return None
     if row.batch.profile == "city_bank":
         return visible_code(row.source_code) or citytouch_code(
             row.extracted.get("description", "")
         )
     if row.batch.profile == "bkash" and BKASH_CODE.fullmatch(row.source_code or ""):
+        return row.source_code
+    if row.batch.profile == "ebl_bank" and EBL_CODE.fullmatch(row.source_code or ""):
         return row.source_code
     return None
 
@@ -24,7 +30,7 @@ def observed_codes(user):
     """Aggregate saved, encrypted statement identifiers without rereading PDFs."""
     rows = (
         StatementRow.objects.filter(
-            batch__user=user, batch__profile__in=["city_bank", "bkash"], component="principal"
+            batch__user=user, batch__profile__in=["city_bank", "bkash", "ebl_bank"], component="principal"
         )
         .select_related("batch__account")
         .only(
@@ -32,6 +38,10 @@ def observed_codes(user):
             "batch__account__name",
             "batch__account_id",
             "batch__profile",
+            "batch__currency",
+            "type",
+            "position",
+            "component",
             "direction",
             "date",
             "amount",
@@ -42,6 +52,8 @@ def observed_codes(user):
         )
         .order_by("-date", "-position")
     )
+    rows = list(rows)
+    mark_possible_fees(rows, complete=True)
     grouped = defaultdict(
         lambda: {
             "count": 0,
@@ -51,7 +63,7 @@ def observed_codes(user):
             "examples": [],
         }
     )
-    for row in rows.iterator():
+    for row in rows:
         code = code_for_row(row)
         if not code:
             continue
@@ -79,6 +91,8 @@ def observed_codes(user):
 
 def code_suggestions(rows):
     """Only explicit mappings suggest metadata; nothing changes a saved draft."""
+    rows = list(rows)
+    mark_possible_fees(rows)
     keys = {
         (row.batch.account_id, row.batch.profile, code_for_row(row), row.direction)
         for row in rows

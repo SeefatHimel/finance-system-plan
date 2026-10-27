@@ -72,7 +72,8 @@ class StatementRow(models.Model):
     # Human-verified PDF column. The original parser output in extracted remains immutable.
     reviewed_source_direction = models.CharField(max_length=16, blank=True, default="")
     # Original extraction stays untouched; this is the second CT-FT component
-    # as printed in the source PDF, refreshed independently of ledger drafts.
+    # as printed in the source PDF, or a typed bKash/EBL clue. Refreshed
+    # independently of ledger drafts.
     source_code = EncryptedStatementCodeField(blank=True, default="")
     source_fingerprint = models.CharField(max_length=64, db_index=True)
     date = models.DateField(null=True)
@@ -168,7 +169,7 @@ class StatementCounterpartyCode(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
     profile = models.CharField(max_length=32, default="city_bank")
-    # Citytouch holds visible digits; bKash holds a scoped digest of the
+    # Citytouch holds visible digits; bKash/EBL hold a scoped digest of the
     # encrypted row identifier so full recipient numbers are not in this index.
     code = models.CharField(max_length=64)
     direction = models.CharField(max_length=16, choices=Transaction.Direction.choices)

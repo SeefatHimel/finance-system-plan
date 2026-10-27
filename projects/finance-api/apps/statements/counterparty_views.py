@@ -18,12 +18,13 @@ from apps.transactions.models import Transaction
 from .bkash_identifiers import CODE as BKASH_CODE
 from .bkash_identifiers import mapping_code
 from .counterparties import observed_codes
+from .ebl_identifiers import CODE as EBL_CODE
 from .models import StatementCounterpartyCode
 
 
 class CodeMappingInputSerializer(serializers.Serializer):
     account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none())
-    profile = serializers.ChoiceField(choices=["city_bank", "bkash"], default="city_bank")
+    profile = serializers.ChoiceField(choices=["city_bank", "bkash", "ebl_bank"], default="city_bank")
     code = serializers.CharField(max_length=150)
     direction = serializers.ChoiceField(choices=Transaction.Direction.choices)
     party_kind = serializers.ChoiceField(
@@ -67,7 +68,7 @@ class CodeMappingInputSerializer(serializers.Serializer):
         direction = attrs["direction"]
         suggested_type = attrs.get("suggested_type", "")
         profile = attrs["profile"]
-        if (profile == "city_bank" and account.type not in {"bank", "savings"}) or (
+        if (profile in {"city_bank", "ebl_bank"} and account.type not in {"bank", "savings"}) or (
             profile == "bkash" and account.type != "mobile_wallet"
         ):
             raise serializers.ValidationError(
@@ -75,7 +76,7 @@ class CodeMappingInputSerializer(serializers.Serializer):
             )
         if (profile == "city_bank" and not re.fullmatch(r"\d{4,24}", attrs["code"])) or (
             profile == "bkash" and not BKASH_CODE.fullmatch(attrs["code"])
-        ):
+        ) or (profile == "ebl_bank" and not EBL_CODE.fullmatch(attrs["code"])):
             raise serializers.ValidationError({"code": "Choose a valid observed statement identifier."})
         if kind == "owned" and (
             not other or other.id == account.id or other.currency != account.currency

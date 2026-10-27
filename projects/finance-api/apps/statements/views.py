@@ -101,6 +101,7 @@ class StatementPreviewView(APIView):
         if not include_private_identifiers:
             for row in preview["rows"]:
                 row.pop("bkash_identifier", None)
+                row.pop("ebl_identifier", None)
         allowed_types = (
             {"mobile_wallet"} if preview["profile"] == "bkash"
             else {"credit_card"} if preview["profile"] == "ebl_credit_card"

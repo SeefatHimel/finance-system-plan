@@ -879,3 +879,13 @@ data URL up to 1 MiB decoded. The API verifies and normalizes it to a metadata-f
 removes it; omission preserves it. No remote URLs, anonymous image endpoint or
 ledger mutation is introduced. Existing accounts and older clients use the
 empty-logo fallback. Deploy migration `accounts.0003_account_logo` first.
+
+### What changes when EBL is added to the statement-code directory?
+
+The existing code mapping/list profile enum gains `ebl_bank`, using the typed
+`npsb:code:<digits>` format for a full printed clue requiring user verification.
+The owner-scoped archive identifier-refresh endpoint also accepts EBL bank
+imports. Its password input and `updated_rows` response remain unchanged. Mapping
+and recovery operations never post ledger entries; code metadata is encrypted,
+index keys are digests, and companion-charge hints are separate from party rules.
+Deploy the additive API change before the new web client; no migration is needed.

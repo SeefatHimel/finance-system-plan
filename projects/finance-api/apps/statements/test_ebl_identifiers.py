@@ -1,0 +1,369 @@
+"""Synthetic EBL identifiers, independent charge hints and archived recovery."""
+
+from copy import deepcopy
+from datetime import date
+from decimal import Decimal
+
+from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
+from django.urls import reverse
+from rest_framework.exceptions import ValidationError
+from rest_framework.test import APITestCase
+
+from apps.accounts.models import Account
+from apps.transactions.models import Transaction
+
+from .ebl_identifiers import identifier, movement_reference, possible_fee_ids
+from .insights import suggestions
+from .models import StatementCounterpartyCode, StatementImport, StatementRow
+from .parser import extract_statement, mask_identifiers
+from .services import refresh_statement_identifiers, source_fingerprint
+from .tests import synthetic_pdf
+
+PRINTED = "111122****123*||765432109876||DC"
+CODE = "npsb:code:765432109876"
+
+
+class EblIdentifierTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = get_user_model().objects.create_user(
+            username="synthetic-ebl-identifiers"
+        )
+        self.other = get_user_model().objects.create_user(
+            username="synthetic-ebl-other"
+        )
+        self.bank = Account.objects.create(
+            user=self.user, name="Synthetic source bank", type="bank", currency="BDT"
+        )
+        self.wallet = Account.objects.create(
+            user=self.user,
+            name="Synthetic destination",
+            type="mobile_wallet",
+            currency="BDT",
+        )
+        self.client.force_authenticate(self.user)
+        self.batch = StatementImport.objects.create(
+            user=self.user,
+            account=self.bank,
+            file_digest="a" * 64,
+            profile="ebl_bank",
+            parser_version="2",
+            currency="BDT",
+            account_identity="synthetic",
+            page_count=1,
+        )
+
+    def row(
+        self, position, *, amount="100.00", balance="900.00", ref="SYNTH-ONE", code=CODE
+    ):
+        description = f"NPSB FUND TRANSFER {PRINTED} TO NPSB ACCOUNT //{ref}"
+        original = {
+            "description": mask_identifiers(description),
+            "date": "2026-01-02",
+            "direction": "debit",
+            "amount": amount,
+            "balance_after": balance,
+        }
+        return StatementRow.objects.create(
+            batch=self.batch,
+            position=position,
+            component="principal",
+            source_code=code,
+            source_fingerprint=source_fingerprint(original, "principal"),
+            extracted=original,
+            date=date(2026, 1, 2),
+            direction="debit",
+            amount=amount,
+            balance_after=balance,
+            type="expense",
+            note="Keep reviewed note",
+        )
+
+    def payload(self, **changes):
+        return {
+            "account": str(self.bank.pk),
+            "profile": "ebl_bank",
+            "code": CODE,
+            "direction": "debit",
+            "party_kind": "external",
+            "label": "Verified synthetic party",
+            "suggested_type": "expense",
+            **changes,
+        }
+
+    def upload(self):
+        pdf = synthetic_pdf("ebl_bank", ebl_details=PRINTED)
+        response = self.client.post(
+            reverse("statement-import-list"),
+            {
+                "account": str(self.bank.pk),
+                "file": SimpleUploadedFile("synthetic-ebl.pdf", pdf),
+            },
+            format="multipart",
+        )
+        self.assertIn(response.status_code, (200, 201), response.data)
+        return StatementImport.objects.get(pk=response.data["id"]), pdf
+
+    def test_extracts_only_unambiguous_full_delimited_clue(self):
+        self.assertEqual(identifier(f"NPSB FUND TRANSFER {PRINTED}"), CODE)
+        self.assertEqual(identifier(f"NPSB TRANSFER {PRINTED} {PRINTED}"), CODE)
+        self.assertEqual(identifier("NPSB FUND TRANSFER | | 765432109876 | | DC"), CODE)
+        for text in [
+            "NPSB FUND TRANSFER //999VMT123456789",
+            "NPSB FUND TRANSFER Card 111122****123*",
+            "NPSB FUND TRANSFER 765432109876",
+            "NPSB FUND TRANSFER ||***9876||",
+            f"CARD PURCHASE {PRINTED}",
+            f"NPSB TRANSFER {PRINTED} ||765432109877||",
+        ]:
+            self.assertIsNone(identifier(text), text)
+        self.assertEqual(movement_reference("//SYNTH-ONE //SYNTH-ONE"), "SYNTH-ONE")
+        self.assertIsNone(movement_reference("//SYNTH-ONE //SYNTH-TWO"))
+
+    def test_private_parser_retention_does_not_leak_into_preview_or_fingerprint(self):
+        pdf = synthetic_pdf("ebl_bank", ebl_details=PRINTED)
+        public = extract_statement(pdf)
+        private = extract_statement(pdf, include_private_identifiers=True)
+        self.assertEqual(private["rows"][0]["ebl_identifier"], CODE)
+        self.assertNotIn("765432109876", str(public))
+        self.assertNotIn("ebl_identifier", public["rows"][0])
+        self.assertEqual(
+            source_fingerprint(public["rows"][0], "principal"),
+            source_fingerprint(private["rows"][0], "principal"),
+        )
+
+    def test_mapping_never_turns_companion_charge_into_transfer(self):
+        principal = self.row(1)
+        fee = self.row(2, amount="9.99", balance="890.01")
+        url = reverse("statement-counterparty-codes")
+        listed = self.client.get(url)
+        self.assertEqual(listed.data["count"], 1)
+        self.assertEqual(listed.data["results"][0]["count"], 1)
+        response = self.client.post(
+            url,
+            self.payload(
+                party_kind="owned",
+                other_account=str(self.wallet.pk),
+                suggested_type="transfer",
+            ),
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        result = suggestions([principal, fee])
+        self.assertEqual(result[principal.id]["type"], "transfer")
+        self.assertEqual(result[principal.id]["other_account"], str(self.wallet.id))
+        self.assertEqual(result[fee.id]["type"], "fee")
+        self.assertIsNone(result[fee.id]["other_account"])
+        fee.refresh_from_db()
+        self.assertEqual(fee.type, "expense")
+        self.assertEqual(fee.amount, Decimal("9.99"))
+        self.assertEqual(Transaction.objects.count(), 0)
+        mapping = StatementCounterpartyCode.objects.get(pk=response.data["id"])
+        self.assertEqual(len(mapping.code), 64)
+        self.assertNotIn("765432109876", mapping.code)
+        fee.classification_confirmed = True
+        fee.save(update_fields=["classification_confirmed"])
+        self.assertNotIn(fee.pk, suggestions([fee]))
+
+    def test_charge_hint_requires_all_source_guards(self):
+        principal = self.row(1)
+        fee = self.row(2, amount="2.00", balance="898.00")
+        self.assertEqual(possible_fee_ids([principal, fee]), {fee.pk})
+        principal.source_code = ""
+        self.assertEqual(possible_fee_ids([principal, fee]), {fee.pk})
+        principal.source_code = CODE
+        baseline = deepcopy(fee.extracted)
+        for key, value in [
+            ("direction", "credit"),
+            ("date", "2026-01-03"),
+            ("balance_after", None),
+            ("balance_after", "897.00"),
+            ("description", "NPSB TRANSFER //SYNTH-TWO"),
+            ("amount", "100.00"),
+            ("amount", "NaN"),
+        ]:
+            fee.extracted = {**baseline, key: value}
+            self.assertEqual(possible_fee_ids([principal, fee]), set(), key)
+        fee.extracted = baseline
+        fee.position = 3
+        self.assertEqual(possible_fee_ids([principal, fee]), set())
+        fee.position = 2
+        fee.source_code = "npsb:code:765432109877"
+        self.assertEqual(possible_fee_ids([principal, fee]), set())
+        fee.source_code = CODE
+        extra = self.row(3, amount="1.00", balance="897.00")
+        self.assertEqual(possible_fee_ids([principal, fee, extra]), set())
+
+    def test_independent_references_count_as_separate_movements(self):
+        self.row(1)
+        self.row(2, amount="2.00", balance="898.00")
+        self.row(3, ref="SYNTH-TWO", amount="200.00", balance="698.00")
+        self.row(4, ref="SYNTH-TWO", amount="2.00", balance="696.00")
+        response = self.client.get(reverse("statement-counterparty-codes"))
+        self.assertEqual(response.data["results"][0]["count"], 2)
+
+    def test_scoping_unobserved_and_foreign_codes(self):
+        row = self.row(1)
+        url = reverse("statement-counterparty-codes")
+        for changes in [
+            {"code": "npsb:code:765432109877"},
+            {"code": "999VMT123456789"},
+            {"account": str(self.wallet.pk)},
+            {"suggested_type": "income"},
+        ]:
+            self.assertEqual(
+                self.client.post(
+                    url, self.payload(**changes), format="json"
+                ).status_code,
+                400,
+                changes,
+            )
+        saved = self.client.post(url, self.payload(), format="json")
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.assertEqual(
+            suggestions([row])[row.pk]["counterparty_text"], "Verified synthetic party"
+        )
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self.client.get(url).data["count"], 0)
+        self.assertEqual(
+            self.client.delete(
+                reverse("statement-counterparty-code-detail", args=[saved.data["id"]])
+            ).status_code,
+            404,
+        )
+
+    def test_import_and_archived_refresh_preserve_decisions_and_ledger(self):
+        batch, pdf = self.upload()
+        row = batch.rows.get(position=1, component="principal")
+        self.assertEqual(row.source_code, CODE)
+        self.assertNotIn("765432109876", str(row.extracted))
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT source_code FROM statements_statementrow WHERE id=%s",
+                [row.pk.hex if connection.vendor == "sqlite" else str(row.pk)],
+            )
+            self.assertNotIn("765432109876", cursor.fetchone()[0])
+        StatementRow.objects.filter(pk=row.pk).update(
+            source_code="", note="My saved decision"
+        )
+        before_version = row.version
+        response = self.client.post(
+            reverse("statement-import-refresh-identifiers", args=[batch.pk]),
+            {},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["updated_rows"], 1)
+        row.refresh_from_db()
+        self.assertEqual(row.source_code, CODE)
+        self.assertEqual(row.note, "My saved decision")
+        self.assertEqual(row.version, before_version + 1)
+        self.assertEqual(Transaction.objects.count(), 0)
+        self.assertEqual(
+            self.client.post(
+                reverse("statement-import-refresh-identifiers", args=[batch.pk]),
+                {},
+                format="json",
+            ).data["updated_rows"],
+            0,
+        )
+        broken = extract_statement(pdf, include_private_identifiers=True)
+        broken["rows"][0]["amount"] = "200.00"
+        with self.assertRaisesMessage(
+            ValidationError, "Archived statement rows do not match"
+        ):
+            refresh_statement_identifiers(batch, broken, strict=True)
+
+    def test_refresh_of_posted_source_cannot_rewrite_ledger(self):
+        batch, _ = self.upload()
+        row = batch.rows.get(position=1, component="principal")
+        entry = Transaction.objects.create(
+            user=self.user,
+            account=self.bank,
+            date=row.date,
+            type="expense",
+            direction="debit",
+            amount="100.00",
+            note="Reviewed ledger note",
+        )
+        StatementRow.objects.filter(pk=row.pk).update(
+            source_code="",
+            transaction=entry,
+            state="posted",
+            classification_confirmed=True,
+        )
+        original = row.extracted.copy()
+        response = self.client.post(
+            reverse("statement-import-refresh-identifiers", args=[batch.pk]),
+            {},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        row.refresh_from_db()
+        entry.refresh_from_db()
+        self.assertEqual(row.source_code, CODE)
+        self.assertEqual(row.state, "posted")
+        self.assertEqual(row.transaction_id, entry.pk)
+        self.assertEqual(row.extracted, original)
+        self.assertEqual(entry.amount, Decimal("100.00"))
+        self.assertEqual(entry.type, "expense")
+        self.assertEqual(entry.note, "Reviewed ledger note")
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_password_required_for_locked_ebl_archive(self):
+        pdf = synthetic_pdf("ebl_bank", ebl_details=PRINTED, password="synthetic-lock")
+        uploaded = self.client.post(
+            reverse("statement-import-list"),
+            {
+                "account": str(self.bank.pk),
+                "file": SimpleUploadedFile("synthetic-locked.pdf", pdf),
+                "password": "synthetic-lock",
+            },
+            format="multipart",
+        )
+        self.assertEqual(uploaded.status_code, 201, uploaded.data)
+        batch = StatementImport.objects.get(pk=uploaded.data["id"])
+        row = batch.rows.get(position=1, component="principal")
+        StatementRow.objects.filter(pk=row.pk).update(source_code="")
+        url = reverse("statement-import-refresh-identifiers", args=[batch.pk])
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, 400)
+        self.assertEqual(
+            self.client.post(
+                url, {"password": "synthetic-lock"}, format="json"
+            ).status_code,
+            200,
+        )
+        row.refresh_from_db()
+        self.assertEqual(row.source_code, CODE)
+
+    def test_ebl_charge_guard_does_not_change_citytouch_mapping_behavior(self):
+        from .counterparties import code_for_row
+
+        row = self.row(1)
+        row.batch.profile = "city_bank"
+        row.type = "fee"
+        row.source_code = ""
+        row.extracted = {"description": "CT-FT-***1111-***2222"}
+        self.assertEqual(code_for_row(row), "2222")
+
+    def test_principal_and_near_equal_charge_are_not_rounding_variants(self):
+        from types import SimpleNamespace
+
+        from .rounding import corroborates, has_separate_fee, mark_fee_rows
+
+        principal = self.row(1, amount="10.00", balance="990.00")
+        fee = self.row(2, amount="9.99", balance="980.01")
+        principal.refresh_from_db()
+        fee.refresh_from_db()
+        mark_fee_rows([principal, fee])
+        self.assertTrue(has_separate_fee(principal))
+        self.assertTrue(has_separate_fee(fee))
+        self.assertFalse(
+            corroborates(fee, SimpleNamespace(amount=Decimal("10.00")), {})
+        )
+        self.assertFalse(
+            corroborates(principal, SimpleNamespace(amount=Decimal("9.99")), {})
+        )

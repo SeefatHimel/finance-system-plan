@@ -49,7 +49,7 @@ from .services import (
     file_digest,
     find_matches,
     posting_issues,
-    refresh_bkash_identifiers,
+    refresh_statement_identifiers,
     resolved,
     review_context,
     row_snapshot,
@@ -209,7 +209,7 @@ class StatementImportViewSet(
                     "size": len(original_bytes),
                 },
             )
-            if existing.profile == "bkash":
+            if existing.profile in {"bkash", "ebl_bank"}:
                 from .views import extract_pdf_bytes
 
                 refreshed = extract_pdf_bytes(
@@ -217,7 +217,7 @@ class StatementImportViewSet(
                     include_private_identifiers=True,
                 )
                 if not isinstance(refreshed, Response):
-                    refresh_bkash_identifiers(existing, refreshed)
+                    refresh_statement_identifiers(existing, refreshed)
             existing = self.get_queryset().get(pk=existing.pk)
             return Response(self.get_serializer(existing).data)
         if not account.is_active:
@@ -269,8 +269,8 @@ class StatementImportViewSet(
     @action(detail=True, methods=["post"], url_path="refresh-identifiers", parser_classes=[JSONParser])
     def refresh_identifiers(self, request, pk=None):
         batch = self.get_object()
-        if batch.profile != "bkash":
-            raise ValidationError({"detail": "Identifier refresh is available for bKash statements."})
+        if batch.profile not in {"bkash", "ebl_bank"}:
+            raise ValidationError({"detail": "Identifier refresh is available for bKash and EBL bank statements."})
         serializer = StatementRefreshRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         source = get_object_or_404(StatementOriginalFile, batch=batch)
@@ -288,9 +288,9 @@ class StatementImportViewSet(
         )
         if isinstance(preview, Response):
             return preview
-        if preview.get("profile") != "bkash" or len(preview.get("rows", [])) != batch.rows.filter(component="principal").count():
+        if preview.get("profile") != batch.profile or len(preview.get("rows", [])) != batch.rows.filter(component="principal").count():
             raise ValidationError({"detail": "Archived statement rows do not match this import. No data was changed."})
-        updated = refresh_bkash_identifiers(batch, preview, strict=True)
+        updated = refresh_statement_identifiers(batch, preview, strict=True)
         return Response(StatementRefreshResultSerializer({"updated_rows": updated}).data)
 
     @extend_schema(

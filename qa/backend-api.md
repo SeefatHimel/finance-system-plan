@@ -1322,3 +1322,20 @@ WebP. The small result lives in the owned account record and is returned only
 through authenticated account APIs. No local media disk or public asset URL is
 required. Omission keeps the logo; an empty string removes it. A schema migration
 defaults existing logos to empty. Uploading changes appearance only.
+
+### How are EBL NPSB statement codes identified without guessing recipients?
+
+The parser retains exactly one full 6–24 digit double-pipe-delimited numeric
+clue from NPSB transfer descriptions before masking general text. Normal previews
+omit it; encrypted source-code metadata preserves it and mappings store a scoped
+digest. Card masks, ambiguous values and per-movement `//` references are excluded.
+A user verifies the clue before saving an account/direction-scoped mapping.
+
+Possible charge rows require a two-row adjacent BDT debit pair sharing source
+date/reference, a smaller positive second amount up to BDT 100, and an exact
+balance step. Conflicting retained codes, ambiguous groups and missing values
+block the hint. Fee rows do not inherit transfer mappings or inflate observed
+party counts. Suggestions never rewrite drafts or ledger money. Archived EBL
+identifier recovery checks ownership, digest, password and exact fingerprints,
+then fills only missing encrypted metadata and versions. Posted entries stay
+unchanged; no migration is required.

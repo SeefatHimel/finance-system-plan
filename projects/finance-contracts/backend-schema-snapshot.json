@@ -9277,7 +9277,8 @@
     "ProfileEnum": {
       "enum": [
         "city_bank",
-        "bkash"
+        "bkash",
+        "ebl_bank"
       ],
       "type": "string"
     },

@@ -8268,8 +8268,8 @@ components:
       required: [account, code, direction, party_kind, label]
       properties:
         account: {type: string, format: uuid}
-        profile: {type: string, enum: [city_bank, bkash], default: city_bank}
-        code: {type: string, maxLength: 150, description: Citytouch second code or a typed recurring bKash identifier from an observed row; never a transaction ID.}
+        profile: {type: string, enum: [city_bank, bkash, ebl_bank], default: city_bank}
+        code: {type: string, maxLength: 150, description: Citytouch second code, typed bKash identifier, or unverified delimited EBL npsb:code numeric clue from an observed principal row; never a movement reference.}
         direction: {type: string, enum: [debit, credit]}
         party_kind: {type: string, enum: [owned, external]}
         label: {type: string, maxLength: 120}
@@ -8353,7 +8353,7 @@ components:
       properties:
         account: {type: string, format: uuid}
         account_name: {type: string}
-        profile: {type: string, enum: [city_bank, bkash]}
+        profile: {type: string, enum: [city_bank, bkash, ebl_bank]}
         code: {type: string}
         printed_code: {type: string, nullable: true, description: Complete Citytouch second segment exactly as printed; null for bKash.}
         direction: {type: string, enum: [debit, credit]}

@@ -146,6 +146,9 @@ def mark_fee_rows(rows):
     rows = list(rows)
     if not rows:
         return
+    from .ebl_identifiers import mark_possible_fees
+
+    mark_possible_fees(rows)
     flags = dict(
         StatementRow.objects.filter(pk__in=[row.pk for row in rows])
         .annotate(
@@ -160,7 +163,7 @@ def mark_fee_rows(rows):
         .values_list("pk", "has_fee")
     )
     for row in rows:
-        row._has_inline_fee = flags.get(row.pk, False)
+        row._has_inline_fee = flags.get(row.pk, False) or getattr(row, "_ebl_has_companion", False)
 
 
 def has_separate_fee(row):

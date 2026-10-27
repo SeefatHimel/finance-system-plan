@@ -42,7 +42,7 @@ def identifier(provider_type, details, *, reporting_number=""):
 
 
 def mapping_code(profile, account_id, code):
-    """Store no raw bKash phone in the mapping's indexed code field."""
-    if profile != "bkash":
+    """Store no raw bKash phone or EBL identifier in the indexed mapping field."""
+    if profile not in {"bkash", "ebl_bank"}:
         return code
-    return hashlib.sha256(f"bkash\0{account_id}\0{code}".encode()).hexdigest()
+    return hashlib.sha256(f"{profile}\0{account_id}\0{code}".encode()).hexdigest()

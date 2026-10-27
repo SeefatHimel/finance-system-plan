@@ -1757,7 +1757,7 @@ export type UnifiedStrengthEnum = "strong" | "possible";
 
 export interface StatementCodeMappingInput {
   account: string;
-  profile?: "city_bank" | "bkash";
+  profile?: "city_bank" | "bkash" | "ebl_bank";
   code: string;
   direction: "debit" | "credit";
   party_kind: "owned" | "external";
@@ -1834,7 +1834,7 @@ export interface ObservedStatementCodeExample {
 export interface ObservedStatementCode {
   account: string;
   account_name: string;
-  profile: "city_bank" | "bkash";
+  profile: "city_bank" | "bkash" | "ebl_bank";
   code: string;
   printed_code: string | null;
   direction: "debit" | "credit";

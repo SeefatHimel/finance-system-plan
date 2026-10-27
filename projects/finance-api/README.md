@@ -1712,3 +1712,38 @@ external fetch, object store or persistent local upload directory is needed.
 Run `python manage.py migrate` for `accounts.0003_account_logo` before deploying
 the web UI. Existing accounts default to an empty logo. Pillow is an explicit
 runtime dependency. Logos do not alter identity matching, balances or entries.
+
+## EBL bank statement identifiers
+
+The statement-code directory also supports `ebl_bank` (bank/savings accounts).
+Only one unambiguous, fully printed 6–24 digit value between double pipe
+separators in `NPSB [FUND] TRANSFER` is retained as `npsb:code:<digits>`.
+It is an **unverified printed clue**, not proof of a recipient account. Card
+masks, bare digits, partial suffixes, ambiguous multiple values and `//` movement
+references never become recurring party identifiers. Private extraction retains
+this clue in encrypted `StatementRow.source_code`; normal previews and immutable
+masked descriptions omit the full value. Mapping indexes use an account-scoped
+SHA-256 digest, as bKash identifiers do.
+
+The existing owner-scoped counterparty-code endpoints accept EBL mappings for a
+verified label, external party or owned destination, compatible type/category and
+optional note. Suggestions are scoped by user, reporting account, profile, code
+and direction. Saving a mapping neither posts nor rewrites a transaction.
+
+An adjacent NPSB debit pair can show a **possible separate bank charge** hint
+only when the immutable source reports share exactly one reference/date, the
+second amount is positive, smaller than the principal and at most BDT 100, and
+its balance is exactly the preceding balance minus that amount. Conflicting
+retained codes, more than two rows per reference/date, other currencies and
+missing/nonfinite values do not qualify. This is review-only, not a bank fee
+schedule. Companion charge rows do not inflate observed party counts or inherit
+owned-account mappings. Recognized pairs are also excluded from sub-taka rounding
+matching, so a near-equal charge cannot collapse into its principal. Reviewed classifications are respected; money, original
+observations and posted ledger entries stay separate and unchanged.
+
+Old EBL imports can use `POST /api/statements/imports/{id}/refresh-identifiers/`
+or re-upload the identical PDF. The same archive digest, position/fingerprint,
+password and ownership checks used for bKash apply. Only missing encrypted code
+metadata and its row version change, including on posted evidence; classifications,
+amounts, links, notes and ledger entries remain unchanged. No migration is needed.
+Deploy the API before the web client. Scanned PDFs still require supported OCR.

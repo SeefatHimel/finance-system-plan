@@ -50,7 +50,10 @@ def merchant_text(value):
 
 def pattern(row):
     from .counterparties import code_for_row
+    from .ebl_identifiers import OPERATION
 
+    if row.batch.profile == "ebl_bank" and OPERATION.search(row.extracted.get("description", "")):
+        return None, ""
     # Citytouch's first reference part is unique per movement while its second
     # part recurs. A generic description pattern would collapse unrelated payees.
     if code_for_row(row):
@@ -156,6 +159,11 @@ def suggestions(rows):
             }
 
     for row in rows:
+        if getattr(row, "_ebl_possible_fee", False):
+            if row.state == "pending" and not row.transaction_id and not row.classification_confirmed and row.type != "fee":
+                result[row.id] = {"type": "fee", "category": None, "other_account": None,
+                    "reason": "Possible separate EBL bank charge: adjacent debit shares a date and movement reference, and its balance step agrees. Verify the PDF before applying; amounts stay separate."}
+            continue
         code = code_for_row(row)
         if code and row.id not in result and batch.profile == "bkash" and code.startswith("send:phone:"):
             number = code.removeprefix("send:phone:")
@@ -182,6 +190,11 @@ def suggestions(rows):
             # never an identity or transfer path, after a user's code mapping.
             add_shared_category(row)
             continue
+        if batch.profile == "ebl_bank":
+            from .ebl_identifiers import OPERATION
+
+            if OPERATION.search(row.extracted.get("description", "")):
+                continue  # Unverified NPSB wording must not learn an owned-account route.
         # Numeric identity hints require transfer wording. Descriptions remain
         # immutable and the hint never changes a row or its ledger movement.
         if transfer_hint(row):

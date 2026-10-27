@@ -915,3 +915,20 @@ current image. Responses use a normalized 128px WebP data URL or an empty
 string. External URLs and SVG are not accepted. Logos use existing account
 ownership permissions and require the account-logo API migration before the
 new web client. Older clients may omit or ignore this additive field.
+
+### EBL statement-code profile
+
+`StatementCodeMappingInput.profile` and `StatementCounterpartyCode.profile` also
+accept `ebl_bank`. The observed code is `npsb:code:<6–24 full printed digits>`;
+it is a clue requiring user verification, never a `//` movement reference or
+masked reporting card. Existing validation/ownership, per-account direction
+scope and no-store responses apply. EBL bank/savings mappings suggest pending
+row metadata only. Possible companion charges remain separate review hints and
+do not inherit transfer identity mappings or count as independent observations.
+
+The existing `POST /api/statements/imports/{id}/refresh-identifiers/` additionally
+supports EBL bank archives with the same optional password, digest/fingerprint
+checks and `updated_rows` response. Only missing encrypted code evidence and its
+version change; no financial values, source snapshots, links or ledger entries
+are rewritten. API deployment must precede the web client. No new route or model
+migration is required.

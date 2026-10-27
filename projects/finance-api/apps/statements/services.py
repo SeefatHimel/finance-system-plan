@@ -187,6 +187,7 @@ def save_import(*, user, account, digest, preview):
         original = {**original, "issues": list(original["issues"])}
         printed_code = original.pop("citytouch_printed_code", None)
         bkash_code = original.pop("bkash_identifier", None)
+        ebl_code = original.pop("ebl_identifier", None)
         bill_name = bkash_bill_category_name(original) if batch.profile == "bkash" else None
         if any(
             original[key] is not None and ledger_money(original[key]) is None
@@ -241,7 +242,7 @@ def save_import(*, user, account, digest, preview):
         records.append(
             StatementRow(
                 component="principal",
-                source_code=printed_code or bkash_code or "",
+                source_code=printed_code or bkash_code or ebl_code or "",
                 source_fingerprint=source_fingerprint(original, "principal"),
                 direction=direction,
                 amount=ledger_money(original["amount"]),
@@ -277,9 +278,9 @@ def save_import(*, user, account, digest, preview):
 
 
 @db_transaction.atomic
-def refresh_bkash_identifiers(batch, preview, *, strict=False):
+def refresh_statement_identifiers(batch, preview, *, strict=False):
     """Enrich identical archived rows without replacing source or ledger decisions."""
-    if batch.profile != "bkash" or preview.get("profile") != "bkash":
+    if batch.profile not in {"bkash", "ebl_bank"} or preview.get("profile") != batch.profile:
         return 0
     original_rows = preview.get("rows", [])
     saved = list(batch.rows.select_for_update().filter(component="principal").order_by("position"))
@@ -293,7 +294,7 @@ def refresh_bkash_identifiers(batch, preview, *, strict=False):
         return 0
     changed = 0
     for row, original in zip(saved, original_rows):
-        code = original.get("bkash_identifier")
+        code = original.get("bkash_identifier" if batch.profile == "bkash" else "ebl_identifier")
         if not code or row.source_code:
             continue
         row.source_code = code

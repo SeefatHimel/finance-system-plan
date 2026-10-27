@@ -17,6 +17,7 @@ from pdfplumber.utils.exceptions import PdfminerException
 
 from .bkash_identifiers import identifier as bkash_identifier
 from .citytouch import citytouch_printed_code
+from .ebl_identifiers import identifier as ebl_identifier
 
 MAX_BYTES = 4 * 1024 * 1024
 MAX_PAGES = 30
@@ -582,6 +583,7 @@ def extract_statement(data: bytes, password="", *, include_private_identifiers=F
                     reporting_number=identifier[1] if identifier else "",
                 ) if profile == "bkash" else None
             ) if include_private_identifiers else None
+            printed_ebl_identifier = ebl_identifier(description) if include_private_identifiers and profile == "ebl_bank" else None
             rows.append(
                 {
                     "id": f"{pi}:{ai + 1}",
@@ -594,6 +596,7 @@ def extract_statement(data: bytes, password="", *, include_private_identifiers=F
                     "description": mask_identifiers(description[:2000]),
                     "citytouch_printed_code": citytouch_printed_code(description[:2000]) if profile == "city_bank" else None,
                     **({"bkash_identifier": printed_identifier} if printed_identifier else {}),
+                    **({"ebl_identifier": printed_ebl_identifier} if printed_ebl_identifier else {}),
                     "provider_type": provider_type[:120],
                     "reference": reference_match[1][:120] if reference_match else "",
                     "direction": "debit" if values["out"] is not None else "credit",
