@@ -3760,8 +3760,9 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .statement-code-recovery > p:first-child { margin-top: 0; }
 .statement-code-recovery ul { padding-left: 20px; overflow-wrap: anywhere; }
 .statement-code-list { display: grid; gap: 16px; }
-.statement-code-card { border: 1px solid var(--panel-border); border-radius: 12px; padding: 20px; min-width: 0; }
+.statement-code-card { border: 1px solid var(--panel-border); border-radius: 12px; padding: 20px; min-width: 0; overflow-wrap: anywhere; }
 .statement-code-card__heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.statement-code-card__heading > div { flex: 1 1 220px; min-width: 0; }
 .statement-code-card__heading h3 { margin: 0 0 6px; }
 .statement-code-card__heading p { color: var(--muted); margin: 0; }
 .statement-code-examples { margin: 14px 0; color: var(--muted); overflow-wrap: anywhere; }

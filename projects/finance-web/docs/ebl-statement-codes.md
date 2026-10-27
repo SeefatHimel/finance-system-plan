@@ -9,6 +9,10 @@
    Results list EBL and bKash separately. Counts refer to rows receiving missing
    metadata, not unique recipients; zero additions can mean metadata was already
    saved or no supported clue was found. Your filters stay selected after scanning.
+   An incomplete scan shows an error toast and links the affected statements;
+   it is not reported as a successful scan. Identifier scans have a separate limit
+   of 20 PDF requests per hour; failed requests count. If the service cannot load
+   the directory, use **Retry loading identifiers** without clearing your filters.
 3. Compare the printed code with the original statement before choosing Identify.
    The numeric value is an unverified clue; neither the masked card nor the NPSB
    operation label proves who received the payment. A `//` reference identifies a

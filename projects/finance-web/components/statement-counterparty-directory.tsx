@@ -44,11 +44,12 @@ function compatibleCategory(category: Category, type: string) {
 }
 
 export function StatementCounterpartyDirectory() {
-  const { notify } = useToast();
+  const { notify, dismiss } = useToast();
   const [rows, setRows] = useState<StatementCounterpartyCode[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<StatementCounterpartyCodeInput | null>(null);
@@ -68,8 +69,8 @@ export function StatementCounterpartyDirectory() {
   useEffect(() => {
     const controller = new AbortController();
     const token = getAccessToken();
-    if (!token) { setError("Sign in to review statement codes."); setLoading(false); return; }
-    setLoading(true); setError(null);
+    if (!token) { setLoadError("Sign in to review statement codes."); setLoading(false); return; }
+    setLoading(true); setLoadError(null);
     void Promise.all([
       listStatementCounterpartyCodes(token, controller.signal),
       listAccounts(token, controller.signal),
@@ -77,10 +78,13 @@ export function StatementCounterpartyDirectory() {
     ]).then(([codes, ownedAccounts, allCategories]) => {
       if (!controller.signal.aborted) { setRows(codes); setAccounts(ownedAccounts); setCategories(allCategories); }
     }).catch((reason: unknown) => {
-      if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Could not load statement codes.");
+      if (!controller.signal.aborted) {
+        const message = reason instanceof Error ? reason.message : "Could not load statement codes.";
+        setLoadError(message); notify(message, "error");
+      }
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [refresh]);
+  }, [refresh, notify]);
 
   const visible = useMemo(() => rows.filter((row) =>
     (!accountFilter || row.account === accountFilter)
@@ -126,9 +130,14 @@ export function StatementCounterpartyDirectory() {
       setRecoveryResult({ providers, issues });
       setShown(50);
       setRefresh((value) => value + 1);
-      notify(imports.length ? `Scan finished. ${providers.map((provider) => `${provider.label}: ${provider.updated} rows updated`).join("; ")}. See the scan results for details.` : "No saved EBL/bKash statements were found.");
+      const counts = providers.map((provider) => `${provider.label}: ${provider.updated} rows updated`).join("; ");
+      notify(issues.length
+        ? `Scan incomplete: ${issues.length} PDF${issues.length === 1 ? " needs" : "s need"} attention. ${counts}. Open the affected statements below.`
+        : imports.length ? `Scan finished. ${counts}. See the scan results for details.` : "No saved EBL/bKash statements were found.",
+      issues.length ? "error" : "success");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not list saved statements.");
+      const message = reason instanceof Error ? reason.message : "Could not list saved statements.";
+      setError(message); notify(message, "error");
     } finally {
       setRecovering(false);
     }
@@ -195,14 +204,15 @@ export function StatementCounterpartyDirectory() {
       <label className="field"><span className="field__label">Mapping</span><select className="field__control" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setShown(50); }}><option value="">All</option><option value="unmapped">Needs identification</option><option value="mapped">Saved</option></select></label>
     </div>
     {loading ? <p role="status">Loading statement codes…</p> : null}
+    {loadError ? <div><p role="alert" className="form-error">{loadError}</p><button className="button" type="button" disabled={loading} onClick={() => { dismiss(); setRefresh((value) => value + 1); }}>Retry loading identifiers</button></div> : null}
     {error ? <p role="alert" className="form-error">{error}</p> : null}
-    {!loading && !visible.length ? <p>No statement identifiers match these filters. Import an EBL bank, City Bank or bKash statement to discover them.</p> : null}
+    {!loading && !loadError && !visible.length ? <p>No statement identifiers match these filters. Import an EBL bank, City Bank or bKash statement to discover them.</p> : null}
     <div className="statement-code-list">{shownRows.map((row) => {
       const key = `${row.account}:${row.profile}:${row.code}:${row.direction}`;
       const isEditing = editing === key && draft;
       const otherOptions = accounts.filter((account) => account.id !== row.account && account.is_active && account.currency === accounts.find((value) => value.id === row.account)?.currency);
       return <article className="statement-code-card" key={key}>
-        <div className="statement-code-card__heading"><div><h3>{row.account_name} · {codeLabel(row)}</h3><p>{row.direction === "debit" ? "Money out" : "Money in"} · {row.count} observed · {row.pending_count} pending{row.last_seen ? ` · last seen ${row.last_seen}` : ""}{row.profile === "city_bank" && row.code.length === 4 ? " · only four digits available" : ""}</p></div><span className={row.mapping ? "status-badge status-badge--ok" : "status-badge status-badge--warning"}>{row.mapping ? "Saved" : "Unidentified"}</span></div>
+        <div className="statement-code-card__heading"><div><h3>{row.account_name} · {codeLabel(row)}</h3><p>{row.direction === "debit" ? "Money out" : "Money in"} · {row.count} observed · {row.pending_count} pending{row.last_seen ? ` · last seen ${formatCalendarDate(row.last_seen)}` : ""}{row.profile === "city_bank" && row.code.length === 4 ? " · only four digits available" : ""}</p></div><span className={row.mapping ? "status-badge status-badge--ok" : "status-badge status-badge--warning"}>{row.mapping ? "Saved" : "Unidentified"}</span></div>
         {row.examples.length ? <details className="statement-code-examples"><summary>Recent masked statement rows</summary><ul>{row.examples.map((example, index) => <li key={`${example.date}-${index}`}>{formatCalendarDate(example.date)} · {example.amount ?? "Amount unknown"} · {example.description}</li>)}</ul></details> : null}
         {!isEditing ? <><p>{row.mapping ? `${row.mapping.label} · ${row.mapping.party_kind === "owned" ? "My account" : "External party"}${row.mapping.suggested_type ? ` · ${row.mapping.suggested_type.replaceAll("_", " ")}` : " · no type suggestion"}` : "Check who or what this identifier represents."}</p><button className="button" type="button" onClick={() => open(row)}>{row.mapping ? "Edit mapping" : "Identify"}</button></> :
           <form className="statement-code-form" onSubmit={save}>

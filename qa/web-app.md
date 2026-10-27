@@ -1650,3 +1650,8 @@ EBL and bKash separately, counting updated statement rows rather than unique
 recipients. Zero additions may mean metadata was already saved or the extracted
 row lacks a supported clue. Scanning preserves the current directory filters. See
 `projects/finance-web/docs/ebl-statement-codes.md` for the end-user steps.
+Partial or failed scans use persistent error toasts and list affected PDFs;
+listing failures also show a toast. Directory load errors offer an explicit retry
+without clearing filters and do not masquerade as an empty directory. Long account
+names and identifiers wrap inside mobile cards, and last-seen dates use the shared
+calendar formatter.
