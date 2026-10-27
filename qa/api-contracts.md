@@ -897,3 +897,17 @@ numeric metadata after the same integrity and exact-row checks. Only encrypted
 metadata, row versions and timestamps change; financial originals, reviewed
 drafts and posted transactions are preserved. No migration or new endpoint is
 needed. Deploy the API before the corrected web client.
+
+### What is the optional identification and cleanup contract?
+
+Observed-code output includes skipped. A scoped skip POST takes account, profile,
+code, direction and skipped, without a label; false restores it. Directory state
+persists across future imports, and saved code rules are paused while skipped.
+Saving a verified mapping explicitly unskips it. Financial rows never change.
+
+Cleanup GET returns retired_identifiers, retired_rules and a signed owner-bound
+15-minute revision; POST accepts revision and returns cleared_identifiers and
+deleted_rules. Expired/foreign/changed previews return 409 and apply nothing.
+Correct masked evidence and ledger values are excluded. Skip migration 0012 must
+precede the new API/web clients. The existing confirmed-SMS remember endpoint's
+request/response schema is now explicit; its behavior is unchanged.

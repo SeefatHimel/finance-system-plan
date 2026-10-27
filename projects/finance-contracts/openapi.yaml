@@ -89,6 +89,42 @@ paths:
           description: Owned proposal, source or target not found.
         '409':
           description: Expired, stale or conflicting decision. Refresh before approval.
+  /api/messages/review/{candidate_id}/remember/:
+    post:
+      operationId: remember_confirmed_message_choice
+      tags: [Messages]
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: candidate_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      description: Explicitly remember choices only after an owned SMS has a confirmed transaction. Does not change ledger values. Replacing conflicting saved choices requires replace_existing.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                replace_existing: {type: boolean, default: false}
+      responses:
+        '200':
+          description: Saved rule scope.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [saved, scope, account]
+                properties:
+                  saved: {type: boolean}
+                  scope: {type: string, enum: [cash_withdrawal, counterparty, message_type]}
+                  account: {type: string}
+                  destination: {type: string}
+        '400': {description: Original source cannot support a safe reusable rule.}
+        '401': {$ref: '#/components/responses/UnauthorizedError'}
+        '404': {$ref: '#/components/responses/NotFoundError'}
+        '409': {description: SMS is not confirmed or saved choices conflict.}
   /api/statements/counterparty-codes/:
     get:
       operationId: statement_counterparty_codes_list
@@ -128,6 +164,62 @@ paths:
           description: Invalid or unobserved code, party, account, type or category.
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/statements/counterparty-codes/skip/:
+    post:
+      operationId: statement_identifier_skip
+      tags: [Statements]
+      security:
+      - bearerAuth: []
+      description: Skip or restore an observed identifier for this owner, reporting account, provider, code and direction. No name is required. Skipping pauses its saved rule without deleting sources or transactions; saving a mapping explicitly restores it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IdentifierSkipInput'}
+      responses:
+        '200':
+          description: Stored skip preference.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IdentifierSkipResult'}
+        '400': {description: Invalid, unobserved or foreign identifier scope.}
+        '401': {$ref: '#/components/responses/UnauthorizedError'}
+  /api/statements/counterparty-codes/cleanup-ebl/:
+    get:
+      operationId: retired_ebl_cleanup_preview
+      tags: [Statements]
+      security:
+      - bearerAuth: []
+      description: Read-only owner-scoped counts of retired numeric EBL metadata and disabled EBL recipient rules, with a signed 15-minute confirmation revision. Correct masked evidence and financial data are excluded.
+      responses:
+        '200':
+          description: Exact cleanup preview.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EblCleanupPreview'}
+        '401': {$ref: '#/components/responses/UnauthorizedError'}
+        '503': {description: Metadata cannot be decrypted; nothing is changed.}
+    post:
+      operationId: retired_ebl_cleanup_apply
+      tags: [Statements]
+      security:
+      - bearerAuth: []
+      description: Confirm the current owner-bound preview; clear only retired EBL numeric source_code values and delete disabled EBL rules. Bump affected row versions and record counts in audit history. Never change originals, reviewed financial values or ledger transactions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EblCleanupInput'}
+      responses:
+        '200':
+          description: Cleared metadata and deleted rule counts.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EblCleanupResult'}
+        '400': {description: Missing or invalid confirmation revision.}
+        '401': {$ref: '#/components/responses/UnauthorizedError'}
+        '409': {description: Preview expired, was altered, belongs to another owner or no longer matches. Preview again.}
+        '503': {description: Metadata cannot be decrypted; nothing is changed.}
   /api/statements/counterparty-codes/{id}/:
     delete:
       operationId: statement_counterparty_codes_forget
@@ -8263,6 +8355,38 @@ components:
       description: '* `strong` - strong
 
         * `possible` - possible'
+    IdentifierSkipInput:
+      type: object
+      required: [account, profile, code, direction, skipped]
+      properties:
+        account: {type: string, format: uuid}
+        profile: {type: string, enum: [city_bank, bkash, ebl_bank]}
+        code: {type: string, maxLength: 150}
+        direction: {type: string, enum: [debit, credit]}
+        skipped: {type: boolean}
+    IdentifierSkipResult:
+      type: object
+      required: [skipped]
+      properties:
+        skipped: {type: boolean}
+    EblCleanupPreview:
+      type: object
+      required: [retired_identifiers, retired_rules, revision]
+      properties:
+        retired_identifiers: {type: integer, minimum: 0}
+        retired_rules: {type: integer, minimum: 0}
+        revision: {type: string, description: Signed owner-bound confirmation; expires after 15 minutes.}
+    EblCleanupInput:
+      type: object
+      required: [revision]
+      properties:
+        revision: {type: string, maxLength: 1000}
+    EblCleanupResult:
+      type: object
+      required: [cleared_identifiers, deleted_rules]
+      properties:
+        cleared_identifiers: {type: integer, minimum: 0}
+        deleted_rules: {type: integer, minimum: 0}
     StatementCodeMappingInput:
       type: object
       required: [account, code, direction, party_kind, label]
@@ -8349,7 +8473,7 @@ components:
         description: {type: string, description: Masked source description.}
     ObservedStatementCode:
       type: object
-      required: [account, account_name, profile, code, printed_code, direction, count, pending_count, last_seen, examples, mapping]
+      required: [account, account_name, profile, code, printed_code, direction, count, pending_count, last_seen, examples, mapping, skipped]
       properties:
         account: {type: string, format: uuid}
         account_name: {type: string}
@@ -8363,6 +8487,7 @@ components:
         examples:
           type: array
           items: {$ref: '#/components/schemas/ObservedStatementCodeExample'}
+        skipped: {type: boolean, description: Optional identification preference; skipped rules are paused.}
         mapping:
           allOf:
           - $ref: '#/components/schemas/StatementCodeMapping'

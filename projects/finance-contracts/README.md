@@ -933,3 +933,23 @@ Ownership, optional password, integrity and exact-row checks apply. Only encrypt
 code metadata, row version and timestamp change. Originals and ledger values stay
 unchanged; saved EBL rules remain stored but ignored. No migration is needed;
 deploy the API before the web client.
+
+### Optional identification and retired EBL cleanup
+
+Observed identifiers add `skipped: boolean`. The owner-scoped
+`POST /api/statements/counterparty-codes/skip/` accepts account/profile/code/
+direction/skipped, without a name. This persists across imports, pauses any scoped
+saved rule, and can be reversed with skipped=false. Saving a mapping unskips it.
+The metadata preference never skips a financial transaction or deletes sources.
+
+`GET /api/statements/counterparty-codes/cleanup-ebl/` returns retired_identifiers,
+retired_rules and a signed, owner-bound 15-minute revision. POST `{revision}`
+returns cleared_identifiers/deleted_rules after clearing only retired EBL numeric
+metadata and deleting disabled EBL rules. A changed/expired/foreign revision gives
+409 and requires a new preview. Correct masks, other providers/owners and ledger
+values remain untouched. Responses are no-store. Deploy migration
+`statements.0012_identifier_skip`, then the API, then web.
+
+The existing confirmed-SMS `/remember/` endpoint now declares its request/response
+schema explicitly, so schema validation includes it without serializer errors;
+this is documentation metadata only, with no runtime behavior change.

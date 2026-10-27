@@ -1818,8 +1818,55 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "replace_existing": {
+                    "default": false,
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
         "responses": {
-          "200": {}
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "account": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "type": "string"
+                    },
+                    "saved": {
+                      "type": "boolean"
+                    },
+                    "scope": {
+                      "enum": [
+                        "cash_withdrawal",
+                        "counterparty",
+                        "message_type"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "saved",
+                    "scope",
+                    "account"
+                  ],
+                  "type": "object"
+                }
+              }
+            }
+          }
         },
         "security": [
           {
@@ -3852,6 +3899,93 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CodeMappingOutput"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/statements/counterparty-codes/cleanup-ebl/": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EblCleanupPreview"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EblCleanupInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EblCleanupResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/statements/counterparty-codes/skip/": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentifierSkipInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentifierSkipResult"
                 }
               }
             }
@@ -6822,6 +6956,56 @@
       ],
       "type": "string"
     },
+    "EblCleanupInput": {
+      "properties": {
+        "revision": {
+          "maxLength": 1000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "revision"
+      ],
+      "type": "object"
+    },
+    "EblCleanupPreview": {
+      "properties": {
+        "retired_identifiers": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "retired_rules": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "retired_identifiers",
+        "retired_rules",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "EblCleanupResult": {
+      "properties": {
+        "cleared_identifiers": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "deleted_rules": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cleared_identifiers",
+        "deleted_rules"
+      ],
+      "type": "object"
+    },
     "EvidenceApply": {
       "properties": {
         "acknowledge_conflict": {
@@ -7454,6 +7638,46 @@
       ],
       "type": "string"
     },
+    "IdentifierSkipInput": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "code": {
+          "maxLength": 150,
+          "type": "string"
+        },
+        "direction": {
+          "$ref": "#/components/schemas/Direction864Enum"
+        },
+        "profile": {
+          "$ref": "#/components/schemas/ProfileEnum"
+        },
+        "skipped": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "account",
+        "code",
+        "direction",
+        "profile",
+        "skipped"
+      ],
+      "type": "object"
+    },
+    "IdentifierSkipResult": {
+      "properties": {
+        "skipped": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "skipped"
+      ],
+      "type": "object"
+    },
     "IdentityChoice": {
       "properties": {
         "account": {
@@ -7633,6 +7857,9 @@
         },
         "profile": {
           "type": "string"
+        },
+        "skipped": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -7646,7 +7873,8 @@
         "mapping",
         "pending_count",
         "printed_code",
-        "profile"
+        "profile",
+        "skipped"
       ],
       "type": "object"
     },

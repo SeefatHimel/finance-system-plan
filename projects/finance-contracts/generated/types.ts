@@ -1755,6 +1755,33 @@ export type UnifiedSourceEnum = "sms" | "statement";
 
 export type UnifiedStrengthEnum = "strong" | "possible";
 
+export interface IdentifierSkipInput {
+  account: string;
+  profile: "city_bank" | "bkash" | "ebl_bank";
+  code: string;
+  direction: "debit" | "credit";
+  skipped: boolean;
+}
+
+export interface IdentifierSkipResult {
+  skipped: boolean;
+}
+
+export interface EblCleanupPreview {
+  retired_identifiers: number;
+  retired_rules: number;
+  revision: string;
+}
+
+export interface EblCleanupInput {
+  revision: string;
+}
+
+export interface EblCleanupResult {
+  cleared_identifiers: number;
+  deleted_rules: number;
+}
+
 export interface StatementCodeMappingInput {
   account: string;
   profile?: "city_bank" | "bkash" | "ebl_bank";
@@ -1842,6 +1869,7 @@ export interface ObservedStatementCode {
   pending_count: number;
   last_seen: string | null;
   examples: ObservedStatementCodeExample[];
+  skipped: boolean;
   mapping: StatementCodeMapping | null;
 }
 
