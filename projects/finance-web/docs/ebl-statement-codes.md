@@ -44,3 +44,13 @@ preview again. Correct masked evidence, source statements and financial records
 stay saved. Previously applied manual transaction edits are not reversed.
 This action is separate from scanning a PDF, and requires the updated API.
 The skip feature also requires API migration `statements.0012_identifier_skip`.
+
+## Compact directory controls
+
+The directory uses text badges for provider, direction, review status, and
+four-digit ambiguity. Status filter tags include counts for the current search
+and account/provider filters. Skip and Restore remain explicit labelled actions;
+identification is optional. Open **Filters** for provider/account selectors,
+remove applied filter chips individually, and open **Identifier tools** for saved
+PDF scanning or the EBL cleanup preview. Expanding tools does not mutate data.
+These controls reuse the existing endpoints and require no additional migration.

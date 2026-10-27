@@ -3755,9 +3755,29 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
   .unified-pair-dialog .statement-row-footer { max-height: 35dvh; overflow-y: auto; overscroll-behavior: contain; }
   .unified-pair-dialog .statement-row-footer .statement-actions { width: 100%; }
 }
-.statement-code-filters { display: grid; gap: 14px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 24px 0; }
-.statement-code-recovery { border: 1px solid var(--panel-border); border-radius: 12px; padding: 16px; }
-.statement-code-recovery > p:first-child { margin-top: 0; }
+.statement-code-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 20px; }
+.statement-code-toolbar > .field { flex: 1 1 240px; min-width: 0; }
+.statement-code-toolbar .field__control { width: 100%; min-width: 0; }
+.statement-code-filter-menu { flex: 0 1 auto; }
+.statement-code-filter-menu > summary { display: flex; align-items: center; gap: 7px; width: fit-content; min-height: 42px; border: 1px solid var(--panel-border); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 13px; }
+.statement-code-filter-menu[open] { flex-basis: 100%; }
+.statement-code-filters { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 14px 0; }
+.statement-code-review-filters { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+.statement-code-active-filters { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.statement-code-active-filters .transaction-filter-chip { min-height: 32px; }
+.statement-code-count { color: var(--muted); font-size: 12px; margin: 10px 0; }
+.statement-code-filter-tag { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; border: 1px solid var(--panel-border); border-radius: 999px; padding: 6px 11px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.statement-code-filter-tag[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.statement-code-filter-tag > span { font-variant-numeric: tabular-nums; font-weight: 700; }
+.statement-code-filter-tag:hover { color: var(--foreground); }
+.statement-code-utilities { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 13px; }
+.statement-code-recovery { border: 1px solid var(--panel-border); border-radius: 8px; padding: 10px 12px; }
+.statement-code-recovery[open] { flex-basis: 100%; }
+.statement-code-recovery > summary { cursor: pointer; }
+.statement-code-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.statement-code-badges .status-badge { font-size: 11px; padding: 3px 7px; }
+.statement-code-page .button--small { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.statement-code-page summary:focus-visible, .statement-code-filter-tag:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .statement-code-recovery ul { padding-left: 20px; overflow-wrap: anywhere; }
 .statement-code-list { display: grid; gap: 16px; }
 .statement-code-card { border: 1px solid var(--panel-border); border-radius: 12px; padding: 20px; min-width: 0; overflow-wrap: anywhere; }
@@ -3769,8 +3789,7 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .statement-code-examples summary { cursor: pointer; }
 .statement-code-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
 .statement-code-actions { display: flex; flex-wrap: wrap; gap: 10px; grid-column: 1 / -1; }
-@media (max-width: 900px) { .statement-code-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 700px) { .statement-code-filters, .statement-code-form { grid-template-columns: 1fr; } .statement-code-card { padding: 16px; } }
+@media (max-width: 700px) { .statement-code-filters, .statement-code-form { grid-template-columns: 1fr; } .statement-code-card { padding: 16px; } .statement-code-toolbar > .field { flex-basis: 160px; } }
 .statement-original-source { border: 1px solid var(--panel-border); border-radius: 10px; margin: 12px 0; padding: 12px; }
 .statement-original-source > strong { display: block; margin-bottom: 8px; }
 .statement-original-viewer__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }

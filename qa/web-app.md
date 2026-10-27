@@ -1665,3 +1665,22 @@ in a modal with Cancel initially focused. Only its final action removes the
 retired identifier metadata and disabled EBL rules. Stale confirmation requires
 another preview, and errors use toasts. The modal states that source statements,
 correct masks, financial values and past manual edits remain unchanged.
+
+### Why are there tags on the statement identifier page?
+
+Status filter buttons show Not skipped, Needs identification, Saved, Skipped,
+and All with counts scoped to the current search, provider, and reporting account.
+The selected button exposes its pressed state to assistive technology. Provider,
+money direction, saved/skipped status, and four-digit ambiguity are separate
+text badges on each card; color alone never communicates their meaning.
+Loading uses placeholder counts, and a failed load shows unavailable counts
+with Retry rather than implying there are zero identifiers.
+Request errors use toasts; the list keeps a neutral unavailable state and Retry
+control without repeating the detailed error in an inline alert.
+Compact icon-and-text Identify, Skip, Edit, and Restore actions keep their labels.
+Account/provider filters expand from Filters and remain visible as removable
+chips when applied. Recovery scanning and EBL cleanup live under Identifier tools;
+opening that section never starts a scan or deletes data. Help and masked examples
+remain expandable, while the optional-identification explanation stays visible.
+This is presentation only: mappings, skips, cleanup previews, and transaction
+behavior use the existing APIs without a migration or automatic data changes.

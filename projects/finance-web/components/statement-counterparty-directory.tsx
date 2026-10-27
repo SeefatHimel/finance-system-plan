@@ -2,6 +2,7 @@
 
 import { formatCalendarDate } from "../../finance-contracts/presentation";
 import Link from "next/link";
+import { ArrowCounterClockwise, ArrowDownLeft, ArrowUpRight, EyeSlash, FunnelSimple, PencilSimple, UserPlus, X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { useToast } from "@/components/toast-provider";
@@ -59,6 +60,15 @@ function matchesStatus(row: StatementCounterpartyCode, status: string) {
   return !row.skipped && row.profile !== "ebl_bank" && (status === "mapped" ? Boolean(row.mapping) : !row.mapping);
 }
 
+const reviewFilters = [
+  { value: "active", label: "Not skipped" },
+  { value: "unmapped", label: "Needs identification" },
+  { value: "mapped", label: "Saved" },
+  { value: "skipped", label: "Skipped" },
+  { value: "", label: "All" },
+];
+const providerLabels: Record<string, string> = { city_bank: "City Bank", bkash: "bKash", ebl_bank: "EBL bank" };
+
 export function StatementCounterpartyDirectory() {
   const { notify, dismiss } = useToast();
   const [rows, setRows] = useState<StatementCounterpartyCode[]>([]);
@@ -66,7 +76,6 @@ export function StatementCounterpartyDirectory() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<StatementCounterpartyCodeInput | null>(null);
   const [busy, setBusy] = useState(false);
@@ -104,18 +113,18 @@ export function StatementCounterpartyDirectory() {
     return () => controller.abort();
   }, [refresh, notify]);
 
-  const visible = useMemo(() => rows.filter((row) =>
+  const filteredRows = useMemo(() => rows.filter((row) =>
     (!accountFilter || row.account === accountFilter)
     && (!profileFilter || row.profile === profileFilter)
-    && matchesStatus(row, statusFilter)
     && (!query || `${row.code} ${row.account_name} ${row.mapping?.label ?? ""}`.toLowerCase().includes(query.toLowerCase().trim()))
-  ), [rows, accountFilter, profileFilter, statusFilter, query]);
+  ), [rows, accountFilter, profileFilter, query]);
+  const visible = filteredRows.filter((row) => matchesStatus(row, statusFilter));
   const shownRows = visible.slice(0, shown);
 
   async function recoverIdentifiers() {
     const token = getAccessToken();
     if (!token || recovering) return;
-    setRecovering(true); setRecoveryResult(null); setError(null);
+    setRecovering(true); setRecoveryResult(null);
     try {
       let offset = 0;
       const imports: SavedStatement[] = [];
@@ -155,7 +164,7 @@ export function StatementCounterpartyDirectory() {
       issues.length ? "error" : "success");
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Could not list saved statements.";
-      setError(message); notify(message, "error");
+      notify(message, "error");
     } finally {
       setRecovering(false);
     }
@@ -164,13 +173,12 @@ export function StatementCounterpartyDirectory() {
   function open(row: StatementCounterpartyCode) {
     setEditing(`${row.account}:${row.profile}:${row.code}:${row.direction}`);
     setDraft(initialChoice(row));
-    setError(null);
   }
 
   async function updateSkipped(row: StatementCounterpartyCode, skipped: boolean) {
     const token = getAccessToken();
     if (!token || busy || cleanupBusy) return;
-    setBusy(true); setError(null);
+    setBusy(true);
     try {
       await setStatementIdentifierSkipped(token, row, skipped);
       setRows((current) => current.map((item) => rowKey(item) === rowKey(row) ? { ...item, skipped } : item));
@@ -212,71 +220,79 @@ export function StatementCounterpartyDirectory() {
     event.preventDefault();
     const token = getAccessToken();
     if (!token || !draft || busy) return;
-    setBusy(true); setError(null);
+    setBusy(true);
     try {
       await saveStatementCounterpartyCode(token, draft);
       setEditing(null); setDraft(null); setRefresh((value) => value + 1);
       notify("Code saved. Pending statement rows can now show this suggestion; posted transactions stay unchanged.");
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Could not save this code.";
-      setError(message); notify(message, "error");
+      notify(message, "error");
     } finally { setBusy(false); }
   }
 
   async function forget(row: StatementCounterpartyCode) {
     const token = getAccessToken();
     if (!token || !row.mapping || busy) return;
-    setBusy(true); setError(null);
+    setBusy(true);
     try {
       await forgetStatementCounterpartyCode(token, row.mapping.id);
       setEditing(null); setDraft(null); setRefresh((value) => value + 1);
       notify("Mapping removed. The observed code remains in the directory.");
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Could not remove this mapping.";
-      setError(message); notify(message, "error");
+      notify(message, "error");
     } finally { setBusy(false); }
   }
 
   return <div className="panel"><div className="panel__body statement-code-page">
     <h2 className="section-title">Statement identifiers</h2>
-    <p className="section-subtitle">Review masked EBL card/account clues and identify recurring Citytouch/bKash parties. Party mappings belong to one reporting account and debit or credit direction.</p>
+    <p className="section-subtitle">Name recurring Citytouch/bKash parties or review masked EBL account clues.</p>
     <details className="statement-code-help"><summary>How to read statement identifiers</summary>
     <p className="inline-note">In <strong>CT-FT-***1234-***5678</strong>, the first part identifies a movement. We use every visible digit of the second part as a possible party clue. When only four digits are available, different parties can share that suffix. Verify it against your records before saving. Debit means money left the reporting account; credit means money arrived.</p>
     <p className="inline-note">Bank operation and ledger purpose are separate. A Citytouch fund transfer can be an internal transfer, a payment, or another type. Your choice suggests details for pending rows; it never posts or changes a transaction automatically.</p>
+    <p className="inline-note">Party mappings belong to one reporting account and debit or credit direction. Status counts follow your search and account/provider filters.</p>
     <p className="inline-note">EBL shows the repeated masked value, including its trailing star, as read-only card/account evidence. It may be your own sending card; it does not establish a recipient. The following numeric field and // movement references are not recurring party identifiers. Older EBL recipient rules based on that field are no longer applied. Existing transactions stay unchanged; possible charges remain separate.</p>
     <p className="inline-note">For bKash, recipient/recharge numbers and merchant or biller labels can repeat. A TRX ID identifies just one movement, so it is never used as a recurring code. Verify any suggestion before recording.</p>
     </details>
-    <p><Link href="/statements">Back to statement reviews</Link></p>
-    <div className="statement-code-recovery">
+    <div className="statement-code-utilities"><Link href="/statements">Back to statement reviews</Link>
+    <details className="statement-code-recovery"><summary>Identifier tools</summary>
       <p>EBL masked clues are read from saved statement rows. Scanning can correct older EBL identifier metadata or recover missing bKash identifiers. It does not change transactions. Open a password-protected PDF in its statement review to refresh it.</p>
-      <div className="statement-code-actions"><button className="button" type="button" disabled={recovering || cleanupBusy} onClick={() => void recoverIdentifiers()}>{recovering ? "Scanning saved EBL/bKash PDFs…" : "Find identifiers in saved EBL/bKash PDFs"}</button>
-      <button className="button" type="button" disabled={cleanupBusy || busy || recovering} onClick={() => void previewCleanup()}>{cleanupBusy ? "Checking EBL cleanup…" : "Clear incorrect EBL data"}</button></div>
+      <div className="statement-code-actions"><button className="button button--ghost button--small" type="button" disabled={recovering || cleanupBusy} onClick={() => void recoverIdentifiers()}>{recovering ? "Scanning saved EBL/bKash PDFs…" : "Find identifiers in saved EBL/bKash PDFs"}</button>
+      <button className="button button--ghost button--small" type="button" disabled={cleanupBusy || busy || recovering} onClick={() => void previewCleanup()}>{cleanupBusy ? "Checking EBL cleanup…" : "Clear incorrect EBL data"}</button></div>
       {recoveryResult ? <div role="status">
         <ul>{recoveryResult.providers.map((provider) => <li key={provider.profile}><strong>{provider.label}:</strong> {provider.found ? `scanned ${provider.scanned} of ${provider.found} saved PDFs; updated identifier metadata on ${provider.updated} rows.` : "No saved PDFs found."}</li>)}</ul>
         <p>These are statement row counts, not unique recipients. Zero updates can mean metadata was already correct or no supported clue was found. Your current filters are unchanged.</p>
         {recoveryResult.issues.length ? <ul>{recoveryResult.issues.map((issue) => <li key={issue.id}><Link href={`/statements?import=${encodeURIComponent(issue.id)}`}>{issue.label}</Link>: {issue.reason}</li>)}</ul> : null}
       </div> : null}
-    </div>
-    <div className="statement-code-filters">
+    </details></div>
+    <div className="statement-code-toolbar">
       <label className="field"><span className="field__label">Search code or name</span><input className="field__control" type="search" value={query} onChange={(event) => { setQuery(event.target.value); setShown(50); }} /></label>
+      <details className="statement-code-filter-menu"><summary><FunnelSimple size={16} aria-hidden="true" /> Filters{accountFilter || profileFilter ? <span className="status-badge status-badge--ok">{Number(Boolean(accountFilter)) + Number(Boolean(profileFilter))}</span> : null}</summary><div className="statement-code-filters">
       <label className="field"><span className="field__label">Statement type</span><select className="field__control" value={profileFilter} onChange={(event) => { setProfileFilter(event.target.value); setShown(50); }}><option value="">All statements</option><option value="city_bank">City Bank ({rows.filter((row) => row.profile === "city_bank").length})</option><option value="bkash">bKash ({rows.filter((row) => row.profile === "bkash").length})</option><option value="ebl_bank">EBL bank ({rows.filter((row) => row.profile === "ebl_bank").length})</option></select></label>
       <label className="field"><span className="field__label">Reporting account</span><select className="field__control" value={accountFilter} onChange={(event) => { setAccountFilter(event.target.value); setShown(50); }}><option value="">All accounts</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-      <label className="field"><span className="field__label">Review</span><select className="field__control" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setShown(50); }}><option value="active">Not skipped</option><option value="">All</option><option value="unmapped">Needs identification</option><option value="mapped">Saved</option><option value="skipped">Skipped</option></select></label>
+      {accountFilter || profileFilter ? <button className="button button--ghost button--small" type="button" onClick={() => { setAccountFilter(""); setProfileFilter(""); setShown(50); }}>Clear filters</button> : null}
+      </div></details>
     </div>
-    <p className="inline-note">Naming an identifier is optional. Skip unknown or one-off clues to hide them here; restore them from Skipped whenever you want. This does not skip or delete transactions.</p>
+    {accountFilter || profileFilter ? <div className="statement-code-active-filters" aria-label="Applied identifier filters">
+      {profileFilter ? <button className="transaction-filter-chip" type="button" aria-label="Remove statement type filter" onClick={() => { setProfileFilter(""); setShown(50); }}><span>{providerLabels[profileFilter]}</span><X size={12} aria-hidden="true" /></button> : null}
+      {accountFilter ? <button className="transaction-filter-chip" type="button" aria-label="Remove reporting account filter" title={accounts.find((account) => account.id === accountFilter)?.name} onClick={() => { setAccountFilter(""); setShown(50); }}><span>{accounts.find((account) => account.id === accountFilter)?.name ?? "Reporting account"}</span><X size={12} aria-hidden="true" /></button> : null}
+    </div> : null}
+    <div className="statement-code-review-filters" role="group" aria-label="Identifier review filters" aria-busy={loading}>{reviewFilters.map((filter) => <button key={filter.value} type="button" className="statement-code-filter-tag" aria-pressed={statusFilter === filter.value} onClick={() => { setStatusFilter(filter.value); setShown(50); }}>{filter.label}<span>{loading ? "…" : loadError ? "—" : filteredRows.filter((row) => matchesStatus(row, filter.value)).length}</span></button>)}</div>
+    {!loading && !loadError ? <p className="statement-code-count" role="status">Showing {shownRows.length} of {visible.length} identifiers</p> : null}
+    <p className="inline-note">Naming is optional. Skip hides a clue; restore it from Skipped. Transactions stay unchanged.</p>
     {loading ? <p role="status">Loading statement codes…</p> : null}
-    {loadError ? <div><p role="alert" className="form-error">{loadError}</p><button className="button" type="button" disabled={loading} onClick={() => { dismiss(); setRefresh((value) => value + 1); }}>Retry loading identifiers</button></div> : null}
-    {error ? <p role="alert" className="form-error">{error}</p> : null}
-    {!loading && !loadError && !visible.length ? <p>{statusFilter === "active" ? "No identifiers to review. Skipped clues remain available in the Skipped filter." : "No identifiers match these filters."}</p> : null}
+    {loadError ? <div><p className="inline-note">Identifier list unavailable. Retry to load your data.</p><button className="button button--ghost button--small" type="button" disabled={loading} onClick={() => { dismiss(); setRefresh((value) => value + 1); }}>Retry loading identifiers</button></div> : null}
+    {!loading && !loadError && !visible.length ? <p>{statusFilter === "active" && !query.trim() && !accountFilter && !profileFilter ? "No identifiers to review. Skipped clues remain available in the Skipped filter." : "No identifiers match these filters."}</p> : null}
     <div className="statement-code-list">{shownRows.map((row) => {
       const key = rowKey(row);
       const isEditing = editing === key && draft;
-      const skipControl = <button className="button" type="button" disabled={busy || cleanupBusy} onClick={() => void updateSkipped(row, true)}>Skip / don’t identify</button>;
+      const skipControl = <button className="button button--ghost button--small" type="button" aria-label="Skip / don’t identify" title="Hide this identifier without changing transactions" disabled={busy || cleanupBusy} onClick={() => void updateSkipped(row, true)}><EyeSlash size={16} aria-hidden="true" /> Skip</button>;
       const otherOptions = accounts.filter((account) => account.id !== row.account && account.is_active && account.currency === accounts.find((value) => value.id === row.account)?.currency);
       return <article className="statement-code-card" key={key}>
-        <div className="statement-code-card__heading"><div><h3>{row.account_name} · {codeLabel(row)}</h3><p>{row.direction === "debit" ? "Money out" : "Money in"} · {row.count} observed · {row.pending_count} pending{row.last_seen ? ` · last seen ${formatCalendarDate(row.last_seen)}` : ""}{row.profile === "city_bank" && row.code.length === 4 ? " · only four digits available" : ""}</p></div><span className={row.skipped || row.profile === "ebl_bank" ? "status-badge" : row.mapping ? "status-badge status-badge--ok" : "status-badge status-badge--warning"}>{row.skipped ? "Skipped" : row.profile === "ebl_bank" ? row.code.startsWith("npsb:masked:") ? "Account clue" : "Retired reference" : row.mapping ? "Saved" : "Unidentified"}</span></div>
+        <div className="statement-code-card__heading"><div><h3>{row.account_name} · {codeLabel(row)}</h3><div className="statement-code-badges"><span className="status-badge status-badge--inactive">{providerLabels[row.profile] ?? row.profile}</span><span className="status-badge status-badge--inactive">{row.direction === "debit" ? <ArrowUpRight size={13} aria-hidden="true" /> : <ArrowDownLeft size={13} aria-hidden="true" />}{row.direction === "debit" ? "Money out" : "Money in"}</span><span className={row.skipped || row.profile === "ebl_bank" ? "status-badge status-badge--inactive" : row.mapping ? "status-badge status-badge--ok" : "status-badge status-badge--warning"}>{row.skipped ? "Skipped" : row.profile === "ebl_bank" ? row.code.startsWith("npsb:masked:") ? "Account clue" : "Retired reference" : row.mapping ? "Saved" : "Unidentified"}</span>{row.profile === "city_bank" && row.code.length === 4 ? <span className="status-badge status-badge--warning">Four-digit clue</span> : null}</div><p>{row.count} observed · {row.pending_count} pending{row.last_seen ? ` · last seen ${formatCalendarDate(row.last_seen)}` : ""}</p></div></div>
         {row.examples.length ? <details className="statement-code-examples"><summary>Recent masked statement rows</summary><ul>{row.examples.map((example, index) => <li key={`${example.date}-${index}`}>{formatCalendarDate(example.date)} · {example.amount ?? "Amount unknown"} · {example.description}</li>)}</ul></details> : null}
-        {row.skipped ? <><p>Skipped from identification. Transactions are unchanged; any saved rule is paused until you restore this clue.</p><button className="button" type="button" disabled={busy || cleanupBusy} onClick={() => void updateSkipped(row, false)}>Restore identifier</button></> : row.profile === "ebl_bank" ? <><p>{row.code.startsWith("npsb:masked:") ? "This printed masked value may identify the sending card/account. It does not identify the recipient, so it cannot set a transfer destination or merchant rule." : "This movement field was incorrectly used as a recurring identifier and is retired. The corrected API must be deployed before masked card/account evidence can be shown. Do not use this field as a recipient rule."}</p><div className="statement-code-actions"><Link className="button" href="/accounts">Review account recognition</Link>{skipControl}</div></> : !isEditing ? <><p>{row.mapping ? `${row.mapping.label} · ${row.mapping.party_kind === "owned" ? "My account" : "External party"}${row.mapping.suggested_type ? ` · ${row.mapping.suggested_type.replaceAll("_", " ")}` : " · no type suggestion"}` : "Check who or what this identifier represents."}</p><div className="statement-code-actions"><button className="button" type="button" disabled={busy || cleanupBusy} onClick={() => open(row)}>{row.mapping ? "Edit mapping" : "Identify"}</button>{skipControl}</div></> :
+        {row.skipped ? <><p>Skipped from identification. Transactions are unchanged; any saved rule is paused until you restore this clue.</p><button className="button button--ghost button--small" type="button" disabled={busy || cleanupBusy} onClick={() => void updateSkipped(row, false)}><ArrowCounterClockwise size={16} aria-hidden="true" /> Restore identifier</button></> : row.profile === "ebl_bank" ? <><p>{row.code.startsWith("npsb:masked:") ? "This printed masked value may identify the sending card/account. It does not identify the recipient, so it cannot set a transfer destination or merchant rule." : "This movement field was incorrectly used as a recurring identifier and is retired. The corrected API must be deployed before masked card/account evidence can be shown. Do not use this field as a recipient rule."}</p><div className="statement-code-actions"><Link className="button button--ghost button--small" href="/accounts">Review account recognition</Link>{skipControl}</div></> : !isEditing ? <><p>{row.mapping ? `${row.mapping.label} · ${row.mapping.party_kind === "owned" ? "My account" : "External party"}${row.mapping.suggested_type ? ` · ${row.mapping.suggested_type.replaceAll("_", " ")}` : " · no type suggestion"}` : "Check who or what this identifier represents."}</p><div className="statement-code-actions"><button className="button button--ghost button--small" type="button" disabled={busy || cleanupBusy} onClick={() => open(row)}>{row.mapping ? <PencilSimple size={16} aria-hidden="true" /> : <UserPlus size={16} aria-hidden="true" />}{row.mapping ? "Edit mapping" : "Identify"}</button>{skipControl}</div></> :
           <form className="statement-code-form" onSubmit={save}>
             <label className="field"><span className="field__label">Who is this?</span><select className="field__control" value={draft.party_kind} onChange={(event) => setDraft({ ...draft, party_kind: event.target.value as "owned" | "external", other_account: null, suggested_type: "", category: null })}><option value="external">External person, business, or bank</option><option value="owned">Another account I track</option></select></label>
             <label className="field"><span className="field__label">Display name</span><input className="field__control" required maxLength={120} value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} placeholder="e.g. Rent recipient" /></label>
