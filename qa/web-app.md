@@ -1632,3 +1632,18 @@ the change saves with the form and cancellation discards it. Uploaded images
 replace the initial across the account list, lanes, transaction paths and review
 summaries. Unreadable images fall back to the initial, and native account select
 options remain text. Errors use the existing toast feedback.
+
+### How can users identify EBL bank statement codes and recover older imports?
+
+Statement codes includes an EBL bank filter and labels NPSB numeric clues as
+printed identifiers requiring verification. Users may name an external party or
+select another owned account and save compatible classification suggestions.
+They apply those suggestions explicitly in pending-row review; a possible charge
+stays separate and never inherits the transfer destination. Saving a mapping does
+not update existing ledger entries.
+
+Find identifiers in saved EBL/bKash PDFs scans archived imports. Password-protected
+files can be refreshed from their statement review with the password; missing
+archives need the identical PDF re-uploaded. Only missing identifier metadata is
+filled, preserving notes, classifications and posted entries. See
+`projects/finance-web/docs/ebl-statement-codes.md` for the end-user steps.

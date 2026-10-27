@@ -29,6 +29,7 @@ function initialChoice(row: StatementCounterpartyCode): StatementCounterpartyCod
 
 function codeLabel(row: StatementCounterpartyCode) {
   if (row.profile === "city_bank") return row.code;
+  if (row.profile === "ebl_bank") return `EBL NPSB · ${row.code.replace(/^npsb:code:/, "")} (printed identifier)`;
   const [kind, valueKind, ...value] = row.code.split(":");
   const title: Record<string, string> = { recharge: "Mobile recharge", send: "Send money", payment: "Payment", bill: "Pay bill" };
   return `${title[kind] ?? "bKash"} · ${value.join(":")}${valueKind === "phone" ? " (number)" : ""}`;
@@ -88,7 +89,7 @@ export function StatementCounterpartyDirectory() {
   ), [rows, accountFilter, profileFilter, statusFilter, query]);
   const shownRows = visible.slice(0, shown);
 
-  async function recoverBkashIdentifiers() {
+  async function recoverIdentifiers() {
     const token = getAccessToken();
     if (!token || recovering) return;
     setRecovering(true); setRecoveryResult(null); setError(null);
@@ -97,7 +98,7 @@ export function StatementCounterpartyDirectory() {
       const imports: SavedStatement[] = [];
       while (true) {
         const page = await listStatementImports(token, offset);
-        imports.push(...page.results.filter((item) => item.profile === "bkash"));
+        imports.push(...page.results.filter((item) => ["bkash", "ebl_bank"].includes(item.profile)));
         offset += page.results.length;
         if (!page.next || !page.results.length) break;
       }
@@ -118,9 +119,9 @@ export function StatementCounterpartyDirectory() {
         }
       }
       setRecoveryResult({ found: imports.length, scanned, updated, issues });
-      setQuery(""); setAccountFilter(""); setStatusFilter(""); setProfileFilter("bkash"); setShown(50);
+      setQuery(""); setAccountFilter(""); setStatusFilter(""); setProfileFilter(""); setShown(50);
       setRefresh((value) => value + 1);
-      notify(imports.length ? `Scanned ${scanned} saved bKash statement${scanned === 1 ? "" : "s"}; found ${updated} new identifier${updated === 1 ? "" : "s"}.` : "No saved bKash statements were found.");
+      notify(imports.length ? `Scanned ${scanned} saved EBL/bKash statement${scanned === 1 ? "" : "s"}; found ${updated} new identifier${updated === 1 ? "" : "s"}.` : "No saved EBL/bKash statements were found.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not list saved statements.");
     } finally {
@@ -165,25 +166,28 @@ export function StatementCounterpartyDirectory() {
 
   return <div className="panel"><div className="panel__body statement-code-page">
     <h2 className="section-title">Statement identifiers</h2>
-    <p className="section-subtitle">Identify repeatable Citytouch and bKash statement clues. Each mapping belongs to one reporting account and debit or credit direction.</p>
+    <p className="section-subtitle">Identify printed EBL NPSB identifiers and repeatable Citytouch/bKash clues. Each mapping belongs to one reporting account and debit or credit direction. Verify the original PDF before naming a party.</p>
+    <details className="statement-code-help"><summary>How to read statement identifiers</summary>
     <p className="inline-note">In <strong>CT-FT-***1234-***5678</strong>, the first part identifies a movement. We use every visible digit of the second part as a possible party clue. When only four digits are available, different parties can share that suffix. Verify it against your records before saving. Debit means money left the reporting account; credit means money arrived.</p>
     <p className="inline-note">Bank operation and ledger purpose are separate. A Citytouch fund transfer can be an internal transfer, a payment, or another type. Your choice suggests details for pending rows; it never posts or changes a transaction automatically.</p>
+    <p className="inline-note">EBL NPSB identifiers are printed clues, not verified recipients. The masked card may identify your own reporting card. A // movement reference can connect a transfer and a possible charge; it is never a recurring party code. Verify who the numeric identifier represents before naming or mapping it. Possible fee rows stay separate and do not inherit transfer mappings.</p>
     <p className="inline-note">For bKash, recipient/recharge numbers and merchant or biller labels can repeat. A TRX ID identifies just one movement, so it is never used as a recurring code. Verify any suggestion before recording.</p>
+    </details>
     <p><Link href="/statements">Back to statement reviews</Link></p>
     <div className="statement-code-recovery">
-      <p>Only City Bank identifiers showing? Older bKash imports may need their saved PDFs scanned again. Reloading the import list does not extract identifiers. A password-protected PDF must be refreshed from its own statement review.</p>
-      <button className="button" type="button" disabled={recovering} onClick={() => void recoverBkashIdentifiers()}>{recovering ? "Scanning saved bKash PDFs…" : "Find identifiers in saved bKash PDFs"}</button>
-      {recoveryResult ? <div role="status"><p>{recoveryResult.found ? `Scanned ${recoveryResult.scanned} saved bKash PDFs and added identifiers to ${recoveryResult.updated} rows. If none were added, the rows may already have identifiers or lack a repeatable clue.` : "No saved bKash statements were found."}</p>{recoveryResult.issues.length ? <ul>{recoveryResult.issues.map((issue) => <li key={issue.id}><Link href={`/statements?import=${encodeURIComponent(issue.id)}`}>{issue.label}</Link>: {issue.reason}</li>)}</ul> : null}</div> : null}
+      <p>Missing EBL or bKash identifiers? Older imports may need their saved PDFs scanned again. Reloading the import list does not extract identifiers. A password-protected PDF must be refreshed from its own statement review.</p>
+      <button className="button" type="button" disabled={recovering} onClick={() => void recoverIdentifiers()}>{recovering ? "Scanning saved EBL/bKash PDFs…" : "Find identifiers in saved EBL/bKash PDFs"}</button>
+      {recoveryResult ? <div role="status"><p>{recoveryResult.found ? `Scanned ${recoveryResult.scanned} saved EBL/bKash PDFs and added identifiers to ${recoveryResult.updated} rows. If none were added, the rows may already have identifiers or lack a repeatable clue.` : "No saved EBL/bKash statements were found."}</p>{recoveryResult.issues.length ? <ul>{recoveryResult.issues.map((issue) => <li key={issue.id}><Link href={`/statements?import=${encodeURIComponent(issue.id)}`}>{issue.label}</Link>: {issue.reason}</li>)}</ul> : null}</div> : null}
     </div>
     <div className="statement-code-filters">
       <label className="field"><span className="field__label">Search code or name</span><input className="field__control" type="search" value={query} onChange={(event) => { setQuery(event.target.value); setShown(50); }} /></label>
-      <label className="field"><span className="field__label">Statement type</span><select className="field__control" value={profileFilter} onChange={(event) => { setProfileFilter(event.target.value); setShown(50); }}><option value="">All statements</option><option value="city_bank">City Bank ({rows.filter((row) => row.profile === "city_bank").length})</option><option value="bkash">bKash ({rows.filter((row) => row.profile === "bkash").length})</option></select></label>
+      <label className="field"><span className="field__label">Statement type</span><select className="field__control" value={profileFilter} onChange={(event) => { setProfileFilter(event.target.value); setShown(50); }}><option value="">All statements</option><option value="city_bank">City Bank ({rows.filter((row) => row.profile === "city_bank").length})</option><option value="bkash">bKash ({rows.filter((row) => row.profile === "bkash").length})</option><option value="ebl_bank">EBL bank ({rows.filter((row) => row.profile === "ebl_bank").length})</option></select></label>
       <label className="field"><span className="field__label">Reporting account</span><select className="field__control" value={accountFilter} onChange={(event) => { setAccountFilter(event.target.value); setShown(50); }}><option value="">All accounts</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
       <label className="field"><span className="field__label">Mapping</span><select className="field__control" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setShown(50); }}><option value="">All</option><option value="unmapped">Needs identification</option><option value="mapped">Saved</option></select></label>
     </div>
     {loading ? <p role="status">Loading statement codes…</p> : null}
     {error ? <p role="alert" className="form-error">{error}</p> : null}
-    {!loading && !visible.length ? <p>No statement identifiers match these filters. Import a City Bank or bKash statement to discover them.</p> : null}
+    {!loading && !visible.length ? <p>No statement identifiers match these filters. Import an EBL bank, City Bank or bKash statement to discover them.</p> : null}
     <div className="statement-code-list">{shownRows.map((row) => {
       const key = `${row.account}:${row.profile}:${row.code}:${row.direction}`;
       const isEditing = editing === key && draft;

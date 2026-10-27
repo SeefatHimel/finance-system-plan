@@ -4331,3 +4331,6 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 @media (prefers-reduced-motion: reduce) { .transaction-toolbar-actions .spin { animation: none; } }
 
 .transaction-actions-menu .button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
+
+.statement-code-help { margin-block: 12px; }
+.statement-code-help > summary { color: var(--accent); cursor: pointer; font-size: 13px; padding-block: 6px; }

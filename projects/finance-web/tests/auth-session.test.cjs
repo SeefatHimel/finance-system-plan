@@ -32,7 +32,7 @@ test('return URLs reject external redirects, encoded path tricks, and auth/API l
 });
 
 test('every current workspace is a permitted return route', () => {
-  for (const path of ['/', '/transactions', '/accounts', '/messages/review', '/sms-settings', '/statements', '/review',
+  for (const path of ['/', '/transactions', '/accounts', '/messages/review', '/sms-settings', '/statements', '/statement-counterparties', '/review',
     '/reports', '/debts', '/credit-cards', '/recurring-bills', '/reconciliation', '/audit-logs']) {
     assert(isProtectedPath(path));
     assert.equal(safeReturnPath(path), path);
@@ -52,3 +52,10 @@ test('only confirmed 401 auth errors end a session', () => {
  test('Quick Add preset management is protected and retained after login', () => {
   assert.equal(safeReturnPath('/quick-add'), '/quick-add');
  });
+
+test('statement-code directory filters are restored after sign-in', () => {
+  const destination = '/statement-counterparties?profile=ebl_bank';
+  assert.equal(safeReturnPath(destination), destination);
+  const redirect = new URL(loginHref(destination), 'https://finance.invalid');
+  assert.equal(redirect.searchParams.get('next'), destination);
+});
