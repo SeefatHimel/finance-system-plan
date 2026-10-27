@@ -1716,8 +1716,11 @@ runtime dependency. Logos do not alter identity matching, balances or entries.
 ## EBL bank statement identifiers
 
 The statement-code directory also supports `ebl_bank` (bank/savings accounts).
-Only one unambiguous, fully printed 6–24 digit value between double pipe
-separators in `NPSB [FUND] TRANSFER` is retained as `npsb:code:<digits>`.
+Only one unambiguous, fully printed 6–24 digit value after a double opening
+pipe and before a closing pipe in `NPSB [FUND] TRANSFER` is retained as
+`npsb:code:<digits>`. Both `||<digits>|DC` and `||<digits>||DC` are supported,
+including spaced separators. Older imports affected by the former double-closing
+pipe requirement can recover the missing metadata by scanning their saved PDFs.
 It is an **unverified printed clue**, not proof of a recipient account. Card
 masks, bare digits, partial suffixes, ambiguous multiple values and `//` movement
 references never become recurring party identifiers. Private extraction retains

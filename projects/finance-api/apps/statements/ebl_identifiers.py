@@ -6,12 +6,12 @@ from decimal import Decimal, InvalidOperation
 
 CODE = re.compile(r"^npsb:code:\d{6,24}$")
 OPERATION = re.compile(r"\bNPSB\s+(?:FUND\s+)?TRANSFER\b", re.IGNORECASE)
-PRINTED = re.compile(r"\|(?:\s*\|)+\s*(\d{6,24})\s*(?=\|(?:\s*\|)+)")
+PRINTED = re.compile(r"\|(?:\s*\|)+\s*(\d{6,24})\s*(?=\|)")
 REFERENCE = re.compile(r"//\s*([A-Z0-9][A-Z0-9-]{5,63})(?![A-Z0-9-])", re.IGNORECASE)
 
 
 def identifier(description):
-    """Retain one full delimited numeric clue, never a card suffix or // reference."""
+    """Retain one full printed clue after ||; EBL commonly closes it with a single |."""
     if not OPERATION.search(description or ""):
         return None
     found = set(PRINTED.findall(description or ""))

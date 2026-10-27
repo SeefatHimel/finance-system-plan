@@ -1325,8 +1325,11 @@ defaults existing logos to empty. Uploading changes appearance only.
 
 ### How are EBL NPSB statement codes identified without guessing recipients?
 
-The parser retains exactly one full 6–24 digit double-pipe-delimited numeric
-clue from NPSB transfer descriptions before masking general text. Normal previews
+The parser retains exactly one full 6–24 digit numeric clue following `||`
+and ending at a pipe from NPSB transfer descriptions before masking general text.
+EBL commonly prints `||<digits>|DC`; both single and double closing pipes work.
+Regression coverage uses this single-closing layout through PDF import and
+archived recovery, alongside the double-closing variant. Normal previews
 omit it; encrypted source-code metadata preserves it and mappings store a scoped
 digest. Card masks, ambiguous values and per-movement `//` references are excluded.
 A user verifies the clue before saving an account/direction-scoped mapping.

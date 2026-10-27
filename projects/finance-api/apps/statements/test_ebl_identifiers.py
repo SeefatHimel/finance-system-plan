@@ -22,7 +22,7 @@ from .parser import extract_statement, mask_identifiers
 from .services import refresh_statement_identifiers, source_fingerprint
 from .tests import synthetic_pdf
 
-PRINTED = "111122****123*||765432109876||DC"
+PRINTED = "111122****123*||765432109876|DC"
 CODE = "npsb:code:765432109876"
 
 
@@ -109,13 +109,21 @@ class EblIdentifierTests(APITestCase):
 
     def test_extracts_only_unambiguous_full_delimited_clue(self):
         self.assertEqual(identifier(f"NPSB FUND TRANSFER {PRINTED}"), CODE)
+        self.assertEqual(
+            identifier("NPSB FUND TRANSFER 111122****123*||765432109876||DC"),
+            CODE,
+        )
         self.assertEqual(identifier(f"NPSB TRANSFER {PRINTED} {PRINTED}"), CODE)
         self.assertEqual(identifier("NPSB FUND TRANSFER | | 765432109876 | | DC"), CODE)
+        self.assertEqual(identifier("NPSB FUND TRANSFER | | 765432109876 | DC"), CODE)
         for text in [
             "NPSB FUND TRANSFER //999VMT123456789",
             "NPSB FUND TRANSFER Card 111122****123*",
             "NPSB FUND TRANSFER 765432109876",
             "NPSB FUND TRANSFER ||***9876||",
+            "NPSB FUND TRANSFER ||76543|DC",
+            "NPSB FUND TRANSFER ||765432109876DC",
+            "NPSB FUND TRANSFER |765432109876|DC",
             f"CARD PURCHASE {PRINTED}",
             f"NPSB TRANSFER {PRINTED} ||765432109877||",
         ]:
