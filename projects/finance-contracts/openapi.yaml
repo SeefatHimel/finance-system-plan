@@ -190,7 +190,7 @@ paths:
       tags: [Statements]
       security:
       - bearerAuth: []
-      description: Read-only owner-scoped counts of retired numeric EBL metadata and disabled EBL recipient rules, with a signed 15-minute confirmation revision. Correct masked evidence and financial data are excluded.
+      description: Read-only owner-scoped counts of retired numeric EBL metadata and disabled EBL recipient rules, with a signed 15-minute confirmation revision. Verified mask mappings, correct masked evidence and financial data are excluded.
       responses:
         '200':
           description: Exact cleanup preview.
@@ -204,7 +204,7 @@ paths:
       tags: [Statements]
       security:
       - bearerAuth: []
-      description: Confirm the current owner-bound preview; clear only retired EBL numeric source_code values and delete disabled EBL rules. Bump affected row versions and record counts in audit history. Never change originals, reviewed financial values or ledger transactions.
+      description: Confirm the current owner-bound preview; clear only retired EBL numeric source_code values and delete disabled EBL rules. Preserve verified mask mappings. Bump affected row versions and record counts in audit history. Never change originals, reviewed financial values or ledger transactions.
       requestBody:
         required: true
         content:
@@ -379,7 +379,7 @@ paths:
       - $ref: '#/components/parameters/UuidPathId'
       security:
       - bearerAuth: []
-      description: Owner-scoped, limited to 20 PDF requests/hour/user independently of upload/preview. Failed refresh requests also count. Verify the retained bKash or EBL bank PDF and saved row fingerprints, then recover missing identifier metadata or replace retired EBL numeric metadata with its printed mask. EBL masks are read-only account evidence, not recipient rules. Original extraction, reviewed drafts and ledger entries remain unchanged.
+      description: Owner-scoped, limited to 20 PDF requests/hour/user independently of upload/preview. Failed refresh requests also count. Verify the retained bKash or EBL bank PDF and saved row fingerprints, then recover missing identifier metadata or replace retired EBL numeric metadata with its printed mask. Explicit EBL mask mappings are saved separately; refreshing identifiers does not create or enable a rule. Original extraction, reviewed drafts and ledger entries remain unchanged.
       requestBody:
         content:
           application/json:
@@ -8392,8 +8392,8 @@ components:
       required: [account, code, direction, party_kind, label]
       properties:
         account: {type: string, format: uuid}
-        profile: {type: string, enum: [city_bank, bkash, ebl_bank], default: city_bank, description: EBL is retained for wire compatibility but mapping POSTs reject it with 400; EBL observations are read-only account evidence.}
-        code: {type: string, maxLength: 150, description: Citytouch second code or typed bKash recipient identifier. EBL masked clues are read-only and cannot create or update recipient mappings.}
+        profile: {type: string, enum: [city_bank, bkash, ebl_bank], default: city_bank, description: Provider of the observed identifier. EBL accepts explicitly verified printed mask mappings; old unverified EBL rules remain disabled.}
+        code: {type: string, maxLength: 150, description: Observed Citytouch second code or typed bKash/EBL identifier. EBL requires npsb:masked followed by the printed mask; numeric movement codes are rejected.}
         direction: {type: string, enum: [debit, credit]}
         party_kind: {type: string, enum: [owned, external]}
         label: {type: string, maxLength: 120}

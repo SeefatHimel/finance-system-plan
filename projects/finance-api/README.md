@@ -1723,10 +1723,13 @@ A repeated sending-card mask does not establish the recipient or transfer destin
 
 The directory reads masks from immutable saved descriptions, including old rows
 whose encrypted `source_code` incorrectly retained `npsb:code:<digits>`. It groups
-non-fee observations under the mask without requiring an archive rescan. EBL
-observations are read-only: mapping POSTs return 400 and all old EBL recipient
-mappings are ignored. Stored mapping records remain untouched; they are never
-silently converted to rules for the mask. Citytouch/bKash mapping behavior is unchanged.
+non-fee observations under the mask without requiring an archive rescan.
+The owner can explicitly map an observed mask with the same external/owned party,
+label, type/category/note and account-path validation used for bKash. Only a
+validated mapping POST sets the private `ebl_mask_verified` flag. Old EBL rules
+remain inactive until explicitly re-saved for an observed mask; there is no
+implicit conversion. Saving a mapping supplies review hints, without rewriting
+saved drafts or posted transactions. Citytouch/bKash behavior is unchanged.
 
 A possible separate charge hint still requires two adjacent BDT NPSB debits,
 matching source date and movement reference, a smaller positive second amount
@@ -1742,7 +1745,8 @@ position/fingerprint checks apply. Only encrypted metadata, row version and
 updated timestamp change; source snapshots, classifications, notes, links and
 ledger entries are untouched. The per-user refresh allowance is 20 PDF
 requests/hour, separate from uploads/previews; failed refresh requests count.
-No schema migration is needed. Deploy the API before the web client.
+Deploy `statements.0013_verified_ebl_mask_mapping` and the API before the web
+client. The default-false flag preserves the disabled state of old EBL rules.
 
 ## Optional identifier review and retired EBL cleanup
 
@@ -1750,13 +1754,14 @@ Identification is optional. `POST /api/statements/counterparty-codes/skip/` take
 `account`, `profile`, `code`, `direction` and `skipped`; it needs no party name.
 A separate `StatementIdentifierSkip` preference persists per user/account/provider/
 code/direction. bKash and EBL values use the same scoped digest as mapping keys.
-The directory always returns a `skipped` boolean, including read-only EBL clues.
+The directory always returns a `skipped` boolean, including EBL clues.
 Skipped saved rules are paused, not deleted. Restoring resumes them; explicitly
 saving a mapping also removes its skip preference. Other independent parsing and
 account-recognition hints are unaffected. No source or transaction is skipped.
 
 `GET /api/statements/counterparty-codes/cleanup-ebl/` previews only the current
-user's retired `npsb:code:<digits>` metadata and disabled EBL mapping records.
+user's retired `npsb:code:<digits>` metadata and unverified EBL mapping records.
+New verified mask mappings are excluded and preserved.
 It returns counts and a signed, owner-bound revision valid for 15 minutes.
 Confirming with POST `{revision}` clears those metadata values, increments only
 affected statement row versions, deletes the previewed EBL rules and records

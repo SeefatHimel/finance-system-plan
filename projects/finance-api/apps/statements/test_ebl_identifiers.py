@@ -14,6 +14,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import Account
+from apps.categories.models import Category
 from apps.transactions.models import Transaction
 
 from .ebl_identifiers import identifier, movement_reference, possible_fee_ids
@@ -140,7 +141,7 @@ class EblIdentifierTests(APITestCase):
             source_fingerprint(private["rows"][0], "principal"),
         )
 
-    def test_retired_and_masked_rules_cannot_suggest_a_payee_or_transfer(self):
+    def test_legacy_rules_stay_disabled_until_mask_mapping_is_explicitly_saved(self):
         from .bkash_identifiers import mapping_code
         from .counterparties import code_suggestions
 
@@ -148,16 +149,13 @@ class EblIdentifierTests(APITestCase):
         fee = self.row(2, amount="9.99", balance="890.01", code=RETIRED)
         url = reverse("statement-counterparty-codes")
         for code in [RETIRED, CODE]:
-            # Even a previously saved rule cannot turn a reporting mask or
-            # movement reference into an owned destination.
             StatementCounterpartyCode.objects.create(
                 user=self.user, account=self.bank, profile="ebl_bank",
                 code=mapping_code("ebl_bank", self.bank.pk, code), direction="debit",
                 party_kind="owned", label="Obsolete synthetic recipient",
                 other_account=self.wallet, suggested_type="transfer",
             )
-            response = self.client.post(url, self.payload(code=code), format="json")
-            self.assertEqual(response.status_code, 400, response.data)
+        self.assertEqual(self.client.post(url, self.payload(code=RETIRED), format="json").status_code, 400)
         listed = self.client.get(url)
         self.assertEqual(listed.data["count"], 1)
         self.assertEqual(listed.data["results"][0]["code"], CODE)
@@ -167,6 +165,18 @@ class EblIdentifierTests(APITestCase):
         self.assertNotIn(principal.pk, result)
         self.assertEqual(result[fee.pk]["type"], "fee")
         self.assertIsNone(result[fee.pk]["other_account"])
+
+        saved = self.client.post(url, self.payload(), format="json")
+        self.assertEqual(saved.status_code, 200, saved.data)
+        rule = StatementCounterpartyCode.objects.get(pk=saved.data["id"])
+        self.assertTrue(rule.ebl_mask_verified)
+        self.assertEqual(rule.code, mapping_code("ebl_bank", self.bank.pk, CODE))
+        self.assertEqual(len(rule.code), 64)
+        self.assertNotIn("111122", rule.code)
+        self.assertEqual(self.client.get(url).data["results"][0]["mapping"]["label"], self.payload()["label"])
+        self.assertEqual(code_suggestions([principal, fee])[principal.pk]["type"], "expense")
+        self.assertNotIn(fee.pk, code_suggestions([principal, fee]))
+        self.assertEqual(suggestions([principal, fee])[fee.pk]["type"], "fee")
         fee.refresh_from_db()
         self.assertEqual(fee.type, "expense")
         self.assertEqual(fee.amount, Decimal("9.99"))
@@ -174,6 +184,86 @@ class EblIdentifierTests(APITestCase):
         fee.classification_confirmed = True
         fee.save(update_fields=["classification_confirmed"])
         self.assertNotIn(fee.pk, suggestions([fee]))
+
+    def test_mask_mapping_supports_owned_routes_categories_notes_edit_and_forget(self):
+        from .counterparties import code_suggestions
+
+        row = self.row(1)
+        version, original = row.version, deepcopy(row.extracted)
+        category = Category.objects.create(user=self.user, name="Synthetic transfers", kind="transfer")
+        url = reverse("statement-counterparty-codes")
+        payload = self.payload(party_kind="owned", other_account=str(self.wallet.pk),
+                               suggested_type="transfer", category=str(category.pk),
+                               note_template="Verified synthetic route")
+        saved = self.client.post(url, payload, format="json")
+        self.assertEqual(saved.status_code, 200, saved.data)
+        hint = code_suggestions([row])[row.pk]
+        self.assertEqual(hint["type"], "transfer")
+        self.assertEqual(hint["other_account"], str(self.wallet.pk))
+        self.assertEqual(hint["category"], str(category.pk))
+        self.assertEqual(hint["note"], "Verified synthetic route")
+        row.refresh_from_db()
+        self.assertEqual(row.version, version)
+        self.assertEqual(row.type, "expense")
+        self.assertIsNone(row.other_account_id)
+        self.assertEqual(row.extracted, original)
+        self.assertEqual(row.note, "Keep reviewed note")
+        self.assertEqual(Transaction.objects.count(), 0)
+
+        edited = self.client.post(url, self.payload(label="Edited synthetic party"), format="json")
+        self.assertEqual(edited.status_code, 200, edited.data)
+        self.assertEqual(edited.data["id"], saved.data["id"])
+        self.assertEqual(code_suggestions([row])[row.pk]["type"], "expense")
+        self.assertIsNone(code_suggestions([row])[row.pk]["other_account"])
+        deleted = self.client.delete(reverse("statement-counterparty-code-detail", args=[saved.data["id"]]))
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(code_suggestions([row]), {})
+
+    def test_mask_mapping_does_not_cross_reporting_accounts_or_directions(self):
+        from .counterparties import code_suggestions
+
+        principal = self.row(1)
+        credit = self.row(2, ref="SYNTH-CREDIT")
+        credit.direction = "credit"
+        credit.type = "income"
+        credit.extracted = {**credit.extracted, "direction": "credit"}
+        credit.save()
+        other_bank = Account.objects.create(user=self.user, name="Other source bank", type="bank", currency="BDT")
+        other_batch = StatementImport.objects.create(
+            user=self.user, account=other_bank, file_digest="b" * 64,
+            profile="ebl_bank", parser_version="2", currency="BDT",
+            account_identity="synthetic-other", page_count=1,
+        )
+        other_row = self.row(3, ref="SYNTH-OTHER")
+        other_row.batch = other_batch
+        other_row.save()
+        saved = self.client.post(reverse("statement-counterparty-codes"), self.payload(), format="json")
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.assertEqual(set(code_suggestions([principal, credit, other_row])), {principal.pk})
+
+    def test_mask_mapping_validates_observation_ownership_direction_and_account_path(self):
+        self.row(1)
+        foreign = Account.objects.create(user=self.other, name="Foreign destination", type="bank")
+        inactive = Account.objects.create(user=self.user, name="Inactive destination", type="bank", is_active=False)
+        usd = Account.objects.create(user=self.user, name="Other currency", type="bank", currency="USD")
+        foreign_category = Category.objects.create(user=self.other, name="Foreign expense", kind="expense")
+        url = reverse("statement-counterparty-codes")
+        invalid = [
+            {"code": "npsb:masked:111122****124*"}, {"code": RETIRED},
+            {"direction": "credit"}, {"suggested_type": "income"},
+            {"account": str(self.wallet.pk)}, {"category": str(foreign_category.pk)},
+            {"party_kind": "owned", "suggested_type": "transfer", "other_account": str(self.bank.pk)},
+            {"party_kind": "owned", "suggested_type": "transfer", "other_account": str(foreign.pk)},
+            {"party_kind": "owned", "suggested_type": "transfer", "other_account": str(inactive.pk)},
+            {"party_kind": "owned", "suggested_type": "transfer", "other_account": str(usd.pk)},
+            {"suggested_type": "transfer"},
+        ]
+        for changes in invalid:
+            response = self.client.post(url, self.payload(**changes), format="json")
+            self.assertEqual(response.status_code, 400, (changes, response.data))
+        self.assertEqual(StatementCounterpartyCode.objects.count(), 0)
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self.client.post(url, self.payload(), format="json").status_code, 400)
 
     def test_charge_hint_requires_all_source_guards(self):
         principal = self.row(1)

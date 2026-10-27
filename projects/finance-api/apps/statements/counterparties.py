@@ -100,7 +100,7 @@ def code_suggestions(rows):
     mark_possible_fees(rows)
     keys = {
         (row.batch.account_id, row.batch.profile, code_for_row(row), row.direction)
-        for row in rows if row.batch.profile != "ebl_bank"
+        for row in rows
     }
     keys = {key for key in keys if key[2]}
     if not keys:
@@ -120,8 +120,6 @@ def code_suggestions(rows):
     ).values_list("account_id", "profile", "code", "direction"))
     result = {}
     for row in rows:
-        if row.batch.profile == "ebl_bank":
-            continue  # A repeated masked reporting card cannot identify a payee.
         code = code_for_row(row)
         key = (
             row.batch.account_id, row.batch.profile,
@@ -130,6 +128,8 @@ def code_suggestions(rows):
         mapping = mapped.get(key) if key not in skipped else None
         if not mapping:
             continue
+        if row.batch.profile == "ebl_bank" and not mapping.ebl_mask_verified:
+            continue  # Only an explicit save in the mask editor enables EBL rules.
         owned = mapping.party_kind == "owned" and mapping.other_account_id
         if mapping.suggested_type == "transfer" and not owned:
             continue

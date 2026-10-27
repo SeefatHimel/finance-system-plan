@@ -19,6 +19,7 @@ from apps.transactions.transfers import lock_transfer_user
 from .bkash_identifiers import CODE as BKASH_CODE
 from .bkash_identifiers import mapping_code
 from .counterparties import observed_codes
+from .ebl_identifiers import CODE as EBL_CODE
 from .models import StatementCounterpartyCode, StatementIdentifierSkip
 
 
@@ -68,10 +69,6 @@ class CodeMappingInputSerializer(serializers.Serializer):
         direction = attrs["direction"]
         suggested_type = attrs.get("suggested_type", "")
         profile = attrs["profile"]
-        if profile == "ebl_bank":
-            raise serializers.ValidationError({
-                "profile": "EBL masked card/account clues are read-only evidence, not recipient rules. Review account recognition in Accounts."
-            })
         if (profile in {"city_bank", "ebl_bank"} and account.type not in {"bank", "savings"}) or (
             profile == "bkash" and account.type != "mobile_wallet"
         ):
@@ -80,6 +77,8 @@ class CodeMappingInputSerializer(serializers.Serializer):
             )
         if (profile == "city_bank" and not re.fullmatch(r"\d{4,24}", attrs["code"])) or (
             profile == "bkash" and not BKASH_CODE.fullmatch(attrs["code"])
+        ) or (
+            profile == "ebl_bank" and not EBL_CODE.fullmatch(attrs["code"])
         ):
             raise serializers.ValidationError({"code": "Choose a valid observed statement identifier."})
         if kind == "owned" and (
@@ -212,7 +211,9 @@ class StatementCounterpartyCodeView(APIView):
             keys, key=lambda key: (str(key[0]), key[1], key[2], key[3])
         ):
             stats = observed.get((account_id, profile, code, direction), {})
-            mapping = saved.get((account_id, profile, mapping_code(profile, account_id, code), direction)) if profile != "ebl_bank" else None
+            mapping = saved.get((account_id, profile, mapping_code(profile, account_id, code), direction))
+            if mapping and profile == "ebl_bank" and not mapping.ebl_mask_verified:
+                mapping = None
             results.append(
                 {
                     "account": str(account_id),
@@ -278,6 +279,7 @@ class StatementCounterpartyCodeView(APIView):
                 "suggested_type": values.get("suggested_type", ""),
                 "category": values.get("category"),
                 "note_template": values.get("note_template", ""),
+                "ebl_mask_verified": profile == "ebl_bank",
             },
         )
         StatementIdentifierSkip.objects.filter(

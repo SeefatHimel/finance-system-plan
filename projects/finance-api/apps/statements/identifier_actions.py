@@ -111,7 +111,9 @@ def cleanup_plan(user, *, lock=False):
     rows = StatementRow.objects.filter(batch__user=user, batch__profile="ebl_bank").only(
         "id", "source_code", "version",
     ).order_by("id")
-    rules = StatementCounterpartyCode.objects.filter(user=user, profile="ebl_bank").only(
+    rules = StatementCounterpartyCode.objects.filter(
+        user=user, profile="ebl_bank", ebl_mask_verified=False,
+    ).only(
         "id", "updated_at",
     ).order_by("id")
     if lock:

@@ -882,21 +882,21 @@ removes it; omission preserves it. No remote URLs, anonymous image endpoint or
 ledger mutation is introduced. Existing accounts and older clients use the
 empty-logo fallback. Deploy migration `accounts.0003_account_logo` first.
 
-### Why does EBL use read-only masked evidence in the statement-code directory?
+### What is the EBL statement mask mapping contract?
 
-The list retains profile `ebl_bank`, but reports `npsb:masked:<printed mask>`,
-including the trailing star. The numeric field after the mask was incorrectly
-exposed as a recurring code; it and per-movement references no longer qualify.
-EBL observations have null mapping. Mapping POSTs reject EBL with 400, even for
-previously saved rules; the legacy input enum value remains for wire compatibility.
-Old rules are ignored, never automatically converted to routes for the mask.
+`ebl_bank` mapping POSTs accept only an observed `npsb:masked:<printed mask>`
+for the authenticated reporting account and direction. The payload is the same
+as bKash: label, external/owned party, optional other account, direction-compatible
+type/category and note. An owned route must use a different active owned account
+in the same currency. Numeric movement fields and // references remain invalid.
 
-Masks can be derived from saved original descriptions without a PDF scan. Archive
-refresh's existing `updated_rows` count includes replacement of retired EBL
-numeric metadata after the same integrity and exact-row checks. Only encrypted
-metadata, row versions and timestamps change; financial originals, reviewed
-drafts and posted transactions are preserved. No migration or new endpoint is
-needed. Deploy the API before the corrected web client.
+Observed-code output now includes the explicitly saved EBL mapping instead of
+always returning null. Old unverified EBL rules remain inactive. The private
+`ebl_mask_verified` flag is set by the validated POST, never by the client.
+Cleanup excludes verified mask mappings, and a changed preview returns 409.
+Skip hashes and wire shapes are unchanged; no client regeneration is needed for
+an additional field. Deploy migration 0013 and API before the web client.
+Archive refresh still preserves originals, reviewed drafts and ledger values.
 
 ### What is the optional identification and cleanup contract?
 

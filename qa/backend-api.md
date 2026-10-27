@@ -1323,27 +1323,28 @@ through authenticated account APIs. No local media disk or public asset URL is
 required. Omission keeps the logo; an empty string removes it. A schema migration
 defaults existing logos to empty. Uploading changes appearance only.
 
-### Why are EBL masked card/account clues read-only?
+### How do verified EBL mask mappings work?
 
-A numeric field after the mask can vary per transfer; repetition within a
-transfer/charge pair does not make it a recurring recipient identifier. The
-highlighted masked value is retained exactly, including its trailing star, as
-`npsb:masked:<mask>`. It may identify the reporting card, so it cannot establish
-an owned destination or payee. The directory groups masks from saved original
-text even when old metadata is missing or contains a retired numeric code.
+The parser retains the exact repeated mask, including its trailing star, as
+`npsb:masked:<mask>`. Changing numeric movement fields and // references remain
+excluded. The mask alone proves no recipient. An owner can explicitly map an
+observed mask to an external party or different active same-currency owned
+account, with the same direction/type/category/note validation used for bKash.
 
-All EBL recipient mappings are ignored, and mapping POSTs return 400, including
-updates to old rules. They are not converted or deleted. Existing posted entries
-and reviewed drafts remain unchanged. Regression tests use the same mask with
-changing movement fields and verify that legacy rules cannot produce routes.
-Possible charge hints still require adjacent BDT debits, same source date/reference,
-small bounded second amount and exact balance step; principal and fee stay separate.
+Migration `statements.0013_verified_ebl_mask_mapping` adds a private boolean,
+default false on old rules. Only a validated EBL mask mapping POST marks it true.
+Legacy rules stay inactive until explicitly re-saved against an observed mask;
+there is no automatic conversion. Cleanup excludes verified mask mappings.
+If an old rule is verified after a cleanup preview, the changed plan returns 409.
 
-Archive refresh can replace retired EBL metadata after verifying ownership,
-digest, password, row position and fingerprint. It changes only encrypted code,
-version and timestamp; repeated refresh is idempotent. Its separate 20 PDF
-requests/hour/user budget cannot consume upload/preview allowance. No migration
-is required.
+Suggestions are scoped by owner, reporting account, provider, mask and direction.
+Skipping pauses them; restore or explicitly saving the mapping resumes them.
+Possible companion fees and explicit fee rows never inherit the principal route.
+Saving/editing/forgetting a mapping changes neither existing drafts nor ledger
+entries; the reviewer still applies suggestions and confirms each movement.
+
+Archive refresh retains its ownership, integrity, exact-row and rate-limit checks.
+Deploy the migration and API before the web client.
 
 ### Can users decline to identify a statement clue?
 
@@ -1351,7 +1352,7 @@ Yes. `StatementIdentifierSkip` stores an optional, scoped preference separately
 from verified mappings and financial rows. No name is required. Skipping pauses
 its saved code rule; restoration or explicitly saving a mapping resumes it.
 Code hashes keep private bKash/EBL values out of the preference index. Directory
-responses include skipped state even for read-only EBL clues. Other independent
+responses include skipped state for EBL clues too. Other independent
 parser hints continue to work. User-level transaction locks serialize preference
 and rule writes; repeated requests cannot create duplicate scoped preferences.
 

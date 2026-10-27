@@ -168,7 +168,7 @@ class IdentifierActionsTests(APITestCase):
         old.refresh_from_db()
         self.assertEqual(old.source_code, "npsb:code:765432109876")
 
-    def test_read_only_ebl_clues_can_be_skipped_without_creating_a_party(self):
+    def test_ebl_clues_can_be_skipped_without_creating_a_party(self):
         self.ebl_fixture()
         response = self.client.post(self.skip_url, self.payload(
             profile="ebl_bank", code="npsb:masked:111122****123*",
@@ -177,3 +177,50 @@ class IdentifierActionsTests(APITestCase):
         clue = next(row for row in self.client.get(self.directory_url).data["results"] if row["profile"] == "ebl_bank")
         self.assertTrue(clue["skipped"])
         self.assertIsNone(clue["mapping"])
+
+    def test_verified_mask_mapping_preserves_skip_scope_and_survives_cleanup(self):
+        old, correct, _ = self.ebl_fixture()
+        skip = self.payload(profile="ebl_bank", code="npsb:masked:111122****123*")
+        self.client.post(self.skip_url, skip, format="json")
+        saved = self.client.post(self.directory_url, {
+            **skip, "party_kind": "external", "label": "Verified masked party",
+            "suggested_type": "expense", "note_template": "Reviewed note suggestion",
+        }, format="json")
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.assertFalse(StatementIdentifierSkip.objects.exists())
+        verified = StatementCounterpartyCode.objects.get(pk=saved.data["id"])
+        self.assertTrue(verified.ebl_mask_verified)
+        self.assertIn(correct.pk, code_suggestions([correct]))
+        self.client.post(self.skip_url, skip, format="json")
+        self.assertEqual(code_suggestions([correct]), {})
+        self.client.post(self.skip_url, {**skip, "skipped": False}, format="json")
+        self.assertIn(correct.pk, code_suggestions([correct]))
+
+        preview = self.client.get(self.cleanup_url).data
+        self.assertEqual(preview["retired_rules"], 1)
+        result = self.client.post(self.cleanup_url, {"revision": preview["revision"]}, format="json")
+        self.assertEqual(result.status_code, 200, result.data)
+        verified.refresh_from_db()
+        self.assertTrue(verified.ebl_mask_verified)
+        self.assertEqual(verified.note_template, "Reviewed note suggestion")
+        self.assertIn(correct.pk, code_suggestions([correct]))
+        self.assertEqual(self.client.get(self.cleanup_url).data["retired_rules"], 0)
+        old.refresh_from_db()
+        self.assertEqual(old.source_code, "")
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_cleanup_preview_cannot_delete_a_subsequently_verified_mask_rule(self):
+        self.ebl_fixture()
+        legacy = self.rule(self.bank, "ebl_bank", "npsb:masked:111122****123*")
+        preview = self.client.get(self.cleanup_url).data
+        saved = self.client.post(self.directory_url, {
+            "account": str(self.bank.pk), "profile": "ebl_bank",
+            "code": "npsb:masked:111122****123*", "direction": "debit",
+            "party_kind": "external", "label": "Newly verified party",
+        }, format="json")
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.assertEqual(saved.data["id"], str(legacy.pk))
+        result = self.client.post(self.cleanup_url, {"revision": preview["revision"]}, format="json")
+        self.assertEqual(result.status_code, 409)
+        legacy.refresh_from_db()
+        self.assertTrue(legacy.ebl_mask_verified)

@@ -918,21 +918,19 @@ new web client. Older clients may omit or ignore this additive field.
 
 ### EBL statement-code profile
 
-Observed codes support `ebl_bank` as read-only masked card/account evidence:
-`npsb:masked:<printed mask>`, preserving the trailing star. This does not identify
-a payee. The formerly exposed `npsb:code:<digits>` movement field is retired and
-never produces recipient suggestions. EBL mapping POSTs return 400, including
-updates to existing mappings. The input enum retains the legacy value for wire
-compatibility, but clients must not offer an EBL recipient editor. Output mapping
-is null for EBL clues. Citytouch/bKash mapping contracts remain unchanged.
+Observed EBL codes use `npsb:masked:<printed mask>`, preserving the trailing star.
+Mapping POSTs now accept an explicitly observed mask and the same label,
+external/owned party, type/category/note and account choices as bKash. Numeric
+`npsb:code:<digits>` movement fields remain retired and invalid. Directory output
+includes the saved mapping; suggestions stay scoped by owner/account/provider/
+mask/direction and never alter drafts or ledger entries just by saving the rule.
 
-The directory can derive masks from immutable saved text without a PDF scan.
-Archived identifier refresh still returns `updated_rows`; the count includes
-replacement of retired EBL numeric metadata as well as newly recovered evidence.
-Ownership, optional password, integrity and exact-row checks apply. Only encrypted
-code metadata, row version and timestamp change. Originals and ledger values stay
-unchanged; saved EBL rules remain stored but ignored. No migration is needed;
-deploy the API before the web client.
+Migration `statements.0013_verified_ebl_mask_mapping` adds a private default-false
+flag so old EBL rules stay inactive. A valid explicit mask save enables it.
+Cleanup excludes those verified mappings; any preview invalidated by upgrading
+an old rule returns 409. Existing skip hashes and public payload shapes stay the
+same. Deploy migration and API before the client. Archive refresh retains its
+integrity checks and preserves original/financial data.
 
 ### Optional identification and retired EBL cleanup
 
