@@ -9,6 +9,7 @@ import { useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRetainedScroll } from "./retained-scroll";
 import { InstitutionMark } from "./institution-mark";
+import { mobileType } from "./mobile-type";
 import {
   ActivityIndicator,
   FlatList,
@@ -499,9 +500,6 @@ export function TransactionActivity({
         contentContainerStyle={s.content}
         ListHeaderComponent={
           <View style={s.contentHeader}>
-            <Text accessibilityRole="header" style={s.heading}>
-              Activity
-            </Text>
             <TextInput
               accessibilityLabel="Search activity"
               autoCorrect={false}
@@ -665,7 +663,7 @@ const darkActivityStyles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#081421" },
   content: { padding: 16, paddingBottom: 28, gap: 10 },
   contentHeader: { gap: 10, marginBottom: 10 },
-  heading: { color: "#f6f8fc", fontSize: 22, fontWeight: "700", flexShrink: 1 },
+  heading: { color: "#f6f8fc", fontSize: mobileType.dialog, fontWeight: "700", flexShrink: 1 },
   text: { color: "#f6f8fc", fontSize: 15 },
   muted: { color: "#a8b8cc", fontSize: 13, lineHeight: 19 },
   input: {

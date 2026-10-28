@@ -332,16 +332,16 @@ The production-facing shell is organized around five bottom tabs:
 
 - Home
 - Activity
+- Capture
 - Review
-- Accounts
 - More
 
 Home is review-first: it surfaces automatically captured SMS candidates, parser
 confidence, source evidence, and confirm/edit actions. Activity holds the
-transaction timeline, Review exposes the full correction flow, and Accounts
-shows connected ledger sources. The slide-out menu and More screen contain
-secondary workflows such as debts, credit-card bills, recurring bills,
-reconciliation, SMS capture settings, and detailed maintenance tools. Manual
+transaction timeline, Capture manages SMS scanning, and Review exposes the full
+correction flow. More contains secondary workflows such as accounts, debts,
+credit-card bills, recurring bills, reconciliation and detailed maintenance
+tools. Manual
 entry remains available but is intentionally secondary to automatic capture.
 
 Authentication is a separate entry screen. API URLs, raw JWT fields, and health
@@ -677,12 +677,24 @@ uses Asia/Dhaka. The API must be deployed before installing the updated APK.
 
 ### Does each More item open a distinct screen, and which SMS opens from Home?
 
-More/drawer share stable destination IDs. Accounts and SMS settings use their
+More is the only secondary-destination list. Accounts and SMS settings use their
 native screens; each planning item displays only its own existing form, with
 visible and Android hardware Back navigation. Full Quick Add opens manual entry
 directly. A review card opens its exact candidate ID, preserves that selection
 across queue reordering and keeps drafts keyed by candidate, rather than opening
 whichever index happened to be selected previously.
+
+### Why was the signed-in drawer removed, and how is text sized now?
+
+The drawer repeated the destinations already shown under More and added a second
+route to the same screen. Five bottom tabs cover the primary workflows; More is
+the single list for accounts, planning and settings. The header names the current
+screen and supplies Back on child screens. Shared semantic type sizes are defined
+in `src/mobile-type.ts`: 17sp screen title, 16sp section title, 14sp body,
+12sp supporting text and 30sp prominent amount. Native font scaling remains on,
+and text reduction does not shrink input or action touch targets. This improves
+consistency in code; actual device appearance still needs visual checks at normal
+and enlarged system text sizes.
 
 ### Why does Back retain a screen instead of loading it again?
 

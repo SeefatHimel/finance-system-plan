@@ -42,6 +42,15 @@ export type AdvancedTool =
   | "entry";
 export const mainTabs = ["home", "activity", "capture", "review", "more"] as const;
 export type MainTab = (typeof mainTabs)[number];
+export const workspaceTitles: Record<MainTab | "accounts" | "profile", string> = {
+  home: "Home",
+  activity: "Activity",
+  capture: "SMS capture",
+  review: "Review",
+  more: "More",
+  accounts: "Accounts",
+  profile: "Profile",
+};
 export const workspaceRoutes = [...mainTabs, "accounts", "profile", "entry", "debts", "credit-cards", "recurring-bills", "reconciliation"] as const;
 export type WorkspaceRoute = (typeof workspaceRoutes)[number];
 export type WorkspaceParams = { [Route in WorkspaceRoute]: undefined };

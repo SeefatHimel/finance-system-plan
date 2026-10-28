@@ -2,8 +2,9 @@
 
 ## Screen lifetime
 
-React Navigation's `NavigationContainer` and `TabRouter` own the header, drawer
-and tab destinations. `backBehavior: "history"` returns through recent distinct
+React Navigation's `NavigationContainer` and `TabRouter` own the header and tab
+destinations. More owns secondary navigation; the duplicate drawer is removed.
+`backBehavior: "history"` returns through recent distinct
 workspaces instead of resetting a panel flag and reconstructing the prior page.
 Visible Back and Android hardware Back use the same history. At the root, normal
 Android Back behaviour is left to the system. Native modals dismiss their own

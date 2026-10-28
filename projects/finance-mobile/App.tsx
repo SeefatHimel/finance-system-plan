@@ -14,9 +14,10 @@ import { TransactionActivity } from "./src/transaction-activity";
 import { initialActivityFilters } from "./src/activity-model";
 import { WorkspaceScrollView } from "./src/retained-scroll";
 import { RetainedNavigation } from "./src/retained-navigation";
+import { mobileType } from "./src/mobile-type";
 import { MobileQueryProvider } from "./src/mobile-query";
 import { useNavigationContainerRef } from "@react-navigation/native";
-import { mobileDestinations, refreshReviewWindow, reviewIndex, reviewSelection, type MobileDestination, type AdvancedTool, isMainTab, type MainTab, type WorkspaceRoute, type WorkspaceParams } from "./src/mobile-navigation";
+import { mobileDestinations, workspaceTitles, refreshReviewWindow, reviewIndex, reviewSelection, type MobileDestination, type AdvancedTool, isMainTab, type MainTab, type WorkspaceRoute, type WorkspaceParams } from "./src/mobile-navigation";
 import { QuickAddHub, type QuickAddHandle } from "./src/quick-add-hub";
 import { quickSessionScope } from "./src/secure-document";
 import { transferComparison, transferBalanceConflicts } from "../finance-contracts/transfer-comparison";
@@ -36,9 +37,7 @@ import {
   Keyboard,
   AppState,
   Alert,
-  Animated,
   Appearance,
-  Easing,
   Modal,
   PermissionsAndroid,
   Platform,
@@ -1004,8 +1003,6 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     Keyboard.dismiss();
     if (navigation.isReady() && navigation.canGoBack()) navigation.goBack();
   }
-  const [drawerVisible, setDrawerVisible] = useState(false);
-  const drawerTranslateX = useRef(new Animated.Value(-320)).current;
 
   const loadHealth = async () => {
     setState("loading");
@@ -1663,7 +1660,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.21",
+          app_version: "0.1.22",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1685,7 +1682,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.21",
+        app_version: "0.1.22",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1762,7 +1759,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.21",
+            app_version: "0.1.22",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1777,7 +1774,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.21",
+          app_version: "0.1.22",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -2943,30 +2940,6 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     }
   };
 
-  const openDrawer = () => {
-    setDrawerVisible(true);
-    drawerTranslateX.setValue(-320);
-    Animated.timing(drawerTranslateX, {
-      duration: 240,
-      easing: Easing.out(Easing.cubic),
-      toValue: 0,
-      useNativeDriver: true
-    }).start();
-  };
-
-  const closeDrawer = () => {
-    Animated.timing(drawerTranslateX, {
-      duration: 180,
-      easing: Easing.in(Easing.cubic),
-      toValue: -320,
-      useNativeDriver: true
-    }).start(({ finished }) => {
-      if (finished) {
-        setDrawerVisible(false);
-      }
-    });
-  };
-
   const switchTab = (nextTab: MainTab) => navigateWorkspace(nextTab);
 
   const handleLogout = async () => {
@@ -3004,7 +2977,6 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       setAuthState("idle");
       setAuthMessage("");
       setWorkspace({ scope: null, route: "home", tab: "home" });
-      closeDrawer();
     }
   };
 
@@ -3301,7 +3273,6 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
 
 
   function openDestination(destination: MobileDestination) {
-    setDrawerVisible(false);
     if (destination === "capture") { switchTab("capture"); return; }
     if (destination === "accounts") { navigateWorkspace("accounts"); void handleLoadReferenceData(); return; }
     navigateWorkspace(destination);
@@ -3909,7 +3880,6 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     { icon: "clipboard-text-outline", key: "review", label: "Review" },
     { icon: "dots-horizontal", key: "more", label: "More" }
   ];
-  const drawerItems = mobileDestinations;
   const primaryCandidate = reviewCandidates[0] ?? null;
   const recentTransactions = transactions.slice(0, 8);
   const homeAccounts = accounts.filter(account => account.is_active !== false).slice(0, 3);
@@ -4112,7 +4082,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const renderAccounts = () => (
     <View style={styles.mobileSectionStack}>
       <View style={styles.mobileSectionHeader}>
-        <Text style={styles.mobileSectionTitle}>Accounts</Text>
+        <Text style={styles.mobileSectionMeta}>Balances across your accounts</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Refresh accounts" onPress={handleLoadReferenceData} style={styles.mobileIconAction}>
           <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
         </Pressable>
@@ -4151,7 +4121,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     return (
       <View style={styles.mobileSectionStack}>
         <View style={styles.mobileSectionHeader}>
-          <Text style={styles.mobileSectionTitle}>SMS capture</Text>
+          <Text style={styles.mobileSectionMeta}>Scan and sync your messages</Text>
           <Text style={styles.mobileSectionMeta}>{smsSync.label}{pendingSmsCount ? ` · ${pendingSmsCount} waiting` : ""}</Text>
         </View>
         <View style={styles.mobileSection}>
@@ -4367,8 +4337,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           {showSmsDiagnostics ? (
             <View style={{ gap: 10 }}>
               <Text style={styles.mobileRowMeta}>Includes sync counts, stage and error codes. SMS text and login tokens are excluded.</Text>
-              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.21", getApiBaseUrl())}</Text>
-              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.21", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
+              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.22", getApiBaseUrl())}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.22", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
                 <Text style={styles.mobileSecondaryActionText}>Share diagnostics</Text>
               </Pressable>
             </View>
@@ -4830,7 +4800,6 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   </Pressable>;
   const renderMore = () => (
     <View style={styles.mobileSectionStack}>
-      <View style={styles.mobilePageIntro}><Text style={styles.mobilePageTitle}>More</Text><Text style={styles.mobilePageSubtitle}>Accounts, planning and settings.</Text></View>
       <RecoveryCard compact recovery={recovery} blocked={reviewMutation.blocked} onEdit={openTransactionEditor} />
       <Text accessibilityRole="header" style={styles.mobileFieldLabel}>Accounts</Text>
       <View style={styles.mobileGroupedList}>{mobileDestinations.filter(item => item.id === "accounts").map(destinationRow)}</View>
@@ -4986,17 +4955,13 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     <SafeAreaView style={styles.mobileRoot}>
       <StatusBar style={isLight ? "dark" : "light"} />
       {!advancedTool ? <View style={styles.mobileAppHeader}>
-        <Pressable
-          accessibilityLabel={mobilePanel ? "Go back" : "Open menu"}
-          onPress={mobilePanel ? () => goBack() : openDrawer}
-          style={styles.mobileHeaderButton}
-        >
-          <MaterialCommunityIcons color={isLight ? "#142b36" : "#dce8f6"} name={mobilePanel ? "arrow-left" : "menu"} size={27} />
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Quick Add manual entry" onPress={() => quickHub.current?.open()} style={styles.mobileHeaderButton}><MaterialCommunityIcons color="#55e6a5" name="plus" size={24} /></Pressable>
+        {mobilePanel ? <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={goBack} style={styles.mobileHeaderButton}>
+          <MaterialCommunityIcons color={isLight ? "#142b36" : "#dce8f6"} name="arrow-left" size={24} />
+        </Pressable> : null}
         <View style={styles.mobileHeaderTitleWrap}>
-          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.mobileAppTitle}>{PRODUCT_NAME}</Text>
+          <Text accessibilityRole="header" numberOfLines={1} style={styles.mobileAppTitle}>{workspaceTitles[currentWorkspace.route as MainTab | "accounts" | "profile"]}</Text>
         </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Quick Add manual entry" onPress={() => quickHub.current?.open()} style={styles.mobileHeaderButton}><MaterialCommunityIcons color="#55e6a5" name="plus" size={22} /></Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Sync status: ${smsPermissionState !== "granted" ? "Setup required" : state === "error" && !smsSync.running ? "Connection needs attention" : smsSync.label}. Refresh status`}
@@ -5041,47 +5006,6 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         })}
       </View>
 
-      <Modal animationType="fade" onRequestClose={closeDrawer} transparent visible={drawerVisible}>
-        <View style={styles.mobileDrawerLayer}>
-          <Pressable accessibilityLabel="Close menu" onPress={closeDrawer} style={styles.mobileDrawerScrim} />
-          <Animated.View style={[styles.mobileDrawer, { transform: [{ translateX: drawerTranslateX }] }]}>
-            <View style={styles.mobileDrawerBrand}>
-              <View style={styles.mobileBrandMarkSmall}>
-                <MaterialCommunityIcons color="#06141f" name="message-processing-outline" size={23} />
-              </View>
-              <View>
-                <Text style={styles.mobileDrawerTitle}>{PRODUCT_NAME}</Text>
-                <Text style={styles.mobileDrawerSubtitle}>Automation center</Text>
-              </View>
-            </View>
-            <View style={styles.mobileDrawerNav}>
-              {drawerItems.map((item) => (
-                <Pressable
-                  key={item.label}
-                  onPress={() => openDestination(item.id)}
-                  style={({ pressed }) => [styles.mobileDrawerRow, pressed ? styles.mobilePressed : null]}
-                >
-                  <MaterialCommunityIcons color="#91a7c2" name={item.icon} size={22} />
-                  <Text style={styles.mobileDrawerRowText}>{item.label}</Text>
-                  <MaterialCommunityIcons color="#647b98" name="chevron-right" size={22} />
-                </Pressable>
-              ))}
-            </View>
-            <View style={styles.mobileDrawerFooter}>
-              <Text style={styles.mobileDrawerFooterLabel}>Signed in</Text>
-              <Text style={styles.mobileDrawerFooterValue}>{username || "Finance user"}</Text>
-              <Pressable accessibilityRole="button" onPress={() => { closeDrawer(); navigateWorkspace("profile"); }} style={styles.mobileDrawerLogout}>
-                <MaterialCommunityIcons color={isLight ? "#168c69" : "#55e6a5"} name="account-circle-outline" size={20} />
-                <Text style={styles.mobileLogoutText}>Profile & appearance</Text>
-              </Pressable>
-              <Pressable onPress={handleLogout} style={styles.mobileDrawerLogout}>
-                <MaterialCommunityIcons color="#ff7d84" name="logout" size={20} />
-                <Text style={styles.mobileLogoutText}>Sign out</Text>
-              </Pressable>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
       <Modal animationType="fade" transparent visible={transferDecision !== null} onRequestClose={() => { if (!transferBusy) setTransferDecision(null); }}>
         <SafeAreaView style={styles.transferMatchOverlay}>
           <View accessibilityViewIsModal style={styles.transferMatchPanel}>
@@ -5207,12 +5131,8 @@ const styles = StyleSheet.create({
   },
   mobileAppTitle: {
     color: "#f6f8fc",
-    fontSize: 20,
-    fontWeight: "800",
-    letterSpacing: -0.5
-  },
-  mobileAppTitleAccent: {
-    color: "#32d8f2"
+    fontSize: mobileType.screen,
+    fontWeight: "700"
   },
   mobileBrandMark: {
     alignItems: "center",
@@ -5222,14 +5142,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 20,
     width: 64
-  },
-  mobileBrandMarkSmall: {
-    alignItems: "center",
-    backgroundColor: "#55e6a5",
-    borderRadius: 14,
-    height: 46,
-    justifyContent: "center",
-    width: 46
   },
   mobileCenteredState: {
     alignItems: "center",
@@ -5325,90 +5237,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700"
   },
-  mobileDrawer: {
-    backgroundColor: "#0a1725",
-    borderRightColor: "#263a52",
-    borderRightWidth: 1,
-    bottom: 0,
-    paddingHorizontal: 16,
-    paddingTop: 54,
-    position: "absolute",
-    top: 0,
-    width: 310
-  },
-  mobileDrawerBrand: {
-    alignItems: "center",
-    borderBottomColor: "#1c3046",
-    borderBottomWidth: 1,
-    flexDirection: "row",
-    gap: 12,
-    paddingBottom: 22
-  },
-  mobileDrawerFooter: {
-    borderTopColor: "#1c3046",
-    borderTopWidth: 1,
-    marginTop: "auto",
-    paddingBottom: 30,
-    paddingTop: 20
-  },
-  mobileDrawerFooterLabel: {
-    color: "#647b98",
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase"
-  },
-  mobileDrawerFooterValue: {
-    color: "#dce8f6",
-    fontSize: 15,
-    fontWeight: "700",
-    marginTop: 4
-  },
-  mobileDrawerLayer: {
-    flex: 1
-  },
-  mobileDrawerLogout: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 18,
-    minHeight: 44
-  },
-  mobileDrawerNav: {
-    gap: 4,
-    paddingTop: 22
-  },
-  mobileDrawerRow: {
-    alignItems: "center",
-    borderRadius: 12,
-    flexDirection: "row",
-    gap: 13,
-    minHeight: 52,
-    paddingHorizontal: 10
-  },
-  mobileDrawerRowText: {
-    color: "#c5d2e2",
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  mobileDrawerScrim: {
-    backgroundColor: "rgba(2, 8, 15, 0.72)",
-    bottom: 0,
-    left: 0,
-    position: "absolute",
-    right: 0,
-    top: 0
-  },
-  mobileDrawerSubtitle: {
-    color: "#7890ad",
-    fontSize: 12,
-    marginTop: 2
-  },
-  mobileDrawerTitle: {
-    color: "#f6f8fc",
-    fontSize: 18,
-    fontWeight: "800"
-  },
   mobileDangerButton: {
     alignItems: "center",
     borderColor: "#6a3440",
@@ -5462,8 +5290,8 @@ const styles = StyleSheet.create({
   },
   mobileEmptyTitle: {
     color: "#f6f8fc",
-    fontSize: 20,
-    fontWeight: "800"
+    fontSize: 18,
+    fontWeight: "700"
   },
   mobileErrorText: {
     color: "#ff8d92",
@@ -5500,7 +5328,7 @@ const styles = StyleSheet.create({
   },
   mobileHeroAmount: {
     color: "#f6f8fc",
-    fontSize: 34,
+    fontSize: mobileType.heroAmount,
     fontWeight: "800",
     letterSpacing: -1.2,
     marginTop: 20
@@ -5646,7 +5474,7 @@ const styles = StyleSheet.create({
   },
   mobileLoginHeading: {
     color: "#f6f8fc",
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "800",
     letterSpacing: -0.6
   },
@@ -5686,7 +5514,7 @@ const styles = StyleSheet.create({
   },
   mobileLoginTitle: {
     color: "#f6f8fc",
-    fontSize: 30,
+    fontSize: 24,
     fontWeight: "800",
     letterSpacing: -1
   },
@@ -5855,21 +5683,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800"
   },
-  mobilePageIntro: {
-    gap: 5,
-    marginBottom: 2
-  },
-  mobilePageSubtitle: {
-    color: "#91a7c2",
-    fontSize: 14,
-    lineHeight: 20
-  },
-  mobilePageTitle: {
-    color: "#f6f8fc",
-    fontSize: 28,
-    fontWeight: "800",
-    letterSpacing: -0.8
-  },
   mobilePressed: {
     opacity: 0.72
   },
@@ -5978,7 +5791,7 @@ const styles = StyleSheet.create({
   },
   mobileReviewLoadMore: { alignItems: "center", minHeight: 44, justifyContent: "center" },
   mobileHomePriority: { alignItems: "center", backgroundColor: "#103128", borderColor: "#2a805c", borderRadius: 14, borderWidth: 1, flexDirection: "row", gap: 8, minHeight: 60, paddingHorizontal: 14 },
-  mobileHomePriorityTitle: { color: "#66e8ae", fontSize: 16, fontWeight: "800" },
+  mobileHomePriorityTitle: { color: "#66e8ae", fontSize: mobileType.body, fontWeight: "700" },
   mobileRoot: {
     backgroundColor: "#081421",
     flex: 1
@@ -6129,7 +5942,7 @@ const styles = StyleSheet.create({
   },
   mobileSectionTitle: {
     color: "#f6f8fc",
-    fontSize: 19,
+    fontSize: mobileType.section,
     fontWeight: "800"
   },
   mobileSegment: {

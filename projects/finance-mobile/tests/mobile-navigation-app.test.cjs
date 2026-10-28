@@ -70,7 +70,10 @@ test("app wiring restores Activity and manual edits without bootstrapping APIs o
   const list = tree.root.findAllByType("FlatList")[0];
   const reads = activityReads, reviews = reviewReads;
   await act(async () => tab("More").props.onPress());
+  assert.equal(button(tree, "Open menu"), undefined, "secondary destinations have one entry point");
+  assert(tree.root.findAllByType("Text").some(node => node.props.accessibilityRole === "header" && node.props.children === "More"));
   await act(async () => button(tree, "Accounts").props.onPress());
+  assert(tree.root.findAllByType("Text").some(node => node.props.accessibilityRole === "header" && node.props.children === "Accounts"));
   await act(async () => button(tree, "Go back").props.onPress());
   assert.equal(nav.getCurrentRoute().name, "more");
   await act(async () => nav.goBack());

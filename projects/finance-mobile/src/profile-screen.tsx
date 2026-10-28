@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 
 import { getCurrentUserWithRecovery, updateCurrentUser, type CurrentUser } from "./api";
 import type { ThemePreference } from "./theme-preference";
+import { mobileType } from "./mobile-type";
 
 type Props = {
   accessToken: string;
@@ -81,7 +82,6 @@ export function ProfileScreen({ accessToken, isLight, onSignOut, preference, set
 
   return <View style={sheet.stack}>
     <View>
-      <Text accessibilityRole="header" style={[sheet.pageTitle, { color: ink }]}>Your profile</Text>
       <Text style={[sheet.subtitle, { color: muted }]}>Your details and app appearance.</Text>
     </View>
     <View style={[sheet.hero, { backgroundColor: isLight ? "#e7f7f0" : "#14392e", borderColor: isLight ? "#c5e8d9" : "#28624a" }]}>
@@ -132,16 +132,15 @@ export function ProfileScreen({ accessToken, isLight, onSignOut, preference, set
 
 const sheet = StyleSheet.create({
   stack: { gap: 18, paddingBottom: 26 },
-  pageTitle: { fontSize: 28, fontWeight: "800", letterSpacing: -0.8 },
   subtitle: { fontSize: 14, marginTop: 4 },
   hero: { alignItems: "center", borderRadius: 24, borderWidth: 1, gap: 5, overflow: "hidden", padding: 25 },
   heroGlow: { backgroundColor: "#73dec0", borderRadius: 90, height: 130, opacity: 0.14, position: "absolute", right: -15, top: -65, width: 130 },
   avatar: { alignItems: "center", borderRadius: 36, height: 72, justifyContent: "center", marginBottom: 7, width: 72 },
   avatarText: { color: "#0c7054", fontSize: 24, fontWeight: "800" },
-  heroName: { fontSize: 22, fontWeight: "800", textAlign: "center" },
+  heroName: { fontSize: mobileType.dialog, fontWeight: "700", textAlign: "center" },
   heroMeta: { fontSize: 14, textAlign: "center" },
   card: { borderRadius: 20, borderWidth: 1, gap: 10, padding: 19 },
-  sectionTitle: { fontSize: 19, fontWeight: "800" },
+  sectionTitle: { fontSize: mobileType.section, fontWeight: "700" },
   helper: { fontSize: 13, lineHeight: 19, marginBottom: 7 },
   options: { flexDirection: "row", gap: 8 },
   option: { alignItems: "center", borderRadius: 12, borderWidth: 1, flex: 1, gap: 5, justifyContent: "center", minHeight: 72, padding: 6 },

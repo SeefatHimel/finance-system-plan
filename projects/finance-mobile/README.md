@@ -1,5 +1,16 @@
 # finance-mobile
 
+## Mobile navigation and text hierarchy (0.1.22)
+
+The signed-in header now identifies the current screen. More is the only place
+to open secondary destinations; the duplicate slide-out drawer is gone. Home,
+Activity, Capture, Review, More, Accounts, Profile and Quick Add now use a
+smaller, shared text hierarchy from `src/mobile-type.ts`. Financial amounts
+remain prominent; inputs, action hit areas and system font scaling remain in
+place. No API, SMS capture or ledger behavior changed. Check the updated layout
+on a phone at standard and enlarged font settings before treating the visual
+pass as complete.
+
 ## Mobile layout and startup (0.1.21)
 
 The signed Android app opens an account-scoped saved session immediately, then
@@ -36,7 +47,7 @@ wallet names, with a neutral fallback for custom accounts. They are not bank or
 wallet logos; no external image request is needed at runtime. This release does
 not change transaction classification, saved financial data, SMS permissions or
 backend APIs. See [the signed release guide](docs/signed-android-release.md)
-for the 0.1.21 build and physical-device checks.
+for the current build and physical-device checks.
 
 The **More → Profile & appearance** screen lets a signed-in user update their
 first name, last name and email through `PATCH /api/auth/me/`. Username stays
@@ -730,10 +741,15 @@ switch. Deploy the new API before distributing an APK with these changes; an
 older backend yields an actionable error rather than downloading an unbounded
 legacy list. No database migration is required.
 
-More groups Accounts, Planning and Settings. Debts, credit-card bills, recurring
-bills and reconciliation open only their respective existing forms and load
-that section's data. The drawer uses the same destination IDs. Accounts and SMS
-settings open their maintained native screens. Visible Back and Android hardware
+More is the single list of secondary destinations, grouped as Accounts, Planning
+and Settings. The duplicate slide-out drawer is removed. The header names the
+current screen and shows Back only for child screens; the bottom bar remains the
+main route selector. Screen headings use a compact hierarchy across Home,
+Activity, Capture, Review, More, Profile, Quick Add and selectors. Body copy and
+form labels are smaller while native font scaling and 48dp input/action targets
+remain enabled. Debts, credit-card bills, recurring bills and reconciliation
+open only their respective existing forms and load that section's data. Accounts
+and SMS settings open their maintained native screens. Visible Back and Android hardware
 Back return to the prior screen. Quick Add's full-entry handoff opens the manual
 entry form directly. Redundant legacy login, connection and SMS panels are no
 longer mixed into every planning tool.
@@ -755,7 +771,8 @@ long-history scrolling, offline/reconnect and switching signed-in accounts.
 
 ## Shared presentation and accessibility
 
-The installed label, login, drawer and signed-in header now use **Finance**.
+The installed label and login use **Finance**. The signed-in header shows the
+current screen; More is the single secondary navigation list.
 Package identity and Expo slug stay unchanged. See
 [shared interface conventions](../../docs/interface-conventions.md) for formatting,
 button hierarchy and scope. SMS review follows the web field sequence, exposes

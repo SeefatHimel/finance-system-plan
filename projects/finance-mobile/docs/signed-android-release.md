@@ -94,10 +94,13 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.21**, Android version code **22**. It includes
+The current release is **0.1.22**, Android version code **23**. It includes
 faster saved-session rendering while a free backend wakes, a more compact Home,
 Activity, Capture and Accounts layout, offline institution badges, and a focused
 SMS Review decision screen with an expandable original and compact correction form.
+The signed-in navigation now has one More list for secondary destinations and a
+screen-specific header; shared mobile type sizes reduce oversized headings and
+supporting copy without shrinking inputs or tap targets.
 Existing profile/appearance features require the API with `PATCH /api/auth/me/`.
 No new migration, native module, permission or queue reset is introduced.
 
@@ -122,7 +125,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.21.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.22.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.

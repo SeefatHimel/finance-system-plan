@@ -2,6 +2,7 @@ import { presentationColors } from "../../finance-contracts/presentation";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { lightMobileStyles } from "./theme-styles";
 import { useLightAppearance } from "./mobile-theme";
+import { mobileType } from "./mobile-type";
 import {
   forwardRef,
   useCallback,
@@ -1186,7 +1187,7 @@ const darkQuickAddStyles = StyleSheet.create({
   headingActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   headerAction: { minHeight: 48, minWidth: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "#183344" },
   headerIconAction: { minHeight: 48, minWidth: 48, alignItems: "center", justifyContent: "center", borderRadius: 8 },
-  title: { color: "#f5f8fc", fontSize: 21, fontWeight: "700", flexShrink: 1 },
+  title: { color: "#f5f8fc", fontSize: mobileType.dialog, fontWeight: "700", flexShrink: 1 },
   scroll: { flex: 1 },
   body: { padding: 16, gap: 14 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },

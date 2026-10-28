@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { formatTimestamp } from "../../finance-contracts/presentation";
 import { lightMobileStyles } from "./theme-styles";
 import { useLightAppearance } from "./mobile-theme";
+import { mobileType } from "./mobile-type";
 import { reviewSourceSegments } from "./review-source-highlights";
 export const ui = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#081421" },
@@ -31,10 +32,10 @@ export const ui = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  title: { color: "#f6f8fc", fontSize: 22, fontWeight: "700", flexShrink: 1 },
-  text: { color: "#e7eef7", fontSize: 16, lineHeight: 24 },
-  muted: { color: "#a8b8cc", fontSize: 14, lineHeight: 21 },
-  error: { color: "#ffb6b6", fontSize: 15, lineHeight: 23 },
+  title: { color: "#f6f8fc", fontSize: mobileType.dialog, fontWeight: "700", flexShrink: 1 },
+  text: { color: "#e7eef7", fontSize: mobileType.body, lineHeight: 20 },
+  muted: { color: "#a8b8cc", fontSize: mobileType.supporting, lineHeight: 17 },
+  error: { color: "#ffb6b6", fontSize: 13, lineHeight: 19 },
   input: {
     backgroundColor: "#0a1725",
     borderColor: "#294158",
@@ -43,7 +44,7 @@ export const ui = StyleSheet.create({
     padding: 12,
     minHeight: 48,
     color: "#f6f8fc",
-    fontSize: 16,
+    fontSize: mobileType.body,
   },
   button: {
     minHeight: 48,
@@ -108,7 +109,7 @@ export function ActionButton({
       <Text
         style={[
           ui.text,
-          compact && { fontSize: 14, lineHeight: 20 },
+          compact && { fontSize: mobileType.compactAction, lineHeight: 18 },
           { fontWeight: "700", color: primary ? "#08261d" : isLight ? "#213846" : "#e7eef7" },
         ]}
       >
@@ -185,7 +186,7 @@ export function SearchSelect({
         <Modal visible animationType="slide" onRequestClose={close}>
           <SafeAreaView style={ui.screen}>
             <View style={ui.header}>
-              <Text accessibilityRole="header" style={[ui.title, compact && { fontSize: 18 }]}>
+              <Text accessibilityRole="header" style={ui.title}>
                 {label}
               </Text>
               <ActionButton
