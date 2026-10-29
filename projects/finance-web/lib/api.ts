@@ -265,7 +265,12 @@ const transferMatchSchema = z.object({
 });
 export type { TransferMatch } from "../../finance-contracts/generated/types";
 
+const balanceSourcesSchema = z.object({
+  complete: z.boolean(),
+  observations: z.array(z.object({kind:z.enum(['sms','statement']),account:z.string().nullable(),balance_after:z.string().nullable(),currency:z.string(),direction:z.string(),date:z.string().nullable(),time:z.string().nullable(),time_kind:z.enum(['reported','received']),usable:z.boolean()})),
+});
 const transactionSchema = z.object({
+  balance_sources: balanceSourcesSchema.nullable().optional(),
   undo_action: transactionActionSchema.nullable().optional(),
   balance_reporting_account: z.string().nullable().optional(),
   reported_balances: z.array(z.object({ account: z.string(), balance_after: z.string().nullable() })).optional(),

@@ -1989,3 +1989,21 @@ calculation is a review hint, not a new source report. One-sided, contradictory,
 unloaded or invalid comparisons do not produce a suggestion. Shared statement
 components excluded by their own review flow cannot produce a competing hint.
 Verify the shortcut with `node --test tests/balance-edit-suggestion.test.cjs`.
+
+### Compact balance source badges
+
+Timeline balances and each account's review-form balance show compact SMS/PDF
+badges from `balance_sources`. Draft comparisons update as the field changes.
+Exact numeric agreement becomes **Matches Statement** only when reporting account,
+currency, direction, date and known reported time agree. Receipt-only SMS times,
+missing times and different posting dates stay **value agrees**, with a clock and
+an explanation. Different values are amber; conflicting same-kind sources remain
+conflicted. Calculated values have a separate calculator badge. A badge never
+certifies every transaction detail or proves that an attached source is correct.
+
+No full SMS/PDF is fetched per card and no parser replay occurs. API source reads
+are batched and bounded. Unknown or older payloads show **Sources unchecked**.
+Deploy API before web; no migration, parser refresh or re-import is needed. Tap,
+hover or focus a badge to inspect source values and timing limitations; Escape
+closes its explanation before the editor. Accessible labels name each check. Verify
+with `node --test tests/balance-source-badges.test.cjs`.

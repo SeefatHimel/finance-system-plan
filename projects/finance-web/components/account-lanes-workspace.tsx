@@ -16,6 +16,7 @@ import { getAccessToken } from "@/lib/auth-storage";
 import { getTimelineBalances, saveTimelineBalance, type TimelineBalanceAllocation, getTimelineOrders, type TimelineSavedOrder, listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
 import { sharedBalanceEventOrder, sharedBalanceOrder, placedTimelineEvents, addDays, atTimelineEdge, balanceGapDetails, balanceReviewDetails, suggestedLaneBalances, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart, type TimelineRange } from "@/lib/account-lanes";
 
+import { BalanceSourceBadges } from "@/components/balance-source-badges";
 import { balanceEditSnapshot } from "@/lib/transaction-balances";
 
 type WeekResult = { status: "loading"; loaded: number; total: number | null } | { status: "error"; message: string } | { status: "ready"; rows: Transaction[] };
@@ -605,6 +606,7 @@ export function AccountLanesWorkspace() {
             {bridge ? <small className="account-lanes-pair-label">Same transfer · {other?.name ?? "other account"}</small> : null}
             <span className="account-lanes-card__numbers">{mode !== "balance" ? <b className={direction === "credit" ? "is-credit" : "is-debit"}>{amountLabel(row, account.id, account.currency)}</b> : null}{mode !== "amount" ? <span>{calculated ? "Confirmed bal " : "Bal "}{calculated ? formatCurrency(calculated, account.currency) : laneBalance(row, account.id) === null ? "not reported" : formatCurrency(laneBalance(row, account.id)!, account.currency)}</span> : null}</span>
           </button>
+          {mode !== 'amount' ? <BalanceSourceBadges value={calculated ?? laneBalance(row, account.id)} account={account.id} currency={account.currency} date={row.date} time={row.time} direction={direction} sources={row.balance_sources} calculated={calculated !== null} /> : null}
           {calculated ? <small className="account-lanes-confirmed-balance">Calculated · manually confirmed · Source final {formatCurrency(allocation!.reported_final, account.currency)}</small> : null}
           {renderAllocation(row, account)}
           {other && !selectedIds.includes(other.id) ? <button className="account-lanes-hidden-link" type="button" onClick={() => showAccount(other.id)}><LinkSimple aria-hidden="true" size={14} /> Other side: {other.name} hidden · Show lane <Eye aria-hidden="true" size={14} /></button> : null}

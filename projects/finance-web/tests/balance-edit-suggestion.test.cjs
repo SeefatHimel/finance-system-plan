@@ -16,7 +16,7 @@ test('an explicit balance choice prefills only the freshly fetched matching reco
   assert.deepEqual(balanceEditPrefill(record, suggestion), {account:'bank', balance:'996.55'});
   for (const balance of ['0.00','-1.00']) assert.deepEqual(balanceEditPrefill(record, {...suggestion,balance}), {account:'bank',balance});
   assert.equal(JSON.stringify(record), original);
-  for (const changes of [{id:'other'}, {updated_at:'later'}, {amount:'4.00'}, {balance_after:'1055.55'}, {account:'other'}, {time:'12:01:00'}]) {
+  for (const changes of [{id:'other'}, {updated_at:'later'}, {amount:'4.00'}, {balance_after:'1055.55'}, {account:'other'}, {time:'12:01:00'}, {balance_sources:{complete:false}}]) {
     assert.equal(balanceEditPrefill({...record,...changes}, suggestion), null);
   }
   assert.equal(balanceEditPrefill(record, {...suggestion,account:'foreign'}), null);

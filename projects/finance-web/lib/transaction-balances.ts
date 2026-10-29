@@ -1,14 +1,14 @@
 export type BalanceEditSuggestion = { account: string; balance: string; snapshot: string };
 type BalanceEditRecord = Parameters<typeof accountBoundBalances>[0] & {
   id: string; updated_at: string; transfer_account: string | null; direction: string;
-  date: string; time: string | null; amount: string;
+  date: string; time: string | null; amount: string; balance_sources?: unknown;
 };
 
 export function balanceEditSnapshot(record: BalanceEditRecord) {
   return JSON.stringify([record.id, record.updated_at, record.account, record.transfer_account,
     record.type, record.direction, record.date, record.time, record.amount,
     Object.entries(accountBoundBalances(record)).sort(([a], [b]) => a.localeCompare(b)),
-    record.transfer_evidence.map(item => JSON.stringify(item)).sort()]);
+    record.transfer_evidence.map(item => JSON.stringify(item)).sort(), record.balance_sources]);
 }
 
 /** Recheck the freshly fetched record before prefilling an explicit, unsaved choice. */

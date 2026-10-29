@@ -61,6 +61,7 @@ import { smsEvidenceWarnings } from "@/lib/sms-evidence-review";
 import { TransactionStatementEvidence } from "@/components/transaction-statement-evidence";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
+import { BalanceSourceBadges } from "@/components/balance-source-badges";
 import { balanceEditPrefill, type BalanceEditSuggestion, accountBoundBalances, editableReportedBalance, transferBalancePayload } from "@/lib/transaction-balances";
 import { periodFromFilters, periodLabel, shiftPeriod, dailyPeriod, monthPeriod, allDates, dateRangeError, type DatePeriod } from "@/lib/date-period";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
@@ -856,6 +857,10 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   const activePeriod = periodFromFilters(filters, dateView);
 
   const editingTransaction = editingRecord ?? undefined;
+  const balanceChecks = (account: string, value: string) => editorMode === 'edit' && editingTransaction ? <BalanceSourceBadges
+    value={value || null} account={account} currency={loadState.status === 'ready' ? loadState.accounts.find(item => item.id === account)?.currency ?? '' : ''}
+    date={editingDate} time={editingTime || null} direction={editingType === 'transfer' ? account === editingTransferAccountId ? 'credit' : 'debit' : editingDirection}
+    sources={editingTransaction.balance_sources} calculated={Boolean(embeddedBalanceSuggestion && account === embeddedBalanceSuggestion.account && value === embeddedBalanceSuggestion.balance && balanceEditPrefill(editingTransaction, embeddedBalanceSuggestion))} /> : null;
   const sourceWarnings = editorMode === "edit" && loadState.status === "ready" ? smsEvidenceWarnings({
     account: loadState.accounts.find(account => account.id === editingAccountId),
     categoryName: loadState.categories.find(category => category.id === editingCategoryId)?.name ?? "",
@@ -1158,7 +1163,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
               /><FieldError field="amount" errors={fieldErrors} />
             </label>
 
-            {editingType === "transfer" ? <TransferBalanceFields error={fieldErrors.reported_balances} accounts={[editingAccountId, editingTransferAccountId]} primaryAccount={editingTransaction?.balance_reporting_account ?? (reportingAccount || editingAccountId)} names={accountNames} values={editingReportedBalances} onChange={(account, value) => setEditingReportedBalances(current => ({ ...current, [account]: value }))} /> : <>            <div className="field">
+            {editingType === "transfer" ? <TransferBalanceFields sourceChecks={account => balanceChecks(account, editingReportedBalances[account] ?? "")} error={fieldErrors.reported_balances} accounts={[editingAccountId, editingTransferAccountId]} primaryAccount={editingTransaction?.balance_reporting_account ?? (reportingAccount || editingAccountId)} names={accountNames} values={editingReportedBalances} onChange={(account, value) => setEditingReportedBalances(current => ({ ...current, [account]: value }))} /> : <>            <div className="field">
               <div className="inline-help"><label className="field__label" htmlFor="edit-reported-balance">Reported balance after</label> <HelpTooltip label="About reported balance">Optional balance from this account’s report, rather than its calculated ledger balance. Leave blank if unknown.</HelpTooltip></div>
               <input name="balance_after" {...feedback("balance_after")} id="edit-reported-balance"
                 className="field__control"
@@ -1167,6 +1172,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
                 type="text"
                 value={editingBalanceAfter}
               /><FieldError field="balance_after" errors={fieldErrors} />
+              {balanceChecks(editingAccountId, editingBalanceAfter)}
               {balanceAccountId ? <small className="field__hint">{loadState.accounts.find((account) => account.id === balanceAccountId)?.name ?? "This account"}</small> : null}
               {editingBalanceNotice ? <small className="field__hint inline-help" role="status">Balance cleared <HelpTooltip warning label="Why the balance was cleared">{editingBalanceNotice}</HelpTooltip></small> : null}
             </div></>}

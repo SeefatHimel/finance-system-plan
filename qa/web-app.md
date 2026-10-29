@@ -1831,3 +1831,15 @@ List source reads happen on demand; the detail modal reuses its loaded sources.
 Visible desktop columns have bounded widths and determine the total table width,
 so hiding columns actually reduces its width. Canonical rendering order is kept
 even when older saved preferences list columns in another order.
+
+### What do the compact balance badges verify?
+
+Timeline cards and review balance fields compare the displayed/draft value with
+compact saved-source metadata. Exact same-account, currency, direction and known
+reported-time agreement can match. Receipt-only SMS times, absent times and later
+posting dates get numeric-agreement badges with timing caveats. One matching source
+cannot hide contradictory same-kind reports. Unknown sources never pass; calculated
+values remain explicitly calculated. Badges update while editing, use text/icons as
+well as color, and expose source/timing explanations through accessible labels and
+tooltips. They do not prove the source is correctly linked or certify the whole
+transaction. Existing confirmation and source review flows remain in place.

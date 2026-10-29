@@ -1,11 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useId } from "react";
 import { HelpTooltip } from "@/components/help-tooltip";
 
 /** Keep the original reporting account visible; a second report is optional. */
-export function TransferBalanceFields({ accounts, primaryAccount, names, values, onChange, error }: {
-  error?: string;
+export function TransferBalanceFields({ accounts, primaryAccount, names, values, onChange, error, sourceChecks }: {
+  error?: string; sourceChecks?: (account: string) => ReactNode;
   accounts: string[];
   primaryAccount: string;
   names: Map<string, string>;
@@ -19,6 +20,7 @@ export function TransferBalanceFields({ accounts, primaryAccount, names, values,
       <HelpTooltip label={`About reported balance for ${names.get(account) ?? "this account"}`}>Optional balance reported by this account, rather than the calculated ledger balance. It stays with this account when direction changes. Leave blank if unknown.</HelpTooltip>
     </div>
     <input name="reported_balances" aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} id={`${id}-${index}`} className="field__control" aria-label={`Reported balance after — ${names.get(account) ?? "Select account"}`} inputMode="decimal" type="text" disabled={!account} value={values[account] ?? ""} onChange={event => onChange(account, event.target.value)} />
+    {sourceChecks?.(account)}
   </div>;
   return <>
     <div>{field(ordered[0], 0)}{error ? <small className="field-error" id={`${id}-error`}>{error}</small> : null}</div>
