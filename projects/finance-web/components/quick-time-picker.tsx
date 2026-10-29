@@ -1,30 +1,28 @@
 "use client";
 import { useState } from "react";
+import { clockTimeValue } from "@/lib/clock-time";
 import { ModalDialog } from "./modal-dialog";
 
 export function QuickTimePicker({
   value,
   onApply,
   onCancel,
+  seconds = value.length > 5,
+  onClear,
 }: {
   value: string;
   onApply: (value: string) => void;
   onCancel: () => void;
+  seconds?: boolean;
+  onClear?: () => void;
 }) {
   const [hour, setHour] = useState(value.slice(0, 2) || "12");
   const [minute, setMinute] = useState(value.slice(3, 5) || "00");
+  const [second, setSecond] = useState(value.slice(6, 8) || "00");
   const [view, setView] = useState<"hours" | "minutes">("hours");
   const h = Number(hour),
     m = Number(minute);
-  const valid =
-    hour !== "" &&
-    minute !== "" &&
-    Number.isInteger(h) &&
-    Number.isInteger(m) &&
-    h >= 0 &&
-    h <= 23 &&
-    m >= 0 &&
-    m <= 59;
+  const selectedTime = clockTimeValue(hour, minute, seconds ? second : undefined);
   function select(event: React.PointerEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
     const angle =
@@ -140,7 +138,7 @@ export function QuickTimePicker({
           PM
         </button>
       </div>
-      <div className="quick-fields">
+      <div className={`quick-fields quick-clock-fields${seconds ? " quick-clock-fields--seconds" : ""}`}>
         <label className="field">
           <span className="field__label">Hour (0–23)</span>
           <input
@@ -163,8 +161,10 @@ export function QuickTimePicker({
             onChange={(event) => setMinute(event.target.value)}
           />
         </label>
+        {seconds ? <label className="field"><span className="field__label">Second (0–59)</span><input className="field__control" type="number" min="0" max="59" value={second} onChange={event => setSecond(event.target.value)} /></label> : null}
       </div>
       <div className="decision-modal__actions">
+        {onClear ? <button type="button" className="button button--ghost quick-time-clear" onClick={onClear}>Time unknown</button> : null}
         <button
           className="button button--ghost"
           onClick={onCancel}
@@ -174,10 +174,10 @@ export function QuickTimePicker({
         </button>
         <button
           className="button button--primary"
-          disabled={!valid}
+          disabled={selectedTime === null}
           onClick={() =>
             onApply(
-              `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+              selectedTime!,
             )
           }
           type="button"

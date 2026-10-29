@@ -1,4 +1,6 @@
 "use client";
+import { BalanceSourceStatus } from "./balance-source-status";
+import { ClockTimeInput } from "./clock-time-input";
 import { filteredFinancialTotals } from "@/lib/financial-totals";
 import { TransactionActionMenu } from "@/components/transaction-action-menu";
 import { transactionTableLayout, transactionColumnPreferences, transactionPage, transactionPageParams, transactionPeriodFilters, transactionPeriodCaption } from "@/lib/transaction-list";
@@ -6,7 +8,6 @@ import { CompactReportedBalances } from "@/components/compact-reported-balances"
 import { AccountLabel } from "@/components/account-avatar";
 import { displayLabel, formatCurrency, formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
 
-import { QuickTimePicker } from "./quick-time-picker";
 import { CalendarDateInput } from "@/components/calendar-date-input";
 import { useQuickAdd } from "./quick-add";
 import { localDay, localTime } from "../../finance-contracts/quick-add";
@@ -210,7 +211,6 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   const [matchError, setMatchError] = useFeedbackMessage("error");
   const [formError, setFormError] = useFeedbackMessage("error");
   const [, setFormMessage] = useFeedbackMessage("success");
-  const [clockEdit, setClockEdit] = useState<{ value: string } | null>(null);
   const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [editingReportedBalances, setEditingReportedBalances] = useState<Record<string, string>>({});
@@ -986,7 +986,6 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
       </ModalDialog> : null}
       {revalidationId ? <TransactionRevalidationDialog key={revalidationId} transactionId={revalidationId} onClose={() => setRevalidationId(null)} onEdit={() => { const id = revalidationId; setRevalidationId(null); void selectTransactionForEdit(id); }} /> : null}
       {categoryChoice.confirmation}
-      {clockEdit ? <QuickTimePicker value={clockEdit.value} onCancel={() => setClockEdit(null)} onApply={time => { setEditingTime(time); setClockEdit(null); }} /> : null}
       {viewingId ? <TransactionDetailDialog transactionId={viewingId} orderedIds={loadState.transactions.map(transaction => transaction.id)} accounts={loadState.accounts} categories={loadState.categories} selectedAccount={displayedFilters.account} onNavigate={setViewingId} onClose={() => setViewingId(null)} onEdit={id => { setViewingId(null); void selectTransactionForEdit(id); }} /> : null}
       {editorMode ? (
         <ModalDialog labelledBy="transaction-editor-title" className="form-drawer transaction-editor-drawer" busy={isSubmitting || isUpdating} onCancel={closeEditor}>
@@ -1018,6 +1017,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
 
           <form className="transaction-form drawer-form" noValidate ref={editorForm} onSubmit={handleSave}
             onChangeCapture={event => {
+              if (!(event.target instanceof HTMLElement) || event.target.closest("form") !== event.currentTarget) return;
               editorDirty.current = true;
               const target = event.target as HTMLInputElement;
               if (target.name) setFieldErrors(current => { const next = { ...current }; delete next[target.name]; return next; });
@@ -1045,8 +1045,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
 
               <div className="field">
                 <label className="field__label" htmlFor="edit-transaction-time">Time</label>
-                <input name="time" {...feedback("time")} id="edit-transaction-time" step="1" className="field__control" onChange={event => setEditingTime(event.target.value)} type="time" value={editingTime} /><FieldError field="time" errors={fieldErrors} />
-                <button className="quick-see-all" type="button" onClick={() => setClockEdit({ value: editingTime || currentTime() })}>Choose time on clock</button>
+                <ClockTimeInput name="time" {...feedback("time")} id="edit-transaction-time" value={editingTime} onValueChange={time => { editorDirty.current = true; setEditingTime(time); }} /><FieldError field="time" errors={fieldErrors} />
               </div>
             </div>
 
@@ -1305,6 +1304,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
                 {transactionActions(transaction)}
               </article>)}
             </div>
+            <BalanceSourceStatus transactions={loadState.transactions} onRetry={() => loadData(filtersRef.current, false)} />
             <div className="table-wrap transaction-desktop-list" ref={tableScroll} aria-busy={isRefreshing} role="region" aria-label="Transaction table, scroll horizontally for more columns" tabIndex={0}>
               <table className="data-table transaction-data-table" style={{ width: tableLayout.width, minWidth: 0 }}>
                 <colgroup>{tableLayout.columns.map(column => <col key={column.id} style={{ width: column.width }} />)}</colgroup>

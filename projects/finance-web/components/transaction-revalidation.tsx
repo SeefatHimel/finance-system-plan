@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
 import { ArrowRight, WarningCircle, X } from "@phosphor-icons/react";
 import { formatCalendarDate } from "../../finance-contracts/presentation";
@@ -101,6 +103,9 @@ function ParserInspectionPanel({ preview, source, saved, busy, onClose, onCorrec
 }
 
 export function TransactionRevalidationDialog({ transactionId, onClose, onEdit }: Props) {
+  const router = useRouter();
+  const [unlinkedCandidate, setUnlinkedCandidate] = useState<string | null>(null);
+  useEffect(() => setUnlinkedCandidate(null), [transactionId]);
   const [preview, setPreview] = useState<TransactionRevalidation | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,7 +161,11 @@ export function TransactionRevalidationDialog({ transactionId, onClose, onEdit }
       );
       window.dispatchEvent(new CustomEvent("finance:transaction-saved", { detail: saved }));
       window.dispatchEvent(new Event("finance:transactions-changed"));
-      notify(sourceFix.action === "move" ? "Saved SMS reporting account corrected. Current parser rules may still need review." : "SMS unlinked and returned to Review inbox. The transfer was kept.");
+      if (sourceFix.action === "unlink") {
+        const candidate = sourceFix.source.id;
+        setUnlinkedCandidate(candidate);
+        notify("SMS returned to pending review at its original received date. The transfer was kept.", "success", { durationMs: 12000, actions: [{ label: "Open SMS in review", onClick: () => { onClose(); router.push(`/messages/review?candidate=${encodeURIComponent(candidate)}`); } }] });
+      } else notify("Saved SMS reporting account corrected. Current parser rules may still need review.");
       setSourceFix(null);
       setRevision(value => value + 1);
     } catch (failure) {
@@ -197,11 +206,12 @@ export function TransactionRevalidationDialog({ transactionId, onClose, onEdit }
       <button type="button" className="icon-button" aria-label="Close revalidation" disabled={busy} onClick={onClose}><X size={20} aria-hidden="true" /></button>
     </div>
     <div className="transaction-revalidation__body" aria-busy={loading}>
+      {unlinkedCandidate ? <p className="revalidation-no-change" role="status">SMS unlinked and returned to pending review. <Link className="text-button" href={`/messages/review?candidate=${encodeURIComponent(unlinkedCandidate)}`} onClick={onClose}>Open SMS in review</Link>. Its original received date is unchanged.</p> : null}
       {loading ? <p className="revalidation-loading" role="status"><span className="evidence-spinner" aria-hidden="true" />Checking saved sources…</p> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {preview ? <>
         <section className="revalidation-ledger" aria-label="Current ledger entry">
-          <div><span className="revalidation-eyebrow">Current ledger entry</span><h3>{preview.ledger.type} · {formattedMoney(preview.ledger.amount, preview.currency)}</h3><p>{formatCalendarDate(preview.ledger.date)} · No changes have been applied.</p></div>
+          <div><span className="revalidation-eyebrow">Current ledger entry</span><h3>{preview.ledger.type} · {formattedMoney(preview.ledger.amount, preview.currency)}</h3><p>{formatCalendarDate(preview.ledger.date)} · Current saved ledger values.</p></div>
           <div className="revalidation-ledger__accounts">{preview.ledger.accounts.map(account => <div key={account.id}><strong>{account.name}</strong><span>{account.direction} · Balance after {formattedMoney(account.balance_after, account.currency)}</span></div>)}</div>
         </section>
 

@@ -1843,3 +1843,23 @@ values remain explicitly calculated. Badges update while editing, use text/icons
 well as color, and expose source/timing explanations through accessible labels and
 tooltips. They do not prove the source is correctly linked or certify the whole
 transaction. Existing confirmation and source review flows remain in place.
+
+### How do balance review, delayed posting and clock controls work together?
+
+Expected balance calculations are inspectable from the timeline and retain their
+uncertainty labels. Statement reporting/posting dates and SMS receipt times are
+shown separately from the ledger event date/time. Corrections go through the
+audited editor with preserved originals and Undo; unknown times use reviewed
+placement instead of invented clock times.
+
+Stable row snapshots prevent scrolling from restarting evidence checks. Appended
+weeks keep unchanged checked intervals, while modified/removed records invalidate
+them. A collection-level source status retries twice automatically when metadata
+is missing; individual rows are not manual approval tasks.
+
+Every editable time field uses a visible clock button, typed entry, optional
+seconds and explicit unknown-time handling. Picker Cancel never applies its draft; Escape closes only the top dialog and preserves the parent review.
+SMS clock changes update page-local drafts and normal form submission together.
+Unlinked SMS messages have a direct pending-review link, including messages beyond
+the first loaded inbox page. These changes are frontend-only and require no new
+API endpoints or migrations.

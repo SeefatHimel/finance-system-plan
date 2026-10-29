@@ -111,6 +111,11 @@ export function signedCents(transaction: Transaction, accountId: string): number
 }
 
 export function laneMomentMatchesCanonical(transaction: Transaction, accountId: string): boolean {
+  const sources = transaction.balance_sources;
+  const value = laneBalance(transaction, accountId);
+  if ((sources && !sources.complete) || (!sources && (transaction.raw_message || transaction.statement_evidence_count))) return false;
+  const reports = value === null ? [] : sources?.observations.filter(item => item.account === accountId && item.balance_after !== null && Number(item.balance_after) === Number(value));
+  if (reports?.length && reports.some(item => item.time_kind !== 'reported' || item.date !== transaction.date || !item.time || item.time !== transaction.time)) return false;
   if (transaction.type !== "transfer") return true;
   return transaction.transfer_evidence
     .filter(item => item.account === accountId)
@@ -281,4 +286,16 @@ export function sharedBalanceEventOrder<T extends { row: Transaction }>(events: 
 /** Apply confirmed same-time component order without inventing timestamps. */
 export function sharedBalanceOrder(rows: Transaction[], allocations: SharedBalanceOrder[]): Transaction[] {
   return sharedBalanceEventOrder(rows.map(row => ({ row })), allocations).map(event => event.row);
+}
+
+/** Scroll/visibility changes cannot invalidate the same saved rows. */
+export function retainTimelineRows(previous: Transaction[], next: Transaction[]) {
+  const byId = new Map(previous.map(row => [row.id, row]));
+  return previous.length === next.length && next.every(row => byId.get(row.id) === row) ? previous : next;
+}
+
+/** Appending loaded weeks preserves checked intervals; edits/removals invalidate the snapshot. */
+export function checkedTimelineIds(basis: Transaction[] | null, current: Transaction[]) {
+  const byId = new Map(current.map(row => [row.id, row]));
+  return basis && basis.every(row => byId.get(row.id) === row) ? new Set(basis.map(row => row.id)) : new Set<string>();
 }

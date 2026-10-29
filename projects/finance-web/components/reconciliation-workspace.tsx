@@ -1,4 +1,5 @@
 "use client";
+import { ClockTimeInput } from "./clock-time-input";
 
 import { DatedList } from "@/components/dated-list";
 import { CalendarDateInput } from "@/components/calendar-date-input";
@@ -387,7 +388,7 @@ export function ReconciliationWorkspace() {
               <span className="field__label">Checked date and time</span>
               <div className="transaction-datetime">
                 <CalendarDateInput aria-label="Checked date" value={checkedDate} required onChange={setCheckedDate} />
-                <input aria-label="Checked time" className="field__control" type="time" required value={checkedTime} onChange={event => setCheckedTime(event.target.value)} />
+                <ClockTimeInput aria-label="Checked time" step="60" required value={checkedTime} onValueChange={setCheckedTime} />
               </div>
               <input type="hidden" name="checked_at" value={checkedDate && checkedTime ? `${checkedDate}T${checkedTime}` : ""} />
             </div>

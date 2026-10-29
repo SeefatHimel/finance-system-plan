@@ -248,3 +248,33 @@ The desktop table width is the sum of visible columns' bounded widths plus Actio
 (and the activity column when sorting by activity). Hiding columns shrinks the
 table instead of stretching the remaining cells across the container. A wide
 selection scrolls within the table; mobile cards retain their existing layout.
+
+## Balance and timing review
+
+Timeline difference actions show the expected balance in displayed order, and open
+the calculation with its previous/next anchors and original reported value. The
+inspector distinguishes ledger event dates from statement reporting/posting dates
+and SMS receipt times. The existing audited editor performs explicit date, time
+and balance corrections; it preserves the original sources and offers Undo.
+Unknown event times remain empty and support relative timeline placement.
+
+Scrolling retains identical row snapshots, so moving the visible-date marker does
+not restart balance/placement checks. Appending unchanged weeks retains checked
+intervals; edits/removals invalidate them. New uncertain intervals wait for their
+shared-row checks. Known delayed source moments make arithmetic uncertain even
+for ordinary expenses, rather than implying a missing fee.
+
+Missing/incomplete source metadata produces one collection-level status, with two
+bounded automatic retries and an explicit retry action. It does not create an
+approval task on each transaction. An older API may still need deployment to
+supply the source metadata; the client never fabricates verification.
+
+All time-entry forms use the shared clock control, including SMS/statement/pair
+review and reconciliation. Typed values remain available. Seconds are preserved
+where supported, Cancel discards the picker draft, and optional times can be
+cleared explicitly. Escape closes only the top clock dialog and restores its trigger. Applying a clock choice edits the form draft, never saves a
+transaction by itself.
+
+Unlinking an SMS offers an Open SMS in review action in both the success toast and
+the correction panel. The candidate link retrieves that pending SMS directly,
+even outside the first 100 inbox messages. Its received date remains unchanged.

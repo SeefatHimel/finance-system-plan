@@ -13,7 +13,7 @@ export function balanceSourceBadges(input: { value: string | null; account: stri
   const badges: BalanceBadge[] = [];
   if (input.calculated) badges.push({kind:'calculated',label:'Calculated',tone:'idle',detail:'Calculated ledger balance; this is not an original source report.'});
   if (input.value === null) return badges;
-  if (!input.sources || !input.sources.complete) return [...badges,{kind:'unchecked',label:'Sources unchecked',tone:'idle',detail:'Source balance checks are unavailable or incomplete. This is not a verified match.'}];
+  if (!input.sources || !input.sources.complete) return badges;
   const value = cents(input.value);
   for (const kind of ['sms','statement'] as const) {
     const name = kind === 'sms' ? 'SMS' : 'Statement';
@@ -32,4 +32,8 @@ export function balanceSourceBadges(input: { value: string | null; account: stri
     badges.push({kind,label:sameMoment ? `Matches ${name}` : `${name} value agrees`,tone:sameMoment ? 'ok' : 'warning',clock:!sameMoment,detail:`${detail}. ${sameMoment ? 'Exact balance agreement for this account, direction, currency and reported time; this does not verify every transaction detail.' : 'Numeric agreement only: source event time is missing, different, or based on SMS receipt time.'}`});
   }
   return badges;
+}
+
+export function sourceChecksUnavailable(rows: { balance_after: string | null; reported_balances?: { balance_after: string | null }[]; balance_sources?: BalanceSources | null }[]) {
+  return rows.filter(row => (row.balance_after !== null || row.reported_balances?.some(item => item.balance_after !== null)) && !row.balance_sources?.complete).length;
 }

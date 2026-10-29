@@ -1,4 +1,5 @@
 "use client";
+import { ClockTimeInput } from "./clock-time-input";
 import { AccountLabel } from "@/components/account-avatar";
 
 import { formatCalendarDate } from "../../finance-contracts/presentation";
@@ -202,7 +203,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
             <div className="field field--wide"><label className="field__label" htmlFor="statement-note">Note</label><textarea id="statement-note" className="field__control" maxLength={4000} rows={3} value={draft.note} onChange={(e) => setField("note", e.target.value)} />{suggestedNote && suggestedNote !== draft.note ? <button className="unified-suggestion" type="button" onClick={() => setField("note", suggestedNote)}>Use suggested note: {suggestedNote}</button> : null}</div>
             <div className="statement-draft-datetime">
             <label className="field"><span className="field__label">Date</span><CalendarDateInput value={draft.date} onChange={value => setField("date", value || null)} /></label>
-            <label className="field"><span className="field__label">Time (if known)</span><input className="field__control" type="time" step="1" value={draft.time ?? ""} onChange={(e) => setField("time", e.target.value || null)} /></label>
+            <div className="field"><label className="field__label" htmlFor="statement-review-time">Time (if known)</label><ClockTimeInput id="statement-review-time" value={draft.time ?? ""} onValueChange={time => setField("time", time || null)} /></div>
             </div>
             <div className="field"><label className="field__label" htmlFor="statement-draft-type">Type</label><select id="statement-draft-type" className="field__control" value={draft.type} onChange={(e) => applyType(e.target.value as TransactionType)}>{transactionTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></div>
             <div className="field"><label className="field__label" htmlFor="statement-draft-direction">Debit / credit for {batch.account_name}</label><select id="statement-draft-direction" className="field__control" value={draft.direction} onChange={(e) => setField("direction", e.target.value as "debit" | "credit")}><option value="debit">Debit</option><option value="credit">Credit</option></select><small className="field__hint">Changing type or category keeps this direction. Check the original PDF before changing it.</small></div>

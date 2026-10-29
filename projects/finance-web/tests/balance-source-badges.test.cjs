@@ -25,7 +25,12 @@ test('another transfer account never lends its balance to this field',()=>{
 });
 test('calculated values, incomplete checks, malformed values and absent reports cannot pass',()=>{
  assert.equal(balanceSourceBadges({...base,calculated:true})[0].label,'Calculated');
- for(const sources of [undefined,null,{observations:[source],complete:false}])assert.equal(balanceSourceBadges({...base,sources})[0].label,'Sources unchecked');
+ for(const sources of [undefined,null,{observations:[source],complete:false}])assert.deepEqual(balanceSourceBadges({...base,sources}),[]);
  for(const value of ['NaN','Infinity','1e2','100.001',''])assert.equal(balanceSourceBadges({...base,value})[0].tone,'warning');
  assert.deepEqual(balanceSourceBadges({...base,value:null}),[]);assert.deepEqual(check([]),[]);
+});
+
+test('one collection status counts unavailable checks without turning unknowns into mismatches',()=>{
+ const {sourceChecksUnavailable}=subject.exports;
+ assert.equal(sourceChecksUnavailable([{balance_after:'100',balance_sources:null},{balance_after:null},{balance_after:null,reported_balances:[{balance_after:'0.00'}]},{balance_after:'10',balance_sources:{complete:true,observations:[]}}]),2);
 });

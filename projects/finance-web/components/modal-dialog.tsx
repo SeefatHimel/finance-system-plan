@@ -30,7 +30,7 @@ function DialogSurface({ children, labelledBy, className = "decision-modal", bus
   }, [initialFocus]);
   return (
     <dialog aria-labelledby={labelledBy} className={`${className} viewport-modal`} ref={dialog}
-      onCancel={(event) => { event.preventDefault(); if (!busy) onCancel(); }}>
+      onCancel={(event) => { event.preventDefault(); event.stopPropagation(); if (!busy) onCancel(); }}>
       {children}
     </dialog>
   );

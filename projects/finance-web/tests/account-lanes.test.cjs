@@ -316,3 +316,22 @@ test("shared balances preserve separate placements of the same transfer in diffe
   assert.deepEqual(sharedBalanceEventOrder(events, [allocation]).map(event => event.key), ["t:city", "p", "t:wallet", "f"]);
   assert.deepEqual(events.map(event => event.key), ["t:city", "f", "t:wallet", "p"]);
 });
+
+
+test('scroll-derived row copies preserve stable identity and checked intervals survive appending weeks', () => {
+ const {retainTimelineRows,checkedTimelineIds}=require(compiled);
+ const first=row('a','2026-01-01','12:00:00','1','100');
+ const second=row('b','2026-01-02','12:00:00','1','99');
+ const basis=retainTimelineRows([], [second,first]);
+ assert.equal(retainTimelineRows(basis,[first,second]),basis);
+ const more=retainTimelineRows(basis,[first,second,row('c','2026-01-03','12:00:00','1','98')]);
+ assert.deepEqual([...checkedTimelineIds(basis,more)].sort(),['a','b']);
+ assert.equal(checkedTimelineIds(basis,[{...first,balance_after:'90'},second]).size,0);
+ assert.equal(checkedTimelineIds(basis,[second]).size,0);
+});
+test('a delayed statement balance is uncertain even on a non-transfer movement',()=>{
+ const first=row('a','2026-01-01','12:00:00','1','100');
+ const second=row('b','2026-01-02','12:00:00','1','98',{balance_sources:{complete:true,observations:[{account:'city',balance_after:'98',time_kind:'reported',date:'2026-01-06',time:null}]}});
+ assert.equal(balanceGapDetails([first,second],'city',new Set(['2026-01-01','2026-01-02'])).size,0);
+ assert.equal(balanceReviewDetails([first,second],'city',new Set(['2026-01-01','2026-01-02'])).get('b').expectedCents,9900);
+});

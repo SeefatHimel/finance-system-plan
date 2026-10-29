@@ -4553,3 +4553,28 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 .balance-source-badges .help-trigger--text > .balance-source-badge--ok { color: var(--accent); background: var(--accent-soft); }
 .balance-source-badges .help-trigger--text > .balance-source-badge--warning { color: var(--warning); }
 @media (pointer: coarse) { .balance-source-badges .help-trigger.help-trigger--text { min-height: 44px; } }
+
+.clock-time-input { display: inline-flex; position: relative; min-width: 0; width: 100%; align-items: center; }
+.clock-time-input > input { width: 100%; min-width: 0; padding-right: 48px; }
+.clock-time-input > input::-webkit-calendar-picker-indicator { display: none; }
+.clock-time-input__button { position: absolute; right: 0; width: 44px; min-height: 44px; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); border-radius: 6px; cursor: pointer; }
+.clock-time-input__button:hover, .clock-time-input__button:focus-visible { color: var(--accent); background: var(--accent-soft); }
+.clock-time-input__button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.clock-time-input__button:disabled { opacity: .5; cursor: default; }
+
+.balance-source-status { margin: 8px 0; padding: 10px 12px; border: 1px solid var(--panel-border); border-radius: 8px; font-size: 12px; color: var(--muted); }
+.balance-source-status span { margin-left: 4px; }
+.balance-source-status button { margin-left: 8px; }
+.timeline-timing-review { border-top: 1px solid var(--panel-border); padding-top: 12px; }
+.timeline-timing-review dl { display: grid; gap: 8px; font-size: 12px; }
+.timeline-timing-review dt { color: var(--muted); }
+.timeline-timing-review dd { margin: 3px 0 0; }
+
+@media (max-width: 620px) {
+  .quick-time-dialog .quick-clock-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .quick-time-dialog .quick-clock-fields--seconds { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .quick-time-dialog .quick-clock-fields .field__label { font-size: 11px; }
+  .quick-time-dialog .button { min-height: 44px; }
+  .quick-time-dialog .decision-modal__actions { position: sticky; bottom: -18px; z-index: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); background: var(--panel); padding-top: 8px; }
+  .quick-time-dialog .quick-time-clear { grid-column: 1 / -1; }
+}
