@@ -3046,7 +3046,7 @@ textarea {
   overflow-wrap: anywhere;
   right: max(24px, env(safe-area-inset-right));
   top: max(24px, env(safe-area-inset-top));
-  z-index: 200;
+  z-index: 800;
 }
 .action-toast .toast__icon { flex-shrink: 0; }
 .action-toast > button { flex-shrink: 0; min-height: 32px; min-width: 32px; }

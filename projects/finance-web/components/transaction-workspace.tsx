@@ -60,7 +60,7 @@ import { smsEvidenceWarnings } from "@/lib/sms-evidence-review";
 import { TransactionStatementEvidence } from "@/components/transaction-statement-evidence";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
-import { accountBoundBalances, editableReportedBalance, transferBalancePayload } from "@/lib/transaction-balances";
+import { balanceEditPrefill, type BalanceEditSuggestion, accountBoundBalances, editableReportedBalance, transferBalancePayload } from "@/lib/transaction-balances";
 import { periodFromFilters, periodLabel, shiftPeriod, dailyPeriod, monthPeriod, allDates, dateRangeError, type DatePeriod } from "@/lib/date-period";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
 
@@ -146,12 +146,13 @@ function persistVisibleColumns(columns: TransactionColumn[]) {
 
 type TransactionWorkspaceProps = {
   embeddedEditId?: string;
+  embeddedBalanceSuggestion?: BalanceEditSuggestion;
   embeddedCreate?: boolean;
   onEmbeddedClose?: () => void;
   onEmbeddedSaved?: (transaction: Transaction) => void;
 };
 
-export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, onEmbeddedClose, onEmbeddedSaved }: TransactionWorkspaceProps = {}) {
+export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion, embeddedCreate = false, onEmbeddedClose, onEmbeddedSaved }: TransactionWorkspaceProps = {}) {
   const isEmbedded = Boolean(embeddedEditId || embeddedCreate);
   const recovery = useTransactionRecovery();
   const { dismiss: dismissToast } = useToast();
@@ -231,6 +232,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
   const [editingAmount, setEditingAmount] = useState("");
   const [editingBalanceAfter, setEditingBalanceAfter] = useState("");
   const [editingBalanceNotice, setEditingBalanceNotice] = useState("");
+  const [balanceSuggestionNotice, setBalanceSuggestionNotice] = useState("");
   const [editingReference, setEditingReference] = useState("");
   const [editingCounterpartyText, setEditingCounterpartyText] = useState("");
   const [editingNote, setEditingNote] = useState("");
@@ -710,8 +712,14 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     setEditingTransferAccountId(transaction.transfer_account ?? "");
     setEditingCategoryId(transaction.category ?? "");
     setEditingAmount(transaction.amount);
-    setEditingBalanceAfter(editableReportedBalance(transaction));
-    setEditingReportedBalances(accountBoundBalances(transaction));
+    const prefill = balanceEditPrefill(transaction, embeddedBalanceSuggestion);
+    const balances = accountBoundBalances(transaction);
+    if (prefill) balances[prefill.account] = prefill.balance;
+    setEditingBalanceAfter(prefill && (transaction.type !== "transfer" || prefill.account === transaction.balance_reporting_account) ? prefill.balance : editableReportedBalance(transaction));
+    setEditingReportedBalances(balances);
+    setBalanceSuggestionNotice(embeddedBalanceSuggestion ? prefill
+      ? `Suggested balance ${prefill.balance} was copied into this draft. This is calculated, not a source report. Check the originals and save to confirm, or cancel to discard.`
+      : "This entry or its reports changed. The suggestion was not filled in. Close this form and refresh the timeline before trying again." : "");
     setEditingBalanceNotice("");
     setEditingReference(transaction.reference);
     setEditingCounterpartyText(transaction.counterparty_text);
@@ -728,7 +736,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     setFormMessage(null);
     setFieldErrors({}); setEditorMode("edit");
     } catch (error) { if (!controller.signal.aborted) setFormError(error instanceof Error ? error.message : "Could not load this transaction."); }
-  }, [setFormError, setFormMessage]);
+  }, [setFormError, setFormMessage, embeddedBalanceSuggestion]);
   useEffect(() => () => editLoad.current?.abort(), []);
   const editId = isEmbedded ? embeddedEditId : searchParams.get("edit");
   useEffect(() => { if (editId) void selectTransactionForEdit(editId); }, [editId, selectTransactionForEdit]);
@@ -1009,6 +1017,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
               if (["account", "category", "counterparty_text", "note"].includes(target.name)) setSourceWarningsReviewed(false);
             }}>
             <div className="transaction-editor-scroll compact-editor"><div className="transaction-editor-fields compact-editor-grid">
+            {balanceSuggestionNotice && editorMode === "edit" ? <p className="form-warning field--wide" role="status">{balanceSuggestionNotice}</p> : null}
             {editorMode === "edit" ? <TransactionSourceMessages key={editingTransactionId} transactionId={editingTransactionId} onMessages={setEditingSourceMessages} onLoadError={setEditingSourceError} /> : null}
             {editorMode === "edit" && editingSourceMessages === null ? <p className="field--wide" role="status">{editingSourceError ? "SMS check failed. Open Original SMS and retry before saving." : "Checking attached SMS before this entry can be saved…"}</p> : null}
             {sourceWarnings.length ? <div className="transaction-source-warning field--wide" role="alert">
@@ -1229,8 +1238,8 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
             <div className="transaction-editor-actions">
               <span role="status">{Object.keys(fieldErrors).length ? "Check the highlighted fields." : ""}</span>
               <button className="button button--ghost" disabled={isUpdating || isSubmitting} onClick={closeEditor} type="button">Cancel</button>
-              <button className="button button--primary" disabled={isUpdating || isSubmitting} type="submit">
-                {isUpdating ? <ButtonBusy label="Saving" /> : editorMode === "create" ? "Save transaction" : "Update transaction"}
+              <button className="button button--primary" disabled={isUpdating || isSubmitting || (editorMode === "edit" && editingSourceMessages === null)} type="submit">
+                {isUpdating ? <ButtonBusy label="Saving" /> : editorMode === "edit" && editingSourceMessages === null ? editingSourceError ? "Sources unavailable" : <ButtonBusy label="Checking sources" /> : editorMode === "create" ? "Save transaction" : "Update transaction"}
               </button>
             </div>
           </form>

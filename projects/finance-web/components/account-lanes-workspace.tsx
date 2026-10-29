@@ -15,6 +15,8 @@ import { getAccessToken } from "@/lib/auth-storage";
 import { getTimelineBalances, saveTimelineBalance, type TimelineBalanceAllocation, getTimelineOrders, type TimelineSavedOrder, listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
 import { sharedBalanceEventOrder, sharedBalanceOrder, placedTimelineEvents, addDays, atTimelineEdge, balanceGapDetails, balanceReviewDetails, suggestedLaneBalances, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart, type TimelineRange } from "@/lib/account-lanes";
 
+import { balanceEditSnapshot } from "@/lib/transaction-balances";
+
 type WeekResult = { status: "loading"; loaded: number; total: number | null } | { status: "error"; message: string } | { status: "ready"; rows: Transaction[] };
 type ViewMode = "amount" | "balance" | "both";
 type LayoutMode = "lanes" | "list";
@@ -635,7 +637,7 @@ export function AccountLanesWorkspace() {
         <div><dt>From previous report</dt><dd>{balanceCentsLabel(detail.priorCents, account.currency)} {detail.movementCents < 0 ? "−" : "+"} {centsLabel(detail.movementCents, account.currency)} = {balanceCentsLabel(suggestion.valueCents, account.currency)}</dd></div>
         <div><dt>From next report</dt><dd>{balanceCentsLabel(suggestion.next.actualCents, account.currency)} {suggestion.next.movementCents < 0 ? "+" : "−"} {centsLabel(suggestion.next.movementCents, account.currency)} = {balanceCentsLabel(suggestion.valueCents, account.currency)}</dd></div></dl>
       {suggestion.uncertainty.length ? <><p>Timing or order still needs review:</p><ul>{suggestion.uncertainty.map(reason => <li key={reason}>{reason}</li>)}</ul></> : null}
-      <button className="button button--ghost button--small" type="button" onClick={() => edit(detail.to.id)}>Review saved balance</button>
+      <div className="account-lanes-suggestion-actions"><button className="button button--primary button--small" type="button" onClick={() => edit(detail.to.id, { account: account.id, balance: (suggestion.valueCents / 100).toFixed(2), snapshot: balanceEditSnapshot(detail.to) })}>Use suggested balance</button><button className="button button--ghost button--small" type="button" onClick={() => edit(detail.to.id)}>Review saved balance</button></div>
       <p>Check the original sources before saving a correction. No values have been changed.</p>
     </section> : null}
     <dl>

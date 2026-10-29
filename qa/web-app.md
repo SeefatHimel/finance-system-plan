@@ -1528,6 +1528,12 @@ balance, a **Suggested ledger balance** hint shows both calculations and the sav
 report. It retains timing uncertainty and opens the existing editor for manual
 source review. A calculated hint never becomes a reported fact or an automatic
 correction. Contradictory or unavailable neighbouring comparisons provide no hint.
+An explicit **Use suggested balance** shortcut opens an unsaved editor draft with
+the proposed account balance filled in. It compares the freshly fetched entry,
+account path and reports with the suggestion snapshot first; changed records keep
+their saved value with a refresh message. The regular review action keeps the saved
+balance. Save remains explicit, Cancel discards, and the existing source checks and
+Undo apply. No original SMS or PDF is rewritten by prefilling a draft.
 Opening a marker explains the previous report, included movements, expected
 balance, current report, and signed difference, with links to the underlying
 entries. The timeline is read-only and uses the existing activity and

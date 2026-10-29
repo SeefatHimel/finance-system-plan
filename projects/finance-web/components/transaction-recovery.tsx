@@ -9,14 +9,17 @@ import { useAuth } from "@/components/auth-provider";
 import { useToast } from "@/components/toast-provider";
 import { HelpTooltip } from "@/components/help-tooltip";
 
+import type { BalanceEditSuggestion } from "@/lib/transaction-balances";
+
 const Context = createContext<{
   latest: TransactionAction | null; busy: boolean;
   announce: (action?: TransactionAction | null, extraActions?: { label: string; onClick: () => void }[]) => void;
   undo: (action: TransactionAction) => void;
-  edit: (id: string) => void;
+  edit: (id: string, suggestion?: BalanceEditSuggestion) => void;
   revalidate: (id: string) => void;
   create: () => void;
   editId: string | null;
+  editBalanceSuggestion?: BalanceEditSuggestion;
   revalidationId: string | null;
   createOpen: boolean;
   closeEdit: () => void;
@@ -39,6 +42,7 @@ export function TransactionRecoveryProvider({ children }: { children: ReactNode 
   const [latest, setLatest] = useState<TransactionAction | null>(null);
   const [busy, setBusy] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [editBalanceSuggestion, setEditBalanceSuggestion] = useState<BalanceEditSuggestion>();
   const [revalidationId, setRevalidationId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const pending = useRef(false);
@@ -69,20 +73,20 @@ export function TransactionRecoveryProvider({ children }: { children: ReactNode 
     return () => window.clearTimeout(timer);
   }, [latest]);
 
-  const edit = useCallback((id: string) => {
+  const edit = useCallback((id: string, suggestion?: BalanceEditSuggestion) => {
     dismiss();
     setCreateOpen(false); setRevalidationId(null);
-    setEditId(id);
+    setEditBalanceSuggestion(suggestion); setEditId(id);
   }, [dismiss]);
   const revalidate = useCallback((id: string) => {
     dismiss();
-    setCreateOpen(false); setEditId(null);
+    setCreateOpen(false); setEditBalanceSuggestion(undefined); setEditId(null);
     setRevalidationId(id);
   }, [dismiss]);
   const create = useCallback(() => {
-    dismiss(); setEditId(null); setRevalidationId(null); setCreateOpen(true);
+    dismiss(); setEditBalanceSuggestion(undefined); setEditId(null); setRevalidationId(null); setCreateOpen(true);
   }, [dismiss]);
-  useEffect(() => { setEditId(null); setRevalidationId(null); setCreateOpen(false); }, [pathname]);
+  useEffect(() => { setEditBalanceSuggestion(undefined); setEditId(null); setRevalidationId(null); setCreateOpen(false); }, [pathname]);
 
   const undo = useCallback(async (action: TransactionAction) => {
     const token = getAccessToken();
@@ -116,15 +120,15 @@ export function TransactionRecoveryProvider({ children }: { children: ReactNode 
   }, [edit, notify, owner, undo]);
 
   return <Context.Provider value={{ latest, busy, announce, undo: action => void undo(action), edit, revalidate, create,
-    editId, revalidationId, createOpen, closeEdit: () => { setEditId(null); setCreateOpen(false); }, closeRevalidation: () => setRevalidationId(null) }}>{children}</Context.Provider>;
+    editId, editBalanceSuggestion, revalidationId, createOpen, closeEdit: () => { setEditBalanceSuggestion(undefined); setEditId(null); setCreateOpen(false); }, closeRevalidation: () => setRevalidationId(null) }}>{children}</Context.Provider>;
 }
 
 // Mount inside QuickAddProvider so the shared editor can read account drafts
 // without replacing the page underneath the modal.
 export function TransactionOverlayHost() {
-  const { editId, revalidationId, createOpen, closeEdit, closeRevalidation, edit } = useTransactionRecovery();
+  const { editId, editBalanceSuggestion, revalidationId, createOpen, closeEdit, closeRevalidation, edit } = useTransactionRecovery();
   return <>
-    {editId ? <TransactionEditor key={editId} embeddedEditId={editId} onEmbeddedClose={closeEdit} onEmbeddedSaved={transaction => window.dispatchEvent(new CustomEvent("finance:transaction-saved", { detail: transaction }))} /> : null}
+    {editId ? <TransactionEditor key={editId} embeddedEditId={editId} embeddedBalanceSuggestion={editBalanceSuggestion} onEmbeddedClose={closeEdit} onEmbeddedSaved={transaction => window.dispatchEvent(new CustomEvent("finance:transaction-saved", { detail: transaction }))} /> : null}
     {createOpen ? <TransactionEditor key="full-entry" embeddedCreate onEmbeddedClose={closeEdit} onEmbeddedSaved={transaction => window.dispatchEvent(new CustomEvent("finance:transaction-saved", { detail: transaction }))} /> : null}
     {revalidationId ? <TransactionRevalidationDialog key={revalidationId} transactionId={revalidationId} onClose={closeRevalidation} onEdit={() => edit(revalidationId)} /> : null}
   </>;

@@ -1,3 +1,25 @@
+export type BalanceEditSuggestion = { account: string; balance: string; snapshot: string };
+type BalanceEditRecord = Parameters<typeof accountBoundBalances>[0] & {
+  id: string; updated_at: string; transfer_account: string | null; direction: string;
+  date: string; time: string | null; amount: string;
+};
+
+export function balanceEditSnapshot(record: BalanceEditRecord) {
+  return JSON.stringify([record.id, record.updated_at, record.account, record.transfer_account,
+    record.type, record.direction, record.date, record.time, record.amount,
+    Object.entries(accountBoundBalances(record)).sort(([a], [b]) => a.localeCompare(b)),
+    record.transfer_evidence.map(item => JSON.stringify(item)).sort()]);
+}
+
+/** Recheck the freshly fetched record before prefilling an explicit, unsaved choice. */
+export function balanceEditPrefill(record: BalanceEditRecord, suggestion?: BalanceEditSuggestion) {
+  if (!suggestion || suggestion.snapshot !== balanceEditSnapshot(record)
+    || ![record.account, ...(record.type === "transfer" ? [record.transfer_account] : [])].includes(suggestion.account)
+    || !/^-?\d+\.\d{2}$/.test(suggestion.balance)
+    || !Number.isSafeInteger(Math.round(Number(suggestion.balance) * 100))) return null;
+  return { account: suggestion.account, balance: suggestion.balance };
+}
+
 type BalanceRecord = {
   type: string;
   balance_after: string | null;
