@@ -45,7 +45,14 @@ class TransactionSourceMessageSerializer(serializers.ModelSerializer):
             or candidate.transaction_id != record.pk
         ):
             return None
+        from .transfers import sms_reporting_account
+
+        reporting_account = sms_reporting_account(candidate)
+        if reporting_account and reporting_account.user_id != instance.user_id:
+            reporting_account = None
         return {
+            "account": str(reporting_account.pk) if reporting_account else None,
+            "currency": reporting_account.currency if reporting_account else None,
             "candidate_id": str(candidate.pk),
             "can_remember_cash_route": bool(
                 candidate.message_kind == "cash_out"

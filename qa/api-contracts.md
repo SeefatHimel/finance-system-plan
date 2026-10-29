@@ -946,3 +946,11 @@ ordered component IDs, fingerprint and integer revision make the proposal inspec
 The client cannot choose arbitrary balances: the API recomputes them for Apply and
 allows Undo even when an earlier confirmation became stale. Deploy migration/API
 before web; existing transaction and statement response contracts are unchanged.
+
+### Does compact balance disclosure change the API contract?
+
+Only additive optional `account`/`currency` metadata is added inside the existing
+source-message parsed JSON. It identifies the confirmed reporting account under
+owner checks. Older responses remain valid, and unknown metadata is never guessed.
+The ledger balance, retained source values and mutation contracts are unchanged;
+no database migration or generated-schema shape change is required.

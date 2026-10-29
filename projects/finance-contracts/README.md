@@ -988,3 +988,9 @@ returns revision/active. Apply/Undo are audited display decisions; ledger transa
 account totals and original source reports are untouched. Deploy transactions migration
 0010 and API before the web client. Contracts and generated interfaces include both
 operations. Never infer eligibility locally from matching totals alone.
+
+Transaction source-message `parsed` JSON may include nullable `account` and
+`currency` for its confirmed reporting account. These are additive metadata in
+the existing nullable JSON summary (no generated OpenAPI shape change). Older
+responses may omit them; clients keep attribution unknown rather than assuming
+the ledger's sending account. No request fields or migrations are added.

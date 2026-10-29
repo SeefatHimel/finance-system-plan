@@ -114,3 +114,21 @@ class TransactionSourceMessagesTests(APITestCase):
         self.b.type = Account.Type.BANK
         self.b.save(update_fields=["type"])
         self.assertFalse(self.get_messages().data[0]["parsed"]["can_remember_cash_route"])
+
+    def test_parsed_balance_metadata_identifies_the_reporting_account_without_writes(self):
+        ParsedMessageCandidate.objects.create(user=self.user, raw_message=self.first, account=self.a,
+            transaction=self.record, status="confirmed", transaction_type="transfer", message_kind="bank_transfer_in",
+            destination_account=self.b, source_direction="credit", amount=100, balance_after=500)
+        parsed = self.get_messages().data[0]["parsed"]
+        self.assertEqual(parsed["account"], str(self.b.pk))
+        self.assertEqual(parsed["currency"], "BDT")
+        self.assertEqual(AuditLogEntry.objects.count(), 0)
+
+    def test_foreign_reporting_account_is_never_exposed_as_balance_metadata(self):
+        other = get_user_model().objects.create_user(username="foreign-report-account-owner")
+        foreign = Account.objects.create(user=other, name="Foreign account", type="bank", currency="USD")
+        ParsedMessageCandidate.objects.create(user=self.user, raw_message=self.first, account=foreign,
+            transaction=self.record, status="confirmed", amount=100, balance_after=500)
+        parsed = self.get_messages().data[0]["parsed"]
+        self.assertIsNone(parsed["account"])
+        self.assertIsNone(parsed["currency"])

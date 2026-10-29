@@ -1826,3 +1826,10 @@ Regression check:
 ```bash
 python manage.py test apps.transactions.test_timeline_balances apps.transactions.test_timeline_order
 ```
+
+Source-message parsed summaries additionally include nullable `account` and
+`currency` for the confirmed SMS reporting account. Incoming transfer messages
+identify the receiving side. The candidate must still belong to the requesting
+user and this transaction, and foreign accounts are withheld. This read-only
+metadata supports compact, account-specific balance disclosures without guessing
+attribution from the transaction's sending side. No migration is required.

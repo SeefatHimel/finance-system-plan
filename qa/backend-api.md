@@ -1420,3 +1420,12 @@ an audited TimelineBalanceAllocation. Undo deactivates it. Changed evidence with
 saved calculations until reviewed again. Transactions, reports and statement extraction
 are never overwritten. This is a display model with its own migration, not a monetary
 adjustment or a parser backfill.
+
+### How can a client attribute an SMS balance report?
+
+The transaction source-message endpoint includes nullable `parsed.account` and
+`parsed.currency` from the confirmed candidate's reporting account. Incoming
+transfers identify the receiving account. Candidate, message, transaction and
+account ownership are checked; inconsistent or unavailable attribution returns
+null. Related accounts are loaded with the candidate to avoid per-message queries.
+The endpoint remains read-only and needs no migration.
