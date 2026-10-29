@@ -1,4 +1,4 @@
-export type BalanceEditSuggestion = { account: string; balance: string; snapshot: string };
+export type BalanceEditSuggestion = { account: string; balance: string; snapshot: string; timingWarning?: string };
 type BalanceEditRecord = Parameters<typeof accountBoundBalances>[0] & {
   id: string; updated_at: string; transfer_account: string | null; direction: string;
   date: string; time: string | null; amount: string; balance_sources?: unknown;

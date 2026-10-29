@@ -720,7 +720,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
     setEditingBalanceAfter(prefill && (transaction.type !== "transfer" || prefill.account === transaction.balance_reporting_account) ? prefill.balance : editableReportedBalance(transaction));
     setEditingReportedBalances(balances);
     setBalanceSuggestionNotice(embeddedBalanceSuggestion ? prefill
-      ? `Suggested balance ${prefill.balance} was copied into this draft. This is calculated, not a source report. Check the originals and save to confirm, or cancel to discard.`
+      ? `Calculated balance ${prefill.balance} was copied into this draft. This is not a source report. ${embeddedBalanceSuggestion.timingWarning ? `Timing warning: ${embeddedBalanceSuggestion.timingWarning} ` : ""}Check the originals and save to confirm, or cancel to discard.`
       : "This entry or its reports changed. The suggestion was not filled in. Close this form and refresh the timeline before trying again." : "");
     setEditingBalanceNotice("");
     setEditingReference(transaction.reference);

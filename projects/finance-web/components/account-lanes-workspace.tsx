@@ -18,7 +18,7 @@ import { getAccessToken } from "@/lib/auth-storage";
 import { getTimelineBalances, saveTimelineBalance, type TimelineBalanceAllocation, getTimelineOrders, type TimelineSavedOrder, listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
 import { retainTimelineRows, checkedTimelineIds, sharedBalanceEventOrder, sharedBalanceOrder, placedTimelineEvents, addDays, atTimelineEdge, balanceReviewDetails, suggestedLaneBalances, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart, type TimelineRange } from "@/lib/account-lanes";
 
-import { BalanceSourceBadges } from "@/components/balance-source-badges";
+import { TimelineBalanceStatus } from "./timeline-balance-status";
 import { balanceEditSnapshot } from "@/lib/transaction-balances";
 
 type WeekResult = { status: "loading"; loaded: number; total: number | null } | { status: "error"; message: string } | { status: "ready"; rows: Transaction[] };
@@ -596,29 +596,30 @@ export function AccountLanesWorkspace() {
     const second = row.transfer_account ? selectedIds.indexOf(row.transfer_account) : -1;
     const bridge = !placedAccount && row.type === "transfer" && first >= 0 && second >= 0;
     return <div className={`account-lanes-row${placedAccount ? " account-lanes-row--placed" : ""}${bridge ? " account-lanes-row--transfer" : ""}`} key={`${row.id}:${placedAccount ?? "timed"}`} style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}>
-      <time dateTime={row.time ? `${date}T${row.time}` : date} style={{ gridColumn: 1, gridRow: 1 }}>{row.time ? formatClockTime(row.time) : "Order only · time unknown"}</time>
-      {bridge ? <span aria-hidden="true" className="account-lanes-transfer-bridge" style={{ gridColumn: `${Math.min(first, second) + 2} / ${Math.max(first, second) + 3}`, gridRow: 1 }} /> : null}
+      <time dateTime={row.time ? `${date}T${row.time}` : date} style={{ gridColumn: 1, gridRow: bridge ? "1 / span 2" : 1 }}>{row.time ? formatClockTime(row.time) : "Order only · time unknown"}</time>
+      {bridge ? <span aria-hidden="true" className={`account-lanes-transfer-bridge${first > second ? " account-lanes-transfer-bridge--left" : ""}`} style={{ "--bridge-lanes": Math.abs(first - second) + 1, gridColumn: `${Math.min(first, second) + 2} / ${Math.max(first, second) + 3}`, gridRow: 1 } as CSSProperties} /> : null}
       {selectedAccounts.map((account, index) => {
         const direction = placedAccount && placedAccount !== account.id ? null : laneDirection(row, account.id);
-        if (!direction) return <div className="account-lanes-cell" key={account.id} style={{ gridColumn: index + 2, gridRow: 1 }} />;
+        if (!direction) return <div className="account-lanes-cell" key={account.id} style={{ gridColumn: index + 2, gridRow: bridge ? "1 / span 2" : 1 }} />;
         const otherId = row.type === "transfer" ? row.account === account.id ? row.transfer_account : row.account : null;
         const other = otherId ? accountById.get(otherId) : null;
         const gap = gaps.get(account.id)?.get(row.id);
         const suggested = suggestedBalances.get(account.id)?.get(row.id);
         const allocation = balanceAllocation(row, account);
-        const calculated = allocation?.status === "confirmed" ? allocation.balances[row.id] : null;
-        return <div className="account-lanes-cell" key={account.id} style={{ gridColumn: index + 2, gridRow: 1 }}>
+        const calculated = allocation?.status === "confirmed" ? allocation.balances[row.id] ?? null : null;
+        return <div className="account-lanes-cell" key={account.id} style={{ gridColumn: index + 2, gridRow: bridge ? "1 / span 2" : 1 }}>
           <button className={`account-lanes-card${selected?.id === row.id ? " is-selected" : ""}${bridge ? " account-lanes-card--paired" : ""}`} data-lane-card={row.id} type="button" onClick={event => selectTransaction(row, event.detail === 0)}>
             <span className="account-lanes-card__top"><strong>{title(row)}</strong>{row.type === "transfer" ? <LinkSimple aria-hidden="true" size={16} /> : null}</span>
             <small className={placedAccount ? "account-lanes-placed-label" : undefined}>{row.time ? formatClockTime(row.time) : placementBasis === "balance" ? "Balance-supported order · no clock time" : "Manually placed · no clock time"} · {row.type.replaceAll("_", " ")}{row.category && categoryById.get(row.category) ? ` · ${categoryById.get(row.category)}` : ""}</small>
-            {bridge ? <small className="account-lanes-pair-label">Same transfer · {other?.name ?? "other account"}</small> : null}
-            <span className="account-lanes-card__numbers">{mode !== "balance" ? <b className={direction === "credit" ? "is-credit" : "is-debit"}>{amountLabel(row, account.id, account.currency)}</b> : null}{mode !== "amount" ? <span>{calculated ? "Confirmed bal " : "Bal "}{calculated ? formatCurrency(calculated, account.currency) : laneBalance(row, account.id) === null ? "not reported" : formatCurrency(laneBalance(row, account.id)!, account.currency)}</span> : null}</span>
+            {bridge ? <small className="account-lanes-pair-label">{direction === "debit" ? "To" : "From"} · {other?.name ?? "other account"}</small> : null}
+            <span className="account-lanes-card__numbers">{mode !== "balance" ? <b className={direction === "credit" ? "is-credit" : "is-debit"}>{amountLabel(row, account.id, account.currency)}</b> : null}{mode !== "amount" ? <span className="account-lanes-card__balance"><span>{calculated ? "Confirmed bal " : "Bal "}{calculated ? formatCurrency(calculated, account.currency) : laneBalance(row, account.id) === null ? "not reported" : formatCurrency(laneBalance(row, account.id)!, account.currency)}</span><TimelineBalanceStatus value={calculated ?? laneBalance(row, account.id)} account={account.id} currency={account.currency} date={row.date} time={row.time} direction={direction} sources={row.balance_sources} calculated={calculated !== null} /></span> : null}</span>
           </button>
-          {mode !== 'amount' ? <BalanceSourceBadges value={calculated ?? laneBalance(row, account.id)} account={account.id} currency={account.currency} date={row.date} time={row.time} direction={direction} sources={row.balance_sources} calculated={calculated !== null} /> : null}
+          <div className="account-lanes-card-details">
           {calculated ? <small className="account-lanes-confirmed-balance">Calculated · manually confirmed · Source final {formatCurrency(allocation!.reported_final, account.currency)}</small> : null}
           {renderAllocation(row, account)}
           {other && !selectedIds.includes(other.id) ? <button className="account-lanes-hidden-link" type="button" onClick={() => showAccount(other.id)}><LinkSimple aria-hidden="true" size={14} /> Other side: {other.name} hidden · Show lane <Eye aria-hidden="true" size={14} /></button> : null}
           {showGaps && gap ? <button className="account-lanes-gap" type="button" onClick={event => selectTransaction(row, event.detail === 0)}>{suggested ? <>Suggested ledger balance · {balanceCentsLabel(suggested.valueCents, account.currency)}{suggested.uncertainty.length ? " · Timing unverified" : ""}</> : <>Expected {balanceCentsLabel(gap.expectedCents, account.currency)} · {gap.uncertainty.length ? "difference in shown order" : "difference"} {gap.differenceCents > 0 ? "+" : "−"}{centsLabel(gap.differenceCents, account.currency)}</>} · Review balance & timing <CaretRight size={14} /></button> : null}
+          </div>
         </div>;
       })}
     </div>;
@@ -639,6 +640,7 @@ export function AccountLanesWorkspace() {
   };
   const renderGapDetail = ({ account, detail }: (typeof selectedGapRows)[number]) => {
     const suggestion = suggestedBalances.get(account.id)?.get(detail.to.id);
+    const expectedDraft = { account: account.id, balance: (detail.expectedCents / 100).toFixed(2), snapshot: balanceEditSnapshot(detail.to), timingWarning: (suggestion?.uncertainty ?? detail.uncertainty).join(" ") };
     return <div className="account-lanes-gap-case" key={account.id}>
     <strong><AccountLabel account={account} /></strong>
     {suggestion ? <section className="account-lanes-balance-suggestion" aria-label="Calculated balance suggestion">
@@ -648,7 +650,7 @@ export function AccountLanesWorkspace() {
         <div><dt>From previous ledger balance</dt><dd>{balanceCentsLabel(detail.priorCents, account.currency)} {detail.movementCents < 0 ? "−" : "+"} {centsLabel(detail.movementCents, account.currency)} = {balanceCentsLabel(suggestion.valueCents, account.currency)}</dd></div>
         <div><dt>From next ledger balance</dt><dd>{balanceCentsLabel(suggestion.next.actualCents, account.currency)} {suggestion.next.movementCents < 0 ? "+" : "−"} {centsLabel(suggestion.next.movementCents, account.currency)} = {balanceCentsLabel(suggestion.valueCents, account.currency)}</dd></div></dl>
       {suggestion.uncertainty.length ? <><p>Timing or order still needs review:</p><ul>{suggestion.uncertainty.map(reason => <li key={reason}>{reason}</li>)}</ul></> : null}
-      <div className="account-lanes-suggestion-actions"><button className="button button--primary button--small" type="button" onClick={() => edit(detail.to.id, { account: account.id, balance: (suggestion.valueCents / 100).toFixed(2), snapshot: balanceEditSnapshot(detail.to) })}>Use suggested balance</button><button className="button button--ghost button--small" type="button" onClick={() => edit(detail.to.id)}>Review saved balance</button></div>
+      <div className="account-lanes-suggestion-actions"><button className="button button--primary button--small" type="button" onClick={() => edit(detail.to.id, expectedDraft)}>Use expected balance</button><button className="button button--ghost button--small" type="button" onClick={() => edit(detail.to.id)}>Review saved balance</button></div>
       <p>Check the original sources before saving a correction. No values have been changed.</p>
     </section> : null}
     <dl>
@@ -658,6 +660,10 @@ export function AccountLanesWorkspace() {
       <div><dt>Saved balance at ledger position · {formatCalendarDate(detail.to.date)} {detail.to.time ? formatClockTime(detail.to.time) : ""}</dt><dd>{balanceCentsLabel(detail.actualCents, account.currency)}</dd></div>
       <div className="account-lanes-gap-case__difference"><dt>Difference (reported − expected)</dt><dd>{detail.differenceCents >= 0 ? "+" : "−"}{centsLabel(detail.differenceCents, account.currency)}</dd></div>
     </dl>
+    {!suggestion && Number.isSafeInteger(detail.expectedCents) ? <div className="account-lanes-expected-action">
+      <button className="button button--primary button--small" type="button" onClick={() => edit(detail.to.id, expectedDraft)}>Use expected balance</button>
+      <p>{detail.uncertainty.length ? "Based on displayed order; timing still needs verification. " : "Calculated from the previous ledger balance and included movements. "}Copies {balanceCentsLabel(detail.expectedCents, account.currency)} into the editor. Review and save to confirm; original sources stay unchanged.</p>
+    </div> : null}
     <details><summary>{detail.movements.length} included {detail.movements.length === 1 ? "movement" : "movements"}</summary><ol>{detail.movements.map(row => <li key={row.id}>{formatCalendarDate(row.date)} {row.time ? formatClockTime(row.time) : ""} · {title(row)} · {amountLabel(row, account.id, account.currency)} <button className="account-lanes-gap-link" type="button" onClick={() => edit(row.id)}>Open entry and sources</button></li>)}</ol></details>
     <p>{detail.uncertainty.length ? "This arithmetic uses the displayed order. It does not establish a missing transaction or fee." : "Only fully loaded days with an unambiguous order produce a numeric gap. Check missing movements or fees before reconciling."}</p>{detail.uncertainty.length ? <ul>{detail.uncertainty.map(reason => <li key={reason}>{reason}</li>)}</ul> : null}
     <button className="account-lanes-gap-link" type="button" onClick={() => edit(detail.from.id)}>Open previous entry and sources</button>
@@ -737,7 +743,9 @@ export function AccountLanesWorkspace() {
             const account = accountById.get(id);
             if (!account) return null;
             const observation = selected.transfer_evidence.find(item => item.account === id);
-            return <div key={id}><strong><AccountLabel account={account} /></strong><span className={laneDirection(selected, id) === "credit" ? "is-credit" : "is-debit"}>{amountLabel(selected, id, account.currency)}</span><small>Reported balance after</small><CompactReportedBalances record={selected} accounts={accounts} onlyAccount={id} showNames={false} />{observation && (observation.date !== selected.date || observation.time !== selected.time) ? <small>Source observed {formatCalendarDate(observation.date)} · {observation.time ? formatClockTime(observation.time) : "time not reported"}; lane position uses the ledger date.</small> : null}{!selectedIds.includes(id) ? <button type="button" onClick={() => showAccount(id)}>Show {account.name} lane</button> : null}</div>;
+            const allocation = balanceAllocation(selected, account);
+            const confirmedBalance = allocation?.status === "confirmed" ? allocation.balances[selected.id] ?? null : null;
+            return <div key={id}><strong><AccountLabel account={account} /></strong><span className={laneDirection(selected, id) === "credit" ? "is-credit" : "is-debit"}>{amountLabel(selected, id, account.currency)}</span><small>Reported balance after</small><CompactReportedBalances record={selected} accounts={accounts} onlyAccount={id} showNames={false} /><TimelineBalanceStatus details value={confirmedBalance ?? laneBalance(selected, id)} account={id} currency={account.currency} date={selected.date} time={selected.time} direction={laneDirection(selected, id) ?? ""} sources={selected.balance_sources} calculated={confirmedBalance !== null} />{observation && (observation.date !== selected.date || observation.time !== selected.time) ? <small>Source observed {formatCalendarDate(observation.date)} · {observation.time ? formatClockTime(observation.time) : "time not reported"}; lane position uses the ledger date.</small> : null}{!selectedIds.includes(id) ? <button type="button" onClick={() => showAccount(id)}>Show {account.name} lane</button> : null}</div>;
           })}</div>
           {selectedAccounts.map(account => {
             const allocation = balanceAllocation(selected, account);

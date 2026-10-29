@@ -278,3 +278,24 @@ transaction by itself.
 Unlinking an SMS offers an Open SMS in review action in both the success toast and
 the correction panel. The candidate link retrieves that pending SMS directly,
 even outside the first 100 inbox messages. Its received date remains unchanged.
+
+Transfer connectors use a shared card-height grid track, keeping their endpoints
+centered even when source badges or balance warnings differ below the cards.
+Arrowheads point from the debited account to the credited account, including
+right-to-left transfers. To/From labels provide the same direction in text.
+
+Timeline cards show compact source icons beside the balance rather than a second
+row of badges. Green means numeric agreement, red means a conflicting balance,
+and amber means unverified account/direction/source information. A separate
+amber clock preserves timing uncertainty even beside a green numeric match.
+These icons are part of the card's details action, not nested buttons. The
+inspector shows each account's complete source-check explanation as normal text
+that works with keyboard, touch and screen readers without hover.
+
+Every displayed balance difference offers an explicit editor prefill, even when
+only a previous ledger anchor is available. Use expected balance copies the
+displayed-order calculation into the affected account's unsaved balance field.
+Timing uncertainty travels into the editor warning. It does not imply source
+verification or save automatically; the existing freshness check, explicit Save,
+audit history and Undo remain in effect. Two-sided suggestions keep their
+stronger neighbouring-balance explanation.

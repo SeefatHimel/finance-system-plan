@@ -1863,3 +1863,28 @@ SMS clock changes update page-local drafts and normal form submission together.
 Unlinked SMS messages have a direct pending-review link, including messages beyond
 the first loaded inbox page. These changes are frontend-only and require no new
 API endpoints or migrations.
+
+### How does the timeline show transfer direction?
+
+Paired transfer cards share a card-height grid track. Their connector joins the
+card centers, independent of balance warnings below them. An arrowhead points at
+the receiving account in either lane order; To/From labels also state direction
+without relying on color. Hidden or separately placed sides keep their existing
+account links rather than drawing a misleading connector.
+
+### Why do timeline cards use compact source icons?
+
+Icons beside the balance reduce row height; selecting the card or its source
+icon opens transaction details with per-account source explanations. Numeric
+agreement is green, conflicting values red, unverified evidence amber. A separate
+amber clock means timing is uncertain, even when values agree. Missing metadata
+is not shown as a verified match. Full status labels remain accessible. Other
+transaction screens retain their existing badge presentation.
+
+### Can users quickly use a timeline's expected balance?
+
+Yes. A displayed difference offers Use expected balance even without a second
+confirming anchor. It opens the existing ledger editor with the affected
+account's expected balance prefilled. Display-order and timing warnings remain
+visible, and Save is still explicit. Fresh-record snapshot checks reject stale
+prefills; original sources and transaction amounts stay unchanged.

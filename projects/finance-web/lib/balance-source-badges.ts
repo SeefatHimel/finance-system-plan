@@ -1,6 +1,6 @@
 export type BalanceSource = { kind: 'sms' | 'statement'; account: string | null; balance_after: string | null; currency: string; direction: string; date: string | null; time: string | null; time_kind: 'reported' | 'received'; usable: boolean };
 export type BalanceSources = { observations: BalanceSource[]; complete: boolean };
-export type BalanceBadge = { kind: 'sms' | 'statement' | 'calculated' | 'unchecked'; label: string; tone: 'ok' | 'warning' | 'idle'; detail: string; clock?: boolean };
+export type BalanceBadge = { kind: 'sms' | 'statement' | 'calculated' | 'unchecked'; label: string; tone: 'ok' | 'warning' | 'idle'; detail: string; clock?: boolean; balanceMismatch?: boolean };
 function cents(value: string | null) {
   if (value === null || !/^-?\d+(?:\.\d{1,2})?$/.test(value)) return null;
   const negative = value.startsWith('-');
@@ -26,7 +26,7 @@ export function balanceSourceBadges(input: { value: string | null; account: stri
     const agrees = valid.filter(item => cents(item.balance_after) === value);
     const detail = valid.map(item => `${name}: ${item.currency} ${item.balance_after}; ${item.date ?? 'date unknown'} ${item.time ?? 'time unknown'}${item.time_kind === 'received' ? ' (SMS receipt time)' : ''}`).join(' | ');
     if (agrees.length !== valid.length) {
-      badges.push({kind,label:agrees.length ? `${name} conflicts` : `${name} differs`,tone:'warning',detail:`${detail}. Balance values differ; reporting times may differ too. This does not prove a missing movement.`});continue;
+      badges.push({kind,label:agrees.length ? `${name} conflicts` : `${name} differs`,tone:'warning',balanceMismatch:true,detail:`${detail}. Balance values differ; reporting times may differ too. This does not prove a missing movement.`});continue;
     }
     const sameMoment = valid.every(item => item.time_kind === 'reported' && item.date === input.date && item.time !== null && input.time !== null && clock(item.time) === clock(input.time));
     badges.push({kind,label:sameMoment ? `Matches ${name}` : `${name} value agrees`,tone:sameMoment ? 'ok' : 'warning',clock:!sameMoment,detail:`${detail}. ${sameMoment ? 'Exact balance agreement for this account, direction, currency and reported time; this does not verify every transaction detail.' : 'Numeric agreement only: source event time is missing, different, or based on SMS receipt time.'}`});

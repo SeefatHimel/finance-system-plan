@@ -11,17 +11,18 @@ test('an exact same-account, direction, currency and reported moment can match',
 });
 test('equal receipt-only, unknown or different-time reports remain numeric agreement',()=>{
  for(const changed of [{kind:'sms',time_kind:'received'},{time:null},{date:'2026-01-03'},{time:'12:01:00'}]){
-  const badge=check([{...source,...changed}])[0];assert.equal(badge.tone,'warning');assert.equal(badge.clock,true);assert.match(badge.label,/value agrees/);
+  const badge=check([{...source,...changed}])[0];assert.equal(badge.tone,'warning');assert.equal(badge.clock,true);assert.match(badge.label,/value agrees/);assert.notEqual(badge.balanceMismatch,true);
  }
 });
 test('one matching source cannot hide a contradictory source of the same kind',()=>{
  assert.equal(check([source,{...source,balance_after:'100.01'}])[0].label,'Statement conflicts');
  assert.equal(check([{...source,balance_after:'100.01'}])[0].label,'Statement differs');
  assert.equal(check([{...source,kind:'sms',balance_after:'99.99'}])[0].label,'SMS differs');
+ for(const sources of [[{...source,balance_after:'99.99'}],[source,{...source,balance_after:'100.01'}]])assert.equal(check(sources)[0].balanceMismatch,true);
 });
 test('another transfer account never lends its balance to this field',()=>{
  assert.deepEqual(check([{...source,account:'card'}]),[]);
- for(const changed of [{account:null},{usable:false},{currency:'USD'},{direction:'credit'},{balance_after:null}])assert.equal(check([{...source,...changed}])[0].label,'Statement unverified');
+ for(const changed of [{account:null},{usable:false},{currency:'USD'},{direction:'credit'},{balance_after:null}]){assert.equal(check([{...source,...changed}])[0].label,'Statement unverified');assert.notEqual(check([{...source,...changed}])[0].balanceMismatch,true);}
 });
 test('calculated values, incomplete checks, malformed values and absent reports cannot pass',()=>{
  assert.equal(balanceSourceBadges({...base,calculated:true})[0].label,'Calculated');
