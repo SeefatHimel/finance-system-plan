@@ -1,5 +1,14 @@
 # Web App Q&A
 
+### Can an incorrect SMS balance-report account be repaired while pairing?
+
+Yes. Expand Review report accounts on an existing transfer suggestion, compare the
+two account balances, original SMS and current report assignment, then confirm a
+direction-compatible repair. The repair uses the existing signed correction API
+and refreshes suggestions without discarding the pair draft or changing pages.
+The old link selection is cleared for a fresh decision. Bank and card balances
+are kept separate; genuine same-account balance conflicts still need review.
+
 ### How are refreshing transactions and resetting filters distinguished?
 
 The transaction toolbar has separate circular-arrow Refresh and X Reset controls.

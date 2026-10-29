@@ -1,5 +1,20 @@
 # finance-web
 
+## Review transfer report accounts while pairing
+
+Each existing transfer suggestion in SMS + statement review has a lazy **Review
+report accounts** panel. It shows the effective balance for each account, each
+saved SMS's interpreted account, its attached report's account and the original
+SMS. Bank and card balances are displayed separately. Only direction-compatible
+account repairs are offered, including an incorrectly attached report whose SMS
+interpretation is already correct. The user explicitly confirms one repair.
+
+The panel uses the existing signed revalidation and SMS-evidence correction APIs.
+It keeps the pair draft in place, refreshes ledger suggestions after a correction,
+clears the stale link choice and requires reselecting the refreshed suggestion.
+Errors use toasts; reads are abortable and loading/retry states remain inline.
+Latest-action Undo and History retain the existing correction recovery behavior.
+
 ATM cash withdrawals in SMS review default to debit transfers. The destination
 selector puts active, same-currency Cash and Home cash accounts first. A sole
 cash account is suggested, while multiple accounts require a choice. If no cash

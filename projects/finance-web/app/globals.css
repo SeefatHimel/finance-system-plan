@@ -3712,6 +3712,22 @@ body[data-review-focus="true"] .app-sidebar, body[data-review-focus="true"] .app
 .unified-ledger-suggestion .transaction-source-messages { background: var(--panel); margin: 10px 0; }
 .unified-ledger-suggestion .statement-match-reasons { margin: 8px 0; }
 .unified-ledger-suggestion .statement-match-reasons ul { margin: 6px 0; }
+.unified-ledger-suggestions:has(.transfer-report-review > section) { max-height: none; overflow: visible; }
+.transfer-report-review { margin: 10px 0; min-width: 0; }
+.transfer-report-review > section { margin-top: 10px; padding: 14px; border: 1px solid var(--panel-border); border-radius: 10px; background: var(--panel); overflow-wrap: anywhere; }
+.transfer-report-review h4 { margin: 0 0 8px; }
+.transfer-report-review__balances { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 10px; margin: 14px 0; }
+.transfer-report-review__balances > div { padding: 10px; border: 1px solid var(--panel-border); border-radius: 8px; }
+.transfer-report-review__balances dt { color: var(--muted); font-size: 12px; }
+.transfer-report-review__balances dd { margin: 5px 0 0; font-variant-numeric: tabular-nums; }
+.transfer-report-review__source { border-top: 1px solid var(--panel-border); padding: 12px 0; }
+.transfer-report-review__source fieldset { margin: 12px 0 0; padding: 10px; border: 1px solid var(--panel-border); border-radius: 8px; }
+.transfer-report-review__source legend { font-weight: 600; padding: 0 4px; }
+.transfer-report-review__source details { margin: 10px 0; }
+.transfer-report-review__original { white-space: pre-wrap; }
+.transfer-report-review__confirm { padding: 12px 0; border-top: 1px solid var(--panel-border); }
+.transfer-report-review__spinner { display: inline-block; width: 15px; height: 15px; margin-right: 5px; vertical-align: middle; border: 2px solid var(--panel-border); border-top-color: var(--accent); border-radius: 50%; animation: loader-spin .8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .transfer-report-review__spinner { animation-duration: 2s; } }
 .unified-ledger-choice { align-items: flex-start; border: 1px solid var(--panel-border); border-radius: 8px; cursor: pointer; display: flex; font-size: 13px; gap: 9px; margin-top: 9px; min-height: 42px; padding: 10px; }
 .unified-ledger-choice:has(input:checked) { border-color: var(--accent); }
 .unified-ledger-choice input { accent-color: var(--accent); flex: 0 0 auto; margin: 2px 0 0; }

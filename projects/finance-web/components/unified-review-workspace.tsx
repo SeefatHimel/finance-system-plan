@@ -10,6 +10,7 @@ import { SourceAttention } from "@/components/source-attention";
 import { SourceEvidenceLegend, SourceEvidenceText } from "@/components/source-evidence-text";
 import { StatementPdfReference } from "@/components/statement-pdf-reference";
 import { TransactionSourceMessages } from "@/components/transaction-source-messages";
+import { TransferReportAccountReview } from "@/components/transfer-report-account-review";
 import { useMessageChoiceToast } from "@/components/use-message-choice-toast";
 import { compareSmsStatementReports } from "@/lib/sms-statement-evidence";
 import { UnifiedPairEditor, initialPairDraft, savedPairDraft, type PairTypeChoice } from "@/components/unified-pair-editor";
@@ -296,9 +297,10 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
             {match.ledger_note ? <p>Ledger note: {match.ledger_note}</p> : null}
             {match.ledger_reference ? <p>Ledger reference: {match.ledger_reference}</p> : null}
             {match.ledger_source_balance_after !== null ? <p className="inline-note">{match.account_name} reported balance: {match.ledger_source_balance_after}</p> : null}
-            {match.reporting_observation_is_fallback ? <p className="inline-note">No {pair.batch.account_name} report is attached to this ledger entry yet. Its date above comes from {match.account_name}; it is only a search hint.</p> : <p className="inline-note">{pair.batch.account_name} report: {formatCalendarDate(match.date)}{match.time ? ` · ${formatClockTime(match.time)}` : ""} · balance {match.effective_balance_after ?? "not reported"}{match.reference ? ` · reference ${match.reference}` : ""}{match.note ? ` · ${match.note}` : ""}</p>}
+            {match.reporting_observation_is_fallback ? <p className="inline-note">No {pair.batch.account_name} report is attached to this ledger entry yet. The saved entry date is only a search hint; other-account balances are not compared.</p> : <p className="inline-note">{pair.batch.account_name} report: {formatCalendarDate(match.date)}{match.time ? ` · ${formatClockTime(match.time)}` : ""} · balance {match.effective_balance_after ?? "not reported"}{match.reference ? ` · reference ${match.reference}` : ""}{match.note ? ` · ${match.note}` : ""}</p>}
             <p className="unified-ledger-suggestion__id" title={match.id}>Ledger ID {match.id.slice(0, 8)}</p>
             <TransactionSourceMessages key={match.id} transactionId={match.id} loadOnExpand showEmpty />
+            {match.type === "transfer" ? <TransferReportAccountReview transactionId={match.id} busy={busy} onBusyChange={setBusy} onChanged={refreshLedgerReview} /> : null}
             <details className="statement-match-reasons" open={!match.can_link}><summary>Why suggested{match.can_link ? "" : " and why linking is unavailable"}</summary><ul>{match.reasons.map((reason, index) => <li key={`${match.id}-${index}`}>{reason}</li>)}</ul></details>
             {match.can_link ? <label className="unified-ledger-choice"><input type="radio" name="unified-ledger-decision" checked={ledger === match.id} disabled={busy} onChange={() => { setBalance(match.can_fill_missing_balance ? suggestedLinkedBalanceSource(pair.sms.balance_after, draft.balance_after, statementIncludesSeparateFee, pair.batch.currency) : ""); setLedger(match.id); setSeparateLedgerMovement(false); setAckDistinctLedgerMatches(false); setLedgerCleared(false); setAckConflict(false); }} /><span>This is the same movement · link both sources</span></label> : null}
           </article>)}

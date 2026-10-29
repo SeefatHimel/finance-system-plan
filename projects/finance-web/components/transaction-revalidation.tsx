@@ -6,6 +6,7 @@ import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { ModalDialog } from "@/components/modal-dialog";
 import { useToast } from "@/components/toast-provider";
 import { getAccessToken } from "@/lib/auth-storage";
+import { reportAccountChoices } from "@/lib/transfer-report-review";
 import { applyTransactionRevalidation, correctTransactionSmsEvidence, listTransactionSourceMessages, previewTransactionRevalidation, type TransactionRevalidation, type TransactionSourceMessage } from "@/lib/api";
 
 type Props = { transactionId: string; onClose: () => void; onEdit: () => void };
@@ -70,7 +71,7 @@ function SmsCorrectionPanel({ preview, fix, busy, onSelect, onCancel, onConfirm 
     <p>Check the original SMS before choosing. This changes one SMS link; the transfer and other sources stay saved.</p>
     <OriginalSms transaction={preview.transaction} source={fix.source} busy={busy} />
     <div className="revalidation-source-fix__choices">
-      {preview.ledger.accounts.filter(account => account.id !== fix.source.account && account.direction === fix.source.direction).map(account => <label key={account.id}><input type="radio" name="sms-source-fix" checked={fix.action === "move" && fix.account === account.id} onChange={() => onSelect({ source: fix.source, action: "move", account: account.id })} />Move its report to {account.name} ({account.direction})</label>)}
+      {reportAccountChoices(preview, fix.source).map(account => <label key={account.id}><input type="radio" name="sms-source-fix" checked={fix.action === "move" && fix.account === account.id} onChange={() => onSelect({ source: fix.source, action: "move", account: account.id })} />Assign its report to {account.name} ({account.direction})</label>)}
       <label><input type="radio" name="sms-source-fix" checked={fix.action === "unlink"} onChange={() => onSelect({ source: fix.source, action: "unlink" })} />Unlink this SMS and return it to Review inbox</label>
     </div>
     <p>{fix.action === "unlink" ? "Its SMS balance report will be removed from this transfer. Review the SMS before linking it again." : fix.action === "move" ? "The original SMS is preserved; its balance report moves to the selected account." : "Choose how to correct this one SMS."}</p>
