@@ -23,11 +23,17 @@ def code_for_row(row):
     if row.batch.profile == "bkash" and BKASH_CODE.fullmatch(row.source_code or ""):
         return row.source_code
     if row.batch.profile == "ebl_bank":
-        # Old source_code values used a changing movement field. Ignore them;
-        # the original masked description already contains the stable clue.
-        return ebl_identifier(row.extracted.get("description", "")) or (
-            row.source_code if EBL_CODE.fullmatch(row.source_code or "") else None
-        )
+        from .ebl_identifiers import OPERATION
+        description = row.extracted.get("description", "")
+        if OPERATION.search(description):
+            return ebl_identifier(description, direction=row.direction)
+        # Full recipient numbers survive only in the encrypted private field;
+        # public descriptions remain masked. Never reuse old NPSB masks.
+        saved = row.source_code or ""
+        if saved.startswith("ebl:bkash:phone:") and EBL_CODE.fullmatch(saved):
+            derived = ebl_identifier(description, direction=row.direction)
+            return saved if derived in {"ebl:keyword:bkash", saved} else None
+        return ebl_identifier(description, direction=row.direction)
     return None
 
 
@@ -129,7 +135,7 @@ def code_suggestions(rows):
         if not mapping:
             continue
         if row.batch.profile == "ebl_bank" and not mapping.ebl_mask_verified:
-            continue  # Only an explicit save in the mask editor enables EBL rules.
+            continue  # Only an explicit save enables EBL description/recipient rules.
         owned = mapping.party_kind == "owned" and mapping.other_account_id
         if mapping.suggested_type == "transfer" and not owned:
             continue

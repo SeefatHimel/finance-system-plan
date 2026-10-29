@@ -186,7 +186,8 @@ class StatementCounterpartyCode(models.Model):
         "categories.Category", null=True, blank=True, on_delete=models.SET_NULL,
     )
     note_template = models.CharField(max_length=500, blank=True)
-    # Old EBL movement-field rules must never become mask mappings implicitly.
+    # Legacy column name: explicit verification for supported EBL wording/recipient rules.
+    # Retired NPSB own-card rules are never eligible, regardless of this flag.
     ebl_mask_verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -298,7 +298,9 @@ def refresh_statement_identifiers(batch, preview, *, strict=False):
     for row, original in zip(saved, original_rows):
         code = original.get("bkash_identifier" if batch.profile == "bkash" else "ebl_identifier")
         replace_retired = batch.profile == "ebl_bank" and RETIRED_CODE.fullmatch(row.source_code or "")
-        if not code or (row.source_code and not replace_retired):
+        if replace_retired:
+            code = code or ""  # A rescan must clear, never recreate, NPSB own-card clues.
+        elif not code or row.source_code:
             continue
         row.source_code = code
         row.version += 1

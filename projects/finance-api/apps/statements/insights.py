@@ -137,7 +137,7 @@ def suggestions(rows):
             for category in Category.objects.filter(
                 user_id=batch.user_id,
                 name__in=shared_names,
-                kind="expense",
+                kind__in=["expense", "income"],
                 is_active=True,
             )
         }
@@ -147,13 +147,14 @@ def suggestions(rows):
     def add_shared_category(row):
         name = shared_category_name(row)
         category = shared_categories.get(name)
-        if category and row.id not in result:
+        expected_kind = "income" if row.batch.profile == "ebl_bank" else "expense"
+        if category and category.kind == expected_kind and row.id not in result:
             result[row.id] = {
                 "type": row.type,
                 "category": str(category.id),
                 "other_account": None,
                 "reason": (
-                    f"Shared {name} category hint from the printed bKash merchant. "
+                    f"Shared {name} category hint from the printed {'EBL salary wording' if row.batch.profile == 'ebl_bank' else 'bKash merchant'}. "
                     "Check it before applying; your saved choices take priority."
                 ),
             }

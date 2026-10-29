@@ -583,7 +583,7 @@ def extract_statement(data: bytes, password="", *, include_private_identifiers=F
                     reporting_number=identifier[1] if identifier else "",
                 ) if profile == "bkash" else None
             ) if include_private_identifiers else None
-            printed_ebl_identifier = ebl_identifier(description) if include_private_identifiers and profile == "ebl_bank" else None
+            printed_ebl_identifier = ebl_identifier(description, direction="debit" if values["out"] is not None else "credit") if include_private_identifiers and profile == "ebl_bank" else None
             rows.append(
                 {
                     "id": f"{pi}:{ai + 1}",

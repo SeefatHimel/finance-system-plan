@@ -112,15 +112,21 @@ def cleanup_plan(user, *, lock=False):
         "id", "source_code", "version",
     ).order_by("id")
     rules = StatementCounterpartyCode.objects.filter(
-        user=user, profile="ebl_bank", ebl_mask_verified=False,
+        user=user, profile="ebl_bank",
     ).only(
-        "id", "updated_at",
+        "id", "updated_at", "account_id", "code", "direction", "ebl_mask_verified",
     ).order_by("id")
     if lock:
         rows = rows.select_for_update(of=("self",))
         rules = rules.select_for_update()
     rows = [row for row in rows if RETIRED_CODE.fullmatch(row.source_code or "")]
-    rules = list(rules)
+    supported = {
+        (account, mapping_code(profile, account, code), direction)
+        for account, profile, code, direction in observed_codes(user)
+        if profile == "ebl_bank"
+    }
+    rules = [rule for rule in rules if
+             not rule.ebl_mask_verified or (rule.account_id, rule.code, rule.direction) not in supported]
     digest = hashlib.sha256(json.dumps([
         [[str(row.pk), row.version, row.source_code] for row in rows],
         [[str(rule.pk), rule.updated_at.isoformat()] for rule in rules],

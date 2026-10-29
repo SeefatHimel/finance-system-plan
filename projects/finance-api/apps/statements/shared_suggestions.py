@@ -15,7 +15,17 @@ _PAYMENT_MERCHANT_CATEGORIES = (
 
 
 def shared_category_name(row):
-    """Return a broad category for an unedited bKash merchant payment only."""
+    """Public wording hints, never identity or ownership inference."""
+    if row.batch.profile == "ebl_bank":
+        from .ebl_identifiers import salary_description
+        text = str(row.extracted.get("description") or "")
+        if (row.component == "principal" and row.direction == "credit"
+            and row.extracted.get("direction") == "credit" and row.type == "income"
+            and row.category_id is None and row.state == "pending"
+            and row.transaction_id is None and not row.classification_confirmed
+            and salary_description(text)):
+            return "Salary & Wages"
+        return None
     if (
         row.batch.profile != "bkash"
         or row.component != "principal"

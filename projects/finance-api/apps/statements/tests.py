@@ -21,7 +21,7 @@ from apps.transactions.models import Transaction
 from .parser import MAX_BYTES, StatementParseError, extract_statement
 
 
-def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_count=1, account_identifier="9876543210123", city_first_description="PURCHASE CARD SYNTH SHOP", bkash_details=None, bkash_funding_type="Card to bKash", bkash_rows=None, bkash_totals=None, card_credit_description="PMT RECV SYNTHETIC", ebl_details=None):
+def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_count=1, account_identifier="9876543210123", city_first_description="PURCHASE CARD SYNTH SHOP", bkash_details=None, bkash_funding_type="Card to bKash", bkash_rows=None, bkash_totals=None, card_credit_description="PMT RECV SYNTHETIC", ebl_details=None, ebl_heading=None):
     stream = io.BytesIO()
     c = canvas.Canvas(
         stream,
@@ -53,14 +53,14 @@ def synthetic_pdf(profile="ebl_bank", password=None, bad_balance=False, page_cou
             number(486, 580, "1,000.00")
             number(570, 580, "1,000.00")
             text(21, 550, "02-Jan-2026")
-            text(81, 550, "NPSB TRANSFER //SYNTHREF" if not ebl_details else "NPSB FUND TRANSFER")
+            text(81, 550, ebl_heading or ("NPSB TRANSFER //SYNTHREF" if not ebl_details else "NPSB FUND TRANSFER"))
             number(410, 550, "100.00")
             number(570, 550, "900.00")
             text(81, 540, "value date:01-JAN-26 9876543210123" if not ebl_details else ebl_details)
             if ebl_details:
                 text(81, 530, "TO NPSB ACCOUNT //SYNTH-ONE")
             text(21, 510, "02-Jan-2026")
-            text(81, 510, "NPSB TRANSFER //SYNTHREF" if not ebl_details else "NPSB FUND TRANSFER")
+            text(81, 510, ebl_heading or ("NPSB TRANSFER //SYNTHREF" if not ebl_details else "NPSB FUND TRANSFER"))
             if ebl_details:
                 text(81, 500, ebl_details)
                 text(81, 490, "TO NPSB ACCOUNT //SYNTH-ONE")

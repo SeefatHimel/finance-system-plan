@@ -321,9 +321,8 @@ class ShortIdentifierTests(APITestCase):
     def test_statement_rows_do_not_fall_back_to_names_for_unresolved_short_evidence(
         self,
     ):
-        from types import SimpleNamespace
-
         from apps.statements.insights import suggestions
+        from apps.statements.models import StatementImport, StatementRow
 
         reserve = Account.objects.create(
             user=self.user, name="Synthetic reserve", type="bank"
@@ -337,26 +336,27 @@ class ShortIdentifierTests(APITestCase):
             identifier="8723",
             aliases=["Synthetic reserve"],
         )
-        batch = SimpleNamespace(
-            user_id=self.user.pk,
-            account_id=self.bank.pk,
-            profile="ebl_bank",
-            currency="BDT",
+        batch = StatementImport.objects.create(
+            user=self.user, account=self.bank, profile="ebl_bank", currency="BDT",
+            parser_version="2", file_digest="8" * 64, account_identity="synthetic", page_count=1,
         )
-        row = SimpleNamespace(
-            id="synthetic-row",
-            batch=batch,
-            component="principal",
-            direction="debit",
-            extracted={
-                "description": "NPSB TRANSFER Card ***723 Synthetic reserve",
-                "direction": "debit",
-            },
+        row = StatementRow.objects.create(
+            batch=batch, position=1, component="principal", direction="debit",
+            type="expense", amount="100.00", date="2026-01-02",
+            extracted={"description": "NPSB TRANSFER Card ***723 Synthetic reserve", "direction": "debit"},
         )
         self.assertEqual(suggestions([row]), {})
         row.extracted["description"] = "NPSB TRANSFER Card ***999 Synthetic reserve"
         self.assertEqual(suggestions([row]), {})
         row.extracted["description"] = "NPSB TRANSFER Card ***8723 Synthetic reserve"
+        # NPSB masks describe the sender, even if a saved account suffix overlaps.
+        self.assertEqual(suggestions([row]), {})
+        # Keep the generic non-NPSB short-identifier guard covered separately.
+        row.extracted["description"] = "EFT TRANSFER Card ***723 Synthetic reserve"
+        self.assertEqual(suggestions([row]), {})
+        row.extracted["description"] = "EFT TRANSFER Card ***999 Synthetic reserve"
+        self.assertEqual(suggestions([row]), {})
+        row.extracted["description"] = "EFT TRANSFER Card ***8723 Synthetic reserve"
         self.assertEqual(suggestions([row])[row.id]["other_account"], str(reserve.pk))
 
     def test_incoming_short_sender_preserves_independently_identified_receiver(self):

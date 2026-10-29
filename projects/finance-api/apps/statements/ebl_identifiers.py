@@ -1,22 +1,44 @@
-"""Masked EBL card/account evidence, separate from movement references and payees."""
+"""Useful EBL description clues; own-card masks and NPSB references are excluded."""
 
 import re
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 
-CODE = re.compile(r"^npsb:masked:\d{4,6}\*{2,}\d{2,4}\*?$")
-RETIRED_CODE = re.compile(r"^npsb:code:\d{6,24}$")
+# Retained only to remove legacy own-card and movement-field metadata.
+RETIRED_CODE = re.compile(r"^npsb:(?:code:\d{6,24}|masked:\d{4,6}\*{2,}\d{2,4}\*?)$")
+CODE = re.compile(r"^ebl:(?:keyword:(?:salary|patapay|bkash)|bkash:phone:01[3-9]\d{8})$")
 OPERATION = re.compile(r"\bNPSB\s+(?:FUND\s+)?TRANSFER\b", re.IGNORECASE)
-PRINTED = re.compile(r"(?<![A-Za-z0-9*])(\d{4,6}\*{2,}\d{2,4}\*?)(?![A-Za-z0-9*])")
 REFERENCE = re.compile(r"//\s*([A-Z0-9][A-Z0-9-]{5,63})(?![A-Z0-9-])", re.IGNORECASE)
+SALARY = re.compile(r"\b(?:salary|payroll)\b", re.IGNORECASE)
+SALARY_EXCLUSIONS = re.compile(r"\b(?:loan|advance|reversal|reversed|refund|return|returned)\b", re.IGNORECASE)
+REFERENCE_SECTION = re.compile(r"//|\b(?:reference|ref|trx\s*id)\s*[:#=]", re.IGNORECASE)
+BKASH = re.compile(r"\b(?:bkash|bikash)\b", re.IGNORECASE)
+# Only numbers explicitly introduced as a recipient, never a card/account mask
+# or a number merely adjacent to a movement/reference field.
+BKASH_RECIPIENT = re.compile(r"\b(?:to|recipient|beneficiary)\s*(?:bkash\s*)?(?:no\.?\s*[:=-]?\s*)?[:=-]?\s*(01[3-9]\d{8})(?![\d*])", re.IGNORECASE)
 
 
-def identifier(description):
-    """Retain the printed mask, including its trailing star; never infer its owner."""
-    if not OPERATION.search(description or ""):
+def salary_description(description):
+    text = REFERENCE_SECTION.split(description or "", maxsplit=1)[0]
+    return bool(SALARY.search(text) and not SALARY_EXCLUSIONS.search(text))
+
+
+def identifier(description, *, direction=None):
+    """Return review-only wording/recipient clues, never the reporting card."""
+    text = REFERENCE_SECTION.split(description or "", maxsplit=1)[0]
+    if salary_description(text):
+        return "ebl:keyword:salary" if direction in (None, "credit") else None
+    if OPERATION.search(text):
         return None
-    found = set(PRINTED.findall(description or ""))
-    return f"npsb:masked:{next(iter(found))}" if len(found) == 1 else None
+    if re.search(r"\bpata\s*pay\b", text, re.IGNORECASE):
+        return "ebl:keyword:patapay"
+    if BKASH.search(text) and re.search(r"\b(?:transfer|fund|to)\b", text, re.IGNORECASE):
+        recipients = set(BKASH_RECIPIENT.findall(text))
+        if len(recipients) == 1:
+            return f"ebl:bkash:phone:{next(iter(recipients))}"
+        # A generic service clue never pretends to identify an individual.
+        return "ebl:keyword:bkash"
+    return None
 
 
 def movement_reference(description):

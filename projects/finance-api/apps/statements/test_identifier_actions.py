@@ -107,8 +107,10 @@ class IdentifierActionsTests(APITestCase):
     def ebl_fixture(self):
         batch = self.batch_for(self.bank, "ebl_bank", "c")
         old = self.make_row(batch, "npsb:code:765432109876", "NPSB TRANSFER 111122****123*||***9876|DC")
-        correct = self.make_row(batch, "npsb:masked:111122****123*", "NPSB TRANSFER 111122****123*||***9877|DC", 2)
-        rule = self.rule(self.bank, "ebl_bank", "npsb:code:765432109876")
+        correct = self.make_row(batch, "ebl:keyword:bkash", "bKash transfer", 2)
+        rule = self.rule(self.bank, "ebl_bank", "npsb:masked:111122****123*")
+        rule.ebl_mask_verified = True
+        rule.save(update_fields=["ebl_mask_verified"])
         return old, correct, rule
 
     def test_cleanup_preview_is_read_only_and_only_clears_retired_metadata(self):
@@ -141,7 +143,7 @@ class IdentifierActionsTests(APITestCase):
         self.assertEqual(old.note, "Keep this decision")
         self.assertEqual(str(entry.amount), "100.00")
         self.assertEqual(entry.note, "Posted note")
-        self.assertEqual(correct.source_code, "npsb:masked:111122****123*")
+        self.assertEqual(correct.source_code, "ebl:keyword:bkash")
         self.assertEqual(correct.version, correct_version)
         self.assertEqual(StatementCounterpartyCode.objects.get(user=self.user).profile, "city_bank")
         foreign_row.refresh_from_db()
@@ -171,16 +173,16 @@ class IdentifierActionsTests(APITestCase):
     def test_ebl_clues_can_be_skipped_without_creating_a_party(self):
         self.ebl_fixture()
         response = self.client.post(self.skip_url, self.payload(
-            profile="ebl_bank", code="npsb:masked:111122****123*",
+            profile="ebl_bank", code="ebl:keyword:bkash",
         ), format="json")
         self.assertEqual(response.status_code, 200, response.data)
         clue = next(row for row in self.client.get(self.directory_url).data["results"] if row["profile"] == "ebl_bank")
         self.assertTrue(clue["skipped"])
         self.assertIsNone(clue["mapping"])
 
-    def test_verified_mask_mapping_preserves_skip_scope_and_survives_cleanup(self):
+    def test_verified_wording_mapping_preserves_skip_scope_and_survives_cleanup(self):
         old, correct, _ = self.ebl_fixture()
-        skip = self.payload(profile="ebl_bank", code="npsb:masked:111122****123*")
+        skip = self.payload(profile="ebl_bank", code="ebl:keyword:bkash")
         self.client.post(self.skip_url, skip, format="json")
         saved = self.client.post(self.directory_url, {
             **skip, "party_kind": "external", "label": "Verified masked party",
@@ -209,13 +211,13 @@ class IdentifierActionsTests(APITestCase):
         self.assertEqual(old.source_code, "")
         self.assertEqual(Transaction.objects.count(), 0)
 
-    def test_cleanup_preview_cannot_delete_a_subsequently_verified_mask_rule(self):
+    def test_cleanup_preview_cannot_delete_a_subsequently_verified_wording_rule(self):
         self.ebl_fixture()
-        legacy = self.rule(self.bank, "ebl_bank", "npsb:masked:111122****123*")
+        legacy = self.rule(self.bank, "ebl_bank", "ebl:keyword:bkash")
         preview = self.client.get(self.cleanup_url).data
         saved = self.client.post(self.directory_url, {
             "account": str(self.bank.pk), "profile": "ebl_bank",
-            "code": "npsb:masked:111122****123*", "direction": "debit",
+            "code": "ebl:keyword:bkash", "direction": "debit",
             "party_kind": "external", "label": "Newly verified party",
         }, format="json")
         self.assertEqual(saved.status_code, 200, saved.data)
