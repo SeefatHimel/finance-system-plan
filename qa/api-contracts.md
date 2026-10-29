@@ -954,3 +954,12 @@ source-message parsed JSON. It identifies the confirmed reporting account under
 owner checks. Older responses remain valid, and unknown metadata is never guessed.
 The ledger balance, retained source values and mutation contracts are unchanged;
 no database migration or generated-schema shape change is required.
+
+### Is balance-source metadata a new source of financial data?
+
+No. Transaction `balance_sources` is additive read-only metadata from existing
+owner-scoped saved SMS and immutable statement observations, capped per kind with
+an explicit completeness flag. Source account/currency/direction and reported vs
+receipt time remain separate. It carries no raw SMS/PDF, never writes money, and
+is not a parser rerun or a count of independent sources. No migration is needed;
+API deployment precedes the tolerant web client.

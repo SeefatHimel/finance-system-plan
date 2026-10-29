@@ -1429,3 +1429,12 @@ transfers identify the receiving account. Candidate, message, transaction and
 account ownership are checked; inconsistent or unavailable attribution returns
 null. Related accounts are loaded with the candidate to avoid per-message queries.
 The endpoint remains read-only and needs no migration.
+
+### How are balance provenance badges supplied without per-card requests?
+
+The transaction serializer returns read-only saved-source balance metadata.
+Activity/list queries prefetch bounded owner-scoped SMS and original statement
+observations in batches; adding cards does not add source queries per card.
+Statement drafts and parser reinterpretations are excluded, receipt times are
+explicit, and truncation is incomplete rather than verified. Reads make no ledger
+or parser writes; write responses re-read source facts to avoid stale caches.

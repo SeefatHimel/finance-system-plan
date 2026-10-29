@@ -173,6 +173,23 @@ class UndoRequestSerializer(serializers.Serializer):
     action = serializers.UUIDField()
 
 
+class SourceBalanceObservationSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(choices=('sms', 'statement'))
+    account = serializers.UUIDField(allow_null=True)
+    balance_after = serializers.CharField(allow_null=True)
+    currency = serializers.CharField(allow_blank=True)
+    direction = serializers.CharField(allow_blank=True)
+    date = serializers.DateField(allow_null=True)
+    time = serializers.TimeField(allow_null=True)
+    time_kind = serializers.ChoiceField(choices=('reported', 'received'))
+    usable = serializers.BooleanField()
+
+
+class SourceBalanceMetadataSerializer(serializers.Serializer):
+    observations = SourceBalanceObservationSerializer(many=True)
+    complete = serializers.BooleanField()
+
+
 class TransactionSerializer(serializers.ModelSerializer):
     undo_action = TransactionActionSerializer(read_only=True, default=None, allow_null=True)
     reported_balances = AccountReportedBalancesField(required=False)
@@ -181,6 +198,13 @@ class TransactionSerializer(serializers.ModelSerializer):
     transfer_evidence = TransferEvidenceSerializer(many=True, read_only=True)
     account_direction = serializers.SerializerMethodField()
     statement_evidence_count = serializers.SerializerMethodField()
+    balance_sources = serializers.SerializerMethodField()
+
+    @extend_schema_field(SourceBalanceMetadataSerializer)
+    def get_balance_sources(self, instance):
+        from .balance_provenance import source_balances
+        request = self.context.get("request")
+        return source_balances(instance, use_prefetched=request is None or request.method in {"GET", "HEAD"})
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -469,6 +493,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "transfer_evidence",
             "account_direction",
             "statement_evidence_count",
+            "balance_sources",
             "account",
             "transfer_account",
             "category",
@@ -502,6 +527,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "transfer_evidence",
             "account_direction",
             "statement_evidence_count",
+            "balance_sources",
         )
 
     def validate_account(self, account):

@@ -1129,7 +1129,27 @@ export interface EvidenceDirectionRefreshPage {
   next_offset: number | null;
 }
 
+export interface SourceBalanceMetadata {
+  observations: SourceBalanceObservation[];
+  complete: boolean;
+}
+
+export interface SourceBalanceObservation {
+  kind: OriginEnum;
+  account: string | null;
+  balance_after: string | null;
+  currency: string;
+  direction: string;
+  date: string | null;
+  time: string | null;
+  time_kind: TimeKindEnum;
+  usable: boolean;
+}
+
+export type TimeKindEnum = "reported" | "received";
+
 export interface Transaction {
+  balance_sources: SourceBalanceMetadata;
   undo_action?: TransactionAction | null;
   reported_balances?: AccountReportedBalance[];
   balance_reporting_account?: string;

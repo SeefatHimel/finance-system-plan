@@ -6815,11 +6815,73 @@ components:
         statement_known: {type: integer}
         statement_unknown: {type: integer}
         next_offset: {type: integer, nullable: true}
+    SourceBalanceMetadata:
+      type: object
+      properties:
+        observations:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceBalanceObservation'
+        complete:
+          type: boolean
+      required:
+      - complete
+      - observations
+    SourceBalanceObservation:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/OriginEnum'
+        account:
+          type: string
+          format: uuid
+          nullable: true
+        balance_after:
+          type: string
+          nullable: true
+        currency:
+          type: string
+        direction:
+          type: string
+        date:
+          type: string
+          format: date
+          nullable: true
+        time:
+          type: string
+          format: time
+          nullable: true
+        time_kind:
+          $ref: '#/components/schemas/TimeKindEnum'
+        usable:
+          type: boolean
+      required:
+      - account
+      - balance_after
+      - currency
+      - date
+      - direction
+      - kind
+      - time
+      - time_kind
+      - usable
+    TimeKindEnum:
+      enum:
+      - reported
+      - received
+      type: string
+      description: '* `reported` - reported
+
+        * `received` - received'
     Transaction:
       type: object
       required:
-        [id, account, transfer_account, category, payment_method, raw_message, date, time, type, direction, amount, balance_after, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, reference, counterparty_text, external_key, note, source, needs_review, created_at, updated_at, transfer_evidence, account_direction]
+        [id, account, transfer_account, category, payment_method, raw_message, date, time, type, direction, amount, balance_after, balance_sources, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, reference, counterparty_text, external_key, note, source, needs_review, created_at, updated_at, transfer_evidence, account_direction]
       properties:
+        balance_sources:
+          allOf: [{$ref: '#/components/schemas/SourceBalanceMetadata'}]
+          readOnly: true
+          description: Bounded saved SMS and immutable statement balance observations. No raw text or parser replay; receipt timestamps remain distinct from source event times.
         undo_action:
           allOf: [{$ref: '#/components/schemas/TransactionAction'}]
           nullable: true

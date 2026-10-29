@@ -2,7 +2,7 @@ import csv
 import json
 
 from django.db import transaction as db_transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Prefetch
 from django.http import HttpResponse
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
@@ -343,6 +343,7 @@ class TransactionViewSet(ModelViewSet):
         return Response(describe(result), headers={"Cache-Control": "private, no-store"})
 
     def get_queryset(self):
+        from .balance_provenance import sms_queryset, statement_queryset, LIMIT
         queryset = (
             Transaction.objects.filter(user=self.request.user)
             .annotate(statement_count=Count("statement_rows", distinct=True))
@@ -353,7 +354,10 @@ class TransactionViewSet(ModelViewSet):
                 "payment_method",
                 "raw_message",
             )
-            .prefetch_related("transfer_evidence", "parsed_message_candidates")
+            .prefetch_related("transfer_evidence", "parsed_message_candidates",
+                Prefetch("parsed_message_candidates", queryset=sms_queryset(self.request.user)[:LIMIT + 1], to_attr="balance_sms_sources"),
+                Prefetch("statement_rows", queryset=statement_queryset(self.request.user)[:LIMIT + 1], to_attr="balance_statement_sources"),
+            )
         )
 
         from apps.reports.periods import filter_period

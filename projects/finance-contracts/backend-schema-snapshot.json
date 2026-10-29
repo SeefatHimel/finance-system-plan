@@ -9585,6 +9585,14 @@
           "readOnly": true,
           "type": "string"
         },
+        "balance_sources": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/SourceBalanceMetadata"
+            }
+          ],
+          "readOnly": true
+        },
         "category": {
           "format": "uuid",
           "nullable": true,
@@ -11306,6 +11314,74 @@
       ],
       "type": "string"
     },
+    "SourceBalanceMetadata": {
+      "properties": {
+        "complete": {
+          "type": "boolean"
+        },
+        "observations": {
+          "items": {
+            "$ref": "#/components/schemas/SourceBalanceObservation"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "complete",
+        "observations"
+      ],
+      "type": "object"
+    },
+    "SourceBalanceObservation": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "balance_after": {
+          "nullable": true,
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "nullable": true,
+          "type": "string"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/components/schemas/OriginEnum"
+        },
+        "time": {
+          "format": "time",
+          "nullable": true,
+          "type": "string"
+        },
+        "time_kind": {
+          "$ref": "#/components/schemas/TimeKindEnum"
+        },
+        "usable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "account",
+        "balance_after",
+        "currency",
+        "date",
+        "direction",
+        "kind",
+        "time",
+        "time_kind",
+        "usable"
+      ],
+      "type": "object"
+    },
     "StateEnum": {
       "enum": [
         "pending",
@@ -12906,6 +12982,13 @@
       ],
       "type": "string"
     },
+    "TimeKindEnum": {
+      "enum": [
+        "reported",
+        "received"
+      ],
+      "type": "string"
+    },
     "TimelineOrderDecision": {
       "properties": {
         "action": {
@@ -12998,6 +13081,14 @@
           "format": "uuid",
           "readOnly": true,
           "type": "string"
+        },
+        "balance_sources": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/SourceBalanceMetadata"
+            }
+          ],
+          "readOnly": true
         },
         "category": {
           "format": "uuid",
@@ -13118,6 +13209,7 @@
         "account_direction",
         "amount",
         "balance_reporting_account",
+        "balance_sources",
         "created_at",
         "date",
         "id",

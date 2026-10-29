@@ -994,3 +994,15 @@ Transaction source-message `parsed` JSON may include nullable `account` and
 the existing nullable JSON summary (no generated OpenAPI shape change). Older
 responses may omit them; clients keep attribution unknown rather than assuming
 the ledger's sending account. No request fields or migrations are added.
+
+## Balance source checks
+
+Transaction's additive read-only `balance_sources` contains up to 20 saved SMS and
+20 immutable statement observations plus a completeness flag. Accounts, currencies
+and known directions remain explicit; `time_kind=received` is SMS receipt time,
+while `reported` denotes statement time (possibly null). Consumers must compare
+against the current account field/direction, never count parser interpretations or
+linked reports as originals, and never treat unknown/different times or incomplete
+checks as verified agreement. This is response metadata, never a financial write.
+API precedes web deployment; older clients ignore it and new web clients tolerate
+its absence. OpenAPI, generated types and backend schema snapshot include the field.

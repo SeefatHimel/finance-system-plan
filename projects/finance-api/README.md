@@ -1833,3 +1833,17 @@ identify the receiving side. The candidate must still belong to the requesting
 user and this transaction, and foreign accounts are withheld. This read-only
 metadata supports compact, account-specific balance disclosures without guessing
 attribution from the transaction's sending side. No migration is required.
+
+## Compact balance-source metadata
+
+Transaction responses include read-only `balance_sources`: saved SMS and immutable
+statement balance observations, scoped to the owner. Each includes reporting account,
+currency, known direction, date/time, time basis and eligibility for comparison.
+`received` denotes SMS receipt time. Original statement extraction is used instead
+of an edited draft; signed inline fees retain their own direction. Reads never run
+a parser, expose original body text, or change financial values.
+
+Activity/list queries batch source reads, capped at 20 SMS and 20 statement rows per
+record; `complete=false` prevents a verified badge after truncation. Writes re-read
+facts instead of returning stale prefetch data. No migration is required. Verify:
+`python manage.py test apps.transactions.test_balance_provenance apps.transactions.test_activity`.
