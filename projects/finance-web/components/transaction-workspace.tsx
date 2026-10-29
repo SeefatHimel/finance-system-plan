@@ -1,4 +1,5 @@
 "use client";
+import { filteredFinancialTotals } from "@/lib/financial-totals";
 import { TransactionActionMenu } from "@/components/transaction-action-menu";
 import { transactionColumnPreferences, transactionPage, transactionPageParams, transactionPeriodFilters, transactionPeriodCaption } from "@/lib/transaction-list";
 import { AccountLabel } from "@/components/account-avatar";
@@ -15,7 +16,7 @@ import { useTransactionRecovery } from "@/components/transaction-recovery";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 
-import { Plus, SlidersHorizontal, X, FunnelSimple, MagnifyingGlass, SortDescending, DownloadSimple, ArrowCounterClockwise, CaretLeft, CaretRight, CalendarBlank, SpinnerGap } from "@phosphor-icons/react";
+import { Plus, SlidersHorizontal, X, FunnelSimple, MagnifyingGlass, SortDescending, DownloadSimple, ArrowClockwise, CaretLeft, CaretRight, CalendarBlank, SpinnerGap } from "@phosphor-icons/react";
 import type React from "react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -98,6 +99,9 @@ const defaultTransactionColumns: TransactionColumn[] = ["date", "description", "
 const transactionColumnsStorageKey = "finance.transactions.columns.v2";
 
 type TransactionFilterState = Required<Pick<TransactionFilters, "direction" | "source" | "type">> & {
+  currency: string;
+  spending: string;
+  needs_review: string;
   account: string;
   category: string;
   month: string;
@@ -162,6 +166,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
   const quickAdd = useQuickAdd();
   const { fullDraft, consumeFullDraft } = quickAdd;
   const [filters, setFilterState] = useState<TransactionFilterState>({
+    currency: "", spending: "", needs_review: "",
     account: "",
     category: "",
     direction: "",
@@ -337,6 +342,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
       const requestedOrdering = searchParams.get("ordering");
       const ordering = requestedOrdering === "-created_at" || requestedOrdering === "-updated_at" ? requestedOrdering : "-date";
       const requestedFilters: TransactionFilterState = {
+        currency: searchParams.get("currency") ?? "", spending: searchParams.get("spending") ?? "", needs_review: searchParams.get("needs_review") ?? "",
         account: searchParams.get("account") ?? "",
         category: searchParams.get("category") ?? "",
         direction: (searchParams.get("direction") ?? "") as TransactionFilterState["direction"],
@@ -560,6 +566,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
 
   function clearFilters() {
     const clearedFilters: TransactionFilterState = {
+      currency: "", spending: "", needs_review: "",
       account: "",
       category: "",
       direction: "",
@@ -793,6 +800,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
   }, [loadState]);
 
   const currencyByAccount = useMemo(() => new Map(loadState.status === "ready" ? loadState.accounts.map(account => [account.id, account.currency]) : []), [loadState]);
+  const financialTotals = useMemo(() => loadState.status === "ready" ? filteredFinancialTotals(loadState.transactions, currencyByAccount, displayedFilters.account) : [], [loadState, currencyByAccount, displayedFilters.account]);
 
   const categoryNames = useMemo(() => {
     if (loadState.status !== "ready") {
@@ -821,12 +829,15 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     );
   }
 
-  const advancedFilterCount = [displayedFilters.type, displayedFilters.direction, displayedFilters.source, displayedFilters.category, displayedFilters.date_field !== "date" ? displayedFilters.date_field : ""].filter(Boolean).length;
-  const activeFilterChips: { key: "account" | "category" | "direction" | "source" | "type" | "search" | "date_field"; label: string }[] = [
+  const advancedFilterCount = [displayedFilters.currency, displayedFilters.spending, displayedFilters.needs_review, displayedFilters.type, displayedFilters.direction, displayedFilters.source, displayedFilters.category, displayedFilters.date_field !== "date" ? displayedFilters.date_field : ""].filter(Boolean).length;
+  const activeFilterChips: { key: "account" | "category" | "direction" | "source" | "type" | "search" | "date_field" | "currency" | "spending" | "needs_review"; label: string }[] = [
+    ...(displayedFilters.currency ? [{ key: "currency" as const, label: displayedFilters.currency }] : []),
+    ...(displayedFilters.spending ? [{ key: "spending" as const, label: "Spending & refunds" }] : []),
+    ...(displayedFilters.needs_review ? [{ key: "needs_review" as const, label: displayedFilters.needs_review === "true" ? "Needs review" : "Reviewed" }] : []),
     ...(displayedFilters.account ? [{ key: "account" as const, label: accountNames.get(displayedFilters.account) ?? "Selected account" }] : []),
     ...(displayedFilters.search ? [{ key: "search" as const, label: `Search: ${displayedFilters.search}` }] : []),
     ...(["type", "direction", "source"] as const).flatMap(key => displayedFilters[key] ? [{ key, label: displayLabel(displayedFilters[key]) }] : []),
-    ...(displayedFilters.category ? [{ key: "category" as const, label: categoryNames.get(displayedFilters.category) ?? "Selected category" }] : []),
+    ...(displayedFilters.category ? [{ key: "category" as const, label: displayedFilters.category === "uncategorized" ? "Uncategorized" : categoryNames.get(displayedFilters.category) ?? "Selected category" }] : []),
     ...(displayedFilters.date_field !== "date" ? [{ key: "date_field" as const, label: displayedFilters.date_field === "created_at" ? "Added date" : "Updated date" }] : []),
   ];
   const activePeriod = periodFromFilters(filters, dateView);
@@ -928,11 +939,14 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
             {filterDateError ? <p className="field-error field--wide" id="transaction-filter-date-error" role="alert">{filterDateError}</p> : null}
             <label className="field"><span className="field__label">Date basis</span><select className="field__control" value={filterPanel.filters.date_field} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, date_field: event.target.value as TransactionFilterState["date_field"] } })}><option value="date">Transaction date</option><option value="created_at">Added date</option><option value="updated_at">Updated date</option></select></label>
             <label className="field"><span className="field__label">Type</span><select className="field__control" value={filterPanel.filters.type} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, type: event.target.value as TransactionFilterState["type"] } })}><option value="">All types</option>{transactionTypes.map(type => <option key={type} value={type}>{displayLabel(type)}</option>)}</select></label>
-            <label className="field"><span className="field__label">Category</span><select className="field__control" value={filterPanel.filters.category} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, category: event.target.value } })}><option value="">All categories</option>{loadState.status === "ready" ? loadState.categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>) : null}</select></label>
+            <label className="field"><span className="field__label">Category</span><select className="field__control" value={filterPanel.filters.category} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, category: event.target.value } })}><option value="">All categories</option><option value="uncategorized">Uncategorized</option>{loadState.status === "ready" ? loadState.categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>) : null}</select></label>
             <label className="field"><span className="field__label">Debit / credit</span><select className="field__control" value={filterPanel.filters.direction} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, direction: event.target.value as TransactionFilterState["direction"] } })}><option value="">All directions</option><option value="debit">Debit</option><option value="credit">Credit</option></select></label>
+            <label className="field"><span className="field__label">Currency</span><select className="field__control" value={filterPanel.filters.currency} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, currency: event.target.value } })}><option value="">All currencies (separate totals)</option>{Array.from(new Set(loadState.status === "ready" ? loadState.accounts.map(row => row.currency) : [])).map(value => <option key={value}>{value}</option>)}</select></label>
+            <label className="field"><span className="field__label">Spending scope</span><select className="field__control" value={filterPanel.filters.spending} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, spending: event.target.value } })}><option value="">All movements</option><option value="true">Expenses, fees & refunds only</option></select></label>
+            <label className="field"><span className="field__label">Review status</span><select className="field__control" value={filterPanel.filters.needs_review} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, needs_review: event.target.value } })}><option value="">All review states</option><option value="true">Needs review</option><option value="false">Reviewed</option></select></label>
             <label className="field"><span className="field__label">Source</span><select className="field__control" value={filterPanel.filters.source} onChange={event => setFilterPanel({ ...filterPanel, filters: { ...filterPanel.filters, source: event.target.value as TransactionFilterState["source"] } })}><option value="">All sources</option>{transactionSources.map(source => <option key={source} value={source}>{displayLabel(source)}</option>)}</select></label>
           </div>
-          <div className="transaction-editor-actions"><button className="button button--ghost" type="button" onClick={() => { setFilterDateError(""); setFilterPanel({ ...filterPanel, period: { ...allDates }, filters: { ...filterPanel.filters, type: "", category: "", direction: "", source: "", date_field: "date" } }); }}>Reset</button><button className="button button--ghost" type="button" onClick={() => setFilterPanel(null)}>Cancel</button><button className="button button--primary" type="submit">Apply filters</button></div>
+          <div className="transaction-editor-actions"><button className="button button--ghost" type="button" onClick={() => { setFilterDateError(""); setFilterPanel({ ...filterPanel, period: { ...allDates }, filters: { ...filterPanel.filters, type: "", category: "", direction: "", source: "", date_field: "date", currency: "", spending: "", needs_review: "" } }); }}><X size={17} aria-hidden="true" />Reset filters</button><button className="button button--ghost" type="button" onClick={() => setFilterPanel(null)}>Cancel</button><button className="button button--primary" type="submit">Apply filters</button></div>
         </form>
       </ModalDialog> : null}
       {displayOptionsOpen ? <ModalDialog className="form-drawer transaction-display-dialog" labelledBy="transaction-display-title" onCancel={() => setDisplayOptionsOpen(false)}>
@@ -1238,17 +1252,22 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
             <button className="button button--primary transaction-commandbar__add" type="button" onClick={() => openNewTransaction()}><Plus size={17} aria-hidden="true" />Add transaction</button>
           </form>
           <div className="transaction-table-toolbar transaction-table-toolbar--compact" ref={listTop}>
-            <div className="transaction-result-meta"><span>{loadState.transactions.length} {loadState.transactions.length === 1 ? "transaction" : "transactions"}</span>{isRefreshing ? <span role="status" className="transaction-refresh-state"><ButtonBusy label="Updating" /></span> : null}{refreshError ? <button className="icon-button" type="button" title={refreshError} aria-label="Retry loading transactions" onClick={() => void loadData(requestedFilters, false)}><ArrowCounterClockwise size={18} aria-hidden="true" /></button> : null}</div>
+            <div className="transaction-result-meta"><span>{loadState.transactions.length} {loadState.transactions.length === 1 ? "transaction" : "transactions"}</span>{isRefreshing ? <span role="status" className="transaction-refresh-state"><ButtonBusy label="Updating" /></span> : null}{refreshError ? <button className="icon-button" type="button" title={refreshError} aria-label="Retry loading transactions" onClick={() => void loadData(requestedFilters, false)}><ArrowClockwise size={18} aria-hidden="true" /></button> : null}</div>
             <div className="transaction-toolbar-actions transaction-toolbar-actions--icons" role="group" aria-label="Transaction tools">
               <TransactionActionMenu label="Sort transactions" icon={<SortDescending size={19} aria-hidden="true" />}>{([['-date', 'Transaction date'], ['-created_at', 'Recently added'], ['-updated_at', 'Recently updated']] as const).map(([value, label]) => <button className="button button--ghost" type="button" aria-pressed={displayedFilters.ordering === value} key={value} onClick={() => selectOrdering(value)}>{label}</button>)}</TransactionActionMenu>
               <button className="icon-button" type="button" aria-label={isExporting ? "Exporting CSV" : "Export CSV"} title="Export CSV" disabled={isExporting} onClick={() => void handleExportTransactions()}>{isExporting ? <SpinnerGap className="spin" size={19} aria-hidden="true" /> : <DownloadSimple size={19} aria-hidden="true" />}</button>
               <button className="icon-button" type="button" aria-label="Display options" title="Display options" onClick={() => setDisplayOptionsOpen(true)}><SlidersHorizontal size={19} aria-hidden="true" /></button>
-              {activeFilterChips.length || activePeriod.mode !== "all" ? <button className="icon-button" type="button" aria-label="Clear all filters" title="Clear all filters" onClick={clearFilters}><ArrowCounterClockwise size={19} aria-hidden="true" /></button> : null}
+              <button className="icon-button" type="button" aria-label="Refresh transactions" title="Refresh transactions without changing filters" aria-busy={isRefreshing} disabled={isRefreshing} onClick={() => void loadData(filtersRef.current)}>{isRefreshing ? <SpinnerGap className="spin" size={19} aria-hidden="true" /> : <ArrowClockwise size={19} aria-hidden="true" />}</button>
+              {activeFilterChips.length || activePeriod.mode !== "all" ? <button className="icon-button" type="button" aria-label="Clear all filters" title="Reset filters" onClick={clearFilters}><X size={19} aria-hidden="true" /></button> : null}
               <TransactionActionMenu label="More transaction tools"><Link className="button button--ghost" href="/checks">Evidence health</Link>{recovery.latest && !recovery.latest.undone ? <><span className="transaction-menu-note">Last action: {recovery.latest.label}</span>{recovery.latest.transaction ? <button className="button button--ghost" type="button" onClick={() => recovery.edit(recovery.latest!.transaction!)}>Edit latest transaction</button> : null}<button className="button button--ghost" type="button" disabled={recovery.busy || !recovery.latest.can_undo} onClick={() => recovery.undo(recovery.latest!)}>Undo latest action</button></> : null}</TransactionActionMenu>
             </div>
           </div>
           {activeFilterChips.length ? <div className="transaction-filter-chips" aria-label="Applied filters">{activeFilterChips.map(chip => <button type="button" key={chip.key} className="transaction-filter-chip" title={`Remove ${chip.label}`} aria-label={`Remove ${chip.label}`} onClick={() => refreshFilters({ ...filtersRef.current, [chip.key]: chip.key === "date_field" ? "date" : "" })}><span>{chip.label}</span><X size={12} aria-hidden="true" /></button>)}</div> : null}
 
+          <details className="filtered-totals"><summary>Totals for all {loadState.transactions.length} matching transactions</summary>
+            <p className="muted-text">Refunds reduce spending. Principal and own-account transfers are separate. Totals cover the full filtered result, across every page.</p>
+            {financialTotals.map(row => <div key={row.currency}><h3>{row.currency}</h3><div className="metric-row"><div className="metric"><span>Earned income</span><strong>{formatCurrency(row.income, row.currency)}</strong></div><div className="metric"><span>Net spending</span><strong>{formatCurrency(row.spending, row.currency)}</strong></div><div className="metric"><span>Money in / out</span><strong>{formatCurrency(row.moneyIn, row.currency)} / {formatCurrency(row.moneyOut, row.currency)}</strong></div></div><p className="muted-text">Refunds {formatCurrency(row.refunds, row.currency)} · Principal in/out {formatCurrency(row.financingIn, row.currency)} / {formatCurrency(row.financingOut, row.currency)} · Own transfers {formatCurrency(row.transfers, row.currency)}.</p></div>)}
+          </details>
           {loadState.transactions.length === 0 ? (
             <div className="empty-state">
               <p>No transactions match these filters.</p><button className="button button--ghost" onClick={clearFilters} type="button">Clear filters</button>

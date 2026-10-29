@@ -1,6 +1,49 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, laneMomentMatchesCanonical, reportedBalanceAtDate, timelineScrollShift, weekStart } from "../lib/account-lanes.ts";
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
+const { readFileSync, writeFileSync, mkdtempSync, rmSync } = require('node:fs');
+const { join } = require('node:path');
+const { tmpdir } = require('node:os');
+const ts = require('typescript');
+const output = mkdtempSync(join(tmpdir(), 'finance-account-lanes-test-'));
+const compiled = join(output, 'subject.cjs');
+writeFileSync(compiled, ts.transpileModule(readFileSync(join(__dirname, '../lib/account-lanes.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } }).outputText);
+const { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, laneMomentMatchesCanonical, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart } = require(compiled);
+after(() => rmSync(output, { recursive: true, force: true }));
+
+test("timeline refresh reads every page before returning the replacement week", async () => {
+  const offsets = [];
+  const progress = [];
+  const rows = await loadTimelinePages(async offset => {
+    offsets.push(offset);
+    return offset === 0 ? { results: ["first", "second"], count: 3, next_offset: 2 }
+      : { results: ["last"], count: 3, next_offset: null };
+  }, new AbortController().signal, (loaded, total) => progress.push([loaded, total]));
+  assert.deepEqual(offsets, [0, 2]);
+  assert.deepEqual(rows, ["first", "second", "last"]);
+  assert.deepEqual(progress, [[2, 3]]);
+});
+
+test("failed later pages cannot return a partially refreshed week", async () => {
+  await assert.rejects(loadTimelinePages(async offset => {
+    if (offset) throw new Error("Network unavailable");
+    return { results: ["partial"], count: 2, next_offset: 1 };
+  }, new AbortController().signal), /Network unavailable/);
+});
+
+test("cancelled refresh discards late responses and does not request another page", async () => {
+  const controller = new AbortController();
+  let requests = 0;
+  await assert.rejects(loadTimelinePages(async () => {
+    requests++;
+    controller.abort();
+    return { results: ["obsolete"], count: 2, next_offset: 1 };
+  }, controller.signal), { name: "AbortError" });
+  assert.equal(requests, 1);
+});
+
+test("nonadvancing page offsets fail instead of looping during refresh", async () => {
+  await assert.rejects(loadTimelinePages(async () => ({ results: [], count: 2, next_offset: 0 }), new AbortController().signal), /Please refresh again/);
+});
 
 const row = (id, date, time, amount, balance_after, extra = {}) => ({
   id, date, time, amount, balance_after, account: "city", transfer_account: null,
@@ -142,4 +185,19 @@ test("any conflicting observation for the same transfer account suppresses a num
   });
   assert.equal(laneMomentMatchesCanonical(after, "city"), false);
   assert.equal(balanceGaps([before, after], "city", new Set(["2026-10-20"])).size, 0);
+});
+
+test("reviewed placements interleave untimed entries without adding clock times", async () => {
+  const { placedTimelineEvents } = require(compiled);
+  const rows = [row('a', '2026-10-01', '10:00:00', '100', '900'), row('b', '2026-10-01', null, '50', '850'), row('c', '2026-10-01', '12:00:00', '20', '830')];
+  const events = placedTimelineEvents(rows, ['city'], [{account: 'city', status: 'valid', basis: 'balance', ordered_ids: ['a', 'b', 'c']}]);
+  assert.deepEqual(events.events.map(event => event.row.id), ['a', 'b', 'c']);
+  assert.equal(events.events[1].row.time, null); assert.equal(events.events[1].account, 'city'); assert.equal(events.unplaced.length, 0);
+});
+test("stale or incomplete saved placements cannot hide unknown-time entries", async () => {
+  const { placedTimelineEvents } = require(compiled);
+  const rows = [row('a', '2026-10-01', '10:00:00', '100', '900'), row('b', '2026-10-01', null, '50', '850')];
+  for (const order of [{account: 'city', status: 'stale', ordered_ids: ['a', 'b']}, {account: 'city', status: 'valid', ordered_ids: ['a']}]) {
+    const result = placedTimelineEvents(rows, ['city'], [order]); assert.deepEqual(result.unplaced.map(row => row.id), ['b']);
+  }
 });

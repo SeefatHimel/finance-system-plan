@@ -40,6 +40,13 @@ and dates while retaining the main search/account selection until Apply.
 
 ## Pagination and navigation
 
+Refresh and reset are separate actions: the circular-arrow **Refresh transactions**
+button reloads current data while preserving filters and pagination. The **X**
+clears applied filters, including the date range. The filter dialog's labeled
+**Reset filters** action clears its draft choices and still requires Apply.
+Compact date controls use a calendar icon for Today/Current month, rather than
+reusing the refresh symbol for date navigation.
+
 The browser displays 25, 50 or 100 rows from the full filtered API collection.
 This is presentation pagination, not a new server pagination contract. Filter
 application resets to the first page, page-size changes reset to the first page,
@@ -66,6 +73,15 @@ navigation, browser crashes, or device shutdown.
 
 ## Verification
 
+The Account Lanes (`/timeline`) toolbar has a Refresh action for the displayed
+date range. It retains the existing cards while reloading all activity pages,
+account metadata and categories, then replaces the range together and reloads
+the inspector's source evidence. The date, visible-day anchor, selected lanes,
+layout and full screen state are preserved. On failure, old cards remain with
+an error toast. Transaction-change events also refresh the view; prefetched
+weeks are invalidated so returning to a cached date does not show old activity.
+Refresh reads data only and uses the current activity/account/category APIs.
+
 ```sh
 cd projects/finance-web
 npm run test:transactions
@@ -81,3 +97,60 @@ filtering/deletion, CSV with pending filters, in-place editor/source dialogs and
 Back/Forward
 with filters, page and both scroll offsets preserved. Use synthetic data only.
 No API, database migration or financial-data backfill is required.
+
+## Financial overview and reviewed timeline placement
+
+The financial overview is current; a report or transaction period filters activity,
+not current balances. Currencies remain separate. Earned income excludes loan
+principal and refunds. Net spending is expenses plus fees less refunds; lending,
+borrowing and principal repayments are financing. Own transfers do not increase
+portfolio spending or cash flow. An account-scoped money-flow view includes that
+account's transfer leg. Refund-only periods can have negative spending.
+
+Reports compare full months with the previous calendar month and other ranges
+with an equal preceding duration. Categories (including Uncategorized), merchants
+and accounts open the contributing transactions with the period/currency intact.
+Category and merchant comparisons use the same prior period. Filtered transaction
+totals use every matching row, not just the visible page. The dashboard groups
+small categories into Other; when categories have net credits, it shows signed
+rows rather than misrepresenting negative values as donut slices.
+
+Accounts show dated source reports, saved statement periods, manual checks and
+pending decisions. A saved statement period or matching balance is not proof of
+complete capture. Current card liability and remaining statement dues describe
+different dates and must not be added together. Debt records are separate from
+account balances and currently use BDT. Recurring monthly estimates annualize
+weekly/monthly/quarterly/yearly schedules separately by currency.
+
+Payment actions on each debt/bill open an explicit choice: link an existing
+compatible ledger movement, record a new movement, or update only the planning
+record. Card payments create a transfer, debt payments create principal repayments,
+and recurring payments create an expense. Review imports before recording a new
+entry. Retry IDs prevent duplicate payments; linked financial fields, Delete,
+merge and ledger Undo require removing the planning link first. Removing a payment
+record restores the planning balance/schedule and keeps the ledger movement.
+Only the latest recurring payment can be removed, and an independently changed
+schedule needs review. Creation forms are collapsed after the balances/schedule.
+
+On the timeline, **Suggest placement** reviews the entire recorded account day.
+A unique continuous balance chain can suggest an order; missing balances,
+ambiguous chains, card reference balances, or differing posting/observation dates
+require manual review. Known-time movements keep their relative order. Apply saves
+per-account display metadata and a balance-supported/manual label; actual times
+stay unknown. There are no artificial seconds to run out of. Transfers stay one
+transaction, with a separate display order possible in each account.
+
+Changing the day's activity or evidence invalidates its saved placement until
+reviewed again. Preview fingerprints and revisions reject stale decisions. Clear
+placement and Undo placement change only display metadata; placement changes are
+recorded in History. The timeline's precise balance-gap checks continue to require
+actual times and do not treat reviewed placement as clock evidence.
+
+This broader feature requires both API and web deployment. Apply transaction
+migration `0009_timeline_day_order` before deploying the new web client. No
+financial values are backfilled or changed automatically.
+
+Verify with `npm run test:finance`, the existing workflow/date checks, lint,
+typecheck and a production build. Browser checks should cover report drill-through,
+create/link/remove payment, stale placement, desktop/phone layout, and focus after
+opening a payment from a row. Use isolated synthetic data.

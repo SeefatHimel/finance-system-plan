@@ -298,29 +298,17 @@ const transactionSchema = z.object({
   type: z.string()
 });
 
-const monthlyReportSchema = z.object({
-  accounts: z.array(
-    z.object({
-      money_in: z.string(),
-      money_out: z.string(),
-      name: z.string()
-    })
-  ),
-  categories: z.array(
-    z.object({
-      amount: z.string(),
-      name: z.string()
-    })
-  ),
-  currency: z.string(),
-  expense_total: z.string(),
-  income_total: z.string(),
-  month: z.string().nullable(),
-  start_date: z.string(),
-  end_date: z.string(),
-  daily: z.array(z.object({ date: z.string(), income_total: z.string(), expense_total: z.string() })),
-  spending_categories: z.array(z.object({ name: z.string(), amount: z.string() })),
-  net_total: z.string()
+const reportCategorySchema = z.object({ id: z.string().nullable(), amount: z.string(), name: z.string(), previous_amount: z.string() });
+const reportTotalsSchema = z.object({ start_date: z.string(), end_date: z.string(), income_total: z.string(), expense_total: z.string(), net_total: z.string() });
+const monthlyReportSchema = reportTotalsSchema.extend({
+  policy: z.literal("spending-v2"), currency: z.string(), month: z.string().nullable(), transaction_count: z.number(),
+  gross_spending_total: z.string(), refund_total: z.string(), financing_in_total: z.string(), financing_out_total: z.string(),
+  cash_in_total: z.string(), cash_out_total: z.string(), cash_net_total: z.string(), transfers_total: z.string(), adjustments_total: z.string(),
+  accounts: z.array(z.object({ id: z.string(), money_in: z.string(), money_out: z.string(), name: z.string() })),
+  categories: z.array(reportCategorySchema), spending_categories: z.array(reportCategorySchema),
+  merchants: z.array(z.object({ name: z.string(), search: z.string(), count: z.number(), amount: z.string(), previous_amount: z.string() })),
+  daily: z.array(z.object({ date: z.string(), income_total: z.string(), expense_total: z.string(), cash_in_total: z.string(), cash_out_total: z.string() })),
+  previous: reportTotalsSchema
 });
 
 const debtSchema = z.object({
@@ -513,6 +501,9 @@ export type CreateTransactionInput = {
 };
 
 export type TransactionFilters = {
+  currency?: string;
+  spending?: string;
+  needs_review?: string;
   date_field?: "date" | "created_at" | "updated_at";
   start_date?: string;
   end_date?: string;
@@ -1375,8 +1366,8 @@ export async function getMonthlyReport(
   return monthlyReportSchema.parse(await response.json());
 }
 
-export async function getPeriodReport(accessToken: string, start_date: string, end_date: string, signal?: AbortSignal): Promise<MonthlyReport> {
-  const params = new URLSearchParams({ start_date, end_date });
+export async function getPeriodReport(accessToken: string, start_date: string, end_date: string, signal?: AbortSignal, scope: { account?: string; currency?: string } = {}): Promise<MonthlyReport> {
+  const params = new URLSearchParams({ start_date, end_date, ...Object.fromEntries(Object.entries(scope).filter(([, value]) => value)) });
   const response = await authenticatedFetch(`/api/reports/monthly/?${params}`, accessToken, { signal });
   return monthlyReportSchema.parse(await response.json());
 }
@@ -1415,7 +1406,10 @@ export async function createDebtPayment(
       amount: input.amount,
       note: input.note || "",
       paid_at: input.paid_at,
-      transaction: input.transaction || null
+      transaction: input.transaction || null,
+      ledger_action: input.ledger_action,
+      funding_account: input.funding_account,
+      request_id: input.request_id
     }),
     headers: {
       "Content-Type": "application/json"
@@ -1476,7 +1470,10 @@ export async function createCreditCardPayment(
       amount: input.amount,
       note: input.note || "",
       paid_at: input.paid_at,
-      transaction: input.transaction || null
+      transaction: input.transaction || null,
+      ledger_action: input.ledger_action,
+      funding_account: input.funding_account,
+      request_id: input.request_id
     }),
     headers: {
       "Content-Type": "application/json"
@@ -1539,7 +1536,10 @@ export async function createRecurringBillPayment(
       amount: input.amount,
       note: input.note || "",
       paid_at: input.paid_at,
-      transaction: input.transaction || null
+      transaction: input.transaction || null,
+      ledger_action: input.ledger_action,
+      funding_account: input.funding_account,
+      request_id: input.request_id
     }),
     headers: {
       "Content-Type": "application/json"
@@ -1947,4 +1947,56 @@ export async function previewUnifiedPair(token: string, statement: string, sms: 
 }
 export async function confirmUnifiedPair(token: string, input: UnifiedPairDecision) {
   return z.object({ transaction: z.string(), statement: z.string(), sms: z.string(), unchanged: z.boolean() }).parse(await (await authenticatedFetch("/api/review/pair/", token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })).json());
+}
+
+export type PlanningPaymentKind = "debt" | "card" | "recurring";
+export type LedgerPaymentInput = { amount: string; paid_at: string; note: string; ledger_action: "link" | "create" | "record_only"; transaction?: string; funding_account?: string; request_id: string };
+const planningPaymentsSchema = z.object({
+  payments: z.array(z.object({ id: z.string(), transaction: z.string().nullable(), amount: z.string(), paid_at: z.string(), note: z.string() })),
+  eligible: z.array(transactionSchema), eligible_count: z.number()
+});
+export async function getPlanningPayments(token: string, kind: PlanningPaymentKind, parent: string, date: string, signal?: AbortSignal) {
+  const response = await authenticatedFetch(`/api/planning-payments/${kind}/${parent}/?${new URLSearchParams({ date })}`, token, { signal });
+  return planningPaymentsSchema.parse(await response.json());
+}
+export async function recordPlanningPayment(token: string, kind: PlanningPaymentKind, parent: string, input: LedgerPaymentInput) {
+  const prefix = { debt: "debts", card: "credit-card-bills", recurring: "recurring-bills" }[kind];
+  const response = await authenticatedFetch(`/api/${prefix}/${parent}/payments/`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  return z.object({ id: z.string(), transaction: z.string().nullable() }).parse(await response.json());
+}
+export async function unlinkPlanningPayment(token: string, kind: PlanningPaymentKind, parent: string, payment: string) {
+  await authenticatedFetch(`/api/planning-payments/${kind}/${parent}/${payment}/`, token, { method: "DELETE" });
+}
+
+const overviewSchema = z.object({
+  as_of: z.string(), notice: z.string(), transaction_count: z.number(), has_statements: z.boolean(),
+  pending_sms: z.number(), unassigned_sms: z.number(), pending_statement_rows: z.number(), needs_review: z.number(), uncategorized_spending: z.number(),
+  accounts: z.array(accountSchema),
+  currencies: z.array(z.object({ currency: z.string(), account_balance: z.string(), cash_and_accounts: z.string(), savings: z.string(), card_liability: z.string(), card_credit: z.string(), receivable: z.string(), payable: z.string() })),
+  upcoming: z.array(z.object({ id: z.string(), kind: z.string(), name: z.string(), date: z.string(), amount: z.string(), currency: z.string(), href: z.string() })),
+  coverage: z.array(z.object({ account: z.string(), comparison: z.string(), last_report_date: z.string().nullable(), pending_sms: z.number(), pending_rows: z.number(),
+    last_check: z.object({ date: z.string(), status: z.string(), difference: z.string() }).nullable(),
+    statement: z.object({ id: z.string(), start: z.string().nullable(), end: z.string().nullable() }).nullable() }))
+});
+export async function getFinancialOverview(token: string, signal?: AbortSignal) {
+  const response = await authenticatedFetch("/api/reports/overview/", token, { signal });
+  return overviewSchema.parse(await response.json());
+}
+
+const timelineOrderPreviewSchema = z.object({ account: z.string(), date: z.string(), currency: z.string(), fingerprint: z.string(), revision: z.number(), saved_status: z.enum(["valid", "stale", "none"]), basis: z.string(), can_undo: z.boolean(), reason: z.string(), ordered_ids: z.array(z.string()), suggested_ids: z.array(z.string()).nullable(),
+  rows: z.array(z.object({ id: z.string(), time: z.string().nullable(), amount: z.string(), direction: z.string(), balance_after: z.string().nullable(), label: z.string(), type: z.string(), posting_context: z.boolean(), context_changed: z.boolean() })) });
+const timelineSavedOrderSchema = z.object({ account: z.string(), date: z.string(), ordered_ids: z.array(z.string()), status: z.enum(["valid", "stale"]), basis: z.string(), revision: z.number() });
+export type TimelineSavedOrder = z.infer<typeof timelineSavedOrderSchema>;
+export type TimelineOrderPreview = z.infer<typeof timelineOrderPreviewSchema>;
+export async function getTimelineOrders(token: string, start: string, end: string, signal?: AbortSignal) {
+  const response = await authenticatedFetch(`/api/timeline-order/?${new URLSearchParams({ start_date: start, end_date: end })}`, token, { signal });
+  return z.object({ results: z.array(timelineSavedOrderSchema) }).parse(await response.json()).results;
+}
+export async function getTimelineOrderPreview(token: string, account: string, date: string, signal?: AbortSignal) {
+  const response = await authenticatedFetch(`/api/timeline-order/${account}/${date}/`, token, { signal });
+  return timelineOrderPreviewSchema.parse(await response.json());
+}
+export async function saveTimelineOrder(token: string, preview: TimelineOrderPreview, action: "apply" | "clear" | "undo", ordered_ids: string[]) {
+  const response = await authenticatedFetch(`/api/timeline-order/${preview.account}/${preview.date}/`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fingerprint: preview.fingerprint, revision: preview.revision, action, ordered_ids }) });
+  return timelineOrderPreviewSchema.parse(await response.json());
 }

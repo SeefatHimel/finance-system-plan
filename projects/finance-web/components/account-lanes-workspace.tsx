@@ -1,7 +1,8 @@
 "use client";
+import { TimelineOrderDialog } from "@/components/timeline-order-dialog";
 import { AccountLabel } from "@/components/account-avatar";
 
-import { ArrowsIn, ArrowsOut, CalendarBlank, CaretLeft, CaretRight, Eye, LinkSimple, SlidersHorizontal, X } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowsIn, ArrowsOut, CalendarBlank, CaretLeft, CaretRight, Eye, LinkSimple, SlidersHorizontal, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type TouchEvent as ReactTouchEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { createPortal } from "react-dom";
 import { formatCalendarDate, formatClockTime, formatCurrency } from "../../finance-contracts/presentation";
@@ -9,9 +10,10 @@ import { CalendarDateInput } from "./calendar-date-input";
 import { TransactionSourceMessages } from "./transaction-source-messages";
 import { TransactionStatementEvidence } from "./transaction-statement-evidence";
 import { useTransactionRecovery } from "./transaction-recovery";
+import { useToast } from "./toast-provider";
 import { getAccessToken } from "@/lib/auth-storage";
-import { listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
-import { addDays, atTimelineEdge, balanceGapDetails, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, reportedBalanceAtDate, timelineScrollShift, weekStart, type TimelineRange } from "@/lib/account-lanes";
+import { getTimelineOrders, type TimelineSavedOrder, listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
+import { placedTimelineEvents, addDays, atTimelineEdge, balanceGapDetails, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart, type TimelineRange } from "@/lib/account-lanes";
 
 type WeekResult = { status: "loading"; loaded: number; total: number | null } | { status: "error"; message: string } | { status: "ready"; rows: Transaction[] };
 type ViewMode = "amount" | "balance" | "both";
@@ -44,11 +46,14 @@ function title(transaction: Transaction) {
 
 export function AccountLanesWorkspace() {
   const { edit } = useTransactionRecovery();
+  const { notify } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [accountsError, setAccountsError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [evidenceRevision, setEvidenceRevision] = useState(0);
   const [weekResults, setWeekResults] = useState<Record<string, WeekResult>>({});
   const [range, setRange] = useState<TimelineRange>(() => {
     const start = initialWindow();
@@ -61,6 +66,10 @@ export function AccountLanesWorkspace() {
   const [visibleDate, setVisibleDate] = useState(today);
   const [mode, setMode] = useState<ViewMode>("both");
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("lanes");
+  const [placement, setPlacement] = useState<{ date: string; account?: string } | null>(null);
+  const [savedOrders, setSavedOrders] = useState<TimelineSavedOrder[]>([]);
+  const [orderRevision, setOrderRevision] = useState(0);
+  const [orderError, setOrderError] = useState("");
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
@@ -86,6 +95,8 @@ export function AccountLanesWorkspace() {
   const lastScrollInputAtRef = useRef(0);
   const lastScrollTopRef = useRef(0);
   const requestsRef = useRef(new Map<string, AbortController>());
+  const refreshRequestRef = useRef<AbortController | null>(null);
+  const refreshAgainRef = useRef(false);
   const closeDetails = useCallback(() => {
     const id = lastCardRef.current;
     setSelectedTransaction(null);
@@ -133,7 +144,7 @@ export function AccountLanesWorkspace() {
     window.addEventListener("finance:transaction-saved", reflectSavedEntry);
     return () => window.removeEventListener("finance:transaction-saved", reflectSavedEntry);
   }, []);
-  useEffect(() => () => { for (const controller of requestsRef.current.values()) controller.abort(); requestsRef.current.clear(); }, []);
+  useEffect(() => () => { refreshAgainRef.current = false; refreshRequestRef.current?.abort(); for (const controller of requestsRef.current.values()) controller.abort(); requestsRef.current.clear(); }, []);
   useEffect(() => () => { if (visibleDateTimerRef.current) clearTimeout(visibleDateTimerRef.current); }, []);
   useEffect(() => {
     if (!isFullscreen) return;
@@ -147,7 +158,7 @@ export function AccountLanesWorkspace() {
   useEffect(() => {
     if (!selectedTransaction && !isFullscreen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.key !== "Escape" || event.defaultPrevented || document.querySelector("dialog[open]")) return;
       event.preventDefault();
       if (selectedTransaction) { closeDetails(); return; }
       const viewport = viewportRef.current;
@@ -174,26 +185,83 @@ export function AccountLanesWorkspace() {
     if (day?.dataset.laneDay) anchorRef.current = { date: day.dataset.laneDay, top: day.getBoundingClientRect().top - viewportTop };
   }, []);
 
+  const refreshTimeline = useCallback(async function refreshTimeline(showNotice = false): Promise<void> {
+    if (refreshRequestRef.current) { refreshAgainRef.current = true; return; }
+    const token = getAccessToken();
+    if (!token) { notify("Sign in to refresh the timeline.", "error"); return; }
+    const controller = new AbortController();
+    refreshRequestRef.current = controller;
+    setIsRefreshing(true);
+    for (const request of requestsRef.current.values()) request.abort();
+    requestsRef.current.clear();
+    const refreshedRange = { ...rangeRef.current };
+    const starts: string[] = [];
+    for (let start = refreshedRange.start; start < refreshedRange.end; start = addDays(start, 7)) starts.push(start);
+    try {
+      const [nextAccounts, nextCategories, weeks] = await Promise.all([
+        listAccounts(token, controller.signal),
+        listCategories(token, controller.signal),
+        Promise.all(starts.map(async start => ({ start, rows: await loadTimelinePages(
+          offset => listTransactionActivityPage(token, start, addDays(start, 6), offset, controller.signal), controller.signal,
+        ) }))),
+      ]);
+      if (controller.signal.aborted) return;
+      // A save during the request makes this snapshot obsolete. Fetch once more.
+      if (refreshAgainRef.current) return;
+      captureAnchor();
+      setAccounts([...nextAccounts].sort((a, b) => a.display_order - b.display_order));
+      setCategories(nextCategories);
+      setSelectedIds(previous => previous.filter(id => nextAccounts.some(account => account.id === id)));
+      setAccountsError(null);
+      setAccountsLoading(false);
+      // Replace the range together so moved/deleted entries cannot leave ghost
+      // cards. Drop prefetched weeks; they must be fetched afresh on navigation.
+      setWeekResults(Object.fromEntries(weeks.map(({ start, rows }) => [start, { status: "ready", rows }])));
+      setEvidenceRevision(value => value + 1);
+      const rows = weeks.flatMap(week => week.rows);
+      setSelectedTransaction(current => current ? rows.find(row => row.id === current.id)
+        ?? (current.date >= refreshedRange.start && current.date < refreshedRange.end ? null : current) : null);
+      if (showNotice) notify("Timeline refreshed.");
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        controller.abort();
+        setWeekResults(current => Object.fromEntries(Object.entries(current).map(([start, week]) => [start,
+          week.status === "loading" ? { status: "error", message: "Loading was interrupted by refresh. Please retry this week." } : week,
+        ])));
+        notify(`Timeline could not refresh. Previous data is still shown. ${error instanceof Error ? error.message : "Please try again."}`, "error");
+      }
+    } finally {
+      if (refreshRequestRef.current === controller) {
+        refreshRequestRef.current = null;
+        setIsRefreshing(false);
+        if (refreshAgainRef.current) { refreshAgainRef.current = false; void refreshTimeline(showNotice); }
+      }
+    }
+  }, [captureAnchor, notify]);
+
+  useEffect(() => {
+    const changed = () => { void refreshTimeline(); };
+    window.addEventListener("finance:transactions-changed", changed);
+    return () => window.removeEventListener("finance:transactions-changed", changed);
+  }, [refreshTimeline]);
+
   const loadWeek = useCallback(async (start: string, retry = false) => {
-    if (requestsRef.current.has(start) || (!retry && weekResults[start] && weekResults[start].status !== "loading")) return;
+    if (refreshRequestRef.current || requestsRef.current.has(start) || (!retry && weekResults[start] && weekResults[start].status !== "loading")) return;
     const token = getAccessToken();
     if (!token) return;
     const controller = new AbortController();
     requestsRef.current.set(start, controller);
     setWeekResults(current => ({ ...current, [start]: { status: "loading", loaded: 0, total: null } }));
     try {
-      const rows: Transaction[] = [];
-      let offset: number | null = 0;
-      while (offset !== null) {
-        const page = await listTransactionActivityPage(token, start, addDays(start, 6), offset, controller.signal);
-        rows.push(...page.results);
+      const rows = await loadTimelinePages(
+        offset => listTransactionActivityPage(token, start, addDays(start, 6), offset, controller.signal), controller.signal,
+        (loaded, total) => {
         // Progress is useful under the initial overlay. Once the timeline is
         // interactive, updating every page would redraw all visible cards.
-        if (!controller.signal.aborted && page.next_offset !== null && !initializedRef.current) {
-          setWeekResults(current => ({ ...current, [start]: { status: "loading", loaded: rows.length, total: page.count } }));
+        if (!controller.signal.aborted && !initializedRef.current) {
+          setWeekResults(current => ({ ...current, [start]: { status: "loading", loaded, total } }));
         }
-        offset = page.next_offset;
-      }
+      });
       if (!controller.signal.aborted) {
         if (start >= rangeRef.current.start && start < rangeRef.current.end) captureAnchor();
         setWeekResults(current => ({ ...current, [start]: { status: "ready", rows } }));
@@ -216,19 +284,19 @@ export function AccountLanesWorkspace() {
   const readyWeeks = windowWeeks.filter(start => weekResults[start]?.status === "ready").length;
   const failedWeeks = windowWeeks.filter(start => weekResults[start]?.status === "error").length;
   useEffect(() => {
-    if (accountsError || accountsLoading) return;
+    if (accountsError || accountsLoading || isRefreshing) return;
     for (const start of windowWeeks) {
       if (!weekResults[start] && !requestsRef.current.has(start)) void loadWeek(start);
     }
-  }, [accountsError, accountsLoading, loadWeek, weekResults, windowWeeks]);
+  }, [accountsError, accountsLoading, isRefreshing, loadWeek, weekResults, windowWeeks]);
 
   useEffect(() => {
-    if (accountsError || accountsLoading || readyWeeks !== windowWeeks.length) return;
+    if (accountsError || accountsLoading || isRefreshing || readyWeeks !== windowWeeks.length) return;
     // Keep two complete weeks ready on either side of the visible range.
     for (const start of [addDays(range.start, -14), addDays(range.start, -7), range.end, addDays(range.end, 7)]) {
       if (!weekResults[start] && !requestsRef.current.has(start)) void loadWeek(start);
     }
-  }, [accountsError, accountsLoading, loadWeek, range, readyWeeks, weekResults, windowWeeks]);
+  }, [accountsError, accountsLoading, isRefreshing, loadWeek, range, readyWeeks, weekResults, windowWeeks]);
   const targetDate = jumpTargetRef.current ?? today();
   const targetWeek = weekResults[weekStart(targetDate)];
   const waitingForTarget = !initializedRef.current && targetWeek?.status !== "ready" && targetWeek?.status !== "error";
@@ -437,20 +505,29 @@ export function AccountLanesWorkspace() {
     if (viewport) viewPositionRef.current = { top: viewport.scrollTop, left: viewport.scrollLeft };
     setIsFullscreen(value => !value);
   };
+  useEffect(() => {
+    const token = getAccessToken(); if (!token) return;
+    const controller = new AbortController();
+    // Withdraw old positions immediately while current evidence is rechecked.
+    setSavedOrders([]); setOrderError("");
+    void getTimelineOrders(token, range.start, addDays(range.end, -1), controller.signal).then(result => { if (!controller.signal.aborted) setSavedOrders(result); })
+      .catch(() => { if (!controller.signal.aborted) setOrderError("Saved placements could not be checked. Untimed movements are shown without placement; refresh to retry."); });
+    return () => controller.abort();
+  }, [range.start, range.end, allRows, orderRevision, evidenceRevision]);
   const selected = selectedTransaction && allRows.find(row => row.id === selectedTransaction.id) || selectedTransaction;
   const selectedGapRows = selected ? selectedAccounts.flatMap(account => {
     const detail = gaps.get(account.id)?.get(selected.id);
     return detail === undefined ? [] : [{ account, detail }];
   }) : [];
-  const renderLaneRow = (row: Transaction, date: string) => {
+  const renderLaneRow = (row: Transaction, date: string, placedAccount?: string, placementBasis?: string) => {
     const first = selectedIds.indexOf(row.account);
     const second = row.transfer_account ? selectedIds.indexOf(row.transfer_account) : -1;
-    const bridge = row.type === "transfer" && first >= 0 && second >= 0;
-    return <div className={`account-lanes-row${bridge ? " account-lanes-row--transfer" : ""}`} key={row.id} style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}>
-      <time dateTime={`${date}T${row.time}`} style={{ gridColumn: 1, gridRow: 1 }}>{formatClockTime(row.time!)}</time>
+    const bridge = !placedAccount && row.type === "transfer" && first >= 0 && second >= 0;
+    return <div className={`account-lanes-row${placedAccount ? " account-lanes-row--placed" : ""}${bridge ? " account-lanes-row--transfer" : ""}`} key={`${row.id}:${placedAccount ?? "timed"}`} style={{ gridTemplateColumns: `88px repeat(${Math.max(selectedAccounts.length, 1)}, minmax(240px, 1fr))` }}>
+      <time dateTime={row.time ? `${date}T${row.time}` : date} style={{ gridColumn: 1, gridRow: 1 }}>{row.time ? formatClockTime(row.time) : "Order only · time unknown"}</time>
       {bridge ? <span aria-hidden="true" className="account-lanes-transfer-bridge" style={{ gridColumn: `${Math.min(first, second) + 2} / ${Math.max(first, second) + 3}`, gridRow: 1 }} /> : null}
       {selectedAccounts.map((account, index) => {
-        const direction = laneDirection(row, account.id);
+        const direction = placedAccount && placedAccount !== account.id ? null : laneDirection(row, account.id);
         if (!direction) return <div className="account-lanes-cell" key={account.id} style={{ gridColumn: index + 2, gridRow: 1 }} />;
         const otherId = row.type === "transfer" ? row.account === account.id ? row.transfer_account : row.account : null;
         const other = otherId ? accountById.get(otherId) : null;
@@ -458,7 +535,7 @@ export function AccountLanesWorkspace() {
         return <div className="account-lanes-cell" key={account.id} style={{ gridColumn: index + 2, gridRow: 1 }}>
           <button className={`account-lanes-card${selected?.id === row.id ? " is-selected" : ""}${bridge ? " account-lanes-card--paired" : ""}`} data-lane-card={row.id} type="button" onClick={event => selectTransaction(row, event.detail === 0)}>
             <span className="account-lanes-card__top"><strong>{title(row)}</strong>{row.type === "transfer" ? <LinkSimple aria-hidden="true" size={16} /> : null}</span>
-            <small>{formatClockTime(row.time!)} · {row.type.replaceAll("_", " ")}{row.category && categoryById.get(row.category) ? ` · ${categoryById.get(row.category)}` : ""}</small>
+            <small className={placedAccount ? "account-lanes-placed-label" : undefined}>{row.time ? formatClockTime(row.time) : placementBasis === "balance" ? "Balance-supported order · no clock time" : "Manually placed · no clock time"} · {row.type.replaceAll("_", " ")}{row.category && categoryById.get(row.category) ? ` · ${categoryById.get(row.category)}` : ""}</small>
             {bridge ? <small className="account-lanes-pair-label">Same transfer · {other?.name ?? "other account"}</small> : null}
             <span className="account-lanes-card__numbers">{mode !== "balance" ? <b className={direction === "credit" ? "is-credit" : "is-debit"}>{amountLabel(row, account.id, account.currency)}</b> : null}{mode !== "amount" ? <span>Bal {laneBalance(row, account.id) === null ? "not reported" : formatCurrency(laneBalance(row, account.id)!, account.currency)}</span> : null}</span>
           </button>
@@ -475,7 +552,7 @@ export function AccountLanesWorkspace() {
     const hiddenAccount = row.type === "transfer" ? accountById.get(accountId === row.account ? row.transfer_account ?? "" : row.account) : null;
     return <li key={row.id}>
       <button className={`account-lanes-list-card${selected?.id === row.id ? " is-selected" : ""}`} data-lane-card={row.id} type="button" onClick={event => selectTransaction(row, event.detail === 0)}>
-        <time dateTime={row.time ? `${row.date}T${row.time}` : row.date}>{row.time ? formatClockTime(row.time) : "Time unknown"}</time>
+        <time dateTime={row.time ? `${row.date}T${row.time}` : row.date}>{row.time ? formatClockTime(row.time) : savedOrders.some(order => order.account === accountId && order.date === row.date && order.status === "valid" && order.ordered_ids.includes(row.id)) ? "Order saved · time unknown" : "Time unknown"}</time>
         <span><strong>{title(row)}</strong><small>{row.type === "transfer" ? `${accountById.get(row.account)?.name ?? "Source"} → ${other?.name ?? "Destination"}` : account?.name ?? "Account"} · {row.type.replaceAll("_", " ")}</small></span>
         <b className={laneDirection(row, accountId) === "credit" ? "is-credit" : "is-debit"}>{account ? amountLabel(row, accountId, account.currency) : row.amount}</b>
       </button>
@@ -504,6 +581,7 @@ export function AccountLanesWorkspace() {
       <div className="account-lanes-dropdown"><button className="account-lanes-control" aria-expanded={optionsOpen} onClick={() => { setOptionsOpen(!optionsOpen); setAccountsOpen(false); }} type="button"><SlidersHorizontal size={18} /> View options</button>{optionsOpen ? <div className="account-lanes-menu account-lanes-menu--right" role="group" aria-label="Timeline options"><label><input checked={showEmptyDays} onChange={event => setShowEmptyDays(event.target.checked)} type="checkbox" />Show individual quiet days</label><label><input checked={showGaps} onChange={event => setShowGaps(event.target.checked)} type="checkbox" />Show possible balance gaps</label></div> : null}</div>
       <div className="account-lanes-text-size" role="group" aria-label="Timeline text size"><button type="button" aria-label="Decrease timeline text size by 0.5 pixels" disabled={fontAdjustment <= -2} onClick={() => setFontAdjustment(value => Math.max(-2, value - 0.5))}>A−</button><span aria-live="polite">{fontAdjustment > 0 ? "+" : ""}{fontAdjustment.toFixed(1)} px</span><button type="button" aria-label="Increase timeline text size by 0.5 pixels" disabled={fontAdjustment >= 2} onClick={() => setFontAdjustment(value => Math.min(2, value + 0.5))}>A+</button></div>
       <button className="account-lanes-control account-lanes-fullscreen" type="button" aria-label={isFullscreen ? "Exit full screen timeline" : "Open full screen timeline"} aria-pressed={isFullscreen} onClick={toggleFullscreen}>{isFullscreen ? <ArrowsIn size={18} /> : <ArrowsOut size={18} />}{isFullscreen ? "Exit full screen" : "Full screen"}</button>
+      <button className="account-lanes-control account-lanes-refresh" type="button" aria-label="Refresh timeline" aria-busy={isRefreshing} disabled={isRefreshing || accountsLoading} onClick={() => void refreshTimeline(true)} title="Reload transactions, accounts and reported balances">{isRefreshing ? <span className="account-lanes-spinner" aria-hidden="true" /> : <ArrowClockwise aria-hidden="true" size={18} />}<span>{isRefreshing ? "Refreshing…" : "Refresh"}</span></button>
     </div>
     <div className="account-lanes-subtoolbar">
       <div className="account-lanes-layout-switch" role="group" aria-label="Timeline layout"><button type="button" aria-pressed={layoutMode === "lanes"} className={layoutMode === "lanes" ? "is-active" : ""} onClick={() => setLayoutMode("lanes")}>Lanes</button><button type="button" aria-pressed={layoutMode === "list"} className={layoutMode === "list" ? "is-active" : ""} onClick={() => setLayoutMode("list")}>List</button></div>
@@ -523,7 +601,7 @@ export function AccountLanesWorkspace() {
             const context = report?.status === "reported"
               ? `${formatCurrency(report.value, account.currency)} · last reported ${formatCalendarDate(report.date)}${report.time ? `, ${formatClockTime(report.time)}` : ""}`
               : report?.status === "unavailable" && report.reason === "not_loaded" ? "Loading report context…"
-              : report?.status === "unavailable" && report.reason === "ambiguous_order" ? "Report order unclear"
+              : report?.status === "unavailable" && report.reason === "ambiguous_order" ? savedOrders.some(order => order.account === account.id && order.date <= visibleDate && order.status === "valid" && order.ordered_ids.length) ? "Reviewed order saved · clock times incomplete" : "Report order unclear"
               : "No reported balance in loaded days";
             return <div data-lane-account={account.id} key={account.id}><strong><AccountLabel account={account} /></strong><small>By {formatCalendarDate(visibleDate)} · {context}</small></div>;
           }) : <div><strong>Choose an account</strong></div>}</div> : null}
@@ -540,10 +618,12 @@ export function AccountLanesWorkspace() {
             const result = weekResults[weekStart(date)];
             const daily = result?.status === "ready" ? result.rows.filter(row => row.date === date && selectedAccounts.some(account => laneDirection(row, account.id))) : [];
             const timed = daily.filter(row => row.time).sort((a, b) => `${a.time}:${a.id}`.localeCompare(`${b.time}:${b.id}`));
-            const untimed = daily.filter(row => !row.time);
-            return <section className={`account-lanes-day${layoutMode === "list" ? " account-lanes-day--list" : ""}`} data-lane-day={date} key={date} aria-label={dayLabel(date)}><div className="account-lanes-day-title"><div className="account-lanes-day-title__content"><time dateTime={date}>{dayLabel(date)}</time><span>{daily.length} {daily.length === 1 ? "movement" : "movements"}</span></div></div>
+            const dayOrders = savedOrders.filter(order => order.date === date);
+            const placed = placedTimelineEvents(daily, selectedIds, dayOrders);
+            const untimed = placed.unplaced;
+            return <section className={`account-lanes-day${layoutMode === "list" ? " account-lanes-day--list" : ""}`} data-lane-day={date} key={date} aria-label={dayLabel(date)}><div className="account-lanes-day-title"><div className="account-lanes-day-title__content"><time dateTime={date}>{dayLabel(date)}</time><span>{daily.length} {daily.length === 1 ? "movement" : "movements"}</span></div>{daily.some(row => !row.time) ? <button className="account-lanes-order-action" type="button" onClick={() => setPlacement({ date })}>Suggest placement</button> : null}</div>{dayOrders.some(order => order.status === "stale") ? <p className="account-lanes-placement-warning">Saved placement needs review because this day changed.</p> : null}
               {daily.length === 0 ? <p className="account-lanes-status">No movements in selected accounts on this day.</p> : null}
-              {layoutMode === "lanes" ? timed.map(row => renderLaneRow(row, date)) : <ul className="account-lanes-list">{[...timed, ...untimed].map(renderListRow)}</ul>}
+              {layoutMode === "lanes" ? placed.events.map(event => renderLaneRow(event.row, date, event.account, event.basis)) : <ul className="account-lanes-list">{(selectedIds.length === 1 ? [...placed.events.map(event => event.row), ...untimed] : [...timed, ...daily.filter(row => !row.time)]).map(renderListRow)}</ul>}
               {layoutMode === "lanes" && untimed.length ? <details className="account-lanes-untimed"><summary>Time not reported · {untimed.length} {untimed.length === 1 ? "movement" : "movements"}</summary>{untimed.map(row => <button type="button" data-lane-card={row.id} key={row.id} onClick={event => selectTransaction(row, event.detail === 0)}>{title(row)} · {formatCurrency(row.amount, accountById.get(row.account)?.currency)}{row.type === "transfer" ? " · transfer" : ""}</button>)}</details> : null}
             </section>;
           })}
@@ -551,10 +631,12 @@ export function AccountLanesWorkspace() {
         </div>
         {!accountsError && (waitingForTarget || targetError) ? <div className="account-lanes-initial-loading" role={targetError ? "alert" : "status"}>{targetError ? <><strong>Could not load {formatCalendarDate(targetDate)}</strong><span>{targetError}</span><button type="button" onClick={() => void loadWeek(weekStart(targetDate), true)}>Retry</button></> : <><span className="account-lanes-spinner" aria-hidden="true" /><strong>Loading timeline</strong><span>{targetWeek?.status === "loading" && targetWeek.loaded ? `${targetWeek.loaded} of ${targetWeek.total ?? "more"} movements loaded around ${formatCalendarDate(targetDate)}…` : `Fetching movements around ${formatCalendarDate(targetDate)}…`}</span></>}</div> : null}
       </div>
+      {orderError ? <p className="account-lanes-placement-warning" role="status">{orderError}</p> : null}
+      {placement ? <TimelineOrderDialog date={placement.date} accounts={selectedAccounts} initialAccount={placement.account} onClose={() => setPlacement(null)} onChange={() => setOrderRevision(value => value + 1)} /> : null}
       {selected ? createPortal(<aside className="account-lanes-inspector" role="dialog" aria-modal="false" aria-labelledby="account-lanes-inspector-title">
           <div className="account-lanes-inspector__title"><h2 id="account-lanes-inspector-title" ref={inspectorTitleRef} tabIndex={-1}>Transaction details</h2><button type="button" aria-label="Close transaction details" onClick={closeDetails}><X size={18} /></button></div>
           <p className="account-lanes-inspector__date">{formatCalendarDate(selected.date)} · {selected.time ? formatClockTime(selected.time) : "time not reported"}</p>
-          <h3>{title(selected)}</h3>
+          <h3>{title(selected)}</h3>{!selected.time ? <><span className="badge">{savedOrders.some(order => order.date === selected.date && order.status === "valid" && order.ordered_ids.includes(selected.id)) ? "Reviewed placement · time still unknown" : "Not yet placed"}</span><button className="account-lanes-order-action" type="button" onClick={() => setPlacement({ date: selected.date, account: selectedIds.includes(selected.account) ? selected.account : selected.transfer_account ?? selected.account })}>Review suggested placement</button></> : null}
           <strong className="account-lanes-inspector__amount">{formatCurrency(selected.amount, accountById.get(selected.account)?.currency)}</strong>
           <p>{selected.type.replaceAll("_", " ")}{selected.category && categoryById.get(selected.category) ? " · " + categoryById.get(selected.category) : ""}</p>
           <div className="account-lanes-observations"><h3>Account observations</h3>{[selected.account, selected.transfer_account].filter((id): id is string => Boolean(id)).map(id => {
@@ -566,7 +648,7 @@ export function AccountLanesWorkspace() {
           {selectedGapRows.length ? <div className="account-lanes-gap-detail"><h3>Possible balance gap</h3>{selectedGapRows.map(renderGapDetail)}</div> : null}
           {selected.note ? <div className="account-lanes-note"><h3>Note</h3><p>{selected.note}</p></div> : null}
           {selected.reference ? <p>Reference · {selected.reference}</p> : null}
-          <div className="account-lanes-sources"><TransactionSourceMessages key={selected.id} transactionId={selected.id} loadOnExpand showEmpty /><TransactionStatementEvidence key={"statement-" + selected.id} transactionId={selected.id} /></div>
+          <div className="account-lanes-sources"><TransactionSourceMessages key={`${selected.id}-${evidenceRevision}`} transactionId={selected.id} loadOnExpand showEmpty /><TransactionStatementEvidence key={`statement-${selected.id}-${evidenceRevision}`} transactionId={selected.id} /></div>
           <button className="button button--ghost" type="button" onClick={() => edit(selected.id)}>Open ledger entry</button>
           <p className="account-lanes-inspector__hint">A transfer is one ledger transaction shown in each involved account.</p>
       </aside>, document.body) : null}

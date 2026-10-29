@@ -15,7 +15,8 @@
     "test:dates": "node --test tests/date-health.test.cjs",
     "test:identities": "node --test tests/account-identity.test.cjs",
     "test:quick-add": "node --test tests/quick-add.test.cjs",
-    "test:review-feedback": "node --test tests/review-feedback.test.cjs"
+    "test:review-feedback": "node --test tests/review-feedback.test.cjs",
+    "test:finance": "node --test tests/account-lanes.test.cjs tests/financial-totals.test.cjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

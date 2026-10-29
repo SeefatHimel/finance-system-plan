@@ -1,4 +1,5 @@
 "use client";
+import { FinancialOverview } from "@/components/financial-overview";
 import { AccountLabel } from "@/components/account-avatar";
 import { formatCurrency, formatCalendarDate as formatDate, formatTimestamp } from "../../finance-contracts/presentation";
 
@@ -109,11 +110,11 @@ function candidateIcon(provider: string) {
 
 function buildCashFlowData(daily: MonthlyReport["daily"]): CashFlowPoint[] {
   return daily.map(day => ({
-    date: formatDate(day.date), inflow: Number(day.income_total), outflow: Number(day.expense_total)
+    date: formatDate(day.date), inflow: Number(day.cash_in_total), outflow: Number(day.cash_out_total)
   }));
 }
 
-function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
+function CashFlowChart({ data, spending = false }: { data: CashFlowPoint[]; spending?: boolean }) {
   if (data.length === 0) {
     return (
       <div className="cash-flow-empty">
@@ -125,7 +126,7 @@ function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
     );
   }
   return (
-    <div className="cash-flow-chart" aria-label="Daily income and spending for the selected period">
+    <div className="cash-flow-chart" aria-label={spending ? "Daily spending after refunds" : "Daily external money in and out for the selected period"}>
       <ResponsiveContainer height="100%" width="100%">
         <AreaChart data={data} margin={{ bottom: 0, left: -12, right: 8, top: 14 }}>
           <CartesianGrid stroke="#24364d" strokeDasharray="0" vertical={false} />
@@ -135,8 +136,8 @@ function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
             contentStyle={{ background: "#111f31", border: "1px solid #2c4059", borderRadius: 8, color: "#f7f9fc" }}
             formatter={(value) => formatCurrency(Number(value))}
           />
-          <Area dataKey="outflow" fill="#6f7e99" fillOpacity={0.06} isAnimationActive={false} name="Outflow" stroke="#6f7e99" strokeWidth={2} type="monotone" />
-          <Area dataKey="inflow" fill="#55e6a5" fillOpacity={0.12} isAnimationActive={false} name="Inflow" stroke="#55e6a5" strokeWidth={2.5} type="monotone" />
+          <Area dataKey="outflow" fill="#6f7e99" fillOpacity={0.06} isAnimationActive={false} name={spending ? "Net spending" : "Outflow"} stroke={spending ? "#55e6a5" : "#6f7e99"} strokeWidth={2} type="monotone" />
+          {!spending ? <Area dataKey="inflow" fill="#55e6a5" fillOpacity={0.12} isAnimationActive={false} name="Inflow" stroke="#55e6a5" strokeWidth={2.5} type="monotone" /> : null}
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -144,13 +145,19 @@ function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
 }
 
 function SpendingChart({ categories }: { categories: MonthlyReport["categories"] }) {
-  const data = categories
+  const positive = categories
     .map((category) => ({ amount: Number(category.amount), name: category.name }))
     .filter((category) => category.amount > 0)
     .sort((a, b) => b.amount - a.amount)
-    .slice(0, 6);
+;
+  const data = positive.length > 6 ? [...positive.slice(0, 5), { name: "Other categories", amount: positive.slice(5).reduce((sum, row) => sum + row.amount, 0) }] : positive;
+  const credits = categories.filter(row => Number(row.amount) < 0).reduce((sum, row) => sum - Number(row.amount), 0);
   const total = data.reduce((sum, category) => sum + category.amount, 0);
 
+  if (credits > 0) {
+    const signedRows = [...data, ...categories.filter(row => Number(row.amount) < 0).map(row => ({ name: row.name, amount: Number(row.amount) }))];
+    return <div className="spending-signed"><strong>Net spending {formatCurrency(total - credits)}</strong><p className="muted-text">Negative categories have more refunds than purchases in this period. They reduce the total.</p><div className="list-stack">{signedRows.map(row => <div className="list-row" key={row.name}><span>{row.name}</span><strong>{formatCurrency(row.amount)}</strong></div>)}</div></div>;
+  }
   if (data.length === 0) {
     return <div className="chart-empty">Spending categories will appear as transactions are recorded.</div>;
   }
@@ -169,9 +176,9 @@ function SpendingChart({ categories }: { categories: MonthlyReport["categories"]
             />
           </PieChart>
         </ResponsiveContainer>
-        <div className="spending-donut__label"><span>BDT</span><strong>{compactNumber.format(total)}</strong><span>spent</span></div>
+        <div className="spending-donut__label"><span>BDT</span><strong>{compactNumber.format(total)}</strong><span>net spent</span></div>
       </div>
-      <div className="spending-legend">
+      <div className="spending-legend">{credits > 0 ? <p className="muted-text">Refunds exceed spending in other categories by {formatCurrency(credits)}. See the report for the net total.</p> : null}
         {data.map((category, index) => (
           <div className="spending-legend__row" key={category.name}>
             <span className="spending-legend__dot" style={{ backgroundColor: categoryColors[index] }} />
@@ -186,6 +193,7 @@ function SpendingChart({ categories }: { categories: MonthlyReport["categories"]
 }
 
 export function DashboardWorkspace({ health }: { health: HealthStatus }) {
+  const [chartMode, setChartMode] = useState<"spending" | "cash">("spending");
   const [state, setState] = useState<DashboardState>({ status: "loading" });
   const [range, setRange] = useState<DatePeriod>(monthPeriod);
   const [periodLoading, setPeriodLoading] = useState(true);
@@ -240,7 +248,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
       accountAppearances: new Map(state.accounts.map(account => [account.id, account])),
       currencyByAccount: new Map(state.accounts.map(account => [account.id, account.currency])),
       captureCount: state.summary.automated_count + state.summary.pending_count,
-      cashFlow: buildCashFlowData(state.report.daily),
+      cashFlow: state.report.transaction_count ? chartMode === "cash" ? buildCashFlowData(state.report.daily) : state.report.daily.map(day => ({ date: formatDate(day.date), inflow: 0, outflow: Number(day.expense_total) })) : [],
       categoryById,
       lastSyncLabel: state.deviceStatus.last_successful_sync_at
         ? `Last successful sync ${formatTimestamp(state.deviceStatus.last_successful_sync_at)}`
@@ -248,7 +256,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
       netPosition: ledgerBalance,
       recentTransactions: state.summary.recent_transactions
     };
-  }, [state]);
+  }, [state, chartMode]);
 
   if (state.status === "loading") {
     return <LoadingState detail="Reconciling balances, activity, and mobile imports" label="Building your financial picture" variant="dashboard" />;
@@ -282,26 +290,26 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
         {periodError ? <p className="form-error" role="alert">{periodError}</p> : null}
       </section>
       <section className="dashboard-period-totals" aria-label="Selected period totals" aria-busy={periodLoading}>
-        <article className="dashboard-panel"><span>Income</span><strong>{formatCurrency(state.report.income_total)}</strong></article>
-        <article className="dashboard-panel"><span>Spending</span><strong>{formatCurrency(state.report.expense_total)}</strong></article>
-        <article className="dashboard-panel"><span>Net movement</span><strong>{formatCurrency(netMovement)}</strong></article>
+        <article className="dashboard-panel"><span>Earned income</span><strong>{formatCurrency(state.report.income_total)}</strong></article>
+        <article className="dashboard-panel"><span>Net spending</span><strong>{formatCurrency(state.report.expense_total)}</strong></article>
+        <article className="dashboard-panel"><span>Income less spending</span><strong>{formatCurrency(netMovement)}</strong></article>
       </section>
+      <FinancialOverview />
       <section className="dashboard-hero-grid">
         <article className="dashboard-panel net-position-panel">
           <div className="net-position-panel__summary">
             <div>
-              <div className="panel-label">Current net position <HelpTooltip label="About current net position">Sum of current BDT ledger balances. Reported bank balances are separate in Accounts. The date filter changes activity totals and charts; balances and the review queue stay current.</HelpTooltip></div>
+              <div className="panel-label">Account balances <HelpTooltip label="About current net position">Sum of current BDT ledger balances, including card liabilities. Debts tracked separately below. Reported bank balances are separate in Accounts. The date filter changes activity totals and charts; balances and the review queue stay current.</HelpTooltip></div>
               <strong className="net-position-value"><span>BDT</span> {formatCurrency(dashboardData.netPosition).replace("BDT ", "")}</strong>
-              <p className={`net-position-change${netMovement < 0 ? " net-position-change--negative" : ""}`}>
-                {netMovement >= 0 ? "+" : "-"}{formatCurrency(Math.abs(netMovement))} <span>for {periodLabel}</span>
+              <p className={`net-position-change${Number(state.report.cash_net_total) < 0 ? " net-position-change--negative" : ""}`}>
+                {Number(state.report.cash_net_total) >= 0 ? "+" : "-"}{formatCurrency(Math.abs(Number(state.report.cash_net_total)))} <span>external money movement · {periodLabel}</span>
               </p>
             </div>
             <div className="chart-heading">
-              <span>Daily cash flow</span>
-              <div><span><i className="legend-dot legend-dot--inflow" />Inflow</span><span><i className="legend-dot legend-dot--outflow" />Outflow</span></div>
+              <span>{chartMode === "spending" ? "Daily spending after refunds" : "Daily external cash flow"}</span><div role="group" aria-label="Chart view"><button className="button button--ghost" type="button" aria-pressed={chartMode === "spending"} onClick={() => setChartMode("spending")}>Spending</button><button className="button button--ghost" type="button" aria-pressed={chartMode === "cash"} onClick={() => setChartMode("cash")}>Cash flow</button></div>
             </div>
           </div>
-          <CashFlowChart data={dashboardData.cashFlow} />
+          <CashFlowChart data={dashboardData.cashFlow} spending={chartMode === "spending"} />
         </article>
 
         <article className="dashboard-panel attention-panel">
@@ -376,7 +384,7 @@ export function DashboardWorkspace({ health }: { health: HealthStatus }) {
                       <td><span className="account-path"><AccountLabel account={dashboardData.accountAppearances.get(transaction.account)} />{transaction.type === "transfer" ? <><span aria-label="to">→</span><AccountLabel account={dashboardData.accountAppearances.get(transaction.transfer_account ?? "")} fallback="Choose destination" /></> : null}</span></td>
                       <td>{transaction.category ? dashboardData.categoryById.get(transaction.category) ?? "Uncategorized" : "Uncategorized"}</td>
                       <td><span className="table-source-icon">{transaction.source === "sms" ? <ChatCenteredText aria-hidden="true" size={16} /> : transaction.source === "mobile" ? <DeviceMobile aria-hidden="true" size={16} /> : <FileText aria-hidden="true" size={16} />}{sourceLabel(transaction.source)}</span></td>
-                      <td className="import-cell">{isAutomated ? "Verified" : "Manual"}</td>
+                      <td className="import-cell">{isAutomated ? "Imported" : "Manual"}</td>
                       <td><span className={`transaction-status${isAutomated ? " transaction-status--posted" : ""}`}><CheckCircle aria-hidden="true" size={14} weight="fill" />Posted</span></td>
                       <td className={`dashboard-amount dashboard-amount--${movement.tone}`}>{movement.sign}{amount}</td>
                     </tr>

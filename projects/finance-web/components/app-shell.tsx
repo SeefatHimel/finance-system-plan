@@ -338,7 +338,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
 
           <div className="page-heading">
-            <h1>{isDashboard ? "Your money, already organized" : activeItem.title}</h1>
+            <h1>{isDashboard ? "Your money at a glance" : activeItem.title}</h1>
             {isDashboard ? (
               <p className="sync-heading"><Circle aria-hidden="true" size={10} weight="fill" />{syncLabel}</p>
             ) : (

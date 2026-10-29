@@ -22,7 +22,7 @@ import { StatementDirectionRecheck } from "@/components/statement-direction-rech
 import { displayedStatementText } from "@/lib/statement-citytouch";
 import { useToast } from "@/components/toast-provider";
 
-const labels: Record<string, string> = { ebl_bank: "EBL bank", ebl_credit_card: "EBL credit card", city_bank: "City Bank", bkash: "bKash", new: "Not in ledger", possible_match: "Possible match", needs_correction: "Needs review", posted: "Added", linked: "Linked", skipped: "Skipped", pending: "Pending" };
+const labels: Record<string, string> = { ebl_bank: "EBL bank", ebl_credit_card: "EBL credit card", city_bank: "City Bank", bkash: "bKash", new: "New · review to add", possible_match: "Match available", needs_correction: "Fix needed", posted: "Done · added", linked: "Done · linked", skipped: "Skipped", pending: "Pending" };
 const emptyFilters = { state: "", sms_status: "", direction: "", type: "", category: "", search: "", date_from: "", date_to: "", ordering: "source" };
 
 function StatementDescriptionCell({ row }: { row: SavedStatementRow }) {
@@ -260,8 +260,20 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
   const uploadAccounts = accounts.filter((a) => a.is_active && a.currency === "BDT" && eligibleTypes.includes(a.type));
   return <div className="workspace-grid statement-preview">
     <details className="panel statement-library" open={libraryOpen} onToggle={event => setLibraryOpen(event.currentTarget.open)}><summary>{batchId ? "Upload or choose another statement" : "Statement library"}</summary><div className="workspace-grid">
+
+    <section className="panel"><div className="panel__body"><h2 className="section-title">Import history</h2><p className="section-subtitle">Resume saved reviews. Uploading the same file for the same account reopens its draft and preserves your decisions.</p>
+      <DatePeriodControls label="Statement import dates" description="Activity calendar days use Asia/Dhaka" value={historyPeriod} onChange={period => { setHistoryPeriod(period); setHistoryOffset(0); }}>
+        <label className="field"><span className="field__label">Filter date</span><select aria-label="Filter date" className="field__control" value={historyDateField} onChange={event => { setHistoryDateField(event.target.value as typeof historyDateField); setHistoryOffset(0); }}><option value="updated_at">Updated date</option><option value="created_at">Imported date</option></select></label>
+      </DatePeriodControls>
+      {historyLoading ? <p role="status">Updating import history…</p> : null}
+      {historyError ? <p role="alert" className="form-error">{historyError}</p> : null}
+      {!history && !historyError ? <p role="status">Loading import history…</p> : null}
+      {history && !history.results.length ? <p>No statement imports match these dates.</p> : null}
+      <div className="statement-history">{history?.results.map((entry) => <button className={`statement-history-item${entry.id === batchId ? " statement-history-item--active" : ""}`} aria-current={entry.id === batchId ? "true" : undefined} type="button" key={entry.id} onClick={() => openBatch(entry.id)}><strong><AccountLabel account={accounts.find(account => account.id === entry.account)} fallback={entry.account_name} /> · {labels[entry.profile] ?? entry.profile}</strong><span>{entry.period_start ? formatCalendarDate(entry.period_start) : "Unknown"} → {entry.period_end ? formatCalendarDate(entry.period_end) : "Unknown"}</span><small>{entry.counts.pending} pending · {entry.counts.posted} added · {entry.counts.linked} linked · {entry.counts.skipped} skipped</small><small>Updated {formatTimestamp(entry.updated_at)}</small></button>)}</div>
+      <div className="statement-actions"><button className="button" type="button" disabled={historyLoading || !historyOffset} onClick={() => setHistoryOffset(Math.max(0, historyOffset - 20))}>Newer imports</button><button className="button" type="button" disabled={historyLoading || !history?.next} onClick={() => setHistoryOffset(historyOffset + 20)}>Older imports</button><button className="button button--ghost" type="button" onClick={() => setRetry((n) => n + 1)}>Reload import list</button></div>
+    </div></section>
     <section className="panel"><div className="panel__body">
-      <h2 className="section-title">Import a statement PDF</h2><p className="section-subtitle">Upload an EBL bank or credit-card, City Bank savings, or bKash digital statement, then review matches and approve new movements.</p>
+      <details open={!history?.results.length}><summary><strong>Import a statement PDF</strong></summary><p className="section-subtitle">Upload an EBL bank or credit-card, City Bank savings, or bKash digital statement, then review matches and approve new movements.</p>
       <p><Link href="/statement-counterparties">Identify recurring statement codes</Link></p>
       <p className="inline-note">Uploads save a draft and an encrypted copy of the original PDF, without adding transactions. Passwords are never stored.</p>
       {setupError ? <p role="alert" className="form-error">{setupError}</p> : null}
@@ -285,17 +297,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
       {!setupLoading && !setupError && !uploadAccounts.length ? <p>Add an active BDT account of the selected statement type in Accounts first.</p> : null}
       {uploading ? <p role="status">Extracting rows and checking balances. You can keep navigating.</p> : null}
       {uploadError ? <p role="alert" className="form-error">{uploadError}</p> : null}
-    </div></section>
-    <section className="panel"><div className="panel__body"><h2 className="section-title">Import history</h2><p className="section-subtitle">Resume saved reviews. Uploading the same file for the same account reopens its draft and preserves your decisions.</p>
-      <DatePeriodControls label="Statement import dates" description="Activity calendar days use Asia/Dhaka" value={historyPeriod} onChange={period => { setHistoryPeriod(period); setHistoryOffset(0); }}>
-        <label className="field"><span className="field__label">Filter date</span><select aria-label="Filter date" className="field__control" value={historyDateField} onChange={event => { setHistoryDateField(event.target.value as typeof historyDateField); setHistoryOffset(0); }}><option value="updated_at">Updated date</option><option value="created_at">Imported date</option></select></label>
-      </DatePeriodControls>
-      {historyLoading ? <p role="status">Updating import history…</p> : null}
-      {historyError ? <p role="alert" className="form-error">{historyError}</p> : null}
-      {!history && !historyError ? <p role="status">Loading import history…</p> : null}
-      {history && !history.results.length ? <p>No statement imports match these dates.</p> : null}
-      <div className="statement-history">{history?.results.map((entry) => <button className={`statement-history-item${entry.id === batchId ? " statement-history-item--active" : ""}`} aria-current={entry.id === batchId ? "true" : undefined} type="button" key={entry.id} onClick={() => openBatch(entry.id)}><strong><AccountLabel account={accounts.find(account => account.id === entry.account)} fallback={entry.account_name} /> · {labels[entry.profile] ?? entry.profile}</strong><span>{entry.period_start ? formatCalendarDate(entry.period_start) : "Unknown"} → {entry.period_end ? formatCalendarDate(entry.period_end) : "Unknown"}</span><small>{entry.counts.pending} pending · {entry.counts.posted} added · {entry.counts.linked} linked · {entry.counts.skipped} skipped</small><small>Updated {formatTimestamp(entry.updated_at)}</small></button>)}</div>
-      <div className="statement-actions"><button className="button" type="button" disabled={historyLoading || !historyOffset} onClick={() => setHistoryOffset(Math.max(0, historyOffset - 20))}>Newer imports</button><button className="button" type="button" disabled={historyLoading || !history?.next} onClick={() => setHistoryOffset(historyOffset + 20)}>Older imports</button><button className="button button--ghost" type="button" onClick={() => setRetry((n) => n + 1)}>Reload import list</button></div>
+      </details>
     </div></section>
     </div></details>
     {batchError ? <div role="alert" className="form-error">Could not refresh statement details: {batchError} <button className="button button--small" type="button" onClick={() => setRetry(n => n + 1)}>Retry</button></div> : null}
@@ -303,7 +305,12 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
     {batch ? <>
       {summaryError ? <div role="alert" className="form-error">Could not refresh reconciliation details: {summaryError} Review rows remain available. <button className="button button--small" type="button" onClick={() => setRetry(n => n + 1)}>Retry</button></div> : null}
       <section className="panel statement-selected-heading" aria-label="Selected statement"><div><h2 className="section-title"><AccountLabel account={accounts.find(account => account.id === batch.account)} fallback={batch.account_name} /> · {labels[batch.profile] ?? batch.profile}</h2><p>{batch.period_start ? formatCalendarDate(batch.period_start) : "Unknown"} → {batch.period_end ? formatCalendarDate(batch.period_end) : "Unknown"} · {batch.counts.pending} pending of {batch.counts.total} rows</p></div><div className="statement-actions">{batch.profile === "bkash" ? <button className="button button--ghost button--small" type="button" onClick={() => { setChecksOpen(true); requestAnimationFrame(() => document.getElementById("statement-direction-recheck-title")?.scrollIntoView({ block: "start" })); }}>Check debit / credit</button> : null}<button className="button button--ghost button--small" type="button" aria-label="View checks & PDF" onClick={() => { setChecksOpen(true); requestAnimationFrame(() => checksRef.current?.scrollIntoView({ block: "start" })); }}>Checks & PDF</button><button className="button button--ghost button--small" type="button" aria-label="Back to import library" onClick={() => openBatch("")}>Import library</button></div>
-        {batch.checks.some(check => check.passed !== true) || Boolean(summary?.discrepancy_count || summary?.incomplete_count) || batch.warnings.length ? <div className="statement-review-health"><span className="statement-error">{batch.checks.filter(check => check.passed === false).length} failed source checks · {summary?.discrepancy_count ?? "…"} draft discrepancies{batch.warnings.length ? ` · ${batch.warnings.length} source warnings` : ""}{batch.checks.some(check => check.passed === null) || summary?.incomplete_count ? ` · ${batch.checks.filter(check => check.passed === null).length + (summary?.incomplete_count ?? 0)} unavailable checks` : ""}</span></div> : null}
+        <div className="statement-review-health">
+          <span className={`status-badge ${batch.checks.some(check => check.passed === false) ? "status-badge--warning" : "status-badge--idle"}`}>{!batch.checks.length ? "Source checks unavailable" : batch.checks.some(check => check.passed === false) ? `${batch.checks.filter(check => check.passed === false).length} source checks need review` : batch.checks.some(check => check.passed === null) ? `${batch.checks.filter(check => check.passed === null).length} source checks unavailable` : "Source checks passed"}</span>
+          {summary?.discrepancy_count ? <span className="status-badge status-badge--warning">{summary.discrepancy_count} draft discrepancies</span> : null}
+          {batch.warnings.length ? <span className="status-badge status-badge--warning">{batch.warnings.length} source warnings</span> : null}
+          {summary?.incomplete_count ? <span className="status-badge status-badge--idle">{summary.incomplete_count} draft checks unavailable</span> : null}
+        </div>
       </section>
       <section className="panel statement-review-panel"><div className="panel__body"><div className="statement-row-heading"><h2 className="section-title">Statement review</h2>
         <DatePeriodControls compact label="Statement row dates" description="Saved row date · Unknown dates under All dates" value={rowPeriod} onChange={period => { setRowPeriod(period); setFilters(old => ({ ...old, date_from: period.start, date_to: period.end })); }} /></div>

@@ -1,63 +1,50 @@
-# Map EBL statement identifiers
+# EBL description clues
 
-1. Open **Settings → Statement codes**, then **Filters → EBL bank**.
-2. Find the printed masked card/account, including its trailing star. Different
-   movement references with the same mask are grouped; possible fees are separate.
-3. Choose **Identify** on the card. Check recent masked rows, choose an external
-   party or another account you track, and enter a name. Optionally suggest a
-   transaction type, category, and note, just as for a bKash identifier.
-4. For an internal transfer, select a different active account in the same
-   currency. The mask itself may identify the sending card; verify its meaning
-   before mapping it to a destination or merchant.
-5. **Save verified mapping** keeps you on this page. It supplies suggestions for
-   pending reviews; apply them after checking the movement. Use **Edit mapping**,
-   **Forget mapping**, **Skip**, or **Restore identifier** here whenever needed.
+NPSB rows repeat **your own sending card/account mask**. That mask and the changing
+movement/reference fields do not identify the recipient, so they are no longer
+offered for mapping. Account recognition from the statement header is unaffected.
 
-Old rules based on changing numeric movement fields remain disabled. Only an
-explicit save against the printed mask enables a new EBL mapping. Saving a rule
-does not change existing drafts, confirmed transactions, or original statements.
+## Useful clues
 
-Saved masked descriptions are enough to show EBL clues; re-uploading is not
-required. **Find identifiers in saved EBL/bKash PDFs** can correct retired EBL
-metadata and recover missing bKash identifiers. Password-protected PDFs must be
-refreshed from their own statement review using the transient password. A missing
-archive needs the identical PDF. Integrity and saved-row checks still apply.
-Results show updated rows by provider, not unique recipients. Scanning preserves
-filters and leaves originals, reviewed financial values and posted transactions
-unchanged. Identifier scans allow 20 PDF requests/hour, including failed requests,
-independently of uploads. Incomplete scans show error toasts and affected PDFs;
-loading errors offer **Retry loading identifiers**.
+Open **Settings → Statement codes → Filters → EBL bank**. Supported clues are:
 
-Deploy API migration `statements.0013_verified_ebl_mask_mapping` and the API
-before this web client. Historical
-transactions are not automatically reclassified or undone. Verify any earlier
-manually applied EBL recipient suggestion against its original source before
-editing it. Possible bank-charge hints remain separate review decisions.
+- **Salary / payroll wording** on a credit. Pending unclassified salary credits
+  can suggest **Salary & Wages**. Salary loans, advances, reversals and refunds
+  are excluded.
+- **PataPay wording** and **bKash transfer wording**. These name a service, not
+  a particular person. Do not assume every transfer has the same destination.
+- **bKash recipient number**, only when explicitly introduced as To, Recipient
+  or Beneficiary. Ambiguous, masked or reference-field numbers are not inferred.
 
-## Skip without identifying
+Use **Identify / Edit mapping** to save a label and optional type, category, note
+or verified owned route. Routes require a different active account in the same
+currency. Suggestions remain scoped to your reporting account and debit/credit;
+saving a rule does not modify drafts or post transactions. Check each suggestion
+before applying it. Existing verified choices take precedence over salary hints.
 
-Use **Skip / don’t identify** for an unknown or one-off clue. No name or label is
-needed. The default **Not skipped** filter hides it on later visits and imports;
-**Skipped → Restore identifier** brings it back. The skip toast also offers Undo.
-Any saved rule for that scope is paused until restoration. Statement and ledger
-transactions are never skipped or deleted. Identifying a restored clue is optional.
+Use **Skip** for unknown or one-off clues. **Skipped → Restore identifier** or
+the toast's Undo restores the clue; Skip never skips a financial transaction.
+**Forget mapping** removes a saved suggestion without removing the statement.
 
-## Remove the old incorrect EBL metadata and rules
+## Existing NPSB mappings
 
-Choose **Clear incorrect EBL data**. A preview shows how many retired numeric
-values and old EBL recipient rules belong to your account. Cancel makes no
-changes. **Clear incorrect data** confirms only that preview; if it becomes stale,
-preview again. Verified mask mappings, correct masked evidence, source statements and financial records
-stay saved. Previously applied manual transaction edits are not reversed.
-This action is separate from scanning a PDF, and requires the updated API.
-The skip feature also requires API migration `statements.0012_identifier_skip`.
+Deploy API migration `statements.0014_retire_npsb_own_card_clues` before the web
+update. It removes the earlier EBL own-card/movement mappings and skip metadata
+and clears NPSB identifier fields, including previously verified mask mappings.
+No PDF re-upload is required. Originals, reviewed financial values, notes,
+source links, account-recognition settings and ledger entries remain unchanged.
+Previously applied manual classifications are not automatically reversed; check
+those against their original descriptions before editing them.
 
-## Compact directory controls
+**Identifier tools → Clear incorrect EBL data** also offers an owner-scoped
+preview/confirmation for remaining retired metadata. Supported verified wording
+and recipient mappings are preserved. A stale preview must be refreshed.
 
-The directory uses text badges for provider, direction, review status, and
-four-digit ambiguity. Status filter tags include counts for the current search
-and account/provider filters. Skip and Restore remain explicit labelled actions;
-identification is optional. Open **Filters** for provider/account selectors,
-remove applied filter chips individually, and open **Identifier tools** for saved
-PDF scanning or the EBL cleanup preview. Expanding tools does not mutate data.
-These controls reuse the existing endpoints and require no additional migration.
+Saved descriptions provide wording clues immediately. **Find identifiers in saved
+EBL/bKash PDFs** can recover explicit full wallet recipients that are masked in
+saved descriptions, and clears old NPSB metadata instead of recreating it. Scans
+verify the PDF digest and saved row fingerprints and never change financial
+values. Password-protected archives need the password from statement review;
+missing archives need the identical PDF. Scans are limited to 20 requests/hour,
+including failures, separately from uploads. Errors use toasts and identify the
+PDFs that need attention. Bank-charge hints remain separate review decisions.

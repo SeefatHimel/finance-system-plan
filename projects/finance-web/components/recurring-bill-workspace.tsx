@@ -1,6 +1,8 @@
 "use client";
+import { monthlyCommitments } from "@/lib/financial-totals";
+import { formatCurrency } from "../../finance-contracts/presentation";
 
-import { formatCalendarDate } from "../../finance-contracts/presentation";
+import { PlanningPaymentForm } from "@/components/planning-payment-form";
 import { DatedList } from "@/components/dated-list";
 import { CalendarDateInput } from "@/components/calendar-date-input";
 
@@ -16,7 +18,6 @@ import {
   type RecurringBill,
   type RecurringBillFrequency,
   createRecurringBill,
-  createRecurringBillPayment,
   listAccounts,
   listCategories,
   listRecurringBills
@@ -29,18 +30,11 @@ type RecurringBillState =
   | { message: string; status: "error" }
   | { accounts: Account[]; bills: RecurringBill[]; categories: Category[]; status: "ready" };
 
-const moneyFormatter = new Intl.NumberFormat("en-BD", {
-  currency: "BDT",
-  style: "currency"
-});
-
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function formatMoney(value: string) {
-  return moneyFormatter.format(Number(value));
-}
+function formatMoney(value: string, currency = "BDT") { return formatCurrency(value, currency); }
 
 function formatLabel(value: string) {
   return value.replaceAll("_", " ");
@@ -78,14 +72,10 @@ function statusBadgeClass(bill: RecurringBill) {
 
 export function RecurringBillWorkspace() {
   const { notify } = useToast();
+  const [paymentRequest, setPaymentRequest] = useState<{ id: string; version: number } | null>(null);
   const [state, setState] = useState<RecurringBillState>({ status: "loading" });
   const [formError, setFormError] = useFeedbackMessage("error");
   const [isCreating, setIsCreating] = useState(false);
-  const [paymentBillId, setPaymentBillId] = useState("");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentDate, setPaymentDate] = useState(today());
-  const [paymentNote, setPaymentNote] = useState("");
-  const [isPaying, setIsPaying] = useState(false);
 
   async function loadRecurringBills(showLoading = true) {
     const accessToken = getAccessToken();
@@ -186,7 +176,7 @@ export function RecurringBillWorkspace() {
       await createRecurringBill(accessToken, {
         account: String(formData.get("account") ?? ""),
         amount: String(formData.get("amount") ?? ""),
-        auto_create_transaction: formData.get("auto_create_transaction") === "on",
+        auto_create_transaction: false,
         category: String(formData.get("category") ?? "") || null,
         frequency: String(formData.get("frequency") ?? "monthly") as RecurringBillFrequency,
         name: String(formData.get("name") ?? ""),
@@ -204,38 +194,6 @@ export function RecurringBillWorkspace() {
     }
   }
 
-  async function handleCreatePayment(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const accessToken = getAccessToken();
-
-    if (!accessToken) {
-      setFormError("Sign in before recording a recurring bill payment.");
-      return;
-    }
-    if (!paymentBillId || !paymentAmount || !paymentDate) {
-      setFormError("Bill, amount, and paid date are required.");
-      return;
-    }
-
-    setFormError(null);
-    setIsPaying(true);
-
-    try {
-      await createRecurringBillPayment(accessToken, paymentBillId, {
-        amount: paymentAmount,
-        note: paymentNote,
-        paid_at: paymentDate
-      });
-      setPaymentAmount("");
-      setPaymentNote("");
-      await loadRecurringBills(false);
-      notify("Recurring bill payment recorded.");
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Could not record recurring bill payment.");
-    } finally {
-      setIsPaying(false);
-    }
-  }
 
   if (state.status === "loading") {
     return <LoadingState detail="Checking schedules, due dates, and payment history" label="Loading recurring bills" />;
@@ -255,7 +213,8 @@ export function RecurringBillWorkspace() {
     );
   }
 
-  const activeBills = state.bills.filter((bill) => bill.status === "active");
+  const currencyByAccount = new Map(state.accounts.map(account => [account.id, account.currency]));
+  const estimates = monthlyCommitments(state.bills.filter(bill => bill.status === "active").map(bill => ({ amount: bill.amount, frequency: bill.frequency, currency: currencyByAccount.get(bill.account) ?? "BDT" })));
   const expenseCategories = state.categories.filter((category) => category.kind === "expense");
 
   return (
@@ -267,10 +226,11 @@ export function RecurringBillWorkspace() {
             Track rent, utilities, subscriptions, and other repeating payments before they become surprises.
           </p>
 
+          <p className="muted-text">Monthly estimate annualizes weekly (52 per year), monthly, quarterly and yearly schedules. It is a planning estimate; actual payments appear in Reports.</p>
           <div className="metric-row">
             <div className="metric">
               <span className="metric__label">Monthly estimate</span>
-              <span className="metric__value">{moneyFormatter.format(totals.monthlyEstimate)}</span>
+              <span className="metric__value">{estimates.map(row => <span key={row.currency}>{formatMoney(row.amount, row.currency)}<br /></span>)}</span>
             </div>
             <div className="metric">
               <span className="metric__label">Active / due soon</span>
@@ -288,9 +248,61 @@ export function RecurringBillWorkspace() {
 
       {formError ? <p className="form-error">{formError}</p> : null}
 
+
+
+
+
       <section className="panel">
         <div className="panel__body">
-          <h2 className="section-title">Add recurring bill</h2>
+          <h2 className="section-title">Bill schedule</h2>
+          <DatedList items={state.bills} fields={[{ label: "Next due date", date: bill => bill.next_due_date }]} label="Recurring bill history">{bills => <>
+          {bills.length === 0 ? (
+            <div className="empty-state">
+              <p>No recurring bills match these dates.</p>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Account</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Frequency</th>
+                    <th>Next due</th>
+                    <th>Reminder</th>
+                    <th>Status</th>
+                    <th>Note</th><th>Payments</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bills.map((bill) => (
+                    <tr key={bill.id}>
+                      <td>{bill.name}</td>
+                      <td>{accountNames.get(bill.account) ?? bill.account}</td>
+                      <td>{bill.category ? categoryNames.get(bill.category) ?? bill.category : "-"}</td>
+                      <td>{formatMoney(bill.amount, currencyByAccount.get(bill.account))}</td>
+                      <td>{formatLabel(bill.frequency)}</td>
+                      <td>{dueLabel(bill)}</td>
+                      <td>{bill.reminder_days_before} days</td>
+                      <td>
+                        <span className={statusBadgeClass(bill)}>{formatLabel(bill.status)}</span>
+                      </td>
+                      <td>{bill.note || "-"}</td><td><button className="button button--ghost" type="button" onClick={() => setPaymentRequest(previous => ({ id: bill.id, version: (previous?.version ?? 0) + 1 }))}>Payments</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          </>}</DatedList>
+        </div>
+      </section>
+      <PlanningPaymentForm selectedParent={paymentRequest} kind="recurring" parents={state.bills.map(row => ({ id: row.id, label: row.name, open: row.status === "active", account: row.account }))} onChange={() => loadRecurringBills(false)} />
+      <section className="panel">
+        <div className="panel__body">
+          <details><summary><strong>Add recurring bill</strong></summary>
           {state.accounts.length === 0 ? (
             <div className="empty-state">
               <p>Create an account before adding recurring bills.</p>
@@ -355,13 +367,7 @@ export function RecurringBillWorkspace() {
                   type="number"
                 />
               </label>
-              <label className="field">
-                <span className="field__label">Auto transaction</span>
-                <select className="field__control" name="auto_create_transaction" defaultValue="">
-                  <option value="">Manual for now</option>
-                  <option value="on">Auto later</option>
-                </select>
-              </label>
+              <p className="field--wide muted-text">This creates a schedule only. Link or record payments from the schedule when money moves; automatic posting is not enabled.</p>
               <label className="field field--wide">
                 <span className="field__label">Note</span>
                 <input className="field__control" name="note" />
@@ -371,105 +377,7 @@ export function RecurringBillWorkspace() {
               </button>
             </form>
           )}
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panel__body">
-          <h2 className="section-title">Record payment</h2>
-          <form className="transaction-form" onSubmit={handleCreatePayment}>
-            <label className="field field--wide">
-              <span className="field__label">Bill</span>
-              <select
-                className="field__control"
-                onChange={(event) => setPaymentBillId(event.target.value)}
-                required
-                value={paymentBillId}
-              >
-                <option value="">Select active bill</option>
-                {activeBills.map((bill) => (
-                  <option key={bill.id} value={bill.id}>
-                    {bill.name} | {formatCalendarDate(bill.next_due_date)} | {formatMoney(bill.amount)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span className="field__label">Amount</span>
-              <input
-                className="field__control"
-                min="0.01"
-                onChange={(event) => setPaymentAmount(event.target.value)}
-                required
-                step="0.01"
-                type="number"
-                value={paymentAmount}
-              />
-            </label>
-            <label className="field">
-              <span className="field__label">Paid date</span>
-              <CalendarDateInput onChange={setPaymentDate} required value={paymentDate} />
-            </label>
-            <label className="field field--wide">
-              <span className="field__label">Note</span>
-              <input
-                className="field__control"
-                onChange={(event) => setPaymentNote(event.target.value)}
-                value={paymentNote}
-              />
-            </label>
-            <button className="button button--primary field--wide" disabled={isPaying || activeBills.length === 0} type="submit">
-              {isPaying ? <ButtonBusy label="Recording" /> : "Record payment"}
-            </button>
-          </form>
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panel__body">
-          <h2 className="section-title">Bill schedule</h2>
-          <DatedList items={state.bills} fields={[{ label: "Next due date", date: bill => bill.next_due_date }]} label="Recurring bill history">{bills => <>
-          {bills.length === 0 ? (
-            <div className="empty-state">
-              <p>No recurring bills match these dates.</p>
-            </div>
-          ) : (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Account</th>
-                    <th>Category</th>
-                    <th>Amount</th>
-                    <th>Frequency</th>
-                    <th>Next due</th>
-                    <th>Reminder</th>
-                    <th>Status</th>
-                    <th>Note</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bills.map((bill) => (
-                    <tr key={bill.id}>
-                      <td>{bill.name}</td>
-                      <td>{accountNames.get(bill.account) ?? bill.account}</td>
-                      <td>{bill.category ? categoryNames.get(bill.category) ?? bill.category : "-"}</td>
-                      <td>{formatMoney(bill.amount)}</td>
-                      <td>{formatLabel(bill.frequency)}</td>
-                      <td>{dueLabel(bill)}</td>
-                      <td>{bill.reminder_days_before} days</td>
-                      <td>
-                        <span className={statusBadgeClass(bill)}>{formatLabel(bill.status)}</span>
-                      </td>
-                      <td>{bill.note || "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          </>}</DatedList>
+          </details>
         </div>
       </section>
     </div>

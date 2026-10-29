@@ -79,7 +79,8 @@ const transactionTypes: TransactionType[] = ["expense", "income", "transfer", "a
 const optionalMessageKinds = ["otp_or_security", "balance_notice", "promotional"] as const;
 
 function formatLabel(value: string) {
-  return value.replaceAll("_", " ");
+  const providers: Record<string, string> = { bkash: "bKash", nagad: "Nagad", rocket: "Rocket", ebl: "EBL", ebl_bank: "EBL bank", city_bank: "City Bank", card: "Card", bank: "Bank" };
+  return providers[value] ?? value.replaceAll("_", " ");
 }
 
 export function SmsSettingsWorkspace() {

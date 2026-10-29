@@ -120,7 +120,8 @@ export function ReconciliationWorkspace() {
         listAccounts(accessToken),
         listBalanceSnapshots(accessToken)
       ]);
-      const nextAccountId = preferredAccountId || accounts[0]?.id || "";
+      const requestedAccount = preferredAccountId || new URLSearchParams(window.location.search).get("account");
+      const nextAccountId = accounts.find(account => account.id === requestedAccount)?.id || accounts[0]?.id || "";
 
       setState({ accounts, snapshots, status: "ready" });
       setSelectedAccountId(nextAccountId);
@@ -269,22 +270,22 @@ export function ReconciliationWorkspace() {
         <div className="panel__body">
           <h1 className="section-title">Balance reconciliation</h1>
           <p className="section-subtitle">
-            Compare expected ledger balances with real account balances and flag missing or extra money.
+            Compare expected ledger balances with real account balances and flag missing or extra money. These counts cover manual snapshots only; SMS and statement coverage is available in Accounts.
           </p>
 
           <div className="metric-row">
             <div className="metric">
               <span className="metric__label">Checked accounts</span>
-              <span className="metric__value">{totals.checkedAccounts}</span>
+              <span className="metric__value">{totals.checkedAccounts} of {state.accounts.length}</span>
             </div>
             <div className="metric">
               <span className="metric__label">Matched</span>
               <span className="metric__value">{totals.matched}</span>
             </div>
             <div className="metric">
-              <span className="metric__label">Warnings / difference</span>
+              <span className="metric__label">Manual checks needing review</span>
               <span className="metric__value">
-                {totals.warnings} / {moneyFormatter.format(totals.totalDifference)}
+                {totals.warnings}
               </span>
             </div>
           </div>

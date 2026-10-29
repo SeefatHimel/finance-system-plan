@@ -1,5 +1,27 @@
 import type { Transaction } from "./api";
 
+/** Do not publish a partial week or a response from a cancelled refresh. */
+export async function loadTimelinePages<T>(
+  readPage: (offset: number) => Promise<{ results: T[]; count: number; next_offset: number | null }>,
+  signal: AbortSignal,
+  progress?: (loaded: number, total: number) => void,
+): Promise<T[]> {
+  const rows: T[] = [];
+  let offset: number | null = 0;
+  while (offset !== null) {
+    signal.throwIfAborted();
+    const page = await readPage(offset);
+    signal.throwIfAborted();
+    rows.push(...page.results);
+    if (page.next_offset !== null) {
+      if (page.next_offset <= offset) throw new Error("Timeline pages changed. Please refresh again.");
+      progress?.(rows.length, page.count);
+    }
+    offset = page.next_offset;
+  }
+  return rows;
+}
+
 export function addDays(day: string, count: number): string {
   const date = new Date(`${day}T12:00:00Z`);
   date.setUTCDate(date.getUTCDate() + count);
@@ -174,4 +196,30 @@ export function balanceGapDetails(transactions: Transaction[], accountId: string
 
 export function balanceGaps(transactions: Transaction[], accountId: string, loadedDays: Set<string>) {
   return new Map([...balanceGapDetails(transactions, accountId, loadedDays)].map(([id, detail]) => [id, detail.differenceCents]));
+}
+
+/** Merge relative placements into lanes without creating a timestamp. */
+export function placedTimelineEvents(rows: Transaction[], accounts: string[], orders: { account: string; status: string; ordered_ids: string[]; basis: string }[]) {
+  const timed = rows.filter(row => row.time).sort((a, b) => `${a.time}:${a.id}`.localeCompare(`${b.time}:${b.id}`));
+  type Event = { row: Transaction; account?: string; basis?: string; key: string };
+  const before = new Map<string, Event[]>();
+  const tail: Event[] = [];
+  const placed = new Set<string>();
+  for (const account of accounts) {
+    const order = orders.find(item => item.account === account && item.status === "valid" && item.ordered_ids.length);
+    if (!order) continue;
+    const ownRows = rows.filter(row => laneDirection(row, account));
+    if (ownRows.length !== order.ordered_ids.length || ownRows.some(row => !order.ordered_ids.includes(row.id))) continue;
+    for (let index = 0; index < order.ordered_ids.length; index++) {
+      const row = ownRows.find(item => item.id === order.ordered_ids[index]);
+      if (!row || row.time) continue;
+      const next = order.ordered_ids.slice(index + 1).find(id => ownRows.find(item => item.id === id)?.time);
+      const event = { row, account, basis: order.basis, key: `${row.id}:${account}` };
+      if (next) before.set(next, [...(before.get(next) ?? []), event]); else tail.push(event);
+      placed.add(event.key);
+    }
+  }
+  const events: Event[] = timed.flatMap(row => [...(before.get(row.id) ?? []), { row, key: row.id }]);
+  events.push(...tail);
+  return { events, unplaced: rows.filter(row => !row.time && accounts.some(account => laneDirection(row, account) && !placed.has(`${row.id}:${account}`))) };
 }

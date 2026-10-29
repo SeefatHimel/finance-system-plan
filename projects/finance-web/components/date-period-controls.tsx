@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { ArrowCounterClockwise } from "@phosphor-icons/react";
+import { CalendarCheck } from "@phosphor-icons/react";
 import { CalendarDateInput } from "@/components/calendar-date-input";
 import { allDates, dailyPeriod, dateRangeError, monthPeriod, periodLabel, shiftPeriod, type DatePeriod } from "@/lib/date-period";
 
@@ -55,7 +55,7 @@ export function DatePeriodControls({ value, onChange, allowAll = true, label = "
         if (date) onChange(mode === "daily" ? dailyPeriod(date) : monthPeriod(date.slice(0, 7)));
       }} /></label>
       <button className="button button--ghost" type="button" aria-label={`Next ${mode === "daily" ? "day" : "month"}`} onClick={() => onChange(shiftPeriod(value, 1))}>→</button>
-      <button className="button button--ghost" type="button" aria-label={mode === "daily" ? "Today" : "Current month"} title={mode === "daily" ? "Today" : "Current month"} onClick={() => onChange(mode === "daily" ? dailyPeriod() : monthPeriod())}>{compact ? <ArrowCounterClockwise aria-hidden="true" size={18} /> : mode === "daily" ? "Today" : "Current month"}</button>
+      <button className="button button--ghost" type="button" aria-label={mode === "daily" ? "Today" : "Current month"} title={mode === "daily" ? "Today" : "Current month"} onClick={() => onChange(mode === "daily" ? dailyPeriod() : monthPeriod())}>{compact ? <CalendarCheck aria-hidden="true" size={18} /> : mode === "daily" ? "Today" : "Current month"}</button>
     </div> : null}
     <p className="date-period-caption" title={compact ? periodLabel(value) : undefined}>{compact && mode !== "custom" ? description || periodLabel(value) : `${periodLabel(value)}${description ? ` · ${description}` : ""}`}</p>
     {error ? <p className="form-error" role="alert">{error}</p> : null}

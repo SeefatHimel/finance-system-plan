@@ -189,18 +189,14 @@ export function AuditLogWorkspace() {
             </label>
 
             <label className="field">
-              <span className="field__label">Entity type</span>
-              <input
-                className="field__control"
-                onChange={(event) => setFilters({ ...filters, entity_type: event.target.value })}
-                placeholder="transactions.transaction"
-                type="text"
-                value={filters.entity_type}
-              />
+              <span className="field__label">Activity</span>
+              <select className="field__control" value={filters.entity_type} onChange={event => setFilters({ ...filters, entity_type: event.target.value })}>
+                <option value="">All activity</option><option value="transactions.transaction">Transactions</option><option value="debts.debtpayment">Debt payments</option><option value="credit_cards.creditcardpayment">Card payments</option><option value="recurring_bills.recurringbillpayment">Bill payments</option><option value="accounts.account">Accounts</option>
+              </select>
             </label>
 
             <label className="field">
-              <span className="field__label">Entity ID</span>
+              <span className="field__label">Record ID (optional, for support)</span>
               <input
                 className="field__control"
                 onChange={(event) => setFilters({ ...filters, entity_id: event.target.value })}
@@ -283,7 +279,7 @@ export function AuditLogWorkspace() {
                         <strong>{snapshotSummary(entry)}</strong>
                       </div>
                       <span className="list-row__meta">
-                        {formatDateTime(entry.created_at)} · {entry.entity_type} · {entry.entity_id}
+                        {formatDateTime(entry.created_at)} · {({ "transactions.transaction": "Transaction", "debts.debtpayment": "Debt payment", "credit_cards.creditcardpayment": "Card payment", "recurring_bills.recurringbillpayment": "Bill payment", "transactions.timelinedayorder": "Timeline placement", "accounts.account": "Account" } as Record<string, string>)[entry.entity_type] ?? "Activity"}
                       </span>
                       {changes.length > 0 ? (
                         <span className="list-row__meta">{changes.length} field{changes.length === 1 ? "" : "s"} changed</span>
@@ -291,7 +287,7 @@ export function AuditLogWorkspace() {
                     </div>
 
                     <details className="audit-details">
-                      <summary>{changes.length > 0 ? `View changes (${changes.length})` : "View recorded values"}</summary>
+                      <summary>{changes.length > 0 ? `View changes (${changes.length})` : "View recorded values"}</summary><p className="muted-text">Support reference: {entry.entity_type} · {entry.entity_id}</p>
                       {changes.length > 0 ? (
                         <>
                           <ul className="audit-change-list">

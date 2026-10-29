@@ -1,4 +1,5 @@
 "use client";
+import { FinancialOverview } from "@/components/financial-overview";
 import { formatCurrency, formatCalendarDate, displayLabel } from "../../finance-contracts/presentation";
 
 import { useFeedbackMessage } from "@/components/toast-provider";
@@ -480,12 +481,13 @@ export function SetupWorkspace() {
         <div className="metric"><span className="metric__label">Categories</span><strong className="metric__value">{setupState.categories.length}</strong></div>
       </section>
 
+      {activeTab === "accounts" ? <FinancialOverview coverageOnly /> : null}
       <section className="panel data-surface">
         <div className="panel__body">
           <div className="section-header section-header--tabs">
-            <div className="tab-list" role="tablist" aria-label="Setup sections">
-              <button className={`tab-button${activeTab === "accounts" ? " tab-button--active" : ""}`} onClick={() => setActiveTab("accounts")} role="tab" type="button">Accounts <span>{setupState.accounts.length}</span></button>
-              <button className={`tab-button${activeTab === "categories" ? " tab-button--active" : ""}`} onClick={() => setActiveTab("categories")} role="tab" type="button">Categories <span>{setupState.categories.length}</span></button>
+            <div className="tab-list" role="group" aria-label="Setup sections">
+              <button className={`tab-button${activeTab === "accounts" ? " tab-button--active" : ""}`} onClick={() => setActiveTab("accounts")} aria-pressed={activeTab === "accounts"} type="button">Accounts <span>{setupState.accounts.length}</span></button>
+              <button className={`tab-button${activeTab === "categories" ? " tab-button--active" : ""}`} onClick={() => setActiveTab("categories")} aria-pressed={activeTab === "categories"} type="button">Categories <span>{setupState.categories.length}</span></button>
             </div>
             <button className="button button--primary" onClick={() => { setNotice(null); setAccountError(null); setAccountIdentity(emptyAccountIdentity()); setDrawer(activeTab === "accounts" ? "account-create" : "category-create"); }} type="button">+ Add {activeTab === "accounts" ? "account" : "category"}</button>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { formatCalendarDate } from "../../finance-contracts/presentation";
+import { PlanningPaymentForm } from "@/components/planning-payment-form";
 import { DatedList } from "@/components/dated-list";
 import { CalendarDateInput } from "@/components/calendar-date-input";
 
@@ -14,7 +15,6 @@ import {
   type Debt,
   type DebtDirection,
   createDebt,
-  createDebtPayment,
   listDebts
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
@@ -44,14 +44,10 @@ function formatLabel(value: string) {
 
 export function DebtWorkspace() {
   const { notify } = useToast();
+  const [paymentRequest, setPaymentRequest] = useState<{ id: string; version: number } | null>(null);
   const [debtState, setDebtState] = useState<DebtState>({ status: "loading" });
   const [formError, setFormError] = useFeedbackMessage("error");
   const [isCreating, setIsCreating] = useState(false);
-  const [paymentDebtId, setPaymentDebtId] = useState("");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentDate, setPaymentDate] = useState(today());
-  const [paymentNote, setPaymentNote] = useState("");
-  const [isPaying, setIsPaying] = useState(false);
 
   async function loadDebts(showLoading = true) {
     const accessToken = getAccessToken();
@@ -90,7 +86,7 @@ export function DebtWorkspace() {
       };
     }
 
-    const openDebts = debtState.debts.filter((debt) => debt.status !== "paid");
+      const openDebts = debtState.debts.filter(debt => !["paid", "written_off"].includes(debt.status));
     const dueLimit = new Date();
     dueLimit.setDate(dueLimit.getDate() + 7);
 
@@ -150,38 +146,6 @@ export function DebtWorkspace() {
     }
   }
 
-  async function handleCreatePayment(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const accessToken = getAccessToken();
-
-    if (!accessToken) {
-      setFormError("Sign in before recording a payment.");
-      return;
-    }
-    if (!paymentDebtId || !paymentAmount || !paymentDate) {
-      setFormError("Debt, amount, and paid date are required.");
-      return;
-    }
-
-    setFormError(null);
-    setIsPaying(true);
-
-    try {
-      await createDebtPayment(accessToken, paymentDebtId, {
-        amount: paymentAmount,
-        note: paymentNote,
-        paid_at: paymentDate
-      });
-      setPaymentAmount("");
-      setPaymentNote("");
-      await loadDebts(false);
-      notify("Debt payment recorded.");
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Could not record payment.");
-    } finally {
-      setIsPaying(false);
-    }
-  }
 
   if (debtState.status === "loading") {
     return <LoadingState detail="Calculating balances and repayment history" label="Loading debts and lending" />;
@@ -201,7 +165,6 @@ export function DebtWorkspace() {
     );
   }
 
-  const openDebts = debtState.debts.filter((debt) => debt.status !== "paid");
 
   return (
     <div className="workspace-grid">
@@ -209,7 +172,7 @@ export function DebtWorkspace() {
         <div className="panel__body">
           <h1 className="section-title">Debts and lending</h1>
           <p className="section-subtitle">
-            Track who owes you, what you owe, due dates, and repayment progress.
+            Track who owes you, what you owe, due dates, and repayment progress in BDT. Adding a debt record does not create its original lending or borrowing transaction.
           </p>
 
           <div className="metric-row">
@@ -233,9 +196,57 @@ export function DebtWorkspace() {
 
       {formError ? <p className="form-error">{formError}</p> : null}
 
+
+
+
+
       <section className="panel">
         <div className="panel__body">
-          <h2 className="section-title">Add debt record</h2>
+          <h2 className="section-title">People and balances</h2>
+          <DatedList items={debtState.debts} fields={[{ label: "Opened date", date: debt => debt.opened_at }, { label: "Due date", date: debt => debt.due_date }]} label="Debt history">{debts => <>
+          {debts.length === 0 ? (
+            <div className="empty-state">
+              <p>No debt records match these dates.</p>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Counterparty</th>
+                    <th>Direction</th>
+                    <th>Principal</th>
+                    <th>Balance</th>
+                    <th>Opened</th>
+                    <th>Due</th>
+                    <th>Status</th>
+                    <th>Note</th><th>Payments</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {debts.map((debt) => (
+                    <tr key={debt.id}>
+                      <td>{debt.counterparty_name}</td>
+                      <td>{formatLabel(debt.direction)}</td>
+                      <td>{formatMoney(debt.principal_amount)}</td>
+                      <td>{formatMoney(debt.current_balance)}</td>
+                      <td>{formatCalendarDate(debt.opened_at)}</td>
+                      <td>{debt.due_date ? formatCalendarDate(debt.due_date) : "-"}</td>
+                      <td>{formatLabel(debt.status)}</td>
+                      <td>{debt.note || "-"}</td><td><button className="button button--ghost" type="button" onClick={() => setPaymentRequest(previous => ({ id: debt.id, version: (previous?.version ?? 0) + 1 }))}>Payments</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          </>}</DatedList>
+        </div>
+      </section>
+      <PlanningPaymentForm selectedParent={paymentRequest} kind="debt" parents={debtState.debts.map(row => ({ id: row.id, label: row.counterparty_name, open: row.status !== "paid" && row.status !== "written_off" }))} onChange={() => loadDebts(false)} />
+      <section className="panel">
+        <div className="panel__body">
+          <details><summary><strong>Add debt record</strong></summary>
           <form className="transaction-form" onSubmit={handleCreateDebt}>
             <label className="field">
               <span className="field__label">Person or business</span>
@@ -268,101 +279,7 @@ export function DebtWorkspace() {
               {isCreating ? <ButtonBusy label="Saving" /> : "Save debt"}
             </button>
           </form>
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panel__body">
-          <h2 className="section-title">Record repayment</h2>
-          <form className="transaction-form" onSubmit={handleCreatePayment}>
-            <label className="field field--wide">
-              <span className="field__label">Debt</span>
-              <select
-                className="field__control"
-                onChange={(event) => setPaymentDebtId(event.target.value)}
-                required
-                value={paymentDebtId}
-              >
-                <option value="">Select open debt</option>
-                {openDebts.map((debt) => (
-                  <option key={debt.id} value={debt.id}>
-                    {debt.counterparty_name} | {formatLabel(debt.direction)} | {formatMoney(debt.current_balance)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span className="field__label">Amount</span>
-              <input
-                className="field__control"
-                min="0.01"
-                onChange={(event) => setPaymentAmount(event.target.value)}
-                required
-                step="0.01"
-                type="number"
-                value={paymentAmount}
-              />
-            </label>
-            <label className="field">
-              <span className="field__label">Paid date</span>
-              <CalendarDateInput onChange={setPaymentDate} required value={paymentDate} />
-            </label>
-            <label className="field field--wide">
-              <span className="field__label">Note</span>
-              <input
-                className="field__control"
-                onChange={(event) => setPaymentNote(event.target.value)}
-                value={paymentNote}
-              />
-            </label>
-            <button className="button button--primary field--wide" disabled={isPaying} type="submit">
-              {isPaying ? <ButtonBusy label="Recording" /> : "Record repayment"}
-            </button>
-          </form>
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panel__body">
-          <h2 className="section-title">People and balances</h2>
-          <DatedList items={debtState.debts} fields={[{ label: "Opened date", date: debt => debt.opened_at }, { label: "Due date", date: debt => debt.due_date }]} label="Debt history">{debts => <>
-          {debts.length === 0 ? (
-            <div className="empty-state">
-              <p>No debt records match these dates.</p>
-            </div>
-          ) : (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Counterparty</th>
-                    <th>Direction</th>
-                    <th>Principal</th>
-                    <th>Balance</th>
-                    <th>Opened</th>
-                    <th>Due</th>
-                    <th>Status</th>
-                    <th>Note</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {debts.map((debt) => (
-                    <tr key={debt.id}>
-                      <td>{debt.counterparty_name}</td>
-                      <td>{formatLabel(debt.direction)}</td>
-                      <td>{formatMoney(debt.principal_amount)}</td>
-                      <td>{formatMoney(debt.current_balance)}</td>
-                      <td>{formatCalendarDate(debt.opened_at)}</td>
-                      <td>{debt.due_date ? formatCalendarDate(debt.due_date) : "-"}</td>
-                      <td>{formatLabel(debt.status)}</td>
-                      <td>{debt.note || "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          </>}</DatedList>
+          </details>
         </div>
       </section>
     </div>

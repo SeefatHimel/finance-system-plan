@@ -4355,3 +4355,46 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 
 .statement-code-help { margin-block: 12px; }
 .statement-code-help > summary { color: var(--accent); cursor: pointer; font-size: 13px; padding-block: 6px; }
+
+/* Financial context stays readable without crowding the activity table. */
+.coverage-notice { display: flex; align-items: flex-start; gap: .55rem; color: var(--text-muted, #99a9be); font-size: .875rem; line-height: 1.6; }
+.coverage-notice svg { flex: 0 0 auto; margin-top: .2rem; }
+.coverage-actions { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: .75rem 0; }
+.coverage-actions a { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; color: var(--accent, #55e6a5); }
+.coverage-account { border-top: 1px solid var(--border, #24364d); padding: 1rem 0; }
+.financial-overview details { margin-top: 1rem; }
+.financial-overview summary, .panel__body > details > summary { cursor: pointer; min-height: 44px; padding: .65rem 0; }
+.financial-overview .metric small { display: block; color: var(--text-muted, #99a9be); }
+.unified-edit-result > summary { cursor: pointer; color: #55e6a5; min-height: 44px; padding: .75rem 0; }
+.unified-final-summary, .review-proposed-result { background: rgba(85, 230, 165, .05); border: 1px solid #2c4d48; border-radius: 10px; padding: .85rem; line-height: 1.65; }
+.review-proposed-result { margin: .8rem 0; }
+.review-proposed-result p { margin: .35rem 0; }
+.review-proposed-result small { color: #99a9be; }
+.filtered-totals { margin: .5rem 0 1rem; }
+.filtered-totals summary { min-height: 44px; cursor: pointer; padding: .65rem 0; color: #99a9be; }
+
+.financial-overview > .panel__body > .report-header, .coverage-account > .report-header { flex-direction: row; align-items: flex-start; }
+.financial-overview .metric__label { display: block; }
+.financial-overview__debt { font-size: 19px; margin-bottom: .4rem; }
+.financial-overview .report-header .icon-button { flex: 0 0 44px; }
+@media (pointer: coarse), (max-width: 640px) {
+  .transaction-card .help-trigger.help-trigger--text { min-height: 44px; display: flex; align-items: center; }
+  .transaction-card .transaction-actions-trigger { min-width: 44px; min-height: 44px; }
+  .transaction-card .icon-button, .transaction-commandbar .icon-button { min-height: 44px; min-width: 44px; }
+}
+
+.report-comparison { display: block; color: var(--muted); font-size: .78rem; margin-top: .35rem; }
+.chart-heading [aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.spending-signed { max-height: 360px; overflow: auto; padding-right: .5rem; }
+.spending-signed > strong { display: block; margin: 1rem 0; font-size: 1.15rem; }
+.review-result-details { margin: .75rem 0; }
+.review-result-details > summary { min-height: 44px; padding: .7rem 0; color: var(--accent); cursor: pointer; }
+/* Error panels use a light background in both themes; keep their text readable. */
+.form-error { --danger: #9b2c35; }
+@media (max-width: 640px), (pointer: coarse) {
+  .timeline-order-dialog .button, .timeline-order-dialog .icon-button { min-height: 44px; }
+  .timeline-order-dialog .icon-button { min-width: 44px; }
+}
+.review-required-only .compact-editor-grid > [data-review-field]:not([data-review-attention="true"]) { display: none; }
+.review-corrections-mode { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
+.review-corrections-mode p { color: var(--muted); font-size: .85rem; margin: .25rem 0; }

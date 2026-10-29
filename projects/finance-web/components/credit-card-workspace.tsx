@@ -1,7 +1,10 @@
 "use client";
+import { sumMoneyByCurrency } from "@/lib/financial-totals";
+import { formatCurrency } from "../../finance-contracts/presentation";
 import { AccountLabel } from "@/components/account-avatar";
 
 import { formatCalendarDate } from "../../finance-contracts/presentation";
+import { PlanningPaymentForm } from "@/components/planning-payment-form";
 import { DatedList } from "@/components/dated-list";
 import { CalendarDateInput } from "@/components/calendar-date-input";
 
@@ -15,7 +18,6 @@ import {
   type Account,
   type CreditCardBill,
   createCreditCardBill,
-  createCreditCardPayment,
   listAccounts,
   listCreditCardBills
 } from "@/lib/api";
@@ -27,18 +29,11 @@ type CreditCardState =
   | { message: string; status: "error" }
   | { accounts: Account[]; bills: CreditCardBill[]; status: "ready" };
 
-const moneyFormatter = new Intl.NumberFormat("en-BD", {
-  currency: "BDT",
-  style: "currency"
-});
-
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function formatMoney(value: string) {
-  return moneyFormatter.format(Number(value));
-}
+function formatMoney(value: string, currency = "BDT") { return formatCurrency(value, currency); }
 
 function formatLabel(value: string) {
   return value.replaceAll("_", " ");
@@ -61,7 +56,7 @@ function daysUntilDue(dueDate: string) {
 }
 
 function dueLabel(bill: CreditCardBill) {
-  if (bill.status === "paid") {
+  if (["paid", "waived"].includes(bill.status)) {
     return "Paid";
   }
 
@@ -77,14 +72,10 @@ function dueLabel(bill: CreditCardBill) {
 
 export function CreditCardWorkspace() {
   const { notify } = useToast();
+  const [paymentRequest, setPaymentRequest] = useState<{ id: string; version: number } | null>(null);
   const [state, setState] = useState<CreditCardState>({ status: "loading" });
   const [formError, setFormError] = useFeedbackMessage("error");
   const [isCreating, setIsCreating] = useState(false);
-  const [paymentBillId, setPaymentBillId] = useState("");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentDate, setPaymentDate] = useState(today());
-  const [paymentNote, setPaymentNote] = useState("");
-  const [isPaying, setIsPaying] = useState(false);
 
   async function loadCreditCards(showLoading = true) {
     const accessToken = getAccessToken();
@@ -138,7 +129,7 @@ export function CreditCardWorkspace() {
 
     return state.bills.reduce(
       (summary, bill) => {
-        if (bill.status === "paid") {
+        if (["paid", "waived"].includes(bill.status)) {
           return summary;
         }
 
@@ -194,38 +185,6 @@ export function CreditCardWorkspace() {
     }
   }
 
-  async function handleCreatePayment(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const accessToken = getAccessToken();
-
-    if (!accessToken) {
-      setFormError("Sign in before recording a bill payment.");
-      return;
-    }
-    if (!paymentBillId || !paymentAmount || !paymentDate) {
-      setFormError("Bill, amount, and paid date are required.");
-      return;
-    }
-
-    setFormError(null);
-    setIsPaying(true);
-
-    try {
-      await createCreditCardPayment(accessToken, paymentBillId, {
-        amount: paymentAmount,
-        note: paymentNote,
-        paid_at: paymentDate
-      });
-      setPaymentAmount("");
-      setPaymentNote("");
-      await loadCreditCards(false);
-      notify("Credit card payment recorded.");
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Could not record bill payment.");
-    } finally {
-      setIsPaying(false);
-    }
-  }
 
   if (state.status === "loading") {
     return <LoadingState detail="Checking statements, dues, and recorded payments" label="Loading credit cards" />;
@@ -245,8 +204,10 @@ export function CreditCardWorkspace() {
     );
   }
 
-  const openBills = state.bills.filter((bill) => bill.status !== "paid");
 
+  const currencyByAccount = new Map(state.accounts.map(account => [account.id, account.currency]));
+  const dueTotals = sumMoneyByCurrency(state.bills.filter(bill => !["paid", "waived"].includes(bill.status)).map(bill => ({ currency: currencyByAccount.get(bill.account) ?? "BDT", amount: bill.remaining_balance })));
+  const currentLiabilities = sumMoneyByCurrency(state.accounts.map(account => ({ currency: account.currency, amount: account.ledger_balance.startsWith("-") ? account.ledger_balance.slice(1) : "0" })));
   return (
     <div className="workspace-grid">
       <section className="panel">
@@ -256,10 +217,11 @@ export function CreditCardWorkspace() {
             Track statement balances, due dates, minimum dues, and payments without mixing card liability into cash.
           </p>
 
+          <p className="muted-text">Current card liability: {currentLiabilities.map(row => formatMoney(row.amount, row.currency)).join(" · ") || "No card accounts"}. Statement dues below cover their billing cycles; later purchases and refunds can make the current liability different. These are two views of the card, not amounts to add together.</p>
           <div className="metric-row">
             <div className="metric">
-              <span className="metric__label">Open balance</span>
-              <span className="metric__value">{moneyFormatter.format(totals.openBalance)}</span>
+              <span className="metric__label">Remaining statement dues</span>
+              <span className="metric__value">{dueTotals.map(row => <span key={row.currency}>{formatMoney(row.amount, row.currency)}<br /></span>)}</span>
             </div>
             <div className="metric">
               <span className="metric__label">Due soon</span>
@@ -275,9 +237,63 @@ export function CreditCardWorkspace() {
 
       {formError ? <p className="form-error">{formError}</p> : null}
 
+
+
+
+
       <section className="panel">
         <div className="panel__body">
-          <h2 className="section-title">Add card bill</h2>
+          <h2 className="section-title">Bill history</h2>
+          <DatedList items={state.bills} fields={[{ label: "Statement date", date: bill => bill.statement_date }, { label: "Due date", date: bill => bill.due_date }]} label="Card bill history">{bills => <>
+          {bills.length === 0 ? (
+            <div className="empty-state">
+              <p>No card bills match these dates.</p>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Card</th>
+                    <th>Statement</th>
+                    <th>Due</th>
+                    <th>Statement balance</th>
+                    <th>Minimum due</th>
+                    <th>Paid</th>
+                    <th>Remaining</th>
+                    <th>Status</th>
+                    <th>Reference</th>
+                    <th>Note</th><th>Payments</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bills.map((bill) => (
+                    <tr key={bill.id}>
+                      <td><AccountLabel account={state.status === "ready" ? state.accounts.find(account => account.id === bill.account) : undefined} fallback={accountNames.get(bill.account) ?? "Credit card"} /></td>
+                      <td>{formatCalendarDate(bill.statement_date)}</td>
+                      <td>{dueLabel(bill)}</td>
+                      <td>{formatMoney(bill.statement_balance, currencyByAccount.get(bill.account))}</td>
+                      <td>{formatMoney(bill.minimum_due, currencyByAccount.get(bill.account))}</td>
+                      <td>{formatMoney(bill.paid_amount, currencyByAccount.get(bill.account))}</td>
+                      <td>{formatMoney(bill.remaining_balance, currencyByAccount.get(bill.account))}</td>
+                      <td>
+                        <span className={statusBadgeClass(bill.status)}>{formatLabel(bill.status)}</span>
+                      </td>
+                      <td>{bill.reference || "-"}</td>
+                      <td>{bill.note || "-"}</td><td><button className="button button--ghost" type="button" onClick={() => setPaymentRequest(previous => ({ id: bill.id, version: (previous?.version ?? 0) + 1 }))}>Payments</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          </>}</DatedList>
+        </div>
+      </section>
+      <PlanningPaymentForm selectedParent={paymentRequest} kind="card" parents={state.bills.map(row => ({ id: row.id, label: `${accountNames.get(row.account) ?? "Card"} · ${formatCalendarDate(row.due_date)}`, open: row.status !== "paid" && row.status !== "waived", account: row.account }))} onChange={() => loadCreditCards(false)} />
+      <section className="panel">
+        <div className="panel__body">
+          <details><summary><strong>Add card bill</strong></summary>
           {state.accounts.length === 0 ? (
             <div className="empty-state">
               <p>Create a credit card account before adding card bills.</p>
@@ -327,107 +343,7 @@ export function CreditCardWorkspace() {
               </button>
             </form>
           )}
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panel__body">
-          <h2 className="section-title">Record payment</h2>
-          <form className="transaction-form" onSubmit={handleCreatePayment}>
-            <label className="field field--wide">
-              <span className="field__label">Bill</span>
-              <select
-                className="field__control"
-                onChange={(event) => setPaymentBillId(event.target.value)}
-                required
-                value={paymentBillId}
-              >
-                <option value="">Select open bill</option>
-                {openBills.map((bill) => (
-                  <option key={bill.id} value={bill.id}>
-                    {accountNames.get(bill.account) ?? bill.account} | {formatCalendarDate(bill.due_date)} | {formatMoney(bill.remaining_balance)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span className="field__label">Amount</span>
-              <input
-                className="field__control"
-                min="0.01"
-                onChange={(event) => setPaymentAmount(event.target.value)}
-                required
-                step="0.01"
-                type="number"
-                value={paymentAmount}
-              />
-            </label>
-            <label className="field">
-              <span className="field__label">Paid date</span>
-              <CalendarDateInput onChange={setPaymentDate} required value={paymentDate} />
-            </label>
-            <label className="field field--wide">
-              <span className="field__label">Note</span>
-              <input
-                className="field__control"
-                onChange={(event) => setPaymentNote(event.target.value)}
-                value={paymentNote}
-              />
-            </label>
-            <button className="button button--primary field--wide" disabled={isPaying || openBills.length === 0} type="submit">
-              {isPaying ? <ButtonBusy label="Recording" /> : "Record payment"}
-            </button>
-          </form>
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panel__body">
-          <h2 className="section-title">Bill history</h2>
-          <DatedList items={state.bills} fields={[{ label: "Statement date", date: bill => bill.statement_date }, { label: "Due date", date: bill => bill.due_date }]} label="Card bill history">{bills => <>
-          {bills.length === 0 ? (
-            <div className="empty-state">
-              <p>No card bills match these dates.</p>
-            </div>
-          ) : (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Card</th>
-                    <th>Statement</th>
-                    <th>Due</th>
-                    <th>Statement balance</th>
-                    <th>Minimum due</th>
-                    <th>Paid</th>
-                    <th>Remaining</th>
-                    <th>Status</th>
-                    <th>Reference</th>
-                    <th>Note</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bills.map((bill) => (
-                    <tr key={bill.id}>
-                      <td><AccountLabel account={state.status === "ready" ? state.accounts.find(account => account.id === bill.account) : undefined} fallback={accountNames.get(bill.account) ?? "Credit card"} /></td>
-                      <td>{formatCalendarDate(bill.statement_date)}</td>
-                      <td>{dueLabel(bill)}</td>
-                      <td>{formatMoney(bill.statement_balance)}</td>
-                      <td>{formatMoney(bill.minimum_due)}</td>
-                      <td>{formatMoney(bill.paid_amount)}</td>
-                      <td>{formatMoney(bill.remaining_balance)}</td>
-                      <td>
-                        <span className={statusBadgeClass(bill.status)}>{formatLabel(bill.status)}</span>
-                      </td>
-                      <td>{bill.reference || "-"}</td>
-                      <td>{bill.note || "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          </>}</DatedList>
+          </details>
         </div>
       </section>
     </div>
