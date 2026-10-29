@@ -532,6 +532,11 @@ class TransactionSerializer(serializers.ModelSerializer):
         return raw_message
 
     def validate(self, attrs):
+        if self.instance:
+            from .payments import has_payments
+            protected = ("account", "transfer_account", "amount", "date", "type", "direction", "external_key")
+            if any(field in attrs and attrs[field] != getattr(self.instance, field) for field in protected) and has_payments(self.instance):
+                raise serializers.ValidationError({"transaction": "Unlink this transaction from its payment record in Debts, Credit cards or Recurring bills before changing its amount, date or account path."})
         for field_name in (
             "sender_account_identifier",
             "sender_card_identifier",

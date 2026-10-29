@@ -1,7 +1,8 @@
 from decimal import Decimal
 
-from django.db import transaction
 from rest_framework import serializers
+
+from apps.transactions.payments import LedgerPaymentSerializer, PAYMENT_FIELDS, record_payment
 
 from apps.accounts.models import Account
 
@@ -85,7 +86,7 @@ class CreditCardBillSerializer(serializers.ModelSerializer):
         return instance
 
 
-class CreditCardPaymentSerializer(serializers.ModelSerializer):
+class CreditCardPaymentSerializer(LedgerPaymentSerializer):
     class Meta:
         model = CreditCardPayment
         fields = (
@@ -97,7 +98,7 @@ class CreditCardPaymentSerializer(serializers.ModelSerializer):
             "note",
             "created_at",
             "updated_at",
-        )
+        ) + PAYMENT_FIELDS
         read_only_fields = ("id", "bill", "created_at", "updated_at")
 
     def validate_transaction(self, payment_transaction):
@@ -106,25 +107,8 @@ class CreditCardPaymentSerializer(serializers.ModelSerializer):
         return payment_transaction
 
     def validate_amount(self, amount):
-        bill = self.context["bill"]
-        if amount > bill.remaining_balance:
-            raise serializers.ValidationError("Payment cannot exceed the remaining bill balance.")
+        # Checked under the parent lock after idempotent retry handling.
         return amount
 
-    @transaction.atomic
     def create(self, validated_data):
-        bill = self.context["bill"]
-        payment = CreditCardPayment.objects.create(
-            **validated_data,
-            bill=bill,
-            user=self.context["request"].user,
-        )
-        bill.paid_amount = (bill.paid_amount + payment.amount).quantize(Decimal("0.01"))
-        bill.remaining_balance = (bill.remaining_balance - payment.amount).quantize(Decimal("0.01"))
-        bill.status = (
-            CreditCardBill.Status.PAID
-            if bill.remaining_balance == Decimal("0.00")
-            else CreditCardBill.Status.PARTIALLY_PAID
-        )
-        bill.save(update_fields=("paid_amount", "remaining_balance", "status", "updated_at"))
-        return payment
+        return record_payment(self, validated_data, "card")

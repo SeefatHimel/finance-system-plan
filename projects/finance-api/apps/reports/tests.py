@@ -129,7 +129,7 @@ class DateRangeReportTests(APITestCase):
         self.assertEqual(response.data["daily"][1]["expense_total"], "20.00")
         self.assertEqual(
             response.data["spending_categories"],
-            [{"name": "Uncategorized", "amount": "20.00"}],
+            [{"id": None, "name": "Uncategorized", "amount": "20.00", "previous_amount": "0.00"}],
         )
         self.assertIsNone(response.data["month"])
 

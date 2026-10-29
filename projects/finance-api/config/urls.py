@@ -55,6 +55,8 @@ from apps.statements.unified_views import (
 )
 from apps.statements.views import StatementIdentifyView, StatementPreviewView
 from apps.transactions.views import TransactionViewSet
+from apps.transactions.timeline_order import TimelineOrderView, TimelineOrderListView
+from apps.transactions.payment_views import PlanningPaymentListView, PlanningPaymentDetailView
 
 router = DefaultRouter()
 router.register("quick-add/presets", QuickAddPresetViewSet, basename="quick-add-preset")
@@ -73,6 +75,10 @@ router.register("statements/rows", StatementRowViewSet, basename="statement-row"
 
 
 urlpatterns = [
+    path("api/timeline-order/", TimelineOrderListView.as_view(), name="timeline-order-list"),
+    path("api/timeline-order/<uuid:account_id>/<str:day>/", TimelineOrderView.as_view(), name="timeline-order-day"),
+    path("api/planning-payments/<str:kind>/<uuid:parent_id>/", PlanningPaymentListView.as_view(), name="planning-payments"),
+    path("api/planning-payments/<str:kind>/<uuid:parent_id>/<uuid:payment_id>/", PlanningPaymentDetailView.as_view(), name="planning-payment-unlink"),
     path("api/reconciliation/proposals/", EvidenceProposalView.as_view(), name="evidence-proposal"),
     path("api/reconciliation/proposals/<uuid:proposal_id>/apply/", EvidenceApplyView.as_view(), name="evidence-apply"),
     path("admin/", admin.site.urls),

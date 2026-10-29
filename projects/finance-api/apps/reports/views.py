@@ -1,8 +1,7 @@
 import re
-from collections import defaultdict
 from datetime import date, timedelta
-from decimal import Decimal
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from django.db.models import Count
 from drf_spectacular.types import OpenApiTypes
@@ -18,25 +17,6 @@ from apps.messages.models import ParsedMessageCandidate
 from apps.messages.serializers import ParsedMessageCandidateSerializer
 
 from .periods import custom_bounds
-
-INCOME_TYPES = {
-    Transaction.Type.INCOME,
-    Transaction.Type.REFUND,
-    Transaction.Type.BORROW,
-    Transaction.Type.REPAYMENT_RECEIVED,
-}
-
-EXPENSE_TYPES = {
-    Transaction.Type.EXPENSE,
-    Transaction.Type.FEE,
-    Transaction.Type.LEND,
-    Transaction.Type.REPAYMENT_PAID,
-}
-
-
-def decimal_string(value: Decimal) -> str:
-    return f"{value.quantize(Decimal('0.01'))}"
-
 
 def month_bounds(month: str | None) -> tuple[date, date, str]:
     if not month:
@@ -101,95 +81,35 @@ class MonthlyReportView(APIView):
         else:
             start, end, month = month_bounds(request.query_params.get("month"))
             inclusive_end = end - timedelta(days=1)
-        transactions = (
-            Transaction.objects.filter(
-                user=request.user,
-                date__range=(start, inclusive_end),
-                account__currency="BDT",
-            )
-            .select_related("account", "transfer_account", "category")
-            .order_by("date")
-        )
+        from django.shortcuts import get_object_or_404
+        from apps.accounts.models import Account
+        from .summary import period_summary
 
-        income_total = Decimal("0.00")
-        expense_total = Decimal("0.00")
-        category_totals = defaultdict(Decimal)
-        spending_totals = defaultdict(Decimal)
-        daily = defaultdict(
-            lambda: {"income": Decimal("0.00"), "expense": Decimal("0.00")}
-        )
-        account_totals = defaultdict(
-            lambda: {"money_in": Decimal("0.00"), "money_out": Decimal("0.00")}
-        )
-
-        for transaction in transactions.iterator(chunk_size=1000):
-            if transaction.type in INCOME_TYPES:
-                income_total += transaction.amount
-                daily[transaction.date]["income"] += transaction.amount
-                account_totals[transaction.account.name]["money_in"] += (
-                    transaction.amount
-                )
-            elif transaction.type in EXPENSE_TYPES:
-                expense_total += transaction.amount
-                daily[transaction.date]["expense"] += transaction.amount
-                spending_totals[
-                    transaction.category.name
-                    if transaction.category
-                    else "Uncategorized"
-                ] += transaction.amount
-                account_totals[transaction.account.name]["money_out"] += (
-                    transaction.amount
-                )
-            elif (
-                transaction.type == Transaction.Type.TRANSFER
-                and transaction.transfer_account
-            ):
-                account_totals[transaction.account.name]["money_out"] += (
-                    transaction.amount
-                )
-                account_totals[transaction.transfer_account.name]["money_in"] += (
-                    transaction.amount
-                )
-
-            if transaction.category:
-                category_totals[transaction.category.name] += transaction.amount
-
-        return Response(
-            {
-                "month": month,
-                "start_date": start.isoformat(),
-                "end_date": inclusive_end.isoformat(),
-                "currency": "BDT",
-                "daily": [
-                    {
-                        "date": (start + timedelta(days=n)).isoformat(),
-                        "income_total": decimal_string(
-                            daily[start + timedelta(days=n)]["income"]
-                        ),
-                        "expense_total": decimal_string(
-                            daily[start + timedelta(days=n)]["expense"]
-                        ),
-                    }
-                    for n in range((inclusive_end - start).days + 1)
-                ],
-                "spending_categories": [
-                    {"name": name, "amount": decimal_string(amount)}
-                    for name, amount in sorted(spending_totals.items())
-                ],
-                "income_total": decimal_string(income_total),
-                "expense_total": decimal_string(expense_total),
-                "net_total": decimal_string(income_total - expense_total),
-                "categories": [
-                    {"name": name, "amount": decimal_string(amount)}
-                    for name, amount in sorted(category_totals.items())
-                ],
-                "accounts": [
-                    {
-                        "name": name,
-                        "money_in": decimal_string(totals["money_in"]),
-                        "money_out": decimal_string(totals["money_out"]),
-                    }
-                    for name, totals in sorted(account_totals.items())
-                ],
-            }
-        )
+        currency = request.query_params.get("currency", "BDT").upper()
+        if not re.fullmatch(r"[A-Z]{3}", currency):
+            raise ValidationError({"currency": "Choose a three-letter currency."})
+        account = None
+        account_id = request.query_params.get("account")
+        if account_id:
+            try:
+                account = get_object_or_404(Account, user=request.user, pk=account_id)
+            except (ValueError, DjangoValidationError) as exc:
+                raise ValidationError({"account": "Choose one of your accounts."}) from exc
+            currency = account.currency
+        report = period_summary(user=request.user, start=start, end=inclusive_end, currency=currency, account=account)
+        duration = inclusive_end - start + timedelta(days=1)
+        if start.toordinal() <= duration.days:
+            raise ValidationError({"start_date": "Choose a date with a complete preceding comparison period."})
+        previous_end = start - timedelta(days=1)
+        _, next_month, _ = month_bounds(start.strftime("%Y-%m"))
+        previous_start = previous_end.replace(day=1) if start.day == 1 and inclusive_end == next_month-timedelta(days=1) else start-duration
+        previous = period_summary(user=request.user, start=previous_start, end=previous_end, currency=currency, account=account)
+        previous_categories = {item["id"]: item["amount"] for item in previous["categories"]}
+        for item in report["categories"]:
+            item["previous_amount"] = previous_categories.get(item["id"], "0.00")
+        previous_merchants = {item["search"].casefold(): item["amount"] for item in previous["merchants"]}
+        for item in report["merchants"]:
+            item["previous_amount"] = previous_merchants.get(item["search"].casefold(), "0.00")
+        report["month"] = month
+        report["previous"] = {field: previous[field] for field in ("start_date", "end_date", "income_total", "expense_total", "net_total")}
+        return Response(report, headers={"Cache-Control": "private, no-store"})

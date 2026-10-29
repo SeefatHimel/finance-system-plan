@@ -1,5 +1,6 @@
-from django.db import transaction
 from rest_framework import serializers
+
+from apps.transactions.payments import LedgerPaymentSerializer, PAYMENT_FIELDS, record_payment
 
 from apps.accounts.models import Account
 from apps.categories.models import Category
@@ -58,7 +59,7 @@ class RecurringBillSerializer(serializers.ModelSerializer):
         )
 
 
-class RecurringBillPaymentSerializer(serializers.ModelSerializer):
+class RecurringBillPaymentSerializer(LedgerPaymentSerializer):
     class Meta:
         model = RecurringBillPayment
         fields = (
@@ -71,7 +72,7 @@ class RecurringBillPaymentSerializer(serializers.ModelSerializer):
             "note",
             "created_at",
             "updated_at",
-        )
+        ) + PAYMENT_FIELDS
         read_only_fields = ("id", "bill", "due_date", "created_at", "updated_at")
 
     def validate_transaction(self, payment_transaction):
@@ -93,15 +94,5 @@ class RecurringBillPaymentSerializer(serializers.ModelSerializer):
         fields["transaction"].queryset = Transaction.objects.filter(user_id=user_id)
         return fields
 
-    @transaction.atomic
     def create(self, validated_data):
-        bill = self.context["bill"]
-        payment = RecurringBillPayment.objects.create(
-            **validated_data,
-            bill=bill,
-            due_date=bill.next_due_date,
-            user=self.context["request"].user,
-        )
-        bill.next_due_date = bill.following_due_date()
-        bill.save(update_fields=("next_due_date", "updated_at"))
-        return payment
+        return record_payment(self, validated_data, "recurring")

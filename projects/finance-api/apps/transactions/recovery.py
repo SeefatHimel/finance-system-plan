@@ -300,6 +300,9 @@ def undo_action(*, user, action_id):
         raise UndoConflict(
             "The transaction or its linked records changed. Undo was not applied; review it with Edit."
         )
+    from .payments import has_payments
+    if any(has_payments(record) for record in Transaction.objects.filter(user=user, pk__in=action.after["transactions"])):
+        raise UndoConflict("Unlink this transaction from its payment record before undoing the ledger action.")
     parents = {}
     restored = {
         name: {key for key, value in action.before[name].items() if value is not None}

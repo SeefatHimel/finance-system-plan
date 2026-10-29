@@ -1,7 +1,6 @@
-from decimal import Decimal
-
-from django.db import transaction
 from rest_framework import serializers
+
+from apps.transactions.payments import LedgerPaymentSerializer, PAYMENT_FIELDS, record_payment
 
 from apps.transactions.models import Transaction
 
@@ -41,7 +40,7 @@ class DebtSerializer(serializers.ModelSerializer):
         )
 
 
-class DebtPaymentSerializer(serializers.ModelSerializer):
+class DebtPaymentSerializer(LedgerPaymentSerializer):
     class Meta:
         model = DebtPayment
         fields = (
@@ -53,7 +52,7 @@ class DebtPaymentSerializer(serializers.ModelSerializer):
             "note",
             "created_at",
             "updated_at",
-        )
+        ) + PAYMENT_FIELDS
         read_only_fields = ("id", "debt", "created_at", "updated_at")
 
     def validate_transaction(self, payment_transaction):
@@ -62,20 +61,8 @@ class DebtPaymentSerializer(serializers.ModelSerializer):
         return payment_transaction
 
     def validate_amount(self, amount):
-        debt = self.context["debt"]
-        if amount > debt.current_balance:
-            raise serializers.ValidationError("Payment cannot exceed the current debt balance.")
+        # Checked under the parent lock after idempotent retry handling.
         return amount
 
-    @transaction.atomic
     def create(self, validated_data):
-        debt = self.context["debt"]
-        payment = DebtPayment.objects.create(
-            **validated_data,
-            debt=debt,
-            user=self.context["request"].user,
-        )
-        debt.current_balance = (debt.current_balance - payment.amount).quantize(Decimal("0.01"))
-        debt.status = Debt.Status.PAID if debt.current_balance == Decimal("0.00") else Debt.Status.PARTIALLY_PAID
-        debt.save(update_fields=("current_balance", "status", "updated_at"))
-        return payment
+        return record_payment(self, validated_data, "debt")

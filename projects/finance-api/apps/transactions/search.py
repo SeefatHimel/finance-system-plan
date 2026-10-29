@@ -88,6 +88,21 @@ def filter_transaction_search(queryset, query, *, user):
     query = (query or "").replace("\x00", "").strip()
     if not query:
         return queryset
+    if len(query) > 1600:
+        raise ValidationError({"search": "Search is too long."})
+    # Report drill-through must match the contributing merchant, not notes or IDs.
+    if query.startswith('merchant:'):
+        merchant = query[len('merchant:'):]
+        if len(merchant) >= 2 and merchant[0] == merchant[-1] == '"':
+            import json
+            try:
+                merchant = json.loads(merchant)
+            except ValueError as exc:
+                raise ValidationError({"search": "Use a quoted merchant name."}) from exc
+        if not isinstance(merchant, str) or len(merchant) > 255:
+            raise ValidationError({"search": "Use a merchant name."})
+        from django.db.models.functions import Trim
+        return queryset.alias(merchant_trimmed=Trim("counterparty_text")).filter(merchant_trimmed__iexact=merchant.strip())
     if len(query) > 256:
         raise ValidationError({"search": "Use at most 256 characters."})
     terms = [unescape_string_literal(term) if term[:1] in {"'", '"'} and term[-1:] == term[:1]

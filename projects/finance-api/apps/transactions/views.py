@@ -372,8 +372,19 @@ class TransactionViewSet(ModelViewSet):
             )
 
         category = self.request.query_params.get("category")
-        if category:
+        if category == "uncategorized":
+            queryset = queryset.filter(category__isnull=True)
+        elif category:
             queryset = queryset.filter(category_id=category)
+
+        review = self.request.query_params.get("needs_review")
+        if review in ("true", "false"):
+            queryset = queryset.filter(needs_review=review == "true")
+        currency = self.request.query_params.get("currency")
+        if currency:
+            queryset = queryset.filter(account__currency=currency.upper())
+        if self.request.query_params.get("spending") == "true":
+            queryset = queryset.filter(type__in=("expense", "fee", "refund"))
 
         transaction_type = self.request.query_params.get("type")
         if transaction_type:
@@ -552,6 +563,9 @@ class TransactionViewSet(ModelViewSet):
         )
 
     def perform_destroy(self, instance):
+        from .payments import has_payments
+        if has_payments(instance):
+            raise ValidationError({"transaction": "Unlink this transaction from its payment record before deleting it."})
         before = transaction_snapshot(instance)
         create_audit_log(
             user=self.request.user,

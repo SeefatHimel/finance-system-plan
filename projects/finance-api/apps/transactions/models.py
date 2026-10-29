@@ -192,3 +192,20 @@ class TransactionAction(models.Model):
     class Meta:
         ordering = ("-created_at", "-id")
         indexes = [models.Index(fields=("user", "-created_at"))]
+
+
+class TimelineDayOrder(models.Model):
+    """User-approved display order only; never substitutes for a transaction time."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
+    date = models.DateField()
+    ordered_ids = models.JSONField(default=list)
+    basis_fingerprint = models.CharField(max_length=64, blank=True)
+    basis = models.CharField(max_length=16, blank=True)  # balance or manual
+    revision = models.PositiveIntegerField(default=0)
+    history = models.JSONField(default=list)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("user", "account", "date"), name="timeline_order_per_account_day")]
+        indexes = [models.Index(fields=("user", "date"), name="timeline_order_user_date")]

@@ -630,6 +630,9 @@ def merge_transfers(*, user, record_id, other_id, balance_choices=()):
     other = get_object_or_404(
         Transaction.objects.select_for_update(), user=user, pk=other_id
     )
+    from .payments import has_payments
+    if has_payments(record) or has_payments(other):
+        raise ValidationError({"transaction": "Unlink the payment record before merging this movement."})
     if other.type != Transaction.Type.TRANSFER:
         raise ValidationError({"transaction": "Only a posted transfer can be merged."})
     if record.id == other.id:
