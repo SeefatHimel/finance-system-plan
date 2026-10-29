@@ -8,7 +8,8 @@ import { allDates, periodBounds, type DatePeriod } from "@/lib/date-period";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { identifyStatementAccount, type StatementIdentification, createStatementImport, refreshStatementIdentifiers, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
+import dynamic from "next/dynamic";
+import { getUnifiedPair, type UnifiedPair, identifyStatementAccount, type StatementIdentification, createStatementImport, refreshStatementIdentifiers, getStatementImport, getStatementSummary, reviewSelectedStatementRows, getStatementRow, listAccounts, listCategories, listStatementImports, listStatementRows, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementHistory, type StatementSummary, type StatementRowPage } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { transactionTypes } from "@/lib/category-type";
 import { LoadingState } from "@/components/loading-state";
@@ -16,40 +17,17 @@ import { ModalDialog } from "@/components/modal-dialog";
 import { StatementLedgerComparison } from "@/components/statement-comparison";
 import { StatementImportSummary } from "@/components/statement-summary";
 import { StatementRowDialog } from "@/components/statement-row-dialog";
+import { StatementDescriptionCell, StatementReviewCell } from "@/components/statement-review-cells";
+import type { StatementReviewSection } from "@/lib/statement-row-summary";
 import { DocumentPasswordField } from "@/components/document-password-field";
 import { StatementOriginalViewer } from "@/components/statement-original-viewer";
 import { StatementDirectionRecheck } from "@/components/statement-direction-recheck";
-import { displayedStatementText } from "@/lib/statement-citytouch";
 import { useToast } from "@/components/toast-provider";
+
+const PairDialog = dynamic(() => import("@/components/unified-review-workspace").then(module => module.PairDialog));
 
 const labels: Record<string, string> = { ebl_bank: "EBL bank", ebl_credit_card: "EBL credit card", city_bank: "City Bank", bkash: "bKash", new: "New · review to add", possible_match: "Match available", needs_correction: "Fix needed", posted: "Done · added", linked: "Done · linked", skipped: "Skipped", pending: "Pending" };
 const emptyFilters = { state: "", sms_status: "", direction: "", type: "", category: "", search: "", date_from: "", date_to: "", ordering: "source" };
-
-function StatementDescriptionCell({ row }: { row: SavedStatementRow }) {
-  const source = row.extracted.description;
-  const primary = displayedStatementText(row.counterparty_text || row.extracted.provider_type || "Statement movement", source, row.citytouch_printed_code);
-  const note = displayedStatementText(row.note, source, row.citytouch_printed_code);
-  const showCode = row.citytouch_printed_code && !`${primary} ${note}`.includes(row.citytouch_printed_code);
-  return <td><strong>{primary}</strong><div>{note}</div>{showCode ? <small>Citytouch code: {row.citytouch_printed_code}</small> : null}{row.reference ? <small>Reference: {row.reference}</small> : null}{row.extracted.printed_direction_marker ? <small>Printed card {row.extracted.printed_direction_marker === "D" ? "debit (charge)" : "credit (payment or credit)"} · Source {row.extracted.source_currency} {row.extracted.source_amount} · Settlement {row.extracted.settlement_currency} {row.extracted.amount}</small> : null}</td>;
-}
-
-function StatementLedgerCell({ row }: { row: SavedStatementRow }) {
-  if (row.transaction) return <td><strong>{row.review.review_state === "needs_correction" ? "Linked entry needs review" : "Confirmed match"}</strong><br /><small>Evidence attached to ledger entry</small></td>;
-  const pairId = row.review.unified_pending_sms_pair_id;
-  return <td>
-    {row.review.matches.map(match => <div key={match.id}><strong>{match.rounding_correction ? "Small rounding difference" : match.strength === "strong" ? "Strong ledger suggestion" : "Possible ledger match"}</strong><br />{formatCalendarDate(match.date)} {match.time ?? ""}<br />{match.source} · {match.amount}<br />Balance: {match.balance_after ?? "Not reported"}<br /><small>{match.note || match.reference || "Ledger movement"}</small>{match.rounding_correction ? <p>Amount difference: {match.rounding_correction.difference} · higher value used automatically</p> : null}{match.conflict ? <p>Balance conflict</p> : null}</div>)}
-    {pairId ? <div><strong>SMS + statement pair available</strong><br /><small>Review both sources once before recording this row.</small><br /><Link href={`/review?statement=${encodeURIComponent(row.id)}&sms=${encodeURIComponent(pairId)}`}>Review both sources</Link></div> : null}
-    {row.review.unified_pending_sms_status === "ambiguous" ? <div><strong>Pending SMS sources need review</strong><br /><small>More than one source could describe this movement. Open the row before adding separately.</small></div> : null}
-    {row.review.unified_pending_sms_status === "unavailable" ? <div><strong>SMS pairing unavailable</strong><br /><small>The pending queue is too large to verify safely. Resolve other pending sources first.</small></div> : null}
-    {row.review.unified_pending_sms_status === "none" && row.review.pending_sms_match_count === null ? <div><strong>SMS match count unavailable</strong><br /><small>Open the row to check pending SMS before adding.</small></div> : row.review.unified_pending_sms_status === "none" && row.review.pending_sms_match_count ? <div><strong>Pending SMS match</strong><br /><small>{row.review.pending_sms_match_count} message{row.review.pending_sms_match_count === 1 ? "" : "s"} to compare in review</small></div> : null}
-    {!row.review.matches.length && row.review.unified_pending_sms_status === "none" && row.review.pending_sms_match_count === 0 ? <span>No ledger suggestion</span> : null}
-  </td>;
-}
-
-function StatementReviewCell({ row }: { row: SavedStatementRow }) {
-  const smsStatus = row.review.unified_pending_sms_status;
-  return <td><strong>{smsStatus === "unique" ? "SMS pair available" : smsStatus === "ambiguous" ? "SMS sources need review" : smsStatus === "unavailable" ? "SMS pairing unavailable" : labels[row.review.review_state] ?? row.review.review_state}</strong>{row.review.matches.some(match => match.strength === "strong") ? <div>Strong ledger match found</div> : null}{row.review.suggestion ? <small>Review suggestion available</small> : null}{row.review.matches.length ? <div>{row.review.matches.length} ledger suggestion{row.review.matches.length === 1 ? "" : "s"}</div> : null}{smsStatus === "none" && row.review.pending_sms_match_count === null ? <div>SMS count unavailable</div> : smsStatus === "none" && row.review.pending_sms_match_count ? <div>{row.review.pending_sms_match_count} pending SMS</div> : null}{row.review.issues.length ? <small>{row.review.issues[0]}</small> : null}{row.review.requires_acknowledgement ? <small>Source or draft discrepancy · review required</small> : null}</td>;
-}
 
 export function StatementImportWorkspace({ initialImportId, initialRowId }: { initialImportId?: string; initialRowId?: string }) {
   const router = useRouter();
@@ -96,6 +74,11 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
   const [epoch, setEpoch] = useState(0);
   const [retry, setRetry] = useState(0);
   const [selectedRow, setSelectedRow] = useState<SavedStatementRow | null>(null);
+  const [selectedSection, setSelectedSection] = useState<StatementReviewSection>("review");
+  const [statementPair, setStatementPair] = useState<UnifiedPair | null>(null);
+  const [editingPair, setEditingPair] = useState(false);
+  const pairRequest = useRef<AbortController | null>(null);
+  const rowReturnFocus = useRef<HTMLElement | null>(null);
   const [rowLoading, setRowLoading] = useState(false);
   const [summary, setSummary] = useState<StatementSummary | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -104,7 +87,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
   const [bulkError, setBulkError] = useState<string | null>(null);
 
   useEffect(() => { setBatchId(initialImportId ?? ""); setLibraryOpen(!initialImportId); }, [initialImportId]);
-  useEffect(() => () => { uploadRequest.current?.abort(); rowRequest.current?.abort(); identityRequest.current?.abort(); }, []);
+  useEffect(() => () => { uploadRequest.current?.abort(); rowRequest.current?.abort(); identityRequest.current?.abort(); pairRequest.current?.abort(); }, []);
   useEffect(() => {
     const timer = window.setTimeout(() => { setAppliedFilters(filters); setOffset(0); }, 250);
     return () => window.clearTimeout(timer);
@@ -164,7 +147,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
   useEffect(() => { setSelectedIds([]); }, [batchId, offset, appliedFilters]);
 
   function openBatch(id: string) {
-    rowRequest.current?.abort(); setSelectedRow(null); setRowLoading(false); setBatch(null); setSummary(null); setRows(null);
+    rowRequest.current?.abort(); pairRequest.current?.abort(); setStatementPair(null); setEditingPair(false); setSelectedRow(null); setRowLoading(false); setBatch(null); setSummary(null); setRows(null);
     setRowPeriod(allDates); setFilters(emptyFilters); setAppliedFilters(emptyFilters); setOffset(0); setBatchId(id);
     setRefreshPassword(""); setLibraryOpen(!id); setChecksOpen(false);
     router.replace(id ? `/statements?import=${id}` : "/statements", { scroll: false });
@@ -210,13 +193,34 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
     } catch (reason) { if (!controller.signal.aborted) setUploadError(fail(reason, "Could not read the statement.")); }
     finally { if (uploadRequest.current === controller) { uploadRequest.current = null; setUploading(false); } }
   }
-  const reviewRow = useCallback(async (id: string) => {
+  const reviewRow = useCallback(async (id: string, section: StatementReviewSection = "review") => {
     const token = getAccessToken(); if (!token) return;
-    rowRequest.current?.abort(); const controller = new AbortController(); rowRequest.current = controller; setRowLoading(true); setSelectedRow(null);
+    rowRequest.current?.abort(); const controller = new AbortController(); rowRequest.current = controller; setRowLoading(true); setSelectedRow(null); setSelectedSection(section);
     try { const result = await getStatementRow(token, id, controller.signal); if (!controller.signal.aborted) { if (result.batch !== batchId) throw new Error("This row belongs to another statement import."); setSelectedRow(result); } }
     catch (reason) { if (!controller.signal.aborted) notify(reason instanceof Error ? reason.message : "Could not load this row.", "error"); }
     finally { if (rowRequest.current === controller) { rowRequest.current = null; setRowLoading(false); } }
   }, [batchId, notify]);
+  async function openStatementPair(statement: string, sms: string) {
+    const token = getAccessToken(); if (!token) return;
+    pairRequest.current?.abort(); const controller = new AbortController(); pairRequest.current = controller;
+    try {
+      // Keep the current dialog and its busy indicator until both data and UI are ready.
+      const [result] = await Promise.all([getUnifiedPair(token, statement, sms, controller.signal), import("@/components/unified-review-workspace")]);
+      if (!controller.signal.aborted) {
+        if (result.batch.id !== batchId) throw new Error("This pair belongs to another statement import.");
+        setStatementPair(result); setEditingPair(false);
+      }
+    } catch (reason) {
+      if (!controller.signal.aborted) notify(reason instanceof Error ? reason.message : "Could not open both sources.", "error");
+    } finally { if (pairRequest.current === controller) pairRequest.current = null; }
+  }
+  function closeRow() {
+    setSelectedRow(null);
+    window.setTimeout(() => {
+      if (rowReturnFocus.current?.isConnected) rowReturnFocus.current.focus({ preventScroll: true });
+      if (document.activeElement !== rowReturnFocus.current) document.getElementById("statement-review-heading")?.focus({ preventScroll: true });
+    }, 0);
+  }
   useEffect(() => {
     if (batch?.id === initialImportId && initialRowId && !initialRowOpened.current) {
       initialRowOpened.current = true;
@@ -312,7 +316,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
           {summary?.incomplete_count ? <span className="status-badge status-badge--idle">{summary.incomplete_count} draft checks unavailable</span> : null}
         </div>
       </section>
-      <section className="panel statement-review-panel"><div className="panel__body"><div className="statement-row-heading"><h2 className="section-title">Statement review</h2>
+      <section className="panel statement-review-panel"><div className="panel__body"><div className="statement-row-heading"><h2 id="statement-review-heading" tabIndex={-1} className="section-title">Statement review</h2>
         <DatePeriodControls compact label="Statement row dates" description="Saved row date · Unknown dates under All dates" value={rowPeriod} onChange={period => { setRowPeriod(period); setFilters(old => ({ ...old, date_from: period.start, date_to: period.end })); }} /></div>
         <div className="statement-filter-primary">
           <form role="search" className="field" autoComplete="off" onSubmit={event => event.preventDefault()}>
@@ -344,14 +348,25 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
         {rowsLoading ? <p role="status">Loading matching rows…</p> : null}
         {rows?.count === 0 && !rowsLoading && !rowsError && !filtersPending ? <div className="empty-state empty-state--centered empty-state--compact" role="status"><strong>No rows match these filters</strong><span>Try another search or clear the row filters.</span><button className="button button--ghost" type="button" onClick={() => { setFilters(emptyFilters); setRowPeriod(allDates); }}>Clear filters</button></div> : null}
         {rows?.results.length ? <div className="statement-table-wrap" tabIndex={0} role="region" aria-label="Statement review rows" aria-busy={rowsLoading}>
-          <table className="statement-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="Select unresolved rows on this page" disabled={rowsLoading || filtersPending || bulkBusy} checked={Boolean(rows?.results.some(row => row.state === "pending")) && rows!.results.filter(row => row.state === "pending").every(row => selectedIds.includes(row.id))} onChange={event => setSelectedIds(event.target.checked ? rows?.results.filter(row => row.state === "pending" && !row.transaction).map(row => row.id) ?? [] : [])} /></th>{["Page / row", "Date / time", "Description", "Type / category", "Amount", "Balance after", "Ledger / SMS suggestions", "Review", "Actions"].map((name) => <th key={name} scope="col">{name}</th>)}</tr></thead><tbody>{rows?.results.map((row) => <tr key={row.id}>
-            <td><input type="checkbox" aria-label={`Select source row ${row.position} ${row.component}`} checked={selectedIds.includes(row.id)} disabled={row.state !== "pending" || Boolean(row.transaction) || rowsLoading || filtersPending || bulkBusy} onChange={event => setSelectedIds(old => event.target.checked ? [...old, row.id] : old.filter(id => id !== row.id))} /></td><td>{row.extracted.page} / {row.extracted.row}<br /><small>{row.component}</small></td><td>{formatCalendarDate(row.date)}{row.time ? <><br />{row.time}</> : null}{row.value_date ? <><br /><small>Value: {formatCalendarDate(row.value_date)}</small></> : null}{row.extracted.statement_date ? <><br /><small>Statement: {formatCalendarDate(row.extracted.statement_date)}</small></> : null}</td>
-            <StatementDescriptionCell row={row} />
-            <td>{row.type.replaceAll("_", " ")}<br /><small>{row.direction} · {categories.find((c) => c.id === row.category)?.name ?? "Uncategorized"}</small></td><td>{batch.currency} {row.amount ?? "Missing"}</td><td>{row.balance_after ?? (batch.profile === "ebl_credit_card" ? "Not printed" : "Not reported")}</td>
-            <StatementLedgerCell row={row} />
-            <StatementReviewCell row={row} />
-            <td><button className="button button--small" type="button" disabled={filtersPending || rowsLoading || rowLoading || bulkBusy || setupLoading || setupError !== null} onClick={() => void reviewRow(row.id)}>Review row</button></td>
-          </tr>)}</tbody></table>
+          <table className="statement-table statement-table--compact">
+            <colgroup>{["select", "source", "date", "description", "type", "amount", "balance", "review", "actions"].map(name => <col key={name} className={`statement-col-${name}`} />)}</colgroup>
+            <thead><tr><th scope="col"><input type="checkbox" aria-label="Select unresolved rows on this page" disabled={rowsLoading || filtersPending || bulkBusy} checked={Boolean(rows?.results.some(row => row.state === "pending")) && rows!.results.filter(row => row.state === "pending").every(row => selectedIds.includes(row.id))} onChange={event => setSelectedIds(event.target.checked ? rows?.results.filter(row => row.state === "pending" && !row.transaction).map(row => row.id) ?? [] : [])} /></th>{["Page / row", "Date / time", "Description", "Type / category", "Amount", "Balance after", "Review", "Actions"].map(name => <th key={name} scope="col">{name}</th>)}</tr></thead>
+            <tbody>{rows?.results.map(row => {
+              const disabled = filtersPending || rowsLoading || rowLoading || bulkBusy || setupLoading || setupError !== null;
+              const onOpen = (section: StatementReviewSection) => { rowReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; void reviewRow(row.id, section); };
+              return <tr key={row.id}>
+                <td><input type="checkbox" aria-label={`Select source row ${row.position} ${row.component}`} checked={selectedIds.includes(row.id)} disabled={row.state !== "pending" || Boolean(row.transaction) || rowsLoading || filtersPending || bulkBusy} onChange={event => setSelectedIds(old => event.target.checked ? [...old, row.id] : old.filter(id => id !== row.id))} /></td>
+                <td>{row.extracted.page} / {row.extracted.row}<small className="statement-cell-secondary">{row.component}</small></td>
+                <td>{formatCalendarDate(row.date)}{row.time ? <small className="statement-cell-secondary">{row.time}</small> : null}{row.value_date && row.value_date !== row.date ? <small className="statement-cell-secondary">Value: {formatCalendarDate(row.value_date)}</small> : null}{row.extracted.statement_date && row.extracted.statement_date !== row.date ? <small className="statement-cell-secondary">Statement: {formatCalendarDate(row.extracted.statement_date)}</small> : null}</td>
+                <StatementDescriptionCell row={row} disabled={disabled} onOpen={onOpen} />
+                <td><span className="statement-cell-clip">{row.type.replaceAll("_", " ")}</span><small className="statement-cell-secondary">{row.direction}</small><small className="statement-cell-secondary statement-cell-clip">{categories.find(c => c.id === row.category)?.name ?? "Uncategorized"}</small></td>
+                <td className="statement-cell-money"><small className="statement-cell-secondary">{batch.currency}</small><strong>{row.amount ?? "Missing"}</strong></td>
+                <td className="statement-cell-money">{row.balance_after ?? (batch.profile === "ebl_credit_card" ? "Not printed" : "Not reported")}</td>
+                <StatementReviewCell row={row} disabled={disabled} onOpen={onOpen} />
+                <td><button className="button button--small" type="button" disabled={disabled} aria-label={`Review source row ${row.position}`} onClick={() => onOpen("review")}>Review</button></td>
+              </tr>;
+            })}</tbody>
+          </table>
         </div> : null}
         {rows && rows.count > 0 ? <div className="statement-actions"><button className="button" type="button" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous page</button><button className="button" type="button" disabled={offset + 50 >= rows.count} onClick={() => setOffset(offset + 50)}>Next page</button></div> : null}
       </div></section>
@@ -366,7 +381,9 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
       </div></details>
     </> : null}
     {rowLoading ? <p role="status">Loading row and fresh suggestions…</p> : null}
-    {selectedRow && batch ? <StatementRowDialog key={selectedRow.id} row={selectedRow} batch={batch} accounts={accounts} categories={categories} onCancel={() => setSelectedRow(null)} onNext={nextRow} onReload={() => void reviewRow(selectedRow.id)} onChange={(updated, close) => { setSelectedRow(close ? null : updated); setEpoch((n) => n + 1); }} /> : null}
+    {selectedRow && batch && !statementPair ? <StatementRowDialog key={selectedRow.id} initialSection={selectedSection} row={selectedRow} batch={batch} accounts={accounts} categories={categories} onReviewPair={openStatementPair} onCancel={closeRow} onNext={nextRow} onReload={() => void reviewRow(selectedRow.id, selectedSection)} onChange={(updated, close) => { if (close) closeRow(); else setSelectedRow(updated); setEpoch(n => n + 1); }} /> : null}
+    {statementPair && !editingPair ? <PairDialog key={`${statementPair.row.id}:${statementPair.row.version}`} pair={statementPair} accounts={accounts} categories={categories} onCancel={() => { const id = statementPair.row.id; setStatementPair(null); void reviewRow(id, "matches"); }} onSaved={() => { setStatementPair(null); closeRow(); setEpoch(n => n + 1); }} onEdit={() => setEditingPair(true)} /> : null}
+    {statementPair && editingPair ? <StatementRowDialog editOnly key={`pair-edit-${statementPair.row.id}`} row={statementPair.row} batch={statementPair.batch} accounts={accounts} categories={categories} onCancel={() => void openStatementPair(statementPair.row.id, statementPair.sms.id)} onReload={() => void openStatementPair(statementPair.row.id, statementPair.sms.id)} onNext={() => openStatementPair(statementPair.row.id, statementPair.sms.id)} onChange={() => void openStatementPair(statementPair.row.id, statementPair.sms.id)} /> : null}
     {confirmBulk && batch ? <ModalDialog labelledBy="statement-bulk-title" busy={bulkBusy} onCancel={() => setConfirmBulk(null)}><h2 id="statement-bulk-title">{confirmBulk.action === "skip" ? "Skip" : "Approve"} {confirmBulk.rows.length} selected rows?</h2><p>{confirmBulk.action === "skip" ? "This skips the selected unresolved rows without deleting ledger transactions." : `This adds only validated new rows to ${batch.account_name}.`} Matches, source discrepancies and stale rows stay unresolved for individual review. Fees count as separate movements.</p>{bulkError ? <p role="alert" className="form-error">{bulkError}</p> : null}<div className="decision-modal__actions"><button className="button" type="button" disabled={bulkBusy} onClick={() => setConfirmBulk(null)}>Cancel</button><button className="button button--primary" type="button" disabled={bulkBusy || !confirmBulk.rows.length} onClick={() => void approveBulk()}>{bulkBusy ? "Saving…" : confirmBulk.action === "skip" ? "Confirm & skip rows" : "Confirm & add new rows"}</button></div></ModalDialog> : null}
   </div>;
 }

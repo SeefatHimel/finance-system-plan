@@ -124,7 +124,7 @@ an endpoint offers “Show lane.” The chronological List layout shows each
 movement once and supports keyboard navigation. Selecting a card moves keyboard
 focus to the details drawer, and closing it returns focus to the card when it
 remains loaded. Quiet days collapse into dated bands with a next-movement jump;
-unloaded days are never presented as quiet. Next movement and Next gap navigation
+unloaded days are never presented as quiet. Next movement and Next difference navigation
 use only loaded days. The timeline starts with three weeks, preloads two more
 weeks on each side, and appends or prepends a ready week when scrolling reaches
 an edge. Already visible days stay mounted, so normal scrolling continues
@@ -1942,3 +1942,35 @@ responses without `logo` use the same fallback.
 
 Verify with `node --test tests/account-avatar.test.cjs` alongside the existing
 workflow tests, typecheck and build.
+
+### Compact statement review rows
+
+The saved-import table shows a short description and a distinct note preview,
+with full amounts, reported balances, dates and debit/credit still visible.
+Repeated source metadata and multi-line match explanations live in the row
+dialog. Clicking the description opens its full saved text and original
+extraction; the match-count button focuses the matching section. Conflict and
+unavailable-check badges remain visible in the table. Partial matching uses
+“Review matches” rather than claiming a complete total.
+
+A unique SMS pair can open combined review directly from the row dialog on the
+same page. Cancelling returns to the row; closing restores the table trigger
+and preserves filters and scroll position. Full descriptions, source checks and
+existing confirmation requirements remain available. Narrow screens scroll the
+table horizontally within its region. This is frontend-only, using existing
+read/review APIs; no migration or re-import is needed.
+
+Verify with `node --test tests/statement-row-summary.test.cjs` and the existing
+statement-review tests, plus typecheck, lint, build and synthetic browser checks.
+
+### Small timeline balance differences
+
+Balance arithmetic uses minor units and has no minimum difference threshold:
+BDT 3.45 and BDT 0.01 both qualify. When loaded reports have a reliable order,
+the usual **Possible balance gap** marker remains. With unknown/duplicate times
+or differing source-observation times, a nonzero arithmetic difference appears
+as **Unverified balance difference** instead of disappearing. Its details explain
+the uncertainty and label the expected amount as calculated in displayed order.
+This does not establish a missing transaction or fee. Incomplete loaded intervals
+or invalid amounts still produce no numeric comparison. Nothing is posted or
+adjusted automatically. Verify with `node --test tests/account-lanes.test.cjs`.

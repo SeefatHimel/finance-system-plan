@@ -147,10 +147,11 @@ export type BalanceGapDetail = {
   expectedCents: number;
   actualCents: number;
   differenceCents: number;
+  uncertainty: string[];
 };
 
 /** Compare only complete, ordered reporting intervals. Missing time makes order ambiguous. */
-export function balanceGapDetails(transactions: Transaction[], accountId: string, loadedDays: Set<string>) {
+export function balanceGapDetails(transactions: Transaction[], accountId: string, loadedDays: Set<string>, includeUnverified = false) {
   const rows = transactions
     .filter(transaction => laneDirection(transaction, accountId))
     .sort((left, right) => `${left.date}T${left.time ?? ""}:${left.id}`.localeCompare(`${right.date}T${right.time ?? ""}:${right.id}`));
@@ -163,35 +164,46 @@ export function balanceGapDetails(transactions: Transaction[], accountId: string
     if (prior) {
       const from = rows[prior.index];
       const to = rows[index];
+      const uncertainty = new Set<string>();
+      let allDaysLoaded = true;
+      let validAmounts = true;
       let complete = Boolean(from.time && to.time);
+      if (!complete) uncertainty.add("Some transaction times are unknown; the displayed order is not verified.");
       for (let day = from.date; day <= to.date; day = addDays(day, 1)) {
-        if (!loadedDays.has(day)) { complete = false; break; }
+        if (!loadedDays.has(day)) { complete = false; allDaysLoaded = false; break; }
       }
       for (let middle = prior.index + 1; middle <= index; middle++) {
-        if (!rows[middle].time || !Number.isFinite(Number(rows[middle].amount)) || !laneMomentMatchesCanonical(rows[middle], accountId)) complete = false;
+        if (!Number.isFinite(Number(rows[middle].amount))) { complete = false; validAmounts = false; }
+        if (!rows[middle].time) { complete = false; uncertainty.add("Some transaction times are unknown; the displayed order is not verified."); }
+        if (!laneMomentMatchesCanonical(rows[middle], accountId)) { complete = false; uncertainty.add("Source observation times differ from the ledger times. These balances may describe different reporting moments."); }
       }
-      if (!laneMomentMatchesCanonical(from, accountId)) complete = false;
+      if (!laneMomentMatchesCanonical(from, accountId)) { complete = false; uncertainty.add("Source observation times differ from the ledger times. These balances may describe different reporting moments."); }
       // A time-less movement on either boundary day could fall anywhere in the interval.
-      if (rows.some(row => row.date >= from.date && row.date <= to.date && !row.time)) complete = false;
+      if (rows.some(row => row.date >= from.date && row.date <= to.date && !row.time)) { complete = false; uncertainty.add("Some transaction times are unknown; the displayed order is not verified."); }
       for (let middle = prior.index + 1; middle <= index; middle++) {
         const previous = rows[middle - 1];
         const current = rows[middle];
-        if (previous.date === current.date && previous.time === current.time) complete = false;
+        if (previous.date === current.date && previous.time === current.time) { complete = false; uncertainty.add("Some movements share a timestamp; their order is not verified."); }
       }
-      if (complete) {
+      if (complete || (includeUnverified && allDaysLoaded && validAmounts)) {
         const movements = rows.slice(prior.index + 1, index + 1);
         const movementCents = movements.reduce((sum, row) => sum + signedCents(row, accountId), 0);
         const expectedCents = prior.value + movementCents;
         const differenceCents = cents - expectedCents;
         if (differenceCents !== 0) gaps.set(to.id, {
           from, to, movements, priorCents: prior.value, movementCents,
-          expectedCents, actualCents: cents, differenceCents
+          expectedCents, actualCents: cents, differenceCents, uncertainty: [...uncertainty]
         });
       }
     }
     prior = { index, value: cents };
   }
   return gaps;
+}
+
+/** Nonzero arithmetic differences remain inspectable when the order/report times need review. */
+export function balanceReviewDetails(transactions: Transaction[], accountId: string, loadedDays: Set<string>) {
+  return balanceGapDetails(transactions, accountId, loadedDays, true);
 }
 
 export function balanceGaps(transactions: Transaction[], accountId: string, loadedDays: Set<string>) {

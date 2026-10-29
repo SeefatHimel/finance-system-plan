@@ -1510,14 +1510,18 @@ The lane header labels the last saved report on or before the visible date and
 its actual report date. When that cannot be established from loaded data, it
 shows “No reported balance,” “Loading report context,” or “Report order unclear”
 instead of projecting a running balance. Loaded runs without selected-account
-activity collapse into dated bands. Next movement and Next gap jump among
+activity collapse into dated bands. Next movement and Next difference jump among
 loaded dates; Earlier dates and Later dates load another window if there is too
 little content to scroll. Unloaded dates never count as verified quiet days.
 
 Gap markers compare consecutive reports only when all intervening days were
 loaded, every movement has a known order, and each relevant amount is valid.
-Unknown times, differently dated transfer observations and unloaded dates
-suppress a numeric gap; missing reported balances stay labeled “not reported.”
+Unknown/duplicate times and differing source observation times prevent a precise
+gap claim; a nonzero difference on fully loaded days remains inspectable as an
+**Unverified balance difference**, with its reason and displayed-order arithmetic.
+Unloaded dates or invalid amounts suppress numeric comparisons. There is no
+minimum amount cutoff: one paisa and BDT 3.45 are covered by regressions.
+Missing reported balances stay labeled “not reported.”
 Opening a marker explains the previous report, included movements, expected
 balance, current report, and signed difference, with links to the underlying
 entries. The timeline is read-only and uses the existing activity and
@@ -1789,3 +1793,16 @@ account paths and type differences are also visible. Description numbers are mar
 as whole printed text, so a shared numeric prefix is never shown as exact equality.
 Unlabelled card/terminal/merchant numbers are not automatically treated as recipient
 identity conflicts, and missing facts are not fabricated matches.
+
+### How does the statement table stay compact without hiding review issues?
+
+Descriptions and distinct notes have short previews; clicking the description
+opens the full saved text and extraction in the existing row dialog. One review
+column combines status, visible conflict/unavailable-check badges and a match
+count. Unknown or truncated matching uses “Review matches” without implying a
+complete count. The count opens the full matching section directly. Amounts,
+reported balances, debit/credit and differing value/posting dates stay visible.
+A unique SMS pair opens combined review in place; cancelling returns to the row.
+Closing returns keyboard focus to the table and retains filters/scroll. On phones,
+only the table region scrolls horizontally. This frontend presentation change uses
+the existing APIs and keeps source evidence and financial confirmation rules.

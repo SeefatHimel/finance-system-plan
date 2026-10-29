@@ -7,7 +7,7 @@ const ts = require('typescript');
 const output = mkdtempSync(join(tmpdir(), 'finance-account-lanes-test-'));
 const compiled = join(output, 'subject.cjs');
 writeFileSync(compiled, ts.transpileModule(readFileSync(join(__dirname, '../lib/account-lanes.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } }).outputText);
-const { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, laneMomentMatchesCanonical, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart } = require(compiled);
+const { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, balanceReviewDetails, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, laneMomentMatchesCanonical, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart } = require(compiled);
 after(() => rmSync(output, { recursive: true, force: true }));
 
 test("timeline refresh reads every page before returning the replacement week", async () => {
@@ -104,6 +104,50 @@ test("balance gaps use only fully loaded ordered intervals", () => {
   assert.equal(detail?.expectedCents, 8000);
   assert.equal(detail?.actualCents, 8300);
   assert.deepEqual(detail?.movements.map(movement => movement.id), ["middle", "last"]);
+});
+
+test("small transfer balance differences include BDT 3.45 and one paisa without a cutoff", () => {
+  const transfer = (id, time, amount, balance) => row(id, '2026-01-02', time, amount, null, {
+    type: 'transfer', transfer_account: 'cash',
+    reported_balances: [{ account: 'city', balance_after: balance }],
+    transfer_evidence: [{ account: 'city', date: '2026-01-02', time }],
+  });
+  const first = transfer('first', '18:27:00', '100.00', '1000.00');
+  for (const [balance, difference] of [['896.55', -345], ['899.99', -1]]) {
+    const second = transfer('second', '18:28:00', '100.00', balance);
+    const result = balanceGapDetails([first, second], 'city', new Set(['2026-01-02'])).get('second');
+    assert.equal(result.differenceCents, difference);
+    assert.deepEqual(result.uncertainty, []);
+  }
+});
+
+test("different report times keep the arithmetic visible as unverified, never a precise gap", () => {
+  const first = row('first', '2026-01-02', '18:27:00', '100.00', '1000.00');
+  const second = row('second', '2026-01-02', '18:28:00', '100.00', null, {
+    type: 'transfer', transfer_account: 'cash',
+    reported_balances: [{ account: 'city', balance_after: '896.55' }],
+    transfer_evidence: [{ account: 'city', date: '2026-01-02', time: '18:27:42' }],
+  });
+  const loaded = new Set(['2026-01-02']);
+  assert.equal(balanceGapDetails([first, second], 'city', loaded).size, 0);
+  const review = balanceReviewDetails([first, second], 'city', loaded).get('second');
+  assert.equal(review.differenceCents, -345);
+  assert.match(review.uncertainty[0], /different reporting moments/);
+  assert.equal(balanceReviewDetails([first, second], 'city', new Set()).size, 0);
+});
+
+test("unverified arithmetic never invents differences for equal balances or incomplete data", () => {
+  const first = row('first', '2026-01-02', null, '10.00', '1000.00');
+  const last = row('last', '2026-01-04', null, '100.00', '900.00');
+  const loaded = new Set(['2026-01-02', '2026-01-03', '2026-01-04']);
+  assert.equal(balanceReviewDetails([first, last], 'city', loaded).size, 0);
+  const different = { ...last, balance_after: '896.55' };
+  assert.equal(balanceReviewDetails([first, different], 'city', new Set(['2026-01-02', '2026-01-04'])).size, 0);
+  const invalid = row('invalid', '2026-01-03', '12:00:00', 'unreadable', null);
+  assert.equal(balanceReviewDetails([first, invalid, different], 'city', loaded).size, 0);
+  const detail = balanceReviewDetails([first, different], 'city', loaded).get('last');
+  assert.equal(detail.differenceCents, -345);
+  assert.match(detail.uncertainty[0], /times are unknown/);
 });
 
 test("historical balance labels use only loaded, ordered saved reports", () => {

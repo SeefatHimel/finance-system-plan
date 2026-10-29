@@ -13,6 +13,7 @@ import { statementAddBlockers, statementLinkBlockReason, reportedBalanceNeedsAck
 import { currentStatementBalanceChoice, type StatementBalanceSelection } from "@/lib/statement-balance-choice";
 import { selectedStatementDetails, type DetailSelections } from "@/lib/statement-details";
 import { displayedStatementText } from "@/lib/statement-citytouch";
+import { statementSmsMatchCount, type StatementReviewSection } from "@/lib/statement-row-summary";
 import { ModalDialog } from "@/components/modal-dialog";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { useToast } from "@/components/toast-provider";
@@ -24,9 +25,10 @@ function editable(row: SavedStatementRow): StatementRowEdit {
   return { version: row.version, date: row.date, time: row.time, value_date: row.value_date, direction: row.direction, amount: row.amount, balance_after: row.balance_after, type: row.type, other_account: row.other_account, category: row.category, reference: row.reference, counterparty_text: row.counterparty_text, note: row.note, classification_confirmed: row.classification_confirmed };
 }
 
-export function StatementRowDialog({ row, batch, accounts, categories, onChange, onCancel, onReload, onNext, editOnly = false }: {
-  editOnly?: boolean; row: SavedStatementRow; batch: SavedStatement; accounts: Account[]; categories: Category[];
+export function StatementRowDialog({ row, batch, accounts, categories, onChange, onCancel, onReload, onNext, onReviewPair, editOnly = false, initialSection = "review" }: {
+  editOnly?: boolean; initialSection?: StatementReviewSection; row: SavedStatementRow; batch: SavedStatement; accounts: Account[]; categories: Category[];
   onChange: (row: SavedStatementRow, close: boolean) => void; onCancel: () => void; onReload: () => void; onNext: () => Promise<void>;
+  onReviewPair?: (statement: string, sms: string) => Promise<void>;
 }) {
   const { notify, dismiss } = useToast();
   const categoryChoice = useCategoryTypeChoice(categories);
@@ -141,11 +143,20 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
     if (event.key.toLowerCase() === "s" && !isResolved && dirty) { event.preventDefault(); void save(!editOnly && event.shiftKey); }
     if (!editOnly && event.key === "ArrowRight") { event.preventDefault(); if (dirty) showError(new Error("Save your changes before moving to the next row.")); else void advance(); }
   }
+  async function reviewPair() {
+    if (!onReviewPair || !row.review.unified_pending_sms_pair_id || busy || dirty) return;
+    setBusy(true);
+    try { await onReviewPair(row.id, row.review.unified_pending_sms_pair_id); }
+    finally { setBusy(false); }
+  }
   return <>
-    <ModalDialog labelledBy="statement-row-title" className="form-drawer statement-row-dialog" busy={busy} onCancel={onCancel}>
+    <ModalDialog labelledBy="statement-row-title" initialFocus={initialSection === "description" ? "#statement-source-details" : initialSection === "matches" ? "#statement-match-overview" : undefined} className="form-drawer statement-row-dialog" busy={busy} onCancel={onCancel}>
       <div className="form-drawer__header"><div><h2 id="statement-row-title">Review statement {row.component === "fee" ? "fee" : "transaction"}</h2><p><AccountLabel account={accounts.find(account => account.id === batch.account)} fallback={batch.account_name} /> · Page {source.page}, source row {source.row}</p></div><button type="button" className="icon-button" aria-label="Close statement row" disabled={busy} onClick={onCancel}>×</button></div>
       <div className="statement-row-body" onKeyDown={handleShortcuts}>
-        <details className="raw-message" open={batch.profile === "ebl_credit_card" ? true : undefined}><summary>Original extracted row · {source.amount ?? "Unreadable amount"} {batch.currency}</summary>
+        <details id="statement-source-details" tabIndex={-1} className="raw-message statement-source-details" open={initialSection === "description" || batch.profile === "ebl_credit_card" ? true : undefined} onFocus={event => { if (event.target === event.currentTarget) event.currentTarget.scrollIntoView({ block: "start" }); }}><summary>Original extracted row · {source.amount ?? "Unreadable amount"} {batch.currency}</summary>
+          {row.counterparty_text ? <p><strong>Saved counterparty:</strong> {row.counterparty_text}</p> : null}
+          {row.note ? <p><strong>Saved note:</strong> {row.note}</p> : null}
+          {row.reference ? <p><strong>Reference:</strong> {row.reference}</p> : null}
           <p>{source.date ?? "Unknown date"}{source.time ? ` · ${source.time}` : ""} · {source.provider_type || "Unknown source type"} · Original parser direction: {source.direction === "credit" ? "Credit" : source.direction === "debit" ? "Debit" : "Unknown"}{row.reviewed_source_direction ? ` · Reviewed PDF direction: ${row.reviewed_source_direction}` : ""}</p>
           <p className="statement-evidence-text">{source.description}</p>
           {row.citytouch_printed_code ? <p>Citytouch code printed in PDF: {row.citytouch_printed_code}</p> : null}
@@ -218,11 +229,12 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         </form>
         <p className="inline-note">{editOnly ? "Alt+S saves the draft and returns to comparison." : "Shortcuts: Alt+S saves; Alt+Shift+S saves and moves next; Alt+Right opens the next unresolved row."}</p>
         {!editOnly && !isResolved ? <label className="review-remember"><input type="checkbox" checked={rememberChoices} disabled={busy} onChange={e => setRememberChoices(e.target.checked)} /><span>Remember these choices <small className="statement-choice-help">Suggest this category, transfer choice and edited note for similar rows after I add or link.</small></span></label> : null}
+        {!editOnly && !isResolved ? <section id="statement-match-overview" className="statement-match-overview" tabIndex={-1} onFocus={event => { if (event.target === event.currentTarget) event.currentTarget.scrollIntoView({ block: "start" }); }} aria-label="Matches and review notes"><h3>Matches and review notes</h3><p>{row.review.matches.length}{row.review.matching_truncated ? "+" : ""} ledger suggestion{row.review.matches.length === 1 && !row.review.matching_truncated ? "" : "s"} · {statementSmsMatchCount(row) === null ? "SMS check unavailable" : `${statementSmsMatchCount(row)} pending SMS suggestion${statementSmsMatchCount(row) === 1 ? "" : "s"}`}. Compare the full source values below before accepting a match.</p></section> : null}
         {row.review.draft_issues.length ? <section className="raw-message"><strong>Saved draft reconciliation</strong><ul>{row.review.draft_issues.map(issue => <li key={issue}>{issue}</li>)}</ul><p>Original extraction checks remain unchanged.</p></section> : null}
         {dirty ? <p className="inline-note">Save your draft changes before accepting a match or adding the transaction.</p> : null}
         {row.review.issues.length ? <ul className="statement-error">{row.review.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : null}
         {!editOnly && !isResolved && row.review.pending_sms_match_count === null ? <p className="form-warning" role="status">The pending SMS queue is too large to verify matches for this row. <Link href="/messages/review">Review pending SMS</Link>, then reopen this row before adding it.</p> : null}
-        {!editOnly && !isResolved && row.review.unified_pending_sms_pair_id ? <p className="inline-note">A unique SMS + statement pair is ready in Unified review, including when parsed types differ. <Link href={`/review?statement=${encodeURIComponent(row.id)}&sms=${encodeURIComponent(row.review.unified_pending_sms_pair_id)}`}>Review both sources once</Link>. To record a different movement here, choose Add as separate below.</p> : null}
+        {!editOnly && !isResolved && row.review.unified_pending_sms_pair_id ? <div className="inline-note"><p>A unique SMS + statement pair is ready, including when parsed types differ.</p>{onReviewPair ? <button className="button button--small" type="button" disabled={busy || dirty} onClick={() => void reviewPair()}>{busy ? "Opening both sources…" : "Review both sources once"}</button> : <Link href={`/review?statement=${encodeURIComponent(row.id)}&sms=${encodeURIComponent(row.review.unified_pending_sms_pair_id)}`}>Review both sources once</Link>}<p>To record a different movement here, choose Add as separate below.</p></div> : null}
         {!editOnly && !isResolved && row.review.unified_pending_sms_status === "ambiguous" ? <p className="form-warning" role="status">Several pending sources could describe this movement. Compare them in <Link href="/review">Unified review</Link> and <Link href="/messages/review">SMS review</Link>; adding this row requires explicit separate-movement confirmation.</p> : null}
         {!editOnly && !isResolved && row.review.unified_pending_sms_status === "unavailable" ? <p className="form-warning" role="status">The pending queue is too large to verify unified pairing safely. Resolve other pending sources before adding this row.</p> : null}
         {!editOnly && row.review.requires_acknowledgement && !isResolved ? <label className="review-remember"><input type="checkbox" checked={ackIssues} disabled={busy || dirty} onChange={(e) => setAckIssues(e.target.checked)} /><span>I reviewed the source and saved draft discrepancies and confirm the values being recorded.</span></label> : null}
