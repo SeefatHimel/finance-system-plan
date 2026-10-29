@@ -4398,3 +4398,80 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 .review-required-only .compact-editor-grid > [data-review-field]:not([data-review-attention="true"]) { display: none; }
 .review-corrections-mode { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
 .review-corrections-mode p { color: var(--muted); font-size: .85rem; margin: .25rem 0; }
+
+/* Read-only transaction detail sheet. Editing remains an explicit separate step. */
+.transaction-view-trigger { background: transparent; border: 0; padding: 0; color: inherit; font-weight: inherit; text-align: left; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.transaction-view-trigger:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.transaction-view-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+.transaction-view-row, .transaction-card { cursor: pointer; }
+.transaction-view-row:hover { background: rgb(85 230 165 / 3%); }
+.viewport-modal.transaction-detail-dialog { background: var(--panel); color: var(--foreground); border: 1px solid var(--panel-border); border-radius: 14px; position: fixed; inset: 0; margin: auto; padding: 0; width: min(720px, calc(100vw - 40px)); max-width: 720px; max-height: calc(100dvh - 48px); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 80px rgb(0 0 0 / 32%); }
+.transaction-detail-dialog::backdrop { background: rgb(1 7 15 / 64%); backdrop-filter: blur(1px); }
+.transaction-view-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 28px 8px; gap: 12px; flex-shrink: 0; }
+.transaction-view-header h2 { font-size: 20px; line-height: 1.35; margin: 0; }
+.transaction-view-navigation { padding: 0 28px 12px; display: flex; align-items: center; gap: 14px; color: var(--muted); font-size: 13px; flex-shrink: 0; }
+.transaction-view-navigation .icon-button, .transaction-view-close { min-width: 44px; min-height: 44px; }
+.transaction-view-body { overflow: auto; overscroll-behavior: contain; padding: 0 28px; min-height: 140px; }
+.transaction-view-hero { display: flex; gap: 16px; align-items: center; padding: 16px 0 26px; border-bottom: 1px solid var(--panel-border); }
+.transaction-view-hero > div { min-width: 0; flex: 1; }
+.transaction-view-hero h3 { font-size: 21px; line-height: 1.35; margin: 0 0 9px; overflow-wrap: anywhere; }
+.transaction-view-hero .transaction-badges { flex-wrap: wrap; }
+.transaction-view-amount { font-size: 23px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.transaction-view-amount--credit { color: var(--accent); }
+.transaction-view-amount--debit { color: var(--danger); }
+.transaction-view-facts { display: grid; gap: 18px; margin: 0; padding: 26px 0; border-bottom: 1px solid var(--panel-border); }
+.transaction-view-facts > div { display: grid; grid-template-columns: 35% minmax(0, 1fr); gap: 14px; align-items: start; }
+.transaction-view-facts dt { color: var(--muted); font-size: 14px; }
+.transaction-view-facts dd { margin: 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; overflow-wrap: anywhere; }
+.transaction-view-facts dd small { flex-basis: 100%; color: var(--muted); font-size: 13px; }
+.transaction-view-facts dd > span:not(.account-label, .transaction-category) { flex-basis: 100%; }
+.transaction-view-note { white-space: pre-wrap; max-height: 110px; overflow-y: auto; }
+.transaction-view-sources { padding: 24px 0 16px; }
+.transaction-view-section-title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.transaction-view-section-title h3 { font-size: 16px; margin: 0; }
+.transaction-view-section-title > span { color: var(--muted); font-size: 12px; }
+.transaction-view-source { display: flex; align-items: flex-start; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--panel-border); }
+.transaction-view-source__icon { flex-shrink: 0; background: var(--info-soft); color: var(--muted); border-radius: 9px; width: 40px; height: 40px; display: grid; place-items: center; }
+.transaction-view-source__text { display: grid; gap: 6px; min-width: 0; flex: 1; font-size: 14px; }
+.transaction-view-source__text > span:not(.transaction-view-source__warnings), .transaction-view-source__text small { color: var(--muted); font-size: 13px; }
+.transaction-view-source__money { display: grid; gap: 6px; text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; }
+.transaction-view-source__money small { color: var(--muted); font-size: 12px; }
+.transaction-view-source__warnings { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.transaction-view-source__warnings > span { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--warning); }
+.transaction-view-source .transaction-view-source__text > .transaction-view-difference, .transaction-view-source .transaction-view-source__text .transaction-view-difference, .transaction-view-source .transaction-view-source__money .transaction-view-difference { color: var(--warning); font-weight: 650; }
+.transaction-view-source-note { font-size: 12px; line-height: 1.5; color: var(--muted); margin: 12px 0 0; }
+.transaction-view-disclosure { border-bottom: 1px solid var(--panel-border); }
+.transaction-view-disclosure > summary { min-height: 56px; padding: 16px 0; display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 14px; list-style: none; }
+.transaction-view-disclosure > summary::-webkit-details-marker { display: none; }
+.transaction-view-disclosure__caret { margin-left: auto; flex-shrink: 0; }
+.transaction-view-disclosure[open] .transaction-view-disclosure__caret { transform: rotate(180deg); }
+.transaction-view-originals { display: grid; gap: 18px; padding-bottom: 20px; }
+.transaction-view-originals article { min-width: 0; border-top: 1px solid var(--panel-border); padding-top: 14px; font-size: 14px; }
+.transaction-view-original-text { overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.6; }
+.transaction-view-originals a, .transaction-view-history a { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-size: 13px; }
+.transaction-view-history { padding: 0 0 20px; font-size: 14px; }
+.transaction-view-history ol { list-style: none; padding: 0; display: grid; gap: 14px; }
+.transaction-view-history li { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.transaction-view-history time { color: var(--muted); text-align: right; }
+.transaction-view-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 28px; border-top: 1px solid var(--panel-border); flex-shrink: 0; }
+.transaction-view-footer .button { min-height: 44px; }
+.transaction-view-footer .button--primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+@media (max-width: 600px) {
+  .viewport-modal.transaction-detail-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); border-radius: 12px; }
+  .transaction-view-header { padding: 12px 16px 4px; }
+  .transaction-view-header h2 { font-size: 18px; }
+  .transaction-view-navigation { padding: 0 16px 8px; }
+  .transaction-view-body { padding: 0 16px; }
+  .transaction-view-hero { flex-wrap: wrap; gap: 10px; padding: 14px 0 20px; }
+  .transaction-view-hero h3 { font-size: 18px; }
+  .transaction-view-amount { flex-basis: 100%; padding-left: 0; font-size: 25px; }
+  .transaction-view-facts { gap: 16px; padding: 20px 0; }
+  .transaction-view-facts > div { grid-template-columns: 38% minmax(0, 1fr); gap: 10px; }
+  .transaction-view-facts dd { font-size: 14px; }
+  .transaction-view-source { flex-wrap: wrap; }
+  .transaction-view-source__money { flex-basis: 100%; padding-left: 52px; text-align: left; }
+  .transaction-view-footer { padding: 12px 16px max(12px, env(safe-area-inset-bottom)); }
+  .transaction-view-footer .button { flex: 1; font-size: 14px; padding: 10px 12px; white-space: nowrap; }
+  .transaction-view-footer .button--primary { flex: 1.35; }
+  .transaction-view-trigger { min-height: 44px; white-space: normal; }
+}

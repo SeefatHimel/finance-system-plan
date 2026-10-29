@@ -154,3 +154,37 @@ Verify with `npm run test:finance`, the existing workflow/date checks, lint,
 typecheck and a production build. Browser checks should cover report drill-through,
 create/link/remove payment, stale placement, desktop/phone layout, and focus after
 opening a payment from a row. Use isolated synthetic data.
+
+## View a saved transaction
+
+Click a transaction row, its description, or **View** to open the centered,
+read-only detail sheet. Description and View are native keyboard buttons; row
+clicking ignores links, other controls, modifier clicks and text selection.
+**Edit transaction** is a separate action in the sheet and the row's overflow
+menu. Viewing never posts, matches, reparses or changes money.
+
+The sheet fetches the latest saved transaction and attached SMS/statement rows
+through existing authenticated read endpoints. It keeps the list's filters,
+page and scroll position. Previous/Next follows the complete filtered result
+order, including rows on other pages; it does not silently change the list page.
+Escape/Close restores focus to the trigger and unlocks scrolling. On phones,
+the body scrolls while Close/Edit stay reachable in a fixed footer.
+
+Original SMS messages and distinct statement PDFs are counted separately from
+statement rows. Inline fees remain labelled rows within their original PDF count.
+Saved source facts show amount, account, reported balance and date/time. Amber
+marks known differences; absent times and unknown balances are not declared
+matches or mismatches. SMS receipt dates are labelled Received when a saved event
+observation is absent. Currency/account differences are not compared as like
+monetary units, and an unattributed legacy transfer balance is never assigned to
+one account by assumption. Internal transfers are neutral in the all-accounts
+view; selecting an account shows the direction of its leg.
+
+Original text and recent history are expandable. History is fetched only when
+opened; statement/PDF links open the saved review in another tab. Missing archives,
+redacted originals and failed source checks remain explicit. Retrying or moving
+to another record cancels stale reads. Record changes trigger a fresh view.
+Saved sender/receiver identifiers have their own optional disclosure. Eligible
+saved cash-withdrawal SMS retain the explicit Remember route action under the
+original source; simply opening the viewer never saves a rule.
+This is frontend-only and needs no API migration or new endpoint.

@@ -19,6 +19,7 @@ import { useFeedbackMessage, useToast } from "@/components/toast-provider";
 import { Plus, SlidersHorizontal, X, FunnelSimple, MagnifyingGlass, SortDescending, DownloadSimple, ArrowClockwise, CaretLeft, CaretRight, CalendarBlank, SpinnerGap } from "@phosphor-icons/react";
 import type React from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -77,6 +78,8 @@ type LoadState =
       status: "ready";
       transactions: Transaction[];
     };
+
+const TransactionDetailDialog = dynamic(() => import("@/components/transaction-detail-dialog").then(module => module.TransactionDetailDialog));
 
 const transactionSources: TransactionSource[] = ["web", "mobile", "sms", "import", "system"];
 
@@ -206,7 +209,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
   const [, setFormMessage] = useFeedbackMessage("success");
   const [clockEdit, setClockEdit] = useState<{ value: string } | null>(null);
   const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
-  const [evidenceTransaction, setEvidenceTransaction] = useState<Transaction | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
   const [editingReportedBalances, setEditingReportedBalances] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -887,7 +890,10 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     const methods = loadState.status === "ready" ? loadState.paymentMethods : [];
     switch (column) {
       case "date": return <><time dateTime={transaction.date}>{formatCalendarDate(transaction.date)}</time><span className="transaction-ledger-secondary">{formatTransactionTime(transaction.time)}</span></>;
-      case "description": return <><div className="transaction-ledger-primary">{fullText(transaction.counterparty_text || transaction.reference || transaction.note || displayLabel(transaction.type), "Full description")}</div>{sourceBadges(transaction)}</>;
+      case "description": {
+        const description = transaction.counterparty_text || transaction.reference || transaction.note || displayLabel(transaction.type);
+        return <><div className="transaction-ledger-primary"><button className="transaction-view-trigger" data-transaction-view type="button" aria-haspopup="dialog" aria-label={`View transaction: ${description}`} title={description} onClick={() => setViewingId(transaction.id)}>{description}</button></div>{sourceBadges(transaction)}</>;
+      }
       case "account": return <span className="account-path">{fullTextAccount(transaction.account)}{transaction.type === "transfer" ? <><span aria-label="to">→</span>{fullTextAccount(transaction.transfer_account ?? "")}</> : null}</span>;
       case "category": return <span className={`transaction-category transaction-category--${transaction.type === "transfer" ? "transfer" : transaction.account_direction === "credit" ? "credit" : "debit"}`}>{fullText(transaction.category ? categoryNames.get(transaction.category) ?? "Unknown" : "Uncategorized", "Category")}</span>;
       case "source": return displayLabel(transaction.source);
@@ -911,11 +917,17 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
     const stamp = displayedFilters.ordering === "-updated_at" ? transaction.updated_at : transaction.created_at;
     return <time dateTime={stamp}>{formatTimestamp(stamp)}</time>;
   }
+  function viewRow(event: React.MouseEvent<HTMLElement>, transaction: Transaction) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !window.getSelection()?.isCollapsed) return;
+    if ((event.target as HTMLElement).closest("button, a, input, select, textarea, summary, details")) return;
+    event.currentTarget.querySelector<HTMLButtonElement>('[data-transaction-view], button[aria-haspopup="dialog"]')?.focus({ preventScroll: true });
+    setViewingId(transaction.id);
+  }
   function transactionActions(transaction: Transaction) {
     return <div className="list-row__actions transaction-row-actions">
-      <button className="button button--ghost" onClick={() => void selectTransactionForEdit(transaction.id)} type="button">Edit</button>
+      <button className="button button--ghost" onClick={() => setViewingId(transaction.id)} type="button" aria-haspopup="dialog">View</button>
       <TransactionActionMenu label={`More actions for ${transaction.counterparty_text || displayLabel(transaction.type)} on ${formatCalendarDate(transaction.date)}`}>
-        <button className="button button--ghost" onClick={() => setEvidenceTransaction(transaction)} type="button">Details & sources</button>
+        <button className="button button--ghost" onClick={() => void selectTransactionForEdit(transaction.id)} type="button">Edit transaction</button>
         {transaction.type === "transfer" ? <button className="button button--ghost" disabled={isSubmitting} onClick={() => void handleFindPostedMatch(transaction)} type="button">Find match</button> : null}
         <button className="button button--ghost" onClick={() => setRevalidationId(transaction.id)} type="button">Revalidate</button>
         <Link className="button button--ghost" href={`/audit-logs?entity_type=transactions.transaction&entity_id=${transaction.id}`}>History</Link>
@@ -960,20 +972,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
       {revalidationId ? <TransactionRevalidationDialog key={revalidationId} transactionId={revalidationId} onClose={() => setRevalidationId(null)} onEdit={() => { const id = revalidationId; setRevalidationId(null); void selectTransactionForEdit(id); }} /> : null}
       {categoryChoice.confirmation}
       {clockEdit ? <QuickTimePicker value={clockEdit.value} onCancel={() => setClockEdit(null)} onApply={time => { setEditingTime(time); setClockEdit(null); }} /> : null}
-      {evidenceTransaction ? <ModalDialog labelledBy="transaction-sources-title" className="form-drawer transaction-sources-dialog" onCancel={() => setEvidenceTransaction(null)}>
-        <div className="form-drawer__header"><div><h2 id="transaction-sources-title">Transaction details & sources</h2><p>{formatCalendarDate(evidenceTransaction.date)} · {accountNames.get(evidenceTransaction.account) ?? "Account"} · {formatCurrency(evidenceTransaction.amount, currencyByAccount.get(evidenceTransaction.account))}</p></div><button className="icon-button" type="button" aria-label="Close attached sources" onClick={() => setEvidenceTransaction(null)}><X aria-hidden="true" size={20} /></button></div>
-        <div className="transaction-sources-dialog__body">
-          <dl className="transaction-detail-grid">
-            <div><dt>Description</dt><dd>{evidenceTransaction.counterparty_text || "—"}</dd></div>
-            <div><dt>Note</dt><dd>{evidenceTransaction.note || "—"}</dd></div>
-            <div><dt>Reference</dt><dd>{evidenceTransaction.reference || "—"}</dd></div>
-            {transactionColumns.filter(column => column.id !== "description").map(column => <div key={column.id}><dt>{column.label}</dt><dd>{columnContent(column.id, evidenceTransaction)}</dd></div>)}
-          </dl>
-          <p className="inline-note">These are the saved source observations for this ledger entry. Viewing them does not change the transaction.</p>
-          {evidenceTransaction.raw_message || evidenceTransaction.transfer_evidence.some(item => item.raw_message) ? <TransactionSourceMessages key={`sources-${evidenceTransaction.id}`} transactionId={evidenceTransaction.id} expanded showEmpty allowLearning /> : null}
-          {evidenceTransaction.statement_evidence_count > 0 ? <TransactionStatementEvidence key={`statement-sources-${evidenceTransaction.id}`} transactionId={evidenceTransaction.id} expanded /> : null}
-        </div>
-      </ModalDialog> : null}
+      {viewingId ? <TransactionDetailDialog transactionId={viewingId} orderedIds={loadState.transactions.map(transaction => transaction.id)} accounts={loadState.accounts} categories={loadState.categories} selectedAccount={displayedFilters.account} onNavigate={setViewingId} onClose={() => setViewingId(null)} onEdit={id => { setViewingId(null); void selectTransactionForEdit(id); }} /> : null}
       {editorMode ? (
         <ModalDialog labelledBy="transaction-editor-title" className="form-drawer transaction-editor-drawer" busy={isSubmitting || isUpdating} onCancel={closeEditor}>
             <div className="form-drawer__header">
@@ -1274,7 +1273,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
             </div>
           ) : (<>
             <div className="transaction-mobile-list" aria-busy={isRefreshing}>
-              {pageTransactions.map(transaction => <article className="transaction-card" key={transaction.id} aria-label={`Transaction on ${formatCalendarDate(transaction.date)}`}>
+              {pageTransactions.map(transaction => <article className="transaction-card" key={transaction.id} onClick={event => viewRow(event, transaction)} aria-label={`Transaction on ${formatCalendarDate(transaction.date)}`}>
                 <div className="transaction-card__heading">
                   {visibleColumns.includes("description") ? <div>{columnContent("description", transaction)}</div> : null}
                   {visibleColumns.includes("amount") ? <strong className={amountClass(transaction)}>{columnContent("amount", transaction)}</strong> : null}
@@ -1300,7 +1299,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedCreate = false, o
                   </tr>
                 </thead>
                 <tbody>
-                  {pageTransactions.map(transaction => <tr key={transaction.id}>
+                  {pageTransactions.map(transaction => <tr key={transaction.id} className="transaction-view-row" onClick={event => viewRow(event, transaction)}>
                     {displayedFilters.ordering !== "-date" ? <td className="transaction-col--activity">{activityTime(transaction)}</td> : null}
                     {transactionColumns.filter(column => visibleColumns.includes(column.id)).map(column => <td key={column.id} className={`transaction-col--${column.id}${column.id === "amount" ? ` ${amountClass(transaction)}` : ""}`}>{columnContent(column.id, transaction)}</td>)}
                     <td>{transactionActions(transaction)}</td>

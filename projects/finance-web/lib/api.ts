@@ -1188,8 +1188,8 @@ export async function redactRawMessage(
   }).parse(await response.json());
 }
 
-export async function listTransactionSourceMessages(accessToken: string, id: string): Promise<TransactionSourceMessage[]> {
-  const response = await authenticatedFetch(`/api/transactions/${id}/source-messages/`, accessToken);
+export async function listTransactionSourceMessages(accessToken: string, id: string, signal?: AbortSignal): Promise<TransactionSourceMessage[]> {
+  const response = await authenticatedFetch(`/api/transactions/${id}/source-messages/`, accessToken, { signal });
   return z.array(transactionSourceMessageSchema).parse(await response.json());
 }
 
@@ -1594,7 +1594,8 @@ export async function getAccountReconciliation(
 
 export async function listAuditLogs(
   accessToken: string,
-  filters: AuditLogFilters = {}
+  filters: AuditLogFilters = {},
+  signal?: AbortSignal
 ): Promise<AuditLogEntry[]> {
   const params = new URLSearchParams();
 
@@ -1606,7 +1607,7 @@ export async function listAuditLogs(
 
   const query = params.toString();
   const path = query ? `/api/audit-logs/?${query}` : "/api/audit-logs/";
-  const response = await authenticatedFetch(path, accessToken);
+  const response = await authenticatedFetch(path, accessToken, { signal });
   return collectionSchema(auditLogEntrySchema).parse(await response.json());
 }
 

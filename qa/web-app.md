@@ -1742,3 +1742,21 @@ artificial seconds. New activity or evidence makes a saved order stale; the old 
 is withheld until refreshed/reviewed. Clear and Undo placement affect display only.
 The separate Refresh control reloads current data; filter reset uses X and calendar
 navigation uses a calendar icon, so reset is not confused with refresh.
+
+### How can someone inspect a transaction without opening the editor?
+
+The centered transaction-details modal opens from View, the description, or a
+non-interactive part of its row/card. It shows the latest saved values, account
+path, category, reported account balances and original source summaries. Editing
+remains explicit. Native description buttons preserve keyboard access without
+turning semantic table rows into buttons. Escape restores focus and list position;
+previous/next stays within the loaded filtered result order across list pages.
+
+SMS messages and unique PDFs are counted rather than parser interpretations or
+balance reports. Known date/amount/balance/account differences are amber, while
+unavailable checks stay unavailable. Receipt timestamps are distinguished from
+reported event times. Transfer signs follow the selected account perspective,
+and a legacy balance with unknown attribution stays unassigned. Originals/history
+expand on request, with history loaded lazily. Abortable reads and an ID guard
+prevent a prior record's details from appearing during navigation. This uses
+existing read APIs and does not mutate ledger data or require a migration.
