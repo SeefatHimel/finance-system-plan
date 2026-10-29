@@ -201,3 +201,29 @@ test("stale or incomplete saved placements cannot hide unknown-time entries", as
     const result = placedTimelineEvents(rows, ['city'], [order]); assert.deepEqual(result.unplaced.map(row => row.id), ['b']);
   }
 });
+
+test("confirmed shared-source order places principal before its fee without inventing times", () => {
+  const { sharedBalanceOrder } = require(compiled);
+  const principal = row("p", "2026-06-02", "14:00:00", "100", "1115");
+  const fee = row("f", "2026-06-02", "14:00:00", "15", "1115");
+  const next = row("n", "2026-06-02", "15:00:00", "10", "1105");
+  const source = { account: "city", status: "confirmed", ordered_ids: ["p", "f"] };
+  const original = [fee, principal, next];
+  assert.deepEqual(sharedBalanceOrder(original, [source]), [principal, fee, next]);
+  assert.deepEqual(original, [fee, principal, next]);
+  for (const status of ["suggested", "stale"]) assert.deepEqual(sharedBalanceOrder(original, [{...source, status}]), original);
+  assert.deepEqual(sharedBalanceOrder([fee, {...principal, time:"14:01:00"}], [source]).map(row => row.id), ["f", "p"]);
+  assert.deepEqual(sharedBalanceOrder(original, [{...source, account:"foreign"}]), original);
+});
+
+test("shared balances preserve separate placements of the same transfer in different lanes", () => {
+  const { sharedBalanceEventOrder } = require(compiled);
+  const transfer = row("t", "2026-06-02", null, "20", null, { type: "transfer", transfer_account: "wallet" });
+  const principal = row("p", "2026-06-02", "14:00:00", "100", "1115");
+  const fee = row("f", "2026-06-02", "14:00:00", "15", "1115");
+  const events = [{ row: transfer, account: "city", key: "t:city" }, { row: fee, key: "f" }, { row: transfer, account: "wallet", key: "t:wallet" }, { row: principal, key: "p" }];
+  assert.deepEqual(sharedBalanceEventOrder(events, []), events);
+  const allocation = { account: "city", status: "confirmed", ordered_ids: ["p", "f"] };
+  assert.deepEqual(sharedBalanceEventOrder(events, [allocation]).map(event => event.key), ["t:city", "p", "t:wallet", "f"]);
+  assert.deepEqual(events.map(event => event.key), ["t:city", "f", "t:wallet", "p"]);
+});

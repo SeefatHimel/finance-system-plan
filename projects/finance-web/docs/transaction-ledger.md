@@ -188,3 +188,28 @@ Saved sender/receiver identifiers have their own optional disclosure. Eligible
 saved cash-withdrawal SMS retain the explicit Remember route action under the
 original source; simply opening the viewer never saves a rule.
 This is frontend-only and needs no API migration or new endpoint.
+
+## Shared closing balances on split statement rows
+
+Account Lanes offers **Shared statement balance · Review** only when the API proves
+that one immutable printed row became exactly two linked movements: principal and
+an inline fee/VAT component. The same account/currency/date/time, matching extracted
+amounts/directions, shared final report, a known immediately preceding balance, and
+an exact decimal reconciliation are required. Equal balances or a VAT percentage
+alone never establish a pair. Missing times, an extra intervening movement, multiple
+statement sources, a changed observation, a one-cent discrepancy, and credit-card
+balance semantics withhold the action. The previous anchor must be within 31 days;
+scans are bounded to 500 eligible principals and 2,000 movements per account.
+
+Expand the compact review, inspect the prior → principal → fee balances, then click
+**Apply suggested balances**. The server rechecks the fingerprint and revision.
+Only the timeline's intermediate display balances and same-time component order
+change. Amounts, real timestamps, ledger balances, account/report totals and original
+SMS/PDF values remain unchanged. Both cards show **Calculated · manually confirmed**
+and the source's final balance. **Undo confirmation** is available in the disclosure.
+Reloading preserves a valid confirmation; changed sources immediately withdraw the
+calculation and require review. API failures fall back to original reports with an
+explicit warning. Confirmed calculations never masquerade as reported balances.
+
+This feature requires backend migration `transactions.0010_timelinebalanceallocation`.
+Deploy migration/API before web. It does not repair or backfill real data automatically.

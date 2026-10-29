@@ -2001,3 +2001,22 @@ export async function saveTimelineOrder(token: string, preview: TimelineOrderPre
   const response = await authenticatedFetch(`/api/timeline-order/${preview.account}/${preview.date}/`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fingerprint: preview.fingerprint, revision: preview.revision, action, ordered_ids }) });
   return timelineOrderPreviewSchema.parse(await response.json());
 }
+
+const timelineBalanceSchema = z.object({
+  principal: z.string(), account: z.string(), date: z.string(), currency: z.string(),
+  status: z.enum(["suggested", "confirmed", "stale"]), fingerprint: z.string(), revision: z.number(),
+  anchor_balance: z.string(), reported_final: z.string(), balances: z.record(z.string()),
+  ordered_ids: z.array(z.string()), amounts: z.record(z.string()),
+});
+export type TimelineBalanceAllocation = z.infer<typeof timelineBalanceSchema>;
+export async function getTimelineBalances(token: string, start: string, end: string, signal?: AbortSignal) {
+  const response = await authenticatedFetch(`/api/timeline-balances/?${new URLSearchParams({ start_date: start, end_date: end })}`, token, { signal });
+  return z.object({ results: z.array(timelineBalanceSchema) }).parse(await response.json()).results;
+}
+export async function saveTimelineBalance(token: string, allocation: TimelineBalanceAllocation, action: "apply" | "undo") {
+  const response = await authenticatedFetch(`/api/timeline-balances/${allocation.principal}/`, token, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, revision: allocation.revision, fingerprint: allocation.fingerprint }),
+  });
+  return z.object({ revision: z.number(), active: z.boolean() }).parse(await response.json());
+}

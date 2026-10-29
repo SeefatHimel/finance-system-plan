@@ -223,3 +223,25 @@ export function placedTimelineEvents(rows: Transaction[], accounts: string[], or
   events.push(...tail);
   return { events, unplaced: rows.filter(row => !row.time && accounts.some(account => laneDirection(row, account) && !placed.has(`${row.id}:${account}`))) };
 }
+
+type SharedBalanceOrder = { status: string; account: string; ordered_ids: string[] };
+
+/** Swap only the two confirmed components; preserve separate events for each lane. */
+export function sharedBalanceEventOrder<T extends { row: Transaction }>(events: T[], allocations: SharedBalanceOrder[]): T[] {
+  const ordered = [...events];
+  for (const allocation of allocations) {
+    if (allocation.status !== "confirmed" || allocation.ordered_ids.length !== 2) continue;
+    const first = ordered.findIndex(event => event.row.id === allocation.ordered_ids[0]);
+    const second = ordered.findIndex(event => event.row.id === allocation.ordered_ids[1]);
+    if (first < 0 || second < 0) continue;
+    const principal = ordered[first].row, fee = ordered[second].row;
+    if (principal.type === "transfer" || fee.type === "transfer" || principal.account !== allocation.account || fee.account !== allocation.account || !principal.time || principal.date !== fee.date || principal.time !== fee.time) continue;
+    if (first > second) [ordered[first], ordered[second]] = [ordered[second], ordered[first]];
+  }
+  return ordered;
+}
+
+/** Apply confirmed same-time component order without inventing timestamps. */
+export function sharedBalanceOrder(rows: Transaction[], allocations: SharedBalanceOrder[]): Transaction[] {
+  return sharedBalanceEventOrder(rows.map(row => ({ row })), allocations).map(event => event.row);
+}

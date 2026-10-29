@@ -1769,3 +1769,13 @@ and a legacy balance with unknown attribution stays unassigned. Originals/histor
 expand on request, with history loaded lazily. Abortable reads and an ID guard
 prevent a prior record's details from appearing during navigation. This uses
 existing read APIs and does not mutate ledger data or require a migration.
+
+### Can a principal refund and VAT refund share a source balance?
+
+Yes. A statement can report one closing balance for a row that becomes two ledger
+movements. Account Lanes offers a compact review only for an API-verified exact split.
+One Apply action confirms the intermediate/final balances; both retain the original
+source final and a manually-confirmed calculation label. Undo restores original card
+reports. Known times stay unchanged; only tied component order follows the confirmed
+principal/fee sequence. Failed or stale checks withhold the calculation. Financial
+report totals and the transaction details modal still show saved/source values.

@@ -12,8 +12,8 @@ import { TransactionStatementEvidence } from "./transaction-statement-evidence";
 import { useTransactionRecovery } from "./transaction-recovery";
 import { useToast } from "./toast-provider";
 import { getAccessToken } from "@/lib/auth-storage";
-import { getTimelineOrders, type TimelineSavedOrder, listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
-import { placedTimelineEvents, addDays, atTimelineEdge, balanceGapDetails, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart, type TimelineRange } from "@/lib/account-lanes";
+import { getTimelineBalances, saveTimelineBalance, type TimelineBalanceAllocation, getTimelineOrders, type TimelineSavedOrder, listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
+import { sharedBalanceEventOrder, sharedBalanceOrder, placedTimelineEvents, addDays, atTimelineEdge, balanceGapDetails, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart, type TimelineRange } from "@/lib/account-lanes";
 
 type WeekResult = { status: "loading"; loaded: number; total: number | null } | { status: "error"; message: string } | { status: "ready"; rows: Transaction[] };
 type ViewMode = "amount" | "balance" | "both";
@@ -67,6 +67,11 @@ export function AccountLanesWorkspace() {
   const [mode, setMode] = useState<ViewMode>("both");
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("lanes");
   const [placement, setPlacement] = useState<{ date: string; account?: string } | null>(null);
+  const [allocations, setAllocations] = useState<TimelineBalanceAllocation[]>([]);
+  const balanceFocusRef = useRef<string | null>(null);
+  const [allocationBasis, setAllocationBasis] = useState<Transaction[] | null>(null);
+  const [balanceError, setBalanceError] = useState("");
+  const [balanceBusy, setBalanceBusy] = useState<string | null>(null);
   const [savedOrders, setSavedOrders] = useState<TimelineSavedOrder[]>([]);
   const [orderRevision, setOrderRevision] = useState(0);
   const [orderError, setOrderError] = useState("");
@@ -326,7 +331,22 @@ export function AccountLanesWorkspace() {
     }
     return [...unique.values()];
   }, [renderedDates, weekResults]);
-  const gaps = useMemo(() => new Map(selectedAccounts.map(account => [account.id, balanceGapDetails(allRows, account.id, loadedDays)])), [allRows, loadedDays, selectedAccounts]);
+  const checkedAllocations = useMemo(() => allocationBasis === allRows ? allocations : [], [allocationBasis, allRows, allocations]);
+  useEffect(() => {
+    const id = balanceFocusRef.current;
+    if (!id || !checkedAllocations.some(item => item.principal === id)) return;
+    const summaries = document.querySelectorAll<HTMLElement>(`[data-balance-principal="${id}"] > summary`);
+    summaries[summaries.length - 1]?.focus({ preventScroll: true });
+    balanceFocusRef.current = null;
+  }, [checkedAllocations]);
+  const gaps = useMemo(() => new Map(selectedAccounts.map(account => {
+    const details = balanceGapDetails(allRows, account.id, loadedDays);
+    // Shared source-closing balances are not independent per-component reports.
+    for (const allocation of checkedAllocations.filter(item => item.account === account.id && item.status !== "stale")) {
+      for (const id of allocation.ordered_ids) details.delete(id);
+    }
+    return [account.id, details];
+  })), [allRows, loadedDays, selectedAccounts, checkedAllocations]);
   const asOfReports = useMemo(() => new Map(selectedAccounts.map(account => [account.id, reportedBalanceAtDate(allRows, account.id, visibleDate, loadedDays)])), [allRows, loadedDays, selectedAccounts, visibleDate]);
   const movementDates = useMemo(() => new Set(allRows.filter(row => selectedAccounts.some(account => laneDirection(row, account.id))).map(row => row.date)), [allRows, selectedAccounts]);
   const displayedDays = useMemo(() => groupTimelineDays(renderedDates, movementDates, loadedDays, !showEmptyDays), [renderedDates, movementDates, loadedDays, showEmptyDays]);
@@ -514,6 +534,42 @@ export function AccountLanesWorkspace() {
       .catch(() => { if (!controller.signal.aborted) setOrderError("Saved placements could not be checked. Untimed movements are shown without placement; refresh to retry."); });
     return () => controller.abort();
   }, [range.start, range.end, allRows, orderRevision, evidenceRevision]);
+  useEffect(() => {
+    const token = getAccessToken(); if (!token) return;
+    const controller = new AbortController();
+    setAllocations([]); setBalanceError("");
+    void getTimelineBalances(token, range.start, addDays(range.end, -1), controller.signal)
+      .then(result => { if (!controller.signal.aborted) { setAllocations(result); setAllocationBasis(allRows); } })
+      .catch(() => { if (!controller.signal.aborted) setBalanceError("Shared balance confirmations could not be checked. Original reported balances are shown; refresh to retry."); });
+    return () => controller.abort();
+  }, [range.start, range.end, allRows, evidenceRevision]);
+  const decideBalance = async (allocation: TimelineBalanceAllocation, action: "apply" | "undo") => {
+    const token = getAccessToken(); if (!token || balanceBusy) return;
+    setBalanceBusy(allocation.principal);
+    try {
+      await saveTimelineBalance(token, allocation, action);
+      balanceFocusRef.current = allocation.principal;
+      setAllocations([]); setEvidenceRevision(value => value + 1);
+      notify(action === "apply" ? "Timeline balances manually confirmed. Original source balances are unchanged." : "Balance confirmation undone. Original reported balances restored.");
+    } catch (reason) {
+      notify(reason instanceof Error ? reason.message : "Could not confirm shared balances.", "error");
+      setAllocations([]); setEvidenceRevision(value => value + 1);
+    } finally { setBalanceBusy(null); }
+  };
+  const balanceAllocation = (row: Transaction, account: Account) => checkedAllocations.find(item => item.account === account.id && (item.ordered_ids.includes(row.id) || item.principal === row.id));
+  const renderAllocation = (row: Transaction, account: Account) => {
+    const allocation = balanceAllocation(row, account);
+    if (!allocation || allocation.principal !== row.id) return null;
+    return <details className="account-lanes-allocation" data-balance-principal={allocation.principal} key={`${allocation.principal}:${allocation.status}:${allocation.revision}`}>
+      <summary tabIndex={0}>{allocation.status === "confirmed" ? "Manually confirmed balances" : allocation.status === "stale" ? "Balance confirmation needs review" : "Shared statement balance · Review"}</summary>
+      {allocation.status === "stale" ? <p>This confirmation could not be revalidated. Original reported balances are shown.</p> : null}
+      {allocation.ordered_ids.length ? <><p>One printed statement row was split into a principal movement and VAT/fee. Both report the same final balance.</p>
+        <ol><li>Previous balance: {formatCurrency(allocation.anchor_balance, account.currency)}</li>{allocation.ordered_ids.map((id, index) => <li key={id}>{index === 0 ? "After principal" : "After VAT / fee"}: <strong>{formatCurrency(allocation.balances[id], account.currency)}</strong></li>)}</ol>
+        <p>Source closing balance: {formatCurrency(allocation.reported_final, account.currency)}. Amounts and original reports stay unchanged.</p></> : null}
+      {allocation.status !== "confirmed" && allocation.fingerprint ? <button className="button button--ghost button--small" type="button" disabled={balanceBusy !== null} onClick={() => void decideBalance(allocation, "apply")}>{balanceBusy === allocation.principal ? "Saving…" : "Apply suggested balances"}</button> : null}
+      {allocation.status !== "suggested" ? <button className="button button--ghost button--small" type="button" disabled={balanceBusy !== null} onClick={() => void decideBalance(allocation, "undo")}>Undo confirmation</button> : null}
+    </details>;
+  };
   const selected = selectedTransaction && allRows.find(row => row.id === selectedTransaction.id) || selectedTransaction;
   const selectedGapRows = selected ? selectedAccounts.flatMap(account => {
     const detail = gaps.get(account.id)?.get(selected.id);
@@ -532,13 +588,17 @@ export function AccountLanesWorkspace() {
         const otherId = row.type === "transfer" ? row.account === account.id ? row.transfer_account : row.account : null;
         const other = otherId ? accountById.get(otherId) : null;
         const gap = gaps.get(account.id)?.get(row.id);
+        const allocation = balanceAllocation(row, account);
+        const calculated = allocation?.status === "confirmed" ? allocation.balances[row.id] : null;
         return <div className="account-lanes-cell" key={account.id} style={{ gridColumn: index + 2, gridRow: 1 }}>
           <button className={`account-lanes-card${selected?.id === row.id ? " is-selected" : ""}${bridge ? " account-lanes-card--paired" : ""}`} data-lane-card={row.id} type="button" onClick={event => selectTransaction(row, event.detail === 0)}>
             <span className="account-lanes-card__top"><strong>{title(row)}</strong>{row.type === "transfer" ? <LinkSimple aria-hidden="true" size={16} /> : null}</span>
             <small className={placedAccount ? "account-lanes-placed-label" : undefined}>{row.time ? formatClockTime(row.time) : placementBasis === "balance" ? "Balance-supported order · no clock time" : "Manually placed · no clock time"} · {row.type.replaceAll("_", " ")}{row.category && categoryById.get(row.category) ? ` · ${categoryById.get(row.category)}` : ""}</small>
             {bridge ? <small className="account-lanes-pair-label">Same transfer · {other?.name ?? "other account"}</small> : null}
-            <span className="account-lanes-card__numbers">{mode !== "balance" ? <b className={direction === "credit" ? "is-credit" : "is-debit"}>{amountLabel(row, account.id, account.currency)}</b> : null}{mode !== "amount" ? <span>Bal {laneBalance(row, account.id) === null ? "not reported" : formatCurrency(laneBalance(row, account.id)!, account.currency)}</span> : null}</span>
+            <span className="account-lanes-card__numbers">{mode !== "balance" ? <b className={direction === "credit" ? "is-credit" : "is-debit"}>{amountLabel(row, account.id, account.currency)}</b> : null}{mode !== "amount" ? <span>{calculated ? "Confirmed bal " : "Bal "}{calculated ? formatCurrency(calculated, account.currency) : laneBalance(row, account.id) === null ? "not reported" : formatCurrency(laneBalance(row, account.id)!, account.currency)}</span> : null}</span>
           </button>
+          {calculated ? <small className="account-lanes-confirmed-balance">Calculated · manually confirmed · Source final {formatCurrency(allocation!.reported_final, account.currency)}</small> : null}
+          {renderAllocation(row, account)}
           {other && !selectedIds.includes(other.id) ? <button className="account-lanes-hidden-link" type="button" onClick={() => showAccount(other.id)}><LinkSimple aria-hidden="true" size={14} /> Other side: {other.name} hidden · Show lane <Eye aria-hidden="true" size={14} /></button> : null}
           {showGaps && gap ? <button className="account-lanes-gap" type="button" onClick={event => selectTransaction(row, event.detail === 0)}>Possible balance gap · {gap.differenceCents > 0 ? "+" : "−"}{centsLabel(gap.differenceCents, account.currency)} <CaretRight size={14} /></button> : null}
         </div>;
@@ -620,10 +680,11 @@ export function AccountLanesWorkspace() {
             const timed = daily.filter(row => row.time).sort((a, b) => `${a.time}:${a.id}`.localeCompare(`${b.time}:${b.id}`));
             const dayOrders = savedOrders.filter(order => order.date === date);
             const placed = placedTimelineEvents(daily, selectedIds, dayOrders);
+            const orderedEvents = sharedBalanceEventOrder(placed.events, checkedAllocations);
             const untimed = placed.unplaced;
             return <section className={`account-lanes-day${layoutMode === "list" ? " account-lanes-day--list" : ""}`} data-lane-day={date} key={date} aria-label={dayLabel(date)}><div className="account-lanes-day-title"><div className="account-lanes-day-title__content"><time dateTime={date}>{dayLabel(date)}</time><span>{daily.length} {daily.length === 1 ? "movement" : "movements"}</span></div>{daily.some(row => !row.time) ? <button className="account-lanes-order-action" type="button" onClick={() => setPlacement({ date })}>Suggest placement</button> : null}</div>{dayOrders.some(order => order.status === "stale") ? <p className="account-lanes-placement-warning">Saved placement needs review because this day changed.</p> : null}
               {daily.length === 0 ? <p className="account-lanes-status">No movements in selected accounts on this day.</p> : null}
-              {layoutMode === "lanes" ? placed.events.map(event => renderLaneRow(event.row, date, event.account, event.basis)) : <ul className="account-lanes-list">{(selectedIds.length === 1 ? [...placed.events.map(event => event.row), ...untimed] : [...timed, ...daily.filter(row => !row.time)]).map(renderListRow)}</ul>}
+              {layoutMode === "lanes" ? orderedEvents.map(event => renderLaneRow(event.row, date, event.account, event.basis)) : <ul className="account-lanes-list">{(selectedIds.length === 1 ? [...orderedEvents.map(event => event.row), ...untimed] : [...sharedBalanceOrder(timed, checkedAllocations), ...daily.filter(row => !row.time)]).map(renderListRow)}</ul>}
               {layoutMode === "lanes" && untimed.length ? <details className="account-lanes-untimed"><summary>Time not reported · {untimed.length} {untimed.length === 1 ? "movement" : "movements"}</summary>{untimed.map(row => <button type="button" data-lane-card={row.id} key={row.id} onClick={event => selectTransaction(row, event.detail === 0)}>{title(row)} · {formatCurrency(row.amount, accountById.get(row.account)?.currency)}{row.type === "transfer" ? " · transfer" : ""}</button>)}</details> : null}
             </section>;
           })}
@@ -631,6 +692,7 @@ export function AccountLanesWorkspace() {
         </div>
         {!accountsError && (waitingForTarget || targetError) ? <div className="account-lanes-initial-loading" role={targetError ? "alert" : "status"}>{targetError ? <><strong>Could not load {formatCalendarDate(targetDate)}</strong><span>{targetError}</span><button type="button" onClick={() => void loadWeek(weekStart(targetDate), true)}>Retry</button></> : <><span className="account-lanes-spinner" aria-hidden="true" /><strong>Loading timeline</strong><span>{targetWeek?.status === "loading" && targetWeek.loaded ? `${targetWeek.loaded} of ${targetWeek.total ?? "more"} movements loaded around ${formatCalendarDate(targetDate)}…` : `Fetching movements around ${formatCalendarDate(targetDate)}…`}</span></>}</div> : null}
       </div>
+      {balanceError ? <p className="account-lanes-placement-warning" role="status">{balanceError}</p> : null}
       {orderError ? <p className="account-lanes-placement-warning" role="status">{orderError}</p> : null}
       {placement ? <TimelineOrderDialog date={placement.date} accounts={selectedAccounts} initialAccount={placement.account} onClose={() => setPlacement(null)} onChange={() => setOrderRevision(value => value + 1)} /> : null}
       {selected ? createPortal(<aside className="account-lanes-inspector" role="dialog" aria-modal="false" aria-labelledby="account-lanes-inspector-title">
@@ -645,6 +707,11 @@ export function AccountLanesWorkspace() {
             const observation = selected.transfer_evidence.find(item => item.account === id);
             return <div key={id}><strong><AccountLabel account={account} /></strong><span className={laneDirection(selected, id) === "credit" ? "is-credit" : "is-debit"}>{amountLabel(selected, id, account.currency)}</span><small>Balance after · {laneBalance(selected, id) === null ? "not reported" : formatCurrency(laneBalance(selected, id)!, account.currency)}</small>{observation && (observation.date !== selected.date || observation.time !== selected.time) ? <small>Source observed {formatCalendarDate(observation.date)} · {observation.time ? formatClockTime(observation.time) : "time not reported"}; lane position uses the ledger date.</small> : null}{!selectedIds.includes(id) ? <button type="button" onClick={() => showAccount(id)}>Show {account.name} lane</button> : null}</div>;
           })}</div>
+          {selectedAccounts.map(account => {
+            const allocation = balanceAllocation(selected, account);
+            const principal = allocation && allRows.find(row => row.id === allocation.principal);
+            return principal ? renderAllocation(principal, account) : null;
+          })}
           {selectedGapRows.length ? <div className="account-lanes-gap-detail"><h3>Possible balance gap</h3>{selectedGapRows.map(renderGapDetail)}</div> : null}
           {selected.note ? <div className="account-lanes-note"><h3>Note</h3><p>{selected.note}</p></div> : null}
           {selected.reference ? <p>Reference · {selected.reference}</p> : null}
