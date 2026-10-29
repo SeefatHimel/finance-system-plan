@@ -1,5 +1,15 @@
 # Backend API Q&A
 
+### How do legacy bank-to-card transfers avoid false balance conflicts?
+
+A transfer's account is its sender, while its original SMS may report the
+receiving card. A shared legacy-attribution helper uses the saved SMS account and
+direction for both read-only matching and evidence materialization. Each balance
+is compared only to evidence for that reporting account. Unknown attribution stays
+unassigned. Existing misplaced reports require an explicit signed SMS correction;
+amounts, original credit/debit and separately reviewed balances are preserved.
+Corrections are owner-scoped, audited, stale-preview checked and undoable.
+
 ### How are ATM cash-withdrawal SMS classified?
 
 The shared bank parser recognizes ATM withdrawal wording, including `Cash WD`

@@ -5,6 +5,47 @@ from rest_framework.exceptions import ValidationError
 from .models import Transaction, TransferEvidence
 
 
+def legacy_report_account_id(record):
+    """Attribute a pre-evidence scalar to its captured SMS side, not its sender.
+
+    Transfer.account is always the sending account, even when the transaction
+    was originally created from the receiving account's credit notification.
+    Read the same saved interpretation during previews and materialization.
+    Unknown/obsolete interpretations must not lend a balance to either side.
+    """
+    if record.type != Transaction.Type.TRANSFER:
+        return record.account_id
+    if record.raw_message_id:
+        from .transfers import INCOMING_KINDS
+
+        candidate = next((
+            item for item in record.parsed_message_candidates.all()
+            if item.raw_message_id == record.raw_message_id
+            and item.user_id == record.user_id and item.status == "confirmed"
+        ), None)
+        if candidate:
+            incoming = (
+                candidate.suggested_transfer_direction == "credit"
+                if candidate.suggested_transfer_direction
+                else candidate.message_kind in INCOMING_KINDS
+            )
+            account_id = (
+                candidate.destination_account_id or candidate.account_id
+                if incoming else candidate.account_id
+            )
+            if account_id and account_id not in {record.account_id, record.transfer_account_id}:
+                return None
+            direction = candidate.source_direction or candidate.suggested_transfer_direction
+            if not direction and candidate.message_kind in INCOMING_KINDS:
+                direction = "credit"
+            if direction in {"credit", "debit"}:
+                return record.transfer_account_id if direction == "credit" else record.account_id
+            return account_id
+        if record.source == Transaction.Source.SMS:
+            return None
+    return record.account_id
+
+
 def applies_to_transfer(record, item):
     """Only current-path observations can supply an account's reported balance."""
     if record.type != Transaction.Type.TRANSFER:
@@ -82,16 +123,7 @@ def can_fill_missing_transfer_balance(record, account_id):
         if item.account_id == account_id and applies_to_transfer(record, item)
     ]
     if not reports:
-        # Match ensure_transfer_evidence's legacy attribution without writing.
-        legacy_account = record.account_id
-        if not items and record.raw_message_id:
-            from .transfers import INCOMING_KINDS
-
-            candidate = record.parsed_message_candidates.filter(
-                user=record.user, raw_message_id=record.raw_message_id
-            ).first()
-            if candidate and candidate.message_kind in INCOMING_KINDS:
-                legacy_account = record.transfer_account_id
+        legacy_account = legacy_report_account_id(record)
         return account_id != legacy_account or (
             record.balance_after is None
             and record.source in {Transaction.Source.SMS, Transaction.Source.IMPORT}
@@ -109,7 +141,10 @@ def has_unattributed_legacy_balance(record, items=None):
     if record.type != Transaction.Type.TRANSFER or record.balance_after is None:
         return False
     items = list(record.transfer_evidence.all()) if items is None else items
-    return bool(items) and primary_transfer_evidence(record, items) is None
+    return (
+        primary_transfer_evidence(record, items) is None if items
+        else legacy_report_account_id(record) is None
+    )
 
 
 def select_effective_account_report(record, item):
@@ -190,7 +225,7 @@ def reported_values(record):
     chosen, primary = account_reports(record)
     result = {account_id: item.balance_after for account_id, item in chosen.items()}
     if not primary and record.balance_after is not None and not has_unattributed_legacy_balance(record):
-        result.setdefault(record.account_id, record.balance_after)
+        result.setdefault(legacy_report_account_id(record), record.balance_after)
     return result
 
 

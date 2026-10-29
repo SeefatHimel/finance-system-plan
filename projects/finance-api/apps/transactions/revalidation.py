@@ -205,6 +205,8 @@ def inspect(record, *, lock=False, prepared=None):
                 item.direction,
                 item.date,
                 fee=bool(item.fee_amount),
+                source_time=item.time.isoformat() if item.time else None,
+                raw_message_id=item.raw_message_id,
             )
     for row in rows:
         add(
@@ -628,10 +630,15 @@ def correct_sms_evidence(*, user, record_id, token, candidate_id, action, accoun
 
     if action == "move":
         target = {record.account_id: record.account, record.transfer_account_id: record.transfer_account}.get(account_id)
-        if not target or not old_account or target.pk == old_account.pk:
+        misplaced_report = any(
+            item.account_id != account_id
+            or item.direction != ("credit" if account_id == record.transfer_account_id else "debit")
+            for item in evidence
+        )
+        if not target or (old_account and target.pk == old_account.pk and not misplaced_report):
             raise ValidationError({"account": "Choose the other account in this transfer."})
         expected = "credit" if target.pk == record.transfer_account_id else "debit"
-        if candidate.source_direction != expected or old_direction != expected:
+        if candidate.source_direction not in {"", expected} or old_direction != expected:
             raise ValidationError({"account": "The SMS direction does not match that account's transfer side."})
         candidate.account = record.account
         candidate.destination_account = record.transfer_account
@@ -645,11 +652,19 @@ def correct_sms_evidence(*, user, record_id, token, candidate_id, action, accoun
             "payment_method", "destination_payment_method", "updated_at",
         ))
         for item in evidence:
+            # Moving a captured source must not overwrite a separate reviewed
+            # choice already selected for its actual account.
+            if item.is_effective_balance and record.transfer_evidence.filter(
+                account=target, is_effective_balance=True
+            ).exclude(pk=item.pk).exists():
+                item.is_effective_balance = False
             item.account = target
             item.direction = expected
-            item.save(update_fields=("account", "direction"))
+            item.save(update_fields=("account", "direction", "is_effective_balance"))
         if not evidence:
             _data, observation = sms_transfer_data(candidate)
+            if record.raw_message_id == candidate.raw_message_id:
+                observation["balance_after"] = record.balance_after
             add_transfer_evidence(record, observation, candidate)
     elif action == "unlink":
         candidate.transaction = None

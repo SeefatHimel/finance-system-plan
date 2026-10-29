@@ -1,5 +1,14 @@
 # finance-contracts
 
+Transfer SMS evidence correction uses the existing
+`POST /api/transactions/{id}/correct-sms-evidence/` signed-preview contract.
+`move` can also repair an attached report when the saved SMS already identifies
+the target account, or bind an unknown saved account when its direction agrees
+with that transfer side. Original credit/debit and numeric source values are not
+rewritten. Revalidation `Linked report` source rows populate the existing nullable
+`raw_message` and `time` fields so clients can associate them with a Saved SMS.
+No new request fields or endpoint are required. Stale previews remain rejected.
+
 `GET /api/transactions/issues/?limit=50&offset=0` returns a read-only,
 user-scoped issue page. The response reports inspected count, total count,
 next offset, and findings with stable issue codes and advisory severity; it

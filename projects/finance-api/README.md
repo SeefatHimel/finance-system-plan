@@ -1,5 +1,23 @@
 # finance-api
 
+## Transfer report account ownership
+
+Statement matching attributes pre-evidence SMS transfer balances to the saved
+SMS reporting side, including incoming credit-card notifications. Preview and
+link-time materialization use the same account attribution; a receiving card
+balance is never used as the sending bank's balance. Matching remains read-only.
+An unknown legacy reporting account stays unassigned until explicitly reviewed.
+Same-account disagreements still require acknowledgement.
+
+Existing misplaced SMS report rows can be repaired with the existing signed
+`correct-sms-evidence` preview/action. This also supports repairing an evidence
+row when the saved SMS account is already correct, or binding an unknown account
+when the saved direction agrees. Linked-report preview rows include their raw
+message ID and captured time, so clients can show which report belongs to each
+SMS. Corrections preserve original text, direction, numeric amounts, independent
+reviewed balance choices and the transfer movement; they are audited and undoable.
+There is no bulk rewrite or migration of saved financial data.
+
 ## Cash-withdrawal SMS defaults
 
 The shared bank SMS parser recognizes ATM withdrawal wording, including `Cash WD`

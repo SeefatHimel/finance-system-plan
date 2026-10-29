@@ -1,5 +1,14 @@
 # API Contracts Q&A
 
+### Does repairing a transfer report account need a new API?
+
+No. The signed correct-sms-evidence action accepts the existing candidate, action
+and account fields. A move may repair a report whose saved SMS account is already
+correct, or bind an unknown account when the saved direction agrees. Preview
+Linked report rows populate raw_message/time to associate a report with its SMS.
+The action preserves source values and independently selected account balances,
+rejects stale previews, and remains auditable and undoable.
+
 ### What does an ATM cash-withdrawal candidate return?
 
 The existing parsed-candidate fields report `message_kind=cash_out`,

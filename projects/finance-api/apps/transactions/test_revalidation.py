@@ -131,6 +131,56 @@ class RevalidationTests(APITestCase):
         self.assertEqual(wrong.destination_account_id, self.account.pk)
         self.assertEqual((moved.account_id, moved.direction), (self.account.pk, "credit"))
 
+    def test_repair_report_when_saved_sms_already_identifies_correct_account(self):
+        wrong = self.transfer_with_misattributed_sms()
+        wrong.destination_account = self.wallet
+        wrong.save()
+        report = TransferEvidence.objects.get(raw_message=wrong.raw_message)
+        report.direction = "debit"  # Legacy capture incorrectly put it on sender.
+        report.save()
+        preview = self.preview().data
+        linked = next(item for item in preview["sources"] if item["kind"] == "Linked report" and item["id"] == str(report.pk))
+        self.assertEqual(linked["raw_message"], str(wrong.raw_message_id))
+        response = self.correct_sms(preview, wrong, "move", self.wallet)
+        self.assertEqual(response.status_code, 200, response.data)
+        report.refresh_from_db()
+        self.assertEqual((report.account_id, report.direction, report.balance_after), (self.wallet.pk, "credit", Decimal("42.00")))
+        self.assertEqual(self.record.transfer_evidence.count(), 2)
+        self.record.refresh_from_db()
+        self.assertEqual(self.record.balance_after, Decimal("900.00"))
+        self.assertEqual(self.correct_sms(self.preview().data, wrong, "move", self.wallet).status_code, 400)
+
+    def test_move_report_preserves_existing_reviewed_destination_balance(self):
+        wrong = self.transfer_with_misattributed_sms()
+        report = TransferEvidence.objects.get(raw_message=wrong.raw_message)
+        report.is_effective_balance = True
+        report.save()
+        TransferEvidence.objects.create(
+            user=self.user, transaction=self.record, account=self.wallet,
+            direction="credit", date=self.record.date, source="web",
+            balance_after="77.00", is_effective_balance=True,
+            external_key=f"balance:{self.record.pk}:{self.wallet.pk}",
+        )
+        response = self.correct_sms(self.preview().data, wrong, "move", self.wallet)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.record.refresh_from_db()
+        self.assertEqual(reported_values(self.record)[self.wallet.pk], Decimal("77.00"))
+        report.refresh_from_db()
+        self.assertEqual(report.balance_after, Decimal("42.00"))
+        self.assertFalse(report.is_effective_balance)
+
+    def test_bind_unknown_saved_sms_account_without_changing_credit_direction(self):
+        wrong = self.transfer_with_misattributed_sms()
+        wrong.account = None
+        wrong.destination_account = None
+        wrong.save()
+        response = self.correct_sms(self.preview().data, wrong, "move", self.wallet)
+        self.assertEqual(response.status_code, 200, response.data)
+        wrong.refresh_from_db()
+        self.assertEqual(wrong.source_direction, "credit")
+        self.assertEqual(wrong.destination_account_id, self.wallet.pk)
+        self.assertEqual(self.record.transfer_evidence.count(), 2)
+
     def test_unlink_only_selected_sms_returns_it_to_review_and_is_undoable(self):
         wrong = self.transfer_with_misattributed_sms()
         response = self.correct_sms(self.preview().data, wrong, "unlink")

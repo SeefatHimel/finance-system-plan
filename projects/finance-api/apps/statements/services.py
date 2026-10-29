@@ -22,6 +22,7 @@ from apps.transactions.balance_reports import (
     applies_to_transfer,
     can_fill_missing_transfer_balance,
     has_unattributed_legacy_balance,
+    legacy_report_account_id,
     primary_transfer_evidence,
     reported_values,
     reviewed_account_report,
@@ -399,7 +400,7 @@ def reporting_observations(record, account_id):
     ]
     if observations:
         return observations
-    if record.account_id == account_id:
+    if legacy_report_account_id(record) == account_id:
         if has_unattributed_legacy_balance(record):
             return [
                 SimpleNamespace(
@@ -762,7 +763,7 @@ def _find_statement_matches(rows):
                 )
             if selected["conflict"]:
                 reasons.append(
-                    f"Reported balances differ: statement {row.balance_after}, ledger observation {reported_balance}, difference {row.balance_after - reported_balance:+.2f}. Explicitly review this conflict."
+                    f"Reported balances differ for {batch.account.name}: statement {row.balance_after}, saved report {reported_balance}, difference {row.balance_after - reported_balance:+.2f}. Review reports from this account only."
                 )
             if effective_conflict and not selected["conflict"]:
                 reasons.append(
@@ -778,7 +779,7 @@ def _find_statement_matches(rows):
             reasons.extend(selected["extra_reasons"])
             if getattr(observation, "date_is_fallback", False):
                 reasons.append(
-                    "No receiving-account observation exists. The sender's date is only a search hint; its time, reference and balance were not used."
+                    f"No report exists for {batch.account.name}. The saved transfer date is only a search hint; other-account times, references and balances were not used."
                 )
             elif record.type == "transfer":
                 reasons.append(

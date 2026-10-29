@@ -353,7 +353,7 @@ class TransactionViewSet(ModelViewSet):
                 "payment_method",
                 "raw_message",
             )
-            .prefetch_related("transfer_evidence")
+            .prefetch_related("transfer_evidence", "parsed_message_candidates")
         )
 
         from apps.reports.periods import filter_period

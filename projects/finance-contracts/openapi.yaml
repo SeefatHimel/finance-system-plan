@@ -2577,7 +2577,7 @@ paths:
     post:
       operationId: transactions_correct_sms_evidence
       summary: Correct one confirmed SMS link on a transfer
-      description: Move one saved SMS report to the other transfer account when its original direction agrees, or unlink it and return it to SMS review. The original SMS and ledger movement remain saved. Requires a fresh signed revalidation preview.
+      description: Assign one saved SMS report to a direction-compatible account in the transfer, including repairing a misplaced report whose SMS account is already correct or binding an unknown SMS account. Alternatively unlink it and return it to SMS review. Source values, the ledger movement and independent reviewed balances remain saved. Requires a fresh signed revalidation preview; changes are audited and undoable.
       tags: [Transactions]
       parameters:
       - in: path

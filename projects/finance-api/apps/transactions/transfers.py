@@ -18,6 +18,7 @@ from apps.messages.models import (
 
 from .balance_reports import (
     account_reports,
+    legacy_report_account_id,
     reported_values,
     resolve_reported_values,
     select_effective_account_report,
@@ -442,11 +443,9 @@ def ensure_transfer_evidence(record):
         if record.raw_message_id
         else None
     )
-    account_id = (
-        record.transfer_account_id
-        if candidate and candidate.message_kind in INCOMING_KINDS
-        else record.account_id
-    )
+    account_id = legacy_report_account_id(record)
+    if account_id is None:
+        raise ValidationError({"account": "Review the saved SMS reporting account before linking this transfer."})
     raw_id = record.raw_message_id
     if raw_id and TransferEvidence.objects.filter(raw_message_id=raw_id).exists():
         raw_id = None

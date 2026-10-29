@@ -12,7 +12,9 @@ from .balance_reports import (
     applies_to_transfer,
     has_unattributed_legacy_balance,
     is_captured_report,
+    legacy_report_account_id,
     primary_transfer_evidence,
+    reported_values,
     write_account_reports,
 )
 from .models import Transaction, TransferEvidence
@@ -107,20 +109,13 @@ class AccountReportedBalancesField(serializers.Field):
     def to_representation(self, record):
         if record.type != Transaction.Type.TRANSFER:
             return []
-        chosen, primary = account_reports(record)
+        values = reported_values(record)
         return [
             {
                 "account": str(account_id),
                 "balance_after": (
-                    str(chosen[account_id].balance_after)
-                    if account_id in chosen
-                    and chosen[account_id].balance_after is not None
-                    else str(record.balance_after)
-                    if not primary
-                    and not chosen
-                    and account_id == record.account_id
-                    and record.balance_after is not None
-                    and not has_unattributed_legacy_balance(record)
+                    str(values[account_id])
+                    if values.get(account_id) is not None
                     else None
                 ),
             }
@@ -193,7 +188,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             if record.type == Transaction.Type.TRANSFER
             else None
         )
-        return str(primary.account_id if primary else record.account_id)
+        return str(primary.account_id if primary else legacy_report_account_id(record) or record.account_id)
 
     @extend_schema_field(serializers.IntegerField())
     def get_statement_evidence_count(self, instance):
@@ -292,7 +287,7 @@ class TransactionSerializer(serializers.ModelSerializer):
         old_reporting_account_id = (
             primary_evidence.account_id
             if was_transfer and primary_evidence
-            else instance.account_id
+            else legacy_report_account_id(instance)
         )
         old_reported_balance = instance.balance_after
         if was_transfer and primary_evidence and old_reported_balance is None:
@@ -309,8 +304,10 @@ class TransactionSerializer(serializers.ModelSerializer):
         primary_account = (
             validated_data.get("transfer_account", instance.transfer_account)
             if validated_data.get("type", instance.type) == Transaction.Type.TRANSFER
-            and primary_evidence
-            and primary_evidence.direction == "credit"
+            and (
+                (primary_evidence and primary_evidence.direction == "credit")
+                or (was_transfer and not primary_evidence and old_reporting_account_id == instance.transfer_account_id)
+            )
             else validated_data.get("account", instance.account)
         )
         new_type = validated_data.get("type", instance.type)
