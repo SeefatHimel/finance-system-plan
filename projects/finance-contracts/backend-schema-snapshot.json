@@ -2446,6 +2446,92 @@
         ]
       }
     },
+    "/api/planning-payments/{kind}/{parent_id}/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "parent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/planning-payments/{kind}/{parent_id}/{payment_id}/": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "parent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {}
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/quick-add/entries/": {
       "post": {
         "requestBody": {
@@ -3430,6 +3516,30 @@
       }
     },
     "/api/reports/monthly/": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reports/overview/": {
       "get": {
         "responses": {
           "200": {
@@ -4872,6 +4982,134 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StatementSourceDirectionReviewResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/timeline-order/": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/timeline-order/{account_id}/{day}/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelineOrderDecision"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelineOrderDecision"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelineOrderDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
                 }
               }
             }
@@ -6758,10 +6996,23 @@
           "readOnly": true,
           "type": "string"
         },
+        "funding_account": {
+          "format": "uuid",
+          "type": "string",
+          "writeOnly": true
+        },
         "id": {
           "format": "uuid",
           "readOnly": true,
           "type": "string"
+        },
+        "ledger_action": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/LedgerActionEnum"
+            }
+          ],
+          "writeOnly": true
         },
         "note": {
           "type": "string"
@@ -6769,6 +7020,11 @@
         "paid_at": {
           "format": "date",
           "type": "string"
+        },
+        "request_id": {
+          "format": "uuid",
+          "type": "string",
+          "writeOnly": true
         },
         "transaction": {
           "format": "uuid",
@@ -6889,10 +7145,23 @@
           "readOnly": true,
           "type": "string"
         },
+        "funding_account": {
+          "format": "uuid",
+          "type": "string",
+          "writeOnly": true
+        },
         "id": {
           "format": "uuid",
           "readOnly": true,
           "type": "string"
+        },
+        "ledger_action": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/LedgerActionEnum"
+            }
+          ],
+          "writeOnly": true
         },
         "note": {
           "type": "string"
@@ -6900,6 +7169,11 @@
         "paid_at": {
           "format": "date",
           "type": "string"
+        },
+        "request_id": {
+          "format": "uuid",
+          "type": "string",
+          "writeOnly": true
         },
         "transaction": {
           "format": "uuid",
@@ -7735,6 +8009,14 @@
         "role"
       ],
       "type": "object"
+    },
+    "LedgerActionEnum": {
+      "enum": [
+        "record_only",
+        "link",
+        "create"
+      ],
+      "type": "string"
     },
     "LevelEnum": {
       "enum": [
@@ -9982,10 +10264,23 @@
           "readOnly": true,
           "type": "string"
         },
+        "funding_account": {
+          "format": "uuid",
+          "type": "string",
+          "writeOnly": true
+        },
         "id": {
           "format": "uuid",
           "readOnly": true,
           "type": "string"
+        },
+        "ledger_action": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/LedgerActionEnum"
+            }
+          ],
+          "writeOnly": true
         },
         "note": {
           "type": "string"
@@ -9993,6 +10288,11 @@
         "paid_at": {
           "format": "date",
           "type": "string"
+        },
+        "request_id": {
+          "format": "uuid",
+          "type": "string",
+          "writeOnly": true
         },
         "transaction": {
           "format": "uuid",
@@ -12372,6 +12672,42 @@
         "borrow",
         "repayment_received",
         "repayment_paid"
+      ],
+      "type": "string"
+    },
+    "TimelineOrderDecision": {
+      "properties": {
+        "action": {
+          "$ref": "#/components/schemas/TimelineOrderDecisionActionEnum"
+        },
+        "fingerprint": {
+          "maxLength": 64,
+          "type": "string"
+        },
+        "ordered_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action",
+        "fingerprint",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "TimelineOrderDecisionActionEnum": {
+      "enum": [
+        "apply",
+        "clear",
+        "undo"
       ],
       "type": "string"
     },

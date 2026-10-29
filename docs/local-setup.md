@@ -305,6 +305,7 @@ npm run test:auth
 npm run test:workflows
 npm run test:review-feedback
 npm run test:dates
+npm run test:finance
 ```
 
 ## Current Mobile Setup (Native)
@@ -696,3 +697,21 @@ Version 0.1.18 uses Android code 19. Run `npm run typecheck`, `npm test` and
 the native SMS module unit tests, then follow the signed release guide. The
 installed app needs a new APK for the shared appearance, compact Activity and
 review controls, and Quick Add changes. The server API and database do not change.
+
+### Financial overview and timeline order deployment
+
+The report/payment/placement update changes both API and web behavior. Run the usual
+`python manage.py migrate` before deploying the web client; this adds
+`transactions.0009_timeline_day_order` only. Existing financial records are unchanged.
+Run API report/planning/transaction/reconciliation suites against PostgreSQL to verify
+row-lock concurrency; SQLite cannot establish those guarantees. Web
+`npm run test:finance` compiles the pure calculation/placement helpers using the
+installed TypeScript compiler and runs on the project's Node 20 CI runtime.
+
+EBL description-clue update: apply `statements.0014_retire_npsb_own_card_clues`
+before deploying its web client. This data migration clears retired NPSB
+own-card/movement identifier metadata and pre-release EBL mapping/skip records;
+it preserves source statements, classifications, account recognition and ledger
+values. It does not undo old manually applied classifications. New salary/service
+wording and explicit bKash recipient clues require no PDF re-upload except when
+recovering a full recipient hidden in saved masked descriptions.

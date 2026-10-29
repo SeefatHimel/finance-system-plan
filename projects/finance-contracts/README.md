@@ -918,19 +918,15 @@ new web client. Older clients may omit or ignore this additive field.
 
 ### EBL statement-code profile
 
-Observed EBL codes use `npsb:masked:<printed mask>`, preserving the trailing star.
-Mapping POSTs now accept an explicitly observed mask and the same label,
-external/owned party, type/category/note and account choices as bKash. Numeric
-`npsb:code:<digits>` movement fields remain retired and invalid. Directory output
-includes the saved mapping; suggestions stay scoped by owner/account/provider/
-mask/direction and never alter drafts or ledger entries just by saving the rule.
-
-Migration `statements.0013_verified_ebl_mask_mapping` adds a private default-false
-flag so old EBL rules stay inactive. A valid explicit mask save enables it.
-Cleanup excludes those verified mappings; any preview invalidated by upgrading
-an old rule returns 409. Existing skip hashes and public payload shapes stay the
-same. Deploy migration and API before the client. Archive refresh retains its
-integrity checks and preserves original/financial data.
+EBL accepts observed `ebl:keyword:salary`, `ebl:keyword:patapay`,
+`ebl:keyword:bkash` and explicit `ebl:bkash:phone:<recipient>` clues. NPSB own-card
+masks, numeric movement fields and references are invalid, even if a legacy rule
+was verified. Keywords identify wording, not a recipient. Existing payload shapes,
+scoped digest keys, owner/account/direction validation and review-only behavior
+remain unchanged. Migration `statements.0014_retire_npsb_own_card_clues` removes
+old EBL mapping/skip metadata and NPSB row codes without altering financial data.
+Deploy migration/API before the client. Cleanup preserves supported verified
+rules, and archive refresh can clear retired metadata but cannot recreate masks.
 
 ### Optional identification and retired EBL cleanup
 
@@ -942,12 +938,26 @@ The metadata preference never skips a financial transaction or deletes sources.
 
 `GET /api/statements/counterparty-codes/cleanup-ebl/` returns retired_identifiers,
 retired_rules and a signed, owner-bound 15-minute revision. POST `{revision}`
-returns cleared_identifiers/deleted_rules after clearing only retired EBL numeric
-metadata and deleting disabled EBL rules. A changed/expired/foreign revision gives
-409 and requires a new preview. Correct masks, other providers/owners and ledger
+returns cleared_identifiers/deleted_rules after clearing only retired NPSB own-card/movement
+metadata and deleting unsupported EBL rules, including previously verified masks. A changed/expired/foreign revision gives
+409 and requires a new preview. Supported verified wording/recipient mappings, other providers/owners and ledger
 values remain untouched. Responses are no-store. Deploy migration
-`statements.0012_identifier_skip`, then the API, then web.
+`statements.0014_retire_npsb_own_card_clues`, then the API, then web.
 
 The existing confirmed-SMS `/remember/` endpoint now declares its request/response
 schema explicitly, so schema validation includes it without serializer errors;
 this is documentation metadata only, with no runtime behavior change.
+
+## Spending policy and reviewed display order
+
+The financial report response now declares `policy: spending-v2`. Earned income
+excludes loan principal/refunds; net spending is expense plus fee less refund, with
+Uncategorized included. Financing, own transfers, money flow and prior-period
+comparisons are explicit. Currency/account scope never performs exchange conversion.
+The overview returns current positions and dated coverage, not proof of complete data.
+
+Payment requests explicitly create/link/record-only with stable retry IDs. Payment
+history removal preserves its ledger movement. Timeline placement is an additive
+account/day display model with fingerprint/revision checking, manual or balance
+basis, clear/undo, and no fabricated transaction times. Deploy API migration first.
+Generated interfaces and the checked backend snapshot include these operations.

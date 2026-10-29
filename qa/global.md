@@ -159,9 +159,10 @@ ledger honest.
 ## How are debts handled?
 
 Debt and lend records are tracked separately from normal expenses, but money
-movement still affects account balances. If I lend money, the source account
-decreases and a receivable debt is created. If I get repaid, the account
-increases and the debt balance decreases. The backend now stores debt records
+movement still affects account balances. The original lending or borrowing movement belongs in the ledger; creating a
+planning debt record alone does not post it. A repayment explicitly linked to an
+existing movement or recorded with a new movement updates the account and debt
+progress together. A planning-only payment does not change an account balance. The backend now stores debt records
 with direction, principal, current balance, status, and repayment entries.
 
 ## Why store transaction amounts as positive values?
@@ -420,3 +421,14 @@ idempotent receipts and latest-action Undo. It shares policy with existing sourc
 routes without creating a second link authority. New web review UI is next;
 historical read-only scans, proposed corrections/merges and compensation remain
 separate planned work. Improved mappings never silently rewrite confirmed history.
+
+### What does “knowing all my spending” mean in this product?
+
+Consumption spending is expense/fees less refunds, not every debit. Borrowing,
+lending and principal repayments are financing; moving money between owned accounts
+is internal. Reports show these distinctions per currency and can open the underlying
+movements. Current balances and scheduled obligations use different dates, so card
+statement dues are not added again to current card liabilities. Coverage and pending
+review remain visible because imported activity cannot prove nothing is missing.
+Untimed evidence can receive an explicitly reviewed display order, never a fabricated
+clock time presented as fact. Budgets and forecasts remain later enhancements.

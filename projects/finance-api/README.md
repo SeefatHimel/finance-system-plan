@@ -1715,38 +1715,40 @@ runtime dependency. Logos do not alter identity matching, balances or entries.
 
 ## EBL bank statement clues
 
-EBL NPSB descriptions expose masked card/account evidence, not a verified payee.
-The parser preserves one unambiguous printed mask (including its trailing star)
-as `npsb:masked:<printed mask>`. The numeric field following the separator and
-`//` references vary by movement and are never recurring party identifiers.
-A repeated sending-card mask does not establish the recipient or transfer destination.
+NPSB descriptions repeat the reporting account's own masked card. Neither that
+mask, the following numeric movement field nor // references identify a payee.
+They are excluded from recurring mappings, including previously verified rules.
+Statement-header account recognition remains separate and unchanged.
 
-The directory reads masks from immutable saved descriptions, including old rows
-whose encrypted `source_code` incorrectly retained `npsb:code:<digits>`. It groups
-non-fee observations under the mask without requiring an archive rescan.
-The owner can explicitly map an observed mask with the same external/owned party,
-label, type/category/note and account-path validation used for bKash. Only a
-validated mapping POST sets the private `ebl_mask_verified` flag. Old EBL rules
-remain inactive until explicitly re-saved for an observed mask; there is no
-implicit conversion. Saving a mapping supplies review hints, without rewriting
-saved drafts or posted transactions. Citytouch/bKash behavior is unchanged.
+Supported review clues are `ebl:keyword:salary`, `ebl:keyword:patapay`,
+`ebl:keyword:bkash`, and `ebl:bkash:phone:<recipient>`. Wallet numbers require
+explicit to/recipient/beneficiary wording in a bKash transfer; ambiguous numbers,
+masked numbers and reference fields never become recipient numbers. Generic
+service wording names a service, not a specific person or destination. Salary or
+payroll wording on a pending credit offers Salary & Wages when the active income
+category exists; loan/advance/refund/reversal wording is excluded. Saved choices
+and reviewed drafts take precedence. Suggestions do not post or rewrite money.
 
-A possible separate charge hint still requires two adjacent BDT NPSB debits,
-matching source date and movement reference, a smaller positive second amount
-at most BDT 100, and an exact balance step. Ambiguous groups, conflicting retained
-codes and missing values do not qualify. Charges remain separate, do not inherit
-transfer routes and do not inflate the directory's principal movement counts.
-Reviewed classifications and posted ledger values remain unchanged.
+The same external/owned mapping editor, direction/category validation, Skip,
+Restore and Forget apply to supported clues. Private recipient source values are
+encrypted; scoped mapping keys are digests. The legacy `ebl_mask_verified` column
+now records explicit verification of supported wording/recipient mappings only.
 
-`POST /api/statements/imports/{id}/refresh-identifiers/` or re-uploading the
-identical PDF can fill missing metadata and replace retired EBL numeric codes
-with the printed mask. Ownership, archive digest, transient password and exact
-position/fingerprint checks apply. Only encrypted metadata, row version and
-updated timestamp change; source snapshots, classifications, notes, links and
-ledger entries are untouched. The per-user refresh allowance is 20 PDF
-requests/hour, separate from uploads/previews; failed refresh requests count.
-Deploy `statements.0013_verified_ebl_mask_mapping` and the API before the web
-client. The default-false flag preserves the disabled state of old EBL rules.
+Migration `statements.0014_retire_npsb_own_card_clues` clears NPSB source-code
+metadata, increments affected row versions, and removes pre-release EBL mapping
+and skip records (all were based on NPSB own-card/movement fields). It preserves
+original statements, classifications, notes, links, account recognition and ledger
+records. Supported wording/recipient mappings and skips survive a partial rollout.
+It does not reverse manual applications of old suggestions. Deploy the
+migration and API before this web client; no re-upload is needed to retire clues.
+
+Archive refresh retains ownership, digest, password and exact fingerprint checks.
+It clears retired NPSB metadata instead of recreating it, and can recover explicit
+wallet recipients from the original PDF. The per-user allowance remains 20 PDF
+requests/hour independently of upload/preview, including failed refreshes.
+Possible fee hints still require adjacent BDT NPSB debits, the same date/reference,
+a smaller second amount at most BDT 100 and an exact balance step. These stay
+separate review decisions and never inherit a transfer route.
 
 ## Optional identifier review and retired EBL cleanup
 
@@ -1759,18 +1761,30 @@ Skipped saved rules are paused, not deleted. Restoring resumes them; explicitly
 saving a mapping also removes its skip preference. Other independent parsing and
 account-recognition hints are unaffected. No source or transaction is skipped.
 
-`GET /api/statements/counterparty-codes/cleanup-ebl/` previews only the current
-user's retired `npsb:code:<digits>` metadata and unverified EBL mapping records.
-New verified mask mappings are excluded and preserved.
-It returns counts and a signed, owner-bound revision valid for 15 minutes.
-Confirming with POST `{revision}` clears those metadata values, increments only
-affected statement row versions, deletes the previewed EBL rules and records
-counts in audit history. Correct masked clues, other users/providers, originals,
-classifications, links and ledger entries are excluded. Changed/expired previews
-return 409; decrypt failures return 503 without writes. New empty previews make
-repeated cleanup a harmless zero-count operation. Old manual financial edits are
-not undone by metadata cleanup. Archived originals can later recover correct masks.
+`GET /api/statements/counterparty-codes/cleanup-ebl/` previews the current
+user's retired `npsb:code` / `npsb:masked` metadata and unsupported EBL rules,
+including previously verified own-card rules. Supported, explicitly verified
+wording/recipient mappings are preserved. POST `{revision}` confirms the signed,
+owner-bound 15-minute preview. It clears metadata, bumps affected versions,
+deletes only previewed rules and audits counts. Changed/expired previews return
+409; decrypt failures return 503 without writes. Other providers/users, originals,
+financial values and ledger entries stay unchanged. Cleanup does not reverse
+previous manual classifications; review those against the original source.
 
-Deploy `statements.0012_identifier_skip` with `python manage.py migrate` before
-releasing the API and web UI. The migration creates preferences only; it performs
-no automatic financial or cleanup mutation. Cleanup remains an explicit action.
+## Financial overview, payment links and timeline placement
+
+Reports use `spending-v2`: earned income, net expenses/fees after refunds, financing
+and external cash flow are separate, per currency, with category/merchant/account
+drill-through and prior-period comparison. `/api/reports/overview/` exposes current
+positions, dated source/manual-check coverage and scheduled commitments. Missing
+activity is never assumed absent because a balance matches.
+
+Payment endpoints support explicit link/create/planning-only actions with owner
+locks, validation and idempotent UUID retries. Payment history is available at
+`/api/planning-payments/{debt|card|recurring}/{parent}/`; removing a payment record
+restores planning progress while preserving its ledger movement.
+
+`/api/timeline-order/` and its account/day detail save reviewed display order only.
+Apply migration `transactions.0009_timeline_day_order` before the updated web client.
+No existing timestamps or financial values are backfilled. See the published OpenAPI
+and `projects/finance-web/docs/transaction-ledger.md` for workflow guarantees and limits.

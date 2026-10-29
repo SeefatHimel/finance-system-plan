@@ -882,21 +882,16 @@ removes it; omission preserves it. No remote URLs, anonymous image endpoint or
 ledger mutation is introduced. Existing accounts and older clients use the
 empty-logo fallback. Deploy migration `accounts.0003_account_logo` first.
 
-### What is the EBL statement mask mapping contract?
+### What is the EBL description mapping contract?
 
-`ebl_bank` mapping POSTs accept only an observed `npsb:masked:<printed mask>`
-for the authenticated reporting account and direction. The payload is the same
-as bKash: label, external/owned party, optional other account, direction-compatible
-type/category and note. An owned route must use a different active owned account
-in the same currency. Numeric movement fields and // references remain invalid.
-
-Observed-code output now includes the explicitly saved EBL mapping instead of
-always returning null. Old unverified EBL rules remain inactive. The private
-`ebl_mask_verified` flag is set by the validated POST, never by the client.
-Cleanup excludes verified mask mappings, and a changed preview returns 409.
-Skip hashes and wire shapes are unchanged; no client regeneration is needed for
-an additional field. Deploy migration 0013 and API before the web client.
-Archive refresh still preserves originals, reviewed drafts and ledger values.
+`ebl_bank` accepts observed `ebl:keyword:salary|patapay|bkash` or
+`ebl:bkash:phone:<explicit recipient>` values. `npsb:masked` and `npsb:code` are
+rejected and cannot suggest a destination, including legacy verified rules.
+Payload shapes are unchanged: label, external/owned party, optional other account,
+direction-compatible type/category and note. Scope remains owner, reporting
+account, provider, clue and direction. Cleanup preserves supported verified rules;
+stale previews return 409. Migration 0014 retires pre-release NPSB metadata/rules
+without rewriting financial data. Deploy migration and API before the client.
 
 ### What is the optional identification and cleanup contract?
 
@@ -908,6 +903,28 @@ Saving a verified mapping explicitly unskips it. Financial rows never change.
 Cleanup GET returns retired_identifiers, retired_rules and a signed owner-bound
 15-minute revision; POST accepts revision and returns cleared_identifiers and
 deleted_rules. Expired/foreign/changed previews return 409 and apply nothing.
-Correct masked evidence and ledger values are excluded. Skip migration 0012 must
+Supported verified wording/recipient mappings and ledger values are excluded. Skip migration 0012 must
 precede the new API/web clients. The existing confirmed-SMS remember endpoint's
 request/response schema is now explicit; its behavior is unchanged.
+
+### What changed in the financial report and planning boundaries?
+
+`GET /api/reports/monthly/` accepts currency/account scope and publishes policy
+`spending-v2`, signed net spending, gross spending/refunds, financing, money movement,
+full categories/merchants/accounts, and preceding-period totals/comparisons. Ledger
+filters support currency, spending-only, needs_review, Uncategorized and exact
+`merchant:` search. `GET /api/reports/overview/` supplies owner-scoped, dated account
+coverage/current positions and scheduled commitments without claiming complete capture.
+
+Payment-create endpoints accept `ledger_action`, `funding_account` and `request_id`.
+`GET /api/planning-payments/{kind}/{parent_id}/?date=...` lists payment history and up
+to 100 eligible movements. DELETE on its payment detail removes that planning record,
+restores planning progress and preserves the ledger transaction. Kinds are debt,
+card and recurring. Legacy omissions keep record-only compatibility.
+
+`GET /api/timeline-order/` lists range placements, withholding stale orders. Account/day
+GET returns complete preview data, a conservative suggestion and a revision/fingerprint.
+POST applies, clears or undoes display order. Known-time anchor order is protected;
+no transaction timestamp or financial value is changed. Deploy the additive migration
+and API before the web client. OpenAPI, generated interfaces and backend snapshot
+cover these boundaries; clients should not silently fall back to old report semantics.

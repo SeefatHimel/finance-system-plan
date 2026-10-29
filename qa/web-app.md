@@ -1,5 +1,13 @@
 # Web App Q&A
 
+### How are refreshing transactions and resetting filters distinguished?
+
+The transaction toolbar has separate circular-arrow Refresh and X Reset controls.
+Refresh reloads data with current filters and pagination intact; Reset clears
+the filters and returns to all dates. Inside the filter dialog, X **Reset filters**
+changes only the draft until Apply. Today/Current month uses a calendar icon in
+compact date controls so date navigation does not look like data refresh.
+
 ### What does SMS review show for a cash withdrawal?
 
 It starts as a debit transfer out of the reporting account. The destination
@@ -1441,6 +1449,18 @@ needed for this web/API feature.
 
 ### How does the Account Lanes timeline stay responsive and handle hidden accounts?
 
+The toolbar's **Refresh** reloads accounts, categories and every page of activity
+in the displayed date range. Existing cards stay visible until the complete
+replacement is ready; a failed refresh keeps the previous data and shows an
+error toast. The current date, selected accounts, layout, text size and full
+screen state are preserved, and the visible day remains anchored. Cached weeks
+outside the refreshed range are discarded so later navigation fetches fresh data.
+The timeline also refreshes after the shared transaction-change event, including
+editor saves, undo and revalidation. A change arriving during a refresh queues
+one more fetch rather than publishing the older result. Open source details are
+reloaded after success; removed entries cannot remain as stale inspector cards.
+This is a web-only change using the existing read APIs; it does not alter data.
+
 The `/timeline` view starts with three weeks and loads complete seven-day
 activity pages in either date direction. Once the displayed range is ready,
 it preloads the next two weeks on each side. Reaching an edge appends or
@@ -1633,25 +1653,23 @@ replace the initial across the account list, lanes, transaction paths and review
 summaries. Unreadable images fall back to the initial, and native account select
 options remain text. Errors use the existing toast feedback.
 
-### Can EBL identifiers use the same mapping editor as bKash?
+### What can I map in an EBL statement?
 
-Yes. EBL masks offer Identify / Edit mapping, external or owned party, name,
-optional transaction type, category and note, plus Skip / Restore / Forget.
-EBL participates in Needs identification and Saved filter counts. The editor
-opens in place; it does not send the user to Accounts. A short explanation says
-the printed mask may be the sending card, so the user must verify its meaning.
-There is no extra confirmation checkbox or mandatory account creation.
+Salary/payroll, PataPay and bKash transfer wording, plus explicitly printed bKash
+recipient numbers, use the same in-place Identify/Edit/Skip/Restore/Forget editor.
+Own NPSB card masks and movement references are excluded. A service keyword is
+shared across movements and does not identify a person; only select an owned
+route after checking it. Salary credits can suggest Salary & Wages without any
+number mapping. Saving a rule supplies review hints, not automatic ledger edits.
 
-Mappings suggest details for review only; saving them does not modify existing
-drafts or posted transactions. Possible fees stay separate. Old movement-code
-rules remain disabled until a valid mask is explicitly mapped; verified mask
-mappings survive the old-data cleanup action. Deploy API migration 0013 before
-the updated client. Scanning still preserves original financial data and filters.
-See `projects/finance-web/docs/ebl-statement-codes.md` for end-user steps.
+Migration 0014 removes old own-card mapping metadata; original statements,
+account recognition and financial values remain. Re-uploading is unnecessary.
+Past manual applications of incorrect mappings need review rather than an
+assumed automatic reversal. See `projects/finance-web/docs/ebl-statement-codes.md`.
 
 ### Is identifying every statement clue mandatory?
 
-No. Every clue offers **Skip / don’t identify**, including EBL account
+No. Every clue offers **Skip / don’t identify**, including supported EBL description
 clues and already mapped clues. It requires no name and hides the clue under the
 default Not skipped view; Skipped and All remain available. A toast offers Undo,
 and Skipped offers Restore identifier. Skipping pauses a saved rule but never
@@ -1660,9 +1678,9 @@ points users to Skipped instead of telling them to import again.
 
 The separate Clear incorrect EBL data action first previews owner-scoped counts
 in a modal with Cancel initially focused. Only its final action removes the
-retired identifier metadata and disabled EBL rules. Stale confirmation requires
+retired NPSB identifier metadata and unsupported EBL rules, including old verified masks. Stale confirmation requires
 another preview, and errors use toasts. The modal states that source statements,
-correct masks, financial values and past manual edits remain unchanged.
+supported wording/recipient mappings, financial values and past manual edits remain unchanged.
 
 ### Why are there tags on the statement identifier page?
 
@@ -1682,3 +1700,45 @@ opening that section never starts a scan or deletes data. Help and masked exampl
 remain expandable, while the optional-identification explanation stays visible.
 This is presentation only: mappings, skips, cleanup previews, and transaction
 behavior use the existing APIs without a migration or automatic data changes.
+
+### How does the overview help someone understand spending across accounts?
+
+Earned income, net spending after refunds and financing have separate meanings.
+Report category/merchant/account rows preserve period/currency when opening the
+ledger, and show previous-period comparisons. Full filtered totals span every page
+and use exact minor-unit arithmetic. The dashboard supports a daily net-spending
+trend or external cash flow, and does not label a top-category subtotal as all spending.
+Account coverage distinguishes source reports, saved import periods, manual checks
+and pending decisions. No data gets a setup checklist instead of implying verified
+zero spending. Card dues and current card liability are shown as different views,
+with currencies separated and debt balances kept separate.
+
+### How are payment and source-review screens simpler?
+
+People, bill history and schedules appear before collapsed creation forms. A row's
+Payments action opens its create/link/planning-only choices directly. A matching
+import can be linked without another ledger posting. Payment history can remove a
+planning link while keeping the movement. Recurring estimates account for frequency;
+unsupported automatic posting is no longer offered as “Auto later.” Returning users
+see saved statement imports before the upload form.
+
+Combined source review begins with the final outcome, with fields and originals
+expandable and unresolved differences still visible. Equal reported balances do not
+require choosing between identical values. Original SMS facts are highlighted without
+rewriting the text. Unknown/unavailable source checks are distinct from passed checks.
+For confident SMS drafts, only missing choices appear initially. “Show all transaction
+fields” opens the full editor; collapsed controls keep their draft values for submission.
+Small phone description/category triggers retain compact text but have 44px touch
+areas and tap-open full text. Account/category selectors expose pressed state; human
+activity labels replace internal entity names in the history summary.
+
+### How does an untimed statement entry fit into the timeline?
+
+Suggest placement previews a whole recorded account day. A unique balance chain can
+suggest relative order; other cases require manual positioning. Known-time anchors
+keep their order. Apply saves a visible balance-supported or manual placement badge,
+not a made-up timestamp. More untimed entries can be inserted without allocating
+artificial seconds. New activity or evidence makes a saved order stale; the old order
+is withheld until refreshed/reviewed. Clear and Undo placement affect display only.
+The separate Refresh control reloads current data; filter reset uses X and calendar
+navigation uses a calendar icon, so reset is not confused with refresh.

@@ -1323,28 +1323,23 @@ through authenticated account APIs. No local media disk or public asset URL is
 required. Omission keeps the logo; an empty string removes it. A schema migration
 defaults existing logos to empty. Uploading changes appearance only.
 
-### How do verified EBL mask mappings work?
+### Which EBL descriptions can suggest a classification?
 
-The parser retains the exact repeated mask, including its trailing star, as
-`npsb:masked:<mask>`. Changing numeric movement fields and // references remain
-excluded. The mask alone proves no recipient. An owner can explicitly map an
-observed mask to an external party or different active same-currency owned
-account, with the same direction/type/category/note validation used for bKash.
+The repeated NPSB card mask belongs to the sender, so no own-card or movement
+reference can identify a recipient. Supported clues use explicit salary/payroll,
+PataPay or bKash transfer wording, or a bKash number introduced as the recipient.
+Ambiguous or masked numbers stay service wording only. Credit salary wording can
+suggest Salary & Wages; salary loans, advances, refunds and reversals cannot.
+Saved mappings and confirmed edits take precedence; hints never rewrite money.
 
-Migration `statements.0013_verified_ebl_mask_mapping` adds a private boolean,
-default false on old rules. Only a validated EBL mask mapping POST marks it true.
-Legacy rules stay inactive until explicitly re-saved against an observed mask;
-there is no automatic conversion. Cleanup excludes verified mask mappings.
-If an old rule is verified after a cleanup preview, the changed plan returns 409.
+Migration 0014 removes the old NPSB metadata and EBL mapping/skip records while
+preserving original extraction, financial drafts, account recognition and ledger.
+Previously applied manual classifications require individual review. The migration
+preserves supported wording/recipient mapping and skip keys during partial rollouts;
+reference sections cannot supply salary/service wording or recipient numbers. The legacy
+verification column gates only supported clues now. Skip/restore, mapping scope,
+fee separation and stale cleanup-preview validation remain enforced.
 
-Suggestions are scoped by owner, reporting account, provider, mask and direction.
-Skipping pauses them; restore or explicitly saving the mapping resumes them.
-Possible companion fees and explicit fee rows never inherit the principal route.
-Saving/editing/forgetting a mapping changes neither existing drafts nor ledger
-entries; the reviewer still applies suggestions and confirms each movement.
-
-Archive refresh retains its ownership, integrity, exact-row and rate-limit checks.
-Deploy the migration and API before the web client.
 
 ### Can users decline to identify a statement clue?
 
@@ -1358,12 +1353,45 @@ and rule writes; repeated requests cannot create duplicate scoped preferences.
 
 ### How are the incorrect EBL identifiers actually removed?
 
-An authenticated preview counts only the owner's retired numeric code metadata
-and disabled EBL rules, issuing a signed revision bound to that owner and exact
+An authenticated preview counts only the owner's retired NPSB own-card/movement metadata
+and unsupported EBL rules, issuing a signed revision bound to that owner and exact
 row versions/rules for 15 minutes. Confirmation locks/revalidates the plan and
 atomically clears metadata and deletes only previewed rules. It records counts in
 audit history and bumps affected row versions so open reviews must refresh.
-Unchanged correct masks, originals, classifications, linked transactions and other
+Supported verified wording/recipient mappings, originals, classifications, linked transactions and other
 owners/providers are protected. Expired, altered or stale previews return 409;
 decryption failure aborts before writes. Cleanup does not reverse past manual
 financial edits. Migration 0012 creates only the skip preference table.
+
+### How are income, spending and cash flow distinguished?
+
+The `spending-v2` report counts only `income` as earned income. Expenses and fees
+less refunds are net consumption spending; loan principal is financing. Own-account
+transfers are excluded from portfolio cash flow, but the selected account's leg is
+included in an account report. Categories include Uncategorized and signed refunds.
+Money is aggregated with Decimal and separated by currency. The preceding comparison
+is a calendar month for full months and an equal duration for custom periods.
+
+### Can a bill payment update the ledger atomically?
+
+Payment requests explicitly choose `link`, `create` or `record_only`. The API locks
+the owner and planning parent, rechecks remaining balances, and validates an existing
+movement's owner, amount, date, type and account path. `create` requires a stable
+UUID request ID; repeat requests return the same payment, including a final payment.
+Cards create transfers, debts principal repayments and recurring bills expenses.
+Legacy clients retain their existing record-only behavior when they omit a link.
+Payments are audited. Linked movements cannot have protected financial fields edited,
+be deleted, merged or undone until the payment record is removed. Removing a payment
+restores its planning balance while preserving its ledger transaction. Recurring
+removal is limited to the latest unchanged schedule occurrence. Debt amounts are BDT.
+
+### Does timeline placement invent transaction times?
+
+No. `TimelineDayOrder` stores a separate owner/account/day order, a fingerprint,
+revision, basis and bounded undo history. Complete recorded days are checked for a
+unique balance chain that preserves known-time anchor order. Ambiguous, missing or
+posting-context evidence does not get an automatic suggestion. Users can review
+manual placements; actual Transaction time, date, amount and balances stay unchanged.
+Changed records/evidence invalidate the placement. Apply is revision/fingerprint
+checked under the owner lock, and placement changes are audited. Precise balance-gap
+checks keep requiring actual time evidence.

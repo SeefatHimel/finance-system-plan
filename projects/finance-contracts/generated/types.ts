@@ -755,6 +755,9 @@ export interface DebtPaymentCreateRequest {
   amount: string;
   paid_at: string;
   note?: string;
+  ledger_action?: "record_only" | "link" | "create";
+  funding_account?: string;
+  request_id?: string;
 }
 
 export interface CreditCardBill {
@@ -812,6 +815,9 @@ export interface CreditCardPaymentCreateRequest {
   amount: string;
   paid_at: string;
   note?: string;
+  ledger_action?: "record_only" | "link" | "create";
+  funding_account?: string;
+  request_id?: string;
 }
 
 export interface RecurringBill {
@@ -873,6 +879,9 @@ export interface RecurringBillPaymentCreateRequest {
   amount: string;
   paid_at: string;
   note?: string;
+  ledger_action?: "record_only" | "link" | "create";
+  funding_account?: string;
+  request_id?: string;
 }
 
 export interface Category {
@@ -1222,18 +1231,23 @@ export interface TransactionPatchRequest {
 export interface CategoryTotal {
   name: string;
   amount: string;
+  id: string | null;
+  previous_amount: string;
 }
 
 export interface AccountReportTotal {
   name: string;
   money_in: string;
   money_out: string;
+  id: string;
 }
 
 export interface DailyReportTotal {
   date: string;
   income_total: string;
   expense_total: string;
+  cash_in_total: string;
+  cash_out_total: string;
 }
 
 export interface MonthlyReport {
@@ -1248,6 +1262,25 @@ export interface MonthlyReport {
   net_total: string;
   categories: CategoryTotal[];
   accounts: AccountReportTotal[];
+  policy: "spending-v2";
+  transaction_count: number;
+  gross_spending_total: string;
+  refund_total: string;
+  financing_in_total: string;
+  financing_out_total: string;
+  cash_in_total: string;
+  cash_out_total: string;
+  cash_net_total: string;
+  transfers_total: string;
+  adjustments_total: string;
+  previous: ReportPeriodTotals;
+  merchants: {
+  name: string;
+  search: string;
+  amount: string;
+  count: number;
+  previous_amount: string;
+}[];
 }
 
 export interface StatementAccountSuggestion {
@@ -1876,4 +1909,116 @@ export interface ObservedStatementCode {
 export interface ObservedStatementCodeList {
   count: number;
   results: ObservedStatementCode[];
+}
+
+export interface ReportPeriodTotals {
+  start_date: string;
+  end_date: string;
+  income_total: string;
+  expense_total: string;
+  net_total: string;
+}
+
+export interface PlanningPaymentOptions {
+  payments: {
+  id: string;
+  transaction: string | null;
+  amount: string;
+  paid_at: string;
+  note: string;
+}[];
+  eligible: Transaction[];
+  eligible_count: number;
+}
+
+export interface TimelineOrderDecision {
+  fingerprint: string;
+  revision: number;
+  action: "apply" | "clear" | "undo";
+  ordered_ids?: string[];
+}
+
+export interface TimelineOrderRow {
+  id: string;
+  label: string;
+  time: string | null;
+  amount: string;
+  balance_after: string | null;
+  direction: string;
+  type: string;
+  context_changed: boolean;
+  posting_context: boolean;
+}
+
+export interface TimelineSavedOrder {
+  account: string;
+  date: string;
+  ordered_ids: string[];
+  status: "valid" | "stale";
+  basis: string;
+  revision: number;
+}
+
+export interface TimelineOrderPreview {
+  account: string;
+  date: string;
+  currency: string;
+  fingerprint: string;
+  revision: number;
+  saved_status: "valid" | "stale" | "none";
+  basis: string;
+  can_undo: boolean;
+  reason: string;
+  ordered_ids: string[];
+  suggested_ids: string[] | null;
+  rows: TimelineOrderRow[];
+}
+
+export interface FinancialOverview {
+  as_of: string;
+  notice: string;
+  transaction_count: number;
+  has_statements: boolean;
+  pending_sms: number;
+  unassigned_sms: number;
+  pending_statement_rows: number;
+  needs_review: number;
+  uncategorized_spending: number;
+  accounts: Account[];
+  currencies: {
+  currency: string;
+  account_balance: string;
+  cash_and_accounts: string;
+  savings: string;
+  card_liability: string;
+  card_credit: string;
+  receivable: string;
+  payable: string;
+}[];
+  upcoming: {
+  id: string;
+  kind: string;
+  name: string;
+  date: string;
+  amount: string;
+  currency: string;
+  href: string;
+}[];
+  coverage: {
+  account: string;
+  comparison: string;
+  last_report_date: string | null;
+  pending_sms: number;
+  pending_rows: number;
+  last_check: {
+  date: string;
+  status: string;
+  difference: string;
+} | null;
+  statement: {
+  id: string;
+  start: string | null;
+  end: string | null;
+} | null;
+}[];
 }
