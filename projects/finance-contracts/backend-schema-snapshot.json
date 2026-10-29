@@ -4997,6 +4997,103 @@
         ]
       }
     },
+    "/api/timeline-balances/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedBalanceList"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/timeline-balances/{principal_id}/": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "principal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedBalanceDecision"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedBalanceDecision"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedBalanceDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedBalanceDecisionResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/timeline-order/": {
       "get": {
         "responses": {
@@ -10875,6 +10972,140 @@
         "refresh"
       ],
       "type": "object"
+    },
+    "SharedBalance": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "amounts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "anchor_balance": {
+          "type": "string"
+        },
+        "balances": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "ordered_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "principal": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "reported_final": {
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/components/schemas/SharedBalanceStatusEnum"
+        }
+      },
+      "required": [
+        "account",
+        "amounts",
+        "anchor_balance",
+        "balances",
+        "currency",
+        "date",
+        "fingerprint",
+        "ordered_ids",
+        "principal",
+        "reported_final",
+        "revision",
+        "status"
+      ],
+      "type": "object"
+    },
+    "SharedBalanceDecision": {
+      "properties": {
+        "action": {
+          "$ref": "#/components/schemas/SharedBalanceDecisionActionEnum"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action",
+        "fingerprint",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "SharedBalanceDecisionActionEnum": {
+      "enum": [
+        "apply",
+        "undo"
+      ],
+      "type": "string"
+    },
+    "SharedBalanceDecisionResult": {
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "revision": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "active",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "SharedBalanceList": {
+      "properties": {
+        "results": {
+          "items": {
+            "$ref": "#/components/schemas/SharedBalance"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "results"
+      ],
+      "type": "object"
+    },
+    "SharedBalanceStatusEnum": {
+      "enum": [
+        "suggested",
+        "confirmed",
+        "stale"
+      ],
+      "type": "string"
     },
     "SmsCapturePreference": {
       "properties": {

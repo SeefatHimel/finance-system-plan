@@ -1405,3 +1405,18 @@ manual placements; actual Transaction time, date, amount and balances stay uncha
 Changed records/evidence invalidate the placement. Apply is revision/fingerprint
 checked under the owner lock, and placement changes are audited. Precise balance-gap
 checks keep requiring actual time evidence.
+
+### How are shared statement balances split without corrupting source evidence?
+
+The API requires exactly one original statement row's principal and inline fee/VAT
+components, linked to two separate movements for one account. Both must retain its
+same ending balance. A known, unambiguous immediately previous movement and exact
+Decimal arithmetic establish the intermediate balance. Similar amounts, repeated
+balances and an assumed tax rate alone are insufficient. Credit cards and missing
+or conflicting source/time/account context decline the suggestion.
+
+Apply checks a fingerprint plus revision under the per-user mutation lock and saves
+an audited TimelineBalanceAllocation. Undo deactivates it. Changed evidence withholds
+saved calculations until reviewed again. Transactions, reports and statement extraction
+are never overwritten. This is a display model with its own migration, not a monetary
+adjustment or a parser backfill.

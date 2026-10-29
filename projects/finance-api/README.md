@@ -1806,3 +1806,23 @@ restores planning progress while preserving its ledger movement.
 Apply migration `transactions.0009_timeline_day_order` before the updated web client.
 No existing timestamps or financial values are backfilled. See the published OpenAPI
 and `projects/finance-web/docs/transaction-ledger.md` for workflow guarantees and limits.
+
+### Shared statement closing-balance confirmations
+
+`GET /api/timeline-balances/?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` lists
+owner-scoped exact principal/inline-fee suggestions and saved confirmation state.
+`POST /api/timeline-balances/{principal_id}/` accepts `action: apply|undo`, `revision`
+and `fingerprint`. Apply reruns the source/anchor/decimal checks under the existing
+per-user mutation lock. Stale revisions or nonmatching evidence return 400. Undo
+remains possible after evidence changes. Each action is audited.
+
+Migration `transactions.0010_timelinebalanceallocation` stores separate display-only
+confirmations. No Transaction, TransferEvidence or StatementRow value is overwritten.
+Missing/ambiguous times, unrelated source rows, currency/account conflicts, intervening
+movements, multiple imports, unsupported account types and nonexact arithmetic decline
+suggestions. Read responses are private/no-store. Deploy the migration and API first.
+
+Regression check:
+```bash
+python manage.py test apps.transactions.test_timeline_balances apps.transactions.test_timeline_order
+```

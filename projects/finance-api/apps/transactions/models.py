@@ -209,3 +209,20 @@ class TimelineDayOrder(models.Model):
     class Meta:
         constraints = [models.UniqueConstraint(fields=("user", "account", "date"), name="timeline_order_per_account_day")]
         indexes = [models.Index(fields=("user", "date"), name="timeline_order_user_date")]
+
+
+class TimelineBalanceAllocation(models.Model):
+    """Approved intermediate display balances; original money/reports stay immutable."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
+    principal = models.OneToOneField(Transaction, on_delete=models.CASCADE, related_name="timeline_balance_allocation")
+    date = models.DateField()
+    fingerprint = models.CharField(max_length=64)
+    balances = models.JSONField(default=dict)
+    active = models.BooleanField(default=True)
+    revision = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("user", "date"), name="timeline_balance_user_date")]

@@ -970,3 +970,21 @@ history removal preserves its ledger movement. Timeline placement is an additive
 account/day display model with fingerprint/revision checking, manual or balance
 basis, clear/undo, and no fabricated transaction times. Deploy API migration first.
 Generated interfaces and the checked backend snapshot include these operations.
+
+## Exact shared statement balance allocation
+
+`GET /api/timeline-balances/` takes required start_date/end_date (inclusive, up to
+366 days). Results carry principal/account/date/currency, status
+suggested|confirmed|stale, fingerprint/revision, anchor_balance, reported_final,
+ordered_ids and per-transaction decimal-string amounts/balances. A stale record
+whose relationship no longer qualifies returns empty calculation fields, not an
+applied estimate. Existing confirmations follow a moved principal's current date
+for revision checking. Oversized candidate scans return 400 rather than partial data.
+
+`POST /api/timeline-balances/{principal_id}/` accepts action apply|undo, integer
+revision and fingerprint. The server recomputes the candidate; stale input returns
+400, foreign principal IDs return 404, unauthenticated access returns 401. Success
+returns revision/active. Apply/Undo are audited display decisions; ledger transactions,
+account totals and original source reports are untouched. Deploy transactions migration
+0010 and API before the web client. Contracts and generated interfaces include both
+operations. Never infer eligibility locally from matching totals alone.

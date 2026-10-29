@@ -55,6 +55,7 @@ from apps.statements.unified_views import (
 )
 from apps.statements.views import StatementIdentifyView, StatementPreviewView
 from apps.transactions.views import TransactionViewSet
+from apps.transactions.timeline_balances import TimelineBalanceListView, TimelineBalanceDecisionView
 from apps.transactions.timeline_order import TimelineOrderView, TimelineOrderListView
 from apps.transactions.payment_views import PlanningPaymentListView, PlanningPaymentDetailView
 
@@ -75,6 +76,8 @@ router.register("statements/rows", StatementRowViewSet, basename="statement-row"
 
 
 urlpatterns = [
+    path("api/timeline-balances/", TimelineBalanceListView.as_view(), name="timeline-balance-list"),
+    path("api/timeline-balances/<uuid:principal_id>/", TimelineBalanceDecisionView.as_view(), name="timeline-balance-decision"),
     path("api/timeline-order/", TimelineOrderListView.as_view(), name="timeline-order-list"),
     path("api/timeline-order/<uuid:account_id>/<str:day>/", TimelineOrderView.as_view(), name="timeline-order-day"),
     path("api/planning-payments/<str:kind>/<uuid:parent_id>/", PlanningPaymentListView.as_view(), name="planning-payments"),

@@ -2022,3 +2022,37 @@ export interface FinancialOverview {
 } | null;
 }[];
 }
+
+export interface SharedBalance {
+  principal: string;
+  account: string;
+  date: string;
+  currency: string;
+  status: SharedBalanceStatusEnum;
+  fingerprint: string;
+  revision: number;
+  anchor_balance: string;
+  reported_final: string;
+  balances: Record<string, string>;
+  amounts: Record<string, string>;
+  ordered_ids: string[];
+}
+
+export interface SharedBalanceDecision {
+  action: SharedBalanceDecisionActionEnum;
+  revision: number;
+  fingerprint: string;
+}
+
+export type SharedBalanceDecisionActionEnum = "apply" | "undo";
+
+export interface SharedBalanceDecisionResult {
+  revision: number;
+  active: boolean;
+}
+
+export interface SharedBalanceList {
+  results: SharedBalance[];
+}
+
+export type SharedBalanceStatusEnum = "suggested" | "confirmed" | "stale";

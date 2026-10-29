@@ -937,3 +937,12 @@ POST applies, clears or undoes display order. Known-time anchor order is protect
 no transaction timestamp or financial value is changed. Deploy the additive migration
 and API before the web client. OpenAPI, generated interfaces and backend snapshot
 cover these boundaries; clients should not silently fall back to old report semantics.
+
+### Is shared-balance confirmation a ledger edit?
+
+No. The additive /api/timeline-balances/ GET and principal-specific POST endpoints
+manage owner-scoped display allocations. Decimal strings, original closing balance,
+ordered component IDs, fingerprint and integer revision make the proposal inspectable.
+The client cannot choose arbitrary balances: the API recomputes them for Apply and
+allows Undo even when an earlier confirmation became stale. Deploy migration/API
+before web; existing transaction and statement response contracts are unchanged.

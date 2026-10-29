@@ -3781,6 +3781,76 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/TimelineOrderDecision'
+  /api/timeline-balances/:
+    get:
+      operationId: timeline_balances_retrieve
+      parameters:
+      - in: query
+        name: end_date
+        schema:
+          type: string
+          format: date
+        required: true
+      - in: query
+        name: start_date
+        schema:
+          type: string
+          format: date
+        required: true
+      tags:
+      - Reports
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedBalanceList'
+          description: ''
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/timeline-balances/{principal_id}/:
+    post:
+      operationId: timeline_balances_create
+      parameters:
+      - in: path
+        name: principal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SharedBalanceDecision'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SharedBalanceDecision'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SharedBalanceDecision'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedBalanceDecisionResult'
+          description: ''
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
 components:
   securitySchemes:
     bearerAuth:
@@ -9331,3 +9401,107 @@ components:
                     format: date
                     nullable: true
                 nullable: true
+    SharedBalance:
+      type: object
+      properties:
+        principal:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        currency:
+          type: string
+        status:
+          $ref: '#/components/schemas/SharedBalanceStatusEnum'
+        fingerprint:
+          type: string
+        revision:
+          type: integer
+          minimum: 0
+        anchor_balance:
+          type: string
+        reported_final:
+          type: string
+        balances:
+          type: object
+          additionalProperties:
+            type: string
+        amounts:
+          type: object
+          additionalProperties:
+            type: string
+        ordered_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+      - account
+      - amounts
+      - anchor_balance
+      - balances
+      - currency
+      - date
+      - fingerprint
+      - ordered_ids
+      - principal
+      - reported_final
+      - revision
+      - status
+    SharedBalanceDecision:
+      type: object
+      properties:
+        action:
+          $ref: '#/components/schemas/SharedBalanceDecisionActionEnum'
+        revision:
+          type: integer
+          minimum: 0
+        fingerprint:
+          type: string
+      required:
+      - action
+      - fingerprint
+      - revision
+    SharedBalanceDecisionActionEnum:
+      enum:
+      - apply
+      - undo
+      type: string
+      description: '* `apply` - apply
+
+        * `undo` - undo'
+    SharedBalanceDecisionResult:
+      type: object
+      properties:
+        revision:
+          type: integer
+          minimum: 0
+        active:
+          type: boolean
+      required:
+      - active
+      - revision
+    SharedBalanceList:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SharedBalance'
+      required:
+      - results
+    SharedBalanceStatusEnum:
+      enum:
+      - suggested
+      - confirmed
+      - stale
+      type: string
+      description: '* `suggested` - suggested
+
+        * `confirmed` - confirmed
+
+        * `stale` - stale'
