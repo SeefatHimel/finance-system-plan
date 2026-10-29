@@ -4498,3 +4498,7 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 .account-lanes-allocation li { padding: 3px 0; }
 .account-lanes-allocation .button { min-height: 44px; margin-right: 10px; }
 .account-lanes-confirmed-balance { display: block; color: var(--accent); margin: 8px 0; font-size: 12px; }
+
+.statement-description-difference { background: color-mix(in srgb, var(--warning) 22%, var(--panel)); color: var(--warning); border-radius: 3px; padding: 0 2px; box-decoration-break: clone; font-weight: 700; overflow-wrap: anywhere; }
+
+.statement-match-difference-badges { display: flex; flex-wrap: wrap; gap: 6px; }

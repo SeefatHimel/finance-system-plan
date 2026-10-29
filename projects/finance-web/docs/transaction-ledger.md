@@ -213,3 +213,17 @@ explicit warning. Confirmed calculations never masquerade as reported balances.
 
 This feature requires backend migration `transactions.0010_timelinebalanceallocation`.
 Deploy migration/API before web. It does not repair or backfill real data automatically.
+
+## Statement-to-ledger comparison differences
+
+The saved statement review marks known amount, account-path, date/time, transaction
+classification, reference and reported-balance differences on both comparison cards.
+Late EBL posting keeps the source balance values visibly different while explaining
+that they refer to different reporting times; it does not offer a replacement balance
+merely because the displayed numbers differ. Missing values do not become conflicts.
+
+Whole numeric values/masks present in description text are compared as printed.
+Differing values are marked in place; a shared prefix is not an exact match. These
+are text differences, not proof that an unlabelled number identifies the recipient:
+a statement may contain the reporting card, a terminal or a merchant code. Existing
+linking checks and explicit user decisions remain responsible for identity.

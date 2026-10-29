@@ -1,5 +1,6 @@
 "use client";
 
+import { statementComparisonDifferences, descriptionDifferenceParts } from "@/lib/statement-match-comparison";
 import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { StatementDetailChoices } from "@/components/statement-detail-choices";
 import { calendarDayDifference, insignificantBdtBalanceDifference, statementBalanceDifference, statementLinkBlockReason, coalescedSourceAmount } from "@/lib/statement-review";
@@ -36,33 +37,53 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
     dirty, canLink: canAccept, requiresAcknowledgement: row.review.requires_acknowledgement,
     issuesAcknowledged, conflict: match.conflict, balanceChosen: Boolean(balanceChoice), categoryConflict, categoryChosen,
   });
-  const difference = match.late_posting ? null : statementBalanceDifference(row.balance_after, match.effective_balance_after);
+  const difference = statementBalanceDifference(row.balance_after, match.effective_balance_after);
   const dateDifference = calendarDayDifference(row.date, match.date);
   const smallDifference = !match.late_posting && insignificantBdtBalanceDifference(row.balance_after, match.effective_balance_after, batch.currency);
   const other = accounts.find((account) => account.id === row.other_account)?.name ?? "Other account";
   const path = row.type === "transfer" ? (row.direction === "credit" ? `${other} → ${batch.account_name}` : `${batch.account_name} → ${other}`) : batch.account_name;
   const balanceText = (value: string | null) => value === null ? "Not reported" : `${batch.currency} ${value}`;
+  const statementDescription = displayedStatementText(row.counterparty_text || row.note || row.extracted.description, row.extracted.description, row.citytouch_printed_code);
+  const ledgerDescription = match.note || match.ledger_counterparty_text || "";
+  const statementFrom = row.type === "transfer" && row.direction === "credit" ? row.other_account : batch.account;
+  const statementTo = row.type === "transfer" ? row.direction === "credit" ? batch.account : row.other_account : null;
+  const ledgerFrom = accounts.find(account => account.name === match.account_name)?.id ?? null;
+  const ledgerTo = match.transfer_account_name ? accounts.find(account => account.name === match.transfer_account_name)?.id ?? null : null;
+  const differences = statementComparisonDifferences(
+    { amount: row.amount, account: statementFrom, transferAccount: statementTo, date: row.date, time: row.time, type: row.type, category: row.category, balance: row.balance_after, reference: row.reference, description: statementDescription },
+    { amount: match.amount, account: ledgerFrom, transferAccount: ledgerTo, date: match.date, time: match.time, type: match.type, category: match.category_id, balance: match.effective_balance_after, reference: match.reference, description: ledgerDescription },
+  );
+  const description = (text: string, codes: string[]) => descriptionDifferenceParts(text, codes).map((part, index) => part.different ? <mark className="statement-description-difference" title="Only printed in this description; verify its role in the originals" key={index}>{part.text}</mark> : <span key={index}>{part.text}</span>);
   const comparison = [
-    { label: "Amount", statement: balanceText(row.amount), ledger: balanceText(match.amount) },
-    { label: "Account / path", statement: path, ledger: `${match.account_name}${match.transfer_account_name ? ` → ${match.transfer_account_name}` : ""}` },
-    { label: "Date / time", statement: `${formatCalendarDate(row.date)}${row.time ? ` · ${row.time}` : ""}`, ledger: `${formatCalendarDate(match.date)}${match.time ? ` · ${match.time}` : ""}` },
-    { label: "Type / category", statement: `${row.type.replaceAll("_", " ")} · ${categoryName(row.category)}`, ledger: `${match.type.replaceAll("_", " ")} · ${match.category_name ?? "Uncategorized"}` },
-    { label: "Reported balance after", statement: balanceText(row.balance_after), ledger: balanceText(match.effective_balance_after), balance: true },
-    { label: "Reference", statement: row.reference || "Not reported", ledger: match.reference || "Not reported" },
-    { label: "Description", statement: displayedStatementText(row.counterparty_text || row.note || row.extracted.description, row.extracted.description, row.citytouch_printed_code), ledger: match.note || "No note" },
+    { label: "Amount", statement: balanceText(row.amount), ledger: balanceText(match.amount), different: differences.amount },
+    { label: "Account / path", statement: path, ledger: `${match.account_name}${match.transfer_account_name ? ` → ${match.transfer_account_name}` : ""}`, different: differences.path },
+    { label: "Date / time", statement: `${formatCalendarDate(row.date)}${row.time ? ` · ${row.time}` : ""}`, ledger: `${formatCalendarDate(match.date)}${match.time ? ` · ${match.time}` : ""}`, different: differences.date || differences.time },
+    { label: "Type / category", statement: `${row.type.replaceAll("_", " ")} · ${categoryName(row.category)}`, ledger: `${match.type.replaceAll("_", " ")} · ${match.category_name ?? "Uncategorized"}`, different: differences.classification },
+    { label: "Reported balance after", statement: balanceText(row.balance_after), ledger: balanceText(match.effective_balance_after), different: differences.balance },
+    { label: "Reference", statement: row.reference || "Not reported", ledger: match.reference || "Not reported", different: differences.reference },
+    { label: "Description", statement: description(statementDescription, differences.descriptionNumbers.statement), ledger: description(ledgerDescription || "No description", differences.descriptionNumbers.ledger), different: false },
   ];
   const hintId = `statement-match-hint-${match.id}`;
   return <article className="statement-match-card">
     <header className="statement-match-heading"><h4>{rounding ? "Small rounding difference" : match.strength === "strong" ? "Strong match" : "Possible match"}{categoryConflict ? <span className="status-badge status-badge--warning">Categories differ</span> : null}</h4><span>{batch.currency} {match.amount}</span></header>
-    {rounding || Boolean(dateDifference) || (difference !== null && difference !== "0.00") ? <div className="source-differences" aria-label="Statement and ledger differences">
+    {rounding || Boolean(dateDifference) || differences.amount || differences.time || differences.path || differences.classification || differences.reference || differences.descriptionNumbers.hasDifference || (difference !== null && difference !== "0.00") ? <div className="source-differences" aria-label="Statement and ledger differences">
       {rounding ? <p>Amount difference: {batch.currency} {rounding.difference} (statement minus ledger). Using the higher amount automatically when linked. Both original values remain attached.</p> : null}
       {dateDifference ? <p>Dates differ by {Math.abs(dateDifference)} calendar day{Math.abs(dateDifference) === 1 ? "" : "s"}.</p> : null}
-      {difference !== null && difference !== "0.00" ? <p className={smallDifference ? "inline-note" : "form-error"}>Reported balance difference: {batch.currency} {difference} (statement minus ledger).{smallDifference ? " Small difference under BDT 1; both exact reports remain saved." : " Review the balance choice below."}</p> : null}
+      {difference !== null && difference !== "0.00" ? <p className={match.late_posting || smallDifference ? "inline-note" : "form-error"}>Reported balance difference: {batch.currency} {difference} (statement minus ledger).{match.late_posting ? " Different reporting times; this is shown for comparison, not as a replacement balance." : smallDifference ? " Small difference under BDT 1; both exact reports remain saved." : " Review the balance choice below."}</p> : null}
+      {differences.amount || differences.time || differences.path || differences.classification || differences.reference || differences.descriptionNumbers.hasDifference ? <p className="statement-match-difference-badges">
+        {differences.amount ? <span className="status-badge status-badge--warning">Different amount</span> : null}
+        {differences.time ? <span className="status-badge status-badge--warning">Different time</span> : null}
+        {differences.path ? <span className="status-badge status-badge--warning">Different account path</span> : null}
+        {differences.classification ? <span className="status-badge status-badge--warning">Different type / category</span> : null}
+        {differences.reference ? <span className="status-badge status-badge--warning">Different reference</span> : null}
+        {differences.descriptionNumbers.hasDifference ? <span className="status-badge status-badge--warning">Number/code text differs</span> : null}
+      </p> : null}
+      {differences.descriptionNumbers.hasDifference ? <p>Highlighted numbers may have different roles. A shared amount or merchant name does not confirm a match.</p> : null}
     </div> : null}
     {match.late_posting ? <p className="inline-note" role="status">EBL posted this entry after its printed value date. The SMS balance was reported earlier; the statement balance belongs to posting order. Both remain saved, and linking keeps the existing ledger balance, including an unknown balance.</p> : null}
     <div className="statement-match-comparison">
-      <section aria-label="Statement saved draft"><h5>Statement <small>Saved draft · {batch.currency} {row.amount}</small></h5><dl>{comparison.map((item) => <div key={item.label} className={(item.balance && match.conflict) || (item.label === "Type / category" && categoryConflict) ? "statement-balance-value--conflict" : undefined}><dt>{item.label}</dt><dd>{item.statement}</dd></div>)}</dl></section>
-      <section aria-label="Existing ledger entry"><h5>Existing transaction <small>{match.source} · {batch.currency} {match.amount}</small></h5><dl>{comparison.map((item) => <div key={item.label} className={(item.balance && match.conflict) || (item.label === "Type / category" && categoryConflict) ? "statement-balance-value--conflict" : undefined}><dt>{item.label}</dt><dd>{item.ledger}</dd></div>)}</dl></section>
+      <section aria-label="Statement saved draft"><h5>Statement <small>Saved draft · {batch.currency} {row.amount}</small></h5><dl>{comparison.map((item) => <div key={item.label} className={item.different ? "statement-balance-value--conflict" : undefined}><dt>{item.label}</dt><dd>{item.statement}</dd></div>)}</dl></section>
+      <section aria-label="Existing ledger entry"><h5>Existing transaction <small>{match.source} · {batch.currency} {match.amount}</small></h5><dl>{comparison.map((item) => <div key={item.label} className={item.different ? "statement-balance-value--conflict" : undefined}><dt>{item.label}</dt><dd>{item.ledger}</dd></div>)}</dl></section>
     </div>
     {categoryConflict ? <fieldset className="statement-match-conflict statement-match-category" disabled={busy || dirty || !canAccept}>
       <legend>Which category should the ledger use?</legend>

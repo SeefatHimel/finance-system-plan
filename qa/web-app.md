@@ -1779,3 +1779,13 @@ source final and a manually-confirmed calculation label. Undo restores original 
 reports. Known times stay unchanged; only tied component order follows the confirmed
 principal/fee sequence. Failed or stale checks withhold the calculation. Financial
 report totals and the transaction details modal still show saved/source values.
+
+### Why can a statement review show different balances for delayed EBL posting?
+
+The statement balance belongs to posting order, while the SMS observation may be
+from an earlier event. The comparison still marks both differing values and explains
+the context; this does not make them interchangeable ledger balance choices. Dates,
+account paths and type differences are also visible. Description numbers are marked
+as whole printed text, so a shared numeric prefix is never shown as exact equality.
+Unlabelled card/terminal/merchant numbers are not automatically treated as recipient
+identity conflicts, and missing facts are not fabricated matches.
