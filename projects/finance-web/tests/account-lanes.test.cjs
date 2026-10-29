@@ -7,7 +7,7 @@ const ts = require('typescript');
 const output = mkdtempSync(join(tmpdir(), 'finance-account-lanes-test-'));
 const compiled = join(output, 'subject.cjs');
 writeFileSync(compiled, ts.transpileModule(readFileSync(join(__dirname, '../lib/account-lanes.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } }).outputText);
-const { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, balanceReviewDetails, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, laneMomentMatchesCanonical, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart } = require(compiled);
+const { addDays, atTimelineEdge, balanceGapDetails, balanceGaps, balanceReviewDetails, suggestedLaneBalances, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, laneMomentMatchesCanonical, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart } = require(compiled);
 after(() => rmSync(output, { recursive: true, force: true }));
 
 test("timeline refresh reads every page before returning the replacement week", async () => {
@@ -148,6 +148,51 @@ test("unverified arithmetic never invents differences for equal balances or inco
   const detail = balanceReviewDetails([first, different], 'city', loaded).get('last');
   assert.equal(detail.differenceCents, -345);
   assert.match(detail.uncertainty[0], /times are unknown/);
+});
+
+test("a fee balance suggestion must reconcile independently with both neighbouring reports", () => {
+  const rows = [
+    row('before', '2026-01-02', '18:27:00', '100.00', '1000.00'),
+    row('fee', '2026-01-02', '18:27:41', '3.45', '1056.55'),
+    row('after', '2026-01-02', '18:28:00', '100.00', '896.55'),
+  ];
+  const loaded = new Set(['2026-01-02']);
+  const before = JSON.stringify(rows);
+  const details = balanceReviewDetails(rows, 'city', loaded);
+  const suggestion = suggestedLaneBalances(details).get('fee');
+  assert.equal(suggestion.valueCents, 99655);
+  assert.equal(suggestion.previous.actualCents, 105655);
+  assert.deepEqual(suggestion.uncertainty, []);
+  assert.equal(JSON.stringify(rows), before, 'suggesting never changes a saved report');
+  for (const changed of [rows.slice(0, 2), rows.slice(1), [rows[0], rows[1], {...rows[2], balance_after:'895.55'}]]) {
+    assert.equal(suggestedLaneBalances(balanceReviewDetails(changed, 'city', loaded)).size, 0);
+  }
+  assert.equal(suggestedLaneBalances(balanceReviewDetails(rows, 'foreign-account', loaded)).size, 0);
+  assert.equal(suggestedLaneBalances(balanceReviewDetails(rows, 'city', new Set())).size, 0);
+  // Shared statement components removed from comparisons must not become corrections.
+  details.delete('after');
+  assert.equal(suggestedLaneBalances(details).size, 0);
+  const zeroRows = [
+    {...rows[0], balance_after:'3.45'}, {...rows[1], balance_after:'100.00'},
+    {...rows[2], amount:'5.00', balance_after:'-5.00'},
+  ];
+  assert.equal(suggestedLaneBalances(balanceReviewDetails(zeroRows, 'city', loaded)).get('fee').valueCents, 0);
+});
+
+test("two-sided suggestions retain uncertainty, signed balances and intervening movements", () => {
+  const rows = [
+    row('before', '2026-01-02', '18:27:00', '10.00', '-10.00'),
+    row('middle', '2026-01-02', '18:27:30', '2.00', null, { direction:'credit' }),
+    row('fee', '2026-01-02', null, '3.45', '-1.00'),
+    row('after', '2026-01-03', '18:28:00', '5.00', '-16.45'),
+  ];
+  // An unknown time sorts before timed entries on its date; choose separate dates
+  // to make displayed ordering explicit without assigning an artificial time.
+  rows[2].date = '2026-01-03';
+  const loaded = new Set(['2026-01-02','2026-01-03']);
+  const suggestion = suggestedLaneBalances(balanceReviewDetails(rows, 'city', loaded)).get('fee');
+  assert.equal(suggestion.valueCents, -1145);
+  assert.ok(suggestion.uncertainty.some(reason => /times are unknown/.test(reason)));
 });
 
 test("historical balance labels use only loaded, ordered saved reports", () => {

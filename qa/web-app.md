@@ -1522,6 +1522,12 @@ gap claim; a nonzero difference on fully loaded days remains inspectable as an
 Unloaded dates or invalid amounts suppress numeric comparisons. There is no
 minimum amount cutoff: one paisa and BDT 3.45 are covered by regressions.
 Missing reported balances stay labeled “not reported.”
+If the previous report plus recorded movements and the next report minus recorded
+movements independently imply the same replacement for a disagreeing middle
+balance, a **Suggested ledger balance** hint shows both calculations and the saved
+report. It retains timing uncertainty and opens the existing editor for manual
+source review. A calculated hint never becomes a reported fact or an automatic
+correction. Contradictory or unavailable neighbouring comparisons provide no hint.
 Opening a marker explains the previous report, included movements, expected
 balance, current report, and signed difference, with links to the underlying
 entries. The timeline is read-only and uses the existing activity and

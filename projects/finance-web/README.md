@@ -1974,3 +1974,12 @@ the uncertainty and label the expected amount as calculated in displayed order.
 This does not establish a missing transaction or fee. Incomplete loaded intervals
 or invalid amounts still produce no numeric comparison. Nothing is posted or
 adjusted automatically. Verify with `node --test tests/account-lanes.test.cjs`.
+
+When a saved balance disagrees but both neighbouring reports imply the same
+replacement, the timeline offers **Suggested ledger balance**. Its review panel
+shows the saved report and both forward/backward calculations. Timing uncertainty
+remains visible, including on the card. **Review saved balance** opens the existing
+editor on this page; it does not prefill or apply a financial correction. The
+calculation is a review hint, not a new source report. One-sided, contradictory,
+unloaded or invalid comparisons do not produce a suggestion. Shared statement
+components excluded by their own review flow cannot produce a competing hint.

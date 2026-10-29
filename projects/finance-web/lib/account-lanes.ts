@@ -206,6 +206,31 @@ export function balanceReviewDetails(transactions: Transaction[], accountId: str
   return balanceGapDetails(transactions, accountId, loadedDays, true);
 }
 
+export type BalanceSuggestion = {
+  previous: BalanceGapDetail;
+  next: BalanceGapDetail;
+  valueCents: number;
+  uncertainty: string[];
+};
+
+/** A review hint only: two neighbouring reports must imply the same replacement. */
+export function suggestedLaneBalances(details: Map<string, BalanceGapDetail>) {
+  const following = new Map<string, BalanceGapDetail>();
+  for (const detail of details.values()) following.set(detail.from.id, detail);
+  const suggestions = new Map<string, BalanceSuggestion>();
+  for (const previous of details.values()) {
+    const next = following.get(previous.to.id);
+    if (!next || previous.from.id === next.to.id || previous.actualCents !== next.priorCents) continue;
+    const backward = next.actualCents - next.movementCents;
+    if (!Number.isSafeInteger(backward) || backward !== previous.expectedCents || backward === previous.actualCents) continue;
+    suggestions.set(previous.to.id, {
+      previous, next, valueCents: backward,
+      uncertainty: [...new Set([...previous.uncertainty, ...next.uncertainty])],
+    });
+  }
+  return suggestions;
+}
+
 export function balanceGaps(transactions: Transaction[], accountId: string, loadedDays: Set<string>) {
   return new Map([...balanceGapDetails(transactions, accountId, loadedDays)].map(([id, detail]) => [id, detail.differenceCents]));
 }

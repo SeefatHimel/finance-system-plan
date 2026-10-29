@@ -13,7 +13,7 @@ import { useTransactionRecovery } from "./transaction-recovery";
 import { useToast } from "./toast-provider";
 import { getAccessToken } from "@/lib/auth-storage";
 import { getTimelineBalances, saveTimelineBalance, type TimelineBalanceAllocation, getTimelineOrders, type TimelineSavedOrder, listAccounts, listCategories, listTransactionActivityPage, type Account, type Category, type Transaction } from "@/lib/api";
-import { sharedBalanceEventOrder, sharedBalanceOrder, placedTimelineEvents, addDays, atTimelineEdge, balanceGapDetails, balanceReviewDetails, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart, type TimelineRange } from "@/lib/account-lanes";
+import { sharedBalanceEventOrder, sharedBalanceOrder, placedTimelineEvents, addDays, atTimelineEdge, balanceGapDetails, balanceReviewDetails, suggestedLaneBalances, contiguousReadyDates, expandReadyTimelineRange, groupTimelineDays, isVerticalTimelineGesture, laneBalance, laneDirection, loadTimelinePages, reportedBalanceAtDate, timelineScrollShift, weekStart, type TimelineRange } from "@/lib/account-lanes";
 
 type WeekResult = { status: "loading"; loaded: number; total: number | null } | { status: "error"; message: string } | { status: "ready"; rows: Transaction[] };
 type ViewMode = "amount" | "balance" | "both";
@@ -350,6 +350,7 @@ export function AccountLanesWorkspace() {
     }
     return [account.id, details];
   })), [allRows, loadedDays, selectedAccounts, checkedAllocations, allocationBasis, balanceError]);
+  const suggestedBalances = useMemo(() => new Map([...gaps].map(([account, details]) => [account, suggestedLaneBalances(details)])), [gaps]);
   const asOfReports = useMemo(() => new Map(selectedAccounts.map(account => [account.id, reportedBalanceAtDate(allRows, account.id, visibleDate, loadedDays)])), [allRows, loadedDays, selectedAccounts, visibleDate]);
   const movementDates = useMemo(() => new Set(allRows.filter(row => selectedAccounts.some(account => laneDirection(row, account.id))).map(row => row.date)), [allRows, selectedAccounts]);
   const displayedDays = useMemo(() => groupTimelineDays(renderedDates, movementDates, loadedDays, !showEmptyDays), [renderedDates, movementDates, loadedDays, showEmptyDays]);
@@ -591,6 +592,7 @@ export function AccountLanesWorkspace() {
         const otherId = row.type === "transfer" ? row.account === account.id ? row.transfer_account : row.account : null;
         const other = otherId ? accountById.get(otherId) : null;
         const gap = gaps.get(account.id)?.get(row.id);
+        const suggested = suggestedBalances.get(account.id)?.get(row.id);
         const allocation = balanceAllocation(row, account);
         const calculated = allocation?.status === "confirmed" ? allocation.balances[row.id] : null;
         return <div className="account-lanes-cell" key={account.id} style={{ gridColumn: index + 2, gridRow: 1 }}>
@@ -603,7 +605,7 @@ export function AccountLanesWorkspace() {
           {calculated ? <small className="account-lanes-confirmed-balance">Calculated · manually confirmed · Source final {formatCurrency(allocation!.reported_final, account.currency)}</small> : null}
           {renderAllocation(row, account)}
           {other && !selectedIds.includes(other.id) ? <button className="account-lanes-hidden-link" type="button" onClick={() => showAccount(other.id)}><LinkSimple aria-hidden="true" size={14} /> Other side: {other.name} hidden · Show lane <Eye aria-hidden="true" size={14} /></button> : null}
-          {showGaps && gap ? <button className="account-lanes-gap" type="button" onClick={event => selectTransaction(row, event.detail === 0)}>{gap.uncertainty.length ? "Unverified balance difference" : "Possible balance gap"} · {gap.differenceCents > 0 ? "+" : "−"}{centsLabel(gap.differenceCents, account.currency)} <CaretRight size={14} /></button> : null}
+          {showGaps && gap ? <button className="account-lanes-gap" type="button" onClick={event => selectTransaction(row, event.detail === 0)}>{suggested ? <>Suggested ledger balance · {balanceCentsLabel(suggested.valueCents, account.currency)}{suggested.uncertainty.length ? " · Timing unverified" : ""}</> : <>{gap.uncertainty.length ? "Unverified balance difference" : "Possible balance gap"} · {gap.differenceCents > 0 ? "+" : "−"}{centsLabel(gap.differenceCents, account.currency)}</>} <CaretRight size={14} /></button> : null}
         </div>;
       })}
     </div>;
@@ -622,8 +624,20 @@ export function AccountLanesWorkspace() {
       {hiddenAccount && !selectedIds.includes(hiddenAccount.id) ? <button className="account-lanes-hidden-link" type="button" onClick={() => showAccount(hiddenAccount.id)}>Other side: {hiddenAccount.name} hidden · Show lane</button> : null}
     </li>;
   };
-  const renderGapDetail = ({ account, detail }: (typeof selectedGapRows)[number]) => <div className="account-lanes-gap-case" key={account.id}>
+  const renderGapDetail = ({ account, detail }: (typeof selectedGapRows)[number]) => {
+    const suggestion = suggestedBalances.get(account.id)?.get(detail.to.id);
+    return <div className="account-lanes-gap-case" key={account.id}>
     <strong><AccountLabel account={account} /></strong>
+    {suggestion ? <section className="account-lanes-balance-suggestion" aria-label="Calculated balance suggestion">
+      <h4>Suggested ledger balance</h4><strong>{balanceCentsLabel(suggestion.valueCents, account.currency)}</strong>
+      <p>Calculated from both neighbouring reports in displayed order. This is a review suggestion, not a reported source value.</p>
+      <dl><div><dt>Saved reported balance</dt><dd>{balanceCentsLabel(detail.actualCents, account.currency)}</dd></div>
+        <div><dt>From previous report</dt><dd>{balanceCentsLabel(detail.priorCents, account.currency)} {detail.movementCents < 0 ? "−" : "+"} {centsLabel(detail.movementCents, account.currency)} = {balanceCentsLabel(suggestion.valueCents, account.currency)}</dd></div>
+        <div><dt>From next report</dt><dd>{balanceCentsLabel(suggestion.next.actualCents, account.currency)} {suggestion.next.movementCents < 0 ? "+" : "−"} {centsLabel(suggestion.next.movementCents, account.currency)} = {balanceCentsLabel(suggestion.valueCents, account.currency)}</dd></div></dl>
+      {suggestion.uncertainty.length ? <><p>Timing or order still needs review:</p><ul>{suggestion.uncertainty.map(reason => <li key={reason}>{reason}</li>)}</ul></> : null}
+      <button className="button button--ghost button--small" type="button" onClick={() => edit(detail.to.id)}>Review saved balance</button>
+      <p>Check the original sources before saving a correction. No values have been changed.</p>
+    </section> : null}
     <dl>
       <div><dt>Previous report · {formatCalendarDate(detail.from.date)} {detail.from.time ? formatClockTime(detail.from.time) : ""}</dt><dd>{balanceCentsLabel(detail.priorCents, account.currency)}</dd></div>
       <div><dt>Movements since</dt><dd>{detail.movementCents >= 0 ? "+" : "−"}{centsLabel(detail.movementCents, account.currency)}</dd></div>
@@ -635,6 +649,7 @@ export function AccountLanesWorkspace() {
     <p>{detail.uncertainty.length ? "This arithmetic uses the displayed order. It does not establish a missing transaction or fee." : "Only fully loaded days with an unambiguous order produce a numeric gap. Check missing movements or fees before reconciling."}</p>{detail.uncertainty.length ? <ul>{detail.uncertainty.map(reason => <li key={reason}>{reason}</li>)}</ul> : null}
     <button className="account-lanes-gap-link" type="button" onClick={() => edit(detail.from.id)}>Open previous report and sources</button>
   </div>;
+  };
 
   const view = <main className={`account-lanes-page${isFullscreen ? " account-lanes-page--fullscreen" : ""}`} aria-label="Account transaction timeline" style={{ "--lanes-font-adjust": `${fontAdjustment}px`, "--lanes-row-min-height": `${Math.max(88, 100 + fontAdjustment * 6)}px` } as CSSProperties}>
     <div className="account-lanes-toolbar">
