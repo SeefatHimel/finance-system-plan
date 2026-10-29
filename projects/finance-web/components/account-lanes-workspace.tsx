@@ -1,5 +1,6 @@
 "use client";
 import { TimelineOrderDialog } from "@/components/timeline-order-dialog";
+import { CompactReportedBalances } from "@/components/compact-reported-balances";
 import { AccountLabel } from "@/components/account-avatar";
 
 import { ArrowClockwise, ArrowsIn, ArrowsOut, CalendarBlank, CaretLeft, CaretRight, Eye, LinkSimple, SlidersHorizontal, X } from "@phosphor-icons/react";
@@ -725,7 +726,7 @@ export function AccountLanesWorkspace() {
             const account = accountById.get(id);
             if (!account) return null;
             const observation = selected.transfer_evidence.find(item => item.account === id);
-            return <div key={id}><strong><AccountLabel account={account} /></strong><span className={laneDirection(selected, id) === "credit" ? "is-credit" : "is-debit"}>{amountLabel(selected, id, account.currency)}</span><small>Balance after · {laneBalance(selected, id) === null ? "not reported" : formatCurrency(laneBalance(selected, id)!, account.currency)}</small>{observation && (observation.date !== selected.date || observation.time !== selected.time) ? <small>Source observed {formatCalendarDate(observation.date)} · {observation.time ? formatClockTime(observation.time) : "time not reported"}; lane position uses the ledger date.</small> : null}{!selectedIds.includes(id) ? <button type="button" onClick={() => showAccount(id)}>Show {account.name} lane</button> : null}</div>;
+            return <div key={id}><strong><AccountLabel account={account} /></strong><span className={laneDirection(selected, id) === "credit" ? "is-credit" : "is-debit"}>{amountLabel(selected, id, account.currency)}</span><small>Reported balance after</small><CompactReportedBalances record={selected} accounts={accounts} onlyAccount={id} showNames={false} />{observation && (observation.date !== selected.date || observation.time !== selected.time) ? <small>Source observed {formatCalendarDate(observation.date)} · {observation.time ? formatClockTime(observation.time) : "time not reported"}; lane position uses the ledger date.</small> : null}{!selectedIds.includes(id) ? <button type="button" onClick={() => showAccount(id)}>Show {account.name} lane</button> : null}</div>;
           })}</div>
           {selectedAccounts.map(account => {
             const allocation = balanceAllocation(selected, account);

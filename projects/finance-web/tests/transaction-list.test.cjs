@@ -48,3 +48,15 @@ test('compact date captions distinguish months, days and ranges without timezone
   assert.equal(transactionPeriodCaption({mode:'custom',start:'2026-09-28',end:'2026-10-27'}), '28 Sept – 27 Oct');
   assert.equal(transactionPeriodCaption({mode:'custom',start:'2026-12-28',end:'2027-01-05'}), '28 Dec 2026 – 5 Jan 2027');
 });
+
+test('table width is the sum of selected columns and does not stretch a small selection', () => {
+ const {transactionTableLayout}=require(join(output, 'transaction-list.js'));
+ const small=transactionTableLayout(['date','amount']);
+ assert.equal(small.width,120+165+145);
+ assert.deepEqual(small.columns.map(column=>column.id),['date','amount','actions']);
+ const large=transactionTableLayout(['date','description','account','category','amount']);
+ assert.ok(large.width>small.width);
+ assert.equal(transactionTableLayout(['date','amount'],true).width,small.width+175);
+ assert.equal(transactionTableLayout(['date','date','invalid','actions']).width,120+145);
+ assert.deepEqual(transactionTableLayout(['amount','date']).columns.map(column=>column.id),['date','amount','actions']);
+});

@@ -40,3 +40,15 @@ export function transactionPeriodCaption(period: { mode: string; start: string; 
   const options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", ...(period.start.slice(0, 4) !== period.end.slice(0, 4) ? { year: "numeric" } : {}) };
   return `${format(period.start, options)} – ${format(period.end, options)}`;
 }
+
+/** Fixed useful widths: hiding columns shrinks the table rather than stretching survivors. */
+export const transactionColumnWidths = {
+  activity: 175, date: 120, description: 230, account: 230, category: 180,
+  source: 90, balance: 250, senderIdentifiers: 200, receiverIdentifiers: 200, amount: 165, actions: 145,
+} as const;
+export function transactionTableLayout(columns: readonly string[], activity = false) {
+  // Match the table's canonical render order, including migrated saved preferences.
+  const known = Object.keys(transactionColumnWidths).filter(id => id !== 'actions' && id !== 'activity' && columns.includes(id));
+  const selected = [...(activity ? ['activity'] : []), ...known, 'actions'] as (keyof typeof transactionColumnWidths)[];
+  return { columns: selected.map(id => ({ id, width: transactionColumnWidths[id] })), width: selected.reduce((sum, id) => sum + transactionColumnWidths[id], 0) };
+}

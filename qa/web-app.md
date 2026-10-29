@@ -1818,3 +1818,16 @@ A unique SMS pair opens combined review in place; cancelling returns to the row.
 Closing returns keyboard focus to the table and retains filters/scroll. On phones,
 only the table region scrolls horizontally. This frontend presentation change uses
 the existing APIs and keeps source evidence and financial confirmation rules.
+
+### How are multiple balance reports kept readable?
+
+One selected balance is shown per account, with a compact source disclosure.
+Agreeing originals are counted by SMS/PDF, while known differences show an amber
+warning. The disclosure retains source values and dates/times, and distinguishes
+SMS receipt time. It never picks a replacement balance or rewrites originals.
+Unknown attribution stays unassigned and partial source failures stay explicit.
+List source reads happen on demand; the detail modal reuses its loaded sources.
+
+Visible desktop columns have bounded widths and determine the total table width,
+so hiding columns actually reduces its width. Canonical rendering order is kept
+even when older saved preferences list columns in another order.

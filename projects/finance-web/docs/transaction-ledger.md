@@ -227,3 +227,24 @@ Differing values are marked in place; a shared prefix is not an exact match. The
 are text differences, not proof that an unlabelled number identifies the recipient:
 a statement may contain the reporting card, a terminal or a merchant code. Existing
 linking checks and explicit user decisions remain responsible for identity.
+
+## Compact account balance reports
+
+The list, transaction-details modal and timeline inspector show one selected ledger
+balance per reporting account. Agreeing reports share a small source indicator;
+known differences show **Reports differ**. Hover, keyboard focus or tap reveals
+each retained report, reporting date/time and reference. SMS receipt time is labelled
+as receipt time, never as an established transaction time. Counts deduplicate SMS
+and statement PDFs, and exclude manual ledger selections as independent sources.
+Unknown account/currency reports remain unassigned. Nothing chooses the highest
+balance or writes to the ledger. Missing/cleared balances stay unknown.
+
+List/inspector source details load on demand, with abortable reads and explicit
+incomplete feedback on failure; transaction details reuse their loaded sources.
+The optional source-message parsed account/currency metadata improves attribution
+without requiring a database migration. Older API responses remain supported.
+
+The desktop table width is the sum of visible columns' bounded widths plus Actions
+(and the activity column when sorting by activity). Hiding columns shrinks the
+table instead of stretching the remaining cells across the container. A wide
+selection scrolls within the table; mobile cards retain their existing layout.

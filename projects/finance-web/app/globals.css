@@ -4270,7 +4270,7 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 .transaction-table-toolbar { scroll-margin-top: 110px; }
 .transaction-toolbar-actions { display: flex; align-items: center; flex-shrink: 0; gap: 8px; }
 .transaction-desktop-list { overscroll-behavior-x: contain; min-width: 0; }
-.transaction-data-table { table-layout: fixed; width: 100%; min-width: 900px; }
+.transaction-data-table { table-layout: fixed; min-width: 0; max-width: none; }
 .transaction-data-table th { color: var(--muted); background: var(--background); font-size: 11px; text-transform: none; letter-spacing: 0; }
 .transaction-data-table td { padding-block: 16px; overflow-wrap: normal; }
 .transaction-col--activity { width: 175px; }
@@ -4279,13 +4279,13 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 .transaction-col--account { width: 230px; }
 .transaction-col--category { width: 180px; }
 .transaction-col--source { width: 90px; }
-.transaction-col--balance { width: 205px; }
+.transaction-col--balance { width: 250px; }
 .transaction-col--senderIdentifiers, .transaction-col--receiverIdentifiers { width: 200px; }
 .transaction-data-table .transaction-col--balance,
 .transaction-data-table .transaction-col--senderIdentifiers,
 .transaction-data-table .transaction-col--receiverIdentifiers { overflow-wrap: anywhere; }
 .transaction-col--amount { width: 165px; }
-.transaction-col--actions { width: 125px; }
+.transaction-col--actions { width: 145px; }
 .transaction-data-table th.transaction-col--amount, .transaction-data-table td.transaction-col--amount { text-align: right; }
 .help-trigger.help-trigger--text { appearance: none; background: transparent; border: 0; border-radius: 3px; color: inherit; cursor: help; display: block; font: inherit; height: auto; line-height: inherit; margin: 0; max-width: 100%; min-height: 0; padding: 0; text-align: left; width: 100%; }
 .help-trigger--text > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -4531,3 +4531,17 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 .statement-description-difference { background: color-mix(in srgb, var(--warning) 22%, var(--panel)); color: var(--warning); border-radius: 3px; padding: 0 2px; box-decoration-break: clone; font-weight: 700; overflow-wrap: anywhere; }
 
 .statement-match-difference-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.compact-reported-balances, .compact-reported-balance { display: grid; gap: 6px; min-width: 0; }
+.compact-reported-balances { width: 100%; }
+.compact-reported-balance + .compact-reported-balance { margin-top: 5px; }
+.compact-reported-balance__account { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compact-reported-balance__value { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-variant-numeric: tabular-nums; }
+.compact-reported-balances .help-trigger.help-trigger--text { display: inline-flex; width: 96px; flex: 0 0 96px; justify-content: flex-start; min-height: 28px; font-size: 11px; color: var(--muted); }
+.compact-reported-balances .help-trigger.help-trigger--warning { color: var(--warning); }
+.compact-reported-balances .help-trigger--text > .compact-reported-balance__indicator { display: inline-flex; align-items: center; gap: 4px; white-space: normal; }
+.compact-reported-balance__unassigned { color: var(--warning); font-size: 12px; }
+.balance-report-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 10px; }
+.balance-report-list li { display: grid; gap: 3px; border-top: 1px solid var(--panel-border); padding-top: 8px; }
+.balance-report-list small { color: var(--muted); }
+@media (pointer: coarse) { .compact-reported-balances .help-trigger.help-trigger--text { min-height: 44px; } }

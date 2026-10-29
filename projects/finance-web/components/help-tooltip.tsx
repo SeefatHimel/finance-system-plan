@@ -5,7 +5,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 import { createPortal } from "react-dom";
 
 /** Hover/focus help on desktop; tap to toggle on touch devices. */
-export function HelpTooltip({ label, children, warning = false, textTrigger }: { label: string; children: ReactNode; warning?: boolean; textTrigger?: ReactNode }) {
+export function HelpTooltip({ label, children, warning = false, textTrigger, onOpen }: { label: string; children: ReactNode; warning?: boolean; textTrigger?: ReactNode; onOpen?: () => void }) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -20,6 +20,10 @@ export function HelpTooltip({ label, children, warning = false, textTrigger }: {
     if (!pinned.current && !trigger.current?.matches(":focus-visible")) closeTimer.current = setTimeout(() => setOpen(false), 150);
   };
 
+  const openCallback = useRef(onOpen);
+  openCallback.current = onOpen;
+  useEffect(() => { if (open) openCallback.current?.(); }, [open]);
+
   useLayoutEffect(() => {
     if (!open) return;
     const place = () => {
@@ -31,9 +35,11 @@ export function HelpTooltip({ label, children, warning = false, textTrigger }: {
       setPosition({ left, top });
     };
     place();
+    const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
+    if (content.current) resize?.observe(content.current);
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
-    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
+    return () => { resize?.disconnect(); window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
   }, [open]);
 
   useEffect(() => {
@@ -60,6 +66,6 @@ export function HelpTooltip({ label, children, warning = false, textTrigger }: {
       onClick={event => { event.preventDefault(); event.stopPropagation(); cancelClose(); pinned.current = !pinned.current; setOpen(pinned.current); }}>
       {textTrigger ?? <Icon size={18} aria-hidden="true" weight={warning ? "fill" : "regular"} />}
     </button>
-    {open ? createPortal(<div ref={content} id={id} role="tooltip" className="help-tooltip" style={position} onPointerEnter={cancelClose} onPointerLeave={leave}>{children}</div>, trigger.current?.closest("dialog") ?? document.body) : null}
+    {open ? createPortal(<div ref={content} id={id} role="tooltip" className="help-tooltip" style={position} onClick={event => event.stopPropagation()} onPointerEnter={cancelClose} onPointerLeave={leave}>{children}</div>, trigger.current?.closest("dialog") ?? document.body) : null}
   </>;
 }

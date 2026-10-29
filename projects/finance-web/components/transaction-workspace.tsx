@@ -1,7 +1,8 @@
 "use client";
 import { filteredFinancialTotals } from "@/lib/financial-totals";
 import { TransactionActionMenu } from "@/components/transaction-action-menu";
-import { transactionColumnPreferences, transactionPage, transactionPageParams, transactionPeriodFilters, transactionPeriodCaption } from "@/lib/transaction-list";
+import { transactionTableLayout, transactionColumnPreferences, transactionPage, transactionPageParams, transactionPeriodFilters, transactionPeriodCaption } from "@/lib/transaction-list";
+import { CompactReportedBalances } from "@/components/compact-reported-balances";
 import { AccountLabel } from "@/components/account-avatar";
 import { displayLabel, formatCurrency, formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
 
@@ -811,6 +812,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   }, [loadState]);
 
   const currencyByAccount = useMemo(() => new Map(loadState.status === "ready" ? loadState.accounts.map(account => [account.id, account.currency]) : []), [loadState]);
+  const tableLayout = transactionTableLayout(visibleColumns, displayedFilters.ordering !== "-date");
   const financialTotals = useMemo(() => loadState.status === "ready" ? filteredFinancialTotals(loadState.transactions, currencyByAccount, displayedFilters.account) : [], [loadState, currencyByAccount, displayedFilters.account]);
 
   const categoryNames = useMemo(() => {
@@ -905,7 +907,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
       case "account": return <span className="account-path">{fullTextAccount(transaction.account)}{transaction.type === "transfer" ? <><span aria-label="to">→</span>{fullTextAccount(transaction.transfer_account ?? "")}</> : null}</span>;
       case "category": return <span className={`transaction-category transaction-category--${transaction.type === "transfer" ? "transfer" : transaction.account_direction === "credit" ? "credit" : "debit"}`}>{fullText(transaction.category ? categoryNames.get(transaction.category) ?? "Unknown" : "Uncategorized", "Category")}</span>;
       case "source": return displayLabel(transaction.source);
-      case "balance": return transaction.type === "transfer" && transaction.transfer_evidence.length ? transaction.transfer_evidence.map(item => <span className="transaction-ledger-secondary" key={item.id}>{accountNames.get(item.account)}: {item.balance_after === null ? "No reported balance" : formatCurrency(item.balance_after, currencyByAccount.get(item.account))}{item.reference ? ` · ${item.reference}` : ""}</span>) : transaction.balance_after !== null ? formatCurrency(transaction.balance_after, currencyByAccount.get(transaction.account)) : "—";
+      case "balance": return <CompactReportedBalances record={transaction} accounts={loadState.status === "ready" ? loadState.accounts : []} />;
       case "senderIdentifiers": return <><span>{identifierView.format(transaction.sender_account_identifier, identifierLabel(transaction.sender_account_identifier, "account", methods, accountNames, transaction.direction === "debit" ? transaction.account : undefined))}</span><span className="transaction-ledger-secondary">{transaction.sender_card_identifier ? `Card ${identifierView.format(transaction.sender_card_identifier, identifierLabel(transaction.sender_card_identifier, "card", methods, accountNames, transaction.direction === "debit" ? transaction.account : undefined))}` : "No card identifier"}</span></>;
       case "receiverIdentifiers": {
         const account = transaction.type === "transfer" ? transaction.transfer_account ?? undefined : transaction.direction === "credit" ? transaction.account : undefined;
@@ -927,7 +929,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   }
   function viewRow(event: React.MouseEvent<HTMLElement>, transaction: Transaction) {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !window.getSelection()?.isCollapsed) return;
-    if ((event.target as HTMLElement).closest("button, a, input, select, textarea, summary, details")) return;
+    if ((event.target as HTMLElement).closest("button, a, input, select, textarea, summary, details, [role=tooltip]")) return;
     event.currentTarget.querySelector<HTMLButtonElement>('[data-transaction-view], button[aria-haspopup="dialog"]')?.focus({ preventScroll: true });
     setViewingId(transaction.id);
   }
@@ -1298,7 +1300,8 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
               </article>)}
             </div>
             <div className="table-wrap transaction-desktop-list" ref={tableScroll} aria-busy={isRefreshing} role="region" aria-label="Transaction table, scroll horizontally for more columns" tabIndex={0}>
-              <table className="data-table transaction-data-table">
+              <table className="data-table transaction-data-table" style={{ width: tableLayout.width, minWidth: 0 }}>
+                <colgroup>{tableLayout.columns.map(column => <col key={column.id} style={{ width: column.width }} />)}</colgroup>
                 <thead>
                   <tr>
                     {displayedFilters.ordering === "-created_at" ? <th className="transaction-col--activity" scope="col">Added</th> : null}
@@ -1311,7 +1314,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
                   {pageTransactions.map(transaction => <tr key={transaction.id} className="transaction-view-row" onClick={event => viewRow(event, transaction)}>
                     {displayedFilters.ordering !== "-date" ? <td className="transaction-col--activity">{activityTime(transaction)}</td> : null}
                     {transactionColumns.filter(column => visibleColumns.includes(column.id)).map(column => <td key={column.id} className={`transaction-col--${column.id}${column.id === "amount" ? ` ${amountClass(transaction)}` : ""}`}>{columnContent(column.id, transaction)}</td>)}
-                    <td>{transactionActions(transaction)}</td>
+                    <td className="transaction-col--actions">{transactionActions(transaction)}</td>
                   </tr>)}
                 </tbody>
               </table>
