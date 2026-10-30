@@ -594,12 +594,13 @@ def _reviewed_decision(*, user, record_id, token, selected):
 
 @transaction.atomic
 def correct_sms_evidence(*, user, record_id, token, candidate_id, action, account_id=None):
-    """Correct one confirmed SMS link; never change the transfer movement."""
+    """Correct one confirmed SMS account/link without changing the movement."""
     record, current, fingerprint = _validated_preview(
         user=user, record_id=record_id, token=token
     )
-    if record.type != Transaction.Type.TRANSFER or not record.transfer_account_id:
-        raise ValidationError({"candidate": "SMS evidence correction requires a transfer."})
+    is_transfer = record.type == Transaction.Type.TRANSFER
+    if is_transfer and not record.transfer_account_id:
+        raise ValidationError({"candidate": "Review the incomplete transfer account path first."})
     if not any(
         source["kind"] == "Saved SMS" and source["id"] == str(candidate_id)
         for source in current["sources"]
@@ -629,23 +630,26 @@ def correct_sms_evidence(*, user, record_id, token, candidate_id, action, accoun
     recorder = ActionRecorder(user, transaction_ids=[record.pk], candidate_ids=[candidate.pk])
 
     if action == "move":
-        target = {record.account_id: record.account, record.transfer_account_id: record.transfer_account}.get(account_id)
+        targets = {record.account_id: record.account}
+        if is_transfer:
+            targets[record.transfer_account_id] = record.transfer_account
+        target = targets.get(account_id)
+        if not target or target.user_id != user.pk or target.currency != record.account.currency:
+            raise ValidationError({"account": "Choose an account in this ledger entry."})
+        expected = ("credit" if target.pk == record.transfer_account_id else "debit") if is_transfer else record.direction
         misplaced_report = any(
-            item.account_id != account_id
-            or item.direction != ("credit" if account_id == record.transfer_account_id else "debit")
-            for item in evidence
+            item.account_id != target.pk or item.direction != expected for item in evidence
         )
-        if not target or (old_account and target.pk == old_account.pk and not misplaced_report):
-            raise ValidationError({"account": "Choose the other account in this transfer."})
-        expected = "credit" if target.pk == record.transfer_account_id else "debit"
+        if old_account and target.pk == old_account.pk and not misplaced_report:
+            raise ValidationError({"account": "This SMS already reports for that ledger account."})
         if candidate.source_direction not in {"", expected} or old_direction != expected:
-            raise ValidationError({"account": "The SMS direction does not match that account's transfer side."})
+            raise ValidationError({"account": "The SMS direction does not match that ledger account."})
         candidate.account = record.account
-        candidate.destination_account = record.transfer_account
-        candidate.suggested_transfer_direction = expected
+        candidate.destination_account = record.transfer_account if is_transfer else None
+        candidate.suggested_transfer_direction = expected if is_transfer else ""
         if candidate.payment_method_id and candidate.payment_method.account_id != record.account_id:
             candidate.payment_method = None
-        if candidate.destination_payment_method_id and candidate.destination_payment_method.account_id != record.transfer_account_id:
+        if candidate.destination_payment_method_id and (not is_transfer or candidate.destination_payment_method.account_id != record.transfer_account_id):
             candidate.destination_payment_method = None
         candidate.save(update_fields=(
             "account", "destination_account", "suggested_transfer_direction",
@@ -661,7 +665,7 @@ def correct_sms_evidence(*, user, record_id, token, candidate_id, action, accoun
             item.account = target
             item.direction = expected
             item.save(update_fields=("account", "direction", "is_effective_balance"))
-        if not evidence:
+        if not evidence and is_transfer:
             _data, observation = sms_transfer_data(candidate)
             if record.raw_message_id == candidate.raw_message_id:
                 observation["balance_after"] = record.balance_after
@@ -681,7 +685,7 @@ def correct_sms_evidence(*, user, record_id, token, candidate_id, action, accoun
 
     # A secondary report correction must not replace an independently reviewed
     # scalar balance. Recompute only when this SMS supplied the primary report.
-    if changes_primary_report:
+    if is_transfer and changes_primary_report:
         getattr(record, "_prefetched_objects_cache", {}).pop("transfer_evidence", None)
         primary = primary_transfer_evidence(record, list(record.transfer_evidence.all()))
         record.balance_after = primary.balance_after if primary else None

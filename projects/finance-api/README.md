@@ -1589,13 +1589,18 @@ client. Apply is user-scoped, atomic and serialized with existing ledger writers
 changed ledger/evidence/rules, expired tokens and replayed successful previews
 return 409 and require a fresh review. Retrying cannot create another movement.
 
-For a transfer with a wrongly attributed **confirmed SMS**, the preview identifies
+For any ledger entry with a wrongly attributed **confirmed SMS**, the preview identifies
 each saved SMS by candidate ID, reporting account, direction, date and time. The
 separate `POST /api/transactions/{id}/correct-sms-evidence/` accepts the signed
-preview `token`, that `candidate`, and `action: "move"` with the other transfer
-side's `account`, or `action: "unlink"`. Move requires the SMS's saved direction
-to agree with that side; it reassigns that SMS candidate and its report without
-changing the transfer movement or other evidence. Unlink removes only that SMS
+preview `token`, that `candidate`, and `action: "move"` with an `account` from the
+ledger path, or `action: "unlink"`. Transfers accept the matching debit/credit
+side. Single-account entries (including expenses, fees and income) accept only
+their ledger account. Move requires the SMS's saved direction to agree; it
+reassigns that SMS candidate and any captured report without changing the
+movement or other evidence. Single-account ledger balances are preserved even
+when the primary SMS is unlinked. Incompatible payment-method and destination
+references are cleared from the corrected candidate; original text, captured
+amounts, balances, direction and dates are preserved. Unlink removes only that SMS
 link/report and returns the candidate to Review inbox. The original message and
 other sources remain saved. Both actions are owner-scoped, atomic, audited,
 stale-preview protected and eligible for latest-action Undo. The preview never

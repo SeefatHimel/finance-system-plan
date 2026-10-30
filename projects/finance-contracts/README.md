@@ -1006,3 +1006,9 @@ linked reports as originals, and never treat unknown/different times or incomple
 checks as verified agreement. This is response metadata, never a financial write.
 API precedes web deployment; older clients ignore it and new web clients tolerate
 its absence. OpenAPI, generated types and backend schema snapshot include the field.
+
+The `transactions_correct_sms_evidence` action supports confirmed SMS corrections
+for both transfers and single-account entries. A single-account move targets only
+the existing ledger account; it never changes the ledger amount or balance. The
+request/response schema is unchanged: signed preview token, candidate, action and
+optional ledger-path account. Deploy the API behavior before the web action.

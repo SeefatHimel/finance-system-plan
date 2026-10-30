@@ -2576,8 +2576,9 @@ paths:
   /api/transactions/{id}/correct-sms-evidence/:
     post:
       operationId: transactions_correct_sms_evidence
+      # Retain the legacy summary so generated client method names stay compatible.
       summary: Correct one confirmed SMS link on a transfer
-      description: Assign one saved SMS report to a direction-compatible account in the transfer, including repairing a misplaced report whose SMS account is already correct or binding an unknown SMS account. Alternatively unlink it and return it to SMS review. Source values, the ledger movement and independent reviewed balances remain saved. Requires a fresh signed revalidation preview; changes are audited and undoable.
+      description: Assign one saved SMS report to a direction-compatible account already in the ledger path. Single-account entries accept only their own account; transfers accept a compatible side. Also supports repairing a misplaced report or binding an unknown SMS account. Alternatively unlink the SMS and return it to review. Original source values remain saved, and single-account ledger amounts and balances are unchanged. Requires a fresh signed revalidation preview; changes are owner-scoped, audited and undoable.
       tags: [Transactions]
       parameters:
       - in: path

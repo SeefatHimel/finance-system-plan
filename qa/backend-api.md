@@ -1438,3 +1438,13 @@ observations in batches; adding cards does not add source queries per card.
 Statement drafts and parser reinterpretations are excluded, receipt times are
 explicit, and truncation is incomplete rather than verified. Reads make no ledger
 or parser writes; write responses re-read source facts to avoid stale caches.
+
+### Can users repair a saved SMS account on an expense or income entry?
+
+Yes. The signed correct-sms-evidence action also supports single-account ledger
+entries. Its move target must be the entry's owned account and match the saved
+SMS direction. It updates only that candidate and any associated captured report,
+clearing incompatible payment-method/destination references. Ledger amount and
+balance, original SMS text and captured numeric values remain unchanged. Unlink
+returns the candidate to pending review and preserves the single-account ledger
+balance. Both paths use atomic locks, stale-preview rejection, audit and Undo.
