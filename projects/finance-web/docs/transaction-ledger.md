@@ -299,3 +299,14 @@ Timing uncertainty travels into the editor warning. It does not imply source
 verification or save automatically; the existing freshness check, explicit Save,
 audit history and Undo remain in effect. Two-sided suggestions keep their
 stronger neighbouring-balance explanation.
+
+## Repairing a saved SMS account
+
+Revalidate offers Correct saved SMS on expenses, fees, income and other
+single-account entries as well as transfers. Users can compare the original
+message, assign the saved SMS to a direction-compatible account already in the
+ledger path, or unlink it to the Review inbox. The action never picks an arbitrary
+account or rewrites parser rules. Single-account ledger amounts and balances stay
+unchanged. Refreshing the comparison shows the corrected saved account; signed
+preview checks, owner scoping, History and latest-action Undo still apply.
+Deploy the API extension before the web client; no migration is required.

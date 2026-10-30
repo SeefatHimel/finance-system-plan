@@ -33,3 +33,18 @@ test('unknown directions and parser interpretations are never silently reassigne
     assert.deepEqual(reportAccountChoices(preview([source, report]), source), []);
   }
 });
+
+
+test('single-account entries offer the ledger account for a wrongly assigned or unknown SMS', () => {
+  for (const type of ['expense', 'fee', 'income']) {
+    const direction = type === 'income' ? 'credit' : 'debit';
+    const account = { ...bank, direction };
+    for (const oldAccount of ['other-card', null]) {
+      const source = { ...saved, account: oldAccount, direction };
+      const single = { ledger: { type, accounts: [account] }, sources: [source] };
+      assert.deepEqual(reportAccountChoices(single, source), [account]);
+      assert.deepEqual(reportAccountChoices(single, { ...source, direction: direction === 'debit' ? 'credit' : 'debit' }), []);
+      assert.deepEqual(reportAccountChoices(single, { ...source, account: account.id }), []);
+    }
+  }
+});

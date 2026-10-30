@@ -1888,3 +1888,12 @@ confirming anchor. It opens the existing ledger editor with the affected
 account's expected balance prefilled. Display-order and timing warnings remain
 visible, and Save is still explicit. Fresh-record snapshot checks reject stale
 prefills; original sources and transaction amounts stay unchanged.
+
+### How can users correct a stale SMS reporting account after editing the ledger?
+
+Revalidate exposes Correct saved SMS for every confirmed SMS, including on
+non-transfer entries. The correction panel offers direction-compatible ledger
+accounts and unlink-to-review, with the original SMS available before confirming.
+A ledger edit alone does not silently rewrite its saved SMS interpretation. The
+confirmed action refreshes the comparison and exposes latest-action Undo. Failed
+corrections appear in a toast, retaining the selected correction for review.
