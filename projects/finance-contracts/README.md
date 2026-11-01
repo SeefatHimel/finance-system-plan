@@ -1012,3 +1012,33 @@ for both transfers and single-account entries. A single-account move targets onl
 the existing ledger account; it never changes the ledger amount or balance. The
 request/response schema is unchanged: signed preview token, candidate, action and
 optional ledger-path account. Deploy the API behavior before the web action.
+
+## Bounded ledger reads and filtered totals
+
+`GET /api/transactions/` preserves its array shape but defaults to at most 100
+rows. Use limit 1–100 and offset, plus X-Total-Count and X-Next-Offset, or prefer
+`/api/transactions/activity/` for its explicit count/results/next_offset envelope.
+`GET /api/transactions/totals/` accepts the ledger filters and returns currencies
+with decimal-string income, spending, refunds, financingIn/Out, moneyIn/Out,
+transfers and net across the entire result. Transfers are neutral without an
+account perspective; refunds reduce spending. No FX conversion occurs.
+`category=uncategorized` is supported alongside category UUIDs.
+
+`GET /api/health/ready/` is a plain Django endpoint returning 200 when DB/schema
+are ready and 503 otherwise; it is explicitly exempted from DRF route generation.
+New/explicitly edited non-transfer directions must agree with type, cross-currency
+transfers are rejected, and used accounts cannot change currency. The snapshot
+includes the reviewed framework upgrade enum-name changes; generated types/client
+include pagination, totals and readiness. See [review scope](../../docs/architecture-review-remediation.md).
+
+The second review adds no payload or route changes. API responses default to
+private no-store, while the web proxy preserves X-Total-Count, X-Next-Offset and
+Retry-After headers and independently prevents HTTP caching. Client cancellation
+is passed upstream; a canceled write does not imply rollback. Generated client
+and schema snapshot remain unchanged by these query/refresh corrections.
+
+The quality-program read refactor preserves the `spending-v2` response and existing
+money/source semantics; account report groups now use deterministic name/ID order.
+API responses add generated `X-Request-ID` and `Server-Timing` diagnostics, forwarded
+by the web proxy. These are optional metadata, not financial identifiers. Integrity,
+fixture and scale commands are operator tools, not new public API endpoints.

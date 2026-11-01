@@ -109,6 +109,7 @@ class Transaction(models.Model):
             ),
         ]
         indexes = [
+            models.Index("account", models.F("date").desc(), models.F("time").desc(nulls_last=True), models.F("created_at").desc(), models.F("id").desc(), condition=models.Q(balance_after__isnull=False), name="ledger_latest_balance"),
             models.Index(fields=("user", "date")),
             models.Index(fields=("user", "type")),
             models.Index(fields=("user", "direction")),
@@ -160,6 +161,7 @@ class TransferEvidence(models.Model):
 
     class Meta:
         ordering = ("date", "time", "created_at")
+        indexes = [models.Index("account", models.F("date").desc(), models.F("time").desc(nulls_last=True), models.F("created_at").desc(), models.F("id").desc(), condition=models.Q(balance_after__isnull=False), name="evidence_latest_balance")]
         constraints = [
             models.UniqueConstraint(
                 fields=("user", "external_key"),

@@ -145,8 +145,9 @@ class ReportedBalanceComparisonTests(APITestCase):
             balance_after="550.00",
             external_key="synthetic-duplicate-report",
         )
-        # One bounded linked-statement query also checks for later EBL reports.
-        with self.assertNumQueries(4):
+        # SQL aggregates and latest-report windows do not materialize ledger history.
+        # Two report-cutoff checks are account-scoped, independent of row count.
+        with self.assertNumQueries(7):
             summaries = calculate_account_balance_summaries(
                 accounts=[self.bank, destination]
             )
@@ -273,3 +274,69 @@ class ReportedBalanceComparisonTests(APITestCase):
         summary = self.summary(destination)
         self.assertEqual(summary.ledger_balance_at_latest_report, Decimal("100.00"))
         self.assertEqual(summary.reported_balance_comparison, "matched")
+
+
+class BoundedBalanceReadTests(APITestCase):
+    def test_many_accounts_do_not_add_per_account_timing_queries(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        user = get_user_model().objects.create_user(username="synthetic-batch-balances")
+        accounts = Account.objects.bulk_create([Account(user=user, name=f"Synthetic batch {n}", type="bank") for n in range(20)])
+        Transaction.objects.bulk_create([Transaction(user=user, account=account, date=date(2026,1,1), time=time(12), type="expense", direction="debit", amount=1, balance_after=99) for account in accounts])
+        with CaptureQueriesContext(connection) as one:
+            calculate_account_balance_summaries(accounts=accounts[:1])
+        with CaptureQueriesContext(connection) as many:
+            result = calculate_account_balance_summaries(accounts=accounts)
+        self.assertEqual(len(many), len(one), "Timing checks must be batched, independent of account count")
+        self.assertEqual(len(result), 20)
+
+    def test_account_detail_only_summarizes_its_own_account(self):
+        from unittest.mock import patch
+        user = get_user_model().objects.create_user(username="synthetic-detail-query")
+        accounts = Account.objects.bulk_create([Account(user=user, name=f"Synthetic detail {n}", type="bank") for n in range(3)])
+        self.client.force_authenticate(user)
+        with patch("apps.accounts.views.calculate_account_balance_summaries", wraps=calculate_account_balance_summaries) as summaries:
+            response = self.client.get(reverse("account-detail", kwargs={"pk":accounts[0].pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([account.pk for account in summaries.call_args.kwargs["accounts"]], [accounts[0].pk])
+
+    def test_sql_report_selection_matches_the_editor_for_varied_transfer_sources(self):
+        import random
+        from apps.transactions.balance_queries import latest_reports
+        from apps.transactions.balance_reports import account_reports
+
+        randomizer = random.Random(17)
+        user = get_user_model().objects.create_user(username="synthetic-report-selection")
+        accounts = [Account.objects.create(user=user, name=f"Synthetic bank {index}", type="bank") for index in range(3)]
+        for index in range(40):
+            sender, receiver = randomizer.sample(accounts, 2)
+            record = Transaction.objects.create(user=user, account=sender, transfer_account=receiver, date=date(2026, 1, 1 + index % 8), time=time(index % 24), type="transfer", direction="debit", amount=10, external_key=f"synthetic-source:{index}")
+            for position in range(4):
+                account = sender if position < 2 else receiver
+                TransferEvidence.objects.create(user=user, transaction=record, account=account, direction="debit" if account == sender else "credit", date=record.date, time=None if position % 2 else record.time, source="sms" if position % 2 else "web", balance_after=None if index % 3 == 0 and position % 2 else index * 100 + position, is_effective_balance=position % 2 == 1, external_key=record.external_key if position == 0 else f"balance:{record.pk}:{position}" if position % 2 else f"synthetic-other:{index}:{position}")
+        for cutoff in [None, date(2026, 1, 4)]:
+            _, actual = latest_reports(accounts, cutoff)
+            expected = {}
+            records = Transaction.objects.filter(user=user).prefetch_related("transfer_evidence")
+            if cutoff:
+                records = records.filter(date__lte=cutoff)
+            for record in records:
+                items = [item for item in record.transfer_evidence.all() if not cutoff or item.date <= cutoff]
+                chosen, _ = account_reports(record, items)
+                for account, item in chosen.items():
+                    if item.balance_after is None:
+                        continue
+                    order = (item.date, item.time or time.min, item.created_at)
+                    if account not in expected or order >= expected[account][0]:
+                        expected[account] = (order, item.balance_after)
+            self.assertEqual({account: result[:2] for account, result in actual.items()}, expected)
+
+    def test_ledger_history_stays_in_sql_instead_of_loading_every_transaction(self):
+        from unittest.mock import patch
+        user = get_user_model().objects.create_user(username="synthetic-bounded-balances")
+        account = Account.objects.create(user=user, name="Synthetic bounded bank", type="bank", starting_balance=1000)
+        Transaction.objects.bulk_create([Transaction(user=user, account=account, date=date(2026,1,1), type="expense", direction="debit", amount=1, balance_after=999-index) for index in range(1000)])
+        with patch.object(Transaction, "from_db", wraps=Transaction.from_db) as loaded:
+            summary = calculate_account_balance_summaries(accounts=[account])[account.pk]
+        self.assertEqual(summary.ledger_balance, Decimal("0.00"))
+        self.assertLessEqual(loaded.call_count, 2, "Latest reports, not historical ledger rows, should be materialized")

@@ -2,7 +2,8 @@ import csv
 import json
 
 from django.db import transaction as db_transaction
-from django.db.models import Count, Q, Prefetch
+from django.db.models import Count, Q, Prefetch, OuterRef, Subquery, IntegerField, Value
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
@@ -55,13 +56,39 @@ class ActivityPageQuery(serializers.Serializer):
     limit = serializers.IntegerField(default=25, min_value=1, max_value=100)
     offset = serializers.IntegerField(default=0, min_value=0, max_value=2147483647)
     account = serializers.UUIDField(required=False)
-    category = serializers.UUIDField(required=False)
+    category = serializers.CharField(required=False)
+
+    def validate_category(self, value):
+        if value == "uncategorized":
+            return value
+        import uuid
+        try:
+            return str(uuid.UUID(value))
+        except (ValueError, TypeError) as exc:
+            raise serializers.ValidationError("Choose a category or uncategorized.") from exc
 
 
 class TransactionActivityPageSerializer(serializers.Serializer):
     count = serializers.IntegerField(min_value=0)
     next_offset = serializers.IntegerField(min_value=0, allow_null=True)
     results = TransactionSerializer(many=True)
+
+
+class TransactionCurrencyTotalsSerializer(serializers.Serializer):
+    currency = serializers.CharField()
+    income = serializers.DecimalField(max_digits=20, decimal_places=2)
+    spending = serializers.DecimalField(max_digits=20, decimal_places=2)
+    refunds = serializers.DecimalField(max_digits=20, decimal_places=2)
+    financingIn = serializers.DecimalField(max_digits=20, decimal_places=2)
+    financingOut = serializers.DecimalField(max_digits=20, decimal_places=2)
+    moneyIn = serializers.DecimalField(max_digits=20, decimal_places=2)
+    moneyOut = serializers.DecimalField(max_digits=20, decimal_places=2)
+    transfers = serializers.DecimalField(max_digits=20, decimal_places=2)
+    net = serializers.DecimalField(max_digits=20, decimal_places=2)
+
+
+class TransactionTotalsSerializer(serializers.Serializer):
+    currencies = TransactionCurrencyTotalsSerializer(many=True)
 
 
 class TransactionIssueQuery(serializers.Serializer):
@@ -216,6 +243,21 @@ class TransactionViewSet(ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(parameters=[OpenApiParameter("limit", int, description="1–100; default 100."), OpenApiParameter("offset", int, description="Zero-based offset.")])
+    def list(self, request, *args, **kwargs):
+        # Preserve the legacy array shape while bounding work. New clients use
+        # /activity/ for its explicit count/next_offset envelope.
+        query = ActivityPageQuery(data={"limit": 100, **request.query_params.dict()})
+        query.is_valid(raise_exception=True)
+        limit, offset = query.validated_data["limit"], query.validated_data["offset"]
+        queryset = self.filter_queryset(self.get_queryset())
+        total = queryset.count()
+        rows = list(queryset[offset:offset + limit])
+        return Response(self.get_serializer(rows, many=True).data, headers={
+            "Cache-Control": "private, no-store", "X-Total-Count": str(total),
+            "X-Next-Offset": str(offset + len(rows)) if rows and offset + len(rows) < total else "",
+        })
+
     @db_transaction.atomic
     def create(self, request, *args, **kwargs):
         # Validate account currency/ownership while holding the same writer lock
@@ -351,9 +393,14 @@ class TransactionViewSet(ModelViewSet):
 
     def get_queryset(self):
         from .balance_provenance import sms_queryset, statement_queryset, LIMIT
+        from apps.statements.models import StatementRow
+        statement_count = (
+            StatementRow.objects.filter(transaction_id=OuterRef("pk")).order_by()
+            .values("transaction_id").annotate(total=Count("pk")).values("total")
+        )
         queryset = (
             Transaction.objects.filter(user=self.request.user)
-            .annotate(statement_count=Count("statement_rows", distinct=True))
+            .annotate(statement_count=Coalesce(Subquery(statement_count, output_field=IntegerField()), Value(0)))
             .select_related(
                 "account",
                 "transfer_account",
@@ -361,6 +408,7 @@ class TransactionViewSet(ModelViewSet):
                 "payment_method",
                 "raw_message",
             )
+            .defer("raw_message__body", "account__logo", "transfer_account__logo")
             .prefetch_related("transfer_evidence", "parsed_message_candidates",
                 Prefetch("parsed_message_candidates", queryset=sms_queryset(self.request.user)[:LIMIT + 1], to_attr="balance_sms_sources"),
                 Prefetch("statement_rows", queryset=statement_queryset(self.request.user)[:LIMIT + 1], to_attr="balance_statement_sources"),
@@ -432,6 +480,14 @@ class TransactionViewSet(ModelViewSet):
                 )
 
         return queryset
+
+    @extend_schema(responses=TransactionTotalsSerializer, parameters=transaction_date_parameters)
+    @action(detail=False, methods=("get",), url_path="totals")
+    def totals(self, request):
+        from .list_totals import filtered_totals
+        query = ActivityPageQuery(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        return Response({"currencies": filtered_totals(self.filter_queryset(self.get_queryset()), request.query_params.get("account", ""))}, headers={"Cache-Control": "private, no-store"})
 
     @extend_schema(responses=TransactionSourceMessageSerializer(many=True))
     @action(detail=True, methods=("get",), url_path="source-messages")

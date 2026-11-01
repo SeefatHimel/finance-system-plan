@@ -5247,9 +5247,23 @@
           },
           {
             "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
             "name": "month",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "type": "integer"
             }
           },
           {
@@ -5749,6 +5763,73 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BulkRevalidationPage"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/transactions/totals/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date_field",
+            "schema": {
+              "enum": [
+                "created_at",
+                "date",
+                "updated_at"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionTotals"
                 }
               }
             }
@@ -6403,7 +6484,7 @@
           "type": "boolean"
         },
         "provider": {
-          "$ref": "#/components/schemas/Provider6c1Enum"
+          "$ref": "#/components/schemas/Provider566Enum"
         }
       },
       "required": [
@@ -6633,7 +6714,7 @@
       ],
       "type": "string"
     },
-    "BalanceSource6ccEnum": {
+    "BalanceSourceEnum": {
       "enum": [
         "existing",
         "sms",
@@ -6883,7 +6964,7 @@
           "type": "string"
         },
         "direction": {
-          "$ref": "#/components/schemas/Direction864Enum"
+          "$ref": "#/components/schemas/Direction41eEnum"
         },
         "label": {
           "maxLength": 120,
@@ -6974,7 +7055,7 @@
       ],
       "type": "object"
     },
-    "Component5b1Enum": {
+    "Component8d3Enum": {
       "enum": [
         "principal",
         "fee"
@@ -7313,14 +7394,14 @@
       ],
       "type": "string"
     },
-    "Direction769Enum": {
+    "Direction41eEnum": {
       "enum": [
         "debit",
         "credit"
       ],
       "type": "string"
     },
-    "Direction864Enum": {
+    "Direction61cEnum": {
       "enum": [
         "debit",
         "credit"
@@ -7394,7 +7475,7 @@
         "balance_source": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/BalanceSource6ccEnum"
+              "$ref": "#/components/schemas/BalanceSourceEnum"
             }
           ],
           "default": "existing"
@@ -7863,7 +7944,7 @@
     "EvidenceSourceRef": {
       "properties": {
         "component": {
-          "$ref": "#/components/schemas/Component5b1Enum"
+          "$ref": "#/components/schemas/Component8d3Enum"
         },
         "id": {
           "format": "uuid",
@@ -7896,7 +7977,7 @@
           "type": "string"
         },
         "component": {
-          "$ref": "#/components/schemas/Component5b1Enum"
+          "$ref": "#/components/schemas/Component8d3Enum"
         },
         "currency": {
           "type": "string"
@@ -8020,7 +8101,7 @@
           "type": "string"
         },
         "direction": {
-          "$ref": "#/components/schemas/Direction864Enum"
+          "$ref": "#/components/schemas/Direction41eEnum"
         },
         "profile": {
           "$ref": "#/components/schemas/ProfileEnum"
@@ -8356,7 +8437,7 @@
           "type": "boolean"
         },
         "balance_source": {
-          "$ref": "#/components/schemas/PairDecisionBalanceSourceEnum"
+          "$ref": "#/components/schemas/BalanceSourceEnum"
         },
         "competing_source_tokens": {
           "items": {
@@ -8418,14 +8499,6 @@
         "statement_version"
       ],
       "type": "object"
-    },
-    "PairDecisionBalanceSourceEnum": {
-      "enum": [
-        "sms",
-        "statement",
-        "existing"
-      ],
-      "type": "string"
     },
     "PairDetail": {
       "properties": {
@@ -8629,7 +8702,7 @@
         "provider": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/Provider3b4Enum"
+              "$ref": "#/components/schemas/Provider555Enum"
             }
           ],
           "readOnly": true
@@ -8832,7 +8905,7 @@
           "type": "string"
         },
         "direction": {
-          "$ref": "#/components/schemas/Direction864Enum"
+          "$ref": "#/components/schemas/Direction41eEnum"
         },
         "distinct_statement_rows": {
           "items": {
@@ -8885,7 +8958,7 @@
           "type": "string"
         },
         "type": {
-          "$ref": "#/components/schemas/TypeAc6Enum"
+          "$ref": "#/components/schemas/TypeE1cEnum"
         }
       },
       "type": "object"
@@ -9266,7 +9339,7 @@
           "type": "string"
         },
         "provider": {
-          "$ref": "#/components/schemas/Provider6c1Enum"
+          "$ref": "#/components/schemas/Provider566Enum"
         },
         "updated_at": {
           "format": "date-time",
@@ -9451,7 +9524,7 @@
           "type": "integer"
         },
         "provider": {
-          "$ref": "#/components/schemas/Provider3b4Enum"
+          "$ref": "#/components/schemas/Provider555Enum"
         },
         "sender": {
           "maxLength": 120,
@@ -9520,7 +9593,7 @@
           "type": "string"
         },
         "direction": {
-          "$ref": "#/components/schemas/Direction864Enum"
+          "$ref": "#/components/schemas/Direction41eEnum"
         },
         "note": {
           "maxLength": 4000,
@@ -9541,7 +9614,7 @@
           "type": "string"
         },
         "type": {
-          "$ref": "#/components/schemas/TypeAc6Enum"
+          "$ref": "#/components/schemas/TypeE1cEnum"
         },
         "value_date": {
           "format": "date",
@@ -9612,7 +9685,7 @@
           "type": "string"
         },
         "direction": {
-          "$ref": "#/components/schemas/Direction864Enum"
+          "$ref": "#/components/schemas/Direction41eEnum"
         },
         "external_key": {
           "maxLength": 180,
@@ -9666,7 +9739,7 @@
           "type": "string"
         },
         "source": {
-          "$ref": "#/components/schemas/Source82aEnum"
+          "$ref": "#/components/schemas/Source116Enum"
         },
         "statement_evidence_count": {
           "readOnly": true,
@@ -9690,7 +9763,7 @@
           "type": "array"
         },
         "type": {
-          "$ref": "#/components/schemas/TypeAc6Enum"
+          "$ref": "#/components/schemas/TypeE1cEnum"
         },
         "undo_action": {
           "allOf": [
@@ -9776,7 +9849,7 @@
           "type": "string"
         },
         "provider": {
-          "$ref": "#/components/schemas/Provider6c1Enum"
+          "$ref": "#/components/schemas/Provider566Enum"
         },
         "updated_at": {
           "format": "date-time",
@@ -9897,7 +9970,7 @@
       ],
       "type": "string"
     },
-    "Provider3b4Enum": {
+    "Provider555Enum": {
       "enum": [
         "bkash",
         "nagad",
@@ -9911,7 +9984,7 @@
       ],
       "type": "string"
     },
-    "Provider6c1Enum": {
+    "Provider566Enum": {
       "enum": [
         "cash",
         "bkash",
@@ -10122,7 +10195,7 @@
         "provider": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/Provider3b4Enum"
+              "$ref": "#/components/schemas/Provider555Enum"
             }
           ],
           "readOnly": true
@@ -10144,7 +10217,7 @@
         "status": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/Status1c5Enum"
+              "$ref": "#/components/schemas/StatusB6bEnum"
             }
           ],
           "readOnly": true
@@ -10754,7 +10827,7 @@
         "direction": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/Direction864Enum"
+              "$ref": "#/components/schemas/Direction41eEnum"
             }
           ],
           "readOnly": true
@@ -10825,7 +10898,7 @@
         "type": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/TypeAc6Enum"
+              "$ref": "#/components/schemas/TypeE1cEnum"
             }
           ],
           "readOnly": true
@@ -10942,7 +11015,7 @@
           "type": "integer"
         },
         "provider": {
-          "$ref": "#/components/schemas/Provider3b4Enum"
+          "$ref": "#/components/schemas/Provider555Enum"
         },
         "sender": {
           "maxLength": 120,
@@ -11296,21 +11369,21 @@
       ],
       "type": "object"
     },
-    "Source6ccEnum": {
-      "enum": [
-        "existing",
-        "sms",
-        "statement"
-      ],
-      "type": "string"
-    },
-    "Source82aEnum": {
+    "Source116Enum": {
       "enum": [
         "web",
         "mobile",
         "sms",
         "import",
         "system"
+      ],
+      "type": "string"
+    },
+    "Source6ccEnum": {
+      "enum": [
+        "existing",
+        "sms",
+        "statement"
       ],
       "type": "string"
     },
@@ -12148,7 +12221,7 @@
           "type": "string"
         },
         "direction": {
-          "$ref": "#/components/schemas/Direction769Enum"
+          "$ref": "#/components/schemas/Direction61cEnum"
         },
         "id": {
           "format": "uuid",
@@ -12610,7 +12683,7 @@
           "type": "string"
         },
         "direction": {
-          "$ref": "#/components/schemas/Direction769Enum"
+          "$ref": "#/components/schemas/Direction61cEnum"
         },
         "id": {
           "type": "string"
@@ -12721,7 +12794,7 @@
           "type": "string"
         },
         "direction": {
-          "$ref": "#/components/schemas/Direction864Enum"
+          "$ref": "#/components/schemas/Direction41eEnum"
         },
         "note": {
           "maxLength": 4000,
@@ -12742,7 +12815,7 @@
           "type": "string"
         },
         "type": {
-          "$ref": "#/components/schemas/TypeAc6Enum"
+          "$ref": "#/components/schemas/TypeE1cEnum"
         },
         "value_date": {
           "format": "date",
@@ -12822,7 +12895,7 @@
           "type": "boolean"
         },
         "direction": {
-          "$ref": "#/components/schemas/Direction769Enum"
+          "$ref": "#/components/schemas/Direction61cEnum"
         },
         "version": {
           "minimum": 1,
@@ -12944,7 +13017,7 @@
       ],
       "type": "object"
     },
-    "Status1c5Enum": {
+    "StatusB6bEnum": {
       "enum": [
         "imported",
         "duplicate",
@@ -13109,7 +13182,7 @@
           "type": "string"
         },
         "direction": {
-          "$ref": "#/components/schemas/Direction864Enum"
+          "$ref": "#/components/schemas/Direction41eEnum"
         },
         "external_key": {
           "maxLength": 180,
@@ -13163,7 +13236,7 @@
           "type": "string"
         },
         "source": {
-          "$ref": "#/components/schemas/Source82aEnum"
+          "$ref": "#/components/schemas/Source116Enum"
         },
         "statement_evidence_count": {
           "readOnly": true,
@@ -13187,7 +13260,7 @@
           "type": "array"
         },
         "type": {
-          "$ref": "#/components/schemas/TypeAc6Enum"
+          "$ref": "#/components/schemas/TypeE1cEnum"
         },
         "undo_action": {
           "allOf": [
@@ -13287,6 +13360,71 @@
         "count",
         "next_offset",
         "results"
+      ],
+      "type": "object"
+    },
+    "TransactionCurrencyTotals": {
+      "properties": {
+        "currency": {
+          "type": "string"
+        },
+        "financingIn": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,18}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "financingOut": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,18}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "income": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,18}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "moneyIn": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,18}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "moneyOut": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,18}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "net": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,18}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "refunds": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,18}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "spending": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,18}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "transfers": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,18}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "currency",
+        "financingIn",
+        "financingOut",
+        "income",
+        "moneyIn",
+        "moneyOut",
+        "net",
+        "refunds",
+        "spending",
+        "transfers"
       ],
       "type": "object"
     },
@@ -13420,7 +13558,7 @@
         "status": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/Status1c5Enum"
+              "$ref": "#/components/schemas/StatusB6bEnum"
             }
           ],
           "readOnly": true
@@ -13434,6 +13572,20 @@
         "redacted_at",
         "sender",
         "status"
+      ],
+      "type": "object"
+    },
+    "TransactionTotals": {
+      "properties": {
+        "currencies": {
+          "items": {
+            "$ref": "#/components/schemas/TransactionCurrencyTotals"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "currencies"
       ],
       "type": "object"
     },
@@ -13505,7 +13657,7 @@
         "direction": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/Direction864Enum"
+              "$ref": "#/components/schemas/Direction41eEnum"
             }
           ],
           "readOnly": true
@@ -13547,7 +13699,7 @@
         "source": {
           "allOf": [
             {
-              "$ref": "#/components/schemas/Source82aEnum"
+              "$ref": "#/components/schemas/Source116Enum"
             }
           ],
           "readOnly": true
@@ -13723,7 +13875,15 @@
       ],
       "type": "string"
     },
-    "TypeAc6Enum": {
+    "TypeChoiceEnum": {
+      "enum": [
+        "statement",
+        "sms",
+        "custom"
+      ],
+      "type": "string"
+    },
+    "TypeE1cEnum": {
       "enum": [
         "expense",
         "income",
@@ -13735,14 +13895,6 @@
         "borrow",
         "repayment_received",
         "repayment_paid"
-      ],
-      "type": "string"
-    },
-    "TypeChoiceEnum": {
-      "enum": [
-        "statement",
-        "sms",
-        "custom"
       ],
       "type": "string"
     },

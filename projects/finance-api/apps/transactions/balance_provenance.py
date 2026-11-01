@@ -9,11 +9,11 @@ LIMIT = 20
 
 
 def sms_queryset(user):
-    return ParsedMessageCandidate.objects.filter(user=user, status='confirmed', raw_message__user=user).select_related('account', 'destination_account', 'raw_message').defer('raw_message__body').order_by('pk')
+    return ParsedMessageCandidate.objects.filter(user=user, status='confirmed', raw_message__user=user).select_related('account', 'destination_account', 'raw_message').defer('raw_message__body', 'account__logo', 'destination_account__logo').order_by('pk')
 
 
 def statement_queryset(user):
-    return StatementRow.objects.filter(batch__user=user, state__in=['posted', 'linked']).select_related('batch__account').order_by('pk')
+    return StatementRow.objects.filter(batch__user=user, state__in=['posted', 'linked']).select_related('batch__account').defer('batch__account__logo').order_by('pk')
 
 
 def safe_date(value):

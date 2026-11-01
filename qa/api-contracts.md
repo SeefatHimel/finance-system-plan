@@ -965,3 +965,25 @@ an explicit completeness flag. Source account/currency/direction and reported vs
 receipt time remain separate. It carries no raw SMS/PDF, never writes money, and
 is not a parser rerun or a count of independent sources. No migration is needed;
 API deployment precedes the tolerant web client.
+
+## Why are transaction pages and totals separate responses?
+
+Rows are bounded to 100 while totals describe every match, so paging cannot change
+the financial summary. The activity envelope includes count/results/next_offset;
+legacy arrays expose count/next-offset headers. Totals are decimal strings grouped
+by currency and explicitly define refunds, financing and transfer perspective.
+The updated published contract and generated client include both responses.
+The generated backend snapshot gate detects schema changes; it does not prove all
+manually curated contract definitions equivalent to runtime behavior.
+
+## Did the SQL reporting refactor change public financial payloads?
+
+It preserves the spending-v2 fields and Decimal/source/account semantics.
+Account groups now have deterministic name/ID order. Generated request-ID and
+Server-Timing response headers are optional diagnostic metadata. Operator audit,
+fixture, constraint-validation and benchmark commands are not public endpoints.
+Existing schema validation and snapshot checks continue to guard API drift.
+
+The concurrency follow-up changes SQL statement boundaries, not endpoint fields:
+current/previous report sections share a snapshot, and JSON projections keep money
+as decimal strings. Existing report/account payloads and owner checks remain.

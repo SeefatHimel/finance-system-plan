@@ -83,7 +83,7 @@ class MonthlyReportView(APIView):
             inclusive_end = end - timedelta(days=1)
         from django.shortcuts import get_object_or_404
         from apps.accounts.models import Account
-        from .summary import period_summary
+        from .summary import period_summaries
 
         currency = request.query_params.get("currency", "BDT").upper()
         if not re.fullmatch(r"[A-Z]{3}", currency):
@@ -96,14 +96,16 @@ class MonthlyReportView(APIView):
             except (ValueError, DjangoValidationError) as exc:
                 raise ValidationError({"account": "Choose one of your accounts."}) from exc
             currency = account.currency
-        report = period_summary(user=request.user, start=start, end=inclusive_end, currency=currency, account=account)
         duration = inclusive_end - start + timedelta(days=1)
         if start.toordinal() <= duration.days:
             raise ValidationError({"start_date": "Choose a date with a complete preceding comparison period."})
         previous_end = start - timedelta(days=1)
         _, next_month, _ = month_bounds(start.strftime("%Y-%m"))
         previous_start = previous_end.replace(day=1) if start.day == 1 and inclusive_end == next_month-timedelta(days=1) else start-duration
-        previous = period_summary(user=request.user, start=previous_start, end=previous_end, currency=currency, account=account)
+        report, previous = period_summaries(
+            user=request.user, periods=[(start, inclusive_end), (previous_start, previous_end)],
+            currency=currency, account=account,
+        )
         previous_categories = {item["id"]: item["amount"] for item in previous["categories"]}
         for item in report["categories"]:
             item["previous_amount"] = previous_categories.get(item["id"], "0.00")
