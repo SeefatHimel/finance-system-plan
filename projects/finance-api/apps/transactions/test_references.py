@@ -155,7 +155,8 @@ class ReferenceReuseTests(APITestCase):
         self.b.currency = "USD"
         self.b.save()
         matches = self.client.post(reverse("transaction-transfer-matches"), {"draft": self.draft()}, format="json")
-        self.assertEqual(matches.data, [])
+        self.assertEqual(matches.status_code, 400)
+        self.assertIn("transfer_account", matches.data)
         self.assertEqual(self.link(match_transaction=str(record["id"]), draft=self.draft()).status_code, 400)
 
     def test_matching_reference_is_supporting_evidence_without_auto_linking(self):

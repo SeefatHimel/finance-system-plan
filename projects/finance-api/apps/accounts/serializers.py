@@ -1,4 +1,6 @@
 from django.db import transaction
+from django.db.models import Q
+import re
 from rest_framework import serializers
 
 from apps.payment_methods.models import PaymentMethod
@@ -56,6 +58,16 @@ class AccountSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, attrs):
+        if self.instance and attrs.get("currency", self.instance.currency) != self.instance.currency:
+            from apps.transactions.models import Transaction
+            from apps.statements.models import StatementImport
+            from apps.reconciliation.models import BalanceSnapshot
+            from apps.credit_cards.models import CreditCardBill
+            if (Transaction.objects.filter(Q(account=self.instance) | Q(transfer_account=self.instance)).exists()
+                or StatementImport.objects.filter(account=self.instance).exists()
+                or BalanceSnapshot.objects.filter(account=self.instance).exists()
+                or CreditCardBill.objects.filter(account=self.instance).exists()):
+                raise serializers.ValidationError({"currency": "This account has financial history. Create a separate account in the new currency; changing this field would relabel existing amounts without conversion."})
         identity = attrs.get("identity_method", serializers.empty)
         if identity is not serializers.empty and identity is not None:
             method = self.instance.identity_method if self.instance else None
@@ -81,6 +93,12 @@ class AccountSerializer(serializers.ModelSerializer):
                     }
                 )
         return attrs
+
+    def validate_currency(self, value):
+        value = value.upper()
+        if not re.fullmatch(r"[A-Z]{3}", value):
+            raise serializers.ValidationError("Use a three-letter currency code.")
+        return value
 
     def _save_identity(self, account, values):
         if values is serializers.empty:
@@ -118,7 +136,11 @@ class AccountSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def update(self, instance, validated_data):
         # Serialize concurrent profile creation/update for this account.
+        from apps.transactions.transfers import lock_transfer_user
+        lock_transfer_user(self.context["request"].user)
         instance = Account.objects.select_for_update().get(pk=instance.pk)
+        self.instance = instance
+        validated_data = self.validate(validated_data)
         identity = validated_data.pop("identity_method", serializers.empty)
         account = super().update(instance, validated_data)
         self._save_identity(account, identity)

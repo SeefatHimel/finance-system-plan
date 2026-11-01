@@ -2,14 +2,14 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
-from apps.transactions.payments import LedgerPaymentSerializer, PAYMENT_FIELDS, record_payment
+from apps.transactions.payments import LedgerPaymentSerializer, LockedPlanningUpdateMixin, PAYMENT_FIELDS, record_payment
 
 from apps.accounts.models import Account
 
 from .models import CreditCardBill, CreditCardPayment
 
 
-class CreditCardBillSerializer(serializers.ModelSerializer):
+class CreditCardBillSerializer(LockedPlanningUpdateMixin, serializers.ModelSerializer):
     class Meta:
         model = CreditCardBill
         fields = (
@@ -50,6 +50,8 @@ class CreditCardBillSerializer(serializers.ModelSerializer):
         return statement_transaction
 
     def validate(self, attrs):
+        if self.instance and "account" in attrs and attrs["account"].pk != self.instance.account_id and self.instance.payments.exists():
+            raise serializers.ValidationError({"account": "Unlink payments before changing the card account."})
         statement_balance = attrs.get("statement_balance", getattr(self.instance, "statement_balance", None))
         minimum_due = attrs.get("minimum_due", getattr(self.instance, "minimum_due", Decimal("0.00")))
         statement_date = attrs.get("statement_date", getattr(self.instance, "statement_date", None))
@@ -73,8 +75,8 @@ class CreditCardBillSerializer(serializers.ModelSerializer):
             user=self.context["request"].user,
         )
 
-    def update(self, instance, validated_data):
-        instance = super().update(instance, validated_data)
+    def update_locked(self, instance, validated_data):
+        instance = super().update_locked(instance, validated_data)
         instance.remaining_balance = (instance.statement_balance - instance.paid_amount).quantize(Decimal("0.01"))
         if instance.remaining_balance == Decimal("0.00"):
             instance.status = CreditCardBill.Status.PAID

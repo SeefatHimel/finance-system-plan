@@ -562,6 +562,9 @@ class TransactionSerializer(serializers.ModelSerializer):
         return raw_message
 
     def validate(self, attrs):
+        amount = attrs.get("amount", getattr(self.instance, "amount", None))
+        if amount is not None and amount <= 0:
+            raise serializers.ValidationError({"amount": "A ledger amount must be positive. Review and correct this historical entry before saving."})
         if self.instance:
             from .payments import has_payments
             protected = ("account", "transfer_account", "amount", "date", "type", "direction", "external_key")
@@ -626,6 +629,9 @@ class TransactionSerializer(serializers.ModelSerializer):
                 }
             )
 
+        if transaction_type == Transaction.Type.TRANSFER and account and transfer_account and account.currency != transfer_account.currency:
+            raise serializers.ValidationError({"transfer_account": "Choose an account in the same currency. Cross-currency transfers require separate source and destination amounts and are not supported yet."})
+
         payment_method = attrs.get(
             "payment_method", getattr(self.instance, "payment_method", None)
         )
@@ -644,6 +650,14 @@ class TransactionSerializer(serializers.ModelSerializer):
             attrs["direction"] = Transaction.default_direction_for_type(
                 transaction_type
             )
+
+        if transaction_type not in {Transaction.Type.TRANSFER, Transaction.Type.ADJUSTMENT} and (
+            self.instance is None or "type" in attrs or "direction" in attrs
+        ):
+            direction = attrs.get("direction", getattr(self.instance, "direction", None))
+            expected = Transaction.default_direction_for_type(transaction_type)
+            if direction != expected:
+                raise serializers.ValidationError({"direction": f"{transaction_type.replace('_', ' ').capitalize()} must be recorded as {expected}. Choose a compatible type after checking the original evidence."})
 
         if self.instance and transaction_type == Transaction.Type.TRANSFER:
             attrs["direction"] = Transaction.Direction.DEBIT

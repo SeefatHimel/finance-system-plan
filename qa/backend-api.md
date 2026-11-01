@@ -1448,3 +1448,22 @@ clearing incompatible payment-method/destination references. Ledger amount and
 balance, original SMS text and captured numeric values remain unchanged. Unlink
 returns the candidate to pending review and preserves the single-account ledger
 balance. Both paths use atomic locks, stale-preview rejection, audit and Undo.
+
+## How do updates avoid overwriting payments with stale totals?
+
+Planning edits and payment writes acquire the user lock before the parent lock,
+reload and revalidate inside one transaction. Card remaining balance uses the
+current paid amount; debt remaining balance is principal minus saved repayments.
+A note edit cannot reset those values. Invalid principal/direction/account changes
+are rejected. Ledger type/direction and same-currency invariants are validated at
+the API boundary; existing historical contradictions remain visible for review.
+
+## How do database checks protect new writes without changing historical data?
+
+PostgreSQL receives positive-amount and distinct-account checks as NOT VALID.
+New/updated rows must comply immediately, but installing the migration does not
+rewrite or scan historical rows. A read-only audit reports overlapping issue
+counts without financial values. An operator reviews the global result before
+explicit, time-bounded constraint validation. Tests verify legacy exceptions
+survive migration while invalid new writes fail. Semantic source mismatches still
+require the review workflow; these constraints do not prove all financial facts.

@@ -216,6 +216,13 @@ class TransactionViewSet(ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = (IsAuthenticated,)
 
+    @db_transaction.atomic
+    def create(self, request, *args, **kwargs):
+        # Validate account currency/ownership while holding the same writer lock
+        # as account currency corrections, not only after serializer validation.
+        lock_transfer_user(request.user)
+        return super().create(request, *args, **kwargs)
+
     @extend_schema(operation_id="transactions_refresh_evidence_directions", request=TransactionIssueQuery, responses=EvidenceDirectionRefreshPageSerializer)
     @action(detail=False, methods=("post",), url_path="refresh-evidence-directions")
     def refresh_evidence_directions(self, request):

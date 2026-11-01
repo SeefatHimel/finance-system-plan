@@ -1,13 +1,15 @@
+from django.db.models import Sum
+from decimal import Decimal
 from rest_framework import serializers
 
-from apps.transactions.payments import LedgerPaymentSerializer, PAYMENT_FIELDS, record_payment
+from apps.transactions.payments import LedgerPaymentSerializer, LockedPlanningUpdateMixin, PAYMENT_FIELDS, record_payment
 
 from apps.transactions.models import Transaction
 
 from .models import Debt, DebtPayment
 
 
-class DebtSerializer(serializers.ModelSerializer):
+class DebtSerializer(LockedPlanningUpdateMixin, serializers.ModelSerializer):
     class Meta:
         model = Debt
         fields = (
@@ -38,6 +40,25 @@ class DebtSerializer(serializers.ModelSerializer):
             status=Debt.Status.OPEN,
             user=self.context["request"].user,
         )
+
+    def validate(self, attrs):
+        if self.instance:
+            paid = self.instance.payments.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+            principal = attrs.get("principal_amount", self.instance.principal_amount)
+            if principal < paid:
+                raise serializers.ValidationError({"principal_amount": "Principal cannot be less than recorded repayments. Unlink an incorrect payment first."})
+            if paid and attrs.get("direction", self.instance.direction) != self.instance.direction:
+                raise serializers.ValidationError({"direction": "Unlink repayments before changing the debt direction."})
+        return attrs
+
+    def update_locked(self, instance, validated_data):
+        paid = instance.payments.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        instance = super().update_locked(instance, validated_data)
+        instance.current_balance = instance.principal_amount - paid
+        if instance.status != Debt.Status.WRITTEN_OFF:
+            instance.status = Debt.Status.PAID if instance.current_balance == 0 else Debt.Status.PARTIALLY_PAID if paid else Debt.Status.OPEN
+        instance.save(update_fields=("current_balance", "status", "updated_at"))
+        return instance
 
 
 class DebtPaymentSerializer(LedgerPaymentSerializer):
