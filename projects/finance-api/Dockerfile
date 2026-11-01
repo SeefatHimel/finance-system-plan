@@ -5,7 +5,7 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-COPY requirements.txt requirements-dev.txt ./
+COPY requirements.txt requirements-dev.txt requirements-tooling.txt requirements-constraints.txt ./
 RUN python -m pip install --no-cache-dir -r requirements-dev.txt
 
 COPY . .

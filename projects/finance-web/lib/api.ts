@@ -419,7 +419,7 @@ const accountReconciliationSchema = z.object({
   latest_snapshot: balanceSnapshotSchema.nullable()
 });
 
-const auditSnapshotSchema = z.record(z.unknown()).nullable();
+const auditSnapshotSchema = z.record(z.string(), z.unknown()).nullable();
 
 const auditLogEntrySchema = z.object({
   action: z.string(),
@@ -429,7 +429,7 @@ const auditLogEntrySchema = z.object({
   entity_id: z.string(),
   entity_type: z.string(),
   id: z.string(),
-  metadata: z.record(z.unknown())
+  metadata: z.record(z.string(), z.unknown())
 });
 
 const paginatedSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
@@ -631,7 +631,8 @@ export async function getHealthStatus(): Promise<HealthStatus> {
 
   try {
     const response = await fetch(`${apiBaseUrl}/api/health/`, {
-      cache: "no-store"
+      cache: "no-store",
+      signal: AbortSignal.timeout(5_000)
     });
 
     if (!response.ok) {
@@ -1282,6 +1283,19 @@ export async function listTransactions(
   return collectionSchema(transactionSchema).parse(await response.json());
 }
 
+/** Table pagination never downloads the full filtered history. */
+export async function listTransactionPage(token: string, filters: TransactionFilters, page: number, size: number, signal?: AbortSignal) {
+  const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => Boolean(value)) as [string, string][]);
+  params.set("limit", String(size)); params.set("offset", String((page - 1) * size));
+  const response = await authenticatedFetch(`/api/transactions/activity/?${params}`, token, { signal });
+  return z.object({ count: z.number(), results: z.array(transactionSchema), next_offset: z.number().nullable() }).parse(await response.json());
+}
+export async function getTransactionTotals(token: string, filters: TransactionFilters, signal?: AbortSignal) {
+  const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => Boolean(value)) as [string, string][]);
+  const response = await authenticatedFetch(`/api/transactions/totals/?${params}`, token, { signal });
+  return z.object({ currencies: z.array(z.object({ currency: z.string(), income: z.string(), spending: z.string(), refunds: z.string(), financingIn: z.string(), financingOut: z.string(), moneyIn: z.string(), moneyOut: z.string(), transfers: z.string(), net: z.string() })) }).parse(await response.json()).currencies;
+}
+
 /** Fetch one bounded page for date-windowed views. Transfers appear once in this feed. */
 export async function listTransactionActivityPage(
   accessToken: string,
@@ -1811,8 +1825,8 @@ export async function listTransactionStatementEvidence(token: string, id: string
 }
 
 const statementSummarySchema = z.object({
-  totals: z.record(z.object({ debit: z.string(), credit: z.string() })),
-  dispositions: z.record(z.object({ count: z.number(), debit: z.string(), credit: z.string() })),
+  totals: z.record(z.string(), z.object({ debit: z.string(), credit: z.string() })),
+  dispositions: z.record(z.string(), z.object({ count: z.number(), debit: z.string(), credit: z.string() })),
   source_net: z.string().nullable(), draft_net: z.string().nullable(), opening_is_derived: z.boolean(),
   checks: statementPreviewSchema.shape.checks, discrepancy_count: z.number(), incomplete_count: z.number(), remaining_count: z.number()
 });
@@ -1861,7 +1875,7 @@ export async function reviewSelectedStatementRows(token: string, id: string, row
 }
 
 const statementComparisonSchema = z.object({
-  counts: z.record(z.number()), period_start: z.string().nullable(), period_end: z.string().nullable(),
+  counts: z.record(z.string(), z.number()), period_start: z.string().nullable(), period_end: z.string().nullable(),
   ledger_only_available: z.boolean(), complete: z.boolean(), warnings: z.array(z.string()), count: z.number(), offset: z.number(), limit: z.number(),
   results: z.array(z.object({ id: z.string(), date: z.string(), time: z.string().nullable(), direction: z.string(),
     amount: z.string(), balance_after: z.string().nullable(), description: z.string(), source: z.string() }))
@@ -2010,8 +2024,8 @@ export async function saveTimelineOrder(token: string, preview: TimelineOrderPre
 const timelineBalanceSchema = z.object({
   principal: z.string(), account: z.string(), date: z.string(), currency: z.string(),
   status: z.enum(["suggested", "confirmed", "stale"]), fingerprint: z.string(), revision: z.number(),
-  anchor_balance: z.string(), reported_final: z.string(), balances: z.record(z.string()),
-  ordered_ids: z.array(z.string()), amounts: z.record(z.string()),
+  anchor_balance: z.string(), reported_final: z.string(), balances: z.record(z.string(), z.string()),
+  ordered_ids: z.array(z.string()), amounts: z.record(z.string(), z.string()),
 });
 export type TimelineBalanceAllocation = z.infer<typeof timelineBalanceSchema>;
 export async function getTimelineBalances(token: string, start: string, end: string, signal?: AbortSignal) {

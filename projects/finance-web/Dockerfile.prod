@@ -14,6 +14,7 @@ WORKDIR /workspace/projects/finance-web
 COPY --from=build /workspace/projects/finance-web/package.json /workspace/projects/finance-web/package-lock.json ./
 COPY --from=build /workspace/projects/finance-web/node_modules ./node_modules
 COPY --chown=node:node --from=build /workspace/projects/finance-web/.next ./.next
+COPY --from=build /workspace/projects/finance-web/public ./public
 COPY --from=build /workspace/projects/finance-web/next.config.mjs ./next.config.mjs
 USER node
 EXPOSE 3000

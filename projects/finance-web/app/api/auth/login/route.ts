@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
   try {
     const credentials = loginRequestSchema.parse(await request.json());
-    const tokens = await backendLogin(credentials.username, credentials.password);
+    const tokens = await backendLogin(credentials.username, credentials.password, request);
     const response = NextResponse.json({
       user: await backendCurrentUser(tokens.access)
     });

@@ -58,7 +58,9 @@ Implementation notes:
 - Concurrent web requests within one Next.js process share a refresh operation
   for its full pending lifetime and reuse success for five seconds after completion.
   Refresh/current-user reads have 20-second upstream timeouts. This is not a
-  distributed rotation coordinator.
+  distributed rotation coordinator by itself. The API now serializes refreshes
+  per user and provides an encrypted five-second retry result only to an HMAC-
+  authenticated web proxy. Ordinary bearer/mobile refresh remains single-use.
 - Cookie-authenticated mutations require a same-origin request, and production
   auth cookies use `SameSite=Strict`.
 - Never expose refresh tokens to browser JavaScript.
@@ -212,9 +214,10 @@ flight and retry a 401 once after 250 ms; a received cross-tab expiry is not
 rebroadcast. Actual rejection still returns to login, and explicit cross-tab
 sign-out remains immediate. Temporary failures keep an already verified workspace.
 
-JWT lifetimes and backend rotation/blacklisting are unchanged. This focused web
-correction does not add a cross-worker session store, token-family revocation or
-a grace window accepting blacklisted refresh tokens. Cookie-response ordering
-across separate deployments/workers and real password-manager profiles require
-live validation if symptoms persist. Unit tests and production-mode synthetic
-browser checks cover the supported local flows without real credentials.
+JWT lifetimes and backend rotation/blacklisting are unchanged. The architecture
+review adds a database-backed, encrypted five-second refresh receipt for signed
+web proxy retries across workers. It does not provide general token-family
+revocation or allow public/mobile reuse of consumed refresh tokens. Logout checks
+the successor before invalidating a receipt; all-session logout clears receipts.
+The shared proxy secret must match on API and web. Password-manager profiles and
+cookie-response ordering across real deployments still require operational QA.

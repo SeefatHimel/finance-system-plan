@@ -10,12 +10,10 @@ import {
 } from "@/lib/server-auth";
 
 type RouteContext = {
-  params: {
-    path: string[];
-  };
+  params: Promise<{ path: string[] }>;
 };
 
-const forwardedResponseHeaders = ["content-type", "content-disposition", "cache-control"];
+const forwardedResponseHeaders = ["content-type", "content-disposition", "x-total-count", "x-next-offset", "retry-after", "x-request-id", "server-timing"];
 
 async function proxyBackendRequest(request: NextRequest, context: RouteContext) {
   if (!["GET", "HEAD"].includes(request.method) && !isSameOriginRequest(request)) {
@@ -26,15 +24,16 @@ async function proxyBackendRequest(request: NextRequest, context: RouteContext) 
   try {
     const session = await getCookieBackedAccessToken();
     rotatedTokens = session.rotatedTokens;
-    const isStatementUpload = ["api/statements/preview", "api/statements/imports"].includes(context.params.path.join("/")) && request.method === "POST";
+    const { path } = await context.params;
+    const isStatementUpload = ["api/statements/preview", "api/statements/imports"].includes(path.join("/")) && request.method === "POST";
     const requestBody = request.method === "GET" || request.method === "HEAD" ? undefined
       : isStatementUpload ? await readStatementBody(request) : await request.arrayBuffer();
-    const response = await fetchBackend(request, context.params.path, session.accessToken, requestBody);
+    const response = await fetchBackend(request, path, session.accessToken, requestBody);
 
     if (response.status === 401) {
       const refreshedSession = await refreshCookieBackedAccessToken();
       rotatedTokens = refreshedSession.rotatedTokens;
-      const retryResponse = await fetchBackend(request, context.params.path, refreshedSession.accessToken, requestBody);
+      const retryResponse = await fetchBackend(request, path, refreshedSession.accessToken, requestBody);
       return await buildProxyResponse(retryResponse, refreshedSession.rotatedTokens);
     }
 
@@ -108,7 +107,11 @@ async function fetchBackend(
     body,
     cache: "no-store",
     headers,
-    method: request.method
+    method: request.method,
+    signal: AbortSignal.any([
+      request.signal,
+      AbortSignal.timeout(request.method === "GET" || request.method === "HEAD" ? 30_000 : 120_000),
+    ].filter((signal): signal is AbortSignal => Boolean(signal)))
   });
 }
 
@@ -116,11 +119,11 @@ async function buildProxyResponse(response: Response, rotatedTokens: { access: s
   // A 204 response means the mutation succeeded. Response constructors reject
   // even an empty ArrayBuffer body for bodyless statuses.
   const body = [204, 205, 304].includes(response.status) ? null : await response.arrayBuffer();
-  const headers = new Headers();
+  const headers = new Headers({ "Cache-Control": "private, no-store" });
 
   forwardedResponseHeaders.forEach((headerName) => {
     const value = response.headers.get(headerName);
-    if (value) {
+    if (value !== null) {
       headers.set(headerName, value);
     }
   });
