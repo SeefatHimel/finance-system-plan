@@ -870,3 +870,11 @@ transfer rows scannable with text labels as well as color. Debts & lending keeps
 owed-to-you and you-owe totals separate; name search filters loaded records only.
 Release 0.1.15/code 16 changes presentation and needs no API migration. Physical
 device layout and SMS capture still require the signed-release smoke test.
+
+## What prevents an offline expense being recorded twice after a lost response?
+
+Its persisted queue ID determines the external key before every send. All manual
+entry types use it; old transfer keys and explicit keys remain unchanged. The API
+serializes keyed creation and reuses the same movement for identical retries,
+rejecting different details. The correction needs an app rebuild, and does not
+silently remove old duplicates. CI now runs native SMS tests and Android compilation.
