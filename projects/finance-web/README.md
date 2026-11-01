@@ -1658,10 +1658,12 @@ and the production ban on JavaScript token storage are unchanged.
 
 `npm run test:auth` now covers pending/completed refresh deduplication, rotated
 cookie preservation, browser verification and explicit logout. Server deduplication
-remains process-local; this change does not introduce a distributed refresh cache
-or a grace period accepting blacklisted tokens. Production multi-instance races,
-actual credential-manager profiles and backend revocations need deployment/browser
-validation if symptoms persist. No backend migration or APK rebuild is required.
+remains process-local as an optimization. The subsequent architecture review adds
+an encrypted five-second API retry receipt for signed web proxies across workers.
+Public/mobile refreshes remain single-use. Deploy the users migration and matching
+private proxy secrets on API/web; configure a trusted ingress client-IP header.
+Actual credential-manager profiles and multi-host cookie ordering still need
+deployment/browser validation. No APK rebuild is needed for the web auth change.
 
 ### Compact statement draft editor
 
@@ -2007,3 +2009,44 @@ Deploy API before web; no migration, parser refresh or re-import is needed. Tap,
 hover or focus a badge to inspect source values and timing limitations; Escape
 closes its explanation before the editor. Accessible labels name each check. Verify
 with `node --test tests/balance-source-badges.test.cjs`.
+
+## Architecture review: bounded transactions and shared auth
+
+The table fetches only the selected activity page (25/50/100 rows), keeps filters
+and page in the URL, and corrects a page made invalid by a deletion. Full filtered
+currency totals come from the API, independent of the visible page. Existing rows
+remain visible during refresh and canceled responses cannot replace newer data.
+
+The app now uses Next.js 15.5 and Zod 4; cookies, route params and server page
+search params use the async APIs. Production proxy login requires the private
+`FINANCE_PROXY_AUTH_SECRET` shared with the API and a trusted overwritten client-IP
+header. Vercel supplies its trusted header by default. Deploy the users migration
+and API first. See [remediation and QA](../../docs/architecture-review-remediation.md).
+
+### Second review: targeted refresh and request lifetime
+
+Quick-add relies on existing financial update events instead of additionally
+refreshing the Next route. Timeline account loads are canceled on replacement and
+unmount and cannot overwrite a newer refresh. The proxy passes cancellation,
+limits reads to 30 seconds/writes to 120 seconds, preserves pagination/retry
+headers and enforces private no-store responses. A canceled write is not proof of
+rollback. Dashboard health checks time out after 5 seconds with a streamed loading
+state. Browser tests cover quick-add page/filter retention without a route refresh
+and delayed timeline responses; see the second-review remediation notes.
+
+## Browser quality gate
+
+`npm run test:e2e` uses Playwright against a separately started production build
+and disposable synthetic API. It checks pagination/filter retention, editor
+cancel, quick-add without duplicate route refresh, stale timeline responses,
+focus/Escape and axe WCAG A/AA checks at desktop/mobile widths in both themes.
+It uses new browser contexts, never an existing signed-in user profile. See
+[local setup](../../docs/local-setup.md#quality-checks-and-synthetic-browser-workspace)
+for fixture credentials, ports and Chromium installation. Hosted CI starts this
+workspace automatically and keeps failure traces for seven days.
+
+Transaction reads are extracted to `lib/transaction-data.ts`; the workspace keeps
+session/request ownership. No global private cache is added. Row menus remain
+attached while the table scrolls/focus settles. Debit amounts and filtered totals
+use theme tokens for contrast. API request IDs and server timings pass through the
+proxy for diagnostics, without adding implementation details to product flows.

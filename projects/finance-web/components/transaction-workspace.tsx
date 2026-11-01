@@ -1,7 +1,6 @@
 "use client";
 import { BalanceSourceStatus } from "./balance-source-status";
 import { ClockTimeInput } from "./clock-time-input";
-import { filteredFinancialTotals } from "@/lib/financial-totals";
 import { TransactionActionMenu } from "@/components/transaction-action-menu";
 import { transactionTableLayout, transactionColumnPreferences, transactionPage, transactionPageParams, transactionPeriodFilters, transactionPeriodCaption } from "@/lib/transaction-list";
 import { CompactReportedBalances } from "@/components/compact-reported-balances";
@@ -25,8 +24,6 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  type Account,
-  type Category,
   type Transaction,
   type TransactionSourceMessage,
   type TransactionDirection,
@@ -38,11 +35,6 @@ import {
   type TransferMatch,
   deleteTransaction,
   exportTransactionsCsv,
-  listAccounts,
-  listCategories,
-  listPaymentMethods,
-  type PaymentMethod,
-  listTransactions,
   getTransaction,
   type TransactionFilters,
   type TransactionSource,
@@ -66,21 +58,13 @@ import { BalanceSourceBadges } from "@/components/balance-source-badges";
 import { balanceEditPrefill, type BalanceEditSuggestion, accountBoundBalances, editableReportedBalance, transferBalancePayload } from "@/lib/transaction-balances";
 import { periodFromFilters, periodLabel, shiftPeriod, dailyPeriod, monthPeriod, allDates, dateRangeError, type DatePeriod } from "@/lib/date-period";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
+import { loadTransactionData, type TransactionLoadState } from "@/lib/transaction-data";
 
 import { FieldError } from "@/components/field-error";
 import { fieldErrorsFrom, focusFieldError, nativeFieldErrors } from "@/lib/form-feedback";
 import { reviewFieldErrors } from "@/lib/review-status";
 
-type LoadState =
-  | { status: "loading" }
-  | { message: string; status: "error" }
-  | {
-      accounts: Account[];
-      categories: Category[];
-      paymentMethods: PaymentMethod[];
-      status: "ready";
-      transactions: Transaction[];
-    };
+type LoadState = TransactionLoadState;
 
 const TransactionDetailDialog = dynamic(() => import("@/components/transaction-detail-dialog").then(module => module.TransactionDetailDialog));
 
@@ -187,6 +171,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
     type: ""
   });
   const [page, setPage] = useState(1);
+  const paging = useRef({ page: 1, pageSize: 25 });
   const [pageSize, setPageSize] = useState(25);
   const [displayOptionsOpen, setDisplayOptionsOpen] = useState(false);
   const tableScroll = useRef<HTMLDivElement>(null);
@@ -304,20 +289,19 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
     if (!readyData.current) setLoadState({ status: "loading" });
     try {
       const previous = readyData.current;
-      const next: Extract<LoadState, { status: "ready" }> = isEmbedded
-        ? await Promise.all([
-            listAccounts(accessToken, ticket.signal), listCategories(accessToken, ticket.signal),
-            listPaymentMethods(accessToken, ticket.signal)
-          ]).then(([accounts, categories, paymentMethods]) => ({ accounts, categories, paymentMethods, transactions: [], status: "ready" as const }))
-        : previous && !refreshLookups
-        ? { ...previous, transactions: await listTransactions(accessToken, activeFilters, ticket.signal) }
-        : await Promise.all([
-            listAccounts(accessToken, ticket.signal), listCategories(accessToken, ticket.signal),
-            listTransactions(accessToken, activeFilters, ticket.signal), listPaymentMethods(accessToken, ticket.signal)
-          ]).then(([accounts, categories, transactions, paymentMethods]) => ({ accounts, categories, transactions, paymentMethods, status: "ready" as const }));
+      const { page: requestedPage, pageSize: requestedSize } = paging.current;
+      const next = await loadTransactionData(accessToken, activeFilters, requestedPage, requestedSize, previous, refreshLookups, isEmbedded, ticket.signal);
       if (!ticket.isCurrent()) return;
       readyData.current = next;
       setLoadState(next);
+      paging.current = { page: next.resultPage, pageSize: next.resultSize };
+      setPage(next.resultPage); setPageSize(next.resultSize);
+      if (!isEmbedded && next.resultPage !== requestedPage) {
+        const url = new URL(window.location.href);
+        if (next.resultPage > 1) url.searchParams.set("page", String(next.resultPage));
+        else url.searchParams.delete("page");
+        window.history.replaceState(window.history.state, "", url);
+      }
       setDisplayedFilters(activeFilters);
     } catch (error) {
       if (!ticket.isCurrent()) return;
@@ -343,6 +327,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
     const restore = () => {
       const searchParams = new URLSearchParams(window.location.search);
       const pagination = transactionPageParams(searchParams);
+      paging.current = pagination;
       setPage(pagination.page); setPageSize(pagination.pageSize);
       restorePosition.current = window.history.state?.financeTransactionPosition ?? null;
       const requestedSearch = searchParams.get("search")?.trim() ?? "";
@@ -495,6 +480,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   }
 
   function applyFilterUrl(nextFilters: TransactionFilterState, view = dateView, nextPage = 1, size = pageSize) {
+    paging.current = { page: nextPage, pageSize: size };
     setPage(nextPage);
     const params = new URLSearchParams();
     params.set("month", nextFilters.month);
@@ -812,9 +798,9 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
     return new Map(loadState.accounts.map((account) => [account.id, account.name]));
   }, [loadState]);
 
-  const currencyByAccount = useMemo(() => new Map(loadState.status === "ready" ? loadState.accounts.map(account => [account.id, account.currency]) : []), [loadState]);
   const tableLayout = transactionTableLayout(visibleColumns, displayedFilters.ordering !== "-date");
-  const financialTotals = useMemo(() => loadState.status === "ready" ? filteredFinancialTotals(loadState.transactions, currencyByAccount, displayedFilters.account) : [], [loadState, currencyByAccount, displayedFilters.account]);
+  const currencyByAccount = useMemo(() => new Map(loadState.status === "ready" ? loadState.accounts.map(account => [account.id, account.currency]) : []), [loadState]);
+  const financialTotals = loadState.status === "ready" ? loadState.totals : [];
 
   const categoryNames = useMemo(() => {
     if (loadState.status !== "ready") {
@@ -880,12 +866,13 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
       (editingTransaction.statement_evidence_count > 0 && editingTransaction.direction !== editingDirection)
     ));
 
-  const pagination = transactionPage(loadState.status === "ready" ? loadState.transactions.length : 0, page, pageSize);
-  const pageTransactions = loadState.status === "ready" ? loadState.transactions.slice(pagination.start, pagination.end) : [];
+  const pagination = transactionPage(loadState.status === "ready" ? loadState.transactionCount : 0, loadState.status === "ready" ? loadState.resultPage : page, loadState.status === "ready" ? loadState.resultSize : pageSize);
+  const pageTransactions = loadState.status === "ready" ? loadState.transactions : [];
   function changePage(next: number, size = pageSize) {
-    const bounded = transactionPage(loadState.status === "ready" ? loadState.transactions.length : 0, next, size);
+    const bounded = transactionPage(loadState.status === "ready" ? loadState.transactionCount : 0, next, size);
     setPageSize(size);
     applyFilterUrl(displayedFilters, dateView, bounded.current, size);
+    void loadData(displayedFilters, false);
     listTop.current?.scrollIntoView({ block: "start", behavior: "instant" });
   }
   function fullText(text: string, label: string) {
@@ -1267,7 +1254,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
             <button className="button button--primary transaction-commandbar__add" type="button" onClick={() => openNewTransaction()}><Plus size={17} aria-hidden="true" />Add transaction</button>
           </form>
           <div className="transaction-table-toolbar transaction-table-toolbar--compact" ref={listTop}>
-            <div className="transaction-result-meta"><span>{loadState.transactions.length} {loadState.transactions.length === 1 ? "transaction" : "transactions"}</span>{isRefreshing ? <span role="status" className="transaction-refresh-state"><ButtonBusy label="Updating" /></span> : null}{refreshError ? <button className="icon-button" type="button" title={refreshError} aria-label="Retry loading transactions" onClick={() => void loadData(requestedFilters, false)}><ArrowClockwise size={18} aria-hidden="true" /></button> : null}</div>
+            <div className="transaction-result-meta"><span>{loadState.transactionCount} {loadState.transactionCount === 1 ? "transaction" : "transactions"}</span>{isRefreshing ? <span role="status" className="transaction-refresh-state"><ButtonBusy label="Updating" /></span> : null}{refreshError ? <button className="icon-button" type="button" title={refreshError} aria-label="Retry loading transactions" onClick={() => void loadData(requestedFilters, false)}><ArrowClockwise size={18} aria-hidden="true" /></button> : null}</div>
             <div className="transaction-toolbar-actions transaction-toolbar-actions--icons" role="group" aria-label="Transaction tools">
               <TransactionActionMenu label="Sort transactions" icon={<SortDescending size={19} aria-hidden="true" />}>{([['-date', 'Transaction date'], ['-created_at', 'Recently added'], ['-updated_at', 'Recently updated']] as const).map(([value, label]) => <button className="button button--ghost" type="button" aria-pressed={displayedFilters.ordering === value} key={value} onClick={() => selectOrdering(value)}>{label}</button>)}</TransactionActionMenu>
               <button className="icon-button" type="button" aria-label={isExporting ? "Exporting CSV" : "Export CSV"} title="Export CSV" disabled={isExporting} onClick={() => void handleExportTransactions()}>{isExporting ? <SpinnerGap className="spin" size={19} aria-hidden="true" /> : <DownloadSimple size={19} aria-hidden="true" />}</button>
@@ -1279,7 +1266,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
           </div>
           {activeFilterChips.length ? <div className="transaction-filter-chips" aria-label="Applied filters">{activeFilterChips.map(chip => <button type="button" key={chip.key} className="transaction-filter-chip" title={`Remove ${chip.label}`} aria-label={`Remove ${chip.label}`} onClick={() => refreshFilters({ ...filtersRef.current, [chip.key]: chip.key === "date_field" ? "date" : "" })}><span>{chip.label}</span><X size={12} aria-hidden="true" /></button>)}</div> : null}
 
-          <details className="filtered-totals"><summary>Totals for all {loadState.transactions.length} matching transactions</summary>
+          <details className="filtered-totals"><summary>Totals for all {loadState.transactionCount} matching transactions</summary>
             <p className="muted-text">Refunds reduce spending. Principal and own-account transfers are separate. Totals cover the full filtered result, across every page.</p>
             {financialTotals.map(row => <div key={row.currency}><h3>{row.currency}</h3><div className="metric-row"><div className="metric"><span>Earned income</span><strong>{formatCurrency(row.income, row.currency)}</strong></div><div className="metric"><span>Net spending</span><strong>{formatCurrency(row.spending, row.currency)}</strong></div><div className="metric"><span>Money in / out</span><strong>{formatCurrency(row.moneyIn, row.currency)} / {formatCurrency(row.moneyOut, row.currency)}</strong></div></div><p className="muted-text">Refunds {formatCurrency(row.refunds, row.currency)} · Principal in/out {formatCurrency(row.financingIn, row.currency)} / {formatCurrency(row.financingOut, row.currency)} · Own transfers {formatCurrency(row.transfers, row.currency)}.</p></div>)}
           </details>
@@ -1326,7 +1313,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
               </table>
             </div>
             <nav className="transaction-pagination" aria-label="Transaction pages">
-              <span>Showing {pagination.start + 1}–{pagination.end} of {loadState.transactions.length} transactions</span>
+              <span>Showing {pagination.start + 1}–{pagination.end} of {loadState.transactionCount} transactions</span>
               <label>Rows <select aria-label="Rows per page" value={pageSize} disabled={isRefreshing} onChange={event => changePage(1, Number(event.target.value))}>{[25, 50, 100].map(size => <option value={size} key={size}>{size}</option>)}</select></label>
               <div><button className="button button--ghost button--small" type="button" disabled={pagination.current === 1 || isRefreshing} onClick={() => changePage(pagination.current - 1)}>Previous</button><span aria-live="polite">{pagination.current} / {pagination.pages}</span><button className="button button--ghost button--small" type="button" disabled={pagination.current === pagination.pages || isRefreshing} onClick={() => changePage(pagination.current + 1)}>Next</button></div>
             </nav>

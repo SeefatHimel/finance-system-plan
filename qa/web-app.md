@@ -1897,3 +1897,40 @@ accounts and unlink-to-review, with the original SMS available before confirming
 A ledger edit alone does not silently rewrite its saved SMS interpretation. The
 confirmed action refreshes the comparison and exposes latest-action Undo. Failed
 corrections appear in a toast, retaining the selected correction for review.
+
+## Do transaction totals cover the visible page or the full search?
+
+The full search. The table requests only 25/50/100 activity rows with a server
+count and offset; a separate totals endpoint groups the entire filtered result by
+currency. Filters and pagination remain in the URL after editing/canceling and an
+out-of-range page is corrected. A failed refresh preserves existing content.
+Next.js 15 uses awaited cookies, route params and server search params. Production
+proxy identity and refresh retries require the shared private API/web auth secret.
+
+## Does saving a quick entry reload the page or reset active work?
+
+No route refresh is necessary: financial workspaces already subscribe to the
+transaction-change event. Quick-add emits that event and retains the current
+page/filter; the second-pass browser test observed zero route refresh requests.
+Timeline account requests use abort controllers and reject canceled responses.
+The proxy carries abort signals upstream and retains pagination/retry metadata,
+with bounded request deadlines. Cancellation cannot promise database rollback.
+The dashboard streams a loader while its bounded health check resolves.
+
+## How are financial UI regressions checked beyond unit tests?
+
+Fresh Playwright contexts use disposable synthetic API data against a production
+web build. Desktop/mobile tests preserve page/filter state through edit/cancel,
+reload and quick-add, reject late responses and verify keyboard focus/Escape.
+Axe checks the transaction workspace and quick-entry dialog in both themes.
+Browser checks found and fixed an action-menu scroll dismissal and light-theme
+contrast defects. They do not certify accessibility of every route or inspect a
+user's actual data. CI retains synthetic failure traces briefly.
+
+## Does extracting the transaction loader add another cache or ledger copy?
+
+No. It owns one cancellable session-scoped read, starts independent requests
+together, reuses current reference data and bounds invalid pages. The workspace
+still owns stale-result rejection and filters; the API remains authoritative.
+Private API/proxy payloads remain no-store. Larger UI modules can be separated
+incrementally without redesigning financial semantics.

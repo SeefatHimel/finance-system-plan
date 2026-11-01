@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, X } from "@phosphor-icons/react";
 import { formatCalendarDate } from "../../finance-contracts/presentation";
@@ -108,7 +107,6 @@ function QuickAddSession({
     loading = useRef<Promise<void> | null>(null);
   const pending = useRef<QuickEntryInput | null>(null);
   const loadRevision = useRef(0);
-  const router = useRouter();
   const { notify } = useToast();
   const recovery = useTransactionRecovery();
   const retryKey = `finance.quick.pending.${getApiBaseUrl()}.${owner}`;
@@ -246,7 +244,6 @@ function QuickAddSession({
       if (saved.undo_action) recovery.announce(saved.undo_action);
       else notify("Transaction saved.", "success");
       window.dispatchEvent(new Event("finance:transactions-changed"));
-      router.refresh();
     } catch (err) {
       if (isRejectedEntry(err)) {
         pending.current = null;

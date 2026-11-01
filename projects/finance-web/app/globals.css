@@ -2568,7 +2568,7 @@ textarea {
 .transaction-ledger-secondary { display: block; }
 .transaction-ledger-primary { color: var(--foreground); font-weight: 750; }
 .transaction-ledger-secondary { color: var(--muted); font-size: 12px; margin-top: 3px; text-transform: capitalize; }
-.transaction-ledger-amount { color: #ff9494; font-weight: 800; white-space: nowrap; }
+.transaction-ledger-amount { color: var(--danger); font-weight: 800; white-space: nowrap; }
 .transaction-ledger-amount--credit { color: var(--accent); }
 .transaction-month-filter { grid-column: span 2; }
 .month-navigator { display: grid; gap: 6px; grid-template-columns: 40px minmax(150px, 1fr) 40px 40px; }
@@ -4416,7 +4416,7 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 .review-proposed-result p { margin: .35rem 0; }
 .review-proposed-result small { color: #99a9be; }
 .filtered-totals { margin: .5rem 0 1rem; }
-.filtered-totals summary { min-height: 44px; cursor: pointer; padding: .65rem 0; color: #99a9be; }
+.filtered-totals summary { min-height: 44px; cursor: pointer; padding: .65rem 0; color: var(--muted); }
 
 .financial-overview > .panel__body > .report-header, .coverage-account > .report-header { flex-direction: row; align-items: flex-start; }
 .financial-overview .metric__label { display: block; }
