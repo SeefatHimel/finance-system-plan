@@ -432,3 +432,22 @@ statement dues are not added again to current card liabilities. Coverage and pen
 review remain visible because imported activity cannot prove nothing is missing.
 Untimed evidence can receive an explicitly reviewed display order, never a fabricated
 clock time presented as fact. Budgets and forecasts remain later enhancements.
+
+## What did the architecture review change without rewriting the product?
+
+It hardened monetary writes, payment concurrency, retry identity and currency
+boundaries; bounded ledger reads and moved balance/totals calculations to SQL;
+made auth rate limits and proxy refresh coordination shared across API workers;
+and added readiness/native CI coverage with patched framework dependencies.
+Original financial evidence is preserved. Large UI modules, production load
+profiling and deployment restore/proxy drills remain incremental work; see
+`docs/architecture-review-remediation.md` for the verified scope and rollout.
+
+## Does the quality program mean every area is now production-certified?
+
+No. It adds concrete financial guardrails, SQL projections, state-retention and
+accessibility browser checks, safe diagnostics, measured load tests and verified
+backup tooling. The local tests pass without changing production data. Large
+concurrent annual reports still need capacity work; staging/ingress/key recovery,
+monitoring and off-machine backup configuration remain release gates. Ratings
+must reflect that evidence rather than assuming a perfect score from test counts.

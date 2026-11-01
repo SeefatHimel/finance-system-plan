@@ -221,8 +221,12 @@ The API project is scaffolded with:
 
 ## Local Setup
 
-The repository pins Python 3.13 in `.python-version`. Django 5.1 does not
-support Python 3.14, so hosted Python runtimes must honor this pin.
+The repository pins Python 3.13 in `.python-version` and uses Django 5.2 LTS.
+Hosted runtimes must honor the pin. `requirements.txt` includes the exact tested
+dependency constraints; update the constraints deliberately alongside testing.
+Development requirements also install the patched installer baseline from
+`requirements-tooling.txt`; production images install that baseline before runtime
+dependencies.
 
 Create a virtual environment:
 
@@ -1852,3 +1856,57 @@ Activity/list queries batch source reads, capped at 20 SMS and 20 statement rows
 record; `complete=false` prevents a verified badge after truncation. Writes re-read
 facts instead of returning stale prefetch data. No migration is required. Verify:
 `python manage.py test apps.transactions.test_balance_provenance apps.transactions.test_activity`.
+
+## Architecture review corrections
+
+Planning edits now serialize with payments and recompute derived debt/card totals.
+New or explicitly edited ledger directions must agree with type; cross-currency
+transfers and currency changes after financial use are rejected. Existing issues
+are surfaced by the issue scanner without rewriting historical evidence.
+Transaction arrays are bounded to 100; activity pages expose count/next_offset,
+and `/api/transactions/totals/` computes whole-filter currency totals in SQL.
+Account balances use SQL sums/latest effective reports rather than materializing
+all transactions. Readiness is `/api/health/ready/`.
+
+Apply `users.0001_initial` and configure matching private proxy secrets on API/web
+before deployment. Auth throttles are shared in PostgreSQL; only signed proxy
+refresh retries receive the encrypted five-second rotation result. See
+[remediation and rollout](../../docs/architecture-review-remediation.md).
+
+### Second review: query and cache efficiency
+
+Account detail reads now summarize only the requested account. List reads reuse
+selected instances and batch timing checks, avoiding per-account queries. Statement
+counts are correlated to returned transactions; overview coverage selects only the
+latest import/check per account. Report queries exclude unused logos/notes.
+API responses default to private no-store unless already explicitly no-store.
+See the remediation document for measured query counts and test coverage.
+
+## Integrity, query and operational checks
+
+- `python manage.py audit_financial_integrity --fail-on-issues` reports private
+  aggregate issue counts without changing financial records.
+- `python manage.py validate_financial_constraints --reviewed` explicitly validates
+  historical PostgreSQL rows after operator review. Migration 0011 stages new
+  write checks; migration 0012 creates ordered partial balance indexes online.
+- `python manage.py benchmark_finance --rows 100000 --concurrency 1,10,25 --requests 25`
+  runs only on an isolated `finance_benchmark_*` database with synthetic users.
+  Use a fresh DB per smaller dataset; never use production.
+- `python manage.py seed_quality_browser` accepts only `finance_e2e_*` databases
+  and requires a test-only `FINANCE_E2E_PASSWORD` of at least 16 characters.
+- `FINANCE_API_REQUEST_LOGS` controls route-pattern/status/duration/request-ID
+  diagnostics. It defaults on outside debug and excludes financial inputs.
+
+Reports aggregate in SQL; latest reports preserve effective selections and
+reviewed blanks. PDF/SMS pairing/correction/Undo and concurrent identical retries
+have integration coverage. Full scope, measured limits and staged rollout are
+in [the quality program](../../docs/quality-improvement-program.md).
+
+Financial aggregate consistency: sending/receiving balances share one SQL
+statement. Report totals, groups and current/previous periods are also projected
+in one statement with decimal-string money values. This prevents a concurrent
+save from partially appearing within that aggregation, including inside an
+existing READ COMMITTED transaction. Login throttle lookup/create now acquires
+its row lock immediately, protecting against expired-window cleanup. The
+committed-write race tests run on PostgreSQL; SQLite keeps development coverage
+for ordinary report shapes, IDs and empty/equal-value groups.

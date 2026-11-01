@@ -1458,6 +1458,24 @@ A note edit cannot reset those values. Invalid principal/direction/account chang
 are rejected. Ledger type/direction and same-currency invariants are validated at
 the API boundary; existing historical contradictions remain visible for review.
 
+## How do balance reads and authentication scale across API workers?
+
+Money is aggregated in SQL and only latest effective report rows are materialized;
+reviewed blanks and uncertain report timing remain distinct from confirmed gaps.
+Transaction pages are bounded, and separate SQL totals cover all filtered rows.
+PostgreSQL row locks make throttle windows and signed five-second proxy refresh
+receipts shared across workers. Refresh results are encrypted; logout revokes a
+recent successor. Ordinary mobile/public refresh tokens remain single-use.
+
+## How do query counts stay bounded as account/history counts grow?
+
+Account timing checks are batched; detail serialization only summarizes its
+selected account. Transaction counts avoid a whole-history statement join.
+Overview coverage uses latest-row window queries rather than loading all imports
+and checks. Period summaries select only needed fields. Synthetic query tests
+compare 1 and 20 accounts and 60 historical coverage rows. API responses default
+to private no-store so HTTP intermediaries cannot retain financial payloads.
+
 ## How do database checks protect new writes without changing historical data?
 
 PostgreSQL receives positive-amount and distinct-account checks as NOT VALID.
@@ -1467,3 +1485,30 @@ counts without financial values. An operator reviews the global result before
 explicit, time-bounded constraint validation. Tests verify legacy exceptions
 survive migration while invalid new writes fail. Semantic source mismatches still
 require the review workflow; these constraints do not prove all financial facts.
+
+## What protects report performance and source fidelity after the refactor?
+
+SQL aggregates replace per-transaction report objects, and ordered partial indexes
+support latest per-account report lookup. Effective choices and reviewed blanks
+retain their meaning. Tests cover query/materialization budgets, a full synthetic
+PDF → SMS pair → correction → Undo lifecycle, owner isolation and concurrent
+retry idempotency. Scale benchmarks run only in disposable synthetic databases;
+local million-row annual reports remain slow under 25 concurrent readers.
+
+## How do aggregated financial reads stay consistent during concurrent saves?
+
+Both sides of ledger balances use one UNION ALL statement. Report totals,
+categories, merchants, account/daily groups and current/previous comparison
+periods also use one statement, so they observe one database snapshot even when
+called inside an existing READ COMMITTED transaction. JSON money is cast to text
+and processed with Decimal. Independent API calls do not promise a shared
+snapshot. PostgreSQL tests commit a concurrent transfer, insert an expense and
+move an entry across periods while the read is in progress.
+
+## What happens when login races with expired throttle-window cleanup?
+
+The lookup/create acquires the row lock immediately. If cleanup removes an
+expired row first, get_or_create creates its replacement safely. If login locks
+first, cleanup waits and rechecks the updated expiry instead of deleting the
+renewed window. Independent-connection tests cover both orderings and verify
+that the quota still records the attempt.
