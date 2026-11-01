@@ -42,8 +42,8 @@ release step; the production API process does not mutate schema on every boot.
 ## Required Gates Before Real Financial Use
 
 - `DJANGO_DEBUG=false`.
-- The backend runtime uses the repository's Python 3.13 pin; Django 5.1 is not
-  compatible with Python 3.14.
+- The backend runtime uses the repository's Python 3.13 pin and Django 5.2 LTS.
+  Install the tested `requirements-constraints.txt` versions with requirements.
 - Strong `DJANGO_SECRET_KEY` stored outside git.
 - `DATABASE_URL` points to PostgreSQL, not SQLite.
 - A transaction-pooled PostgreSQL endpoint disables Django server-side cursors.
@@ -77,6 +77,7 @@ Backend:
 
 ```txt
 DJANGO_SECRET_KEY=<secret manager value>
+FINANCE_PROXY_AUTH_SECRET=<same private random 32+ character value on API and web>
 DJANGO_DEBUG=false
 DJANGO_ALLOWED_HOSTS=api.example.com
 DJANGO_CORS_ALLOWED_ORIGINS=https://app.example.com
@@ -95,6 +96,8 @@ Web:
 ```txt
 NEXT_PUBLIC_API_BASE_URL=https://api.example.com
 NEXT_SERVER_API_BASE_URL=https://api.example.com
+FINANCE_PROXY_AUTH_SECRET=<same value as API>
+FINANCE_TRUSTED_CLIENT_IP_HEADER=<header overwritten by your ingress>
 ```
 
 Mobile:
@@ -104,6 +107,17 @@ EXPO_PUBLIC_API_BASE_URL=https://api.example.com
 ```
 
 Do not commit real values. Keep only examples in git.
+
+Before deploying the architecture-review changes, apply `users.0001_initial`.
+Vercel uses its `x-vercel-forwarded-for` header by default; another ingress must
+overwrite the configured client-IP header and prevent direct access to the web
+origin. Never trust a client-supplied forwarded header. Production sign-in fails
+closed when proxy identity is unconfigured. Both API and web need the same secret.
+Use `/api/health/ready/` for routing: it checks DB connectivity and pending
+migrations and returns 503 when unavailable. `/api/health/` remains cheap liveness.
+See [review remediation](architecture-review-remediation.md) for compatibility,
+validation and outstanding operational checks. These changes are not deployed by
+the remediation task.
 
 ## Deployment Steps
 
@@ -174,3 +188,29 @@ the deployment's PostgreSQL database, including simultaneous identical retries.
 Presets and retry receipts are included in normal database backups. The mobile
 native picker requires a new signed build when a release is requested; this
 source update does not produce or distribute an APK.
+
+## Quality program rollout gates
+
+1. Back up and verify recovery/key availability before migration. Apply
+   `transactions.0011` (staged checks) and `transactions.0012` (concurrent partial
+   indexes) plus existing pending migrations. PostgreSQL concurrent index creation
+   must run outside a transaction; the migration declares `atomic = False`.
+   Inspect invalid index builds before retrying interrupted migrations.
+2. Run `audit_financial_integrity --fail-on-issues` privately. Review historical
+   findings across the entire database. Do not auto-correct amounts/directions or
+   evidence. Only after review run `validate_financial_constraints --reviewed`;
+   a timeout/failure leaves financial values unchanged.
+3. Keep private no-store headers. Collect generated request IDs and route-pattern
+   timings; `FINANCE_API_REQUEST_LOGS` defaults on in production. Do not enable
+   raw request body/query/SQL parameter logging for financial debugging.
+4. Run hosted CI and the browser smoke tests with synthetic accounts, then test
+   the real ingress/auth configuration without modifying user finances.
+5. Repeat scale tests on staging. Local 1m-row single-reader p95 is about 618 ms
+   for accounts and 1.53 s for an annual report; 25 concurrent annual reports reach
+   15.35 s. Capacity for that aggregate load is not release-certified. See
+   [results and next capacity decisions](quality-improvement-program.md).
+6. Verify off-machine encryption, backup-failure alerts, recovery permissions,
+   decryption keys and a recurring restore schedule. The local full-table drill
+   passes; it does not establish a production RPO/RTO or configure hosting.
+
+The quality work remains local and unpushed until separately requested.

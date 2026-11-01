@@ -715,3 +715,69 @@ it preserves source statements, classifications, account recognition and ledger
 values. It does not undo old manually applied classifications. New salary/service
 wording and explicit bKash recipient clues require no PDF re-upload except when
 recovering a full recipient hidden in saved masked descriptions.
+
+## Architecture review verification and upgrade
+
+Install `projects/finance-api/requirements-dev.txt` as before; requirements now
+load `requirements-constraints.txt` to pin the tested dependency set. Then run
+`python manage.py migrate --noinput`, including the new users migration. Local
+debug login does not require proxy secrets. Production requires matching private
+API/web secrets and trusted ingress identity; see the production deployment plan.
+
+Use PostgreSQL when testing row locks or generating the backend schema for CI.
+SQLite remains a limited local fallback and cannot validate distributed locking.
+Web verification remains `npm run typecheck`, `npm run lint`,
+`node --test tests/*.test.cjs` and `npm run build`. Mobile additionally supports
+`./android/gradlew -p android :finance-sms-capture:testDebugUnitTest :app:assembleDebug`
+with Java 17 and the Android SDK configured. See
+[review remediation](architecture-review-remediation.md) for compatibility and QA.
+
+## Quality checks and synthetic browser workspace
+
+From `projects/finance-api`, install development requirements and migrate before
+running the API tests. New ledger checks are staged on PostgreSQL; see
+[quality rollout](quality-improvement-program.md) before historical validation.
+
+For browser regression tests, create a **disposable** PostgreSQL database named
+`finance_e2e_local` and point `DATABASE_URL` at it. Never point the fixture command
+or browser tests at an actual account database.
+
+```bash
+# projects/finance-api; use synthetic test-only environment values
+export FINANCE_E2E_PASSWORD=synthetic-browser-only-password
+export FINANCE_PROXY_AUTH_SECRET=synthetic-local-proxy-only-secret-32-characters
+export DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+export DJANGO_LOGIN_IP_RATE=100/minute
+export DJANGO_LOGIN_USERNAME_RATE=100/minute
+python manage.py migrate --noinput
+python manage.py seed_quality_browser
+python manage.py runserver 127.0.0.1:8039 --noreload
+```
+
+In another terminal from `projects/finance-web`:
+
+```bash
+export FINANCE_E2E_PASSWORD=synthetic-browser-only-password
+export FINANCE_PROXY_AUTH_SECRET=synthetic-local-proxy-only-secret-32-characters
+export FINANCE_TRUSTED_CLIENT_IP_HEADER=x-quality-client-ip
+export NEXT_SERVER_API_BASE_URL=http://127.0.0.1:8039
+npm ci
+npx playwright install chromium
+npm run build
+npm run start -- --hostname 127.0.0.1 --port 3039
+```
+
+Then run `npm run test:e2e` with the same synthetic environment. The config uses
+`http://127.0.0.1:3039`; override `PLAYWRIGHT_BASE_URL` if needed. An installed
+Chrome binary can be selected with `PLAYWRIGHT_EXECUTABLE_PATH`. The synthetic
+trusted header is exclusively for this isolated local/CI ingress. Production
+must use an ingress-overwritten trusted header, never a user-controlled one.
+Playwright uses fresh contexts, not the user's signed-in Chrome profile. Tests
+write February synthetic entries while retaining January filters. Reseeding
+preserves existing fixture transactions; recreate the disposable database for a
+completely clean run. Test traces are ignored by Git and must never contain live
+data. CI uploads only synthetic failure traces for seven days.
+
+Read-only integrity audit: `python manage.py audit_financial_integrity`.
+Scale testing uses a separate `finance_benchmark_*` database; see the
+[benchmark instructions](quality-improvement-program.md#measured-performance).
