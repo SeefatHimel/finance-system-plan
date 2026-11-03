@@ -715,3 +715,14 @@ it preserves source statements, classifications, account recognition and ledger
 values. It does not undo old manually applied classifications. New salary/service
 wording and explicit bKash recipient clues require no PDF re-upload except when
 recovering a full recipient hidden in saved masked descriptions.
+
+### Android home-screen widgets
+
+The six widgets live in the committed `projects/finance-mobile/android` project.
+From `projects/finance-mobile`, run `npm run typecheck` and `npm test`; from its
+`android` directory run `./gradlew :app:assembleDebug` with the Android SDK
+configured. Install the APK and check pinning, deep links, resized layouts,
+privacy changes, and sign-out on a device. Use the committed native project for
+routine builds. `expo prebuild` can regenerate the manually maintained widget
+manifest, resources, and package registration; only run it when reviewing and
+restoring those changes deliberately. Widgets need no backend migration.

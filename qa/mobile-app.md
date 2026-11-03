@@ -870,3 +870,31 @@ transfer rows scannable with text labels as well as color. Debts & lending keeps
 owed-to-you and you-owe totals separate; name search filters loaded records only.
 Release 0.1.15/code 16 changes presentation and needs no API migration. Physical
 device layout and SMS capture still require the signed-release smoke test.
+
+### How do Android widgets open a safe transaction flow?
+
+Six native home-screen widgets offer Quick Add, Review Inbox, Account Balances,
+Recent Activity, Spending Snapshot and Quick Presets. More → Home-screen
+widgets can request launcher pinning; Android's picker remains the fallback.
+Widget intents contain only an action or a preset ID, never credentials or
+financial data. Quick Add, presets and voice open editable drafts, while
+Transfer opens the full transfer form. The app still requires review and Save.
+Voice uses the device speech recognizer and a conservative local parser; missing
+or ambiguous account/category values remain for the user to choose. Widget
+shortcuts wait for cached or fetched presets and account choices before opening
+their drafts. Transfer always starts from a fresh form.
+
+The app sends a compact, user-scoped display snapshot to Android. Balances,
+activity and spending are independently hidden by default; hidden fields are
+omitted from that snapshot. Android also persists an account-scoped privacy gate
+which the renderer checks independently of the snapshot; a failed setting save
+does not enable an old visible choice again. Sign-out waits for the snapshot to
+clear, account switch clears it, and native
+rendering treats data older than 24 hours as expired. The monthly BDT figure
+comes from the existing Reports API, which excludes transfers and financing
+from spending. Widgets show a saved snapshot and refresh when the app is active,
+not a guaranteed real-time balance. Widgets display their last update time and
+have distinct picker names. The checked-in Android project must be used for
+routine builds because a clean Expo prebuild can replace the manual native
+widget registration and resources. An installed Android build is required;
+Expo Go and web cannot install native widgets.

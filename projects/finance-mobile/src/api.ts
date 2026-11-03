@@ -1015,6 +1015,19 @@ export async function listTransactions(accessToken: string): Promise<Transaction
   return (await response.json()) as Transaction[];
 }
 
+/** Exact server-side monthly spending; transfers and financing are excluded by report policy. */
+export async function getWidgetMonthlySpending(accessToken: string, month: string): Promise<{
+  currency: string;
+  expense_total: string;
+  spending_categories: Array<{ name: string; amount: string }>;
+}> {
+  const response = await authenticatedFetch(`/api/reports/monthly/?month=${encodeURIComponent(month)}&currency=BDT`, accessToken);
+  const body = await response.json();
+  if (typeof body?.expense_total !== "string" || !Array.isArray(body?.spending_categories))
+    throw new Error("Monthly spending is unavailable.");
+  return body;
+}
+
 export type TransactionActivityQuery = {
   search?: string; account?: string; category?: string; type?: string;
   month?: string; start_date?: string; end_date?: string;

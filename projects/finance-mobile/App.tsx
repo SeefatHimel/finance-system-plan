@@ -19,6 +19,8 @@ import { MobileQueryProvider } from "./src/mobile-query";
 import { useNavigationContainerRef } from "@react-navigation/native";
 import { mobileDestinations, workspaceTitles, refreshReviewWindow, reviewIndex, reviewSelection, type MobileDestination, type AdvancedTool, isMainTab, type MainTab, type WorkspaceRoute, type WorkspaceParams } from "./src/mobile-navigation";
 import { QuickAddHub, type QuickAddHandle } from "./src/quick-add-hub";
+import { WidgetSettings } from "./src/widget-settings";
+import { buildWidgetSnapshot, clearWidgetSnapshot, defaultWidgetPrivacy, parseWidgetAction, readWidgetPrivacy, saveWidgetPrivacy, syncWidgetSnapshot, widgetsAvailable, type MonthlySpending, type WidgetPrivacy, type WidgetAction } from "./src/android-widgets";
 import { quickSessionScope } from "./src/secure-document";
 import { transferComparison, transferBalanceConflicts } from "../finance-contracts/transfer-comparison";
 import { reviewReportedBalance, updateReviewBalanceContext } from "./src/review-balance";
@@ -35,6 +37,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
+  Linking,
   AppState,
   Alert,
   Appearance,
@@ -72,6 +75,7 @@ import {
   getApiBaseUrl,
   getAccountReconciliation,
   getCurrentUser,
+  getWidgetMonthlySpending,
   getSmsCapturePreference,
   importRawMessage,
   listAccounts,
@@ -804,6 +808,61 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const [password, setPassword] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const localDataScope = quickSessionScope(accessToken, getApiBaseUrl());
+  const [widgetPrivacy, setWidgetPrivacy] = useState<WidgetPrivacy>(defaultWidgetPrivacy);
+  const [widgetPrivacyScope, setWidgetPrivacyScope] = useState<string | null>(null);
+  const [widgetMonth, setWidgetMonth] = useState(localDay().slice(0, 7));
+  const [widgetRefreshEpoch, setWidgetRefreshEpoch] = useState(0);
+  const [widgetSpending, setWidgetSpending] = useState<MonthlySpending | null>(null);
+  const [pendingWidgetAction, setPendingWidgetAction] = useState<WidgetAction | null>(null);
+  const widgetSnapshotGeneration = useRef(0);
+  useEffect(() => {
+    const setLink = (url: string) => {
+      const action = parseWidgetAction(url);
+      if (action) setPendingWidgetAction(action);
+    };
+    const initial = Linking?.getInitialURL?.();
+    if (initial) void initial.then(url => { if (url) setLink(url); }).catch(() => {});
+    const subscription = Linking?.addEventListener?.("url", event => setLink(event.url));
+    return () => subscription?.remove();
+  }, []);
+  useEffect(() => {
+    let live = true;
+    widgetSnapshotGeneration.current++;
+    setWidgetPrivacyScope(null);
+    setWidgetPrivacy(defaultWidgetPrivacy);
+    setWidgetSpending(null);
+    void clearWidgetSnapshot().catch(() => {
+      if (live) Alert.alert("Widget data may still be visible", "Finance could not clear the home-screen snapshot. Remove the widget until this is resolved.");
+    });
+    if (!localDataScope) return () => { live = false; };
+    const savedPrivacy = widgetsAvailable
+      ? readWidgetPrivacy(localDataScope)
+      : AsyncStorage.getItem(`finance.widgets.settings.${localDataScope}`).then(saved => {
+          try {
+            const parsed = saved ? JSON.parse(saved) : null;
+            return parsed ? {
+              showBalances: parsed.showBalances === true,
+              showActivity: parsed.showActivity === true,
+              showSpending: parsed.showSpending === true,
+            } : defaultWidgetPrivacy;
+          } catch { return defaultWidgetPrivacy; }
+        });
+    void savedPrivacy.then(privacy => {
+      if (!live) return;
+      setWidgetPrivacy(privacy);
+      setWidgetPrivacyScope(localDataScope);
+    }).catch(() => { if (live) setWidgetPrivacyScope(localDataScope); });
+    return () => { live = false; };
+  }, [localDataScope]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", state => {
+      if (state === "active") {
+        setWidgetMonth(localDay().slice(0, 7));
+        setWidgetRefreshEpoch(epoch => epoch + 1);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
   const accountScopeRef = useRef<string | null>(localDataScope);
   accountScopeRef.current = localDataScope;
   const [cacheReadyScope, setCacheReadyScope] = useState("");
@@ -836,6 +895,21 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const [listState, setListState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [listMessage, setListMessage] = useState("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  useEffect(() => {
+    if (!accessToken || !widgetPrivacy.showSpending || widgetPrivacyScope !== localDataScope) {
+      setWidgetSpending(null);
+      return;
+    }
+    let live = true;
+    void getWidgetMonthlySpending(accessToken, widgetMonth).then(report => {
+      if (live) setWidgetSpending({
+        month: widgetMonth,
+        total: `${report.currency} ${report.expense_total}`,
+        topCategory: report.spending_categories[0]?.name ?? "",
+      });
+    }).catch(() => { if (live) setWidgetSpending(null); });
+    return () => { live = false; };
+  }, [accessToken, widgetMonth, widgetPrivacy.showSpending, widgetPrivacyScope, localDataScope, transactions, widgetRefreshEpoch]);
   const [transactionTotal, setTransactionTotal] = useState<number | null>(null);
   const [activityFilters, setActivityFilters] = useState(initialActivityFilters);
   const [activityRevision, setActivityRevision] = useState(0);
@@ -980,6 +1054,23 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   });
   const reviewCandidates = reviewMutation.visible(loadedReviewCandidates);
   const reviewCandidateCount = Math.max(reviewCandidates.length, reviewMutation.count(reviewCandidateServerCount));
+  useEffect(() => {
+    if (!localDataScope || widgetPrivacyScope !== localDataScope || cacheReadyScope !== localDataScope || !accessToken) return;
+    const generation = widgetSnapshotGeneration.current;
+    const timer = setTimeout(() => {
+      if (generation !== widgetSnapshotGeneration.current) return;
+      void syncWidgetSnapshot(buildWidgetSnapshot({
+        owner: localDataScope,
+        privacy: widgetPrivacy,
+        accounts,
+        transactions,
+        reviewCount: reviewCandidateCount,
+        presets: quickFavorites,
+        spending: widgetSpending?.month === widgetMonth ? widgetSpending : null,
+      })).catch(() => {});
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [localDataScope, widgetPrivacyScope, cacheReadyScope, accessToken, widgetPrivacy, accounts, transactions, reviewCandidateCount, quickFavorites, widgetSpending, widgetMonth, widgetRefreshEpoch]);
   function saveReviewDecision(decision: ReviewDecision) {
     const ids = [decision.kind === "link" ? decision.input.candidate : decision.candidate];
     if (decision.kind === "link" && decision.match.kind === "candidate") ids.push(decision.match.id);
@@ -989,7 +1080,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const [workspace, setWorkspace] = useState<{ scope: string | null; route: WorkspaceRoute; tab: MainTab }>({ scope: localDataScope, route: "home", tab: "home" });
   const currentWorkspace = workspace.scope === localDataScope ? workspace : { scope: localDataScope, route: "home" as const, tab: "home" as const };
   const activeTab = currentWorkspace.tab;
-  const mobilePanel = ["accounts", "profile"].includes(currentWorkspace.route) ? currentWorkspace.route : null;
+  const mobilePanel = ["accounts", "profile", "widgets"].includes(currentWorkspace.route) ? currentWorkspace.route : null;
   const advancedTool = !isMainTab(currentWorkspace.route) && !mobilePanel ? currentWorkspace.route as AdvancedTool : null;
   function changeWorkspace(route: WorkspaceRoute) {
     Keyboard.dismiss();
@@ -1003,6 +1094,39 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     Keyboard.dismiss();
     if (navigation.isReady() && navigation.canGoBack()) navigation.goBack();
   }
+  useEffect(() => {
+    if (!pendingWidgetAction || !accessToken || sessionRestoring) return;
+    const timer = setInterval(() => {
+      if (!navigation.isReady() || !quickHub.current) return;
+      const action = pendingWidgetAction;
+      setPendingWidgetAction(null);
+      if (action.kind === "expense") quickHub.current.expense();
+      else if (action.kind === "quick_add") quickHub.current.open();
+      else if (action.kind === "voice") void quickHub.current.voice();
+      else if (action.kind === "preset") quickHub.current.open(action.id);
+      else if (action.kind === "transfer") {
+        setEditingTransaction(null);
+        setTxType("transfer");
+        setTxDirection("debit");
+        setTxAccountId("");
+        setTxCategoryId("");
+        setTxAmount("");
+        setTxBalanceAfter("");
+        setTxNote("");
+        setTxCounterparty("");
+        setTxDate(localDay());
+        setTxTime(currentInputTime());
+        setTxTransferAccountId("");
+        setTxState("idle");
+        setTxMessage("");
+        setTransferDecision(null);
+        setTransferError("");
+        navigateWorkspace("entry");
+      } else navigateWorkspace(action.kind);
+      clearInterval(timer);
+    }, 150);
+    return () => clearInterval(timer);
+  }, [pendingWidgetAction, accessToken, sessionRestoring, navigation]);
 
   const loadHealth = async () => {
     setState("loading");
@@ -2943,6 +3067,13 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const switchTab = (nextTab: MainTab) => navigateWorkspace(nextTab);
 
   const handleLogout = async () => {
+    widgetSnapshotGeneration.current++;
+    try {
+      await clearWidgetSnapshot();
+    } catch {
+      Alert.alert("Could not hide home-screen data", "Finance could not clear its widgets. Try signing out again.");
+      return;
+    }
     sessionGeneration.current += 1;
     let sessionRefreshToken = refreshToken.trim();
     clearLocalAccountState();
@@ -4809,6 +4940,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       <View style={styles.mobileGroupedList}>
         <Pressable accessibilityRole="button" onPress={() => navigateWorkspace("profile")} style={styles.mobileMenuRow}><MaterialCommunityIcons color={isLight ? "#168c69" : "#55e6a5"} name="account-circle-outline" size={22} /><Text style={styles.mobileMenuLabel}>Profile & appearance</Text><MaterialCommunityIcons color={isLight ? "#6c808b" : "#647b98"} name="chevron-right" size={23} /></Pressable>
         <Pressable accessibilityRole="button" onPress={() => quickHub.current?.manage()} style={styles.mobileMenuRow}><MaterialCommunityIcons color="#55e6a5" name="flash-outline" size={22} /><Text style={styles.mobileMenuLabel}>Quick Add presets</Text><MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} /></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => navigateWorkspace("widgets")} style={styles.mobileMenuRow}><MaterialCommunityIcons color="#55e6a5" name="widgets-outline" size={22} /><Text style={styles.mobileMenuLabel}>Home-screen widgets</Text><MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} /></Pressable>
         {mobileDestinations.filter(item => item.id === "capture").map(destinationRow)}
       </View>
       <View style={styles.mobileSystemCard}>
@@ -4942,9 +5074,17 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const selectedReviewIssue = selectedReviewDraft ? reviewDraftError(selectedReviewDraft, accounts, categories, paymentMethods) : "";
   function renderWorkspace(route: WorkspaceRoute, focused: boolean) {
     if (route === "activity") return renderActivity(focused);
-    if (!isMainTab(route) && route !== "accounts" && route !== "profile") return renderAdvancedTools(route, focused);
+    if (!isMainTab(route) && route !== "accounts" && route !== "profile" && route !== "widgets") return renderAdvancedTools(route, focused);
     const content = route === "profile" ? <ProfileScreen key={localDataScope} accessToken={accessToken} isLight={isLight} onSignOut={() => void handleLogout()} preference={themePreference} setPreference={chooseTheme} username={username} />
       : route === "accounts" ? renderAccounts()
+      : route === "widgets" ? <WidgetSettings privacy={widgetPrivacy} onPrivacyChange={async next => {
+        if (!localDataScope) throw new Error("Sign in before changing widget privacy.");
+        const scope = localDataScope;
+        if (widgetsAvailable) await saveWidgetPrivacy(scope, next);
+        else await AsyncStorage.setItem(`finance.widgets.settings.${scope}`, JSON.stringify(next));
+        if (accountScopeRef.current !== scope) return;
+        setWidgetPrivacy(next);
+      }} />
       : route === "home" ? renderHome()
       : route === "capture" ? renderSmsAutomation()
       : route === "review" ? renderReview() : renderMore();
@@ -4959,7 +5099,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           <MaterialCommunityIcons color={isLight ? "#142b36" : "#dce8f6"} name="arrow-left" size={24} />
         </Pressable> : null}
         <View style={styles.mobileHeaderTitleWrap}>
-          <Text accessibilityRole="header" numberOfLines={1} style={styles.mobileAppTitle}>{workspaceTitles[currentWorkspace.route as MainTab | "accounts" | "profile"]}</Text>
+          <Text accessibilityRole="header" numberOfLines={1} style={styles.mobileAppTitle}>{workspaceTitles[currentWorkspace.route as MainTab | "accounts" | "profile" | "widgets"]}</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Quick Add manual entry" onPress={() => quickHub.current?.open()} style={styles.mobileHeaderButton}><MaterialCommunityIcons color="#55e6a5" name="plus" size={22} /></Pressable>
         <Pressable

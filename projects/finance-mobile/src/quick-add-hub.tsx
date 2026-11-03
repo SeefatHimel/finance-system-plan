@@ -45,6 +45,8 @@ import {
 } from "./quick-entry-queue";
 import { readSecureDocument, writeSecureDocument } from "./secure-document";
 import { CompactFields, CompactDateTime } from "./compact-form";
+import { recognizeWidgetSpeech } from "./android-widgets";
+import { voiceDraft } from "./voice-entry";
 import { Disclosure } from "./disclosure";
 import {
   applyQuickPreset,
@@ -69,6 +71,8 @@ type Data = {
 type Pending = PendingQuickEntry;
 export type QuickAddHandle = {
   open: (presetId?: string) => void;
+  expense: () => void;
+  voice: () => Promise<void>;
   manage: () => void;
 };
 type Props = {
@@ -98,6 +102,11 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
     const { scope } = props;
     const [data, setData] = useState<Data>(emptyData),
       [ready, setReady] = useState(false);
+    const [referencesReady, setReferencesReady] = useState(false);
+    const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
+    const [pendingVoicePhrase, setPendingVoicePhrase] = useState<string | null>(null);
+    const dataRef = useRef(data);
+    dataRef.current = data;
     const [queue, setQueue] = useState<Pending[]>([]),
       [surface, setSurface] = useState<
         "launcher" | "entry" | "manager" | "preset" | null
@@ -259,6 +268,7 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
         if (!alive.current || version !== refreshVersion.current) return;
         const next = { accounts, categories, presets };
         setData(next);
+        setReferencesReady(true);
         setError("");
         const task = cacheWriting.current
           .catch(() => { })
@@ -273,12 +283,14 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
         cacheWriting.current = task;
         await task;
       } catch (err) {
-        if (alive.current && version === refreshVersion.current)
+        if (alive.current && version === refreshVersion.current) {
+          setReferencesReady(true);
           setError(
             err instanceof Error
               ? err.message
               : "Could not refresh presets. Cached choices remain available.",
           );
+        }
       }
     }, [scope, cacheKey]);
     useEffect(() => {
@@ -297,8 +309,10 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
                 Array.isArray(choices.accounts) &&
                 Array.isArray(choices.categories) &&
                 Array.isArray(choices.presets)
-              )
+              ) {
                 setData(choices);
+                setReferencesReady(true);
+              }
             } catch {
               // Reference choices can be fetched again; preserve the entry queue independently.
             }
@@ -352,7 +366,12 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
     function open(presetId?: string) {
       setError("");
       setAll(false);
-      const preset = data.presets.find((p) => p.id === presetId);
+      if (presetId && !referencesReady) {
+        setPendingPresetId(presetId);
+        setSurface("launcher");
+        return;
+      }
+      const preset = dataRef.current.presets.find((p) => p.id === presetId);
       replaceId.current = null;
       if (preset) {
         setDraft(
@@ -366,10 +385,52 @@ export const QuickAddHub = forwardRef<QuickAddHandle, Props>(
           setError(
             "This preset needs an active account/category. Choose valid options before saving.",
           );
-      } else setSurface("launcher");
+      } else {
+        setSurface("launcher");
+        if (presetId) setError("This shortcut is unavailable. Refresh presets or choose another entry.");
+      }
     }
+    function expense() {
+      setDraft(newQuickDraft());
+      setTitle("Quick expense");
+      setError("");
+      setSurface("entry");
+    }
+    async function voice() {
+      setError("");
+      try {
+        const phrase = await recognizeWidgetSpeech();
+        if (!referencesReady) {
+          setPendingVoicePhrase(phrase);
+          setSurface("launcher");
+          return;
+        }
+        setDraft(voiceDraft(phrase, dataRef.current.accounts, dataRef.current.categories));
+        setTitle("Review voice entry");
+        setSurface("entry");
+      } catch (error) {
+        if (error && typeof error === "object" && "code" in error && error.code === "CANCELLED") return;
+        setError(error instanceof Error ? error.message : "Voice input is unavailable.");
+        setSurface("launcher");
+      }
+    }
+    useEffect(() => {
+      if (!referencesReady) return;
+      if (pendingPresetId) {
+        setPendingPresetId(null);
+        open(pendingPresetId);
+      }
+      if (pendingVoicePhrase) {
+        setPendingVoicePhrase(null);
+        setDraft(voiceDraft(pendingVoicePhrase, data.accounts, data.categories));
+        setTitle("Review voice entry");
+        setSurface("entry");
+      }
+    }, [referencesReady, data, pendingPresetId, pendingVoicePhrase]);
     useImperativeHandle(ref, () => ({
       open,
+      expense,
+      voice,
       manage: () => {
         setError("");
         setSurface("manager");

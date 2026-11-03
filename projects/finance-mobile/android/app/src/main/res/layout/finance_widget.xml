@@ -1,0 +1,18 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/widget_root"
+  android:layout_width="match_parent" android:layout_height="match_parent"
+  android:orientation="vertical" android:padding="10dp"
+  android:background="@drawable/finance_widget_background">
+  <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:text="Finance" android:textColor="#E9F4F8" android:textSize="16sp" android:textStyle="bold" android:maxLines="1" />
+  <TextView android:id="@+id/widget_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:layout_marginTop="3dp" android:textColor="#A3B7C3" android:textSize="11sp" android:maxLines="2" />
+  <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+    android:gravity="center_vertical" android:orientation="vertical">
+    <TextView android:id="@+id/widget_row_one" style="@style/FinanceWidgetRow" />
+    <TextView android:id="@+id/widget_row_two" style="@style/FinanceWidgetRow" />
+    <TextView android:id="@+id/widget_row_three" style="@style/FinanceWidgetRow" />
+  </LinearLayout>
+  <TextView android:id="@+id/widget_footer" android:layout_width="match_parent" android:layout_height="48dp"
+    android:gravity="center_vertical" android:textColor="#60E2A5" android:textSize="11sp" android:textStyle="bold" android:maxLines="1" />
+</LinearLayout>

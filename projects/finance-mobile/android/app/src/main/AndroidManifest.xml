@@ -5,6 +5,7 @@
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove"/>
   <queries>
+    <intent><action android:name="android.speech.action.RECOGNIZE_SPEECH"/></intent>
     <intent>
       <action android:name="android.intent.action.VIEW"/>
       <category android:name="android.intent.category.BROWSABLE"/>
@@ -20,6 +21,36 @@
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
       </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="finance" android:host="widget"/>
+      </intent-filter>
     </activity>
+    <receiver android:name=".QuickAddWidget" android:label="@string/widget_quick_add_name" android:exported="true">
+      <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_quick_add"/>
+    </receiver>
+    <receiver android:name=".ReviewWidget" android:label="@string/widget_review_name" android:exported="true">
+      <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_review"/>
+    </receiver>
+    <receiver android:name=".BalancesWidget" android:label="@string/widget_balances_name" android:exported="true">
+      <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_balances"/>
+    </receiver>
+    <receiver android:name=".ActivityWidget" android:label="@string/widget_activity_name" android:exported="true">
+      <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_activity"/>
+    </receiver>
+    <receiver android:name=".SpendingWidget" android:label="@string/widget_spending_name" android:exported="true">
+      <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_spending"/>
+    </receiver>
+    <receiver android:name=".PresetsWidget" android:label="@string/widget_presets_name" android:exported="true">
+      <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_presets"/>
+    </receiver>
   </application>
 </manifest>

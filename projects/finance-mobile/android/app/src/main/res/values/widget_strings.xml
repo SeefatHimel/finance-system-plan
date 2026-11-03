@@ -1,0 +1,14 @@
+<resources>
+  <string name="widget_quick_add_name">Finance · Quick Add</string>
+  <string name="widget_review_name">Finance · Review Inbox</string>
+  <string name="widget_balances_name">Finance · Account Balances</string>
+  <string name="widget_activity_name">Finance · Recent Activity</string>
+  <string name="widget_spending_name">Finance · Spending Snapshot</string>
+  <string name="widget_presets_name">Finance · Quick Presets</string>
+  <string name="widget_quick_add_description">Quick Add: expense, transfer and voice</string>
+  <string name="widget_review_description">Review Inbox: messages waiting for review</string>
+  <string name="widget_balances_description">Account Balances: hidden until enabled</string>
+  <string name="widget_activity_description">Recent Activity: latest ledger entries</string>
+  <string name="widget_spending_description">Spending Snapshot: this month in BDT</string>
+  <string name="widget_presets_description">Quick Presets: saved transaction shortcuts</string>
+</resources>
