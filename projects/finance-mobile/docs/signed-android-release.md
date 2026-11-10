@@ -94,13 +94,18 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.22**, Android version code **23**. It includes
+The current release is **0.1.24**, Android version code **25**. It includes
 faster saved-session rendering while a free backend wakes, a more compact Home,
 Activity, Capture and Accounts layout, offline institution badges, and a focused
 SMS Review decision screen with an expandable original and compact correction form.
 The signed-in navigation now has one More list for secondary destinations and a
 screen-specific header; shared mobile type sizes reduce oversized headings and
 supporting copy without shrinking inputs or tap targets.
+This release also includes the native home-screen widgets. Version code 25 is
+intentional: a previously installed 0.1.23 build used code 24. Installing a
+code-23 APK over it fails as a downgrade even when both APKs have the same
+signing key. Use this signed code-25 build to update it in place; do not
+uninstall the existing app merely to bypass the version check.
 Existing profile/appearance features require the API with `PATCH /api/auth/me/`.
 No new migration, native module, permission or queue reset is introduced.
 
@@ -125,7 +130,7 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.22.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.24.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
@@ -152,8 +157,13 @@ Install or upgrade it on a connected phone:
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-If an older build was signed by another key, Android will reject the upgrade.
-Back up its data if necessary, uninstall it, and then install the new APK.
+If Android reports a downgrade, inspect the installed `versionCode` and build
+an APK with a higher one, then install with `adb install -r`. Keep the signing
+certificate unchanged so Android can preserve the existing app data.
+
+If an older build was signed by another key, Android will reject the upgrade
+even with a higher version code. Back up its data before considering an
+uninstall; a version bump alone cannot resolve a signing mismatch.
 
 ## 7. Build an Android App Bundle
 

@@ -898,3 +898,13 @@ have distinct picker names. The checked-in Android project must be used for
 routine builds because a clean Expo prebuild can replace the manual native
 widget registration and resources. An installed Android build is required;
 Expo Go and web cannot install native widgets.
+
+### Why might a signed APK say the package is invalid on an existing phone?
+
+Android rejects an APK whose version code is lower than the installed Finance
+app, even if the package name and signing certificate match. The widget build
+initially used code 23 while one installed phone already had code 24. The
+0.1.24 release uses code 25 so it upgrades that app in place without deleting
+its data. Check both the installed and candidate version codes and verify the
+signing certificates match before installing with `adb install -r`; uninstalling
+the app is not part of the normal upgrade path.
