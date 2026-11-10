@@ -1421,6 +1421,11 @@ export async function listSavedReports(token: string, signal?: AbortSignal): Pro
   return z.array(savedReportSchema).parse(await response.json());
 }
 
+export async function getSavedReport(token: string, id: string, signal?: AbortSignal): Promise<SavedReport> {
+  const response = await authenticatedFetch(`/api/reports/saved/${encodeURIComponent(id)}/`, token, { signal });
+  return savedReportSchema.parse(await response.json());
+}
+
 export async function saveReport(token: string, input: SavedReportInput, id?: string): Promise<SavedReport> {
   const response = await authenticatedFetch(id ? `/api/reports/saved/${id}/` : "/api/reports/saved/", token,
     { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });

@@ -3,13 +3,23 @@ import { canonicalReportRules, type ReportRules } from "./report-rules";
 
 export const reportFiltersKey = "finance.reports.filters.v1";
 export const customReportFiltersKey = "finance.customReports.filters.v1";
+export const customReportListKey = "finance.customReports.list.v1";
+const reportIdPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+export function isCustomReportPathname(pathname: string) {
+  return /^\/custom-reports(?:\/new)?\/?$/.test(pathname) || new RegExp(`^/custom-reports/${reportIdPattern}(?:/edit)?/?$`, "i").test(pathname);
+}
+
+export function customReportPath(id: string) { return `/custom-reports/${encodeURIComponent(id)}`; }
+export function customReportEditPath(id: string) { return `${customReportPath(id)}/edit`; }
+export function reportDraftKey(id?: string) { return `${customReportFiltersKey}.${id ?? "new"}`; }
 export type ReportFilters = { period: DatePeriod; account: string; currency: string; savedReport: string; rules?: ReportRules };
 
 export function reportReturnPath(value: string | null) {
   if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\")) return null;
   try {
     const url = new URL(value, "https://finance.invalid");
-    return url.origin === "https://finance.invalid" && ["/reports", "/custom-reports"].includes(url.pathname)
+    return url.origin === "https://finance.invalid" && (url.pathname === "/reports" || isCustomReportPathname(url.pathname))
       ? `${url.pathname}${url.search}${url.hash}` : null;
   } catch { return null; }
 }

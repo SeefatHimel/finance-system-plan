@@ -821,12 +821,14 @@ Named reports require the API's `reports.0001_initial` migration before the upda
 web client is used. Run `python manage.py migrate` from `projects/finance-api` using
 your existing environment. Verify with `python manage.py test apps.reports` and,
 from `projects/finance-web`, `node --test tests/report-navigation.test.cjs`.
-Reports (`/reports`) and Custom reports (`/custom-reports`) retain independent
-filters in URL/tab-session state; definitions and manual transaction choices persist
+Reports (`/reports`) retain filters and Custom reports (`/custom-reports`) retain
+library search/sort independently in URL/tab-session state. Builder drafts are
+isolated per report; definitions and manual transaction choices persist
 on the API. Browser QA should cover navigation between both pages, creating a
 custom report from standard filters, save, remove/add, reload, drill-through and
-returning to the originating report page. The page split uses `reports.0001_initial`; the expanded builder also requires
-`reports.0002_savedreport_filters`.
+returning to the originating report page. Apply through
+`reports.0002_savedreport_filters` for the expanded builder. The separate library,
+detail and builder routes need no additional migration.
 
 
 ### Expanded report rules
@@ -837,3 +839,14 @@ Existing reports remain compatible. Verify `python manage.py test apps.reports` 
 web `node --test tests/report-navigation.test.cjs`. Browser QA should select multiple
 accounts/categories, exclude a category, inspect the live preview, save/reload,
 add/remove a transaction and compare drill-through and CSV export with the report.
+
+
+### Custom-report page flow
+
+Custom reports now have `/custom-reports` (library), `/custom-reports/new` (builder),
+`/custom-reports/{id}` (results) and `/custom-reports/{id}/edit` (edit builder).
+No additional migration is needed for this page split. Run web typecheck/lint plus
+`node --test tests/report-navigation.test.cjs tests/auth-session.test.cjs`. With the
+synthetic production browser fixture running, use
+`npm run test:e2e -- e2e/custom-reports.spec.ts` to check create/view/edit/duplicate,
+list return context and discard behavior on desktop and mobile.

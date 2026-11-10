@@ -4752,3 +4752,42 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
   .report-scope-grid { grid-template-columns: minmax(0, 1fr); }
   .report-scope-option { align-items: flex-start; flex-direction: column; gap: 2px; }
 }
+
+/* Report library, results and editing are separate page contexts. */
+.report-page-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.report-page-heading h1 { margin: 0 0 8px; font-size: clamp(24px, 3vw, 30px); overflow-wrap: anywhere; }
+.report-page-heading p { margin: 0 0 6px; color: var(--muted); }
+.report-page-heading > div:first-child { flex: 1 1 320px; min-width: 0; }
+.report-page-heading .report-actions { margin: 0; }
+.report-library-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 240px); gap: 16px; }
+.report-library-row { display: grid; grid-template-columns: minmax(180px, 1.2fr) repeat(3, minmax(120px, 1fr)); gap: 16px; padding: 22px 0; border-top: 1px solid var(--panel-border); }
+.report-library-title h2 { margin: 0 0 8px; font-size: 18px; overflow-wrap: anywhere; }
+.report-library-title a:hover { text-decoration: underline; }
+.report-library-row p { margin: 5px 0 0; overflow-wrap: anywhere; }
+.report-currency-label { color: var(--muted); font-size: 13px; }
+.report-library-row-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; }
+.report-library-empty { text-align: center; padding: 40px 16px; }
+.report-section-links { display: flex; flex-wrap: wrap; gap: 10px 24px; padding: 12px 0; border-bottom: 1px solid var(--panel-border); }
+.report-section-links a { padding-block: 8px; color: var(--muted); }
+.report-section-links a:hover { color: var(--accent); }
+.report-breakdown-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.report-account-breakdown { grid-column: 1 / -1; }
+.report-definition-list { display: grid; gap: 12px; margin-top: 20px; }
+.report-definition-list > div { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(0, 3fr); gap: 16px; }
+.report-definition-list dt { color: var(--muted); }
+.report-definition-list dd { margin: 0; overflow-wrap: anywhere; }
+.report-transactions-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.report-transactions-heading > div { flex: 1 1 320px; }
+.report-transactions-heading h2, .report-transactions-heading p { margin: 0 0 6px; }
+.report-more-actions { position: relative; }
+.report-more-actions summary { cursor: pointer; padding: 10px 14px; border: 1px solid var(--panel-border); border-radius: 8px; }
+.report-more-actions[open] > button { position: absolute; right: 0; top: calc(100% + 6px); min-width: 150px; z-index: 3; background: var(--panel); box-shadow: var(--shadow); }
+.report-builder-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.report-page-heading .icon-button { background: var(--panel); color: var(--foreground); border: 1px solid var(--panel-border); }
+.report-builder-preview { position: sticky; top: 100px; min-width: 0; }
+.report-builder-preview .metric-row { grid-template-columns: minmax(0, 1fr); }
+.report-builder-footer { position: sticky; bottom: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0 0; border-top: 1px solid var(--panel-border); background: var(--panel); }
+.report-builder-footer .report-actions { margin: 0; }
+#report-overview, #report-breakdowns, #report-transactions, #report-definition { scroll-margin-top: 110px; }
+@media (max-width: 1180px) { .report-builder-layout { grid-template-columns: minmax(0, 1fr); } .report-builder-preview { position: static; } .report-builder-preview .metric-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .report-library-toolbar, .report-breakdown-grid { grid-template-columns: minmax(0, 1fr); } .report-library-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .report-library-title { grid-column: 1 / -1; } .report-library-row-actions .button { flex: 1 1 auto; } .report-builder-preview .metric-row { grid-template-columns: minmax(0, 1fr); } .report-definition-list > div { grid-template-columns: minmax(0, 1fr); gap: 4px; } }

@@ -1048,3 +1048,13 @@ Validation rejects foreign IDs, mixed currencies, overlaps and unknown keys.
 owned saved_report manual choices, without persistence. Comparisons reuse rules,
 without manual overrides. Effective selections agree across summaries, transaction
 totals, browsing and CSV. The additive rules migration must precede web deployment.
+
+
+### Do the separate report pages require new API endpoints?
+
+No. The library uses the existing saved-definition list; detail/edit routes fetch
+one owner-scoped definition with GET `/api/reports/saved/{id}/`. Preview, Save,
+membership and export keep their existing contracts. Next.js UUID routes are client
+navigation, not API routes. Missing or foreign definitions remain inaccessible,
+and nested routes are protected login return destinations. Duplicate saves a new
+definition without copying explicit membership choices.

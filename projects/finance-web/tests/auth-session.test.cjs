@@ -40,6 +40,15 @@ test('every current workspace is a permitted return route', () => {
   assert(!isProtectedPath('/login'));
 });
 
+test('report list, create, detail and edit routes preserve login destinations', () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  for (const path of ['/custom-reports?q=Household&sort=name', '/custom-reports/new', `/custom-reports/${id}`, `/custom-reports/${id}/edit`]) {
+    assert.equal(safeReturnPath(path), path);
+    assert.equal(new URL(loginHref(path), 'https://finance.invalid').searchParams.get('next'), path);
+  }
+  for (const path of ['/custom-reports/invalid', '/custom-reports/new/edit', `/custom-reports/${id}/other`]) assert.equal(safeReturnPath(path), '/');
+});
+
 test('only confirmed 401 auth errors end a session', () => {
   assert(isAuthenticationFailure(new AuthRequestError('Expired', 401)));
   for (const error of [new Error('Network unavailable'), new Error('Session expired'),

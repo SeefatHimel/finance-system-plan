@@ -5,8 +5,9 @@ const { mkdtempSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const output = mkdtempSync(join(tmpdir(), 'finance-report-navigation-'));
-execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/report-navigation.ts'], { cwd: resolve(__dirname, '..') });
-const { reportFilterQuery, reportFiltersFromQuery, reportReturnPath, reportFiltersKey, customReportFiltersKey } = require(join(output, 'report-navigation.js'));
+execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/report-navigation.ts', 'lib/custom-report-library.ts'], { cwd: resolve(__dirname, '..') });
+const { reportFilterQuery, reportFiltersFromQuery, reportReturnPath, reportFiltersKey, customReportFiltersKey, customReportPath, customReportEditPath, isCustomReportPathname, reportDraftKey } = require(join(output, 'report-navigation.js'));
+const { filterReportLibrary, reportListQuery, reportListState, reportScopeSummary } = require(join(output, 'custom-report-library.js'));
 const { emptyReportRules, canonicalReportRules, setReportRuleChoice, reportRulesEqual, savedReportRules } = require(join(output, 'report-rules.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
 
@@ -54,4 +55,31 @@ test('include/exclude switches are mutually exclusive and legacy reports keep th
   assert(reportRulesEqual(setReportRuleChoice(exclude, 'categories', 'synthetic-food', 'any'), emptyReportRules()));
   assert.deepEqual(savedReportRules({account:'legacy-account', filters:{}}).accounts, ['legacy-account']);
   assert.deepEqual(savedReportRules({account:null, filters:{accounts:['a','b']}}).accounts, ['a','b']);
+});
+
+test('details and editing have stable return paths and separate local drafts', () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  for (const path of ['/custom-reports/new', customReportPath(id), customReportEditPath(id)]) {
+    assert(isCustomReportPathname(path));
+    assert.equal(reportReturnPath(path), path);
+  }
+  for (const path of ['/custom-reports/unknown', '/custom-reports/new/edit', '/custom-reports/111/edit', '/custom-reports/newer']) assert(!isCustomReportPathname(path));
+  assert.notEqual(reportDraftKey(), reportDraftKey(id));
+  assert.notEqual(reportDraftKey(id), reportDraftKey('another-report'));
+});
+
+test('report library search and sort restore without mutating saved definitions', () => {
+  const reports = [
+    {id:'a',name:'Travel',currency:'BDT',start_date:'2026-10-01',end_date:'2026-10-31',updated_at:'2026-11-01'},
+    {id:'b',name:'Household',currency:'BDT',start_date:'2026-09-01',end_date:'2026-09-30',updated_at:'2026-11-02'},
+    {id:'c',name:'USD spending',currency:'USD',start_date:'2026-11-01',end_date:'2026-11-30',updated_at:'2026-11-03'},
+  ];
+  assert.deepEqual(filterReportLibrary(reports,'bdt','name').map(row=>row.id),['b','a']);
+  assert.deepEqual(filterReportLibrary(reports,'','updated').map(row=>row.id),['c','b','a']);
+  assert.deepEqual(filterReportLibrary(reports,'','period').map(row=>row.id),['c','a','b']);
+  assert.deepEqual(filterReportLibrary(reports,'unknown','name'),[]);
+  assert.deepEqual(reports.map(row=>row.id),['a','b','c']);
+  assert.deepEqual(reportListState(reportListQuery('Household','name')),{search:'Household',sort:'name'});
+  assert.equal(reportListState('?sort=invalid').sort,'updated');
+  assert.equal(reportScopeSummary({account:'legacy',filters:{excluded_categories:['uncategorized']}}),'1 account · All categories · 1 exclusion');
 });

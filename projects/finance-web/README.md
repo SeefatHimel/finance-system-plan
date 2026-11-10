@@ -2091,14 +2091,13 @@ first. See [Cash counts](../../docs/cash-counts.md). Verification includes
 
 ## Saved reports
 
-The dedicated **Custom reports** page (`/custom-reports`) saves a name, fixed
-inclusive dates and date view, account and currency. Open one from its saved list,
-change its name/filters with **Save changes**, or
-use **Save as new** to create another filter definition (manual choices are not
-copied). Changed rules preview live with existing manual choices before Save.
-Matching ledger activity stays live.
+The **Custom reports** library (`/custom-reports`) opens named reports on their own
+detail pages. Separate Create and Edit builders save fixed inclusive dates, a date
+view, currency and selection rules. Changed rules preview live before Save; editing
+includes existing manual choices. Duplicate copies the definition without manual
+choices. Matching ledger activity stays live.
 
-The transaction section offers **In this report**, **Available to add**, and
+Choose **Manage transactions** on a detail page to use **In this report**, **Available to add**, and
 **Removed from report**, with search and pages of 25. Add/remove changes only that
 report. Additions may bypass dates/account but must use its currency. **Use saved
 filters** clears an exclusion; deleting a report never deletes ledger entries.
@@ -2106,11 +2105,12 @@ Prior-period comparisons use ordinary filters without manual choices.
 
 The standard `/reports` page focuses on financial summaries and links to Custom
 reports, including a shortcut that carries its current filters into a new custom
-report. Both pages have their own URL and tab-session filter state, so Back, the
-report return link, reload and navigation restore each page independently. Old
-`/reports?saved_report=...` links redirect to `/custom-reports`. Both routes require
-authentication and remain valid return destinations after login.
-Session storage contains filters only and clears on sign-out/session termination.
+report. Standard report filters and library search/sort have independent URL and
+tab-session state. Builder drafts are recovered separately per report. Old
+`/reports?saved_report=...` links redirect to the corresponding detail page. All
+report routes require authentication and remain valid return destinations after login.
+Session storage contains filters, library state and draft definitions, and clears
+on sign-out/session termination.
 Deploy the API and apply migrations through `reports.0002_savedreport_filters`
 before deploying the web changes.
 Verify with `node --test tests/report-navigation.test.cjs` and the API saved-report
@@ -2136,6 +2136,46 @@ removals stay excluded. Reset returns a transaction to rule-based membership.
 Debounced preview requests never save reports or ledger data. Previous-period
 comparisons apply the same rules without manual overrides. Save the draft before
 transaction drill-through or CSV export, so both reflect persisted effective
-membership. URL/tab-session restoration includes the complete draft rules.
+membership. Per-report tab-session drafts include the complete draft rules.
 Deploy API plus `reports.0002_savedreport_filters` before this client. Existing
 single-account reports remain readable and are converted when next saved.
+
+
+## Custom-report workflow: library, results and builder
+
+Custom reports use separate route contexts:
+
+- `/custom-reports`: searchable, sortable saved-report library. Each entry shows
+  name, period, currency, scope and definition update time, with View, Edit,
+  Duplicate and Delete actions. The list fetches definitions, not every report's totals.
+- `/custom-reports/new`: create a named definition and preview it before saving.
+- `/custom-reports/{id}`: stable, results-first detail view with totals, comparisons,
+  breakdowns, read-only matching transactions, saved rules and CSV export.
+- `/custom-reports/{id}/edit`: explicit rule editing with Save and Cancel. Saving
+  returns to the same detail URL. Duplicate opens a new builder and copies rules
+  only, retaining the original report and its manual choices.
+
+Manage transactions is an explicit detail-page action; the default results view
+has no membership mutation buttons. Manual selection changes refresh results and
+transaction lists. Both report routes and all nested create/detail/edit routes
+are protected, and login and transaction drill-through preserve the destination.
+Library search/sort live in the URL and tab-session state. Builder drafts are
+separate per report and restored locally after interruption. Save/Discard clears
+the draft; sign-out clears library and draft state. Unsaved edits prompt before
+in-app navigation or closing/reloading. Browser Back may leave a recoverable draft.
+
+Old saved-report query links open the corresponding detail page; old filter-only
+links open the new builder. Standard financial reports keep their own filters.
+This split needs no API schema or database migration beyond the existing report
+migrations. Existing owner-scoped GET/PATCH/DELETE and preview endpoints are reused.
+
+The workflow follows the separation documented by [QuickBooks saved reports](https://quickbooks.intuit.com/learn-support/en-us/help-article/memorize-reports/memorize-reports-quickbooks-online/L8iRmBp9q_US_en_US)
+and [Metabase query building/results](https://www.metabase.com/docs/latest/questions/query-builder/editor):
+find/run saved reports independently from editing their definition, then inspect
+results and drill through. The route structure and explicit management mode are
+this project's application of those patterns.
+
+Verify `node --test tests/report-navigation.test.cjs tests/auth-session.test.cjs`
+and `npm run test:e2e -- e2e/custom-reports.spec.ts` against the disposable synthetic
+fixture. Browser checks should also cover library search restoration, direct detail
+reload, read-only transaction inspection, explicit membership editing and CSV export.

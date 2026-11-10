@@ -1972,19 +1972,21 @@ auto-adjusts cash to make numbers agree. See docs/cash-counts.md.
 
 ### How do saved reports and returning to filters work?
 
-The dedicated Custom reports page (`/custom-reports`) lets users save a report
-name, fixed dates/date view, account and currency. Saved reports stay live as matching transactions arrive. They can rename/edit filters, save a new
-definition, or delete the saved report without deleting transactions. A report's
-transaction browser adds existing same-currency entries outside its filters and
+The Custom reports library (`/custom-reports`) opens each saved report on its own
+detail page. Separate builders save a report name, fixed dates/date view, currency
+and rules. Saved reports stay live as matching transactions arrive. Users can edit,
+duplicate or delete a saved definition without deleting transactions. Choose Manage
+transactions on the detail page to add existing same-currency entries outside its filters and
 removes individual matches. Removed entries can be added back or reset to follow
 the filters. Rule edits preview live with the report's existing manual choices.
-Save as new copies rules only.
+Duplicate copies rules only.
 
 The standard Reports page stays focused on summaries and offers a shortcut to
-create a custom report from its current filters. Each page has independent URL
-and tab-session filter state for reload, Back and navigation, cleared on sign-out.
-Both pages require authentication. Old saved-report links redirect to the new
-page. Drill-through carries effective saved membership and offers Back to report. Previous-period
+create a custom report from its current filters. Standard filters and library
+search/sort have independent URL and tab-session state. Builder drafts are isolated
+per report and cleared on save/discard; sign-out clears all report state.
+All report routes require authentication. Old saved-report links open the stable
+detail page. Drill-through carries effective saved membership and offers Back to report. Previous-period
 comparisons use the original filters without manual choices.
 
 
@@ -1998,5 +2000,19 @@ them. Same-currency transfers match either selected account once; cash flow excl
 transfers internal to the selected group. Currency changes clear incompatible
 accounts. Manual additions override rules; explicit removals win. The UI states
 these rules and previews the result before saving. Comparisons use the same rules
-without manual choices. Save before drill-through/export; URL and tab-session state
-retain draft rules when returning. CSV exports the persisted effective selection.
+without manual choices. Save before drill-through/export; per-report tab-session
+drafts retain unsaved rules. CSV exports the persisted effective selection.
+
+
+### Why are the custom-report list, details and builder separate pages?
+
+The library is for finding and running saved reports; details are for reading the
+result; the builder is for changing the definition. `/custom-reports` has search,
+sort, scope/date metadata and View/Edit/Duplicate/Delete actions. Stable UUID detail
+URLs show totals and breakdowns before read-only transactions and saved rules.
+Create and Edit have separate routes, preview and explicit Save/Cancel. Saving opens
+the saved detail view. Manage transactions explicitly enables add/remove controls.
+Library search/sort survives returning, drafts are isolated per report and unsaved
+changes prompt before in-app navigation. Duplicate copies rules without manual
+choices. Nested routes require authentication and remain valid login/drill-through
+return paths. These are client workflow changes using existing owner-scoped APIs.

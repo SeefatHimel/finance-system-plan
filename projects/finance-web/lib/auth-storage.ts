@@ -44,6 +44,10 @@ export function clearTokens() {
   try {
     window.sessionStorage.removeItem("finance.reports.filters.v1");
     window.sessionStorage.removeItem("finance.customReports.filters.v1");
+    window.sessionStorage.removeItem("finance.customReports.list.v1");
+    for (const key of Object.keys(window.sessionStorage)) {
+      if (key.startsWith("finance.customReports.filters.v1.")) window.sessionStorage.removeItem(key);
+    }
   } catch { /* Storage may be unavailable. */ }
   if (!canUseLocalTokenStorage()) {
     return;

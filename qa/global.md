@@ -468,3 +468,13 @@ or income. Users can save a mismatch and compare it with the previous count and
 the movements between them. A persistent net difference is not presented as a
 new shortage every day. Correct the verified underlying entries or a mistaken
 count explicitly; digital account SMS/statement reconciliation remains separate.
+
+
+### What is the custom-report lifecycle?
+
+Users find saved definitions in the report library, open a report's live results,
+and enter a separate builder to create or edit its rules. Saving returns to stable
+report details. The details page supports comparisons, breakdowns, export and
+explicit transaction-selection management. Duplicate creates another definition;
+delete never deletes ledger transactions. This separates discovery, reading and
+editing while keeping one effective selection for all results.
