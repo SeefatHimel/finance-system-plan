@@ -118,6 +118,7 @@ class TransactionBulkSourcesView(PrivateView):
                     "number": entry.number,
                     "original": archives[entry.batch_id][entry.number - 1],
                     "normalized": entry.normalized,
+                    "notes_edited": "notes" in entry.batch.configuration.get("decisions", {}).get(str(entry.number), {}),
                 }
             )
         return Response(result)

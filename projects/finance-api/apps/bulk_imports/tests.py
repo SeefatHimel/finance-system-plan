@@ -500,6 +500,106 @@ class BulkImportTests(APITestCase):
         self.assertEqual(self.commit(batch).status_code, 200)
         self.assertIn("Synthetic trip", Transaction.objects.get().note)
 
+    def test_edited_notes_round_trip_without_rewriting_the_original(self):
+        batch = self.create()
+        edited = "Reviewed context\nSecond line with extra detail."
+        batch = self.review(batch, decisions={"1": {"notes": edited}})
+        reloaded = self.client.get(f"/api/bulk-imports/{batch['id']}/").data
+        self.assertEqual(reloaded["rows"][0]["values"]["notes"], edited)
+        self.assertEqual(reloaded["rows"][0]["original"]["Notes"], "Synthetic note")
+        self.assertEqual(self.commit(reloaded).status_code, 200)
+        record = Transaction.objects.get(counterparty_text="Synthetic meal")
+        self.assertTrue(record.note.startswith(edited))
+        source = self.client.get(f"/api/transactions/{record.pk}/bulk-sources/").data[0]
+        self.assertEqual(source["normalized"]["notes"], edited)
+        self.assertTrue(source["notes_edited"])
+        self.assertEqual(source["original"]["Notes"], "Synthetic note")
+
+    def test_notes_can_be_cleared_and_too_long_edits_do_not_replace_the_draft(self):
+        batch = self.create("Date,Description,Amount,Notes\n2026-01-02,Synthetic snack,10,Original note")
+        response = self.client.patch(f"/api/bulk-imports/{batch['id']}/", {
+            "version": batch["version"], "decisions": {"1": {"notes": "x" * 4001}},
+        }, format="json")
+        self.assertEqual(response.status_code, 400)
+        batch = self.review(batch, decisions={"1": {"notes": ""}})
+        self.assertEqual(batch["rows"][0]["values"]["notes"], "")
+        self.assertEqual(self.commit(batch).status_code, 200)
+        self.assertEqual(Transaction.objects.get().note, "")
+
+    def test_linking_retains_existing_notes_and_saves_edited_import_notes_as_evidence(self):
+        record = Transaction.objects.create(user=self.user, account=self.account, type="expense",
+                                            date="2026-01-02", amount=10, note="Keep existing note")
+        batch = self.create("Date,Description,Amount,Notes\n2026-01-02,Synthetic snack,10,Original source note")
+        batch = self.review(batch, decisions={"1": {
+            "action": "link", "transaction": str(record.pk), "reviewed": True,
+            "notes": "Reviewed import note",
+        }})
+        self.assertEqual(self.commit(batch).status_code, 200)
+        record.refresh_from_db()
+        self.assertEqual(record.note, "Keep existing note")
+        self.assertEqual(BulkImportRow.objects.get().normalized["notes"], "Reviewed import note")
+
+    def test_clear_whole_label_category_aliases_are_suggested_and_recorded(self):
+        self.category.delete()  # Prefer the saved default when no exact Food category exists.
+        mappings = {"Transportation": "Transport", "Food": "Food & Dining",
+                    "Bills": "Utilities & Bills", "Medical": "Health & Medical",
+                    "Clothing": "Shopping & Personal"}
+        categories = {label: Category.objects.get_or_create(user=self.user, name=label)[0] for label in mappings.values()}
+        text = "Date,Category,Description,Amount\n" + "\n".join(
+            f"2026-01-02,{label},Synthetic row {n},{10+n}" for n, label in enumerate(mappings)
+        )
+        batch = self.create(text)
+        for row, (source, target) in zip(batch["rows"], mappings.items()):
+            self.assertEqual(row["category_suggestion"]["method"], "alias")
+            self.assertEqual(row["values"]["category"], str(categories[target].pk))
+            self.assertEqual(row["values"]["direction"], "debit")
+            self.assertEqual(row["values"]["type"], "expense")
+        self.assertEqual(self.commit(batch).status_code, 200)
+        self.assertEqual(set(Transaction.objects.values_list("category_id", flat=True)),
+                         {category.pk for category in categories.values()})
+
+    def test_exact_category_names_win_and_manual_overrides_including_null_win(self):
+        transport = Category.objects.get(user=self.user, name="Transport")
+        Category.objects.create(user=self.user, name="Transportation")
+        dining = Category.objects.get(user=self.user, name="Food & Dining")
+        batch = self.create("Date,Category,Description,Amount\n2026-01-02,Food,Synthetic meal,10")
+        self.assertEqual(batch["rows"][0]["values"]["category"], str(self.category.pk))
+        self.assertEqual(batch["rows"][0]["category_suggestion"]["method"], "exact")
+        batch = self.review(batch, category_map={"Food": str(dining.pk)})
+        self.assertEqual(batch["rows"][0]["values"]["category"], str(dining.pk))
+        batch = self.review(batch, category_map={"Food": None})
+        self.assertIsNone(batch["rows"][0]["values"]["category"])
+        batch = self.review(batch, decisions={"1": {"category": str(transport.pk)}})
+        self.assertEqual(batch["rows"][0]["values"]["category"], str(transport.pk))
+
+    def test_ambiguous_and_private_or_inactive_category_matches_are_not_guessed(self):
+        Category.objects.create(user=self.user, name="TRANSPORT")
+        other_user = get_user_model().objects.create_user(username="synthetic-other-category")
+        self.assertTrue(Category.objects.filter(user=other_user, name="Health & Medical").exists())
+        Category.objects.filter(user=self.user, name__in=["Health & Medical", "Utilities & Bills"]).update(is_active=False)
+        text = "Date,Category,Description,Amount\n" + "\n".join(
+            f"2026-01-02,{label},Synthetic row {n},{10+n}" for n, label in enumerate(
+                ["Transportation", "Medical", "Bills", "Education/Office", "Synthetic trip"])
+        )
+        batch = self.create(text)
+        self.assertTrue(all(row["values"]["category"] is None for row in batch["rows"]))
+        self.assertEqual(batch["rows"][0]["category_suggestion"]["method"], "ambiguous")
+        self.assertEqual(batch["summary"]["needs_review"], 0)
+
+    def test_normalized_category_names_and_stale_suggestions_are_reviewed_again(self):
+        dining = Category.objects.get(user=self.user, name="Food & Dining")
+        text = "Date,Category,Description,Amount\n2026-01-02,Food   and Dining,Synthetic meal,10"
+        batch = self.create(text)
+        self.assertEqual(batch["rows"][0]["values"]["category"], str(dining.pk))
+        dining.is_active = False
+        dining.save(update_fields=["is_active"])
+        self.assertEqual(self.commit(batch).status_code, 409)
+        # Notes added during review receive the same important-content checks.
+        batch = self.client.get(f"/api/bulk-imports/{batch['id']}/").data
+        batch = self.review(batch, decisions={"1": {"notes": "Unaccounted cash padding"}})
+        self.assertTrue(any("real expense" in warning for warning in batch["rows"][0]["warnings"]))
+        self.assertGreater(batch["summary"]["needs_review"], 0)
+
     def test_preview_query_count_does_not_grow_with_sheet_rows(self):
         from django.test.utils import CaptureQueriesContext
 

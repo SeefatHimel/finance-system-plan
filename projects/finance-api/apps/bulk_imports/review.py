@@ -19,6 +19,7 @@ from apps.reconciliation.timing import account_rows, checkpoint_expected
 from apps.transactions.policy import default_direction
 from apps.transactions.balance_reports import reported_values
 from .parsing import money, day, clock, FIELDS
+from .category_mapping import suggest_categories
 
 
 from .sources import digest, original_table
@@ -52,7 +53,10 @@ def row_values(batch, config):
                 "account": "This account is inactive. Choose another active account in a new import."
             }
         )
-    category_names = {c.name.casefold(): str(c.pk) for c in categories.values()}
+    suggestions = suggest_categories(
+        {dict(zip(headers, row)).get(mapping.get("category", ""), "").strip() for row in cells},
+        categories.values(),
+    )
     result = []
     for number, cells in enumerate(cells, 1):
         source = dict(zip(headers, cells))
@@ -60,10 +64,11 @@ def row_values(batch, config):
         decision = decisions.get(str(number), {})
         warnings, errors = [], []
         original_category = values["category"]
+        suggestion = suggestions[original_category]
         selected_category = decision.get(
             "category",
             config.get("category_map", {}).get(
-                original_category, category_names.get(original_category.casefold())
+                original_category, suggestion["category"]
             ),
         )
         normalized = {
@@ -71,7 +76,7 @@ def row_values(batch, config):
             "time": None,
             "category": str(selected_category) if selected_category else None,
             "description": decision.get("description", values["description"]),
-            "notes": values["notes"],
+            "notes": decision.get("notes", values["notes"]),
             "amount": None,
             "balance_after": None,
             "type": decision.get("type", "expense"),
@@ -163,7 +168,7 @@ def row_values(batch, config):
             )
         if re.search(
             r"padding|unaccounted|balance adjustment",
-            values["description"] + " " + values["notes"],
+            values["description"] + " " + values["notes"] + " " + normalized["notes"],
             re.I,
         ):
             warnings.append(
@@ -174,6 +179,7 @@ def row_values(batch, config):
                 "number": number,
                 "original": source,
                 "source_category": original_category,
+                "category_suggestion": suggestion,
                 "values": normalized,
                 "action": decision.get("action", "new"),
                 "transaction": str(decision["transaction"])

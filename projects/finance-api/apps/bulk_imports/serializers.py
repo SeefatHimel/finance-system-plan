@@ -31,6 +31,9 @@ class RowDecisionSerializer(serializers.Serializer):
     description = serializers.CharField(
         required=False, allow_blank=True, max_length=255
     )
+    notes = serializers.CharField(
+        required=False, allow_blank=True, max_length=4000, trim_whitespace=False
+    )
     category = serializers.UUIDField(required=False, allow_null=True)
     other_account = serializers.UUIDField(required=False, allow_null=True)
     transaction = serializers.UUIDField(required=False, allow_null=True)
@@ -107,3 +110,4 @@ class BulkSourceSerializer(serializers.Serializer):
     number = serializers.IntegerField()
     original = serializers.JSONField()
     normalized = serializers.JSONField()
+    notes_edited = serializers.BooleanField()

@@ -1938,3 +1938,11 @@ whole-day and specific-time comparisons; untimed entries require explicit orderi
 for timed counts. Snapshot mutations share the financial writer lock. Counts do
 not automatically adjust the ledger. Full workflow, limits, ownership guarantees,
 API routes and tests are in [bulk cash import](../../docs/bulk-cash-import.md).
+
+Bulk category suggestions resolve normalized exact names, then conservative
+whole-label synonyms against owned active expense categories. Ambiguous names
+stay unassigned; explicit row/batch choices, including null, win. Optional
+`decisions[row].notes` accepts multiline text up to 4,000 characters, including
+an empty string. New entries use reviewed notes; linking keeps the existing note
+and stores reviewed import notes separately. Original cells stay unchanged.
+Deploy the matching API before web; no migration is added.

@@ -1532,3 +1532,14 @@ up to its boundary and requires before/after decisions for untimed same-day entr
 with individual exceptions. These positions are stored against ledger identities;
 a new untimed entry needs another timing review. Counts save an observation and
 difference, never automatic spending/income or an opening-balance adjustment.
+
+## How do bulk notes and suggested categories preserve user intent?
+
+Optional row notes round-trip through review, accept an empty string and supply
+new ledger notes. Linking keeps the existing ledger note and saves reviewed
+import notes separately; the encrypted original stays unchanged. Suggestions
+prefer normalized exact names, then conservative aliases against owned active
+expense categories. Multiple matches and mixed/trip labels require a choice.
+Explicit batch/row selections, including null, win. Category changes alter the
+confirmation token; suggestions never change type, direction or amount.
+No migration or new query per row is added.
