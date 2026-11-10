@@ -24,6 +24,92 @@ tags:
   - name: Audit Logs
   - name: Statements
 paths:
+  /api/cash-counts/:
+    get:
+      operationId: cash_counts_list
+      parameters:
+      - in: query
+        name: account
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: offset
+        schema:
+          type: integer
+      tags:
+      - cash-counts
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CashCountHistoryResponse'
+          description: ''
+    post:
+      operationId: cash_counts_record
+      tags:
+      - cash-counts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CashCountInput'
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CashCountReceiptResponse'
+          description: ''
+  /api/cash-counts/{id}/:
+    get:
+      operationId: cash_counts_compare
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: offset
+        schema:
+          type: integer
+      tags:
+      - cash-counts
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CashCountComparisonResponse'
+          description: ''
+  /api/cash-counts/preview/:
+    post:
+      operationId: cash_counts_preview
+      tags:
+      - cash-counts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CashCountInput'
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CashCountPreviewResponse'
+          description: ''
   /api/health/ready/:
     get:
       operationId: health_readiness
@@ -4239,6 +4325,179 @@ components:
                       items:
                         type: string
   schemas:
+    CashCountHistoryResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items: {}
+        count:
+          type: integer
+        next_offset:
+          type: integer
+          nullable: true
+      required:
+      - count
+      - next_offset
+      - results
+    CashCountInput:
+      type: object
+      properties:
+        text:
+          type: string
+          maxLength: 1000000
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/CashCountRowInput'
+        mapping:
+          type: object
+          additionalProperties:
+            type: string
+        account_map:
+          type: object
+          additionalProperties:
+            type: string
+            format: uuid
+            nullable: true
+        decisions:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/CashCountRowInput'
+        date_order:
+          allOf:
+          - $ref: '#/components/schemas/DateOrderEnum'
+          default: ISO
+        end_of_day:
+          type: boolean
+          default: false
+        filename:
+          type: string
+          default: Cash counts
+          maxLength: 180
+        idempotency_key:
+          type: string
+          format: uuid
+        review_token:
+          type: string
+          maxLength: 64
+    CashCountRowInput:
+      type: object
+      properties:
+        account:
+          type: string
+          maxLength: 120
+        date:
+          type: string
+          maxLength: 40
+        time:
+          type: string
+          maxLength: 30
+        balance:
+          type: string
+          maxLength: 50
+        note:
+          type: string
+          maxLength: 2000
+        action:
+          $ref: '#/components/schemas/CashCountRowInputActionEnum'
+        replace_id:
+          type: string
+          format: uuid
+        unknown_position:
+          $ref: '#/components/schemas/UnknownPositionEnum'
+        timing_order:
+          type: object
+          additionalProperties:
+            enum:
+            - before
+            - after
+            type: string
+            description: '* `before` - before
+
+              * `after` - after'
+    CashCountRowInputActionEnum:
+      enum:
+      - add
+      - skip
+      - replace
+      type: string
+      description: '* `add` - add
+
+        * `skip` - skip
+
+        * `replace` - replace'
+    CashCountReceiptResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        counts:
+          type: array
+          items: {}
+        saved:
+          type: integer
+      required:
+      - counts
+      - id
+      - saved
+    CashCountComparisonResponse:
+      type: object
+      properties:
+        revision:
+          type: string
+        count: {}
+        previous:
+          nullable: true
+        difference_change:
+          type: string
+          nullable: true
+        movements:
+          type: array
+          items: {}
+        movement_count:
+          type: integer
+        next_offset:
+          type: integer
+          nullable: true
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+      - count
+      - difference_change
+      - errors
+      - movement_count
+      - movements
+      - next_offset
+      - previous
+      - revision
+    CashCountPreviewResponse:
+      type: object
+      properties:
+        rows:
+          type: array
+          items: {}
+        headers:
+          type: array
+          items:
+            type: string
+        mapping: {}
+        timezone:
+          type: string
+        ready:
+          type: boolean
+        review_token:
+          type: string
+      required:
+      - headers
+      - mapping
+      - ready
+      - review_token
+      - rows
+      - timezone
     BulkImportList:
       type: object
       properties:

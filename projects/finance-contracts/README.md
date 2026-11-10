@@ -1062,3 +1062,20 @@ reviewed normalized notes stay separate. Deploy API before web.
 
 `BulkSource.notes_edited` identifies a separately reviewed notes value, including
 an explicit clear. Clients can show it without repeating unchanged source notes.
+
+## Cash-count observations
+
+The additive cash-count endpoints cover preview, atomic save/correction, history
+and current-ledger interval comparison. `cash-counts.ts` provides the portable
+input shape; OpenAPI and generated clients include the endpoints. Each save
+carries `review_token` and a stable per-user `idempotency_key`; changed context
+returns 409, and an exact retry returns its existing receipt. `rows` or `text` is
+required, exclusively. Existing public component names and operations are retained.
+
+Only physical cash accounts are eligible. Counted balances and spreadsheet
+expectations do not create ledger money. Date-only counts require explicit
+end-of-day confirmation; timed comparisons need before/after choices for untimed
+entries. Comparison `revision` guards appending movement pages across ledger
+changes. Original source text and reference-only expected values are retained.
+Deploy reconciliation migration 0004/API before clients. Details:
+[Cash counts](../../docs/cash-counts.md).

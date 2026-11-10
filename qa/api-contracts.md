@@ -1012,3 +1012,15 @@ API precedes web deployment; no database migration is added.
 The additive `BulkSource.notes_edited` boolean marks an explicit note edit; the web
 reader defaults it to false for older API responses. Edited/cleared notes can be
 inspected without duplicating unchanged source text.
+
+### What does the cash-count API guarantee?
+
+Owner-scoped no-store preview/save/history/comparison routes accept physical cash
+observations only. A stable save UUID prevents duplicate retries, and a reviewed
+token prevents recording changed context. Existing periods need explicit skip or
+correction. Explicit `replace_id` corrections retain the observation identity when
+fixing its account/date/time, and reject collisions or repeated targets. Table Expected Balance is preserved as reference and is never trusted
+as the app's expected value. Timed counts require ordering unknown-time movements;
+date-only counts require end-of-day confirmation. Comparison revisions prevent
+mixing movement pages from different ledger states. These are additive endpoints;
+financial transaction contracts are unchanged.

@@ -755,6 +755,169 @@
         ]
       }
     },
+    "/api/cash-counts/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "account",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashCountHistoryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CashCountInput"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/CashCountInput"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/CashCountInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashCountReceiptResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/cash-counts/preview/": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CashCountInput"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/CashCountInput"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/CashCountInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashCountPreviewResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/cash-counts/{id}/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashCountComparisonResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/categories/": {
       "get": {
         "responses": {
@@ -7319,6 +7482,237 @@
         "original"
       ],
       "type": "object"
+    },
+    "CashCountComparisonResponse": {
+      "properties": {
+        "count": {},
+        "difference_change": {
+          "nullable": true,
+          "type": "string"
+        },
+        "errors": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "movement_count": {
+          "type": "integer"
+        },
+        "movements": {
+          "items": {},
+          "type": "array"
+        },
+        "next_offset": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "previous": {
+          "nullable": true
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "count",
+        "difference_change",
+        "errors",
+        "movement_count",
+        "movements",
+        "next_offset",
+        "previous",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "CashCountHistoryResponse": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "next_offset": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "results": {
+          "items": {},
+          "type": "array"
+        }
+      },
+      "required": [
+        "count",
+        "next_offset",
+        "results"
+      ],
+      "type": "object"
+    },
+    "CashCountInput": {
+      "properties": {
+        "account_map": {
+          "additionalProperties": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "date_order": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/DateOrderEnum"
+            }
+          ],
+          "default": "ISO"
+        },
+        "decisions": {
+          "additionalProperties": {
+            "$ref": "#/components/schemas/CashCountRowInput"
+          },
+          "type": "object"
+        },
+        "end_of_day": {
+          "default": false,
+          "type": "boolean"
+        },
+        "filename": {
+          "default": "Cash counts",
+          "maxLength": 180,
+          "type": "string"
+        },
+        "idempotency_key": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "mapping": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "review_token": {
+          "maxLength": 64,
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/components/schemas/CashCountRowInput"
+          },
+          "type": "array"
+        },
+        "text": {
+          "maxLength": 1000000,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "CashCountPreviewResponse": {
+      "properties": {
+        "headers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mapping": {},
+        "ready": {
+          "type": "boolean"
+        },
+        "review_token": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {},
+          "type": "array"
+        },
+        "timezone": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "headers",
+        "mapping",
+        "ready",
+        "review_token",
+        "rows",
+        "timezone"
+      ],
+      "type": "object"
+    },
+    "CashCountReceiptResponse": {
+      "properties": {
+        "counts": {
+          "items": {},
+          "type": "array"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "saved": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "counts",
+        "id",
+        "saved"
+      ],
+      "type": "object"
+    },
+    "CashCountRowInput": {
+      "properties": {
+        "account": {
+          "maxLength": 120,
+          "type": "string"
+        },
+        "action": {
+          "$ref": "#/components/schemas/CashCountRowInputActionEnum"
+        },
+        "balance": {
+          "maxLength": 50,
+          "type": "string"
+        },
+        "date": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "note": {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        "replace_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "time": {
+          "maxLength": 30,
+          "type": "string"
+        },
+        "timing_order": {
+          "additionalProperties": {
+            "enum": [
+              "before",
+              "after"
+            ],
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "unknown_position": {
+          "$ref": "#/components/schemas/UnknownPositionEnum"
+        }
+      },
+      "type": "object"
+    },
+    "CashCountRowInputActionEnum": {
+      "enum": [
+        "add",
+        "skip",
+        "replace"
+      ],
+      "type": "string"
     },
     "Category": {
       "properties": {
