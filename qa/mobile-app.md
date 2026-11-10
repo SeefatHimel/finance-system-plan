@@ -899,6 +899,12 @@ routine builds because a clean Expo prebuild can replace the manual native
 widget registration and resources. An installed Android build is required;
 Expo Go and web cannot install native widgets.
 
+Release 0.1.25 refines the native widget cards and the main mobile card and type
+hierarchy. Hidden-data cards now lead to the widget privacy controls, which
+appear before the widget picker list. The small Spending Snapshot preview uses
+one value row so it fits its launcher size. These changes do not alter which
+financial values are stored, the privacy gate, or any backend contract.
+
 ### Why might a signed APK say the package is invalid on an existing phone?
 
 Android rejects an APK whose version code is lower than the installed Finance

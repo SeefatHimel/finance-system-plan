@@ -1,11 +1,34 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:layout_width="match_parent" android:layout_height="match_parent"
-  android:orientation="vertical" android:padding="14dp"
+  android:orientation="vertical" android:padding="12dp"
   android:background="@drawable/finance_widget_background">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="horizontal" android:gravity="center_vertical">
+    <TextView android:layout_width="34dp" android:layout_height="34dp"
+      android:gravity="center" android:text="F" android:textColor="#F3F7FF"
+      android:textSize="16sp" android:textStyle="bold" android:fontFamily="sans-serif-medium"
+      android:background="@drawable/finance_widget_mark" />
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+      android:layout_weight="1" android:layout_marginStart="10dp" android:orientation="vertical">
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="SHORTCUTS" android:textColor="#AEC2E3"
+        android:textSize="9sp" android:textStyle="bold" android:letterSpacing="0.12"
+        android:fontFamily="sans-serif-medium" />
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="Presets" android:textColor="#F7F9FF"
+        android:textSize="17sp" android:textStyle="bold" android:fontFamily="sans-serif-medium"
+        android:maxLines="1" android:ellipsize="end" />
+    </LinearLayout>
+  </LinearLayout>
   <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-    android:text="@string/widget_presets_name" android:textColor="#E9F4F8"
-    android:textSize="16sp" android:textStyle="bold" />
-  <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-    android:layout_marginTop="8dp" android:text="@string/widget_presets_description"
-    android:textColor="#A3B7C3" android:textSize="12sp" />
+    android:layout_marginTop="7dp" android:text="Open saved entry drafts."
+    android:textColor="#C5D2E9" android:textSize="11sp" android:fontFamily="sans-serif" />
+  <LinearLayout android:layout_width="match_parent" android:layout_height="0dp"
+    android:layout_weight="1" android:gravity="center_vertical" android:orientation="vertical">
+    <TextView style="@style/FinanceWidgetRow" android:text="Groceries  ›" />
+    <TextView style="@style/FinanceWidgetRow" android:text="Transport  ›" />
+  </LinearLayout>
+  <TextView android:layout_width="match_parent" android:layout_height="27dp"
+    android:gravity="center_vertical" android:text="Open Finance  ›"
+    android:textColor="#B9EED7" android:textSize="10sp" android:fontFamily="sans-serif-medium" />
 </LinearLayout>

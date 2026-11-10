@@ -26,6 +26,7 @@ const preset = { id: "preset-1", name: "Groceries", is_enabled: true, available:
 
 test("widget deep links accept only known local actions and bounded preset ids", () => {
   assert.deepEqual(widgets.parseWidgetAction("finance://widget/expense"), { kind: "expense" });
+  assert.deepEqual(widgets.parseWidgetAction("finance://widget/widgets"), { kind: "widgets" });
   assert.deepEqual(widgets.parseWidgetAction("finance://widget/preset/preset-1"), { kind: "preset", id: "preset-1" });
   assert.equal(widgets.parseWidgetAction("finance://widget/preset/../../logout"), null);
   assert.equal(widgets.parseWidgetAction("https://widget/expense"), null);

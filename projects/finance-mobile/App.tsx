@@ -1784,7 +1784,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.24",
+          app_version: "0.1.26",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1806,7 +1806,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.24",
+        app_version: "0.1.26",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1883,7 +1883,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.24",
+            app_version: "0.1.26",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1898,7 +1898,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.24",
+          app_version: "0.1.26",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -4468,8 +4468,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           {showSmsDiagnostics ? (
             <View style={{ gap: 10 }}>
               <Text style={styles.mobileRowMeta}>Includes sync counts, stage and error codes. SMS text and login tokens are excluded.</Text>
-              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.24", getApiBaseUrl())}</Text>
-              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.24", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
+              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.26", getApiBaseUrl())}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.26", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
                 <Text style={styles.mobileSecondaryActionText}>Share diagnostics</Text>
               </Pressable>
             </View>
@@ -5256,7 +5256,8 @@ const styles = StyleSheet.create({
   },
   mobileAppHeader: {
     alignItems: "center",
-    borderBottomColor: "#1c3046",
+    backgroundColor: "#0d1930",
+    borderBottomColor: "#344767",
     borderBottomWidth: 1,
     flexDirection: "row",
     gap: 11,
@@ -5271,8 +5272,9 @@ const styles = StyleSheet.create({
   },
   mobileAppTitle: {
     color: "#f6f8fc",
-    fontSize: mobileType.screen,
-    fontWeight: "700"
+    fontSize: 16,
+    fontWeight: "600",
+    letterSpacing: 0.1
   },
   mobileBrandMark: {
     alignItems: "center",
@@ -5474,34 +5476,35 @@ const styles = StyleSheet.create({
     marginTop: 20
   },
   mobileHeroCard: {
-    backgroundColor: "#0e1c2c",
-    borderColor: "#263a52",
-    borderRadius: 20,
+    backgroundColor: "#1b2a45",
+    borderColor: "#455878",
+    borderRadius: 22,
     borderWidth: 1,
-    padding: 18
+    padding: 16
   },
   mobileBalanceCards: {
     gap: 10,
     paddingVertical: 2
   },
   mobileBalanceCard: {
-    backgroundColor: "#0e1c2c",
-    borderColor: "#294158",
-    borderRadius: 14,
+    backgroundColor: "#243553",
+    borderColor: "#506381",
+    borderRadius: 17,
     borderWidth: 1,
     gap: 4,
     minWidth: 145,
-    padding: 10
+    padding: 12
   },
   mobileBalanceName: {
-    color: "#a8b8cc",
-    fontSize: 13,
-    fontWeight: "600"
+    color: "#b8c7dd",
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.2
   },
   mobileBalanceAmount: {
     color: "#f6f8fc",
-    fontSize: 17,
-    fontWeight: "800"
+    fontSize: 16,
+    fontWeight: "700"
   },
   mobileHeroDate: {
     color: "#91a7c2",
@@ -5900,8 +5903,8 @@ const styles = StyleSheet.create({
   },
   mobileReviewAmount: {
     color: "#f6f8fc",
-    fontSize: 20,
-    fontWeight: "800"
+    fontSize: 18,
+    fontWeight: "700"
   },
   mobileReviewDirection: { fontSize: 12, fontWeight: "800" },
   mobileReviewSummary: { gap: 4, paddingTop: 3 },
@@ -5911,12 +5914,12 @@ const styles = StyleSheet.create({
   mobileReviewEditAction: { alignItems: "center", alignSelf: "flex-start", flexDirection: "row", gap: 6, justifyContent: "center", minHeight: 48, paddingHorizontal: 6 },
   mobileReviewEditText: { color: "#32d8f2", fontSize: 14, fontWeight: "700" },
   mobileReviewCard: {
-    backgroundColor: "#0e1c2c",
-    borderColor: "#263a52",
-    borderRadius: 18,
+    backgroundColor: "#1b2a45",
+    borderColor: "#455878",
+    borderRadius: 20,
     borderWidth: 1,
     gap: 8,
-    padding: 12
+    padding: 14
   },
   mobileReviewStack: { gap: 10 },
   mobileReviewPagerTitle: { color: "#f6f8fc", fontSize: 13, fontWeight: "700" },
@@ -5933,7 +5936,7 @@ const styles = StyleSheet.create({
   mobileHomePriority: { alignItems: "center", backgroundColor: "#103128", borderColor: "#2a805c", borderRadius: 14, borderWidth: 1, flexDirection: "row", gap: 8, minHeight: 60, paddingHorizontal: 14 },
   mobileHomePriorityTitle: { color: "#66e8ae", fontSize: mobileType.body, fontWeight: "700" },
   mobileRoot: {
-    backgroundColor: "#081421",
+    backgroundColor: "#0d1930",
     flex: 1
   },
   mobileRuleComposer: {
@@ -6015,8 +6018,8 @@ const styles = StyleSheet.create({
   },
   mobileRowTitle: {
     color: "#edf3fa",
-    fontSize: 14,
-    fontWeight: "700"
+    fontSize: 13,
+    fontWeight: "600"
   },
   mobileScrollContent: {
     paddingBottom: 26,
@@ -6078,12 +6081,13 @@ const styles = StyleSheet.create({
     fontSize: 12
   },
   mobileSectionStack: {
-    gap: 18
+    gap: 15
   },
   mobileSectionTitle: {
     color: "#f6f8fc",
-    fontSize: mobileType.section,
-    fontWeight: "800"
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.1
   },
   mobileSegment: {
     alignItems: "center",

@@ -93,13 +93,13 @@ export const syncWidgetSnapshot = (snapshot: ReturnType<typeof buildWidgetSnapsh
   enqueueWidgetWrite(() => native?.syncSnapshot(JSON.stringify(snapshot)) ?? Promise.resolve(false));
 
 export type WidgetAction =
-  | { kind: "expense" | "transfer" | "voice" | "review" | "accounts" | "activity" | "home" | "quick_add" }
+  | { kind: "expense" | "transfer" | "voice" | "review" | "accounts" | "activity" | "widgets" | "home" | "quick_add" }
   | { kind: "preset"; id: string };
 export function parseWidgetAction(url: string): WidgetAction | null {
   const match = /^finance:\/\/widget\/([a-z_]+)(?:\/([\w-]{1,80}))?$/.exec(url);
   if (!match) return null;
   if (match[1] === "preset" && match[2]) return { kind: "preset", id: match[2] };
-  if (!match[2] && ["expense", "transfer", "voice", "review", "accounts", "activity", "home", "quick_add"].includes(match[1]))
+  if (!match[2] && ["expense", "transfer", "voice", "review", "accounts", "activity", "widgets", "home", "quick_add"].includes(match[1]))
     return { kind: match[1] as Exclude<WidgetAction["kind"], "preset"> };
   return null;
 }

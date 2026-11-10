@@ -60,22 +60,8 @@ export function WidgetSettings({ privacy, onPrivacyChange }: {
     </View>
     {!widgetsAvailable ? <Text style={styles.notice}>Widgets can be added from the installed Android app. This browser preview shows their settings.</Text> : null}
     {message ? <Text accessibilityLiveRegion="polite" style={styles.notice}>{message}</Text> : null}
-    <View style={styles.list}>
-      {widgetKinds.map(kind => <View key={kind} style={styles.row}>
-        <View style={styles.icon}><MaterialCommunityIcons name={details[kind].icon} size={22} color="#5ee2a8" /></View>
-        <View style={styles.copy}>
-          <Text style={styles.name}>{details[kind].title}</Text>
-          <Text style={styles.secondary}>{details[kind].description}</Text>
-          {installed[kind] ? <Text style={styles.installed}>On home screen · {installed[kind]}</Text> : null}
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Add ${details[kind].title} widget`}
-          onPress={() => void add(kind)} style={styles.add}>
-          <Text style={styles.addText}>Add</Text>
-        </Pressable>
-      </View>)}
-    </View>
-    <Text style={[styles.sectionTitle, isLight && styles.lightTitle]}>Privacy on the home screen</Text>
-    <Text style={[styles.secondary, isLight && styles.lightSecondary]}>Financial details start hidden. Turn on only what you want visible to someone holding your phone. Snapshots expire after 24 hours without opening the app.</Text>
+    <Text style={[styles.sectionTitle, isLight && styles.lightTitle]}>What appears on your home screen</Text>
+    <Text style={[styles.secondary, isLight && styles.lightSecondary]}>Money details stay hidden until you switch them on. Anyone looking at your home screen can see the details you enable.</Text>
     <View style={styles.list}>
       {([
         ["showBalances", "Show account balances"],
@@ -90,28 +76,43 @@ export function WidgetSettings({ privacy, onPrivacyChange }: {
     <Pressable accessibilityRole="button" disabled={savingPrivacy} onPress={() => void changePrivacy(defaultWidgetPrivacy)} style={styles.reset}>
       <Text style={styles.resetText}>Hide all financial details</Text>
     </Pressable>
-    <Text style={[styles.secondary, isLight && styles.lightSecondary]}>Data updates when Finance opens or refreshes. Android may delay redraws while the app is closed.</Text>
+    <Text style={[styles.sectionTitle, isLight && styles.lightTitle]}>Choose a widget</Text>
+    <View style={styles.list}>
+      {widgetKinds.map(kind => <View key={kind} style={styles.row}>
+        <View style={styles.icon}><MaterialCommunityIcons name={details[kind].icon} size={22} color="#5ee2a8" /></View>
+        <View style={styles.copy}>
+          <Text style={styles.name}>{details[kind].title}</Text>
+          <Text style={styles.secondary}>{details[kind].description}</Text>
+          {installed[kind] ? <Text style={styles.installed}>On home screen · {installed[kind]}</Text> : null}
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Add ${details[kind].title} widget`}
+          onPress={() => void add(kind)} style={styles.add}>
+          <Text style={styles.addText}>Add</Text>
+        </Pressable>
+      </View>)}
+    </View>
+    <Text style={[styles.secondary, isLight && styles.lightSecondary]}>Snapshots update when Finance opens or refreshes and expire after 24 hours. Android may delay redraws while the app is closed.</Text>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  root: { gap: 16, paddingBottom: 28 },
+  root: { gap: 12, paddingBottom: 28 },
   intro: { gap: 5 },
-  title: { color: "#eef7f8", fontSize: 19, fontWeight: "700" },
-  sectionTitle: { color: "#eef7f8", fontSize: 16, fontWeight: "700", marginTop: 8 },
+  title: { color: "#eef7f8", fontSize: 17, fontWeight: "700" },
+  sectionTitle: { color: "#eef7f8", fontSize: 14, fontWeight: "700", marginTop: 8 },
   secondary: { color: "#9db3c1", fontSize: 12, lineHeight: 18, flexShrink: 1 },
   lightTitle: { color: "#18333e" },
   lightSecondary: { color: "#526d79" },
   notice: { color: "#f4c879", backgroundColor: "#302b1d", borderRadius: 12, padding: 12, fontSize: 12, lineHeight: 18 },
-  list: { backgroundColor: "#102331", borderWidth: 1, borderColor: "#294456", borderRadius: 16, overflow: "hidden" },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: 1, borderBottomColor: "#223b4c" },
-  icon: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#173644", alignItems: "center", justifyContent: "center" },
+  list: { backgroundColor: "#1b2a45", borderWidth: 1, borderColor: "#455878", borderRadius: 20, overflow: "hidden" },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: 1, borderBottomColor: "#344767" },
+  icon: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#344767", alignItems: "center", justifyContent: "center" },
   copy: { flex: 1, gap: 2 },
   name: { color: "#e6f1f5", fontSize: 13, fontWeight: "600" },
   installed: { color: "#5ee2a8", fontSize: 11 },
   add: { backgroundColor: "#4bdca0", borderRadius: 10, minHeight: 48, paddingHorizontal: 14, justifyContent: "center" },
   addText: { color: "#092322", fontSize: 12, fontWeight: "700" },
-  toggle: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 14, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: "#223b4c" },
+  toggle: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 14, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: "#344767" },
   reset: { alignSelf: "flex-start", minHeight: 48, justifyContent: "center" },
   resetText: { color: "#5ee2a8", fontSize: 12, fontWeight: "600" },
 });

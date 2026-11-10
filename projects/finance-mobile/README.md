@@ -1,5 +1,17 @@
 # finance-mobile
 
+## Visual refresh (0.1.25)
+
+The Android widgets now use compact slate-blue cards, restrained labels, and
+smaller text. Home, Activity, Review, Quick Add, and widget settings share the
+same calmer card treatment and tighter hierarchy. Widget privacy controls appear
+before the widget list; tapping a hidden-data widget opens those settings. The
+small Spending Snapshot preview shows its total only, matching the space the
+launcher gives that widget. This is a presentation and navigation change; widget
+privacy defaults, transaction review, and backend APIs are unchanged. Install a
+new Android build to see native widget changes; the web preview cannot render
+them. Check narrow phones and Android large-text settings before release.
+
 ## Android home-screen widgets
 
 **More → Home-screen widgets** lists six Android widgets: Quick Add, Review

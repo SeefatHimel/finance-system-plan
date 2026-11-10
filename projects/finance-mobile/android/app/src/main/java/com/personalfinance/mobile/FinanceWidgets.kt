@@ -88,6 +88,7 @@ private fun render(context: Context, manager: AppWidgetManager, ids: IntArray, k
       "Updated ${SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()).format(Date(updated))}  ›"
     else "Open Finance  ›"
     var title = "Finance"
+    var kicker = "FINANCE"
     var subtitle = ""
     var first: String? = null
     var second: String? = null
@@ -98,53 +99,62 @@ private fun render(context: Context, manager: AppWidgetManager, ids: IntArray, k
     var footerAction = "home"
     when (kind) {
       "quick_add" -> {
+        kicker = "NEW ENTRY"
         title = "Quick Add"
-        subtitle = "Choose an action. Review before saving."
-        first = "−  Expense"; firstAction = "expense"
-        second = "↔  Transfer"; secondAction = "transfer"
-        third = "◉  Voice entry"; thirdAction = "voice"
+        subtitle = "One tap opens an editable draft."
+        first = "Expense  ·  Money out"; firstAction = "expense"
+        second = "Transfer  ·  Between accounts"; secondAction = "transfer"
+        third = "Voice entry  ·  Speak a draft"; thirdAction = "voice"
       }
       "review" -> {
+        kicker = "INBOX"
         title = "Review Inbox"
-        subtitle = if (signedIn) "${data?.optInt("reviewCount", 0)} waiting for review" else "Sign in to see your review queue"
-        first = if (signedIn) "Open review queue  ›" else "Open Finance  ›"
+        subtitle = if (signedIn) "${data?.optInt("reviewCount", 0)} messages need a decision" else "Sign in to see your review queue"
+        first = if (signedIn) "Review messages  ›" else "Open Finance  ›"
         firstAction = if (signedIn) "review" else "home"
         footerAction = "review"
       }
       "balances" -> {
-        title = "Account Balances"
-        subtitle = if (signedIn) "Saved account snapshot" else "Sign in to see accounts"
+        kicker = "ACCOUNTS"
+        title = "Balances"
+        subtitle = if (signedIn) "Your latest saved account snapshot" else "Sign in to see accounts"
         val accounts = data?.optJSONArray("accounts")
         if (signedIn && allowed?.optBoolean("showBalances") == true && data.optBoolean("showBalances")) {
           first = item(accounts, 0)?.let { "${it.optString("name")}  ·  ${it.optString("balance")}" }
           second = item(accounts, 1)?.let { "${it.optString("name")}  ·  ${it.optString("balance")}" }
           third = item(accounts, 2)?.let { "${it.optString("name")}  ·  ${it.optString("balance")}" }
-        } else if (signedIn) first = "Balances hidden · change in Widgets settings"
-        firstAction = "accounts"; secondAction = "accounts"; thirdAction = "accounts"; footerAction = "accounts"
+        } else if (signedIn) first = "Show balances in widget settings  ›"
+        firstAction = if (signedIn && allowed?.optBoolean("showBalances") == true && data?.optBoolean("showBalances") == true) "accounts" else "widgets"
+        secondAction = "accounts"; thirdAction = "accounts"; footerAction = firstAction
       }
       "activity" -> {
-        title = "Recent Activity"
+        kicker = "LEDGER"
+        title = "Activity"
         subtitle = if (signedIn) "Latest loaded ledger entries" else "Sign in to see activity"
         val activity = data?.optJSONArray("activity")
         if (signedIn && allowed?.optBoolean("showActivity") == true && data.optBoolean("showActivity")) {
           first = item(activity, 0)?.let { "${it.optString("title")}  ·  ${it.optString("amount")}" }
           second = item(activity, 1)?.let { "${it.optString("title")}  ·  ${it.optString("amount")}" }
           third = item(activity, 2)?.let { "${it.optString("title")}  ·  ${it.optString("amount")}" }
-        } else if (signedIn) first = "Activity hidden · change in Widgets settings"
-        firstAction = "activity"; secondAction = "activity"; thirdAction = "activity"; footerAction = "activity"
+        } else if (signedIn) first = "Show activity in widget settings  ›"
+        firstAction = if (signedIn && allowed?.optBoolean("showActivity") == true && data?.optBoolean("showActivity") == true) "activity" else "widgets"
+        secondAction = "activity"; thirdAction = "activity"; footerAction = firstAction
       }
       "spending" -> {
-        title = "Spending Snapshot"
+        kicker = "THIS MONTH"
+        title = "Spending"
         subtitle = if (signedIn) "BDT · ${data.optString("spendingMonth", "This month")}" else "Sign in to see spending"
         if (signedIn && allowed?.optBoolean("showSpending") == true && data.optBoolean("showSpending")) {
           val spending = data.optJSONObject("spending")
           first = if (spending != null) "Spent  ·  ${spending.optString("total")}" else "Open Finance to refresh spending"
           second = spending?.optString("topCategory")?.takeIf { it.isNotBlank() }?.let { "Top category  ·  $it" }
-        } else if (signedIn) first = "Spending hidden · change in Widgets settings"
-        firstAction = "activity"; secondAction = "activity"; footerAction = "activity"
+        } else if (signedIn) first = "Show spending in widget settings  ›"
+        firstAction = if (signedIn && allowed?.optBoolean("showSpending") == true && data?.optBoolean("showSpending") == true) "activity" else "widgets"
+        secondAction = "activity"; footerAction = firstAction
       }
       "presets" -> {
-        title = "Quick Presets"
+        kicker = "SHORTCUTS"
+        title = "Presets"
         subtitle = "Saved shortcuts · review before saving"
         val presets = data?.optJSONArray("presets")
         first = item(presets, 0)?.let { "+  ${it.optString("name")}" }
@@ -157,6 +167,7 @@ private fun render(context: Context, manager: AppWidgetManager, ids: IntArray, k
         footerAction = "quick_add"
       }
     }
+    v.setTextViewText(R.id.widget_kicker, kicker)
     v.setTextViewText(R.id.widget_title, title)
     v.setTextViewText(R.id.widget_subtitle, subtitle)
     row(v, R.id.widget_row_one, first, firstAction, context)
