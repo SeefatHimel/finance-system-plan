@@ -4406,6 +4406,9 @@ components:
         description:
           type: string
           maxLength: 255
+        notes:
+          type: string
+          maxLength: 4000
         category:
           type: string
           format: uuid
@@ -4559,6 +4562,8 @@ components:
     BulkSource:
       type: object
       properties:
+        notes_edited:
+          type: boolean
         batch:
           type: string
           format: uuid

@@ -1053,3 +1053,12 @@ untimed-entry ordering and a source label. Existing public schema names and
 JSON request conventions are retained. `bulk-import.ts` describes the web review
 configuration; the API remains authoritative for parsing and financial decisions.
 See [the workflow and rollout](../../docs/bulk-cash-import.md).
+
+Bulk row decisions accept optional `notes` (blank allowed, up to 4,000 characters).
+Row preview JSON adds optional `category_suggestion`: nullable `category`, `label`
+and `method` (exact/alias/ambiguous/unmapped/empty). The server computes defaults;
+explicit batch/row choices override them, including null. Original cells and
+reviewed normalized notes stay separate. Deploy API before web.
+
+`BulkSource.notes_edited` identifies a separately reviewed notes value, including
+an explicit clear. Clients can show it without repeating unchanged source notes.

@@ -999,3 +999,16 @@ Retries of committed batches return the original receipt. Undo/reopen are explic
 owned actions. Bulk source reads expose original and normalized values separately.
 Snapshot precision and untimed ordering are additive; existing whole-day semantics
 are retained for legacy checks. Curated public types remain stable.
+
+## What changed for editable import notes and category suggestions?
+
+Optional `RowDecision.notes` allows blank text and up to 4,000 characters. Preview
+row JSON adds optional `category_suggestion`: nullable owned category UUID, label
+and exact/alias/ambiguous/unmapped/empty method. Explicit batch/row selections,
+including null, override defaults. Source JSON stays immutable; normalized notes
+retain the reviewed value. Routes/ownership/version/token semantics stay intact.
+API precedes web deployment; no database migration is added.
+
+The additive `BulkSource.notes_edited` boolean marks an explicit note edit; the web
+reader defaults it to false for older API responses. Edited/cleared notes can be
+inspected without duplicating unchanged source text.

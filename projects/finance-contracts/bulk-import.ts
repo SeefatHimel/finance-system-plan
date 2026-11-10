@@ -8,6 +8,7 @@ export type BulkRowDecision = {
   direction?: "debit" | "credit";
   category?: string | null;
   description?: string;
+  notes?: string;
   other_account?: string | null;
   transaction?: string | null;
   reviewed?: boolean;

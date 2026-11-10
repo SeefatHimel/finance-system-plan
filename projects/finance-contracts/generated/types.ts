@@ -55,6 +55,7 @@ export interface RowDecision {
   type?: RowDecisionTypeEnum;
   direction?: Direction61cEnum;
   description?: string;
+  notes?: string;
   category?: string | null;
   other_account?: string | null;
   transaction?: string | null;
@@ -96,6 +97,7 @@ export interface Reopen {
 }
 
 export interface BulkSource {
+  notes_edited?: boolean;
   batch: string;
   filename: string;
   number: number;

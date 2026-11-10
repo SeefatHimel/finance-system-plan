@@ -6701,8 +6701,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -7303,6 +7302,9 @@
           "type": "string"
         },
         "normalized": {},
+        "notes_edited": {
+          "type": "boolean"
+        },
         "number": {
           "type": "integer"
         },
@@ -7312,6 +7314,7 @@
         "batch",
         "filename",
         "normalized",
+        "notes_edited",
         "number",
         "original"
       ],
@@ -7325,8 +7328,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -9542,8 +9544,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -9689,8 +9690,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -9885,8 +9885,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -9947,8 +9946,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -10022,8 +10020,7 @@
           "type": "string"
         },
         "reminder_days_before": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -10143,8 +10140,7 @@
           "type": "string"
         },
         "priority": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -10450,8 +10446,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -10667,8 +10662,7 @@
           "type": "string"
         },
         "display_order": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -11055,8 +11049,7 @@
           "type": "string"
         },
         "reminder_days_before": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -11463,6 +11456,10 @@
         "direction": {
           "$ref": "#/components/schemas/Direction61cEnum"
         },
+        "notes": {
+          "maxLength": 4000,
+          "type": "string"
+        },
         "other_account": {
           "format": "uuid",
           "nullable": true,
@@ -11759,8 +11756,7 @@
           "type": "string"
         },
         "priority": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -11984,8 +11980,7 @@
           "type": "string"
         },
         "failed_upload_count": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
@@ -12017,8 +12012,7 @@
           "type": "string"
         },
         "pending_upload_count": {
-          "format": "int64",
-          "maximum": 9223372036854775807,
+          "maximum": 2147483647,
           "minimum": 0,
           "type": "integer"
         },
