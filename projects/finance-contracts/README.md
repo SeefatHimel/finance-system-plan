@@ -1042,3 +1042,14 @@ money/source semantics; account report groups now use deterministic name/ID orde
 API responses add generated `X-Request-ID` and `Server-Timing` diagnostics, forwarded
 by the web proxy. These are optional metadata, not financial identifiers. Integrity,
 fixture and scale commands are operator tools, not new public API endpoints.
+
+## Bulk table import contracts
+
+The published contract now includes owned bulk-import create/read/review,
+commit/Undo/reopen and transaction source-row routes. Confirmation requires the
+reviewed version and token; new/changed ledger matches invalidate previous row
+acknowledgements. Snapshot responses expose comparison precision, explicit
+untimed-entry ordering and a source label. Existing public schema names and
+JSON request conventions are retained. `bulk-import.ts` describes the web review
+configuration; the API remains authoritative for parsing and financial decisions.
+See [the workflow and rollout](../../docs/bulk-cash-import.md).

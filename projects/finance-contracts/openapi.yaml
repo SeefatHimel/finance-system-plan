@@ -3993,6 +3993,210 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /api/bulk-imports/:
+    get:
+      operationId: bulk_imports_list
+      tags:
+      - bulk-imports
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BulkImportList'
+          description: ''
+    post:
+      operationId: bulk_imports_create
+      tags:
+      - bulk-imports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBulkImport'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CreateBulkImport'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateBulkImport'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkImportResponse'
+          description: ''
+  /api/bulk-imports/{id}/:
+    get:
+      operationId: bulk_imports_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - bulk-imports
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkImportResponse'
+          description: ''
+    patch:
+      operationId: bulk_imports_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - bulk-imports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedReviewBulkImport'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedReviewBulkImport'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedReviewBulkImport'
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkImportResponse'
+          description: ''
+  /api/bulk-imports/{id}/commit/:
+    post:
+      operationId: bulk_imports_commit_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - bulk-imports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitBulkImport'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommitBulkImport'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CommitBulkImport'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
+          description: ''
+  /api/bulk-imports/{id}/reopen/:
+    post:
+      operationId: bulk_imports_reopen_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - bulk-imports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reopen'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reopen'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reopen'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkImportResponse'
+          description: ''
+  /api/bulk-imports/{id}/undo/:
+    post:
+      operationId: bulk_imports_undo_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - bulk-imports
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
+          description: ''
+  /api/transactions/{id}/bulk-sources/:
+    get:
+      operationId: transactions_bulk_sources_list
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - transactions
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BulkSource'
+          description: ''
+
 components:
   securitySchemes:
     bearerAuth:
@@ -4035,6 +4239,341 @@ components:
                       items:
                         type: string
   schemas:
+    BulkImportList:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        state:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        receipt: {}
+      required:
+      - account
+      - created_at
+      - filename
+      - id
+      - receipt
+      - state
+    CreateBulkImport:
+      type: object
+      properties:
+        account:
+          type: string
+          format: uuid
+        text:
+          type: string
+          maxLength: 1000000
+        filename:
+          type: string
+          default: Pasted table
+          maxLength: 180
+      required:
+      - account
+      - text
+    BulkImportResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        account:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        state:
+          type: string
+        version:
+          type: integer
+        headers:
+          type: array
+          items:
+            type: string
+        configuration: {}
+        rows:
+          type: array
+          items: {}
+        checkpoints:
+          type: array
+          items: {}
+        errors:
+          type: array
+          items:
+            type: string
+        summary: {}
+        review_token:
+          type: string
+        timezone:
+          type: string
+        receipt: {}
+      required:
+      - account
+      - checkpoints
+      - configuration
+      - errors
+      - filename
+      - headers
+      - id
+      - receipt
+      - review_token
+      - rows
+      - state
+      - summary
+      - timezone
+      - version
+    PatchedReviewBulkImport:
+      type: object
+      properties:
+        version:
+          type: integer
+          minimum: 1
+        mapping:
+          type: object
+          additionalProperties:
+            type: string
+        date_order:
+          allOf:
+          - $ref: '#/components/schemas/DateOrderEnum'
+          default: ISO
+        positive_direction:
+          allOf:
+          - $ref: '#/components/schemas/PositiveDirectionEnum'
+          default: debit
+        category_map:
+          type: object
+          additionalProperties:
+            type: string
+            format: uuid
+            nullable: true
+        decisions:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/RowDecision'
+        checkpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckpointInput'
+      required:
+      - version
+    DateOrderEnum:
+      enum:
+      - ISO
+      - DMY
+      - MDY
+      type: string
+      description: '* `ISO` - ISO
+
+        * `DMY` - DMY
+
+        * `MDY` - MDY'
+    PositiveDirectionEnum:
+      enum:
+      - debit
+      - credit
+      type: string
+      description: '* `debit` - debit
+
+        * `credit` - credit'
+    RowDecision:
+      type: object
+      properties:
+        action:
+          allOf:
+          - $ref: '#/components/schemas/RowDecisionActionEnum'
+          default: new
+        date:
+          type: string
+          maxLength: 40
+        time:
+          type: string
+          maxLength: 30
+        amount:
+          type: string
+          maxLength: 50
+        type:
+          $ref: '#/components/schemas/RowDecisionTypeEnum'
+        direction:
+          $ref: '#/components/schemas/Direction61cEnum'
+        description:
+          type: string
+          maxLength: 255
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        other_account:
+          type: string
+          format: uuid
+          nullable: true
+        transaction:
+          type: string
+          format: uuid
+          nullable: true
+        reviewed:
+          type: boolean
+          default: false
+        review_fingerprint:
+          type: string
+          maxLength: 64
+    RowDecisionActionEnum:
+      enum:
+      - new
+      - skip
+      - link
+      type: string
+      description: '* `new` - new
+
+        * `skip` - skip
+
+        * `link` - link'
+    RowDecisionTypeEnum:
+      enum:
+      - expense
+      - income
+      - refund
+      - fee
+      - transfer
+      - adjustment
+      - lend
+      - borrow
+      - repayment_paid
+      - repayment_received
+      type: string
+      description: '* `expense` - expense
+
+        * `income` - income
+
+        * `refund` - refund
+
+        * `fee` - fee
+
+        * `transfer` - transfer
+
+        * `adjustment` - adjustment
+
+        * `lend` - lend
+
+        * `borrow` - borrow
+
+        * `repayment_paid` - repayment_paid
+
+        * `repayment_received` - repayment_received'
+    Direction61cEnum:
+      enum:
+      - debit
+      - credit
+      type: string
+      description: '* `debit` - debit
+
+        * `credit` - credit'
+    CheckpointInput:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          format: time
+          nullable: true
+        balance:
+          type: string
+          maxLength: 50
+        end_of_day:
+          type: boolean
+          default: false
+        unknown_position:
+          allOf:
+          - $ref: '#/components/schemas/UnknownPositionEnum'
+          default: unresolved
+        exceptions:
+          type: object
+          additionalProperties:
+            enum:
+            - before
+            - after
+            type: string
+            description: '* `before` - before
+
+              * `after` - after'
+        note:
+          type: string
+          default: ''
+          maxLength: 2000
+      required:
+      - balance
+      - date
+    UnknownPositionEnum:
+      enum:
+      - unresolved
+      - before
+      - after
+      type: string
+      description: '* `unresolved` - unresolved
+
+        * `before` - before
+
+        * `after` - after'
+    CommitBulkImport:
+      type: object
+      properties:
+        version:
+          type: integer
+          minimum: 1
+        review_token:
+          type: string
+          maxLength: 64
+      required:
+      - review_token
+      - version
+    Receipt:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        state:
+          type: string
+        receipt: {}
+      required:
+      - id
+      - receipt
+      - state
+    Reopen:
+      type: object
+      properties:
+        version:
+          type: integer
+          minimum: 1
+      required:
+      - version
+    BulkSource:
+      type: object
+      properties:
+        batch:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        number:
+          type: integer
+        original: {}
+        normalized: {}
+      required:
+      - batch
+      - filename
+      - normalized
+      - number
+      - original
     TransactionTotals:
       type: object
       properties:
@@ -5918,7 +6457,20 @@ components:
     BalanceSnapshot:
       type: object
       required:
-        [id, account, checked_at, actual_balance, expected_balance, difference, status, adjustment_transaction, note, created_at, updated_at]
+      - id
+      - account
+      - checked_at
+      - actual_balance
+      - expected_balance
+      - difference
+      - status
+      - adjustment_transaction
+      - note
+      - created_at
+      - updated_at
+      - precision
+      - timing_order
+      - source_label
       properties:
         id:
           type: string
@@ -5931,14 +6483,14 @@ components:
           format: date-time
         actual_balance:
           type: string
-          pattern: '^\d+(\.\d{1,2})?$'
-          example: "980.00"
+          pattern: ^\d+(\.\d{1,2})?$
+          example: '980.00'
         expected_balance:
           type: string
-          example: "1000.00"
+          example: '1000.00'
         difference:
           type: string
-          example: "-20.00"
+          example: '-20.00'
         status:
           $ref: '#/components/schemas/BalanceSnapshotStatus'
         adjustment_transaction:
@@ -5953,9 +6505,34 @@ components:
         updated_at:
           type: string
           format: date-time
+        precision:
+          type: string
+          enum:
+          - end_of_day
+          - instant
+          default: end_of_day
+          description: End-of-day checks include the complete local calendar day. Specific-time
+            checks require explicit ordering of untimed entries.
+        timing_order:
+          type: object
+          maxProperties: 1000
+          additionalProperties:
+            type: string
+            enum:
+            - before
+            - after
+          description: Owned transaction UUIDs mapped to their reviewed position relative
+            to a timed checkpoint.
+        source_label:
+          type: string
+          readOnly: true
+          description: Manual balance check or the retained spreadsheet filename.
     BalanceSnapshotCreateRequest:
       type: object
-      required: [account, checked_at, actual_balance]
+      required:
+      - account
+      - checked_at
+      - actual_balance
       properties:
         account:
           type: string
@@ -5965,10 +6542,28 @@ components:
           format: date-time
         actual_balance:
           type: string
-          pattern: '^\d+(\.\d{1,2})?$'
+          pattern: ^\d+(\.\d{1,2})?$
         note:
           type: string
-          default: ""
+          default: ''
+        precision:
+          type: string
+          enum:
+          - end_of_day
+          - instant
+          default: end_of_day
+          description: End-of-day checks include the complete local calendar day. Specific-time
+            checks require explicit ordering of untimed entries.
+        timing_order:
+          type: object
+          maxProperties: 1000
+          additionalProperties:
+            type: string
+            enum:
+            - before
+            - after
+          description: Owned transaction UUIDs mapped to their reviewed position relative
+            to a timed checkpoint.
     BalanceSnapshotPatchRequest:
       type: object
       properties:
@@ -5977,9 +6572,27 @@ components:
           format: date-time
         actual_balance:
           type: string
-          pattern: '^\d+(\.\d{1,2})?$'
+          pattern: ^\d+(\.\d{1,2})?$
         note:
           type: string
+        precision:
+          type: string
+          enum:
+          - end_of_day
+          - instant
+          default: end_of_day
+          description: End-of-day checks include the complete local calendar day. Specific-time
+            checks require explicit ordering of untimed entries.
+        timing_order:
+          type: object
+          maxProperties: 1000
+          additionalProperties:
+            type: string
+            enum:
+            - before
+            - after
+          description: Owned transaction UUIDs mapped to their reviewed position relative
+            to a timed checkpoint.
     AccountReconciliation:
       type: object
       required: [account, account_name, expected_balance, latest_snapshot]

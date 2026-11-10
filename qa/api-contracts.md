@@ -987,3 +987,15 @@ Existing schema validation and snapshot checks continue to guard API drift.
 The concurrency follow-up changes SQL statement boundaries, not endpoint fields:
 current/previous report sections share a snapshot, and JSON projections keep money
 as decimal strings. Existing report/account payloads and owner checks remain.
+
+## What is the bulk-import confirmation contract?
+
+Create recovers an identical table for the same owner/account. Review PATCH takes
+the current version, mappings, row decisions and checkpoint inputs. Confirmation
+POST takes that reviewed version and preview token. The server rechecks current
+matching context under the user writer lock; stale decisions return 409 and no
+partial writes. Row acknowledgements bind to the candidates actually compared.
+Retries of committed batches return the original receipt. Undo/reopen are explicit
+owned actions. Bulk source reads expose original and normalized values separately.
+Snapshot precision and untimed ordering are additive; existing whole-day semantics
+are retained for legacy checks. Curated public types remain stable.
