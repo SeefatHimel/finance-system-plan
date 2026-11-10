@@ -108,8 +108,8 @@ android {
         applicationId 'com.personalfinance.mobile'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 23
-        versionName "0.1.22"
+        versionCode 27
+        versionName "0.1.26"
     }
     signingConfigs {
         debug {
@@ -164,6 +164,15 @@ gradle.taskGraph.whenReady { taskGraph ->
         throw new GradleException(
             'Release signing is not configured. Follow docs/signed-android-release.md.'
         )
+    }
+    if (isReleasePackageRequested) {
+        def apiBaseUrl = System.getenv('EXPO_PUBLIC_API_BASE_URL')?.trim()
+        if (!apiBaseUrl?.startsWith('https://') ||
+            apiBaseUrl.contains('localhost') || apiBaseUrl.contains('10.0.2.2')) {
+            throw new GradleException(
+                'Set EXPO_PUBLIC_API_BASE_URL to the deployed HTTPS API before building a release APK.'
+            )
+        }
     }
 }
 

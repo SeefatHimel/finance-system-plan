@@ -57,12 +57,14 @@ EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:8000
 Generate the native Android project and run it:
 
 ```bash
-npx expo prebuild --platform android
 npx expo run:android --device
 ```
 
 Expo Go cannot load this module. Use the generated custom dev client or a
 debug/release APK built from the generated Android project.
+Use the committed `android/` project for routine builds. `expo prebuild` can
+regenerate the manually maintained widget integration; only run it when you
+intend to review and restore those native changes.
 
 ## Phone Workflow
 

@@ -790,3 +790,14 @@ repair personal data automatically. Test with `python manage.py test apps.bulk_i
 `npm run test:e2e -- e2e/bulk-import.spec.ts` from the web directory. The regular
 synthetic fixture/server setup above applies. See [bulk cash import](bulk-cash-import.md)
 for table formats, time ordering, duplicates, limits and deployment requirements.
+
+### Android home-screen widgets
+
+The six widgets live in the committed `projects/finance-mobile/android` project.
+From `projects/finance-mobile`, run `npm run typecheck` and `npm test`; from its
+`android` directory run `./gradlew :app:assembleDebug` with the Android SDK
+configured. Install the APK and check pinning, deep links, resized layouts,
+privacy changes, and sign-out on a device. Use the committed native project for
+routine builds. `expo prebuild` can regenerate the manually maintained widget
+manifest, resources, and package registration; only run it when reviewing and
+restoring those changes deliberately. Widgets need no backend migration.

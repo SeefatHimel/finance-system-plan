@@ -346,11 +346,14 @@ function TransactionDetails({
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={s.screen}>
-        <View style={s.sheetHeader}>
+        <View style={[s.sheetHeader, s.detailSheetHeader]}>
           <Text accessibilityRole="header" style={s.heading}>
             Transaction details
           </Text>
-          <View style={s.wrap}>{onEdit ? <Button label="Edit transaction" onPress={() => { onClose(); onEdit(row.id); }} /> : null}<Button label="Close transaction details" onPress={onClose} /></View>
+          <View style={s.wrap}>
+            {onEdit ? <Button label="Edit transaction" onPress={() => { onClose(); onEdit(row.id); }} /> : null}
+            <Button label="Close transaction details" onPress={onClose} />
+          </View>
         </View>
         <ScrollView contentContainerStyle={s.content}>
           <Text style={s.amount}>{money(row.amount, currency)}</Text>
@@ -660,9 +663,9 @@ export function TransactionActivity({
   );
 }
 const darkActivityStyles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#081421" },
-  content: { padding: 16, paddingBottom: 28, gap: 10 },
-  contentHeader: { gap: 10, marginBottom: 10 },
+  screen: { flex: 1, backgroundColor: "#0d1930" },
+  content: { padding: 16, paddingBottom: 28, gap: 8 },
+  contentHeader: { gap: 8, marginBottom: 6 },
   heading: { color: "#f6f8fc", fontSize: mobileType.dialog, fontWeight: "700", flexShrink: 1 },
   text: { color: "#f6f8fc", fontSize: 15 },
   muted: { color: "#a8b8cc", fontSize: 13, lineHeight: 19 },
@@ -700,21 +703,23 @@ const darkActivityStyles = StyleSheet.create({
   disabled: { opacity: 0.5 },
   error: { color: "#ff9399", fontSize: 14, lineHeight: 21 },
   row: {
-    minHeight: 68,
-    backgroundColor: "#0e1c2c",
-    borderRadius: 10,
-    padding: 14,
+    minHeight: 66,
+    backgroundColor: "#1b2a45",
+    borderColor: "#455878",
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 12,
     gap: 8,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    borderLeftWidth: 3,
+    borderLeftWidth: 2,
   },
   debitRow: { borderLeftColor: "#ff9399" },
   creditRow: { borderLeftColor: "#55e6a5" },
   transferRow: { borderLeftColor: "#75b8ff" },
-  rowBody: { flex: 1, minWidth: 0, gap: 3 },
-  rowTitle: { color: "#f6f8fc", fontSize: 15, fontWeight: "700" },
+  rowBody: { flex: 1, minWidth: 0, gap: 2 },
+  rowTitle: { color: "#f6f8fc", fontSize: 14, fontWeight: "600" },
   typeIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   typeIconText: { fontSize: 18, fontWeight: "700" },
   debitIcon: { backgroundColor: "#3a232c" },
@@ -724,19 +729,20 @@ const darkActivityStyles = StyleSheet.create({
   transferText: { color: "#75b8ff" },
   rowAmount: {
     color: "#d8e3f0",
-    fontSize: 15,
-    fontWeight: "700",
+    fontSize: 14,
+    fontWeight: "600",
     flexShrink: 0,
     maxWidth: "42%",
     textAlign: "right",
   },
   credit: { color: "#55e6a5" },
   day: {
-    color: "#a8b8cc",
-    fontSize: 14,
+    color: "#b8c7dd",
+    fontSize: 12,
     fontWeight: "600",
-    marginTop: 14,
-    marginBottom: 8,
+    letterSpacing: 0.3,
+    marginTop: 11,
+    marginBottom: 6,
   },
   sheetHeader: {
     padding: 16,
@@ -744,6 +750,12 @@ const darkActivityStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
+  },
+  // Keep long action labels from collapsing the details title into a tall column.
+  detailSheetHeader: {
+    alignItems: "stretch",
+    flexDirection: "column",
+    gap: 8,
   },
   footer: { padding: 16, gap: 8, flexDirection: "row", flexWrap: "wrap" },
   option: {

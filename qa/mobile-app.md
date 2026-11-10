@@ -878,3 +878,55 @@ entry types use it; old transfer keys and explicit keys remain unchanged. The AP
 serializes keyed creation and reuses the same movement for identical retries,
 rejecting different details. The correction needs an app rebuild, and does not
 silently remove old duplicates. CI now runs native SMS tests and Android compilation.
+
+### How do Android widgets open a safe transaction flow?
+
+Six native home-screen widgets offer Quick Add, Review Inbox, Account Balances,
+Recent Activity, Spending Snapshot and Quick Presets. More → Home-screen
+widgets can request launcher pinning; Android's picker remains the fallback.
+Widget intents contain only an action or a preset ID, never credentials or
+financial data. Quick Add, presets and voice open editable drafts, while
+Transfer opens the full transfer form. The app still requires review and Save.
+Voice uses the device speech recognizer and a conservative local parser; missing
+or ambiguous account/category values remain for the user to choose. Widget
+shortcuts wait for cached or fetched presets and account choices before opening
+their drafts. Transfer always starts from a fresh form.
+
+The app sends a compact, user-scoped display snapshot to Android. Balances,
+activity and spending are independently hidden by default; hidden fields are
+omitted from that snapshot. Android also persists an account-scoped privacy gate
+which the renderer checks independently of the snapshot; a failed setting save
+does not enable an old visible choice again. Sign-out waits for the snapshot to
+clear, account switch clears it, and native
+rendering treats data older than 24 hours as expired. The monthly BDT figure
+comes from the existing Reports API, which excludes transfers and financing
+from spending. Widgets show a saved snapshot and refresh when the app is active,
+not a guaranteed real-time balance. Widgets display their last update time and
+have distinct picker names. The checked-in Android project must be used for
+routine builds because a clean Expo prebuild can replace the manual native
+widget registration and resources. An installed Android build is required;
+Expo Go and web cannot install native widgets.
+
+Release 0.1.25 refines the native widget cards and the main mobile card and type
+hierarchy. Hidden-data cards now lead to the widget privacy controls, which
+appear before the widget picker list. The small Spending Snapshot preview uses
+one value row so it fits its launcher size. These changes do not alter which
+financial values are stored, the privacy gate, or any backend contract.
+
+### Why might a signed APK say the package is invalid on an existing phone?
+
+Android rejects an APK whose version code is lower than the installed Finance
+app, even if the package name and signing certificate match. The widget build
+initially used code 23 while one installed phone already had code 24. The
+0.1.24 release uses code 25 so it upgrades that app in place without deleting
+its data. Check both the installed and candidate version codes and verify the
+signing certificates match before installing with `adb install -r`; uninstalling
+the app is not part of the normal upgrade path.
+
+### Why must the production API URL be set for every signed release build?
+
+Expo embeds the API URL into the Android JavaScript bundle at build time. Without
+an explicit release environment value, this project falls back to the emulator
+address, which a physical phone cannot reach. Release builds now fail if the
+deployed HTTPS API URL is absent or points to localhost or the emulator. Verify
+the bundled URL before distributing the APK.

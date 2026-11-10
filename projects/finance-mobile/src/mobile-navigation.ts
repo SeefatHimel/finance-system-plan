@@ -42,7 +42,7 @@ export type AdvancedTool =
   | "entry";
 export const mainTabs = ["home", "activity", "capture", "review", "more"] as const;
 export type MainTab = (typeof mainTabs)[number];
-export const workspaceTitles: Record<MainTab | "accounts" | "profile", string> = {
+export const workspaceTitles: Record<MainTab | "accounts" | "profile" | "widgets", string> = {
   home: "Home",
   activity: "Activity",
   capture: "SMS capture",
@@ -50,8 +50,9 @@ export const workspaceTitles: Record<MainTab | "accounts" | "profile", string> =
   more: "More",
   accounts: "Accounts",
   profile: "Profile",
+  widgets: "Widgets",
 };
-export const workspaceRoutes = [...mainTabs, "accounts", "profile", "entry", "debts", "credit-cards", "recurring-bills", "reconciliation"] as const;
+export const workspaceRoutes = [...mainTabs, "accounts", "profile", "widgets", "entry", "debts", "credit-cards", "recurring-bills", "reconciliation"] as const;
 export type WorkspaceRoute = (typeof workspaceRoutes)[number];
 export type WorkspaceParams = { [Route in WorkspaceRoute]: undefined };
 export function isMainTab(route: WorkspaceRoute): route is MainTab {

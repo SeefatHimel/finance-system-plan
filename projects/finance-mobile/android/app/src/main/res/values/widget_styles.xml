@@ -1,0 +1,19 @@
+<resources>
+  <style name="FinanceWidgetRow">
+    <item name="android:layout_width">match_parent</item>
+    <item name="android:layout_height">43dp</item>
+    <item name="android:layout_marginTop">6dp</item>
+    <item name="android:paddingLeft">12dp</item>
+    <item name="android:paddingRight">12dp</item>
+    <item name="android:paddingTop">5dp</item>
+    <item name="android:paddingBottom">5dp</item>
+    <item name="android:gravity">center_vertical</item>
+    <item name="android:background">@drawable/finance_widget_action</item>
+    <item name="android:textColor">#F3F6FF</item>
+    <item name="android:textSize">12sp</item>
+    <item name="android:fontFamily">sans-serif-medium</item>
+    <item name="android:letterSpacing">0.01</item>
+    <item name="android:maxLines">1</item>
+    <item name="android:ellipsize">end</item>
+  </style>
+</resources>

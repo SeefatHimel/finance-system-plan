@@ -1,5 +1,60 @@
 # finance-mobile
 
+## Visual refresh (0.1.25)
+
+The Android widgets now use compact slate-blue cards, restrained labels, and
+smaller text. Home, Activity, Review, Quick Add, and widget settings share the
+same calmer card treatment and tighter hierarchy. Widget privacy controls appear
+before the widget list; tapping a hidden-data widget opens those settings. The
+small Spending Snapshot preview shows its total only, matching the space the
+launcher gives that widget. This is a presentation and navigation change; widget
+privacy defaults, transaction review, and backend APIs are unchanged. Install a
+new Android build to see native widget changes; the web preview cannot render
+them. Check narrow phones and Android large-text settings before release.
+
+## Android home-screen widgets
+
+**More → Home-screen widgets** lists six Android widgets: Quick Add, Review
+Inbox, Account Balances, Recent Activity, Spending Snapshot and Quick Presets.
+Tap **Add** to ask a compatible launcher to pin one. If the launcher does not
+support pin requests, long-press the Android home screen, open **Widgets**, and
+choose Finance. Widget taps reopen the appropriate app screen. Expense and
+preset shortcuts open editable drafts; Transfer opens a blank transfer form;
+Voice uses an installed Android speech recognizer and opens a draft. None of
+these actions records a transaction without review and Save.
+
+Widgets are native Android components in `android/app`; they do not appear in
+Expo Go or the web preview. A new installed Android build is required. The
+Widgets page can still be previewed on web. No new backend endpoint or database
+migration is needed. Spending Snapshot uses the existing authenticated monthly
+report for **BDT**; it does not sum the first page of Activity. If the report
+cannot be fetched, the widget asks the user to open Finance and refresh.
+
+Financial details are hidden by default. The Widgets page has separate device
+toggles for balances, recent activity and monthly spending. These preferences
+are scoped to the signed-in user and backend. On Android the native privacy
+gate is saved before the screen changes; a failed save leaves the previous
+choice visible and reports the error. The native display snapshot is
+cleared before sign-out or on account switch, excludes hidden financial fields, and
+expires after 24 hours without an app refresh. Android can delay widget redraws,
+but native rendering also checks the saved privacy gate on every redraw. Each
+widget shows when its snapshot was last updated. Spending is BDT only. The
+review count and preset labels are visible
+while signed in. No raw SMS, authentication token or full ledger record is
+stored in the widget snapshot.
+
+For local verification, run `npm run typecheck`, `npm test`, then from
+`projects/finance-mobile/android` run
+`ANDROID_HOME=/path/to/Android/sdk ./gradlew :app:assembleDebug`. Install the
+APK, pin each widget, check shortcuts and privacy toggles, sign out and verify
+the widget contents clear. Android's widget picker and speech recognizer vary
+by launcher/device; the pin button explains the manual picker route when
+pinning is unavailable.
+Build from the committed `android/` project. Do not run `expo prebuild` as a
+routine build step: it may regenerate the manually maintained widget manifest,
+resources and React package registration. A native regeneration needs a separate
+review or a future Expo config plugin.
+
 ## Mobile navigation and text hierarchy (0.1.22)
 
 The signed-in header now identifies the current screen. More is the only place
@@ -278,9 +333,11 @@ Fresh device setup:
 ```bash
 npm install
 cp .env.example .env
-npx expo prebuild --platform android
 npx expo run:android --device
 ```
+
+The Android project is committed. Avoid regenerating it with `expo prebuild`
+while the widget integration is maintained there.
 
 On a physical phone, set `EXPO_PUBLIC_API_BASE_URL` to the backend machine's LAN
 IP before running. Then sign in, load sender rules, enable trusted senders, and

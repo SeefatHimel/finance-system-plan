@@ -212,7 +212,7 @@ Last updated: 2026-05-31
   - Command: `npm run typecheck`
   - Result: pass
 - [ ] Native Android SMS device build:
-  - Command: `npx expo prebuild --platform android && npx expo run:android --device`
+  - Command: `npx expo run:android --device` from the committed Android project
   - Result: not run in this environment; requires Android device/emulator and
     generated native build
 - [ ] Cookie-backed web runtime smoke:

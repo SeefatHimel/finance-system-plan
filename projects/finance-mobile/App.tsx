@@ -20,6 +20,8 @@ import { MobileQueryProvider } from "./src/mobile-query";
 import { useNavigationContainerRef } from "@react-navigation/native";
 import { mobileDestinations, workspaceTitles, refreshReviewWindow, reviewIndex, reviewSelection, type MobileDestination, type AdvancedTool, isMainTab, type MainTab, type WorkspaceRoute, type WorkspaceParams } from "./src/mobile-navigation";
 import { QuickAddHub, type QuickAddHandle } from "./src/quick-add-hub";
+import { WidgetSettings } from "./src/widget-settings";
+import { buildWidgetSnapshot, clearWidgetSnapshot, defaultWidgetPrivacy, parseWidgetAction, readWidgetPrivacy, saveWidgetPrivacy, syncWidgetSnapshot, widgetsAvailable, type MonthlySpending, type WidgetPrivacy, type WidgetAction } from "./src/android-widgets";
 import { quickSessionScope } from "./src/secure-document";
 import { transferComparison, transferBalanceConflicts } from "../finance-contracts/transfer-comparison";
 import { reviewReportedBalance, updateReviewBalanceContext } from "./src/review-balance";
@@ -36,6 +38,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
+  Linking,
   AppState,
   Alert,
   Appearance,
@@ -73,6 +76,7 @@ import {
   getApiBaseUrl,
   getAccountReconciliation,
   getCurrentUser,
+  getWidgetMonthlySpending,
   getSmsCapturePreference,
   importRawMessage,
   listAccounts,
@@ -805,6 +809,61 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const [password, setPassword] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const localDataScope = quickSessionScope(accessToken, getApiBaseUrl());
+  const [widgetPrivacy, setWidgetPrivacy] = useState<WidgetPrivacy>(defaultWidgetPrivacy);
+  const [widgetPrivacyScope, setWidgetPrivacyScope] = useState<string | null>(null);
+  const [widgetMonth, setWidgetMonth] = useState(localDay().slice(0, 7));
+  const [widgetRefreshEpoch, setWidgetRefreshEpoch] = useState(0);
+  const [widgetSpending, setWidgetSpending] = useState<MonthlySpending | null>(null);
+  const [pendingWidgetAction, setPendingWidgetAction] = useState<WidgetAction | null>(null);
+  const widgetSnapshotGeneration = useRef(0);
+  useEffect(() => {
+    const setLink = (url: string) => {
+      const action = parseWidgetAction(url);
+      if (action) setPendingWidgetAction(action);
+    };
+    const initial = Linking?.getInitialURL?.();
+    if (initial) void initial.then(url => { if (url) setLink(url); }).catch(() => {});
+    const subscription = Linking?.addEventListener?.("url", event => setLink(event.url));
+    return () => subscription?.remove();
+  }, []);
+  useEffect(() => {
+    let live = true;
+    widgetSnapshotGeneration.current++;
+    setWidgetPrivacyScope(null);
+    setWidgetPrivacy(defaultWidgetPrivacy);
+    setWidgetSpending(null);
+    void clearWidgetSnapshot().catch(() => {
+      if (live) Alert.alert("Widget data may still be visible", "Finance could not clear the home-screen snapshot. Remove the widget until this is resolved.");
+    });
+    if (!localDataScope) return () => { live = false; };
+    const savedPrivacy = widgetsAvailable
+      ? readWidgetPrivacy(localDataScope)
+      : AsyncStorage.getItem(`finance.widgets.settings.${localDataScope}`).then(saved => {
+          try {
+            const parsed = saved ? JSON.parse(saved) : null;
+            return parsed ? {
+              showBalances: parsed.showBalances === true,
+              showActivity: parsed.showActivity === true,
+              showSpending: parsed.showSpending === true,
+            } : defaultWidgetPrivacy;
+          } catch { return defaultWidgetPrivacy; }
+        });
+    void savedPrivacy.then(privacy => {
+      if (!live) return;
+      setWidgetPrivacy(privacy);
+      setWidgetPrivacyScope(localDataScope);
+    }).catch(() => { if (live) setWidgetPrivacyScope(localDataScope); });
+    return () => { live = false; };
+  }, [localDataScope]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", state => {
+      if (state === "active") {
+        setWidgetMonth(localDay().slice(0, 7));
+        setWidgetRefreshEpoch(epoch => epoch + 1);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
   const accountScopeRef = useRef<string | null>(localDataScope);
   accountScopeRef.current = localDataScope;
   const [cacheReadyScope, setCacheReadyScope] = useState("");
@@ -837,6 +896,21 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const [listState, setListState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [listMessage, setListMessage] = useState("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  useEffect(() => {
+    if (!accessToken || !widgetPrivacy.showSpending || widgetPrivacyScope !== localDataScope) {
+      setWidgetSpending(null);
+      return;
+    }
+    let live = true;
+    void getWidgetMonthlySpending(accessToken, widgetMonth).then(report => {
+      if (live) setWidgetSpending({
+        month: widgetMonth,
+        total: `${report.currency} ${report.expense_total}`,
+        topCategory: report.spending_categories[0]?.name ?? "",
+      });
+    }).catch(() => { if (live) setWidgetSpending(null); });
+    return () => { live = false; };
+  }, [accessToken, widgetMonth, widgetPrivacy.showSpending, widgetPrivacyScope, localDataScope, transactions, widgetRefreshEpoch]);
   const [transactionTotal, setTransactionTotal] = useState<number | null>(null);
   const [activityFilters, setActivityFilters] = useState(initialActivityFilters);
   const [activityRevision, setActivityRevision] = useState(0);
@@ -981,6 +1055,23 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   });
   const reviewCandidates = reviewMutation.visible(loadedReviewCandidates);
   const reviewCandidateCount = Math.max(reviewCandidates.length, reviewMutation.count(reviewCandidateServerCount));
+  useEffect(() => {
+    if (!localDataScope || widgetPrivacyScope !== localDataScope || cacheReadyScope !== localDataScope || !accessToken) return;
+    const generation = widgetSnapshotGeneration.current;
+    const timer = setTimeout(() => {
+      if (generation !== widgetSnapshotGeneration.current) return;
+      void syncWidgetSnapshot(buildWidgetSnapshot({
+        owner: localDataScope,
+        privacy: widgetPrivacy,
+        accounts,
+        transactions,
+        reviewCount: reviewCandidateCount,
+        presets: quickFavorites,
+        spending: widgetSpending?.month === widgetMonth ? widgetSpending : null,
+      })).catch(() => {});
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [localDataScope, widgetPrivacyScope, cacheReadyScope, accessToken, widgetPrivacy, accounts, transactions, reviewCandidateCount, quickFavorites, widgetSpending, widgetMonth, widgetRefreshEpoch]);
   function saveReviewDecision(decision: ReviewDecision) {
     const ids = [decision.kind === "link" ? decision.input.candidate : decision.candidate];
     if (decision.kind === "link" && decision.match.kind === "candidate") ids.push(decision.match.id);
@@ -990,7 +1081,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const [workspace, setWorkspace] = useState<{ scope: string | null; route: WorkspaceRoute; tab: MainTab }>({ scope: localDataScope, route: "home", tab: "home" });
   const currentWorkspace = workspace.scope === localDataScope ? workspace : { scope: localDataScope, route: "home" as const, tab: "home" as const };
   const activeTab = currentWorkspace.tab;
-  const mobilePanel = ["accounts", "profile"].includes(currentWorkspace.route) ? currentWorkspace.route : null;
+  const mobilePanel = ["accounts", "profile", "widgets"].includes(currentWorkspace.route) ? currentWorkspace.route : null;
   const advancedTool = !isMainTab(currentWorkspace.route) && !mobilePanel ? currentWorkspace.route as AdvancedTool : null;
   function changeWorkspace(route: WorkspaceRoute) {
     Keyboard.dismiss();
@@ -1004,6 +1095,39 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     Keyboard.dismiss();
     if (navigation.isReady() && navigation.canGoBack()) navigation.goBack();
   }
+  useEffect(() => {
+    if (!pendingWidgetAction || !accessToken || sessionRestoring) return;
+    const timer = setInterval(() => {
+      if (!navigation.isReady() || !quickHub.current) return;
+      const action = pendingWidgetAction;
+      setPendingWidgetAction(null);
+      if (action.kind === "expense") quickHub.current.expense();
+      else if (action.kind === "quick_add") quickHub.current.open();
+      else if (action.kind === "voice") void quickHub.current.voice();
+      else if (action.kind === "preset") quickHub.current.open(action.id);
+      else if (action.kind === "transfer") {
+        setEditingTransaction(null);
+        setTxType("transfer");
+        setTxDirection("debit");
+        setTxAccountId("");
+        setTxCategoryId("");
+        setTxAmount("");
+        setTxBalanceAfter("");
+        setTxNote("");
+        setTxCounterparty("");
+        setTxDate(localDay());
+        setTxTime(currentInputTime());
+        setTxTransferAccountId("");
+        setTxState("idle");
+        setTxMessage("");
+        setTransferDecision(null);
+        setTransferError("");
+        navigateWorkspace("entry");
+      } else navigateWorkspace(action.kind);
+      clearInterval(timer);
+    }, 150);
+    return () => clearInterval(timer);
+  }, [pendingWidgetAction, accessToken, sessionRestoring, navigation]);
 
   const loadHealth = async () => {
     setState("loading");
@@ -1661,7 +1785,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.22",
+          app_version: "0.1.26",
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1683,7 +1807,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.22",
+        app_version: "0.1.26",
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1760,7 +1884,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.22",
+            app_version: "0.1.26",
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1775,7 +1899,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.22",
+          app_version: "0.1.26",
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -2944,6 +3068,13 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const switchTab = (nextTab: MainTab) => navigateWorkspace(nextTab);
 
   const handleLogout = async () => {
+    widgetSnapshotGeneration.current++;
+    try {
+      await clearWidgetSnapshot();
+    } catch {
+      Alert.alert("Could not hide home-screen data", "Finance could not clear its widgets. Try signing out again.");
+      return;
+    }
     sessionGeneration.current += 1;
     let sessionRefreshToken = refreshToken.trim();
     clearLocalAccountState();
@@ -4338,8 +4469,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           {showSmsDiagnostics ? (
             <View style={{ gap: 10 }}>
               <Text style={styles.mobileRowMeta}>Includes sync counts, stage and error codes. SMS text and login tokens are excluded.</Text>
-              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.22", getApiBaseUrl())}</Text>
-              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.22", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
+              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.26", getApiBaseUrl())}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.26", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
                 <Text style={styles.mobileSecondaryActionText}>Share diagnostics</Text>
               </Pressable>
             </View>
@@ -4810,6 +4941,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       <View style={styles.mobileGroupedList}>
         <Pressable accessibilityRole="button" onPress={() => navigateWorkspace("profile")} style={styles.mobileMenuRow}><MaterialCommunityIcons color={isLight ? "#168c69" : "#55e6a5"} name="account-circle-outline" size={22} /><Text style={styles.mobileMenuLabel}>Profile & appearance</Text><MaterialCommunityIcons color={isLight ? "#6c808b" : "#647b98"} name="chevron-right" size={23} /></Pressable>
         <Pressable accessibilityRole="button" onPress={() => quickHub.current?.manage()} style={styles.mobileMenuRow}><MaterialCommunityIcons color="#55e6a5" name="flash-outline" size={22} /><Text style={styles.mobileMenuLabel}>Quick Add presets</Text><MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} /></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => navigateWorkspace("widgets")} style={styles.mobileMenuRow}><MaterialCommunityIcons color="#55e6a5" name="widgets-outline" size={22} /><Text style={styles.mobileMenuLabel}>Home-screen widgets</Text><MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} /></Pressable>
         {mobileDestinations.filter(item => item.id === "capture").map(destinationRow)}
       </View>
       <View style={styles.mobileSystemCard}>
@@ -4943,9 +5075,17 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const selectedReviewIssue = selectedReviewDraft ? reviewDraftError(selectedReviewDraft, accounts, categories, paymentMethods) : "";
   function renderWorkspace(route: WorkspaceRoute, focused: boolean) {
     if (route === "activity") return renderActivity(focused);
-    if (!isMainTab(route) && route !== "accounts" && route !== "profile") return renderAdvancedTools(route, focused);
+    if (!isMainTab(route) && route !== "accounts" && route !== "profile" && route !== "widgets") return renderAdvancedTools(route, focused);
     const content = route === "profile" ? <ProfileScreen key={localDataScope} accessToken={accessToken} isLight={isLight} onSignOut={() => void handleLogout()} preference={themePreference} setPreference={chooseTheme} username={username} />
       : route === "accounts" ? renderAccounts()
+      : route === "widgets" ? <WidgetSettings privacy={widgetPrivacy} onPrivacyChange={async next => {
+        if (!localDataScope) throw new Error("Sign in before changing widget privacy.");
+        const scope = localDataScope;
+        if (widgetsAvailable) await saveWidgetPrivacy(scope, next);
+        else await AsyncStorage.setItem(`finance.widgets.settings.${scope}`, JSON.stringify(next));
+        if (accountScopeRef.current !== scope) return;
+        setWidgetPrivacy(next);
+      }} />
       : route === "home" ? renderHome()
       : route === "capture" ? renderSmsAutomation()
       : route === "review" ? renderReview() : renderMore();
@@ -4960,7 +5100,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           <MaterialCommunityIcons color={isLight ? "#142b36" : "#dce8f6"} name="arrow-left" size={24} />
         </Pressable> : null}
         <View style={styles.mobileHeaderTitleWrap}>
-          <Text accessibilityRole="header" numberOfLines={1} style={styles.mobileAppTitle}>{workspaceTitles[currentWorkspace.route as MainTab | "accounts" | "profile"]}</Text>
+          <Text accessibilityRole="header" numberOfLines={1} style={styles.mobileAppTitle}>{workspaceTitles[currentWorkspace.route as MainTab | "accounts" | "profile" | "widgets"]}</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Quick Add manual entry" onPress={() => quickHub.current?.open()} style={styles.mobileHeaderButton}><MaterialCommunityIcons color="#55e6a5" name="plus" size={22} /></Pressable>
         <Pressable
@@ -5117,7 +5257,8 @@ const styles = StyleSheet.create({
   },
   mobileAppHeader: {
     alignItems: "center",
-    borderBottomColor: "#1c3046",
+    backgroundColor: "#0d1930",
+    borderBottomColor: "#344767",
     borderBottomWidth: 1,
     flexDirection: "row",
     gap: 11,
@@ -5132,8 +5273,9 @@ const styles = StyleSheet.create({
   },
   mobileAppTitle: {
     color: "#f6f8fc",
-    fontSize: mobileType.screen,
-    fontWeight: "700"
+    fontSize: 16,
+    fontWeight: "600",
+    letterSpacing: 0.1
   },
   mobileBrandMark: {
     alignItems: "center",
@@ -5335,34 +5477,35 @@ const styles = StyleSheet.create({
     marginTop: 20
   },
   mobileHeroCard: {
-    backgroundColor: "#0e1c2c",
-    borderColor: "#263a52",
-    borderRadius: 20,
+    backgroundColor: "#1b2a45",
+    borderColor: "#455878",
+    borderRadius: 22,
     borderWidth: 1,
-    padding: 18
+    padding: 16
   },
   mobileBalanceCards: {
     gap: 10,
     paddingVertical: 2
   },
   mobileBalanceCard: {
-    backgroundColor: "#0e1c2c",
-    borderColor: "#294158",
-    borderRadius: 14,
+    backgroundColor: "#243553",
+    borderColor: "#506381",
+    borderRadius: 17,
     borderWidth: 1,
     gap: 4,
     minWidth: 145,
-    padding: 10
+    padding: 12
   },
   mobileBalanceName: {
-    color: "#a8b8cc",
-    fontSize: 13,
-    fontWeight: "600"
+    color: "#b8c7dd",
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.2
   },
   mobileBalanceAmount: {
     color: "#f6f8fc",
-    fontSize: 17,
-    fontWeight: "800"
+    fontSize: 16,
+    fontWeight: "700"
   },
   mobileHeroDate: {
     color: "#91a7c2",
@@ -5761,8 +5904,8 @@ const styles = StyleSheet.create({
   },
   mobileReviewAmount: {
     color: "#f6f8fc",
-    fontSize: 20,
-    fontWeight: "800"
+    fontSize: 18,
+    fontWeight: "700"
   },
   mobileReviewDirection: { fontSize: 12, fontWeight: "800" },
   mobileReviewSummary: { gap: 4, paddingTop: 3 },
@@ -5772,12 +5915,12 @@ const styles = StyleSheet.create({
   mobileReviewEditAction: { alignItems: "center", alignSelf: "flex-start", flexDirection: "row", gap: 6, justifyContent: "center", minHeight: 48, paddingHorizontal: 6 },
   mobileReviewEditText: { color: "#32d8f2", fontSize: 14, fontWeight: "700" },
   mobileReviewCard: {
-    backgroundColor: "#0e1c2c",
-    borderColor: "#263a52",
-    borderRadius: 18,
+    backgroundColor: "#1b2a45",
+    borderColor: "#455878",
+    borderRadius: 20,
     borderWidth: 1,
     gap: 8,
-    padding: 12
+    padding: 14
   },
   mobileReviewStack: { gap: 10 },
   mobileReviewPagerTitle: { color: "#f6f8fc", fontSize: 13, fontWeight: "700" },
@@ -5794,7 +5937,7 @@ const styles = StyleSheet.create({
   mobileHomePriority: { alignItems: "center", backgroundColor: "#103128", borderColor: "#2a805c", borderRadius: 14, borderWidth: 1, flexDirection: "row", gap: 8, minHeight: 60, paddingHorizontal: 14 },
   mobileHomePriorityTitle: { color: "#66e8ae", fontSize: mobileType.body, fontWeight: "700" },
   mobileRoot: {
-    backgroundColor: "#081421",
+    backgroundColor: "#0d1930",
     flex: 1
   },
   mobileRuleComposer: {
@@ -5876,8 +6019,8 @@ const styles = StyleSheet.create({
   },
   mobileRowTitle: {
     color: "#edf3fa",
-    fontSize: 14,
-    fontWeight: "700"
+    fontSize: 13,
+    fontWeight: "600"
   },
   mobileScrollContent: {
     paddingBottom: 26,
@@ -5939,12 +6082,13 @@ const styles = StyleSheet.create({
     fontSize: 12
   },
   mobileSectionStack: {
-    gap: 18
+    gap: 15
   },
   mobileSectionTitle: {
     color: "#f6f8fc",
-    fontSize: mobileType.section,
-    fontWeight: "800"
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.1
   },
   mobileSegment: {
     alignItems: "center",

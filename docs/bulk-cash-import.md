@@ -208,8 +208,8 @@ responsive layouts and keyboard/accessibility checks. It uses synthetic data onl
   inspection, duplicate review, Undo/reopen and filter retention. The tested import
   dialog and existing transaction/quick-entry surfaces pass the exercised WCAG
   A/AA axe checks; this is not an app-wide accessibility certification.
-- Mobile TypeScript check passes after the additive contract changes. Native
-  mobile behavior is outside this feature's scope.
+- After integrating the latest main branch, mobile TypeScript and **119 mobile
+  unit tests** pass. Native mobile behavior is outside this feature's scope.
 - Fresh migrations, migration drift, generated-contract parity and Python name
   checks pass. OpenAPI generation has zero errors and the existing class of enum
   naming/operation-ID warnings (85 total); it is not warning-free.
