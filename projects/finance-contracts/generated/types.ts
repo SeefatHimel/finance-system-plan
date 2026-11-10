@@ -2265,6 +2265,7 @@ export interface SharedBalanceList {
 export type SharedBalanceStatusEnum = "suggested" | "confirmed" | "stale";
 
 export interface SavedReport {
+  filters: ReportRules;
   id: string;
   name: string;
   start_date: string;
@@ -2277,6 +2278,7 @@ export interface SavedReport {
 }
 
 export interface SavedReportCreateRequest {
+  filters?: ReportRules;
   name: string;
   start_date: string;
   end_date: string;
@@ -2286,6 +2288,7 @@ export interface SavedReportCreateRequest {
 }
 
 export interface SavedReportPatchRequest {
+  filters?: ReportRules;
   name?: string;
   start_date?: string;
   end_date?: string;
@@ -2307,4 +2310,28 @@ export interface ReportTransactionPage {
   count: number;
   next_offset: number | null;
   results: Transaction[];
+}
+
+export interface ReportRules {
+  accounts?: string[];
+  excluded_accounts?: string[];
+  categories?: string[];
+  excluded_categories?: string[];
+  types?: TransactionType[];
+  directions?: TransactionDirection[];
+  sources?: TransactionSource[];
+  search?: string;
+  min_amount?: string | null;
+  max_amount?: string | null;
+}
+
+export interface ReportPreviewRequest {
+  name: string;
+  start_date: string;
+  end_date: string;
+  date_view?: DateViewEnum;
+  account?: string | null;
+  currency?: string;
+  filters?: ReportRules;
+  saved_report?: string;
 }

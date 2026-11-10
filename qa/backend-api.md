@@ -1570,3 +1570,16 @@ transaction picker is searched and paginated; all saved-report responses are no-
 Saved-report summaries and their ordinary previous-period comparison share the
 SQL aggregation path and one database statement. Membership is applied as a
 subquery, without loading ledger rows, account logos or private notes into Python.
+
+
+### How do multi-account/category reports stay consistent across surfaces?
+
+A validated JSON rule object stores include/exclude UUID lists, transaction choices,
+text search and decimal amount bounds. Owned accounts must share the report currency;
+unknown rules, foreign IDs and conflicting choices are rejected. Selection combines
+OR inside groups with AND across groups, then applies explicit transaction choices.
+The same query feeds preview, summaries, transaction lists/totals and export.
+Previous-period results use the same rules without manual choices. Transfers match
+both endpoints without duplication, and internal selected-group transfers do not
+inflate cash flow. Owner-scoped draft preview performs no writes. Both periods still
+aggregate in one SQL statement. Existing single-account reports remain compatible.

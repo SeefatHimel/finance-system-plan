@@ -28,7 +28,7 @@ from .formatting import money, ZERO
 MONEY = DecimalField(max_digits=28, decimal_places=2)
 
 
-def period_projections(*, user, start, end, currency, account, period, records=None):
+def period_projections(*, user, start, end, currency, account, period, records=None, account_ids=None):
     custom_records = records is not None
     rows = records if custom_records else Transaction.objects.filter(date__range=(start, end))
     rows = rows.filter(user=user, account__currency=currency).order_by()
@@ -44,7 +44,10 @@ def period_projections(*, user, start, end, currency, account, period, records=N
     credit = Q(type__in=CREDIT_TYPES) | Q(type="adjustment", direction="credit")
     debit = Q(type__in=DEBIT_TYPES) | (Q(type="adjustment") & ~Q(direction="credit"))
     cash_in, cash_out = credit, debit
-    if account:
+    if account_ids:
+        cash_in |= transfer & Q(transfer_account_id__in=account_ids) & ~Q(account_id__in=account_ids)
+        cash_out |= transfer & Q(account_id__in=account_ids) & ~Q(transfer_account_id__in=account_ids)
+    elif account:
         cash_in |= transfer & Q(transfer_account=account)
         cash_out |= transfer & Q(account=account)
 
@@ -236,7 +239,7 @@ def assemble_period(groups, *, start, end, currency, account, custom_records=Fal
     }
 
 
-def sql_period_summaries(*, user, periods, currency, account=None, record_sets=None):
+def sql_period_summaries(*, user, periods, currency, account=None, record_sets=None, account_ids=None):
     from collections import defaultdict
 
     periods = list(periods)
@@ -257,6 +260,7 @@ def sql_period_summaries(*, user, periods, currency, account=None, record_sets=N
             account=account,
             period=index,
             records=record_sets[index],
+            account_ids=account_ids,
         )
     ]
     results = [defaultdict(list) for _ in periods]

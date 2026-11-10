@@ -1111,4 +1111,27 @@ comparisons use unmodified filters. Daily summary rows include manually added da
 outside the saved range. Currency changes retain choices but ignore incompatible
 currencies. Report deletion removes its choices without deleting transactions;
 Save as new in web creates a new definition without copying manual choices.
-Deploy `reports.0001_initial` with the API before web.
+Deploy report migrations through `reports.0002_savedreport_filters` with the API
+before the updated web builder.
+
+
+### Expanded custom-report filters
+
+SavedReport/Create/Patch include optional `filters`. Omitting it on PATCH retains
+rules; supplying it replaces them. Fields: `accounts`, `excluded_accounts` (owned,
+same-currency UUID arrays, max 100 each); `categories`, `excluded_categories` (owned
+UUID or `uncategorized` arrays, max 200 each); `types`, `directions`, `sources` (valid
+transaction choice arrays); `search` (max 256); `min_amount`, `max_amount` (nullable,
+nonnegative decimal strings, inclusive). Empty inclusion arrays mean all. Groups
+combine with AND; selections within a group use OR. Include/exclude overlaps and
+unknown fields return 400. Exact categories are used, without descendant expansion.
+A legacy `account` remains supported, but cannot combine with `filters.accounts`.
+
+`POST /api/reports/saved/preview/` accepts draft create fields and optional
+`saved_report` UUID, returning MonthlyReport without writes. Existing manual choices
+apply when the ID is owned; foreign IDs return 404. Manual additions override rules;
+manual exclusions win. Comparisons use the same rules without manual choices.
+Transfers match either selected account once; cash in/out counts transfers crossing
+the selected group and excludes internal transfers. Account drill-through narrows
+the selection further. Summary, transaction browsing/totals, export and previews
+share rule selection. Deploy reports.0002_savedreport_filters before the web client.

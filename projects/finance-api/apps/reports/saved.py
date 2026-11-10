@@ -3,6 +3,7 @@ from calendar import monthrange
 from django.db.models import Count, Prefetch, Q
 from django.shortcuts import get_object_or_404
 
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import serializers
 from rest_framework.decorators import action
@@ -16,25 +17,27 @@ from apps.transactions.search import filter_transaction_search
 from apps.transactions.serializers import TransactionSerializer
 from .models import ReportMembership, SavedReport
 from .periods import custom_bounds
+from .rules import ReportRulesSerializer, filter_report_records
 
 
-def report_records(report):
-    """Manual choices override dates/accounts; currency and ownership always apply."""
-    base = Q(date__range=(report.start_date, report.end_date))
-    if report.account_id:
-        base &= Q(account_id=report.account_id) | Q(type="transfer", transfer_account_id=report.account_id)
-    choices = report.overrides.all()
+def report_records(report, *, start=None, end=None, manual=True):
+    """Manual choices override rules; currency and ownership always apply."""
+    matches = filter_report_records(report, start=start, end=end)
+    if not manual:
+        return matches
+    choices = ReportMembership.objects.filter(report_id=report.pk)
     return Transaction.objects.filter(user_id=report.user_id, account__currency=report.currency).filter(
-        base | Q(pk__in=choices.filter(included=True).values("transaction_id"))
+        Q(pk__in=matches.order_by().values("pk")) | Q(pk__in=choices.filter(included=True).values("transaction_id"))
     ).exclude(pk__in=choices.filter(included=False).values("transaction_id"))
 
 
 class SavedReportSerializer(serializers.ModelSerializer):
     account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none(), allow_null=True, required=False)
+    filters = ReportRulesSerializer(required=False, default=dict)
 
     class Meta:
         model = SavedReport
-        fields = ("id", "name", "start_date", "end_date", "date_view", "account", "currency", "created_at", "updated_at")
+        fields = ("id", "name", "start_date", "end_date", "date_view", "account", "currency", "filters", "created_at", "updated_at")
         read_only_fields = ("id", "created_at", "updated_at")
 
     def __init__(self, *args, **kwargs):
@@ -61,7 +64,20 @@ class SavedReportSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"currency": "Choose a three-letter currency."})
         account = value("account")
         attrs["currency"] = account.currency if account else currency
+        rules = value("filters", {})
+        if account and rules.get("accounts"):
+            raise serializers.ValidationError({"account": "Use the accounts filter instead of combining it with a single account."})
+        ids = rules.get("accounts", []) + rules.get("excluded_accounts", [])
+        if Account.objects.filter(user=self.context["request"].user, pk__in=ids).exclude(currency=attrs["currency"]).exists():
+            raise serializers.ValidationError({"filters": "All selected accounts must use the report currency."})
         return attrs
+
+
+class ReportPreviewSerializer(SavedReportSerializer):
+    saved_report = serializers.UUIDField(required=False, write_only=True)
+
+    class Meta(SavedReportSerializer.Meta):
+        fields = (*SavedReportSerializer.Meta.fields, "saved_report")
 
 
 class MembershipSerializer(serializers.Serializer):
@@ -101,6 +117,22 @@ class SavedReportViewSet(ModelViewSet):
         response = super().finalize_response(request, response, *args, **kwargs)
         response["Cache-Control"] = "private, no-store"
         return response
+
+    @extend_schema(request=ReportPreviewSerializer, responses=OpenApiTypes.OBJECT)
+    @action(detail=False, methods=("post",))
+    def preview(self, request):
+        from .views import saved_report_summary
+
+        serializer = ReportPreviewSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        values = serializer.validated_data
+        report_id = values.pop("saved_report", None)
+        if report_id:
+            get_object_or_404(SavedReport, user=request.user, pk=report_id)
+        report = SavedReport(user=request.user, **values)
+        if report_id:
+            report.pk = report_id
+        return Response(saved_report_summary(report))
 
     @extend_schema(parameters=[ReportTransactionQuery], responses=ReportTransactionPage)
     @action(detail=True, methods=("get",))

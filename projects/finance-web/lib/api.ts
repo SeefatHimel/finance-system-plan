@@ -1,5 +1,6 @@
 import type { QuickPreset, PresetInput, QuickEntryInput } from "../../finance-contracts/quick-add";
 import { z } from "zod";
+import { emptyReportRules } from "./report-rules";
 
 import type {
   AccountCreateRequest,
@@ -1395,13 +1396,25 @@ export async function getPeriodReport(accessToken: string, start_date: string, e
   return monthlyReportSchema.parse(await response.json());
 }
 
+const reportRulesSchema = z.object({
+  accounts: z.array(z.string()).default([]), excluded_accounts: z.array(z.string()).default([]),
+  categories: z.array(z.string()).default([]), excluded_categories: z.array(z.string()).default([]),
+  types: z.array(z.string()).default([]), directions: z.array(z.string()).default([]), sources: z.array(z.string()).default([]),
+  search: z.string().default(""), min_amount: z.string().nullable().default(null), max_amount: z.string().nullable().default(null)
+});
 const savedReportSchema = z.object({
   id: z.string().uuid(), name: z.string(), start_date: z.string(), end_date: z.string(),
   date_view: z.enum(["daily", "monthly", "custom"]), account: z.string().nullable(), currency: z.string(),
-  created_at: z.string(), updated_at: z.string()
+  created_at: z.string(), updated_at: z.string(), filters: reportRulesSchema.default(emptyReportRules())
 });
 export type SavedReport = z.infer<typeof savedReportSchema>;
-export type SavedReportInput = Pick<SavedReport, "name" | "start_date" | "end_date" | "date_view" | "account" | "currency">;
+export type SavedReportInput = Pick<SavedReport, "name" | "start_date" | "end_date" | "date_view" | "account" | "currency" | "filters">;
+
+export async function previewSavedReport(token: string, input: SavedReportInput, saved_report?: string, signal?: AbortSignal): Promise<MonthlyReport> {
+  const response = await authenticatedFetch("/api/reports/saved/preview/", token, { method: "POST", signal,
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...input, ...(saved_report ? { saved_report } : {}) }) });
+  return monthlyReportSchema.parse(await response.json());
+}
 
 export async function listSavedReports(token: string, signal?: AbortSignal): Promise<SavedReport[]> {
   const response = await authenticatedFetch("/api/reports/saved/", token, { signal });

@@ -427,6 +427,7 @@ class TransactionViewSet(ModelViewSet):
                 saved_report = get_object_or_404(SavedReport, user=self.request.user, pk=saved_report_id)
             except (ValueError, DjangoValidationError) as exc:
                 raise ValidationError({"saved_report": "Choose one of your saved reports."}) from exc
+            self._saved_report = saved_report
             queryset = queryset.filter(pk__in=report_records(saved_report).values("pk"))
 
         queryset = filter_period(
@@ -499,7 +500,10 @@ class TransactionViewSet(ModelViewSet):
         from .list_totals import filtered_totals
         query = ActivityPageQuery(data=request.query_params)
         query.is_valid(raise_exception=True)
-        return Response({"currencies": filtered_totals(self.filter_queryset(self.get_queryset()), request.query_params.get("account", ""))}, headers={"Cache-Control": "private, no-store"})
+        rows = self.filter_queryset(self.get_queryset())
+        saved = getattr(self, "_saved_report", None)
+        scope = (saved.filters.get("accounts") or ([str(saved.account_id)] if saved.account_id else [])) if saved else None
+        return Response({"currencies": filtered_totals(rows, request.query_params.get("account", ""), selected_accounts=scope)}, headers={"Cache-Control": "private, no-store"})
 
     @extend_schema(responses=TransactionSourceMessageSerializer(many=True))
     @action(detail=True, methods=("get",), url_path="source-messages")

@@ -3392,6 +3392,33 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/reports/saved/preview/:
+    post:
+      operationId: reports_saved_preview_create
+      tags:
+      - Reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportPreviewRequest'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Report totals using draft rules and optional existing manual choices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyReport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+      summary: Preview report rules without saving
   /api/reports/saved/{id}/:
     get:
       operationId: reports_saved_retrieve
@@ -10898,6 +10925,8 @@ components:
     SavedReport:
       type: object
       properties:
+        filters:
+          $ref: '#/components/schemas/ReportRules'
         id:
           type: string
           format: uuid
@@ -10929,6 +10958,7 @@ components:
           format: date-time
           readOnly: true
       required:
+      - filters
       - id
       - name
       - start_date
@@ -10941,6 +10971,8 @@ components:
     SavedReportCreateRequest:
       type: object
       properties:
+        filters:
+          $ref: '#/components/schemas/ReportRules'
         name:
           type: string
           maxLength: 160
@@ -10966,6 +10998,8 @@ components:
     SavedReportPatchRequest:
       type: object
       properties:
+        filters:
+          $ref: '#/components/schemas/ReportRules'
         name:
           type: string
           maxLength: 160
@@ -11033,3 +11067,89 @@ components:
       - count
       - next_offset
       - results
+
+    ReportRules:
+      type: object
+      properties:
+        accounts:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 100
+        excluded_accounts:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 100
+        categories:
+          type: array
+          items:
+            type: string
+          maxItems: 200
+        excluded_categories:
+          type: array
+          items:
+            type: string
+          maxItems: 200
+        types:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionType'
+          maxItems: 10
+        directions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionDirection'
+          maxItems: 2
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionSource'
+          maxItems: 5
+        search:
+          type: string
+          default: ''
+          maxLength: 256
+        min_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          nullable: true
+        max_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          nullable: true
+    ReportPreviewRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 160
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        date_view:
+          $ref: '#/components/schemas/DateViewEnum'
+        account:
+          type: string
+          format: uuid
+          nullable: true
+        currency:
+          type: string
+          maxLength: 3
+        filters:
+          $ref: '#/components/schemas/ReportRules'
+        saved_report:
+          type: string
+          format: uuid
+          writeOnly: true
+      required:
+      - name
+      - start_date
+      - end_date

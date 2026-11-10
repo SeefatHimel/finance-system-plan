@@ -825,5 +825,15 @@ Reports (`/reports`) and Custom reports (`/custom-reports`) retain independent
 filters in URL/tab-session state; definitions and manual transaction choices persist
 on the API. Browser QA should cover navigation between both pages, creating a
 custom report from standard filters, save, remove/add, reload, drill-through and
-returning to the originating report page. This page split needs no additional API
-migration beyond `reports.0001_initial`.
+returning to the originating report page. The page split uses `reports.0001_initial`; the expanded builder also requires
+`reports.0002_savedreport_filters`.
+
+
+### Expanded report rules
+
+Run `python manage.py migrate` from `projects/finance-api` to apply
+`reports.0002_savedreport_filters` before using the expanded custom report builder.
+Existing reports remain compatible. Verify `python manage.py test apps.reports` and
+web `node --test tests/report-navigation.test.cjs`. Browser QA should select multiple
+accounts/categories, exclude a category, inspect the live preview, save/reload,
+add/remove a transaction and compare drill-through and CSV export with the report.

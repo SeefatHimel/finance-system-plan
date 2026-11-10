@@ -2095,8 +2095,8 @@ The dedicated **Custom reports** page (`/custom-reports`) saves a name, fixed
 inclusive dates and date view, account and currency. Open one from its saved list,
 change its name/filters with **Save changes**, or
 use **Save as new** to create another filter definition (manual choices are not
-copied). Changed filters preview ordinary activity until saved; then existing
-manual choices apply again. Matching ledger activity stays live.
+copied). Changed rules preview live with existing manual choices before Save.
+Matching ledger activity stays live.
 
 The transaction section offers **In this report**, **Available to add**, and
 **Removed from report**, with search and pages of 25. Add/remove changes only that
@@ -2111,6 +2111,31 @@ report return link, reload and navigation restore each page independently. Old
 `/reports?saved_report=...` links redirect to `/custom-reports`. Both routes require
 authentication and remain valid return destinations after login.
 Session storage contains filters only and clears on sign-out/session termination.
-Deploy the API and apply `reports.0001_initial` before deploying the web changes.
+Deploy the API and apply migrations through `reports.0002_savedreport_filters`
+before deploying the web changes.
 Verify with `node --test tests/report-navigation.test.cjs` and the API saved-report
 tests; check save, add/remove, reload and transaction drill-through in a browser.
+
+
+### Report selection rules
+
+Custom reports support multiple included/excluded accounts and categories, including
+Uncategorized. No included items means all, minus exclusions. Choices match any
+item within one group and combine across groups with AND. Category matching is exact;
+select child categories separately. Transactions touching an excluded account are
+removed; transfers match either selected account and count once. Accounts must share
+one report currency; switching currency clears incompatible account selections.
+
+Additional rules include multiple transaction types, sources and directions, text
+search, and inclusive minimum/maximum amounts per transaction. Transfer direction
+is relative to selected accounts. Internal transfers are excluded from group cash
+in/out; only transfers crossing the selected group contribute. Income/spending still
+exclude own-account transfers. Manual additions can override any rule, and manual
+removals stay excluded. Reset returns a transaction to rule-based membership.
+
+Debounced preview requests never save reports or ledger data. Previous-period
+comparisons apply the same rules without manual overrides. Save the draft before
+transaction drill-through or CSV export, so both reflect persisted effective
+membership. URL/tab-session restoration includes the complete draft rules.
+Deploy API plus `reports.0002_savedreport_filters` before this client. Existing
+single-account reports remain readable and are converted when next saved.

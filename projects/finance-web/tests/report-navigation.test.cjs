@@ -7,6 +7,7 @@ const { join, resolve } = require('node:path');
 const output = mkdtempSync(join(tmpdir(), 'finance-report-navigation-'));
 execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '--module', 'commonjs', '--target', 'ES2021', '--skipLibCheck', '--outDir', output, 'lib/report-navigation.ts'], { cwd: resolve(__dirname, '..') });
 const { reportFilterQuery, reportFiltersFromQuery, reportReturnPath, reportFiltersKey, customReportFiltersKey } = require(join(output, 'report-navigation.js'));
+const { emptyReportRules, canonicalReportRules, setReportRuleChoice, reportRulesEqual, savedReportRules } = require(join(output, 'report-rules.js'));
 after(() => rmSync(output, { recursive: true, force: true }));
 
 test('report filters survive navigation with the selected date mode and saved report', () => {
@@ -35,4 +36,22 @@ test('report return links support both pages while rejecting redirects outside r
     assert.equal(reportReturnPath(path), null);
   }
   assert.notEqual(reportFiltersKey, customReportFiltersKey);
+});
+
+test('multi-account/category rules, exclusions and amounts survive navigation', () => {
+  const rules = { ...emptyReportRules(), accounts: ['account-b', 'account-a'], excluded_accounts: ['account-c'], categories: ['category-b', 'category-a'], excluded_categories: ['uncategorized'], types: ['fee','expense'], sources: ['web','sms'], directions: ['debit'], search: 'Synthetic project', min_amount: '10.5', max_amount: '100' };
+  const filters = { period: { mode: 'monthly', start: '2026-10-01', end: '2026-10-31' }, account: '', currency: 'BDT', savedReport: 'synthetic', rules };
+  assert.deepEqual(reportFiltersFromQuery(reportFilterQuery(filters)), {...filters, rules: canonicalReportRules(rules)});
+  assert(reportRulesEqual(rules, {...rules, accounts:['account-a','account-b'], min_amount:'10.50', max_amount:'100.00'}));
+  assert(!reportRulesEqual(rules, {...rules, excluded_categories:[]}));
+});
+
+test('include/exclude switches are mutually exclusive and legacy reports keep their account', () => {
+  const include = setReportRuleChoice(emptyReportRules(), 'categories', 'synthetic-food', 'include');
+  const exclude = setReportRuleChoice(include, 'categories', 'synthetic-food', 'exclude');
+  assert.deepEqual(exclude.categories, []);
+  assert.deepEqual(exclude.excluded_categories, ['synthetic-food']);
+  assert(reportRulesEqual(setReportRuleChoice(exclude, 'categories', 'synthetic-food', 'any'), emptyReportRules()));
+  assert.deepEqual(savedReportRules({account:'legacy-account', filters:{}}).accounts, ['legacy-account']);
+  assert.deepEqual(savedReportRules({account:null, filters:{accounts:['a','b']}}).accounts, ['a','b']);
 });

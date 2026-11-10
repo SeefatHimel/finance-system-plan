@@ -13,6 +13,7 @@ class SavedReport(models.Model):
     date_view = models.CharField(max_length=16, default="custom", choices=[(value, value) for value in ("daily", "monthly", "custom")])
     account = models.ForeignKey("accounts.Account", null=True, blank=True, on_delete=models.PROTECT)
     currency = models.CharField(max_length=3, default="BDT")
+    filters = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

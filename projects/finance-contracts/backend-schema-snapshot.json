@@ -4097,6 +4097,50 @@
         ]
       }
     },
+    "/api/reports/saved/preview/": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportPreview"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportPreview"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportPreview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/reports/saved/{id}/": {
       "delete": {
         "parameters": [
@@ -10884,6 +10928,9 @@
           "format": "date",
           "type": "string"
         },
+        "filters": {
+          "$ref": "#/components/schemas/ReportRules"
+        },
         "id": {
           "format": "uuid",
           "readOnly": true,
@@ -11998,6 +12045,142 @@
       ],
       "type": "object"
     },
+    "ReportPreview": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "readOnly": true,
+          "type": "string"
+        },
+        "currency": {
+          "maxLength": 3,
+          "type": "string"
+        },
+        "date_view": {
+          "$ref": "#/components/schemas/DateViewEnum"
+        },
+        "end_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "filters": {
+          "$ref": "#/components/schemas/ReportRules"
+        },
+        "id": {
+          "format": "uuid",
+          "readOnly": true,
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 160,
+          "type": "string"
+        },
+        "saved_report": {
+          "format": "uuid",
+          "type": "string",
+          "writeOnly": true
+        },
+        "start_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "readOnly": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "created_at",
+        "end_date",
+        "id",
+        "name",
+        "start_date",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "ReportRules": {
+      "properties": {
+        "accounts": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "categories": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 200,
+          "type": "array"
+        },
+        "directions": {
+          "items": {
+            "pattern": "^(debit|credit)$",
+            "type": "string"
+          },
+          "maxItems": 2,
+          "type": "array"
+        },
+        "excluded_accounts": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "excluded_categories": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 200,
+          "type": "array"
+        },
+        "max_amount": {
+          "format": "decimal",
+          "nullable": true,
+          "pattern": "^-?\\d{0,12}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "min_amount": {
+          "format": "decimal",
+          "nullable": true,
+          "pattern": "^-?\\d{0,12}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "search": {
+          "default": "",
+          "maxLength": 256,
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "pattern": "^(web|mobile|sms|import|system)$",
+            "type": "string"
+          },
+          "maxItems": 5,
+          "type": "array"
+        },
+        "types": {
+          "items": {
+            "pattern": "^(expense|income|transfer|adjustment|fee|refund|lend|borrow|repayment_received|repayment_paid)$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "ReportTransactionPage": {
       "properties": {
         "count": {
@@ -12375,6 +12558,9 @@
         "end_date": {
           "format": "date",
           "type": "string"
+        },
+        "filters": {
+          "$ref": "#/components/schemas/ReportRules"
         },
         "id": {
           "format": "uuid",

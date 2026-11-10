@@ -10,7 +10,7 @@ def period_summary(*, user, start, end, currency="BDT", account=None, records=No
     )
 
 
-def period_summaries(*, user, periods, currency="BDT", account=None, record_sets=None):
+def period_summaries(*, user, periods, currency="BDT", account=None, record_sets=None, account_ids=None):
     return sql_period_summaries(
-        user=user, periods=periods, currency=currency, account=account, record_sets=record_sets
+        user=user, periods=periods, currency=currency, account=account, record_sets=record_sets, account_ids=account_ids
     )

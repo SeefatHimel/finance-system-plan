@@ -1977,8 +1977,8 @@ name, fixed dates/date view, account and currency. Saved reports stay live as ma
 definition, or delete the saved report without deleting transactions. A report's
 transaction browser adds existing same-currency entries outside its filters and
 removes individual matches. Removed entries can be added back or reset to follow
-the filters. Filter edits preview ordinary results until saved, then apply the
-report's existing manual choices. Save as new copies filters only.
+the filters. Rule edits preview live with the report's existing manual choices.
+Save as new copies rules only.
 
 The standard Reports page stays focused on summaries and offers a shortcut to
 create a custom report from its current filters. Each page has independent URL
@@ -1986,3 +1986,17 @@ and tab-session filter state for reload, Back and navigation, cleared on sign-ou
 Both pages require authentication. Old saved-report links redirect to the new
 page. Drill-through carries effective saved membership and offers Back to report. Previous-period
 comparisons use the original filters without manual choices.
+
+
+### What can a custom report filter, and how do exclusions behave?
+
+The builder supports multiple accounts/categories with Include and Exclude choices,
+Uncategorized, multiple types/sources/directions, search and inclusive amount limits.
+An empty included group means all; group choices use OR while different groups use
+AND. Category matching is exact. Excluded accounts remove any movement involving
+them. Same-currency transfers match either selected account once; cash flow excludes
+transfers internal to the selected group. Currency changes clear incompatible
+accounts. Manual additions override rules; explicit removals win. The UI states
+these rules and previews the result before saving. Comparisons use the same rules
+without manual choices. Save before drill-through/export; URL and tab-session state
+retain draft rules when returning. CSV exports the persisted effective selection.

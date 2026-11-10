@@ -1961,7 +1961,7 @@ PostgreSQL for concurrent retry coverage.
 
 ## Saved reports
 
-Apply `python manage.py migrate` before enabling named reports (`reports.0001_initial`).
+Apply `python manage.py migrate` before enabling named reports (`reports.0001_initial` and `reports.0002_savedreport_filters`).
 `/api/reports/saved/` provides authenticated, owner-scoped list/create and detail
 GET/PATCH/DELETE. Definitions store name, fixed inclusive dates (at most 366 days),
 date view, optional owned account and one currency. Account currency takes precedence.
@@ -1986,3 +1986,26 @@ Verify: `python manage.py test apps.reports` and
 Saved-report summaries and their ordinary previous-period comparison share the
 SQL aggregation path and one database statement. Membership is applied as a
 subquery, without loading ledger rows, account logos or private notes into Python.
+
+
+### Multi-scope report rules and previews
+
+SavedReport.filters is a validated JSON object, with UUID lists for accounts and
+excluded_accounts, category UUID/uncategorized lists for categories and
+excluded_categories, multi-value types/directions/sources, search, and nullable
+min_amount/max_amount decimal strings. Validate ownership, currency, list bounds,
+unknown keys, incompatible include/exclude choices and amount ordering before saving.
+An omitted filters field preserves existing rules on PATCH; supplying it replaces
+the rule definition. Legacy single-account definitions remain supported.
+
+Rules select the ledger through subqueries before SQL aggregation. Date/account/
+category/type/source/direction/search/amount rules apply to both periods; manual
+choices apply only to the current one. Transfers are matched once by either
+selected account; group cash flow counts only movements crossing that group.
+Transaction totals use the same group scope, while additional drill-through account
+filters may narrow it. Both periods retain the one-statement SQL snapshot guarantee.
+
+POST /api/reports/saved/preview/ accepts a full draft definition and optional
+saved_report UUID. Its owner-scoped manual choices apply to the draft without any
+writes. The response has the monthly report shape. Apply reports.0002_savedreport_filters
+before web rollout. Verify `python manage.py test apps.reports apps.transactions.test_activity`.

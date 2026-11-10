@@ -1,8 +1,9 @@
 import { monthPeriod, periodFromFilters, type DatePeriod } from "./date-period";
+import { canonicalReportRules, type ReportRules } from "./report-rules";
 
 export const reportFiltersKey = "finance.reports.filters.v1";
 export const customReportFiltersKey = "finance.customReports.filters.v1";
-export type ReportFilters = { period: DatePeriod; account: string; currency: string; savedReport: string };
+export type ReportFilters = { period: DatePeriod; account: string; currency: string; savedReport: string; rules?: ReportRules };
 
 export function reportReturnPath(value: string | null) {
   if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\")) return null;
@@ -21,11 +22,18 @@ export function reportFiltersFromQuery(query: string): ReportFilters {
     if (month.start === period.start && month.end === period.end) period = month;
   }
   return { period: period.mode === "all" ? monthPeriod() : period, account: params.get("account") ?? "",
-    currency: params.get("currency") ?? "BDT", savedReport: params.get("saved_report") ?? "" };
+    currency: params.get("currency") ?? "BDT", savedReport: params.get("saved_report") ?? "", ...rulesFromParams(params) };
+}
+
+function rulesFromParams(params: URLSearchParams): { rules?: ReportRules } {
+  if (!params.has("rules")) return {};
+  try { return { rules: canonicalReportRules(JSON.parse(params.get("rules")!)) }; }
+  catch { return {}; }
 }
 
 export function reportFilterQuery(filters: ReportFilters) {
   return new URLSearchParams({ start_date: filters.period.start, end_date: filters.period.end,
     date_view: filters.period.mode, currency: filters.currency,
+    ...(filters.rules ? { rules: JSON.stringify(canonicalReportRules(filters.rules)) } : {}),
     ...(filters.account ? { account: filters.account } : {}), ...(filters.savedReport ? { saved_report: filters.savedReport } : {}) }).toString();
 }

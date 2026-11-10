@@ -5,7 +5,7 @@ from django.db.models import Q, Sum
 from .models import Transaction
 
 
-def filtered_totals(queryset, selected_account=""):
+def filtered_totals(queryset, selected_account="", *, selected_accounts=None):
     # Isolate the monetary rows from evidence joins/annotations in the list query.
     rows = Transaction.objects.filter(pk__in=queryset.order_by().values("pk"))
     transfer = Q(type="transfer")
@@ -14,6 +14,9 @@ def filtered_totals(queryset, selected_account=""):
     if selected_account:
         incoming |= transfer & Q(transfer_account_id=selected_account)
         outgoing |= transfer & Q(account_id=selected_account)
+    elif selected_accounts:
+        incoming |= transfer & Q(transfer_account_id__in=selected_accounts) & ~Q(account_id__in=selected_accounts)
+        outgoing |= transfer & Q(account_id__in=selected_accounts) & ~Q(transfer_account_id__in=selected_accounts)
     filters = {
         "income": Q(type="income"),
         "spending": Q(type__in=("expense", "fee")),

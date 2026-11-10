@@ -1036,3 +1036,15 @@ additional filters. Cross-user report/transaction access is 404, incompatible cu
 choices and invalid filters are 400. Dates are fixed, membership stays live, and no
 currency conversion or snapshot guarantee is implied. Deploy API plus reports migration
 before web; regenerate published contracts and schema snapshot after API changes.
+
+
+### How are richer report rules represented at the API boundary?
+
+SavedReport adds `filters`: include/exclude account/category arrays (categories also
+accept uncategorized), type/direction/source arrays, search and nullable decimal
+amount bounds. PATCH omission retains filters; a supplied object replaces them.
+Validation rejects foreign IDs, mixed currencies, overlaps and unknown keys.
+`POST /api/reports/saved/preview/` returns MonthlyReport for a draft plus optional
+owned saved_report manual choices, without persistence. Comparisons reuse rules,
+without manual overrides. Effective selections agree across summaries, transaction
+totals, browsing and CSV. The additive rules migration must precede web deployment.
