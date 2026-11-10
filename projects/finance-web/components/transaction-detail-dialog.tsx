@@ -1,5 +1,7 @@
 "use client";
 
+import { BulkSourceRows } from "./bulk-import-sources";
+import { listBulkSources, type BulkSource } from "@/lib/bulk-import-api";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CaretDown, CaretLeft, CaretRight, ClockCounterClockwise, FileText, ChatText, PencilSimple, X, WarningCircle } from "@phosphor-icons/react";
@@ -17,7 +19,7 @@ import { getTransaction, listTransactionSourceMessages, listTransactionStatement
 import { displayLabel, formatCurrency, formatCalendarDate, formatClockTime, formatTimestamp, timestampFields } from "../../finance-contracts/presentation";
 
 type Props = { transactionId: string; orderedIds: string[]; accounts: Account[]; categories: Category[]; selectedAccount?: string; onNavigate: (id: string) => void; onClose: () => void; onEdit: (id: string) => void };
-type Detail = { record: Transaction; messages: TransactionSourceMessage[] | null; rows: SavedStatementRow[] | null; batches: Record<string, SavedStatement>; incomplete: boolean };
+type Detail = { record: Transaction; messages: TransactionSourceMessage[] | null; rows: SavedStatementRow[] | null; batches: Record<string, SavedStatement>; bulk: BulkSource[] | null; incomplete: boolean };
 function errorMessage(reason: unknown) { return reason instanceof Error ? reason.message : "Could not load transaction details."; }
 function sourceMoney(value: string | null, currency: string | null) { return value === null ? "Not reported" : currency ? formatCurrency(value, currency) : `${value} (currency unavailable)`; }
 
@@ -74,7 +76,7 @@ export function TransactionDetailDialog({ transactionId, orderedIds, accounts, c
     if (!token) { setFailure("Sign in to view this transaction."); return; }
     const controller = new AbortController();
     void (async () => {
-      const [record, messages, rows] = await Promise.allSettled([getTransaction(token, transactionId, controller.signal), listTransactionSourceMessages(token, transactionId, controller.signal), listTransactionStatementEvidence(token, transactionId, controller.signal)]);
+      const [record, messages, rows, bulk] = await Promise.allSettled([getTransaction(token, transactionId, controller.signal), listTransactionSourceMessages(token, transactionId, controller.signal), listTransactionStatementEvidence(token, transactionId, controller.signal), listBulkSources(token, transactionId, controller.signal)]);
       if (controller.signal.aborted) return;
       if (record.status === "rejected") throw record.reason;
       const sourceRows = rows.status === "fulfilled" ? rows.value : null;
@@ -82,8 +84,8 @@ export function TransactionDetailDialog({ transactionId, orderedIds, accounts, c
       const metadata = await Promise.allSettled(ids.map(id => getStatementImport(token, id, controller.signal)));
       if (controller.signal.aborted) return;
       const batches = Object.fromEntries(metadata.flatMap((item, index) => item.status === "fulfilled" ? [[ids[index], item.value]] : []));
-      const incomplete = messages.status === "rejected" || rows.status === "rejected" || metadata.some(item => item.status === "rejected");
-      setDetail({ record: record.value, messages: messages.status === "fulfilled" ? messages.value : null, rows: sourceRows, batches, incomplete });
+      const incomplete = bulk.status === "rejected" || messages.status === "rejected" || rows.status === "rejected" || metadata.some(item => item.status === "rejected");
+      setDetail({ record: record.value, messages: messages.status === "fulfilled" ? messages.value : null, rows: sourceRows, batches, bulk: bulk.status === "fulfilled" ? bulk.value : null, incomplete });
       if (incomplete) notify("Some attached source details could not be loaded. You can retry without changing the transaction.", "error");
     })().catch(reason => { if (!controller.signal.aborted) { setFailure(errorMessage(reason)); notify(errorMessage(reason), "error"); } });
     return () => controller.abort();
@@ -106,7 +108,7 @@ export function TransactionDetailDialog({ transactionId, orderedIds, accounts, c
       {failure ? <div className="empty-state"><h3>Transaction unavailable</h3><p>{failure}</p><button type="button" className="button button--ghost" onClick={() => setRevision(value => value + 1)}>Retry transaction details</button></div> : !detail || !record ? <LoadingState compact label="Opening transaction" detail="Checking the saved entry and attached sources" /> : <>
         <section className="transaction-view-hero"><AccountAvatar account={{ id: record.id, name: record.counterparty_text || displayLabel(record.type) }} size="large" /><div><h3>{record.counterparty_text || record.reference || displayLabel(record.type)}</h3><div className="transaction-badges"><span className="transaction-mini-badge">{displayLabel(record.type)}</span><span className="transaction-category">{category}</span>{record.needs_review ? <span className="transaction-mini-badge transaction-mini-badge--review">Needs review</span> : null}</div></div><strong className={`transaction-view-amount transaction-view-amount--${amount?.tone}`}>{amount?.sign}{formatCurrency(record.amount, currency)}</strong></section>
         <dl className="transaction-view-facts"><div><dt>{record.type === "transfer" ? "Account path" : "Account"}</dt><dd><AccountLabel account={account} />{record.type === "transfer" ? <><ArrowRight size={16} aria-label="to" /><AccountLabel account={accounts.find(item => item.id === record.transfer_account)} fallback="Destination unavailable" /></> : null}</dd></div><div><dt>Transaction date</dt><dd><time dateTime={record.date}>{formatCalendarDate(record.date)}</time><small>{record.time ? formatClockTime(record.time) : "Time not reported"}</small></dd></div><div><dt>Category</dt><dd><span className="transaction-category">{category}</span></dd></div><div><dt>Reported balance after</dt><dd><CompactReportedBalances record={record} accounts={accounts} reports={transactionBalanceReports(record, accounts, detail)} incomplete={detail.incomplete} /></dd></div><div><dt>Reference</dt><dd>{record.reference || "Not reported"}</dd></div>{record.note && record.note !== record.counterparty_text ? <div><dt>Note</dt><dd className="transaction-view-note">{record.note}</dd></div> : null}</dl>
-        <section className="transaction-view-sources"><div className="transaction-view-section-title"><h3>Attached sources</h3><span>{detailSourceCount(detail.messages, detail.rows)}</span></div>
+        <section className="transaction-view-sources"><div className="transaction-view-section-title"><h3>Attached sources</h3><span>{detailSourceCount(detail.messages, detail.rows)} · {detail.bulk?.length === 100 ? "100+" : detail.bulk?.length ?? "Unknown"} spreadsheet rows</span></div>
           {detail.incomplete ? <p className="muted-text">Some source details are unavailable. <button type="button" className="text-button" onClick={() => setRevision(value => value + 1)}>Retry source check</button></p> : null}
           {detail.messages?.map(message => { const observation = record.transfer_evidence.find(item => item.raw_message === message.id); const sourceAccount = observation?.account ?? message.parsed?.account ?? null; return <SourceSummary key={message.id} label="SMS" record={record} balances={balances} currency={currency} subtitle={observation ? accounts.find(item => item.id === observation.account)?.name ?? "Account unavailable" : "Received time; transaction time not established by this source"} observation={{ account: sourceAccount, date: observation?.date ?? timestampFields(message.received_at).date, time: observation ? observation.time : timestampFields(message.received_at).time, dateKind: observation ? "reported" : "received", amount: message.parsed?.amount ?? null, balance: message.parsed?.balance_after ?? observation?.balance_after ?? null, direction: observation?.direction, currency: observation ? accounts.find(item => item.id === observation.account)?.currency : message.parsed?.currency ?? null }} />; })}
           {detail.rows?.map(row => { const batch = detail.batches[row.batch]; const fee = row.component === "fee"; const sourceAmount = fee ? String(Math.abs(Number(row.extracted.signed_fee))) : row.extracted.amount; return <SourceSummary key={row.id} label={fee ? "Statement fee row" : "Statement"} record={record} balances={balances} currency={currency} subtitle={`${batch?.account_name ?? "Reporting account unavailable"} · Page ${row.extracted.page}, row ${row.extracted.row}`} observation={{ account: batch?.account ?? null, date: row.extracted.date, time: row.extracted.time, dateKind: "reported", amount: sourceAmount, balance: row.extracted.balance_after, direction: fee ? Number(row.extracted.signed_fee) < 0 ? "debit" : "credit" : row.reviewed_source_direction || row.extracted.direction, currency: batch?.currency, compareAmount: !fee || record.type === "fee" }} />; })}
@@ -115,6 +117,7 @@ export function TransactionDetailDialog({ transactionId, orderedIds, accounts, c
         </section>
         {identifiers.length ? <details className="transaction-view-disclosure"><summary><FileText size={20} aria-hidden="true" />Saved identifiers<CaretDown className="transaction-view-disclosure__caret" size={16} aria-hidden="true" /></summary><dl className="transaction-view-facts">{identifiers.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></details> : null}
         <OriginalSources key={`original:${record.id}`} detail={detail} />
+        {detail.bulk ? <BulkSourceRows rows={detail.bulk} /> : null}
         <History key={`history:${record.id}`} id={record.id} />
       </>}
     </div><footer className="transaction-view-footer"><button className="button button--ghost" type="button" onClick={onClose}>Close</button><button className="button button--primary" type="button" disabled={!record} onClick={() => onEdit(transactionId)}><PencilSimple size={17} aria-hidden="true" />Edit transaction</button></footer>

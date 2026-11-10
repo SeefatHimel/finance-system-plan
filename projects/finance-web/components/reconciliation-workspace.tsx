@@ -429,8 +429,8 @@ export function ReconciliationWorkspace() {
                 <tbody>
                   {snapshots.map((snapshot) => (
                     <tr key={snapshot.id}>
-                      <td>{accountNames.get(snapshot.account) ?? snapshot.account}</td>
-                      <td>{formatDateTime(snapshot.checked_at)}</td>
+                      <td>{accountNames.get(snapshot.account) ?? snapshot.account}<small className="muted-text"> · {snapshot.source_label}</small></td>
+                      <td>{formatDateTime(snapshot.checked_at)}<small className="muted-text"> · {snapshot.precision === "end_of_day" ? "End of day" : "Specific time"}</small></td>
                       <td>{formatMoney(snapshot.actual_balance)}</td>
                       <td>{formatMoney(snapshot.expected_balance)}</td>
                       <td>{formatMoney(snapshot.difference)}</td>

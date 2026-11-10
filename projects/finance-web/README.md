@@ -2050,3 +2050,19 @@ session/request ownership. No global private cache is added. Row menus remain
 attached while the table scrolls/focus settles. Debit amounts and filtered totals
 use theme tokens for contrast. API request IDs and server timings pass through the
 proxy for diagnostics, without adding implementation details to product flows.
+
+## Bulk cash import
+
+Transactions → Import entries opens a lazy-loaded dialog on the current page.
+Paste spreadsheet cells or upload UTF-8 CSV/TSV/text, map columns/categories, review
+highlighted rows and optional wallet counts, then confirm once. There is a single
+busy indicator; edits require a refreshed preview. Existing matches show source
+kind and saved details. Stale comparisons refresh without silently acknowledging
+new suggestions. Transaction filters/pages survive import and Undo.
+
+Mapping, entry cards, checkpoint editing and source views have separate components.
+Unknown times stay unknown; end-of-day counts require confirmation, and specific
+times require before/after decisions with exceptions. Receipts support source-row
+inspection, safe Undo and reopening. Reconciliation labels spreadsheet checkpoints.
+This requires the matched API and migrations, not a frontend-only deployment.
+See [bulk cash import](../../docs/bulk-cash-import.md) for limits and browser checks.

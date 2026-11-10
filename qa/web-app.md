@@ -1934,3 +1934,16 @@ together, reuses current reference data and bounds invalid pages. The workspace
 still owns stale-result rejection and filters; the API remains authoritative.
 Private API/proxy payloads remain no-store. Larger UI modules can be separated
 incrementally without redesigning financial semantics.
+
+## How can spreadsheet users add cash history without reviewing every row separately?
+
+Import entries opens a dialog inside Transactions, preserving filters and page.
+Users paste cells or upload CSV/TSV/text, map columns/categories once per batch,
+and review 25 rows at a time or only highlights. Important exceptions and possible
+matches expand in place; a bulk review action acknowledges details without choosing
+a link. Missing amounts must be fixed or skipped. Optional wallet counts explain
+end-of-day versus specific-time ordering. One spinner reports each request; edited
+inputs require a new preview. Receipts expose original rows, safe Undo and reopening.
+Spreadsheet evidence is also available from transaction details/editor. The flow
+needs API/database migrations and does not upload Excel files or connect Google
+accounts directly; copy cells or export UTF-8 CSV.

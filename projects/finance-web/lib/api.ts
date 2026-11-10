@@ -399,6 +399,9 @@ const recurringBillPaymentSchema = z.object({
 });
 
 const balanceSnapshotSchema = z.object({
+  source_label: z.string().default("Balance check"),
+  precision: z.enum(["end_of_day", "instant"]).default("end_of_day"),
+  timing_order: z.record(z.string(), z.enum(["before", "after"])).default({}),
   account: z.string(),
   actual_balance: z.string(),
   adjustment_transaction: z.string().nullable(),
@@ -763,7 +766,7 @@ async function performStoredLocalSessionRefresh() {
   }
 }
 
-async function authenticatedFetch(path: string, accessToken: string, init?: RequestInit) {
+export async function authenticatedFetch(path: string, accessToken: string, init?: RequestInit) {
   if (isCookieSessionToken(accessToken)) {
     const proxyResponse = await fetchWithConnectionError(`/api/backend${path}`, {
       ...init,

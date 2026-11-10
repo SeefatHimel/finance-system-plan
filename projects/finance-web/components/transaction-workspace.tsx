@@ -1,4 +1,5 @@
 "use client";
+import { BulkImportSources } from "./bulk-import-sources";
 import { BalanceSourceStatus } from "./balance-source-status";
 import { ClockTimeInput } from "./clock-time-input";
 import { TransactionActionMenu } from "@/components/transaction-action-menu";
@@ -65,6 +66,8 @@ import { fieldErrorsFrom, focusFieldError, nativeFieldErrors } from "@/lib/form-
 import { reviewFieldErrors } from "@/lib/review-status";
 
 type LoadState = TransactionLoadState;
+
+const BulkImportDialog = dynamic(() => import("@/components/bulk-import-dialog").then(module => module.BulkImportDialog));
 
 const TransactionDetailDialog = dynamic(() => import("@/components/transaction-detail-dialog").then(module => module.TransactionDetailDialog));
 
@@ -143,6 +146,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   const isEmbedded = Boolean(embeddedEditId || embeddedCreate);
   const recovery = useTransactionRecovery();
   const { dismiss: dismissToast } = useToast();
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const editorForm = useRef<HTMLFormElement>(null);
@@ -1012,6 +1016,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
             }}>
             <div className="transaction-editor-scroll compact-editor"><div className="transaction-editor-fields compact-editor-grid">
             {balanceSuggestionNotice && editorMode === "edit" ? <p className="form-warning field--wide" role="status">{balanceSuggestionNotice}</p> : null}
+            {editorMode === "edit" && editingTransactionId ? <BulkImportSources transactionId={editingTransactionId} /> : null}
             {editorMode === "edit" ? <TransactionSourceMessages key={editingTransactionId} transactionId={editingTransactionId} onMessages={setEditingSourceMessages} onLoadError={setEditingSourceError} /> : null}
             {editorMode === "edit" && editingSourceMessages === null ? <p className="field--wide" role="status">{editingSourceError ? "SMS check failed. Open Original SMS and retry before saving." : "Checking attached SMS before this entry can be saved…"}</p> : null}
             {sourceWarnings.length ? <div className="transaction-source-warning field--wide" role="alert">
@@ -1251,6 +1256,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
               {activePeriod.mode === "monthly" || activePeriod.mode === "daily" ? <button className="icon-button" type="button" aria-label={`Next ${activePeriod.mode === "daily" ? "day" : "month"}`} title={`Next ${activePeriod.mode === "daily" ? "day" : "month"}`} onClick={() => selectPeriod(shiftPeriod(activePeriod, 1))}><CaretRight size={17} aria-hidden="true" /></button> : null}
             </div>
             <button className="button button--ghost transaction-filter-trigger" type="button" aria-label={advancedFilterCount ? `Filters, ${advancedFilterCount} active` : "Filters"} title="Filters" aria-haspopup="dialog" aria-expanded={Boolean(filterPanel)} onClick={openFilters}><FunnelSimple size={20} aria-hidden="true" />{advancedFilterCount ? <span>{advancedFilterCount}</span> : null}</button>
+            <button className="button button--ghost" type="button" onClick={() => setBulkImportOpen(true)}>Import entries</button>
             <button className="button button--primary transaction-commandbar__add" type="button" onClick={() => openNewTransaction()}><Plus size={17} aria-hidden="true" />Add transaction</button>
           </form>
           <div className="transaction-table-toolbar transaction-table-toolbar--compact" ref={listTop}>
@@ -1319,7 +1325,8 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
             </nav>
           </>)}
         </div>
-      </section> : null}
+        {bulkImportOpen && loadState.status === "ready" ? <BulkImportDialog accounts={loadState.accounts} categories={loadState.categories} onClose={() => setBulkImportOpen(false)} /> : null}
+    </section> : null}
       {transferDecision ? <TransferMatchDialog accounts={loadState.status === "ready" ? loadState.accounts : []} original={transferComparison(transferDecision.input, id => accountNames.get(id))} originalSource={transferDecision.mergeId ? "Recorded transfer selected" : "New manual transfer"} matches={transferDecision.matches} busy={isSubmitting} error={matchError} merging={Boolean(transferDecision.mergeId)} onAccept={(match, choices) => void handleTransferDecision(match, choices)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
     </div>
   );
