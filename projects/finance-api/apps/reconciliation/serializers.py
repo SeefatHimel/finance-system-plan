@@ -14,6 +14,8 @@ class BalanceSnapshotSerializer(serializers.ModelSerializer):
     source_label = serializers.SerializerMethodField()
 
     def get_source_label(self, instance) -> str:
+        if instance.cash_count_batch_id:
+            return "Cash count"
         from django.core.exceptions import ObjectDoesNotExist
         try:
             return f"Spreadsheet checkpoint · {instance.bulk_import_checkpoint.batch.filename}"

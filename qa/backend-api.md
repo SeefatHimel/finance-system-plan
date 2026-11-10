@@ -1543,3 +1543,15 @@ expense categories. Multiple matches and mixed/trip labels require a choice.
 Explicit batch/row selections, including null, win. Category changes alter the
 confirmation token; suggestions never change type, direction or amount.
 No migration or new query per row is added.
+
+### How are occasional physical cash counts reconciled?
+
+Cash/home_cash observations reuse BalanceSnapshot, with an encrypted CashCountBatch
+source archive and idempotent receipt. Preview computes all account cutoffs in
+one aggregate query. Save reacquires the shared user write lock, revalidates the
+review token and records only observations and audit logs. A mismatch is allowed;
+no transaction, starting balance or adjustment changes. Concurrent retries return
+one receipt. Dates without times are explicitly end-of-day; timed counts require
+reviewed ordering for untimed movements and reject contradictions between counts.
+History retains stored comparisons, while the comparison endpoint projects both
+counts against the same current ledger and returns a revision for pagination.

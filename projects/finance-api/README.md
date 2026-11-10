@@ -1946,3 +1946,15 @@ stay unassigned; explicit row/batch choices, including null, win. Optional
 an empty string. New entries use reviewed notes; linking keeps the existing note
 and stores reviewed import notes separately. Original cells stay unchanged.
 Deploy the matching API before web; no migration is added.
+
+## Physical cash counts
+
+Authenticated `/api/cash-counts/` history/save, `/preview/` and `/{id}/` comparison
+endpoints record physical cash observations separately from ledger transactions.
+Only active cash/home_cash accounts can receive new counts; differences can be
+saved for review without adjustments. Date-only counts require explicit end-of-day
+confirmation and timed counts require ordering untimed entries. See
+[Cash counts](../../docs/cash-counts.md) for batch input, duplicates, bounded reads
+and deployment. Apply reconciliation migration 0004 before deploying the web UI.
+Focused checks: `python manage.py test apps.reconciliation.test_cash_counts`; use
+PostgreSQL for concurrent retry coverage.
