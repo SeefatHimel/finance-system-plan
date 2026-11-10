@@ -41,14 +41,16 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 
 ## 1. Confirm the production API
 
-The local `.env` file should contain the deployed HTTPS API URL:
+Set the deployed HTTPS API URL explicitly in the release build shell:
 
-```dotenv
-EXPO_PUBLIC_API_BASE_URL=https://finance-system-plan.onrender.com
+```bash
+export EXPO_PUBLIC_API_BASE_URL=https://finance-system-plan.onrender.com
 ```
 
 Expo embeds `EXPO_PUBLIC_*` values in the application bundle at build time.
-Rebuild the APK after changing this value.
+Rebuild the APK after changing this value. The release build fails if this
+environment variable is missing or points to localhost or the emulator.
+The `.env.example` value is for local development only.
 
 ## 2. Create the permanent upload key
 
@@ -118,6 +120,10 @@ npm install
 cd android
 NODE_ENV=production ./gradlew clean assembleRelease
 ```
+
+Before distributing the APK, inspect `assets/index.android.bundle` in the APK
+and confirm it contains the production API URL and no emulator URL. This check
+matters even when the APK is signed and installs successfully.
 
 The APK is created at:
 

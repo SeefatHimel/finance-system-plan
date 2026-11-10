@@ -908,3 +908,11 @@ initially used code 23 while one installed phone already had code 24. The
 its data. Check both the installed and candidate version codes and verify the
 signing certificates match before installing with `adb install -r`; uninstalling
 the app is not part of the normal upgrade path.
+
+### Why must the production API URL be set for every signed release build?
+
+Expo embeds the API URL into the Android JavaScript bundle at build time. Without
+an explicit release environment value, this project falls back to the emulator
+address, which a physical phone cannot reach. Release builds now fail if the
+deployed HTTPS API URL is absent or points to localhost or the emulator. Verify
+the bundled URL before distributing the APK.
