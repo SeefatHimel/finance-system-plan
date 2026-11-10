@@ -41,6 +41,13 @@ const row = z.object({
   number: z.number(),
   original: z.record(z.string(), z.string()),
   source_category: z.string().default(""),
+  category_suggestion: z
+    .object({
+      category: z.string().nullable(),
+      label: z.string(),
+      method: z.enum(["exact", "alias", "ambiguous", "unmapped", "empty"]),
+    })
+    .optional(),
   values: values.optional(),
   action: z.enum(["new", "skip", "link"]).default("new"),
   transaction: z.string().nullable().optional(),
@@ -84,6 +91,7 @@ const configuration = z.object({
         direction: z.enum(["debit", "credit"]).optional(),
         category: z.string().nullable().optional(),
         description: z.string().optional(),
+        notes: z.string().max(4000).optional(),
         other_account: z.string().nullable().optional(),
         transaction: z.string().nullable().optional(),
         reviewed: z.boolean().optional(),
@@ -139,6 +147,7 @@ export const bulkSourceSchema = z.object({
   number: z.number(),
   original: z.record(z.string(), z.string()),
   normalized: values,
+  notes_edited: z.boolean().default(false),
 });
 export type BulkSource = z.infer<typeof bulkSourceSchema>;
 const historySchema = z.array(

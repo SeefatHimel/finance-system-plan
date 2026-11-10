@@ -122,6 +122,16 @@ export function BulkImportEntryList({
             const d = config.decisions[row.number] ?? {};
             const action = d.action ?? row.action;
             const v = row.values;
+            const selectedCategoryId = Object.hasOwn(d, "category")
+              ? d.category
+              : v?.category;
+            const selectedCategory = categories.find(
+              (c) => c.id === selectedCategoryId,
+            );
+            const suggested =
+              row.category_suggestion?.method === "alias" &&
+              !Object.hasOwn(d, "category") &&
+              !Object.hasOwn(config.category_map, row.source_category);
             const reviewed = d.reviewed ?? row.reviewed;
             return (
               <article
@@ -141,6 +151,10 @@ export function BulkImportEntryList({
                       {v?.date ? formatCalendarDate(v.date) : "Check date"} ·{" "}
                       {v?.time ?? "Time unknown"}
                       {row.source_category ? ` · ${row.source_category}` : ""}
+                      {selectedCategory &&
+                      selectedCategory.name !== row.source_category
+                        ? ` → ${selectedCategory.name}`
+                        : ""}
                     </small>
                   </div>
                   <strong
@@ -194,6 +208,13 @@ export function BulkImportEntryList({
                       ))}
                     </ul>
                   ) : null}
+                  {action === "link" ? (
+                    <p className="muted-text">
+                      Linking adds this table as evidence. The existing
+                      transaction&apos;s description, notes and category stay
+                      unchanged.
+                    </p>
+                  ) : null}
                   {row.matches.map((match) => (
                     <label className="bulk-import-match" key={match.id}>
                       <input
@@ -218,8 +239,10 @@ export function BulkImportEntryList({
                         <small>
                           {formatCalendarDate(match.date)} ·{" "}
                           {match.time ?? "Time unknown"} ·{" "}
-                          {match.source_labels.length ? match.source_labels.join(" + ") : displayLabel(match.source)} ·{" "}
-                          {displayLabel(match.type)}
+                          {match.source_labels.length
+                            ? match.source_labels.join(" + ")
+                            : displayLabel(match.source)}{" "}
+                          · {displayLabel(match.type)}
                         </small>
                         <span>{match.note}</span>
                         <small>
@@ -234,17 +257,28 @@ export function BulkImportEntryList({
                   ))}
                   <div className="bulk-import-grid">
                     <label className="field">
-                      <span className="field__label">
+                      <span
+                        className="field__label"
+                        id={`bulk-description-label-${row.number}`}
+                      >
                         Description for row {row.number}
                       </span>
                       <input
                         className="field__control"
                         maxLength={255}
+                        aria-labelledby={`bulk-description-label-${row.number}`}
+                        aria-describedby={`bulk-description-hint-${row.number}`}
                         value={d.description ?? v?.description ?? ""}
                         onChange={(e) =>
                           decision(row, { description: e.target.value })
                         }
                       />
+                      <small
+                        className="muted-text"
+                        id={`bulk-description-hint-${row.number}`}
+                      >
+                        Short title shown in the transaction list.
+                      </small>
                     </label>
                     <label className="field">
                       <span className="field__label">
@@ -318,15 +352,20 @@ export function BulkImportEntryList({
                       </select>
                     </label>
                     <label className="field">
-                      <span className="field__label">
+                      <span
+                        className="field__label"
+                        id={`bulk-row-category-label-${row.number}`}
+                      >
                         Category for row {row.number}
                       </span>
                       <select
                         className="field__control"
-                        value={
-                          (Object.hasOwn(d, "category")
-                            ? d.category
-                            : v?.category) ?? ""
+                        value={selectedCategoryId ?? ""}
+                        aria-labelledby={`bulk-row-category-label-${row.number}`}
+                        aria-describedby={
+                          suggested
+                            ? `bulk-row-category-hint-${row.number}`
+                            : undefined
                         }
                         onChange={(e) =>
                           decision(row, {
@@ -343,6 +382,15 @@ export function BulkImportEntryList({
                             </option>
                           ))}
                       </select>
+                      {suggested ? (
+                        <small
+                          className="bulk-import-suggestion"
+                          id={`bulk-row-category-hint-${row.number}`}
+                        >
+                          Suggested from “{row.source_category}”. You can change
+                          it.
+                        </small>
+                      ) : null}
                     </label>
                     {(d.type ?? v?.type) === "transfer" ? (
                       <label className="field">
@@ -375,6 +423,31 @@ export function BulkImportEntryList({
                       </label>
                     ) : null}
                   </div>
+                  <label className="field bulk-import-notes">
+                    <span
+                      className="field__label"
+                      id={`bulk-notes-label-${row.number}`}
+                    >
+                      Notes for row {row.number}
+                    </span>
+                    <textarea
+                      className="field__control"
+                      rows={3}
+                      maxLength={4000}
+                      aria-labelledby={`bulk-notes-label-${row.number}`}
+                      aria-describedby={`bulk-notes-hint-${row.number}`}
+                      value={d.notes ?? v?.notes ?? ""}
+                      onChange={(e) => decision(row, { notes: e.target.value })}
+                    />
+                    <small
+                      className="muted-text"
+                      id={`bulk-notes-hint-${row.number}`}
+                    >
+                      {action === "link"
+                        ? "Saved with this import’s reviewed details; the existing transaction’s note is kept."
+                        : "Extra context saved as the ledger note. The original spreadsheet stays unchanged."}
+                    </small>
+                  </label>
                   <details>
                     <summary>Original table row · unchanged</summary>
                     <dl className="bulk-import-original">

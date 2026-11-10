@@ -182,6 +182,7 @@ test("linking spreadsheet evidence keeps the existing movement and exposes its o
   const wallet = accounts.find(
     (account: { name: string }) => account.name === "Synthetic QA Cash",
   );
+  const amount = (((Date.now() % 1_000_000) + 10_000) / 100).toFixed(2);
   const label = `Synthetic original bulk match ${testInfo.project.name} ${Date.now()}`;
   const response = await context.request.post(
     "/api/backend/api/transactions/",
@@ -191,7 +192,7 @@ test("linking spreadsheet evidence keeps the existing movement and exposes its o
         account: wallet.id,
         date: "2026-04-13",
         type: "expense",
-        amount: "12.50",
+        amount,
         counterparty_text: label,
         source: "web",
       },
@@ -207,12 +208,15 @@ test("linking spreadsheet evidence keeps the existing movement and exposes its o
   await dialog
     .getByLabel("Paste table")
     .fill(
-      `Date,Description,Amount,Notes\n2026-04-13,${label},12.50,Synthetic linked original row`,
+      `Date,Description,Amount,Notes\n2026-04-13,${label},${amount},Synthetic linked original row`,
     );
   await dialog
     .getByRole("button", { name: "Preview import", exact: true })
     .click();
   await dialog.getByText(/1 possible match/).click();
+  await dialog
+    .getByLabel("Notes for row 1", { exact: true })
+    .fill("Reviewed linked import note");
   await dialog.getByRole("radio").first().check();
   await dialog.getByLabel("I reviewed this row and its chosen action.").check();
   await dialog
@@ -242,6 +246,14 @@ test("linking spreadsheet evidence keeps the existing movement and exposes its o
   await expect(
     dialog.getByText("Synthetic linked original row", { exact: true }),
   ).toBeVisible();
+  await dialog.getByText("Reviewed import notes", { exact: true }).click();
+  await expect(
+    dialog.getByText("Reviewed linked import note", { exact: true }),
+  ).toBeVisible();
+  const retained = await (
+    await context.request.get(`/api/backend/api/transactions/${entry.id}/`)
+  ).json();
+  expect(retained.note).toBe(entry.note);
   await dialog
     .getByRole("button", { name: "Close transaction details", exact: true })
     .click();
@@ -303,7 +315,9 @@ test("timed checkpoints order untimed entries without inventing clock times", as
     .click();
   await dialog.getByLabel("Balance date 1").fill("14/04/2026");
   await dialog.getByLabel("Counted balance 1 (BDT)").fill("0");
-  await dialog.getByLabel("Balance time 1 (optional)", { exact: true }).fill("18:00:00");
+  await dialog
+    .getByLabel("Balance time 1 (optional)", { exact: true })
+    .fill("18:00:00");
   await dialog
     .getByRole("button", { name: "Refresh preview", exact: true })
     .click();
@@ -361,4 +375,141 @@ test("timed checkpoints order untimed entries without inventing clock times", as
   await expect(
     dialog.getByRole("heading", { name: "Import undone", exact: true }),
   ).toBeVisible();
+});
+
+test("category suggestions and editable notes preserve originals and explicit choices", async ({
+  page,
+  context,
+}, testInfo) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  await page.goto("/transactions?month=2026-01&page=2");
+  await expect(page).toHaveTitle(/finance/i);
+  await page
+    .getByRole("button", { name: "Import entries", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  const label = `Synthetic category notes ${testInfo.project.name} ${Date.now()}`;
+  await dialog
+    .getByLabel("Paste table")
+    .fill(
+      `Date\tCategory\tDescription\tAmount\tNotes\n2026-05-15\tTransportation\t${label} ride\t10.25\tOriginal ride context\n2026-05-15\tBills\t${label} bill\t20.50\tOriginal bill context`,
+    );
+  await dialog
+    .getByRole("button", { name: "Preview import", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("heading", { name: "Review imported entries" }),
+  ).toBeVisible();
+  const mapping = dialog
+    .locator("details")
+    .filter({
+      has: page.locator("summary", {
+        hasText: "Column mapping and category choices",
+      }),
+    })
+    .first();
+  await mapping.locator("summary").first().click();
+  await expect(
+    mapping
+      .getByLabel("Transportation", { exact: true })
+      .locator("option:checked"),
+  ).toHaveText("Transport");
+  await expect(
+    mapping.getByText("Suggested: Transportation → Transport", { exact: true }),
+  ).toBeVisible();
+  const mappingQa = await new AxeBuilder({ page })
+    .include("dialog[open]")
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(mappingQa.violations).toEqual([]);
+  const transport = await mapping
+    .getByLabel("Transportation", { exact: true })
+    .inputValue();
+  await mapping.getByLabel("Bills", { exact: true }).selectOption("");
+  const first = dialog.locator(".bulk-import-row").nth(0);
+  await first.locator("summary").first().click();
+  await expect(
+    first.getByLabel("Category for row 1").locator("option:checked"),
+  ).toHaveText("Transport");
+  const notes = first.getByLabel("Notes for row 1", { exact: true });
+  await expect(notes).toHaveValue("Original ride context");
+  await notes.fill("");
+  await dialog
+    .getByRole("button", { name: "Refresh preview", exact: true })
+    .click();
+  await expect(notes).toHaveValue("");
+  await expect(mapping.getByLabel("Bills", { exact: true })).toHaveValue("");
+  await mapping
+    .getByLabel("Bills", { exact: true })
+    .selectOption({ label: "Electricity" });
+  const chosenCategory = await mapping
+    .getByLabel("Bills", { exact: true })
+    .inputValue();
+  const edited = "Reviewed ride context\nSecond line of notes";
+  await notes.fill(edited);
+  await dialog
+    .getByRole("button", { name: "Refresh preview", exact: true })
+    .click();
+  await expect(notes).toHaveValue(edited);
+  await mapping.locator("summary").first().click();
+  await first
+    .getByText("Original table row · unchanged", { exact: true })
+    .click();
+  await expect(
+    first.getByText("Original ride context", { exact: true }),
+  ).toBeVisible();
+  const qa = await new AxeBuilder({ page })
+    .include("dialog[open]")
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(qa.violations).toEqual([]);
+  await notes.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: `/private/tmp/finance-import-notes-${testInfo.project.name}.png`,
+    fullPage: false,
+  });
+  await dialog
+    .getByRole("button", { name: "Import approved entries", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("heading", { name: "Your entries are recorded" }),
+  ).toBeVisible();
+  const records = await (
+    await context.request.get(
+      `/api/backend/api/transactions/?search=${encodeURIComponent(label)}`,
+    )
+  ).json();
+  expect(records).toHaveLength(2);
+  const ride = records.find((record: { counterparty_text: string }) =>
+    record.counterparty_text.endsWith(" ride"),
+  );
+  const bill = records.find((record: { counterparty_text: string }) =>
+    record.counterparty_text.endsWith(" bill"),
+  );
+  expect(ride.category).toBe(transport);
+  expect(ride.note).toContain(edited);
+  expect(ride.note).not.toContain("Original ride context");
+  expect(ride.type).toBe("expense");
+  expect(ride.direction).toBe("debit");
+  expect(bill.category).toBe(chosenCategory);
+  expect(bill.note).toContain("Original bill context");
+  await dialog.getByText("Original table · 2 rows", { exact: true }).click();
+  await expect(
+    dialog.getByText("Original ride context", { exact: true }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/month=2026-01.*page=2/);
+  await dialog
+    .getByRole("button", { name: "Undo this import", exact: true })
+    .click();
+  await dialog
+    .getByRole("button", { name: "Confirm Undo import", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("heading", { name: "Import undone", exact: true }),
+  ).toBeVisible();
+  expect(errors).toEqual([]);
 });

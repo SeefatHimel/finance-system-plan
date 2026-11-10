@@ -4659,6 +4659,10 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 .bulk-import-receipt > .bulk-import-disclosure { margin-top: 24px; text-align: left; }
 .bulk-import-disclosure td, .bulk-import-disclosure th { max-width: 300px; white-space: normal; overflow-wrap: anywhere; }
 .bulk-import-dialog .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.bulk-import-notes { margin-block: 16px; }
+.bulk-import-notes textarea { resize: vertical; min-height: 84px; white-space: pre-wrap; }
+.bulk-import-suggestion { color: var(--accent); font-size: 12px; }
+.bulk-import-reviewed-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
 .bulk-import-upload label:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
 @media (max-width: 700px) {
   .bulk-import-untimed { flex-direction: column; align-items: stretch; }

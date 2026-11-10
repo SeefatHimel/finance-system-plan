@@ -35,6 +35,14 @@ export function BulkSourceRows({ rows }: { rows: BulkSource[] }) {
               </div>
             ))}
           </dl>
+          {row.notes_edited ? (
+            <details>
+              <summary>Reviewed import notes</summary>
+              <p className="bulk-import-reviewed-notes">
+                {row.normalized.notes || "No notes"}
+              </p>
+            </details>
+          ) : null}
         </article>
       ))}
     </details>

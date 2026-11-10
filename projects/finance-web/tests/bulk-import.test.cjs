@@ -88,3 +88,28 @@ test("confirmation carries the reviewed version and token through cookie-aware a
   });
   assert.equal(request.token, "synthetic-session");
 });
+
+test("edited notes and category suggestions survive preview parsing with safe limits", () => {
+  const input = preview();
+  input.configuration.decisions = {
+    1: { notes: "Reviewed context\nSecond line" },
+  };
+  input.rows[0].category_suggestion = {
+    category: "synthetic-category",
+    label: "Transport",
+    method: "alias",
+  };
+  const parsed = bulkPreviewSchema.parse(input);
+  assert.equal(
+    parsed.configuration.decisions["1"].notes,
+    "Reviewed context\nSecond line",
+  );
+  assert.equal(parsed.rows[0].category_suggestion.label, "Transport");
+  input.configuration.decisions["1"].notes = "";
+  assert.equal(
+    bulkPreviewSchema.parse(input).configuration.decisions["1"].notes,
+    "",
+  );
+  input.configuration.decisions["1"].notes = "x".repeat(4001);
+  assert.throws(() => bulkPreviewSchema.parse(input));
+});

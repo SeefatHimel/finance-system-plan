@@ -28,17 +28,52 @@ export function BulkImportMapping({
   const [mapOpen, setMapOpen] = useState(!preview.review_token);
   const sourceCategories = useMemo(
     () => [
-      ...new Set(preview.rows.map((r) => r.source_category).filter(Boolean)),
+      ...new Map(
+        preview.rows
+          .filter((r) => r.source_category)
+          .map((r) => {
+            const name = r.source_category;
+            const exact = categories.filter(
+              (c) => c.is_active && c.name.toLowerCase() === name.toLowerCase(),
+            );
+            const suggestion = r.category_suggestion;
+            return [
+              name,
+              {
+                name,
+                suggestion,
+                selected:
+                  (Object.hasOwn(config.category_map, name)
+                    ? config.category_map[name]
+                    : suggestion
+                      ? suggestion.category
+                      : exact.length === 1
+                        ? exact[0].id
+                        : null) ?? "",
+              },
+            ] as const;
+          }),
+      ).values(),
     ],
-    [preview],
+    [preview, categories, config.category_map],
   );
+  const suggestedCount = sourceCategories.filter(
+    (c) =>
+      c.suggestion?.method === "alias" &&
+      !Object.hasOwn(config.category_map, c.name),
+  ).length;
+  const unmappedCount = sourceCategories.filter((c) => !c.selected).length;
   return (
     <details
       className="bulk-import-disclosure"
       open={mapOpen}
       onToggle={(e) => setMapOpen(e.currentTarget.open)}
     >
-      <summary>Column mapping and category choices</summary>
+      <summary>
+        Column mapping and category choices
+        {suggestedCount ? ` · ${suggestedCount} suggested` : ""}
+        {unmappedCount ? ` · ${unmappedCount} unassigned` : ""}
+      </summary>
       <div className="bulk-import-grid">
         {fields.map((field) => (
           <label className="field" key={field}>
@@ -106,19 +141,31 @@ export function BulkImportMapping({
       {sourceCategories.length ? (
         <>
           <h3>Map categories once for this batch</h3>
+          <p className="muted-text">
+            Clear category-name matches are prefilled. Change any suggestion
+            here to apply it across the table. Individual row choices take
+            precedence.
+          </p>
           <div className="bulk-import-grid">
-            {sourceCategories.map((name) => (
+            {sourceCategories.map(({ name, suggestion, selected }, index) => (
               <label className="field" key={name}>
-                <span className="field__label">{name}</span>
+                <span
+                  className="field__label"
+                  id={`bulk-category-label-${index}`}
+                >
+                  {name}
+                </span>
                 <select
                   className="field__control"
-                  value={
-                    (name in config.category_map
-                      ? config.category_map[name]
-                      : categories.find(
-                          (c) => c.name.toLowerCase() === name.toLowerCase(),
-                        )?.id) ?? ""
+                  aria-labelledby={`bulk-category-label-${index}`}
+                  aria-describedby={
+                    (suggestion?.method === "alias" ||
+                      suggestion?.method === "ambiguous") &&
+                    !Object.hasOwn(config.category_map, name)
+                      ? `bulk-category-hint-${index}`
+                      : undefined
                   }
+                  value={selected}
                   onChange={(e) =>
                     edit({
                       category_map: {
@@ -137,6 +184,23 @@ export function BulkImportMapping({
                       </option>
                     ))}
                 </select>
+                {suggestion?.method === "alias" &&
+                !Object.hasOwn(config.category_map, name) ? (
+                  <small
+                    className="bulk-import-suggestion"
+                    id={`bulk-category-hint-${index}`}
+                  >
+                    Suggested: {name} → {suggestion.label}
+                  </small>
+                ) : suggestion?.method === "ambiguous" &&
+                  !Object.hasOwn(config.category_map, name) ? (
+                  <small
+                    className="muted-text"
+                    id={`bulk-category-hint-${index}`}
+                  >
+                    Several saved categories fit. Choose one for this label.
+                  </small>
+                ) : null}
               </label>
             ))}
           </div>

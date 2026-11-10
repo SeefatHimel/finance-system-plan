@@ -26,12 +26,23 @@ should first be converted to one signed amount column or imported separately.
 
 Positive amounts default to money out/expense, and negative amounts to money
 in/refund. A batch can instead interpret positives as income. The preview lets
-users change each row's type, direction, category, description, date, time and
+users change each row's type, direction, category, description, notes, date, time and
 transfer counterpart. Categories never change debit/credit direction. Transfers
 require another active, owned account in the same currency. Currency symbols
 are not converted: a BDT-marked amount cannot silently enter a USD account.
 
-Category mapping applies to the batch. Unmapped labels are retained in source
+Category mapping applies to the batch. The server prefills unambiguous matches
+against the owner's active categories, first by normalized whole name (case,
+spacing, Unicode normalization and `&`/`and`), then by common whole-label synonyms.
+Examples: Transportation → Transport, Food → Food & Dining, Bills → Utilities &
+Bills, and Medical → Health & Medical. Alias matches show **Suggested** in the
+batch mapping and row editor. Multiple saved matches, mixed labels such as
+Education/Office, and trip/project names stay unassigned. Suggestions never
+create categories or change transaction type, direction or amount. Explicit
+batch and row choices, including Uncategorized, win; row choices override batch
+mappings. Suggestions do not create personal cross-import rules.
+
+Unmapped labels are retained in source
 notes and can remain uncategorized without blocking every row. Trip labels can
 therefore survive while individual entries use normal spending categories.
 Missing/zero amounts must be corrected or explicitly skipped. Subtotal-looking
@@ -44,6 +55,15 @@ row to edit it, compare existing movements or inspect its original cells. The
 bulk review action acknowledges highlighted details; it does not choose a match,
 remove repeated purchases or turn a duplicate into a different movement.
 Refresh preview after edits, then import the approved entries once.
+
+**Description** is the short transaction title (up to 255 characters). **Notes**
+is a separate multiline field in each row's expanded editor (up to 4,000
+characters). Imported notes can be edited or cleared. New entries use the
+reviewed notes as the ledger note; the category-label annotation may also be
+appended. Original table cells stay unchanged. Linking keeps the existing
+transaction's description, notes and category; edits are saved as reviewed import
+details, visible under Spreadsheet evidence → Reviewed import notes. The editor
+explains this before confirmation.
 
 ## Duplicate decisions and safe retries
 
@@ -171,7 +191,9 @@ This is **API, database, contracts and web work**. Deploy the API and apply
 `reconciliation.0003` plus `bulk_imports.0001` / `0002` before exposing the web
 flow. These migrations add metadata and import tables, not financial repairs or
 changes to historical transaction values. Existing archive key/fallback retention
-requirements apply. Deploy a matched API/web preview when reviewing the branch;
+requirements apply. The notes/suggestions follow-up adds no migration: deploy
+the API before web so note edits are accepted and suggestion metadata is present.
+Deploy a matched API/web preview when reviewing the branch;
 a new frontend pointed at an older API cannot use these endpoints.
 
 Run from `projects/finance-api` against an isolated PostgreSQL database:
@@ -221,3 +243,21 @@ responsive layouts and keyboard/accessibility checks. It uses synthetic data onl
 No user spreadsheet was imported into a real account, and no production database
 was accessed. Hosted CI and a matched staging deployment still need to run after
 publication; local verification does not claim that production is deployed.
+
+### Editable notes and category suggestions — 10 November 2026
+
+The follow-up adds an independent Notes editor and labelled, conservative category
+suggestions. Synthetic coverage includes multiline/empty notes, original evidence,
+existing-entry links, explicit category overrides/nulls, ambiguous labels, ownership,
+inactive categories and stale suggestions. The full API suite passes 898 tests
+(36 import cases), and the web unit suite passes 219 tests. Production build,
+lint, migration drift and generated-schema checks pass. Browser QA uses the same
+isolated Playwright/Chrome workflow described above; no personal table is imported.
+The backend schema snapshot is regenerated against PostgreSQL, correcting prior
+backend-specific positive-integer bounds alongside the optional notes field.
+The final browser suite passes 18 tests at desktop and mobile widths, including
+category suggestions, explicit Uncategorized/mapping overrides, note clearing,
+multiline saves, linked-note retention and source inspection. The open mapping
+and row editor pass the exercised axe WCAG A/AA checks, with explicit accessible
+labels and descriptions. Screenshots/traces remain outside source control.
+The final source-note metadata cleanup also passes the 36-case import suite.

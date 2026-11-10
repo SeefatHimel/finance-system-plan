@@ -2066,3 +2066,10 @@ times require before/after decisions with exceptions. Receipts support source-ro
 inspection, safe Undo and reopening. Reconciliation labels spreadsheet checkpoints.
 This requires the matched API and migrations, not a frontend-only deployment.
 See [bulk cash import](../../docs/bulk-cash-import.md) for limits and browser checks.
+
+Bulk review separates the short Description from multiline Notes. Notes can be
+edited/cleared before Refresh preview and confirmation. Category selectors show
+server suggestions for clear synonyms; explicit choices and Uncategorized win.
+The mapping summary shows suggested/unassigned counts. Linking explains that
+existing ledger values stay intact; reviewed notes remain inspectable under
+Spreadsheet evidence. Original cells stay unchanged. Deploy the matching API first.

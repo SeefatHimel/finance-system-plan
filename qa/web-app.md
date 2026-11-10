@@ -1947,3 +1947,14 @@ inputs require a new preview. Receipts expose original rows, safe Undo and reope
 Spreadsheet evidence is also available from transaction details/editor. The flow
 needs API/database migrations and does not upload Excel files or connect Google
 accounts directly; copy cells or export UTF-8 CSV.
+
+## How does bulk review distinguish descriptions, notes and category suggestions?
+
+The row editor explains Description as the list title and exposes multiline
+Notes with a 4,000-character limit. Edited/cleared notes survive preview refresh;
+original cells stay inspectable. Mapping and row selectors show server
+suggestions and preserve explicit Uncategorized choices. The summary shows
+suggested/unassigned counts. Linking explains that existing ledger values stay
+intact; reviewed notes remain inspectable in Spreadsheet evidence. API must
+deploy before web. Synthetic desktop/mobile tests cover edits, clearing, source
+retention, category defaults/overrides and accessible controls.
