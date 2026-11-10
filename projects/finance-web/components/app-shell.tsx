@@ -63,11 +63,12 @@ const navItems: NavItem[] = [
   { href: "/debts", icon: PlusCircle, label: "Debts", subtitle: "Track money borrowed, lent, and repaid", title: "Debts & lending" },
   { href: "/credit-cards", icon: CreditCard, label: "Credit cards", subtitle: "Manage statements, dues, and payments", title: "Credit cards" },
   { href: "/recurring-bills", icon: CalendarDots, label: "Recurring bills", subtitle: "Stay ahead of scheduled payments", title: "Recurring bills" },
+  { href: "/cash-counts", icon: CheckCircle, label: "Cash counts", subtitle: "Record counted cash and review differences", title: "Cash counts" },
   { href: "/reconciliation", icon: CheckCircle, label: "Reconciliation", subtitle: "Compare your ledger with real balances", title: "Balance reconciliation" },
   { href: "/audit-logs", icon: FileText, label: "Audit logs", subtitle: "Inspect the history behind ledger changes", title: "Audit logs" }
 ];
 
-const planningPaths = ["/debts", "/credit-cards", "/recurring-bills", "/reconciliation"];
+const planningPaths = ["/debts", "/credit-cards", "/recurring-bills", "/cash-counts", "/reconciliation"];
 const settingsPaths = ["/profile", "/quick-add", "/statement-counterparties", "/sms-settings", "/audit-logs"];
 const navigationGroups = [
   { label: "Overview", paths: ["/", "/transactions", "/timeline", "/review", "/checks", "/accounts", "/reports"] },

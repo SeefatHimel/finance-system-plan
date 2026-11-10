@@ -802,3 +802,15 @@ privacy changes, and sign-out on a device. Use the committed native project for
 routine builds. `expo prebuild` can regenerate the manually maintained widget
 manifest, resources, and package registration; only run it when reviewing and
 restoring those changes deliberately. Widgets need no backend migration.
+
+### Cash-count verification
+
+Apply `python manage.py migrate` from `projects/finance-api` before using
+`/cash-counts`; migration reconciliation.0004 adds source/receipt metadata without
+changing ledger entries. Run `python manage.py test apps.reconciliation.test_cash_counts`
+against disposable PostgreSQL for concurrent retry coverage. From finance-web run
+`node --test tests/cash-counts.test.cjs`; the synthetic Playwright suite adds
+`e2e/cash-counts.spec.ts` for desktop/mobile count, correction, table and timed flows.
+Use the existing isolated browser fixture setup, never the signed-in production
+profile or real financial data. See [Cash counts](cash-counts.md) for behavior and
+API deployment order.

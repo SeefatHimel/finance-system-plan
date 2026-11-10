@@ -460,3 +460,11 @@ movement, so reports/timelines use the same canonical records. Wallet counts are
 separate reconciliation observations: a cash difference never invents a transaction.
 Immutable encrypted sources, explicit duplicate choices, atomic retries and audited,
 guarded Undo keep bulk entry fast without silently rewriting history.
+
+### Does an unexplained cash-count difference create a transaction?
+
+No. A cash count is an observation, not evidence of a particular missing expense
+or income. Users can save a mismatch and compare it with the previous count and
+the movements between them. A persistent net difference is not presented as a
+new shortage every day. Correct the verified underlying entries or a mistaken
+count explicitly; digital account SMS/statement reconciliation remains separate.

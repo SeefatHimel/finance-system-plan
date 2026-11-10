@@ -1958,3 +1958,14 @@ suggested/unassigned counts. Linking explains that existing ledger values stay
 intact; reviewed notes remain inspectable in Spreadsheet evidence. API must
 deploy before web. Synthetic desktop/mobile tests cover edits, clearing, source
 retention, category defaults/overrides and accessible controls.
+
+### Why is cash counting a separate workflow?
+
+Physical counts happen occasionally and should not clutter SMS/statement review
+or imply that cash must be counted every day. Planning → Cash counts accepts one
+count or a table, validates account/column mappings, and shows counted cash versus
+ledger expectation. A discrepancy can be saved for later review. Unknown times
+stay unknown, with explicit end-of-day or relative timing decisions. History
+comparison opens in place, restores keyboard focus and retains the account filter.
+The UI uses loaders/toasts, bounded lists and stale-response protection. It never
+auto-adjusts cash to make numbers agree. See docs/cash-counts.md.

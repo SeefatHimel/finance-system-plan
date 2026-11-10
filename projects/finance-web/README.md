@@ -2073,3 +2073,18 @@ server suggestions for clear synonyms; explicit choices and Uncategorized win.
 The mapping summary shows suggested/unassigned counts. Linking explains that
 existing ledger values stay intact; reviewed notes remain inspectable under
 Spreadsheet evidence. Original cells stay unchanged. Deploy the matching API first.
+
+## Cash counts
+
+**Planning → Cash counts** (`/cash-counts`) supports one physical count or a pasted
+CSV/TSV/Markdown count table across cash accounts. It displays counted versus
+ledger balances, preserves discrepancies for review, and compares movements in
+a popup without losing the account filter. No counting schedule or automatic
+ledger adjustments are introduced. Date-only counts need end-of-day confirmation;
+known-time counts have explicit ordering controls for untimed entries.
+
+History distinguishes saved calculations from comparisons against the current
+ledger. Details and per-row corrections are disclosed on demand; reads are
+abortable, lists are paginated, and errors use toasts. Deploy API/migration 0004
+first. See [Cash counts](../../docs/cash-counts.md). Verification includes
+`node --test tests/cash-counts.test.cjs` and `e2e/cash-counts.spec.ts`.

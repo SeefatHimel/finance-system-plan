@@ -1,12 +1,9 @@
 "use client";
-import { ClockTimeInput } from "./clock-time-input";
 
 import { DatedList } from "@/components/dated-list";
-import { CalendarDateInput } from "@/components/calendar-date-input";
 
-import { useFeedbackMessage, useToast } from "@/components/toast-provider";
+import { useFeedbackMessage } from "@/components/toast-provider";
 
-import type React from "react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -14,13 +11,12 @@ import {
   type Account,
   type AccountReconciliation,
   type BalanceSnapshot,
-  createBalanceSnapshot,
   getAccountReconciliation,
   listAccounts,
   listBalanceSnapshots
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
-import { ButtonBusy, LoadingState } from "@/components/loading-state";
+import { LoadingState } from "@/components/loading-state";
 
 type ReconciliationState =
   | { status: "loading" }
@@ -47,16 +43,6 @@ function formatLabel(value: string) {
   return value.replaceAll("_", " ");
 }
 
-function nowLocalInputValue() {
-  const date = new Date();
-  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-  return date.toISOString().slice(0, 16);
-}
-
-function toApiDateTime(value: string) {
-  return new Date(value).toISOString();
-}
-
 function statusBadgeClass(status: string) {
   if (status === "matched") {
     return "status-badge status-badge--ok";
@@ -80,14 +66,10 @@ function differenceReason(status: string, difference: string) {
 }
 
 export function ReconciliationWorkspace() {
-  const { notify } = useToast();
   const [state, setState] = useState<ReconciliationState>({ status: "loading" });
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [accountCheck, setAccountCheck] = useState<AccountReconciliation | null>(null);
   const [formError, setFormError] = useFeedbackMessage("error");
-  const [isSaving, setIsSaving] = useState(false);
-  const [checkedDate, setCheckedDate] = useState(() => nowLocalInputValue().slice(0, 10));
-  const [checkedTime, setCheckedTime] = useState(() => nowLocalInputValue().slice(11));
   const [isChecking, setIsChecking] = useState(false);
 
   const loadAccountCheck = useCallback(async (accessToken: string, accountId: string) => {
@@ -205,48 +187,6 @@ export function ReconciliationWorkspace() {
     }
   }
 
-  async function handleCreateSnapshot(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const accessToken = getAccessToken();
-
-    if (!accessToken) {
-      setFormError("Sign in before saving a balance snapshot.");
-      return;
-    }
-
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const account = String(formData.get("account") ?? "");
-    const checkedAt = String(formData.get("checked_at") ?? "");
-
-    if (!account || !checkedAt) {
-      setFormError("Account and checked time are required.");
-      return;
-    }
-
-    setFormError(null);
-    setIsSaving(true);
-
-    try {
-      await createBalanceSnapshot(accessToken, {
-        account,
-        actual_balance: String(formData.get("actual_balance") ?? ""),
-        checked_at: toApiDateTime(checkedAt),
-        note: String(formData.get("note") ?? "")
-      });
-      form.reset();
-      const resetTime = nowLocalInputValue();
-      setCheckedDate(resetTime.slice(0, 10));
-      setCheckedTime(resetTime.slice(11));
-      await loadReconciliation(account, false);
-      notify("Balance snapshot saved.");
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Could not save balance snapshot.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
   if (state.status === "loading") {
     return <LoadingState detail="Comparing ledger totals with recorded balances" label="Preparing reconciliation" />;
   }
@@ -359,49 +299,12 @@ export function ReconciliationWorkspace() {
         </div>
       </section>
 
-      <section className="panel">
-        <div className="panel__body">
-          <h2 className="section-title">Save balance snapshot</h2>
-          <form className="transaction-form" onSubmit={handleCreateSnapshot}>
-            <label className="field">
-              <span className="field__label">Account</span>
-              <select
-                className="field__control"
-                name="account"
-                onChange={(event) => void handleAccountChange(event.target.value)}
-                required
-                value={selectedAccountId}
-              >
-                <option value="">Select account</option>
-                {state.accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span className="field__label">Actual balance</span>
-              <input className="field__control" inputMode="decimal" name="actual_balance" placeholder="72,308.00" required type="text" />
-            </label>
-            <div className="field">
-              <span className="field__label">Checked date and time</span>
-              <div className="transaction-datetime">
-                <CalendarDateInput aria-label="Checked date" value={checkedDate} required onChange={setCheckedDate} />
-                <ClockTimeInput aria-label="Checked time" step="60" required value={checkedTime} onValueChange={setCheckedTime} />
-              </div>
-              <input type="hidden" name="checked_at" value={checkedDate && checkedTime ? `${checkedDate}T${checkedTime}` : ""} />
-            </div>
-            <label className="field">
-              <span className="field__label">Note</span>
-              <input className="field__control" name="note" />
-            </label>
-            <button className="button button--primary field--wide" disabled={isSaving} type="submit">
-              {isSaving ? <ButtonBusy label="Saving" /> : "Save snapshot"}
-            </button>
-          </form>
-        </div>
-      </section>
+      <section className="panel"><div className="panel__body">
+        <h2 className="section-title">Physical cash counts</h2>
+        <p>Use Cash counts for wallet and stored cash observations. Digital accounts keep their SMS and statement balance checks.</p>
+        <Link href="/cash-counts" className="button button--primary">Open Cash counts</Link>
+        <Link href="/timeline" className="button button--ghost">View reported balances</Link>
+      </div></section>
 
       <section className="panel">
         <div className="panel__body">
