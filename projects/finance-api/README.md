@@ -1910,3 +1910,19 @@ existing READ COMMITTED transaction. Login throttle lookup/create now acquires
 its row lock immediately, protecting against expired-window cleanup. The
 committed-write race tests run on PostgreSQL; SQLite keeps development coverage
 for ordinary report shapes, IDs and empty/equal-value groups.
+
+## Bulk spreadsheet entries and wallet counts
+
+`/api/bulk-imports/` stages signed-amount CSV/TSV tables without recording money.
+Versioned review resolves mappings, missing values, duplicates and checkpoint
+timing. Atomic confirmation creates canonical transactions or attaches source
+rows to explicitly chosen existing movements. Match previews distinguish SMS,
+statement PDF and spreadsheet evidence, and use only the reporting account’s
+effective transfer balance. Retries are idempotent. Original
+text is encrypted, and safe batch Undo never deletes pre-existing linked entries.
+
+Apply `reconciliation.0003` and `bulk_imports.0001` / `0002`. Checkpoints distinguish
+whole-day and specific-time comparisons; untimed entries require explicit ordering
+for timed counts. Snapshot mutations share the financial writer lock. Counts do
+not automatically adjust the ledger. Full workflow, limits, ownership guarantees,
+API routes and tests are in [bulk cash import](../../docs/bulk-cash-import.md).

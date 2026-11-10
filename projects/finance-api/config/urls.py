@@ -5,6 +5,7 @@ from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.routers import DefaultRouter
 
+from apps.bulk_imports.views import BulkImportsView, BulkImportReopenView, BulkImportDetailView, BulkImportCommitView, BulkImportUndoView, TransactionBulkSourcesView
 from apps.accounts.views import AccountViewSet
 from apps.audit_logs.views import AuditLogEntryViewSet
 from apps.categories.views import CategoryViewSet
@@ -76,6 +77,12 @@ router.register("statements/rows", StatementRowViewSet, basename="statement-row"
 
 
 urlpatterns = [
+    path("api/bulk-imports/", BulkImportsView.as_view(), name="bulk-import-list"),
+    path("api/bulk-imports/<uuid:pk>/", BulkImportDetailView.as_view(), name="bulk-import-detail"),
+    path("api/bulk-imports/<uuid:pk>/commit/", BulkImportCommitView.as_view(), name="bulk-import-commit"),
+    path("api/bulk-imports/<uuid:pk>/reopen/", BulkImportReopenView.as_view(), name="bulk-import-reopen"),
+    path("api/bulk-imports/<uuid:pk>/undo/", BulkImportUndoView.as_view(), name="bulk-import-undo"),
+    path("api/transactions/<uuid:pk>/bulk-sources/", TransactionBulkSourcesView.as_view(), name="transaction-bulk-sources"),
     path("api/timeline-balances/", TimelineBalanceListView.as_view(), name="timeline-balance-list"),
     path("api/timeline-balances/<uuid:principal_id>/", TimelineBalanceDecisionView.as_view(), name="timeline-balance-decision"),
     path("api/timeline-order/", TimelineOrderListView.as_view(), name="timeline-order-list"),

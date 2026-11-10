@@ -82,6 +82,7 @@ INSTALLED_APPS = [
     "apps.transactions",
     "apps.users",
     "apps.quick_add",
+    "apps.bulk_imports",
 ]
 
 MIDDLEWARE = [

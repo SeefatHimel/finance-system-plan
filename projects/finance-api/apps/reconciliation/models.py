@@ -27,6 +27,9 @@ class BalanceSnapshot(models.Model):
         related_name="balance_snapshots",
     )
     checked_at = models.DateTimeField()
+    # Existing checkpoints were calculated by calendar day, regardless of clock.
+    precision = models.CharField(max_length=16, default="end_of_day", choices=(("end_of_day", "End of day"), ("instant", "Specific time")))
+    timing_order = models.JSONField(default=dict, blank=True)
     actual_balance = models.DecimalField(
         max_digits=14,
         decimal_places=2,

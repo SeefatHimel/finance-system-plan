@@ -25,7 +25,7 @@ DEBITS = DEBIT_TYPES | {"transfer"}
 MONEY = DecimalField(max_digits=20, decimal_places=2)
 
 
-def ledger_totals(accounts, as_of_date=None, cutoffs=None):
+def ledger_totals(accounts, as_of_date=None, cutoffs=None, row_filter=None):
     accounts = list(accounts)
     if not accounts:
         return {}
@@ -33,6 +33,8 @@ def ledger_totals(accounts, as_of_date=None, cutoffs=None):
     rows = Transaction.objects.filter(
         user_id__in={account.user_id for account in accounts}
     ).order_by()
+    if row_filter is not None:
+        rows = rows.filter(row_filter)
     if as_of_date is not None:
         rows = rows.filter(date__lte=as_of_date)
     if cutoffs is not None:

@@ -1512,3 +1512,23 @@ expired row first, get_or_create creates its replacement safely. If login locks
 first, cleanup waits and rechecks the updated expiry instead of deleting the
 renewed window. Independent-connection tests cover both orderings and verify
 that the quota still records the attempt.
+
+## How do bulk spreadsheet entries avoid duplicates and preserve original evidence?
+
+An owned/account-scoped source hash recovers identical batches. Encrypted source
+text is immutable; review mappings and normalized row decisions are separate.
+Commit holds the financial user lock, rechecks the version/preview and compared
+candidate fingerprints, then records all approved rows and checkpoints atomically.
+Retries return the receipt. Existing movements can receive a source link without
+another money movement. Repeated purchases need a decision, not automatic deletion.
+Undo checks every created entry/checkpoint before deleting anything and preserves
+pre-existing linked records. Restored ledger identities can still find their rows.
+
+## How are untimed imported cash entries compared with wallet counts?
+
+Transaction clocks remain null. An explicitly confirmed whole-day checkpoint
+includes the complete local day. A specific-time checkpoint includes known times
+up to its boundary and requires before/after decisions for untimed same-day entries,
+with individual exceptions. These positions are stored against ledger identities;
+a new untimed entry needs another timing review. Counts save an observation and
+difference, never automatic spending/income or an opening-balance adjustment.
