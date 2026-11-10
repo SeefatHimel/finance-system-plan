@@ -136,13 +136,29 @@ def database_config() -> dict[str, object]:
     # Neon marks pooled endpoints with a -pooler suffix; other poolers can opt in.
     pooled_host = host.split(".", 1)[0].endswith("-pooler")
     query = parse_qs(parsed.query, keep_blank_values=True)
-    allowed_options = {"sslmode", "sslrootcert", "sslcert", "sslkey", "connect_timeout", "application_name", "options"}
-    if set(query) - allowed_options or any(len(values) != 1 for values in query.values()):
-        raise ImproperlyConfigured("DATABASE_URL contains unsupported or repeated connection options.")
+    if any(len(values) != 1 for values in query.values()):
+        raise ImproperlyConfigured("DATABASE_URL contains repeated connection options.")
     options = {name: values[0] for name, values in query.items()}
+    # Let the installed PostgreSQL driver recognize its own connection options.
+    # A hand-written allowlist rejected hosted URLs with channel_binding=require.
+    # Keep identity in the URI so OPTIONS cannot override the host used to detect
+    # transaction poolers. Validation parses only; it does not open a connection.
+    from psycopg import ProgrammingError
+    from psycopg.conninfo import make_conninfo
+
+    if set(options) & {"host", "hostaddr", "port", "user", "password", "dbname", "service", "servicefile", "conninfo"}:
+        raise ImproperlyConfigured("DATABASE_URL connection identity must be set in the URL, not its query options.")
+    try:
+        make_conninfo(**options)
+    except ProgrammingError:
+        # Driver exceptions can echo input. Never include credentials or query
+        # values in a startup traceback or chained exception.
+        raise ImproperlyConfigured("DATABASE_URL contains unsupported PostgreSQL connection options.") from None
     if "sslmode" in options and options["sslmode"] not in {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"}:
         raise ImproperlyConfigured("DATABASE_URL contains an invalid sslmode.")
-    if "connect_timeout" in options and (not options["connect_timeout"].isdigit() or not 1 <= int(options["connect_timeout"]) <= 300):
+    if "channel_binding" in options and options["channel_binding"] not in {"disable", "prefer", "require"}:
+        raise ImproperlyConfigured("DATABASE_URL contains an invalid channel_binding setting.")
+    if "connect_timeout" in options and (not options["connect_timeout"].isascii() or not options["connect_timeout"].isdigit() or not 1 <= int(options["connect_timeout"]) <= 300):
         raise ImproperlyConfigured("DATABASE_URL connect_timeout must be between 1 and 300 seconds.")
     return {
         "ENGINE": "django.db.backends.postgresql",

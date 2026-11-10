@@ -33,6 +33,44 @@ class ProxySecuritySettingsTests(SimpleTestCase):
 
 
 class DatabaseSettingsTests(SimpleTestCase):
+    def test_hosted_postgres_channel_binding_is_preserved_without_connecting(self):
+        for mode in ("disable", "prefer", "require"):
+            with self.subTest(mode=mode), patch("psycopg.connect") as connect:
+                config = self.database_config_for(
+                    "postgresql://user:synthetic@ep-example-pooler.c-4.aws.neon.tech/db"
+                    f"?sslmode=require&channel_binding={mode}&connect_timeout=10"
+                )
+                self.assertEqual(config["OPTIONS"], {
+                    "sslmode": "require", "channel_binding": mode, "connect_timeout": "10",
+                })
+                self.assertTrue(config["DISABLE_SERVER_SIDE_CURSORS"])
+                connect.assert_not_called()
+
+    def test_other_driver_options_are_not_silently_discarded(self):
+        config = self.database_config_for(
+            "postgresql://user:synthetic@db.example.com/db"
+            "?target_session_attrs=read-write&keepalives_idle=30"
+            "&application_name=synthetic%20release%20%27check%27"
+        )
+        self.assertEqual(config["OPTIONS"], {
+            "target_session_attrs": "read-write", "keepalives_idle": "30",
+            "application_name": "synthetic release 'check'",
+        })
+
+    def test_invalid_options_do_not_expose_connection_values(self):
+        import traceback
+        from django.core.exceptions import ImproperlyConfigured
+
+        sentinel = "synthetic-secret-must-not-appear"
+        try:
+            self.database_config_for(
+                f"postgresql://user:{sentinel}@db.example.com/db?unknown={sentinel}"
+            )
+        except ImproperlyConfigured:
+            self.assertNotIn(sentinel, traceback.format_exc())
+        else:
+            self.fail("Unknown options must fail without leaking their values.")
+
     def test_security_options_and_encoded_credentials_are_preserved(self):
         config = self.database_config_for(
             "postgresql://user%40test:safe%2Ffake@db.example.com/db?sslmode=verify-full&connect_timeout=5"
@@ -49,8 +87,14 @@ class DatabaseSettingsTests(SimpleTestCase):
         for query in [
             "sslmode=invalid",
             "connect_timeout=0",
+            "connect_timeout=301",
+            "connect_timeout=²",
             "unknown=yes",
             "sslmode=require&sslmode=disable",
+            "channel_binding=invalid",
+            "channel_binding=require&channel_binding=prefer",
+            "host=other.example.com",
+            "conninfo=postgresql%3A%2F%2Fother.example.com%2Fdb",
         ]:
             with self.subTest(query=query), self.assertRaises(ImproperlyConfigured):
                 self.database_config_for(

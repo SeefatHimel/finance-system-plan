@@ -192,3 +192,18 @@ method, status and duration only; it excludes raw paths, query/body values,
 headers, user/account IDs and IPs. Hosting must configure alert delivery and log
 retention. Readiness, latency and backup alerts are operational gates, not
 services automatically configured by the source-code change.
+
+## Why did a hosted DATABASE_URL fail before migrations ran?
+
+The former fixed query-option allowlist rejected valid libpq options such as
+Neon's `channel_binding=require`, raising `ImproperlyConfigured` while importing
+settings. No database connection or migration had started at that point. Option
+names now use the installed psycopg/libpq parser; supported values are preserved,
+while duplicate keys and invalid SSL/channel-binding modes or timeout ranges
+remain explicit errors. URI identity cannot be overridden through query options,
+so transaction-pooler detection uses the actual configured host. Driver exceptions
+are suppressed rather than echoed with potentially private connection values.
+The regression tests parse synthetic direct/pooled URLs without connecting, test
+encoded credentials and quoted option values, and verify redacted failures. Keep
+the provider's TLS requirements and redeploy the fixed API; no new migration is
+needed for this compatibility correction.

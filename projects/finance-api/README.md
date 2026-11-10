@@ -1911,6 +1911,18 @@ its row lock immediately, protecting against expired-window cleanup. The
 committed-write race tests run on PostgreSQL; SQLite keeps development coverage
 for ordinary report shapes, IDs and empty/equal-value groups.
 
+## Hosted PostgreSQL connection options
+
+Keep the database provider's URL security options, including
+`sslmode=require&channel_binding=require`. PostgreSQL option names are validated
+with the installed psycopg/libpq parser and preserved in Django `OPTIONS`, rather
+than limited to a fixed allowlist. Parsing does not connect to the database.
+Repeated options and invalid SSL/channel-binding modes or connect timeouts are
+rejected. Host, database and credentials belong in the URI, not query overrides.
+Option-validation errors omit the raw URL and driver messages that may echo values.
+Use `python manage.py test config.tests.DatabaseSettingsTests` for the focused
+compatibility regressions. No migration is required for this settings fix.
+
 ## Bulk spreadsheet entries and wallet counts
 
 `/api/bulk-imports/` stages signed-amount CSV/TSV tables without recording money.

@@ -46,6 +46,15 @@ release step; the production API process does not mutate schema on every boot.
   Install the tested `requirements-constraints.txt` versions with requirements.
 - Strong `DJANGO_SECRET_KEY` stored outside git.
 - `DATABASE_URL` points to PostgreSQL, not SQLite.
+- Preserve provider-supplied PostgreSQL security options, including Neon URLs
+  with `sslmode=require&channel_binding=require`. Query option names are checked
+  by the installed psycopg/libpq driver without opening a connection; supported
+  options are passed through unchanged. Duplicate options, invalid TLS/channel
+  binding modes and out-of-range connect timeouts fail startup. Connection
+  identity belongs in the URI, rather than query options overriding its host.
+  Do not remove TLS requirements to work around a deployment error. The earlier
+  fixed allowlist rejected `channel_binding`; deploy the compatibility fix and
+  retry the release/migration step. Never share the URL's credentials.
 - A transaction-pooled PostgreSQL endpoint disables Django server-side cursors.
   Neon `-pooler` hosts are detected automatically; other poolers need
   `DJANGO_DB_DISABLE_SERVER_SIDE_CURSORS=true`.
