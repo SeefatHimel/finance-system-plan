@@ -1543,3 +1543,18 @@ expense categories. Multiple matches and mixed/trip labels require a choice.
 Explicit batch/row selections, including null, win. Category changes alter the
 confirmation token; suggestions never change type, direction or amount.
 No migration or new query per row is added.
+
+### How are named reports and manual transaction choices stored safely?
+
+An owner-scoped SavedReport stores fixed dates, date view, optional account, currency
+and name. ReportMembership holds a unique report/transaction include/exclude choice.
+The result is filter matches union inclusions minus exclusions, always owner- and
+currency-scoped. Manual additions can bypass dates/account. The same selection feeds
+summaries and transaction drill-through/export, preventing mismatched totals. Report
+changes never edit the ledger. Deletion cascades choices only; transaction deletion
+removes obsolete choices. Prior-period comparisons use unmodified filters. The
+transaction picker is searched and paginated; all saved-report responses are no-store.
+
+Saved-report summaries and their ordinary previous-period comparison share the
+SQL aggregation path and one database statement. Membership is applied as a
+subquery, without loading ledger rows, account logos or private notes into Python.

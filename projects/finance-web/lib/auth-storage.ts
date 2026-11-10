@@ -41,6 +41,10 @@ export function getRefreshToken() {
 }
 
 export function clearTokens() {
+  try {
+    window.sessionStorage.removeItem("finance.reports.filters.v1");
+    window.sessionStorage.removeItem("finance.customReports.filters.v1");
+  } catch { /* Storage may be unavailable. */ }
   if (!canUseLocalTokenStorage()) {
     return;
   }

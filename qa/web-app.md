@@ -1958,3 +1958,20 @@ suggested/unassigned counts. Linking explains that existing ledger values stay
 intact; reviewed notes remain inspectable in Spreadsheet evidence. API must
 deploy before web. Synthetic desktop/mobile tests cover edits, clearing, source
 retention, category defaults/overrides and accessible controls.
+
+### How do saved reports and returning to filters work?
+
+The dedicated Custom reports page (`/custom-reports`) lets users save a report
+name, fixed dates/date view, account and currency. Saved reports stay live as matching transactions arrive. They can rename/edit filters, save a new
+definition, or delete the saved report without deleting transactions. A report's
+transaction browser adds existing same-currency entries outside its filters and
+removes individual matches. Removed entries can be added back or reset to follow
+the filters. Filter edits preview ordinary results until saved, then apply the
+report's existing manual choices. Save as new copies filters only.
+
+The standard Reports page stays focused on summaries and offers a shortcut to
+create a custom report from its current filters. Each page has independent URL
+and tab-session filter state for reload, Back and navigation, cleared on sign-out.
+Both pages require authentication. Old saved-report links redirect to the new
+page. Drill-through carries effective saved membership and offers Back to report. Previous-period
+comparisons use the original filters without manual choices.

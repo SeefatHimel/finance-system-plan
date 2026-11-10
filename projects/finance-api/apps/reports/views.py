@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from django.db.models import Count
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -69,19 +69,29 @@ class DashboardSummaryView(APIView):
         }, headers={"Cache-Control": "private, no-store"})
 
 
-@extend_schema(responses=OpenApiTypes.OBJECT)
+@extend_schema(responses=OpenApiTypes.OBJECT, parameters=[OpenApiParameter("saved_report", OpenApiTypes.UUID, description="Use a named report's saved filters and manual membership choices.")])
 class MonthlyReportView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
+        from .saved import SavedReport, report_records
+        from django.shortcuts import get_object_or_404
+
+        saved = None
+        if request.query_params.get("saved_report"):
+            try:
+                saved = get_object_or_404(SavedReport, user=request.user, pk=request.query_params["saved_report"])
+            except (ValueError, DjangoValidationError) as exc:
+                raise ValidationError({"saved_report": "Choose one of your saved reports."}) from exc
         bounds = custom_bounds(request.query_params)
-        if bounds:
+        if saved:
+            start, inclusive_end, month = saved.start_date, saved.end_date, None
+        elif bounds:
             start, inclusive_end = bounds
             month = None
         else:
             start, end, month = month_bounds(request.query_params.get("month"))
             inclusive_end = end - timedelta(days=1)
-        from django.shortcuts import get_object_or_404
         from apps.accounts.models import Account
         from .summary import period_summaries
 
@@ -96,6 +106,8 @@ class MonthlyReportView(APIView):
             except (ValueError, DjangoValidationError) as exc:
                 raise ValidationError({"account": "Choose one of your accounts."}) from exc
             currency = account.currency
+        if saved:
+            account, currency = saved.account, saved.currency
         duration = inclusive_end - start + timedelta(days=1)
         if start.toordinal() <= duration.days:
             raise ValidationError({"start_date": "Choose a date with a complete preceding comparison period."})
@@ -105,6 +117,7 @@ class MonthlyReportView(APIView):
         report, previous = period_summaries(
             user=request.user, periods=[(start, inclusive_end), (previous_start, previous_end)],
             currency=currency, account=account,
+            record_sets=[report_records(saved), None] if saved else None,
         )
         previous_categories = {item["id"]: item["amount"] for item in previous["categories"]}
         for item in report["categories"]:

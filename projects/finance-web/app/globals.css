@@ -4668,3 +4668,10 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
   .bulk-import-untimed { flex-direction: column; align-items: stretch; }
   .bulk-import-untimed select { max-width: none; width: 100%; }
 }
+
+/* Named reports share the existing report and form surfaces. */
+.report-workspace { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-block: 16px; }
+.report-actions .field { flex: 1 1 250px; }
+.report-filter-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.report-actions [aria-pressed="true"] { background: var(--accent-soft); outline: 2px solid currentColor; outline-offset: -2px; }

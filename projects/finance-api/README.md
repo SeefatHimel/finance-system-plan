@@ -1946,3 +1946,31 @@ stay unassigned; explicit row/batch choices, including null, win. Optional
 an empty string. New entries use reviewed notes; linking keeps the existing note
 and stores reviewed import notes separately. Original cells stay unchanged.
 Deploy the matching API before web; no migration is added.
+
+## Saved reports
+
+Apply `python manage.py migrate` before enabling named reports (`reports.0001_initial`).
+`/api/reports/saved/` provides authenticated, owner-scoped list/create and detail
+GET/PATCH/DELETE. Definitions store name, fixed inclusive dates (at most 366 days),
+date view, optional owned account and one currency. Account currency takes precedence.
+Membership is `(matching owned transactions OR explicit inclusions) MINUS explicit
+exclusions`, always restricted to the report currency. Choices are separate rows
+with a unique report/transaction constraint; neither report deletion nor membership
+changes update the ledger. Deleted transactions cascade their choices.
+
+`POST /api/reports/saved/{id}/membership/` takes `transaction` and `action`
+(`include`, `exclude`, `reset`). Reset follows filters again. Transaction browsing
+uses `/api/reports/saved/{id}/transactions/` with `scope=included|available|excluded`,
+`search`, `offset` and `limit` (default 25, max 100). Summary and transaction/export
+drill-through accept `saved_report={id}`. Other transaction filters intersect that
+membership. Prior-period comparisons remain unmodified filter results. Daily rows
+also include manually added dates outside the saved range. Currency changes keep
+choices but temporarily ignore choices in other currencies. No exchange conversion
+or immutable report snapshot is provided. Responses are private/no-store.
+
+Verify: `python manage.py test apps.reports` and
+`python manage.py makemigrations --check --dry-run`.
+
+Saved-report summaries and their ordinary previous-period comparison share the
+SQL aggregation path and one database statement. Membership is applied as a
+subquery, without loading ledger rows, account logos or private notes into Python.

@@ -802,3 +802,16 @@ privacy changes, and sign-out on a device. Use the committed native project for
 routine builds. `expo prebuild` can regenerate the manually maintained widget
 manifest, resources, and package registration; only run it when reviewing and
 restoring those changes deliberately. Widgets need no backend migration.
+
+### Saved-report migration and verification
+
+Named reports require the API's `reports.0001_initial` migration before the updated
+web client is used. Run `python manage.py migrate` from `projects/finance-api` using
+your existing environment. Verify with `python manage.py test apps.reports` and,
+from `projects/finance-web`, `node --test tests/report-navigation.test.cjs`.
+Reports (`/reports`) and Custom reports (`/custom-reports`) retain independent
+filters in URL/tab-session state; definitions and manual transaction choices persist
+on the API. Browser QA should cover navigation between both pages, creating a
+custom report from standard filters, save, remove/add, reload, drill-through and
+returning to the originating report page. This page split needs no additional API
+migration beyond `reports.0001_initial`.

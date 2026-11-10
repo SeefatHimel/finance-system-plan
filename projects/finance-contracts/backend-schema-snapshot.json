@@ -3811,6 +3811,16 @@
     },
     "/api/reports/monthly/": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "saved_report",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -3842,6 +3852,313 @@
                 "schema": {
                   "additionalProperties": {},
                   "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reports/saved/": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SavedReport"
+                  },
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReport"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReport"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReport"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reports/saved/{id}/": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {}
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReport"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedSavedReport"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedSavedReport"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedSavedReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReport"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reports/saved/{id}/membership/": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Membership"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Membership"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Membership"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReport"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reports/saved/{id}/transactions/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "default": "included",
+              "enum": [
+                "included",
+                "available",
+                "excluded"
+              ],
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "default": "",
+              "maxLength": 256,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportTransactionPage"
                 }
               }
             }
@@ -5562,6 +5879,14 @@
           },
           {
             "in": "query",
+            "name": "saved_report",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "search",
             "schema": {
               "type": "string"
@@ -5728,6 +6053,14 @@
           },
           {
             "in": "query",
+            "name": "saved_report",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "search",
             "schema": {
               "type": "string"
@@ -5847,6 +6180,14 @@
             "in": "query",
             "name": "month",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "saved_report",
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
@@ -6099,6 +6440,14 @@
             "in": "query",
             "name": "month",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "saved_report",
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
@@ -7787,6 +8136,14 @@
       ],
       "type": "string"
     },
+    "DateViewEnum": {
+      "enum": [
+        "daily",
+        "monthly",
+        "custom"
+      ],
+      "type": "string"
+    },
     "Debt": {
       "properties": {
         "counterparty_name": {
@@ -8782,6 +9139,30 @@
         "exact",
         "contains",
         "regex"
+      ],
+      "type": "string"
+    },
+    "Membership": {
+      "properties": {
+        "action": {
+          "$ref": "#/components/schemas/MembershipActionEnum"
+        },
+        "transaction": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "transaction"
+      ],
+      "type": "object"
+    },
+    "MembershipActionEnum": {
+      "enum": [
+        "include",
+        "exclude",
+        "reset"
       ],
       "type": "string"
     },
@@ -10086,6 +10467,50 @@
       },
       "type": "object"
     },
+    "PatchedSavedReport": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "readOnly": true,
+          "type": "string"
+        },
+        "currency": {
+          "maxLength": 3,
+          "type": "string"
+        },
+        "date_view": {
+          "$ref": "#/components/schemas/DateViewEnum"
+        },
+        "end_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "readOnly": true,
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 160,
+          "type": "string"
+        },
+        "start_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "readOnly": true,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "PatchedSenderRule": {
       "properties": {
         "account": {
@@ -11179,6 +11604,29 @@
       ],
       "type": "object"
     },
+    "ReportTransactionPage": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "next_offset": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/components/schemas/Transaction"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "count",
+        "next_offset",
+        "results"
+      ],
+      "type": "object"
+    },
     "RevalidationApply": {
       "properties": {
         "selected": {
@@ -11510,6 +11958,58 @@
         "repayment_received"
       ],
       "type": "string"
+    },
+    "SavedReport": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "readOnly": true,
+          "type": "string"
+        },
+        "currency": {
+          "maxLength": 3,
+          "type": "string"
+        },
+        "date_view": {
+          "$ref": "#/components/schemas/DateViewEnum"
+        },
+        "end_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "readOnly": true,
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 160,
+          "type": "string"
+        },
+        "start_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "readOnly": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "created_at",
+        "end_date",
+        "id",
+        "name",
+        "start_date",
+        "updated_at"
+      ],
+      "type": "object"
     },
     "SavedStatementRow": {
       "properties": {

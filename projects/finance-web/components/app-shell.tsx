@@ -60,6 +60,7 @@ const navItems: NavItem[] = [
   { href: "/statement-counterparties", icon: CreditCard, label: "Statement codes", subtitle: "Name recurring counterparty codes from statements", title: "Statement counterparty codes" },
   { href: "/sms-settings", icon: GearSix, label: "SMS settings", subtitle: "Configure payment methods and sender rules", title: "SMS settings" },
   { href: "/reports", icon: ChartBar, label: "Reports", subtitle: "Understand income, expenses, and net movement for any period", title: "Financial reports" },
+  { href: "/custom-reports", icon: FileText, label: "Custom reports", subtitle: "Save named filters and choose which transactions belong in each report", title: "Custom reports" },
   { href: "/debts", icon: PlusCircle, label: "Debts", subtitle: "Track money borrowed, lent, and repaid", title: "Debts & lending" },
   { href: "/credit-cards", icon: CreditCard, label: "Credit cards", subtitle: "Manage statements, dues, and payments", title: "Credit cards" },
   { href: "/recurring-bills", icon: CalendarDots, label: "Recurring bills", subtitle: "Stay ahead of scheduled payments", title: "Recurring bills" },
@@ -70,7 +71,7 @@ const navItems: NavItem[] = [
 const planningPaths = ["/debts", "/credit-cards", "/recurring-bills", "/reconciliation"];
 const settingsPaths = ["/profile", "/quick-add", "/statement-counterparties", "/sms-settings", "/audit-logs"];
 const navigationGroups = [
-  { label: "Overview", paths: ["/", "/transactions", "/timeline", "/review", "/checks", "/accounts", "/reports"] },
+  { label: "Overview", paths: ["/", "/transactions", "/timeline", "/review", "/checks", "/accounts", "/reports", "/custom-reports"] },
   { label: "Planning", paths: planningPaths },
   { label: "Settings", paths: settingsPaths }
 ];

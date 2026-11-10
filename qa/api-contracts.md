@@ -1012,3 +1012,15 @@ API precedes web deployment; no database migration is added.
 The additive `BulkSource.notes_edited` boolean marks an explicit note edit; the web
 reader defaults it to false for older API responses. Edited/cleared notes can be
 inspected without duplicating unchanged source text.
+
+### What is the saved-report integration boundary?
+
+`/api/reports/saved/` lists/creates definitions; `/{id}/` reads, patches or deletes.
+`/{id}/transactions/` returns a bounded count/next_offset/results page for included,
+available or excluded entries. `/{id}/membership/` accepts an owned transaction UUID
+and include/exclude/reset action. `saved_report` on monthly reports selects the saved
+filters and choices; transaction list/activity/totals/export intersects membership with any
+additional filters. Cross-user report/transaction access is 404, incompatible currency
+choices and invalid filters are 400. Dates are fixed, membership stays live, and no
+currency conversion or snapshot guarantee is implied. Deploy API plus reports migration
+before web; regenerate published contracts and schema snapshot after API changes.
