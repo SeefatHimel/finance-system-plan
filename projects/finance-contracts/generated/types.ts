@@ -2263,3 +2263,48 @@ export interface SharedBalanceList {
 }
 
 export type SharedBalanceStatusEnum = "suggested" | "confirmed" | "stale";
+
+export interface SavedReport {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  date_view: DateViewEnum;
+  account: string | null;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SavedReportCreateRequest {
+  name: string;
+  start_date: string;
+  end_date: string;
+  date_view?: DateViewEnum;
+  account?: string | null;
+  currency?: string;
+}
+
+export interface SavedReportPatchRequest {
+  name?: string;
+  start_date?: string;
+  end_date?: string;
+  date_view?: DateViewEnum;
+  account?: string | null;
+  currency?: string;
+}
+
+export type DateViewEnum = "daily" | "monthly" | "custom";
+
+export interface Membership {
+  transaction: string;
+  action: MembershipActionEnum;
+}
+
+export type MembershipActionEnum = "include" | "exclude" | "reset";
+
+export interface ReportTransactionPage {
+  count: number;
+  next_offset: number | null;
+  results: Transaction[];
+}

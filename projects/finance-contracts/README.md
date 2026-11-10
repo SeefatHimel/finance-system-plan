@@ -1079,3 +1079,36 @@ entries. Comparison `revision` guards appending movement pages across ledger
 changes. Original source text and reference-only expected values are retained.
 Deploy reconciliation migration 0004/API before clients. Details:
 [Cash counts](../../docs/cash-counts.md).
+
+## Saved reports and effective membership
+
+Authenticated endpoints:
+
+```text
+GET/POST         /api/reports/saved/
+GET/PATCH/DELETE /api/reports/saved/{id}/
+GET              /api/reports/saved/{id}/transactions/?scope=included|available|excluded&search=...&limit=25&offset=0
+POST             /api/reports/saved/{id}/membership/
+```
+
+Create/patch fields are `name` (1–160 trimmed characters), `start_date`, `end_date`,
+`date_view` (daily/monthly/custom), nullable `account`, and `currency`. Dates are
+fixed inclusive bounds of at most 366 days, with a complete previous comparison
+period; daily/monthly modes must match the dates. Account ownership is checked,
+and an account's currency takes precedence. Responses add id and timestamps.
+Membership accepts `{transaction: UUID, action: include|exclude|reset}`. Choices
+are idempotent per transaction; reset returns to the saved filters. Reads/writes
+are owner-scoped, no-store, and never modify ledger records. Invalid data/currency
+returns 400; foreign report/transaction access returns 404.
+
+Membership is `(filter matches OR inclusions) MINUS exclusions`, within the owner's
+report currency. Additions can bypass dates/account. The transaction browser returns
+`count`, nullable `next_offset`, and `results`, capped at 100 entries per request.
+`saved_report` on monthly summaries uses the saved definition and choices. On
+transaction list/activity/totals/export it restricts membership before intersecting other
+filters, so drill-through and export use the same contributing entries. Previous
+comparisons use unmodified filters. Daily summary rows include manually added dates
+outside the saved range. Currency changes retain choices but ignore incompatible
+currencies. Report deletion removes its choices without deleting transactions;
+Save as new in web creates a new definition without copying manual choices.
+Deploy `reports.0001_initial` with the API before web.

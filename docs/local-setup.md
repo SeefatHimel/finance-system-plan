@@ -814,3 +814,16 @@ against disposable PostgreSQL for concurrent retry coverage. From finance-web ru
 Use the existing isolated browser fixture setup, never the signed-in production
 profile or real financial data. See [Cash counts](cash-counts.md) for behavior and
 API deployment order.
+
+### Saved-report migration and verification
+
+Named reports require the API's `reports.0001_initial` migration before the updated
+web client is used. Run `python manage.py migrate` from `projects/finance-api` using
+your existing environment. Verify with `python manage.py test apps.reports` and,
+from `projects/finance-web`, `node --test tests/report-navigation.test.cjs`.
+Reports (`/reports`) and Custom reports (`/custom-reports`) retain independent
+filters in URL/tab-session state; definitions and manual transaction choices persist
+on the API. Browser QA should cover navigation between both pages, creating a
+custom report from standard filters, save, remove/add, reload, drill-through and
+returning to the originating report page. This page split needs no additional API
+migration beyond `reports.0001_initial`.

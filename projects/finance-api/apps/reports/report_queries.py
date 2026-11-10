@@ -28,11 +28,11 @@ from .formatting import money, ZERO
 MONEY = DecimalField(max_digits=28, decimal_places=2)
 
 
-def period_projections(*, user, start, end, currency, account, period):
-    rows = Transaction.objects.filter(
-        user=user, date__range=(start, end), account__currency=currency
-    ).order_by()
-    if account:
+def period_projections(*, user, start, end, currency, account, period, records=None):
+    custom_records = records is not None
+    rows = records if custom_records else Transaction.objects.filter(date__range=(start, end))
+    rows = rows.filter(user=user, account__currency=currency).order_by()
+    if account and not custom_records:
         rows = rows.filter(
             Q(account=account) | Q(type="transfer", transfer_account=account)
         )
@@ -148,7 +148,7 @@ def period_projections(*, user, start, end, currency, account, period):
     ]
 
 
-def assemble_period(groups, *, start, end, currency, account):
+def assemble_period(groups, *, start, end, currency, account, custom_records=False):
     # UUID casts are compact hex in SQLite and hyphenated text in PostgreSQL.
     for kind in ("category", "sending", "receiving"):
         for row in groups[kind]:
@@ -219,29 +219,33 @@ def assemble_period(groups, *, start, end, currency, account):
             for row in sorted(
                 positions.values(), key=lambda row: (row["name"], row["id"])
             )
-            if not account or row["id"] == str(account.pk)
+            if custom_records or not account or row["id"] == str(account.pk)
         ],
         "daily": [
             {
-                "date": (start + timedelta(days=n)).isoformat(),
+                "date": day.isoformat(),
                 **{
                     key: money(
-                        Decimal(daily.get(start + timedelta(days=n), {}).get(key, "0"))
+                        Decimal(daily.get(day, {}).get(key, "0"))
                     )
                     for key in daily_fields
                 },
             }
-            for n in range((end - start).days + 1)
+            for day in sorted(set(daily) | {start + timedelta(days=n) for n in range((end - start).days + 1)})
         ],
     }
 
 
-def sql_period_summaries(*, user, periods, currency, account=None):
+def sql_period_summaries(*, user, periods, currency, account=None, record_sets=None):
     from collections import defaultdict
 
     periods = list(periods)
     if not periods:
         return []
+    if record_sets is None:
+        record_sets = [None] * len(periods)
+    if len(record_sets) != len(periods):
+        raise ValueError("Provide one optional record set per report period.")
     queries = [
         query
         for index, (start, end) in enumerate(periods)
@@ -252,6 +256,7 @@ def sql_period_summaries(*, user, periods, currency, account=None):
             currency=currency,
             account=account,
             period=index,
+            records=record_sets[index],
         )
     ]
     results = [defaultdict(list) for _ in periods]
@@ -263,13 +268,14 @@ def sql_period_summaries(*, user, periods, currency, account=None):
         )
     return [
         assemble_period(
-            groups, start=start, end=end, currency=currency, account=account
+            groups, start=start, end=end, currency=currency, account=account,
+            custom_records=record_sets[index] is not None,
         )
-        for groups, (start, end) in zip(results, periods)
+        for index, (groups, (start, end)) in enumerate(zip(results, periods))
     ]
 
 
-def sql_period_summary(*, user, start, end, currency, account=None):
+def sql_period_summary(*, user, start, end, currency, account=None, records=None):
     return sql_period_summaries(
-        user=user, periods=[(start, end)], currency=currency, account=account
+        user=user, periods=[(start, end)], currency=currency, account=account, record_sets=[records]
     )[0]

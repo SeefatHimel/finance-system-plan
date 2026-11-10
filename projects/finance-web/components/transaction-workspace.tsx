@@ -60,6 +60,7 @@ import { balanceEditPrefill, type BalanceEditSuggestion, accountBoundBalances, e
 import { periodFromFilters, periodLabel, shiftPeriod, dailyPeriod, monthPeriod, allDates, dateRangeError, type DatePeriod } from "@/lib/date-period";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
 import { loadTransactionData, type TransactionLoadState } from "@/lib/transaction-data";
+import { reportReturnPath } from "@/lib/report-navigation";
 
 import { FieldError } from "@/components/field-error";
 import { fieldErrorsFrom, focusFieldError, nativeFieldErrors } from "@/lib/form-feedback";
@@ -92,6 +93,7 @@ const defaultTransactionColumns: TransactionColumn[] = ["date", "description", "
 const transactionColumnsStorageKey = "finance.transactions.columns.v2";
 
 type TransactionFilterState = Required<Pick<TransactionFilters, "direction" | "source" | "type">> & {
+  saved_report: string;
   currency: string;
   spending: string;
   needs_review: string;
@@ -149,6 +151,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const reportReturn = reportReturnPath(searchParams.get("report_return"));
   const editorForm = useRef<HTMLFormElement>(null);
   const editorDirty = useRef(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -161,6 +164,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   const quickAdd = useQuickAdd();
   const { fullDraft, consumeFullDraft } = quickAdd;
   const [filters, setFilterState] = useState<TransactionFilterState>({
+    saved_report: "",
     currency: "", spending: "", needs_review: "",
     account: "",
     category: "",
@@ -338,6 +342,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
       const requestedOrdering = searchParams.get("ordering");
       const ordering = requestedOrdering === "-created_at" || requestedOrdering === "-updated_at" ? requestedOrdering : "-date";
       const requestedFilters: TransactionFilterState = {
+        saved_report: searchParams.get("saved_report") ?? "",
         currency: searchParams.get("currency") ?? "", spending: searchParams.get("spending") ?? "", needs_review: searchParams.get("needs_review") ?? "",
         account: searchParams.get("account") ?? "",
         category: searchParams.get("category") ?? "",
@@ -487,6 +492,8 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
     paging.current = { page: nextPage, pageSize: size };
     setPage(nextPage);
     const params = new URLSearchParams();
+    const reportReturn = reportReturnPath(new URLSearchParams(window.location.search).get("report_return"));
+    if (reportReturn) params.set("report_return", reportReturn);
     params.set("month", nextFilters.month);
     params.set("date_view", view);
     if (nextPage > 1) params.set("page", String(nextPage));
@@ -563,6 +570,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
 
   function clearFilters() {
     const clearedFilters: TransactionFilterState = {
+      saved_report: "",
       currency: "", spending: "", needs_review: "",
       account: "",
       category: "",
@@ -834,7 +842,8 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   }
 
   const advancedFilterCount = [displayedFilters.currency, displayedFilters.spending, displayedFilters.needs_review, displayedFilters.type, displayedFilters.direction, displayedFilters.source, displayedFilters.category, displayedFilters.date_field !== "date" ? displayedFilters.date_field : ""].filter(Boolean).length;
-  const activeFilterChips: { key: "account" | "category" | "direction" | "source" | "type" | "search" | "date_field" | "currency" | "spending" | "needs_review"; label: string }[] = [
+  const activeFilterChips: { key: "saved_report" | "account" | "category" | "direction" | "source" | "type" | "search" | "date_field" | "currency" | "spending" | "needs_review"; label: string }[] = [
+    ...(displayedFilters.saved_report ? [{ key: "saved_report" as const, label: "Saved report" }] : []),
     ...(displayedFilters.currency ? [{ key: "currency" as const, label: displayedFilters.currency }] : []),
     ...(displayedFilters.spending ? [{ key: "spending" as const, label: "Spending & refunds" }] : []),
     ...(displayedFilters.needs_review ? [{ key: "needs_review" as const, label: displayedFilters.needs_review === "true" ? "Needs review" : "Reviewed" }] : []),
@@ -944,6 +953,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
 
   return (
     <div className={isEmbedded ? "" : "workspace-grid"}>
+      {!isEmbedded && reportReturn ? <Link className="button button--ghost" href={reportReturn}>← Back to report</Link> : null}
       {isEmbedded && !editorMode ? <ModalDialog className="form-drawer embedded-editor-status" labelledBy="embedded-editor-pending-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-pending-title">Opening transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body">{formError ? <p role="alert">{formError}</p> : <p role="status">Preparing {embeddedCreate ? "full entry" : "saved entry and sources"}…</p>}{formError && embeddedEditId ? <button className="button button--ghost" type="button" onClick={() => void selectTransactionForEdit(embeddedEditId)}>Retry</button> : null}</div></ModalDialog> : null}
       {filterPanel ? <ModalDialog className="form-drawer transaction-filter-dialog" labelledBy="transaction-filter-title" onCancel={() => setFilterPanel(null)}>
         <div className="form-drawer__header"><div><h2 id="transaction-filter-title">Filter transactions</h2><p>Choose what appears in the list.</p></div><button className="icon-button" type="button" aria-label="Close filters" onClick={() => setFilterPanel(null)}><X size={20} /></button></div>

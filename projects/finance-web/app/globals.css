@@ -4720,3 +4720,10 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
  .cash-count-modal { width:calc(100vw - 12px); max-height:calc(100dvh - 12px); }
  .cash-count-modal-header,.cash-count-modal-body { padding:16px; }
 }
+
+/* Named reports share the existing report and form surfaces. */
+.report-workspace { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-block: 16px; }
+.report-actions .field { flex: 1 1 250px; }
+.report-filter-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.report-actions [aria-pressed="true"] { background: var(--accent-soft); outline: 2px solid currentColor; outline-offset: -2px; }

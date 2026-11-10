@@ -44,6 +44,7 @@ from .transfers import (
 )
 
 transaction_date_parameters = [
+    OpenApiParameter("saved_report", OpenApiTypes.UUID, description="Restrict to a saved report's effective membership before applying other filters."),
     OpenApiParameter("search", str, description=SEARCH_DESCRIPTION),
     OpenApiParameter("date_field", str, enum=["date", "created_at", "updated_at"], description="Period date basis; timestamp days use Asia/Dhaka."),
     OpenApiParameter("month", str, description="YYYY-MM; excludes a custom range."),
@@ -416,6 +417,17 @@ class TransactionViewSet(ModelViewSet):
         )
 
         from apps.reports.periods import filter_period
+
+        saved_report_id = self.request.query_params.get("saved_report")
+        if saved_report_id:
+            from apps.reports.saved import SavedReport, report_records
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            from django.shortcuts import get_object_or_404
+            try:
+                saved_report = get_object_or_404(SavedReport, user=self.request.user, pk=saved_report_id)
+            except (ValueError, DjangoValidationError) as exc:
+                raise ValidationError({"saved_report": "Choose one of your saved reports."}) from exc
+            queryset = queryset.filter(pk__in=report_records(saved_report).values("pk"))
 
         queryset = filter_period(
             queryset, self.request.query_params,

@@ -509,6 +509,7 @@ export type CreateTransactionInput = {
 };
 
 export type TransactionFilters = {
+  saved_report?: string;
   currency?: string;
   spending?: string;
   needs_review?: string;
@@ -1388,10 +1389,44 @@ export async function getMonthlyReport(
   return monthlyReportSchema.parse(await response.json());
 }
 
-export async function getPeriodReport(accessToken: string, start_date: string, end_date: string, signal?: AbortSignal, scope: { account?: string; currency?: string } = {}): Promise<MonthlyReport> {
+export async function getPeriodReport(accessToken: string, start_date: string, end_date: string, signal?: AbortSignal, scope: { account?: string; currency?: string; saved_report?: string } = {}): Promise<MonthlyReport> {
   const params = new URLSearchParams({ start_date, end_date, ...Object.fromEntries(Object.entries(scope).filter(([, value]) => value)) });
   const response = await authenticatedFetch(`/api/reports/monthly/?${params}`, accessToken, { signal });
   return monthlyReportSchema.parse(await response.json());
+}
+
+const savedReportSchema = z.object({
+  id: z.string().uuid(), name: z.string(), start_date: z.string(), end_date: z.string(),
+  date_view: z.enum(["daily", "monthly", "custom"]), account: z.string().nullable(), currency: z.string(),
+  created_at: z.string(), updated_at: z.string()
+});
+export type SavedReport = z.infer<typeof savedReportSchema>;
+export type SavedReportInput = Pick<SavedReport, "name" | "start_date" | "end_date" | "date_view" | "account" | "currency">;
+
+export async function listSavedReports(token: string, signal?: AbortSignal): Promise<SavedReport[]> {
+  const response = await authenticatedFetch("/api/reports/saved/", token, { signal });
+  return z.array(savedReportSchema).parse(await response.json());
+}
+
+export async function saveReport(token: string, input: SavedReportInput, id?: string): Promise<SavedReport> {
+  const response = await authenticatedFetch(id ? `/api/reports/saved/${id}/` : "/api/reports/saved/", token,
+    { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  return savedReportSchema.parse(await response.json());
+}
+
+export async function deleteSavedReport(token: string, id: string): Promise<void> {
+  await authenticatedFetch(`/api/reports/saved/${id}/`, token, { method: "DELETE" });
+}
+
+export async function listReportTransactions(token: string, id: string, scope: "included" | "available" | "excluded", search: string, offset: number, signal?: AbortSignal): Promise<TransactionActivityPage> {
+  const params = new URLSearchParams({ scope, search, offset: String(offset), limit: "25" });
+  const response = await authenticatedFetch(`/api/reports/saved/${id}/transactions/?${params}`, token, { signal });
+  return z.object({ count: z.number(), next_offset: z.number().nullable(), results: z.array(transactionSchema) }).parse(await response.json());
+}
+
+export async function changeReportMembership(token: string, id: string, transaction: string, action: "include" | "exclude" | "reset"): Promise<void> {
+  await authenticatedFetch(`/api/reports/saved/${id}/membership/`, token,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transaction, action }) });
 }
 
 export async function listDebts(accessToken: string): Promise<Debt[]> {

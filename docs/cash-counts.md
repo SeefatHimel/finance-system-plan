@@ -146,9 +146,9 @@ creation or write-based browser tests against a real account database.
 
 ### Reviewed implementation — 10 November 2026
 
-Local verification passed: 929 API tests (including 31 cash-count tests), 223 web
+Local verification passed: 936 API tests (including 31 cash-count tests), 226 web
 unit tests, 24 desktop/mobile browser regressions, and a final six-flow cash-count
-browser rerun after the date-correction fix. Production web build, web lint,
+browser rerun after integrating the latest main and the date-correction fix. Production web build, web lint,
 web/mobile typechecks, migration drift and API schema checks also passed.
 The environment used Python 3.12.13, PostgreSQL 18, Node 24.16 and fresh installed
 Chrome contexts through Playwright; the browser plugin was unavailable. No real

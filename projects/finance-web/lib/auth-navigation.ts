@@ -6,7 +6,7 @@ export type LoginReason = "required" | "expired" | "signed-out";
 
 const protectedPaths = new Set([
   "/", "/profile", "/quick-add", "/transactions", "/accounts", "/messages/review", "/sms-settings", "/statements", "/statement-counterparties", "/review",
-  "/reports", "/debts", "/credit-cards", "/recurring-bills", "/reconciliation", "/audit-logs"
+  "/reports", "/custom-reports", "/debts", "/credit-cards", "/recurring-bills", "/reconciliation", "/audit-logs"
 ]);
 
 export function isProtectedPath(pathname: string) {

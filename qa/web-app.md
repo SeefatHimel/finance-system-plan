@@ -1969,3 +1969,20 @@ stay unknown, with explicit end-of-day or relative timing decisions. History
 comparison opens in place, restores keyboard focus and retains the account filter.
 The UI uses loaders/toasts, bounded lists and stale-response protection. It never
 auto-adjusts cash to make numbers agree. See docs/cash-counts.md.
+
+### How do saved reports and returning to filters work?
+
+The dedicated Custom reports page (`/custom-reports`) lets users save a report
+name, fixed dates/date view, account and currency. Saved reports stay live as matching transactions arrive. They can rename/edit filters, save a new
+definition, or delete the saved report without deleting transactions. A report's
+transaction browser adds existing same-currency entries outside its filters and
+removes individual matches. Removed entries can be added back or reset to follow
+the filters. Filter edits preview ordinary results until saved, then apply the
+report's existing manual choices. Save as new copies filters only.
+
+The standard Reports page stays focused on summaries and offers a shortcut to
+create a custom report from its current filters. Each page has independent URL
+and tab-session filter state for reload, Back and navigation, cleared on sign-out.
+Both pages require authentication. Old saved-report links redirect to the new
+page. Drill-through carries effective saved membership and offers Back to report. Previous-period
+comparisons use the original filters without manual choices.

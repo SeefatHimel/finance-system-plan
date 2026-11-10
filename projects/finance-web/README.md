@@ -2088,3 +2088,29 @@ ledger. Details and per-row corrections are disclosed on demand; reads are
 abortable, lists are paginated, and errors use toasts. Deploy API/migration 0004
 first. See [Cash counts](../../docs/cash-counts.md). Verification includes
 `node --test tests/cash-counts.test.cjs` and `e2e/cash-counts.spec.ts`.
+
+## Saved reports
+
+The dedicated **Custom reports** page (`/custom-reports`) saves a name, fixed
+inclusive dates and date view, account and currency. Open one from its saved list,
+change its name/filters with **Save changes**, or
+use **Save as new** to create another filter definition (manual choices are not
+copied). Changed filters preview ordinary activity until saved; then existing
+manual choices apply again. Matching ledger activity stays live.
+
+The transaction section offers **In this report**, **Available to add**, and
+**Removed from report**, with search and pages of 25. Add/remove changes only that
+report. Additions may bypass dates/account but must use its currency. **Use saved
+filters** clears an exclusion; deleting a report never deletes ledger entries.
+Prior-period comparisons use ordinary filters without manual choices.
+
+The standard `/reports` page focuses on financial summaries and links to Custom
+reports, including a shortcut that carries its current filters into a new custom
+report. Both pages have their own URL and tab-session filter state, so Back, the
+report return link, reload and navigation restore each page independently. Old
+`/reports?saved_report=...` links redirect to `/custom-reports`. Both routes require
+authentication and remain valid return destinations after login.
+Session storage contains filters only and clears on sign-out/session termination.
+Deploy the API and apply `reports.0001_initial` before deploying the web changes.
+Verify with `node --test tests/report-navigation.test.cjs` and the API saved-report
+tests; check save, add/remove, reload and transaction drill-through in a browser.

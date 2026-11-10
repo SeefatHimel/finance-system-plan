@@ -130,6 +130,13 @@ paths:
       - bearerAuth: []
       parameters:
       - in: query
+        name: saved_report
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: Restrict totals to this owned saved report's effective membership.
+      - in: query
         name: date_field
         schema:
           type: string
@@ -2483,6 +2490,13 @@ paths:
       - bearerAuth: []
       parameters:
       - in: query
+        name: saved_report
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: Use the owned saved report's effective transaction membership.
+      - in: query
         name: date_field
         schema:
           type: string
@@ -2889,6 +2903,13 @@ paths:
       - bearerAuth: []
       parameters:
       - in: query
+        name: saved_report
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: Use the owned saved report's effective transaction membership.
+      - in: query
         name: date_field
         schema:
           type: string
@@ -3015,6 +3036,13 @@ paths:
       security:
       - bearerAuth: []
       parameters:
+      - in: query
+        name: saved_report
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: Use the owned saved report's effective transaction membership.
       - in: query
         name: date_field
         schema:
@@ -3321,6 +3349,219 @@ paths:
                 $ref: '#/components/schemas/DashboardSummary'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /api/reports/saved/:
+    get:
+      operationId: reports_saved_list
+      tags:
+      - Reports
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SavedReport'
+          description: ''
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      operationId: reports_saved_create
+      tags:
+      - Reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedReportCreateRequest'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedReport'
+          description: ''
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/reports/saved/{id}/:
+    get:
+      operationId: reports_saved_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this saved report.
+        required: true
+      tags:
+      - Reports
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedReport'
+          description: ''
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    patch:
+      operationId: reports_saved_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this saved report.
+        required: true
+      tags:
+      - Reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedReportPatchRequest'
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedReport'
+          description: ''
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    delete:
+      operationId: reports_saved_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this saved report.
+        required: true
+      tags:
+      - Reports
+      security:
+      - bearerAuth: []
+      responses:
+        '204':
+          description: No response body
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/reports/saved/{id}/membership/:
+    post:
+      operationId: reports_saved_membership_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this saved report.
+        required: true
+      tags:
+      - Reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Membership'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedReport'
+          description: ''
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/reports/saved/{id}/transactions/:
+    get:
+      operationId: reports_saved_transactions_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this saved report.
+        required: true
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 25
+      - in: query
+        name: offset
+        schema:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          default: 0
+      - in: query
+        name: scope
+        schema:
+          enum:
+          - included
+          - available
+          - excluded
+          type: string
+          default: included
+          minLength: 1
+        description: '* `included` - included
+
+          * `available` - available
+
+          * `excluded` - excluded'
+      - in: query
+        name: search
+        schema:
+          type: string
+          default: ''
+          maxLength: 256
+      tags:
+      - Reports
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportTransactionPage'
+          description: ''
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
   /api/reports/monthly/:
     get:
       tags:
@@ -3332,6 +3573,13 @@ paths:
       security:
       - bearerAuth: []
       parameters:
+      - in: query
+        name: saved_report
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: Use the owned saved report's effective transaction membership.
       - in: query
         name: month
         schema:
@@ -10647,3 +10895,141 @@ components:
         * `confirmed` - confirmed
 
         * `stale` - stale'
+    SavedReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 160
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        date_view:
+          $ref: '#/components/schemas/DateViewEnum'
+        account:
+          type: string
+          format: uuid
+          nullable: true
+        currency:
+          type: string
+          maxLength: 3
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - name
+      - start_date
+      - end_date
+      - date_view
+      - account
+      - currency
+      - created_at
+      - updated_at
+    SavedReportCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 160
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        date_view:
+          $ref: '#/components/schemas/DateViewEnum'
+        account:
+          type: string
+          format: uuid
+          nullable: true
+        currency:
+          type: string
+          maxLength: 3
+      required:
+      - name
+      - start_date
+      - end_date
+    SavedReportPatchRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 160
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        date_view:
+          $ref: '#/components/schemas/DateViewEnum'
+        account:
+          type: string
+          format: uuid
+          nullable: true
+        currency:
+          type: string
+          maxLength: 3
+    DateViewEnum:
+      enum:
+      - daily
+      - monthly
+      - custom
+      type: string
+      description: '* `daily` - daily
+
+        * `monthly` - monthly
+
+        * `custom` - custom'
+    Membership:
+      type: object
+      properties:
+        transaction:
+          type: string
+          format: uuid
+        action:
+          $ref: '#/components/schemas/MembershipActionEnum'
+      required:
+      - action
+      - transaction
+    MembershipActionEnum:
+      enum:
+      - include
+      - exclude
+      - reset
+      type: string
+      description: '* `include` - include
+
+        * `exclude` - exclude
+
+        * `reset` - reset'
+    ReportTransactionPage:
+      type: object
+      properties:
+        count:
+          type: integer
+        next_offset:
+          type: integer
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+      required:
+      - count
+      - next_offset
+      - results
