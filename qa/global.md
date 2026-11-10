@@ -451,3 +451,12 @@ backup tooling. The local tests pass without changing production data. Large
 concurrent annual reports still need capacity work; staging/ingress/key recovery,
 monitoring and off-machine backup configuration remain release gates. Ratings
 must reflect that evidence rather than assuming a perfect score from test counts.
+
+## How does imported cash history fit the single-ledger architecture?
+
+Spreadsheet imports are retained source evidence and review decisions, not another
+transaction store. Approved rows create normal ledger entries or link to an existing
+movement, so reports/timelines use the same canonical records. Wallet counts are
+separate reconciliation observations: a cash difference never invents a transaction.
+Immutable encrypted sources, explicit duplicate choices, atomic retries and audited,
+guarded Undo keep bulk entry fast without silently rewriting history.

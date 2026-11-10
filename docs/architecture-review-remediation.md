@@ -1,5 +1,10 @@
 # Architecture review remediation
 
+Review update — 10 November 2026: these changes form the base of the bulk-import
+review branch. Publication/deployment statements below describe the original
+1 November verification. See [bulk cash import](bulk-cash-import.md) for the new
+feature's tests, API/database rollout and review scope.
+
 The review fixes are committed locally in focused sections and remain unpushed.
 No production data was modified and no deployment was performed. The API remains the owner of money, source evidence
 and authorization; web/mobile submit intents and display server results.

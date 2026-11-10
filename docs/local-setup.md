@@ -781,3 +781,12 @@ data. CI uploads only synthetic failure traces for seven days.
 Read-only integrity audit: `python manage.py audit_financial_integrity`.
 Scale testing uses a separate `finance_benchmark_*` database; see the
 [benchmark instructions](quality-improvement-program.md#measured-performance).
+
+### Bulk cash import
+
+Apply the API migrations before using Transactions → Import entries. The feature
+adds `bulk_imports.0001` / `0002` and `reconciliation.0003`; it does not import or
+repair personal data automatically. Test with `python manage.py test apps.bulk_imports apps.reconciliation` from the API directory and the synthetic browser test
+`npm run test:e2e -- e2e/bulk-import.spec.ts` from the web directory. The regular
+synthetic fixture/server setup above applies. See [bulk cash import](bulk-cash-import.md)
+for table formats, time ordering, duplicates, limits and deployment requirements.

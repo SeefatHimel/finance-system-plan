@@ -1,5 +1,10 @@
 # Quality improvement program
 
+Review update — 10 November 2026: these changes form the base of the bulk-import
+review branch. Publication/deployment statements below describe the original
+1 November verification. See [bulk cash import](bulk-cash-import.md) for the new
+feature's tests, API/database rollout and review scope.
+
 Implemented and committed locally on 1 November 2026 in focused review sections.
 These changes have not been pushed or deployed.
 Production data, hosting settings and live financial sources were not changed.
