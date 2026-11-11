@@ -36,7 +36,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
       - name: Set temporary signing key path
         run: echo "FINANCE_UPLOAD_STORE_FILE=$RUNNER_TEMP/finance-upload-key.jks" >> "$GITHUB_ENV"
       - name: Verify release configuration and previous version
