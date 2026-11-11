@@ -35,7 +35,13 @@ jobs:
           cache-dependency-path: |
             projects/finance-api/requirements.txt
             projects/finance-api/requirements-dev.txt
+            projects/finance-api/requirements-constraints.txt
+            projects/finance-api/requirements-tooling.txt
       - run: python -m pip install -r requirements-dev.txt
+      - name: Audit Python dependencies
+        run: |
+          python -m pip install pip-audit==2.10.1
+          python -m pip_audit
       - run: python manage.py test
       - run: python manage.py makemigrations --check --dry-run
       - name: Generate API schema without omitted endpoints
@@ -57,6 +63,32 @@ jobs:
 
   web-and-contracts:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: finance_e2e_ci
+          POSTGRES_USER: finance_ci
+          POSTGRES_PASSWORD: finance_ci_synthetic_password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U finance_ci -d finance_e2e_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://finance_ci:finance_ci_synthetic_password@127.0.0.1:5432/finance_e2e_ci
+      FINANCE_E2E_PASSWORD: synthetic-ci-browser-only-password
+      DJANGO_SECRET_KEY: ci-only-synthetic-key-with-sufficient-length
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DJANGO_LOGIN_IP_RATE: 100/minute
+      DJANGO_LOGIN_USERNAME_RATE: 100/minute
+      FINANCE_PROXY_AUTH_SECRET: synthetic-ci-proxy-only-secret-32-characters
+      FINANCE_TRUSTED_CLIENT_IP_HEADER: x-quality-client-ip
+      NEXT_SERVER_API_BASE_URL: http://127.0.0.1:8039
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: finance_ci
+      PGPASSWORD: finance_ci_synthetic_password
     defaults:
       run:
         working-directory: projects/finance-web
@@ -75,6 +107,38 @@ jobs:
       - run: npm run lint
       - run: node --test tests/*.test.cjs
       - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+      - name: Start isolated synthetic browser workspace
+        run: |
+          python -m pip install -r ../finance-api/requirements-dev.txt
+          python ../finance-api/manage.py migrate --noinput
+          python ../finance-api/manage.py seed_quality_browser
+          python ../finance-api/manage.py runserver 127.0.0.1:8039 --noreload > /tmp/finance-e2e-api.log 2>&1 &
+          npm run start -- --hostname 127.0.0.1 --port 3039 > /tmp/finance-e2e-web.log 2>&1 &
+          python - <<'PY'
+          import time, urllib.request
+          for url in ('http://127.0.0.1:8039/api/health/', 'http://127.0.0.1:3039/login'):
+              for attempt in range(60):
+                  try:
+                      with urllib.request.urlopen(url, timeout=2) as response:
+                          if response.status == 200: break
+                  except OSError: pass
+                  time.sleep(.5)
+              else: raise SystemExit('Synthetic test server did not become ready')
+          PY
+      - run: npx playwright install --with-deps chromium
+      - name: Desktop, mobile width, keyboard and accessibility regressions
+        run: npm run test:e2e
+      - name: Backup safety and disposable restore drill
+        run: |
+          python -m unittest discover -s ../finance-infra/tests
+          python ../finance-infra/scripts/verify-synthetic-restore.py --source finance_e2e_ci --target finance_restore_ci
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: synthetic-browser-failure-traces
+          path: projects/finance-web/test-results/quality
+          retention-days: 7
       - name: Check generated API contracts
         working-directory: projects/finance-contracts
         run: |
@@ -98,3 +162,13 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: node --test tests/*.test.cjs
+      - run: npm audit --omit=dev --audit-level=high
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compile Android and run native SMS regression tests
+        working-directory: projects/finance-mobile/android
+        run: ./gradlew :finance-sms-capture:testDebugUnitTest :app:assembleDebug --no-daemon

@@ -71,8 +71,10 @@ def differences(expected, actual, path="schema"):
 def main():
     generated = yaml.safe_load(Path(sys.argv[1]).read_text())
     published = yaml.safe_load((ROOT / "openapi.yaml").read_text())
-    # The tiny health endpoint is intentionally outside the generated schema.
-    undocumented = operations(published) - operations(generated) - {("/api/health/", "get")}
+    # Plain Django health views intentionally stay outside the DRF schema.
+    undocumented = operations(published) - operations(generated) - {
+        ("/api/health/", "get"), ("/api/health/ready/", "get"),
+    }
     if undocumented:
         raise SystemExit(f"Published operations absent from Django: {sorted(undocumented)}")
     actual = manifest(generated)

@@ -3,7 +3,7 @@
 import os
 from datetime import timedelta
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
@@ -41,7 +41,9 @@ def env_int(name: str, default: int) -> int:
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "local-dev-secret")
 SECRET_KEY_FALLBACKS = env_list("DJANGO_SECRET_KEY_FALLBACKS", [])
+FINANCE_PROXY_AUTH_SECRET = os.getenv("FINANCE_PROXY_AUTH_SECRET", "")
 DEBUG = env_bool("DJANGO_DEBUG", True)
+FINANCE_API_REQUEST_LOGS = env_bool("FINANCE_API_REQUEST_LOGS", not DEBUG)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 
 RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "").rstrip("/")
@@ -80,10 +82,13 @@ INSTALLED_APPS = [
     "apps.transactions",
     "apps.users",
     "apps.quick_add",
+    "apps.bulk_imports",
 ]
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
+    "config.middleware.PrivateApiResponseMiddleware",
+    "config.diagnostics.ApiDiagnosticsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -130,13 +135,39 @@ def database_config() -> dict[str, object]:
     # Transaction poolers can move the next FETCH to another server connection.
     # Neon marks pooled endpoints with a -pooler suffix; other poolers can opt in.
     pooled_host = host.split(".", 1)[0].endswith("-pooler")
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    if any(len(values) != 1 for values in query.values()):
+        raise ImproperlyConfigured("DATABASE_URL contains repeated connection options.")
+    options = {name: values[0] for name, values in query.items()}
+    # Let the installed PostgreSQL driver recognize its own connection options.
+    # A hand-written allowlist rejected hosted URLs with channel_binding=require.
+    # Keep identity in the URI so OPTIONS cannot override the host used to detect
+    # transaction poolers. Validation parses only; it does not open a connection.
+    from psycopg import ProgrammingError
+    from psycopg.conninfo import make_conninfo
+
+    if set(options) & {"host", "hostaddr", "port", "user", "password", "dbname", "service", "servicefile", "conninfo"}:
+        raise ImproperlyConfigured("DATABASE_URL connection identity must be set in the URL, not its query options.")
+    try:
+        make_conninfo(**options)
+    except ProgrammingError:
+        # Driver exceptions can echo input. Never include credentials or query
+        # values in a startup traceback or chained exception.
+        raise ImproperlyConfigured("DATABASE_URL contains unsupported PostgreSQL connection options.") from None
+    if "sslmode" in options and options["sslmode"] not in {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"}:
+        raise ImproperlyConfigured("DATABASE_URL contains an invalid sslmode.")
+    if "channel_binding" in options and options["channel_binding"] not in {"disable", "prefer", "require"}:
+        raise ImproperlyConfigured("DATABASE_URL contains an invalid channel_binding setting.")
+    if "connect_timeout" in options and (not options["connect_timeout"].isascii() or not options["connect_timeout"].isdigit() or not 1 <= int(options["connect_timeout"]) <= 300):
+        raise ImproperlyConfigured("DATABASE_URL connect_timeout must be between 1 and 300 seconds.")
     return {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": parsed.path.lstrip("/"),
-        "USER": parsed.username or "",
-        "PASSWORD": parsed.password or "",
+        "NAME": unquote(parsed.path.lstrip("/")),
+        "USER": unquote(parsed.username or ""),
+        "PASSWORD": unquote(parsed.password or ""),
         "HOST": host,
         "PORT": parsed.port or 5432,
+        "OPTIONS": options,
         "DISABLE_SERVER_SIDE_CURSORS": env_bool(
             "DJANGO_DB_DISABLE_SERVER_SIDE_CURSORS", pooled_host
         ),
@@ -178,6 +209,8 @@ def validate_production_settings() -> None:
     errors = []
     database_engine = str(DATABASES["default"].get("ENGINE", ""))
 
+    if len(FINANCE_PROXY_AUTH_SECRET) < 32:
+        errors.append("FINANCE_PROXY_AUTH_SECRET must contain at least 32 characters and match the web proxy secret.")
     if SECRET_KEY == "local-dev-secret" or len(SECRET_KEY) < 32:
         errors.append("DJANGO_SECRET_KEY must be a strong non-default value.")
     if database_engine != "django.db.backends.postgresql":
@@ -233,4 +266,11 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "Finance API",
     "DESCRIPTION": "Backend API for the personal finance system.",
     "VERSION": "0.1.0",
+}
+
+LOGGING = {
+    "version": 1, "disable_existing_loggers": False,
+    "formatters": {"safe_json": {"format": "%(message)s"}},
+    "handlers": {"finance_console": {"class": "logging.StreamHandler", "formatter": "safe_json"}},
+    "loggers": {"finance.requests": {"handlers": ["finance_console"], "level": "INFO", "propagate": False}},
 }

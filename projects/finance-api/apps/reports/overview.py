@@ -2,7 +2,8 @@ from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db.models import Count
+from django.db.models import Count, F, Window
+from django.db.models.functions import RowNumber
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -30,13 +31,21 @@ class FinancialOverviewView(APIView):
     def get(self, request):
         user = request.user
         today = timezone.localdate()
-        accounts = list(Account.objects.filter(user=user))
+        accounts = list(Account.objects.filter(user=user).select_related("identity_method"))
         summaries = calculate_account_balance_summaries(accounts=accounts)
         latest_import = {}
-        for batch in StatementImport.objects.filter(user=user).order_by("-created_at").values("account_id", "period_start", "period_end", "id"):
+        latest_batches = StatementImport.objects.filter(user=user).annotate(
+            latest=Window(RowNumber(), partition_by=[F("account_id")],
+                order_by=[F("created_at").desc(), F("pk").desc()])
+        ).filter(latest=1).order_by()
+        for batch in latest_batches.values("account_id", "period_start", "period_end", "id"):
             latest_import.setdefault(batch["account_id"], batch)
         last_checks = {}
-        for check in BalanceSnapshot.objects.filter(user=user).order_by("-checked_at").values("account_id", "checked_at", "status", "difference"):
+        latest_snapshots = BalanceSnapshot.objects.filter(user=user).annotate(
+            latest=Window(RowNumber(), partition_by=[F("account_id")], order_by=[
+                F("checked_at").desc(), F("created_at").desc(), F("pk").desc()])
+        ).filter(latest=1).order_by()
+        for check in latest_snapshots.values("account_id", "checked_at", "status", "difference"):
             last_checks.setdefault(check["account_id"], check)
         pending_sms = dict(ParsedMessageCandidate.objects.filter(user=user, status="needs_review").values("account_id").annotate(total=Count("pk")).values_list("account_id", "total"))
         pending_rows = dict(StatementRow.objects.filter(batch__user=user, state="pending").values("batch__account_id").annotate(total=Count("pk")).values_list("batch__account_id", "total"))

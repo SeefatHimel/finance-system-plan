@@ -1,7 +1,7 @@
 "use client";
+import { BulkImportSources } from "./bulk-import-sources";
 import { BalanceSourceStatus } from "./balance-source-status";
 import { ClockTimeInput } from "./clock-time-input";
-import { filteredFinancialTotals } from "@/lib/financial-totals";
 import { TransactionActionMenu } from "@/components/transaction-action-menu";
 import { transactionTableLayout, transactionColumnPreferences, transactionPage, transactionPageParams, transactionPeriodFilters, transactionPeriodCaption } from "@/lib/transaction-list";
 import { CompactReportedBalances } from "@/components/compact-reported-balances";
@@ -25,8 +25,6 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  type Account,
-  type Category,
   type Transaction,
   type TransactionSourceMessage,
   type TransactionDirection,
@@ -38,11 +36,6 @@ import {
   type TransferMatch,
   deleteTransaction,
   exportTransactionsCsv,
-  listAccounts,
-  listCategories,
-  listPaymentMethods,
-  type PaymentMethod,
-  listTransactions,
   getTransaction,
   type TransactionFilters,
   type TransactionSource,
@@ -66,21 +59,16 @@ import { BalanceSourceBadges } from "@/components/balance-source-badges";
 import { balanceEditPrefill, type BalanceEditSuggestion, accountBoundBalances, editableReportedBalance, transferBalancePayload } from "@/lib/transaction-balances";
 import { periodFromFilters, periodLabel, shiftPeriod, dailyPeriod, monthPeriod, allDates, dateRangeError, type DatePeriod } from "@/lib/date-period";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
+import { loadTransactionData, type TransactionLoadState } from "@/lib/transaction-data";
+import { reportReturnPath } from "@/lib/report-navigation";
 
 import { FieldError } from "@/components/field-error";
 import { fieldErrorsFrom, focusFieldError, nativeFieldErrors } from "@/lib/form-feedback";
 import { reviewFieldErrors } from "@/lib/review-status";
 
-type LoadState =
-  | { status: "loading" }
-  | { message: string; status: "error" }
-  | {
-      accounts: Account[];
-      categories: Category[];
-      paymentMethods: PaymentMethod[];
-      status: "ready";
-      transactions: Transaction[];
-    };
+type LoadState = TransactionLoadState;
+
+const BulkImportDialog = dynamic(() => import("@/components/bulk-import-dialog").then(module => module.BulkImportDialog));
 
 const TransactionDetailDialog = dynamic(() => import("@/components/transaction-detail-dialog").then(module => module.TransactionDetailDialog));
 
@@ -105,6 +93,7 @@ const defaultTransactionColumns: TransactionColumn[] = ["date", "description", "
 const transactionColumnsStorageKey = "finance.transactions.columns.v2";
 
 type TransactionFilterState = Required<Pick<TransactionFilters, "direction" | "source" | "type">> & {
+  saved_report: string;
   currency: string;
   spending: string;
   needs_review: string;
@@ -159,8 +148,10 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   const isEmbedded = Boolean(embeddedEditId || embeddedCreate);
   const recovery = useTransactionRecovery();
   const { dismiss: dismissToast } = useToast();
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const reportReturn = reportReturnPath(searchParams.get("report_return"));
   const editorForm = useRef<HTMLFormElement>(null);
   const editorDirty = useRef(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -173,6 +164,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   const quickAdd = useQuickAdd();
   const { fullDraft, consumeFullDraft } = quickAdd;
   const [filters, setFilterState] = useState<TransactionFilterState>({
+    saved_report: "",
     currency: "", spending: "", needs_review: "",
     account: "",
     category: "",
@@ -187,6 +179,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
     type: ""
   });
   const [page, setPage] = useState(1);
+  const paging = useRef({ page: 1, pageSize: 25 });
   const [pageSize, setPageSize] = useState(25);
   const [displayOptionsOpen, setDisplayOptionsOpen] = useState(false);
   const tableScroll = useRef<HTMLDivElement>(null);
@@ -304,20 +297,19 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
     if (!readyData.current) setLoadState({ status: "loading" });
     try {
       const previous = readyData.current;
-      const next: Extract<LoadState, { status: "ready" }> = isEmbedded
-        ? await Promise.all([
-            listAccounts(accessToken, ticket.signal), listCategories(accessToken, ticket.signal),
-            listPaymentMethods(accessToken, ticket.signal)
-          ]).then(([accounts, categories, paymentMethods]) => ({ accounts, categories, paymentMethods, transactions: [], status: "ready" as const }))
-        : previous && !refreshLookups
-        ? { ...previous, transactions: await listTransactions(accessToken, activeFilters, ticket.signal) }
-        : await Promise.all([
-            listAccounts(accessToken, ticket.signal), listCategories(accessToken, ticket.signal),
-            listTransactions(accessToken, activeFilters, ticket.signal), listPaymentMethods(accessToken, ticket.signal)
-          ]).then(([accounts, categories, transactions, paymentMethods]) => ({ accounts, categories, transactions, paymentMethods, status: "ready" as const }));
+      const { page: requestedPage, pageSize: requestedSize } = paging.current;
+      const next = await loadTransactionData(accessToken, activeFilters, requestedPage, requestedSize, previous, refreshLookups, isEmbedded, ticket.signal);
       if (!ticket.isCurrent()) return;
       readyData.current = next;
       setLoadState(next);
+      paging.current = { page: next.resultPage, pageSize: next.resultSize };
+      setPage(next.resultPage); setPageSize(next.resultSize);
+      if (!isEmbedded && next.resultPage !== requestedPage) {
+        const url = new URL(window.location.href);
+        if (next.resultPage > 1) url.searchParams.set("page", String(next.resultPage));
+        else url.searchParams.delete("page");
+        window.history.replaceState(window.history.state, "", url);
+      }
       setDisplayedFilters(activeFilters);
     } catch (error) {
       if (!ticket.isCurrent()) return;
@@ -343,12 +335,14 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
     const restore = () => {
       const searchParams = new URLSearchParams(window.location.search);
       const pagination = transactionPageParams(searchParams);
+      paging.current = pagination;
       setPage(pagination.page); setPageSize(pagination.pageSize);
       restorePosition.current = window.history.state?.financeTransactionPosition ?? null;
       const requestedSearch = searchParams.get("search")?.trim() ?? "";
       const requestedOrdering = searchParams.get("ordering");
       const ordering = requestedOrdering === "-created_at" || requestedOrdering === "-updated_at" ? requestedOrdering : "-date";
       const requestedFilters: TransactionFilterState = {
+        saved_report: searchParams.get("saved_report") ?? "",
         currency: searchParams.get("currency") ?? "", spending: searchParams.get("spending") ?? "", needs_review: searchParams.get("needs_review") ?? "",
         account: searchParams.get("account") ?? "",
         category: searchParams.get("category") ?? "",
@@ -495,8 +489,11 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   }
 
   function applyFilterUrl(nextFilters: TransactionFilterState, view = dateView, nextPage = 1, size = pageSize) {
+    paging.current = { page: nextPage, pageSize: size };
     setPage(nextPage);
     const params = new URLSearchParams();
+    const reportReturn = reportReturnPath(new URLSearchParams(window.location.search).get("report_return"));
+    if (reportReturn) params.set("report_return", reportReturn);
     params.set("month", nextFilters.month);
     params.set("date_view", view);
     if (nextPage > 1) params.set("page", String(nextPage));
@@ -573,6 +570,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
 
   function clearFilters() {
     const clearedFilters: TransactionFilterState = {
+      saved_report: "",
       currency: "", spending: "", needs_review: "",
       account: "",
       category: "",
@@ -812,9 +810,9 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
     return new Map(loadState.accounts.map((account) => [account.id, account.name]));
   }, [loadState]);
 
-  const currencyByAccount = useMemo(() => new Map(loadState.status === "ready" ? loadState.accounts.map(account => [account.id, account.currency]) : []), [loadState]);
   const tableLayout = transactionTableLayout(visibleColumns, displayedFilters.ordering !== "-date");
-  const financialTotals = useMemo(() => loadState.status === "ready" ? filteredFinancialTotals(loadState.transactions, currencyByAccount, displayedFilters.account) : [], [loadState, currencyByAccount, displayedFilters.account]);
+  const currencyByAccount = useMemo(() => new Map(loadState.status === "ready" ? loadState.accounts.map(account => [account.id, account.currency]) : []), [loadState]);
+  const financialTotals = loadState.status === "ready" ? loadState.totals : [];
 
   const categoryNames = useMemo(() => {
     if (loadState.status !== "ready") {
@@ -844,7 +842,8 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   }
 
   const advancedFilterCount = [displayedFilters.currency, displayedFilters.spending, displayedFilters.needs_review, displayedFilters.type, displayedFilters.direction, displayedFilters.source, displayedFilters.category, displayedFilters.date_field !== "date" ? displayedFilters.date_field : ""].filter(Boolean).length;
-  const activeFilterChips: { key: "account" | "category" | "direction" | "source" | "type" | "search" | "date_field" | "currency" | "spending" | "needs_review"; label: string }[] = [
+  const activeFilterChips: { key: "saved_report" | "account" | "category" | "direction" | "source" | "type" | "search" | "date_field" | "currency" | "spending" | "needs_review"; label: string }[] = [
+    ...(displayedFilters.saved_report ? [{ key: "saved_report" as const, label: "Saved report" }] : []),
     ...(displayedFilters.currency ? [{ key: "currency" as const, label: displayedFilters.currency }] : []),
     ...(displayedFilters.spending ? [{ key: "spending" as const, label: "Spending & refunds" }] : []),
     ...(displayedFilters.needs_review ? [{ key: "needs_review" as const, label: displayedFilters.needs_review === "true" ? "Needs review" : "Reviewed" }] : []),
@@ -880,12 +879,13 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
       (editingTransaction.statement_evidence_count > 0 && editingTransaction.direction !== editingDirection)
     ));
 
-  const pagination = transactionPage(loadState.status === "ready" ? loadState.transactions.length : 0, page, pageSize);
-  const pageTransactions = loadState.status === "ready" ? loadState.transactions.slice(pagination.start, pagination.end) : [];
+  const pagination = transactionPage(loadState.status === "ready" ? loadState.transactionCount : 0, loadState.status === "ready" ? loadState.resultPage : page, loadState.status === "ready" ? loadState.resultSize : pageSize);
+  const pageTransactions = loadState.status === "ready" ? loadState.transactions : [];
   function changePage(next: number, size = pageSize) {
-    const bounded = transactionPage(loadState.status === "ready" ? loadState.transactions.length : 0, next, size);
+    const bounded = transactionPage(loadState.status === "ready" ? loadState.transactionCount : 0, next, size);
     setPageSize(size);
     applyFilterUrl(displayedFilters, dateView, bounded.current, size);
+    void loadData(displayedFilters, false);
     listTop.current?.scrollIntoView({ block: "start", behavior: "instant" });
   }
   function fullText(text: string, label: string) {
@@ -953,6 +953,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
 
   return (
     <div className={isEmbedded ? "" : "workspace-grid"}>
+      {!isEmbedded && reportReturn ? <Link className="button button--ghost" href={reportReturn}>← Back to report</Link> : null}
       {isEmbedded && !editorMode ? <ModalDialog className="form-drawer embedded-editor-status" labelledBy="embedded-editor-pending-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-pending-title">Opening transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body">{formError ? <p role="alert">{formError}</p> : <p role="status">Preparing {embeddedCreate ? "full entry" : "saved entry and sources"}…</p>}{formError && embeddedEditId ? <button className="button button--ghost" type="button" onClick={() => void selectTransactionForEdit(embeddedEditId)}>Retry</button> : null}</div></ModalDialog> : null}
       {filterPanel ? <ModalDialog className="form-drawer transaction-filter-dialog" labelledBy="transaction-filter-title" onCancel={() => setFilterPanel(null)}>
         <div className="form-drawer__header"><div><h2 id="transaction-filter-title">Filter transactions</h2><p>Choose what appears in the list.</p></div><button className="icon-button" type="button" aria-label="Close filters" onClick={() => setFilterPanel(null)}><X size={20} /></button></div>
@@ -1025,6 +1026,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
             }}>
             <div className="transaction-editor-scroll compact-editor"><div className="transaction-editor-fields compact-editor-grid">
             {balanceSuggestionNotice && editorMode === "edit" ? <p className="form-warning field--wide" role="status">{balanceSuggestionNotice}</p> : null}
+            {editorMode === "edit" && editingTransactionId ? <BulkImportSources transactionId={editingTransactionId} /> : null}
             {editorMode === "edit" ? <TransactionSourceMessages key={editingTransactionId} transactionId={editingTransactionId} onMessages={setEditingSourceMessages} onLoadError={setEditingSourceError} /> : null}
             {editorMode === "edit" && editingSourceMessages === null ? <p className="field--wide" role="status">{editingSourceError ? "SMS check failed. Open Original SMS and retry before saving." : "Checking attached SMS before this entry can be saved…"}</p> : null}
             {sourceWarnings.length ? <div className="transaction-source-warning field--wide" role="alert">
@@ -1264,10 +1266,11 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
               {activePeriod.mode === "monthly" || activePeriod.mode === "daily" ? <button className="icon-button" type="button" aria-label={`Next ${activePeriod.mode === "daily" ? "day" : "month"}`} title={`Next ${activePeriod.mode === "daily" ? "day" : "month"}`} onClick={() => selectPeriod(shiftPeriod(activePeriod, 1))}><CaretRight size={17} aria-hidden="true" /></button> : null}
             </div>
             <button className="button button--ghost transaction-filter-trigger" type="button" aria-label={advancedFilterCount ? `Filters, ${advancedFilterCount} active` : "Filters"} title="Filters" aria-haspopup="dialog" aria-expanded={Boolean(filterPanel)} onClick={openFilters}><FunnelSimple size={20} aria-hidden="true" />{advancedFilterCount ? <span>{advancedFilterCount}</span> : null}</button>
+            <button className="button button--ghost" type="button" onClick={() => setBulkImportOpen(true)}>Import entries</button>
             <button className="button button--primary transaction-commandbar__add" type="button" onClick={() => openNewTransaction()}><Plus size={17} aria-hidden="true" />Add transaction</button>
           </form>
           <div className="transaction-table-toolbar transaction-table-toolbar--compact" ref={listTop}>
-            <div className="transaction-result-meta"><span>{loadState.transactions.length} {loadState.transactions.length === 1 ? "transaction" : "transactions"}</span>{isRefreshing ? <span role="status" className="transaction-refresh-state"><ButtonBusy label="Updating" /></span> : null}{refreshError ? <button className="icon-button" type="button" title={refreshError} aria-label="Retry loading transactions" onClick={() => void loadData(requestedFilters, false)}><ArrowClockwise size={18} aria-hidden="true" /></button> : null}</div>
+            <div className="transaction-result-meta"><span>{loadState.transactionCount} {loadState.transactionCount === 1 ? "transaction" : "transactions"}</span>{isRefreshing ? <span role="status" className="transaction-refresh-state"><ButtonBusy label="Updating" /></span> : null}{refreshError ? <button className="icon-button" type="button" title={refreshError} aria-label="Retry loading transactions" onClick={() => void loadData(requestedFilters, false)}><ArrowClockwise size={18} aria-hidden="true" /></button> : null}</div>
             <div className="transaction-toolbar-actions transaction-toolbar-actions--icons" role="group" aria-label="Transaction tools">
               <TransactionActionMenu label="Sort transactions" icon={<SortDescending size={19} aria-hidden="true" />}>{([['-date', 'Transaction date'], ['-created_at', 'Recently added'], ['-updated_at', 'Recently updated']] as const).map(([value, label]) => <button className="button button--ghost" type="button" aria-pressed={displayedFilters.ordering === value} key={value} onClick={() => selectOrdering(value)}>{label}</button>)}</TransactionActionMenu>
               <button className="icon-button" type="button" aria-label={isExporting ? "Exporting CSV" : "Export CSV"} title="Export CSV" disabled={isExporting} onClick={() => void handleExportTransactions()}>{isExporting ? <SpinnerGap className="spin" size={19} aria-hidden="true" /> : <DownloadSimple size={19} aria-hidden="true" />}</button>
@@ -1279,7 +1282,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
           </div>
           {activeFilterChips.length ? <div className="transaction-filter-chips" aria-label="Applied filters">{activeFilterChips.map(chip => <button type="button" key={chip.key} className="transaction-filter-chip" title={`Remove ${chip.label}`} aria-label={`Remove ${chip.label}`} onClick={() => refreshFilters({ ...filtersRef.current, [chip.key]: chip.key === "date_field" ? "date" : "" })}><span>{chip.label}</span><X size={12} aria-hidden="true" /></button>)}</div> : null}
 
-          <details className="filtered-totals"><summary>Totals for all {loadState.transactions.length} matching transactions</summary>
+          <details className="filtered-totals"><summary>Totals for all {loadState.transactionCount} matching transactions</summary>
             <p className="muted-text">Refunds reduce spending. Principal and own-account transfers are separate. Totals cover the full filtered result, across every page.</p>
             {financialTotals.map(row => <div key={row.currency}><h3>{row.currency}</h3><div className="metric-row"><div className="metric"><span>Earned income</span><strong>{formatCurrency(row.income, row.currency)}</strong></div><div className="metric"><span>Net spending</span><strong>{formatCurrency(row.spending, row.currency)}</strong></div><div className="metric"><span>Money in / out</span><strong>{formatCurrency(row.moneyIn, row.currency)} / {formatCurrency(row.moneyOut, row.currency)}</strong></div></div><p className="muted-text">Refunds {formatCurrency(row.refunds, row.currency)} · Principal in/out {formatCurrency(row.financingIn, row.currency)} / {formatCurrency(row.financingOut, row.currency)} · Own transfers {formatCurrency(row.transfers, row.currency)}.</p></div>)}
           </details>
@@ -1326,13 +1329,14 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
               </table>
             </div>
             <nav className="transaction-pagination" aria-label="Transaction pages">
-              <span>Showing {pagination.start + 1}–{pagination.end} of {loadState.transactions.length} transactions</span>
+              <span>Showing {pagination.start + 1}–{pagination.end} of {loadState.transactionCount} transactions</span>
               <label>Rows <select aria-label="Rows per page" value={pageSize} disabled={isRefreshing} onChange={event => changePage(1, Number(event.target.value))}>{[25, 50, 100].map(size => <option value={size} key={size}>{size}</option>)}</select></label>
               <div><button className="button button--ghost button--small" type="button" disabled={pagination.current === 1 || isRefreshing} onClick={() => changePage(pagination.current - 1)}>Previous</button><span aria-live="polite">{pagination.current} / {pagination.pages}</span><button className="button button--ghost button--small" type="button" disabled={pagination.current === pagination.pages || isRefreshing} onClick={() => changePage(pagination.current + 1)}>Next</button></div>
             </nav>
           </>)}
         </div>
-      </section> : null}
+        {bulkImportOpen && loadState.status === "ready" ? <BulkImportDialog accounts={loadState.accounts} categories={loadState.categories} onClose={() => setBulkImportOpen(false)} /> : null}
+    </section> : null}
       {transferDecision ? <TransferMatchDialog accounts={loadState.status === "ready" ? loadState.accounts : []} original={transferComparison(transferDecision.input, id => accountNames.get(id))} originalSource={transferDecision.mergeId ? "Recorded transfer selected" : "New manual transfer"} matches={transferDecision.matches} busy={isSubmitting} error={matchError} merging={Boolean(transferDecision.mergeId)} onAccept={(match, choices) => void handleTransferDecision(match, choices)} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
     </div>
   );

@@ -33,11 +33,20 @@ test('return URLs reject external redirects, encoded path tricks, and auth/API l
 
 test('every current workspace is a permitted return route', () => {
   for (const path of ['/', '/transactions', '/accounts', '/messages/review', '/sms-settings', '/statements', '/statement-counterparties', '/review',
-    '/reports', '/debts', '/credit-cards', '/recurring-bills', '/reconciliation', '/audit-logs']) {
+    '/reports', '/custom-reports', '/debts', '/credit-cards', '/recurring-bills', '/reconciliation', '/audit-logs']) {
     assert(isProtectedPath(path));
     assert.equal(safeReturnPath(path), path);
   }
   assert(!isProtectedPath('/login'));
+});
+
+test('report list, create, detail and edit routes preserve login destinations', () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  for (const path of ['/custom-reports?q=Household&sort=name', '/custom-reports/new', `/custom-reports/${id}`, `/custom-reports/${id}/edit`]) {
+    assert.equal(safeReturnPath(path), path);
+    assert.equal(new URL(loginHref(path), 'https://finance.invalid').searchParams.get('next'), path);
+  }
+  for (const path of ['/custom-reports/invalid', '/custom-reports/new/edit', `/custom-reports/${id}/other`]) assert.equal(safeReturnPath(path), '/');
 });
 
 test('only confirmed 401 auth errors end a session', () => {

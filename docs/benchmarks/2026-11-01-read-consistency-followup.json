@@ -1,0 +1,28 @@
+{
+  "synthetic": true,
+  "rows": 1000000,
+  "python": "3.12.14",
+  "postgres": 180006,
+  "results": [
+    {
+      "endpoint": "accounts",
+      "concurrency": 1,
+      "requests": 3,
+      "p50_ms": 421.7,
+      "p95_ms": 555.39,
+      "errors": 0,
+      "elapsed_s": 1.4
+    },
+    {
+      "endpoint": "report",
+      "concurrency": 1,
+      "requests": 3,
+      "p50_ms": 781.0,
+      "p95_ms": 786.84,
+      "errors": 0,
+      "elapsed_s": 2.32
+    }
+  ],
+  "date": "2026-11-01",
+  "method": "Local Django APIClient, synthetic forced authentication, independent DB connections; three samples per endpoint. Follow-up smoke check, not a capacity guarantee."
+}

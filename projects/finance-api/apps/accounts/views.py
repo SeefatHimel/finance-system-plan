@@ -19,13 +19,16 @@ class AccountViewSet(ModelViewSet):
             "identity_method"
         )
 
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        if self.request.user.is_authenticated and self.action in {"list", "retrieve"}:
-            context["account_balance_summaries"] = calculate_account_balance_summaries(
-                accounts=self.get_queryset()
+    def get_serializer(self, *args, **kwargs):
+        if args and self.action in {"list", "retrieve"}:
+            # Reuse the actual instances selected by the view. A detail request
+            # must not summarize every account, and list must not fetch twice.
+            accounts = [args[0]] if isinstance(args[0], Account) else list(args[0])
+            kwargs.setdefault("context", self.get_serializer_context())
+            kwargs["context"]["account_balance_summaries"] = calculate_account_balance_summaries(
+                accounts=accounts
             )
-        return context
+        return super().get_serializer(*args, **kwargs)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)

@@ -965,3 +965,96 @@ an explicit completeness flag. Source account/currency/direction and reported vs
 receipt time remain separate. It carries no raw SMS/PDF, never writes money, and
 is not a parser rerun or a count of independent sources. No migration is needed;
 API deployment precedes the tolerant web client.
+
+## Why are transaction pages and totals separate responses?
+
+Rows are bounded to 100 while totals describe every match, so paging cannot change
+the financial summary. The activity envelope includes count/results/next_offset;
+legacy arrays expose count/next-offset headers. Totals are decimal strings grouped
+by currency and explicitly define refunds, financing and transfer perspective.
+The updated published contract and generated client include both responses.
+The generated backend snapshot gate detects schema changes; it does not prove all
+manually curated contract definitions equivalent to runtime behavior.
+
+## Did the SQL reporting refactor change public financial payloads?
+
+It preserves the spending-v2 fields and Decimal/source/account semantics.
+Account groups now have deterministic name/ID order. Generated request-ID and
+Server-Timing response headers are optional diagnostic metadata. Operator audit,
+fixture, constraint-validation and benchmark commands are not public endpoints.
+Existing schema validation and snapshot checks continue to guard API drift.
+
+The concurrency follow-up changes SQL statement boundaries, not endpoint fields:
+current/previous report sections share a snapshot, and JSON projections keep money
+as decimal strings. Existing report/account payloads and owner checks remain.
+
+## What is the bulk-import confirmation contract?
+
+Create recovers an identical table for the same owner/account. Review PATCH takes
+the current version, mappings, row decisions and checkpoint inputs. Confirmation
+POST takes that reviewed version and preview token. The server rechecks current
+matching context under the user writer lock; stale decisions return 409 and no
+partial writes. Row acknowledgements bind to the candidates actually compared.
+Retries of committed batches return the original receipt. Undo/reopen are explicit
+owned actions. Bulk source reads expose original and normalized values separately.
+Snapshot precision and untimed ordering are additive; existing whole-day semantics
+are retained for legacy checks. Curated public types remain stable.
+
+## What changed for editable import notes and category suggestions?
+
+Optional `RowDecision.notes` allows blank text and up to 4,000 characters. Preview
+row JSON adds optional `category_suggestion`: nullable owned category UUID, label
+and exact/alias/ambiguous/unmapped/empty method. Explicit batch/row selections,
+including null, override defaults. Source JSON stays immutable; normalized notes
+retain the reviewed value. Routes/ownership/version/token semantics stay intact.
+API precedes web deployment; no database migration is added.
+
+The additive `BulkSource.notes_edited` boolean marks an explicit note edit; the web
+reader defaults it to false for older API responses. Edited/cleared notes can be
+inspected without duplicating unchanged source text.
+
+### What does the cash-count API guarantee?
+
+Owner-scoped no-store preview/save/history/comparison routes accept physical cash
+observations only. A stable save UUID prevents duplicate retries, and a reviewed
+token prevents recording changed context. Existing periods need explicit skip or
+correction. Explicit `replace_id` corrections retain the observation identity when
+fixing its account/date/time, and reject collisions or repeated targets. Table Expected Balance is preserved as reference and is never trusted
+as the app's expected value. Timed counts require ordering unknown-time movements;
+date-only counts require end-of-day confirmation. Comparison revisions prevent
+mixing movement pages from different ledger states. These are additive endpoints;
+financial transaction contracts are unchanged.
+
+### What is the saved-report integration boundary?
+
+`/api/reports/saved/` lists/creates definitions; `/{id}/` reads, patches or deletes.
+`/{id}/transactions/` returns a bounded count/next_offset/results page for included,
+available or excluded entries. `/{id}/membership/` accepts an owned transaction UUID
+and include/exclude/reset action. `saved_report` on monthly reports selects the saved
+filters and choices; transaction list/activity/totals/export intersects membership with any
+additional filters. Cross-user report/transaction access is 404, incompatible currency
+choices and invalid filters are 400. Dates are fixed, membership stays live, and no
+currency conversion or snapshot guarantee is implied. Deploy API plus reports migration
+before web; regenerate published contracts and schema snapshot after API changes.
+
+
+### How are richer report rules represented at the API boundary?
+
+SavedReport adds `filters`: include/exclude account/category arrays (categories also
+accept uncategorized), type/direction/source arrays, search and nullable decimal
+amount bounds. PATCH omission retains filters; a supplied object replaces them.
+Validation rejects foreign IDs, mixed currencies, overlaps and unknown keys.
+`POST /api/reports/saved/preview/` returns MonthlyReport for a draft plus optional
+owned saved_report manual choices, without persistence. Comparisons reuse rules,
+without manual overrides. Effective selections agree across summaries, transaction
+totals, browsing and CSV. The additive rules migration must precede web deployment.
+
+
+### Do the separate report pages require new API endpoints?
+
+No. The library uses the existing saved-definition list; detail/edit routes fetch
+one owner-scoped definition with GET `/api/reports/saved/{id}/`. Preview, Save,
+membership and export keep their existing contracts. Next.js UUID routes are client
+navigation, not API routes. Missing or foreign definitions remain inaccessible,
+and nested routes are protected login return destinations. Duplicate saves a new
+definition without copying explicit membership choices.

@@ -2,6 +2,7 @@
 
 from django.db import IntegrityError, transaction
 from rest_framework import serializers
+from django.shortcuts import get_object_or_404
 
 from apps.accounts.models import Account
 from .models import Transaction
@@ -20,6 +21,23 @@ class LedgerPaymentSerializer(serializers.ModelSerializer):
 
 
 PAYMENT_FIELDS = ("ledger_action", "funding_account", "request_id")
+
+
+class LockedPlanningUpdateMixin:
+    """Use the same lock order as payment creation/unlink, including direct serializer callers."""
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        from .transfers import lock_transfer_user
+
+        lock_transfer_user(self.context["request"].user)
+        self.instance = get_object_or_404(type(instance).objects.select_for_update(), pk=instance.pk, user=self.context["request"].user)
+        # Validation before acquiring the lock may have observed older totals.
+        validated_data = self.validate(validated_data)
+        return self.update_locked(self.instance, validated_data)
+
+    def update_locked(self, instance, validated_data):
+        return super().update(instance, validated_data)
 
 
 def payment_models():
@@ -48,7 +66,7 @@ def record_payment(serializer, data, kind):
     user = serializer.context["request"].user
     from .transfers import lock_transfer_user
     lock_transfer_user(user)
-    parent = model.objects.select_for_update().get(pk=serializer.context[context_field].pk, user=user)
+    parent = get_object_or_404(model.objects.select_for_update(), pk=serializer.context[context_field].pk, user=user)
     action = data.pop("ledger_action", "link" if data.get("transaction") else "record_only")
     funding = data.pop("funding_account", None)
     request_id = data.pop("request_id", None)
@@ -85,7 +103,7 @@ def record_payment(serializer, data, kind):
     if action == "link":
         if not linked:
             raise serializers.ValidationError({"transaction": "Choose the existing payment transaction."})
-        linked = Transaction.objects.select_for_update().get(pk=linked.pk, user=user)
+        linked = get_object_or_404(Transaction.objects.select_for_update(), pk=linked.pk, user=user)
         if kind == "debt" and linked.account.currency != "BDT":
             raise serializers.ValidationError({"transaction": "Debt records currently use BDT. Choose a BDT movement."})
         if has_payments(linked):

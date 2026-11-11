@@ -101,7 +101,15 @@ class Transaction(models.Model):
 
     class Meta:
         ordering = ("-date", "-time", "-created_at")
+        constraints = [
+            models.CheckConstraint(condition=models.Q(amount__gt=0), name="ledger_amount_positive"),
+            models.CheckConstraint(
+                condition=models.Q(transfer_account__isnull=True) | ~models.Q(account=models.F("transfer_account")),
+                name="ledger_distinct_accounts",
+            ),
+        ]
         indexes = [
+            models.Index("account", models.F("date").desc(), models.F("time").desc(nulls_last=True), models.F("created_at").desc(), models.F("id").desc(), condition=models.Q(balance_after__isnull=False), name="ledger_latest_balance"),
             models.Index(fields=("user", "date")),
             models.Index(fields=("user", "type")),
             models.Index(fields=("user", "direction")),
@@ -114,17 +122,8 @@ class Transaction(models.Model):
 
     @classmethod
     def default_direction_for_type(cls, transaction_type: str) -> str:
-        credit_types = {
-            cls.Type.INCOME,
-            cls.Type.REFUND,
-            cls.Type.BORROW,
-            cls.Type.REPAYMENT_RECEIVED,
-        }
-        return (
-            cls.Direction.CREDIT
-            if transaction_type in credit_types
-            else cls.Direction.DEBIT
-        )
+        from .policy import default_direction
+        return default_direction(transaction_type)
 
 
 class TransferEvidence(models.Model):
@@ -162,6 +161,7 @@ class TransferEvidence(models.Model):
 
     class Meta:
         ordering = ("date", "time", "created_at")
+        indexes = [models.Index("account", models.F("date").desc(), models.F("time").desc(nulls_last=True), models.F("created_at").desc(), models.F("id").desc(), condition=models.Q(balance_after__isnull=False), name="evidence_latest_balance")]
         constraints = [
             models.UniqueConstraint(
                 fields=("user", "external_key"),

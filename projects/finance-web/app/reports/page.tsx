@@ -1,8 +1,17 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { ReportWorkspace } from "@/components/report-workspace";
 
-export default function ReportsPage() {
+export default async function ReportsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const params = await searchParams;
+  if (params.saved_report) {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) query.append(key, item);
+    }
+    redirect(`/custom-reports?${query}`);
+  }
   return (
     <div className="page-shell">
       <header className="app-header">

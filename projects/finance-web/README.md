@@ -1658,10 +1658,12 @@ and the production ban on JavaScript token storage are unchanged.
 
 `npm run test:auth` now covers pending/completed refresh deduplication, rotated
 cookie preservation, browser verification and explicit logout. Server deduplication
-remains process-local; this change does not introduce a distributed refresh cache
-or a grace period accepting blacklisted tokens. Production multi-instance races,
-actual credential-manager profiles and backend revocations need deployment/browser
-validation if symptoms persist. No backend migration or APK rebuild is required.
+remains process-local as an optimization. The subsequent architecture review adds
+an encrypted five-second API retry receipt for signed web proxies across workers.
+Public/mobile refreshes remain single-use. Deploy the users migration and matching
+private proxy secrets on API/web; configure a trusted ingress client-IP header.
+Actual credential-manager profiles and multi-host cookie ordering still need
+deployment/browser validation. No APK rebuild is needed for the web auth change.
 
 ### Compact statement draft editor
 
@@ -2007,3 +2009,173 @@ Deploy API before web; no migration, parser refresh or re-import is needed. Tap,
 hover or focus a badge to inspect source values and timing limitations; Escape
 closes its explanation before the editor. Accessible labels name each check. Verify
 with `node --test tests/balance-source-badges.test.cjs`.
+
+## Architecture review: bounded transactions and shared auth
+
+The table fetches only the selected activity page (25/50/100 rows), keeps filters
+and page in the URL, and corrects a page made invalid by a deletion. Full filtered
+currency totals come from the API, independent of the visible page. Existing rows
+remain visible during refresh and canceled responses cannot replace newer data.
+
+The app now uses Next.js 15.5 and Zod 4; cookies, route params and server page
+search params use the async APIs. Production proxy login requires the private
+`FINANCE_PROXY_AUTH_SECRET` shared with the API and a trusted overwritten client-IP
+header. Vercel supplies its trusted header by default. Deploy the users migration
+and API first. See [remediation and QA](../../docs/architecture-review-remediation.md).
+
+### Second review: targeted refresh and request lifetime
+
+Quick-add relies on existing financial update events instead of additionally
+refreshing the Next route. Timeline account loads are canceled on replacement and
+unmount and cannot overwrite a newer refresh. The proxy passes cancellation,
+limits reads to 30 seconds/writes to 120 seconds, preserves pagination/retry
+headers and enforces private no-store responses. A canceled write is not proof of
+rollback. Dashboard health checks time out after 5 seconds with a streamed loading
+state. Browser tests cover quick-add page/filter retention without a route refresh
+and delayed timeline responses; see the second-review remediation notes.
+
+## Browser quality gate
+
+`npm run test:e2e` uses Playwright against a separately started production build
+and disposable synthetic API. It checks pagination/filter retention, editor
+cancel, quick-add without duplicate route refresh, stale timeline responses,
+focus/Escape and axe WCAG A/AA checks at desktop/mobile widths in both themes.
+It uses new browser contexts, never an existing signed-in user profile. See
+[local setup](../../docs/local-setup.md#quality-checks-and-synthetic-browser-workspace)
+for fixture credentials, ports and Chromium installation. Hosted CI starts this
+workspace automatically and keeps failure traces for seven days.
+
+Transaction reads are extracted to `lib/transaction-data.ts`; the workspace keeps
+session/request ownership. No global private cache is added. Row menus remain
+attached while the table scrolls/focus settles. Debit amounts and filtered totals
+use theme tokens for contrast. API request IDs and server timings pass through the
+proxy for diagnostics, without adding implementation details to product flows.
+
+## Bulk cash import
+
+Transactions → Import entries opens a lazy-loaded dialog on the current page.
+Paste spreadsheet cells or upload UTF-8 CSV/TSV/text, map columns/categories, review
+highlighted rows and optional wallet counts, then confirm once. There is a single
+busy indicator; edits require a refreshed preview. Existing matches show source
+kind and saved details. Stale comparisons refresh without silently acknowledging
+new suggestions. Transaction filters/pages survive import and Undo.
+
+Mapping, entry cards, checkpoint editing and source views have separate components.
+Unknown times stay unknown; end-of-day counts require confirmation, and specific
+times require before/after decisions with exceptions. Receipts support source-row
+inspection, safe Undo and reopening. Reconciliation labels spreadsheet checkpoints.
+This requires the matched API and migrations, not a frontend-only deployment.
+See [bulk cash import](../../docs/bulk-cash-import.md) for limits and browser checks.
+
+Bulk review separates the short Description from multiline Notes. Notes can be
+edited/cleared before Refresh preview and confirmation. Category selectors show
+server suggestions for clear synonyms; explicit choices and Uncategorized win.
+The mapping summary shows suggested/unassigned counts. Linking explains that
+existing ledger values stay intact; reviewed notes remain inspectable under
+Spreadsheet evidence. Original cells stay unchanged. Deploy the matching API first.
+
+## Cash counts
+
+**Planning → Cash counts** (`/cash-counts`) supports one physical count or a pasted
+CSV/TSV/Markdown count table across cash accounts. It displays counted versus
+ledger balances, preserves discrepancies for review, and compares movements in
+a popup without losing the account filter. No counting schedule or automatic
+ledger adjustments are introduced. Date-only counts need end-of-day confirmation;
+known-time counts have explicit ordering controls for untimed entries.
+
+History distinguishes saved calculations from comparisons against the current
+ledger. Details and per-row corrections are disclosed on demand; reads are
+abortable, lists are paginated, and errors use toasts. Deploy API/migration 0004
+first. See [Cash counts](../../docs/cash-counts.md). Verification includes
+`node --test tests/cash-counts.test.cjs` and `e2e/cash-counts.spec.ts`.
+
+## Saved reports
+
+The **Custom reports** library (`/custom-reports`) opens named reports on their own
+detail pages. Separate Create and Edit builders save fixed inclusive dates, a date
+view, currency and selection rules. Changed rules preview live before Save; editing
+includes existing manual choices. Duplicate copies the definition without manual
+choices. Matching ledger activity stays live.
+
+Choose **Manage transactions** on a detail page to use **In this report**, **Available to add**, and
+**Removed from report**, with search and pages of 25. Add/remove changes only that
+report. Additions may bypass dates/account but must use its currency. **Use saved
+filters** clears an exclusion; deleting a report never deletes ledger entries.
+Prior-period comparisons use ordinary filters without manual choices.
+
+The standard `/reports` page focuses on financial summaries and links to Custom
+reports, including a shortcut that carries its current filters into a new custom
+report. Standard report filters and library search/sort have independent URL and
+tab-session state. Builder drafts are recovered separately per report. Old
+`/reports?saved_report=...` links redirect to the corresponding detail page. All
+report routes require authentication and remain valid return destinations after login.
+Session storage contains filters, library state and draft definitions, and clears
+on sign-out/session termination.
+Deploy the API and apply migrations through `reports.0002_savedreport_filters`
+before deploying the web changes.
+Verify with `node --test tests/report-navigation.test.cjs` and the API saved-report
+tests; check save, add/remove, reload and transaction drill-through in a browser.
+
+
+### Report selection rules
+
+Custom reports support multiple included/excluded accounts and categories, including
+Uncategorized. No included items means all, minus exclusions. Choices match any
+item within one group and combine across groups with AND. Category matching is exact;
+select child categories separately. Transactions touching an excluded account are
+removed; transfers match either selected account and count once. Accounts must share
+one report currency; switching currency clears incompatible account selections.
+
+Additional rules include multiple transaction types, sources and directions, text
+search, and inclusive minimum/maximum amounts per transaction. Transfer direction
+is relative to selected accounts. Internal transfers are excluded from group cash
+in/out; only transfers crossing the selected group contribute. Income/spending still
+exclude own-account transfers. Manual additions can override any rule, and manual
+removals stay excluded. Reset returns a transaction to rule-based membership.
+
+Debounced preview requests never save reports or ledger data. Previous-period
+comparisons apply the same rules without manual overrides. Save the draft before
+transaction drill-through or CSV export, so both reflect persisted effective
+membership. Per-report tab-session drafts include the complete draft rules.
+Deploy API plus `reports.0002_savedreport_filters` before this client. Existing
+single-account reports remain readable and are converted when next saved.
+
+
+## Custom-report workflow: library, results and builder
+
+Custom reports use separate route contexts:
+
+- `/custom-reports`: searchable, sortable saved-report library. Each entry shows
+  name, period, currency, scope and definition update time, with View, Edit,
+  Duplicate and Delete actions. The list fetches definitions, not every report's totals.
+- `/custom-reports/new`: create a named definition and preview it before saving.
+- `/custom-reports/{id}`: stable, results-first detail view with totals, comparisons,
+  breakdowns, read-only matching transactions, saved rules and CSV export.
+- `/custom-reports/{id}/edit`: explicit rule editing with Save and Cancel. Saving
+  returns to the same detail URL. Duplicate opens a new builder and copies rules
+  only, retaining the original report and its manual choices.
+
+Manage transactions is an explicit detail-page action; the default results view
+has no membership mutation buttons. Manual selection changes refresh results and
+transaction lists. Both report routes and all nested create/detail/edit routes
+are protected, and login and transaction drill-through preserve the destination.
+Library search/sort live in the URL and tab-session state. Builder drafts are
+separate per report and restored locally after interruption. Save/Discard clears
+the draft; sign-out clears library and draft state. Unsaved edits prompt before
+in-app navigation or closing/reloading. Browser Back may leave a recoverable draft.
+
+Old saved-report query links open the corresponding detail page; old filter-only
+links open the new builder. Standard financial reports keep their own filters.
+This split needs no API schema or database migration beyond the existing report
+migrations. Existing owner-scoped GET/PATCH/DELETE and preview endpoints are reused.
+
+The workflow follows the separation documented by [QuickBooks saved reports](https://quickbooks.intuit.com/learn-support/en-us/help-article/memorize-reports/memorize-reports-quickbooks-online/L8iRmBp9q_US_en_US)
+and [Metabase query building/results](https://www.metabase.com/docs/latest/questions/query-builder/editor):
+find/run saved reports independently from editing their definition, then inspect
+results and drill through. The route structure and explicit management mode are
+this project's application of those patterns.
+
+Verify `node --test tests/report-navigation.test.cjs tests/auth-session.test.cjs`
+and `npm run test:e2e -- e2e/custom-reports.spec.ts` against the disposable synthetic
+fixture. Browser checks should also cover library search restoration, direct detail
+reload, read-only transaction inspection, explicit membership editing and CSV export.

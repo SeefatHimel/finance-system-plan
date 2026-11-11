@@ -1,4 +1,6 @@
 from django.shortcuts import get_object_or_404
+from django.db import transaction
+from apps.transactions.transfers import lock_transfer_user
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
@@ -24,13 +26,30 @@ class BalanceSnapshotViewSet(ModelViewSet):
     serializer_class = BalanceSnapshotSerializer
     permission_classes = (IsAuthenticated,)
 
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        lock_transfer_user(request.user)
+        return super().create(request, *args, **kwargs)
+
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        lock_transfer_user(request.user)
+        return super().update(request, *args, **kwargs)
+
+    @transaction.atomic
+    def destroy(self, request, *args, **kwargs):
+        lock_transfer_user(request.user)
+        return super().destroy(request, *args, **kwargs)
+
     def get_queryset(self):
         queryset = BalanceSnapshot.objects.filter(
             user=self.request.user
         ).select_related(
             "account",
             "adjustment_transaction",
+            "bulk_import_checkpoint__batch",
         )
+        queryset = queryset.defer("bulk_import_checkpoint__batch__original", "bulk_import_checkpoint__batch__configuration")
         account = self.request.query_params.get("account")
         if account:
             queryset = queryset.filter(account_id=account)

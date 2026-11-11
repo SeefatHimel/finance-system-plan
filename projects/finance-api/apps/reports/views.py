@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from django.db.models import Count
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -41,6 +41,35 @@ def month_bounds(month: str | None) -> tuple[date, date, str]:
     return start, end, month
 
 
+def period_report_summary(*, user, start, end, currency="BDT", account=None, month=None, saved=None):
+    from .summary import period_summaries
+    from .saved import report_records
+
+    duration = end - start + timedelta(days=1)
+    if start.toordinal() <= duration.days:
+        raise ValidationError({"start_date": "Choose a date with a complete preceding comparison period."})
+    previous_end = start - timedelta(days=1)
+    _, next_month, _ = month_bounds(start.strftime("%Y-%m"))
+    previous_start = previous_end.replace(day=1) if start.day == 1 and end == next_month-timedelta(days=1) else start-duration
+    report, previous = period_summaries(
+        user=user, periods=[(start, end), (previous_start, previous_end)], currency=currency, account=account,
+        record_sets=[report_records(saved), report_records(saved, start=previous_start, end=previous_end, manual=False)] if saved else None,
+        account_ids=saved.filters.get("accounts") if saved else None,
+    )
+    for collection, key in (("categories", "id"), ("merchants", "search")):
+        prior = {str(item[key]).casefold(): item["amount"] for item in previous[collection]}
+        for item in report[collection]:
+            item["previous_amount"] = prior.get(str(item[key]).casefold(), "0.00")
+    report["month"] = month
+    report["previous"] = {field: previous[field] for field in ("start_date", "end_date", "income_total", "expense_total", "net_total")}
+    return report
+
+
+def saved_report_summary(report):
+    return period_report_summary(user=report.user_id, start=report.start_date, end=report.end_date,
+                                 currency=report.currency, account=report.account, saved=report)
+
+
 @extend_schema(responses=OpenApiTypes.OBJECT)
 class DashboardSummaryView(APIView):
     permission_classes = (IsAuthenticated,)
@@ -69,11 +98,22 @@ class DashboardSummaryView(APIView):
         }, headers={"Cache-Control": "private, no-store"})
 
 
-@extend_schema(responses=OpenApiTypes.OBJECT)
+@extend_schema(responses=OpenApiTypes.OBJECT, parameters=[OpenApiParameter("saved_report", OpenApiTypes.UUID, description="Use a named report's saved filters and manual membership choices.")])
 class MonthlyReportView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
+        from .models import SavedReport
+        from django.shortcuts import get_object_or_404
+
+        saved = None
+        if request.query_params.get("saved_report"):
+            try:
+                saved = get_object_or_404(SavedReport.objects.select_related("account"), user=request.user, pk=request.query_params["saved_report"])
+            except (ValueError, DjangoValidationError) as exc:
+                raise ValidationError({"saved_report": "Choose one of your saved reports."}) from exc
+        if saved:
+            return Response(saved_report_summary(saved), headers={"Cache-Control": "private, no-store"})
         bounds = custom_bounds(request.query_params)
         if bounds:
             start, inclusive_end = bounds
@@ -81,9 +121,7 @@ class MonthlyReportView(APIView):
         else:
             start, end, month = month_bounds(request.query_params.get("month"))
             inclusive_end = end - timedelta(days=1)
-        from django.shortcuts import get_object_or_404
         from apps.accounts.models import Account
-        from .summary import period_summary
 
         currency = request.query_params.get("currency", "BDT").upper()
         if not re.fullmatch(r"[A-Z]{3}", currency):
@@ -96,20 +134,6 @@ class MonthlyReportView(APIView):
             except (ValueError, DjangoValidationError) as exc:
                 raise ValidationError({"account": "Choose one of your accounts."}) from exc
             currency = account.currency
-        report = period_summary(user=request.user, start=start, end=inclusive_end, currency=currency, account=account)
-        duration = inclusive_end - start + timedelta(days=1)
-        if start.toordinal() <= duration.days:
-            raise ValidationError({"start_date": "Choose a date with a complete preceding comparison period."})
-        previous_end = start - timedelta(days=1)
-        _, next_month, _ = month_bounds(start.strftime("%Y-%m"))
-        previous_start = previous_end.replace(day=1) if start.day == 1 and inclusive_end == next_month-timedelta(days=1) else start-duration
-        previous = period_summary(user=request.user, start=previous_start, end=previous_end, currency=currency, account=account)
-        previous_categories = {item["id"]: item["amount"] for item in previous["categories"]}
-        for item in report["categories"]:
-            item["previous_amount"] = previous_categories.get(item["id"], "0.00")
-        previous_merchants = {item["search"].casefold(): item["amount"] for item in previous["merchants"]}
-        for item in report["merchants"]:
-            item["previous_amount"] = previous_merchants.get(item["search"].casefold(), "0.00")
-        report["month"] = month
-        report["previous"] = {field: previous[field] for field in ("start_date", "end_date", "income_total", "expense_total", "net_total")}
-        return Response(report, headers={"Cache-Control": "private, no-store"})
+        return Response(period_report_summary(user=request.user, start=start, end=inclusive_end,
+                                              currency=currency, account=account, month=month),
+                        headers={"Cache-Control": "private, no-store"})

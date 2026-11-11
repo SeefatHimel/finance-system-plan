@@ -985,3 +985,13 @@ immediate review decisions with safe rollback/retry, and inline original SMS
 and statement-row expansion. Install the same-key update from
 `dist/releases/finance-mobile-0.1.17.apk`; follow the
 [release checklist](docs/signed-android-release.md#retained-review-and-source-expansion-release-0117).
+
+## Offline manual-entry retry identity
+
+Every queued manual entry, including expenses, receives a deterministic external
+key from its persisted queue ID before upload. Transfers retain `queued-transfer:`;
+other entries use `queued-entry:`. Existing explicit keys are preserved. A retry
+following a lost response creates one movement; conflicting details are rejected
+by the API. Rebuild the app for this change. `npm test` includes the identity
+regression. CI runs native SMS unit tests and Android debug compilation; see
+[review validation and remaining dependency risk](../../docs/architecture-review-remediation.md).

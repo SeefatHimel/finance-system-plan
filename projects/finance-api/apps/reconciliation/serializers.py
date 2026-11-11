@@ -6,16 +6,31 @@ from rest_framework import serializers
 from apps.accounts.models import Account
 
 from .models import BalanceSnapshot
-from .services import calculate_expected_balance, snapshot_status_for_difference
+from .services import snapshot_status_for_difference
+from .timing import checkpoint_expected
 
 
 class BalanceSnapshotSerializer(serializers.ModelSerializer):
+    source_label = serializers.SerializerMethodField()
+
+    def get_source_label(self, instance) -> str:
+        if instance.cash_count_batch_id:
+            return "Cash count"
+        from django.core.exceptions import ObjectDoesNotExist
+        try:
+            return f"Spreadsheet checkpoint · {instance.bulk_import_checkpoint.batch.filename}"
+        except ObjectDoesNotExist:
+            return "Manual balance check"
+
     class Meta:
         model = BalanceSnapshot
         fields = (
             "id",
             "account",
             "checked_at",
+            "source_label",
+            "precision",
+            "timing_order",
             "actual_balance",
             "expected_balance",
             "difference",
@@ -42,10 +57,7 @@ class BalanceSnapshotSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         account = validated_data["account"]
-        expected_balance = calculate_expected_balance(
-            account=account,
-            as_of_date=validated_data["checked_at"].date(),
-        )
+        expected_balance = checkpoint_expected(account, validated_data["checked_at"], validated_data.get("precision", "end_of_day"), validated_data.get("timing_order", {}))
         difference = (validated_data["actual_balance"] - expected_balance).quantize(Decimal("0.01"))
         return BalanceSnapshot.objects.create(
             **validated_data,
@@ -54,6 +66,26 @@ class BalanceSnapshotSerializer(serializers.ModelSerializer):
             status=snapshot_status_for_difference(difference),
             user=self.context["request"].user,
         )
+
+    def validate_timing_order(self, value):
+        if not isinstance(value, dict) or len(value) > 1000:
+            raise serializers.ValidationError("Provide at most 1,000 explicit before/after decisions.")
+        import uuid
+        for key, position in value.items():
+            try:
+                uuid.UUID(key)
+            except (ValueError, TypeError, AttributeError) as exc:
+                raise serializers.ValidationError("Use a transaction identifier for timing decisions.") from exc
+            if position not in {"before", "after"}:
+                raise serializers.ValidationError("Choose before or after for each untimed entry.")
+        return value
+
+    def update(self, instance, validated_data):
+        account = validated_data.get("account", instance.account)
+        expected = checkpoint_expected(account, validated_data.get("checked_at", instance.checked_at), validated_data.get("precision", instance.precision), validated_data.get("timing_order", instance.timing_order))
+        actual = validated_data.get("actual_balance", instance.actual_balance)
+        validated_data.update(expected_balance=expected, difference=actual - expected, status=snapshot_status_for_difference(actual - expected))
+        return super().update(instance, validated_data)
 
     def get_fields(self):
         fields = super().get_fields()

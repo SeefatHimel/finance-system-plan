@@ -19,6 +19,11 @@ flowchart LR
 
 ## Project Boundaries
 
+The [architecture review remediation](architecture-review-remediation.md) records
+the current write-lock order, retry identities, bounded reads, SQL aggregation,
+shared authentication coordination, verification and deployment requirements.
+These corrections preserve the project boundaries below and original evidence.
+
 ### finance-api
 
 The backend owns:
@@ -152,3 +157,21 @@ finance-system/
 
 Run locally with Docker for PostgreSQL and native dev servers for backend, web,
 and mobile.
+
+## Quality boundaries and operational evidence
+
+The API owns financial policy and source integrity. Shared type/direction sets
+live in `apps.transactions.policy`; SQL read projections live in balance/report
+query modules, separate from write services. The web transaction data loader
+owns one session-scoped page/totals/reference read; presentation owns request
+cancellation, stale-result rejection and user filters. It does not introduce a
+second ledger or a global financial cache.
+
+Database constraints guard positive amounts and distinct endpoints. Existing
+PostgreSQL rows are audited separately before explicit constraint validation;
+source archives and financial values are not rewritten by deployment. Ordered
+partial indexes are created concurrently in production PostgreSQL. Dedicated
+route-pattern diagnostics and generated request IDs support private operational
+monitoring. Browser, concurrent retry, source lifecycle and restore checks extend
+CI. [The quality program](quality-improvement-program.md) records measured scope,
+scale results and unresolved production-capacity/recovery gates.

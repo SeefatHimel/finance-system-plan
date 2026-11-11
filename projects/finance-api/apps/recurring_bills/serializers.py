@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.transactions.payments import LedgerPaymentSerializer, PAYMENT_FIELDS, record_payment
+from apps.transactions.payments import LedgerPaymentSerializer, LockedPlanningUpdateMixin, PAYMENT_FIELDS, record_payment
 
 from apps.accounts.models import Account
 from apps.categories.models import Category
@@ -9,7 +9,7 @@ from apps.transactions.models import Transaction
 from .models import RecurringBill, RecurringBillPayment
 
 
-class RecurringBillSerializer(serializers.ModelSerializer):
+class RecurringBillSerializer(LockedPlanningUpdateMixin, serializers.ModelSerializer):
     class Meta:
         model = RecurringBill
         fields = (

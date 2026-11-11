@@ -432,3 +432,49 @@ statement dues are not added again to current card liabilities. Coverage and pen
 review remain visible because imported activity cannot prove nothing is missing.
 Untimed evidence can receive an explicitly reviewed display order, never a fabricated
 clock time presented as fact. Budgets and forecasts remain later enhancements.
+
+## What did the architecture review change without rewriting the product?
+
+It hardened monetary writes, payment concurrency, retry identity and currency
+boundaries; bounded ledger reads and moved balance/totals calculations to SQL;
+made auth rate limits and proxy refresh coordination shared across API workers;
+and added readiness/native CI coverage with patched framework dependencies.
+Original financial evidence is preserved. Large UI modules, production load
+profiling and deployment restore/proxy drills remain incremental work; see
+`docs/architecture-review-remediation.md` for the verified scope and rollout.
+
+## Does the quality program mean every area is now production-certified?
+
+No. It adds concrete financial guardrails, SQL projections, state-retention and
+accessibility browser checks, safe diagnostics, measured load tests and verified
+backup tooling. The local tests pass without changing production data. Large
+concurrent annual reports still need capacity work; staging/ingress/key recovery,
+monitoring and off-machine backup configuration remain release gates. Ratings
+must reflect that evidence rather than assuming a perfect score from test counts.
+
+## How does imported cash history fit the single-ledger architecture?
+
+Spreadsheet imports are retained source evidence and review decisions, not another
+transaction store. Approved rows create normal ledger entries or link to an existing
+movement, so reports/timelines use the same canonical records. Wallet counts are
+separate reconciliation observations: a cash difference never invents a transaction.
+Immutable encrypted sources, explicit duplicate choices, atomic retries and audited,
+guarded Undo keep bulk entry fast without silently rewriting history.
+
+### Does an unexplained cash-count difference create a transaction?
+
+No. A cash count is an observation, not evidence of a particular missing expense
+or income. Users can save a mismatch and compare it with the previous count and
+the movements between them. A persistent net difference is not presented as a
+new shortage every day. Correct the verified underlying entries or a mistaken
+count explicitly; digital account SMS/statement reconciliation remains separate.
+
+
+### What is the custom-report lifecycle?
+
+Users find saved definitions in the report library, open a report's live results,
+and enter a separate builder to create or edit its rules. Saving returns to stable
+report details. The details page supports comparisons, breakdowns, export and
+explicit transaction-selection management. Duplicate creates another definition;
+delete never deletes ledger transactions. This separates discovery, reading and
+editing while keeping one effective selection for all results.

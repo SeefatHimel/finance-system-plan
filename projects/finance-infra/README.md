@@ -150,3 +150,29 @@ CONFIRM_RESTORE=finance ./scripts/restore-postgres.sh backups/finance-YYYYMMDDTH
 The first backup scope covers PostgreSQL only. Production backup work should
 also cover uploaded attachments if added, encrypted off-machine storage,
 monitoring, and regular restore verification.
+
+## Architecture review deployment requirements
+
+Production API/web share a private random `FINANCE_PROXY_AUTH_SECRET` (32+
+characters). Web requires `FINANCE_TRUSTED_CLIENT_IP_HEADER` outside Vercel;
+the ingress must overwrite it and prevent bypass access. Run migrations before
+routing traffic, including `users.0001_initial`. Compose now checks
+`/api/health/ready/` for database/schema readiness. `/api/health/` is liveness.
+The web image now includes public assets. API images copy the dependency
+constraints before install. See [rollout details](../../docs/architecture-review-remediation.md).
+
+## Recovery quality gate
+
+Backups now publish complete private files only, with SHA-256 manifests. Restores
+verify the manifest before connecting, require `CONFIRM_RESTORE=finance`, and use
+one transaction with exit-on-error. `DATABASE_TRANSPORT=local` supports native PG
+clients; default Compose behavior is retained. Dumps themselves need encrypted,
+access-controlled storage. Run `python -m unittest discover -s tests` for script
+safety checks. `scripts/verify-synthetic-restore.py` compares every public table in
+a new disposable restore database; it refuses live-style names/existing targets.
+See [backup commands and limits](../../docs/backup-automation.md).
+
+Apply staged ledger checks/online indexes and review the global integrity audit
+before explicit historical validation. Dedicated API diagnostics exclude request
+inputs; configure external alerts/log retention separately. Local load and restore
+results do not certify production capacity, decryption-key recovery or RPO/RTO.

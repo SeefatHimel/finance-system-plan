@@ -177,9 +177,10 @@ docker compose up -d postgres
 ```
 
 To run the API against a hosted database (for example Render) from your laptop,
-put the **external** `DATABASE_URL` in `projects/finance-api/.env`. Non-local
-hosts use SSL (`sslmode=require`) automatically. Keep using `DJANGO_DEBUG=true`
-for this laptop path. Do not commit `.env`.
+put the **external** `DATABASE_URL` in `projects/finance-api/.env`. Preserve the
+provider's TLS options, for example `sslmode=require&channel_binding=require`;
+the API does not automatically add TLS options. Keep using `DJANGO_DEBUG=true`
+for this laptop path. Do not commit `.env` or paste a full connection URL into logs.
 
 Start the Django API:
 
@@ -716,6 +717,81 @@ values. It does not undo old manually applied classifications. New salary/servic
 wording and explicit bKash recipient clues require no PDF re-upload except when
 recovering a full recipient hidden in saved masked descriptions.
 
+## Architecture review verification and upgrade
+
+Install `projects/finance-api/requirements-dev.txt` as before; requirements now
+load `requirements-constraints.txt` to pin the tested dependency set. Then run
+`python manage.py migrate --noinput`, including the new users migration. Local
+debug login does not require proxy secrets. Production requires matching private
+API/web secrets and trusted ingress identity; see the production deployment plan.
+
+Use PostgreSQL when testing row locks or generating the backend schema for CI.
+SQLite remains a limited local fallback and cannot validate distributed locking.
+Web verification remains `npm run typecheck`, `npm run lint`,
+`node --test tests/*.test.cjs` and `npm run build`. Mobile additionally supports
+`./android/gradlew -p android :finance-sms-capture:testDebugUnitTest :app:assembleDebug`
+with Java 17 and the Android SDK configured. See
+[review remediation](architecture-review-remediation.md) for compatibility and QA.
+
+## Quality checks and synthetic browser workspace
+
+From `projects/finance-api`, install development requirements and migrate before
+running the API tests. New ledger checks are staged on PostgreSQL; see
+[quality rollout](quality-improvement-program.md) before historical validation.
+
+For browser regression tests, create a **disposable** PostgreSQL database named
+`finance_e2e_local` and point `DATABASE_URL` at it. Never point the fixture command
+or browser tests at an actual account database.
+
+```bash
+# projects/finance-api; use synthetic test-only environment values
+export FINANCE_E2E_PASSWORD=synthetic-browser-only-password
+export FINANCE_PROXY_AUTH_SECRET=synthetic-local-proxy-only-secret-32-characters
+export DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+export DJANGO_LOGIN_IP_RATE=100/minute
+export DJANGO_LOGIN_USERNAME_RATE=100/minute
+python manage.py migrate --noinput
+python manage.py seed_quality_browser
+python manage.py runserver 127.0.0.1:8039 --noreload
+```
+
+In another terminal from `projects/finance-web`:
+
+```bash
+export FINANCE_E2E_PASSWORD=synthetic-browser-only-password
+export FINANCE_PROXY_AUTH_SECRET=synthetic-local-proxy-only-secret-32-characters
+export FINANCE_TRUSTED_CLIENT_IP_HEADER=x-quality-client-ip
+export NEXT_SERVER_API_BASE_URL=http://127.0.0.1:8039
+npm ci
+npx playwright install chromium
+npm run build
+npm run start -- --hostname 127.0.0.1 --port 3039
+```
+
+Then run `npm run test:e2e` with the same synthetic environment. The config uses
+`http://127.0.0.1:3039`; override `PLAYWRIGHT_BASE_URL` if needed. An installed
+Chrome binary can be selected with `PLAYWRIGHT_EXECUTABLE_PATH`. The synthetic
+trusted header is exclusively for this isolated local/CI ingress. Production
+must use an ingress-overwritten trusted header, never a user-controlled one.
+Playwright uses fresh contexts, not the user's signed-in Chrome profile. Tests
+write February synthetic entries while retaining January filters. Reseeding
+preserves existing fixture transactions; recreate the disposable database for a
+completely clean run. Test traces are ignored by Git and must never contain live
+data. CI uploads only synthetic failure traces for seven days.
+
+Read-only integrity audit: `python manage.py audit_financial_integrity`.
+Scale testing uses a separate `finance_benchmark_*` database; see the
+[benchmark instructions](quality-improvement-program.md#measured-performance).
+
+### Bulk cash import
+
+Apply the API migrations before using Transactions → Import entries. The feature
+adds `bulk_imports.0001` / `0002` and `reconciliation.0003`; it does not import or
+repair personal data automatically. Test with `python manage.py test apps.bulk_imports apps.reconciliation` from the API directory and the synthetic browser test
+`npm run test:e2e -- e2e/bulk-import.spec.ts` from the web directory. The regular
+synthetic fixture/server setup above applies. See [bulk cash import](bulk-cash-import.md)
+for table formats, time ordering, duplicates, limits and deployment requirements.
+
 ### Android home-screen widgets
 
 The six widgets live in the committed `projects/finance-mobile/android` project.
@@ -726,3 +802,51 @@ privacy changes, and sign-out on a device. Use the committed native project for
 routine builds. `expo prebuild` can regenerate the manually maintained widget
 manifest, resources, and package registration; only run it when reviewing and
 restoring those changes deliberately. Widgets need no backend migration.
+
+### Cash-count verification
+
+Apply `python manage.py migrate` from `projects/finance-api` before using
+`/cash-counts`; migration reconciliation.0004 adds source/receipt metadata without
+changing ledger entries. Run `python manage.py test apps.reconciliation.test_cash_counts`
+against disposable PostgreSQL for concurrent retry coverage. From finance-web run
+`node --test tests/cash-counts.test.cjs`; the synthetic Playwright suite adds
+`e2e/cash-counts.spec.ts` for desktop/mobile count, correction, table and timed flows.
+Use the existing isolated browser fixture setup, never the signed-in production
+profile or real financial data. See [Cash counts](cash-counts.md) for behavior and
+API deployment order.
+
+### Saved-report migration and verification
+
+Named reports require the API's `reports.0001_initial` migration before the updated
+web client is used. Run `python manage.py migrate` from `projects/finance-api` using
+your existing environment. Verify with `python manage.py test apps.reports` and,
+from `projects/finance-web`, `node --test tests/report-navigation.test.cjs`.
+Reports (`/reports`) retain filters and Custom reports (`/custom-reports`) retain
+library search/sort independently in URL/tab-session state. Builder drafts are
+isolated per report; definitions and manual transaction choices persist
+on the API. Browser QA should cover navigation between both pages, creating a
+custom report from standard filters, save, remove/add, reload, drill-through and
+returning to the originating report page. Apply through
+`reports.0002_savedreport_filters` for the expanded builder. The separate library,
+detail and builder routes need no additional migration.
+
+
+### Expanded report rules
+
+Run `python manage.py migrate` from `projects/finance-api` to apply
+`reports.0002_savedreport_filters` before using the expanded custom report builder.
+Existing reports remain compatible. Verify `python manage.py test apps.reports` and
+web `node --test tests/report-navigation.test.cjs`. Browser QA should select multiple
+accounts/categories, exclude a category, inspect the live preview, save/reload,
+add/remove a transaction and compare drill-through and CSV export with the report.
+
+
+### Custom-report page flow
+
+Custom reports now have `/custom-reports` (library), `/custom-reports/new` (builder),
+`/custom-reports/{id}` (results) and `/custom-reports/{id}/edit` (edit builder).
+No additional migration is needed for this page split. Run web typecheck/lint plus
+`node --test tests/report-navigation.test.cjs tests/auth-session.test.cjs`. With the
+synthetic production browser fixture running, use
+`npm run test:e2e -- e2e/custom-reports.spec.ts` to check create/view/edit/duplicate,
+list return context and discard behavior on desktop and mobile.

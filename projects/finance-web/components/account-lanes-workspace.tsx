@@ -107,6 +107,7 @@ export function AccountLanesWorkspace() {
   const lastScrollTopRef = useRef(0);
   const requestsRef = useRef(new Map<string, AbortController>());
   const refreshRequestRef = useRef<AbortController | null>(null);
+  const accountsRequestRef = useRef<AbortController | null>(null);
   const refreshAgainRef = useRef(false);
   const closeDetails = useCallback(() => {
     const id = lastCardRef.current;
@@ -118,18 +119,28 @@ export function AccountLanesWorkspace() {
   }, []);
 
   const loadAccounts = useCallback(async () => {
+    if (refreshRequestRef.current) return;
     const token = getAccessToken();
     if (!token) { setAccountsError("Sign in to view your accounts."); setAccountsLoading(false); return; }
+    accountsRequestRef.current?.abort();
+    const controller = new AbortController();
+    accountsRequestRef.current = controller;
     setAccountsLoading(true); setAccountsError(null);
     try {
-      const [nextAccounts, nextCategories] = await Promise.all([listAccounts(token), listCategories(token)]);
+      const [nextAccounts, nextCategories] = await Promise.all([listAccounts(token, controller.signal), listCategories(token, controller.signal)]);
+      if (controller.signal.aborted) return;
       const ordered = [...nextAccounts].sort((a, b) => a.display_order - b.display_order);
       setAccounts(ordered);
       setCategories(nextCategories);
       setSelectedIds(previous => previous.length ? previous.filter(id => ordered.some(account => account.id === id)) : ordered.filter(account => account.is_active).slice(0, 2).map(account => account.id));
     } catch (error) {
-      setAccountsError(error instanceof Error ? error.message : "Could not load your accounts.");
-    } finally { setAccountsLoading(false); }
+      if (!controller.signal.aborted) setAccountsError(error instanceof Error ? error.message : "Could not load your accounts.");
+    } finally {
+      if (accountsRequestRef.current === controller) {
+        accountsRequestRef.current = null;
+        if (!controller.signal.aborted) setAccountsLoading(false);
+      }
+    }
   }, []);
 
   useEffect(() => { void loadAccounts(); }, [loadAccounts]);
@@ -155,7 +166,7 @@ export function AccountLanesWorkspace() {
     window.addEventListener("finance:transaction-saved", reflectSavedEntry);
     return () => window.removeEventListener("finance:transaction-saved", reflectSavedEntry);
   }, []);
-  useEffect(() => () => { refreshAgainRef.current = false; refreshRequestRef.current?.abort(); for (const controller of requestsRef.current.values()) controller.abort(); requestsRef.current.clear(); }, []);
+  useEffect(() => () => { refreshAgainRef.current = false; refreshRequestRef.current?.abort(); accountsRequestRef.current?.abort(); for (const controller of requestsRef.current.values()) controller.abort(); requestsRef.current.clear(); }, []);
   useEffect(() => () => { if (visibleDateTimerRef.current) clearTimeout(visibleDateTimerRef.current); }, []);
   useEffect(() => {
     if (!isFullscreen) return;
@@ -202,6 +213,8 @@ export function AccountLanesWorkspace() {
     if (!token) { notify("Sign in to refresh the timeline.", "error"); return; }
     const controller = new AbortController();
     refreshRequestRef.current = controller;
+    accountsRequestRef.current?.abort();
+    accountsRequestRef.current = null;
     setIsRefreshing(true);
     for (const request of requestsRef.current.values()) request.abort();
     requestsRef.current.clear();
@@ -245,6 +258,7 @@ export function AccountLanesWorkspace() {
       if (refreshRequestRef.current === controller) {
         refreshRequestRef.current = null;
         setIsRefreshing(false);
+        setAccountsLoading(false);
         if (refreshAgainRef.current) { refreshAgainRef.current = false; void refreshTimeline(showNotice); }
       }
     }

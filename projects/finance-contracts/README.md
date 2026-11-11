@@ -1012,3 +1012,126 @@ for both transfers and single-account entries. A single-account move targets onl
 the existing ledger account; it never changes the ledger amount or balance. The
 request/response schema is unchanged: signed preview token, candidate, action and
 optional ledger-path account. Deploy the API behavior before the web action.
+
+## Bounded ledger reads and filtered totals
+
+`GET /api/transactions/` preserves its array shape but defaults to at most 100
+rows. Use limit 1–100 and offset, plus X-Total-Count and X-Next-Offset, or prefer
+`/api/transactions/activity/` for its explicit count/results/next_offset envelope.
+`GET /api/transactions/totals/` accepts the ledger filters and returns currencies
+with decimal-string income, spending, refunds, financingIn/Out, moneyIn/Out,
+transfers and net across the entire result. Transfers are neutral without an
+account perspective; refunds reduce spending. No FX conversion occurs.
+`category=uncategorized` is supported alongside category UUIDs.
+
+`GET /api/health/ready/` is a plain Django endpoint returning 200 when DB/schema
+are ready and 503 otherwise; it is explicitly exempted from DRF route generation.
+New/explicitly edited non-transfer directions must agree with type, cross-currency
+transfers are rejected, and used accounts cannot change currency. The snapshot
+includes the reviewed framework upgrade enum-name changes; generated types/client
+include pagination, totals and readiness. See [review scope](../../docs/architecture-review-remediation.md).
+
+The second review adds no payload or route changes. API responses default to
+private no-store, while the web proxy preserves X-Total-Count, X-Next-Offset and
+Retry-After headers and independently prevents HTTP caching. Client cancellation
+is passed upstream; a canceled write does not imply rollback. Generated client
+and schema snapshot remain unchanged by these query/refresh corrections.
+
+The quality-program read refactor preserves the `spending-v2` response and existing
+money/source semantics; account report groups now use deterministic name/ID order.
+API responses add generated `X-Request-ID` and `Server-Timing` diagnostics, forwarded
+by the web proxy. These are optional metadata, not financial identifiers. Integrity,
+fixture and scale commands are operator tools, not new public API endpoints.
+
+## Bulk table import contracts
+
+The published contract now includes owned bulk-import create/read/review,
+commit/Undo/reopen and transaction source-row routes. Confirmation requires the
+reviewed version and token; new/changed ledger matches invalidate previous row
+acknowledgements. Snapshot responses expose comparison precision, explicit
+untimed-entry ordering and a source label. Existing public schema names and
+JSON request conventions are retained. `bulk-import.ts` describes the web review
+configuration; the API remains authoritative for parsing and financial decisions.
+See [the workflow and rollout](../../docs/bulk-cash-import.md).
+
+Bulk row decisions accept optional `notes` (blank allowed, up to 4,000 characters).
+Row preview JSON adds optional `category_suggestion`: nullable `category`, `label`
+and `method` (exact/alias/ambiguous/unmapped/empty). The server computes defaults;
+explicit batch/row choices override them, including null. Original cells and
+reviewed normalized notes stay separate. Deploy API before web.
+
+`BulkSource.notes_edited` identifies a separately reviewed notes value, including
+an explicit clear. Clients can show it without repeating unchanged source notes.
+
+## Cash-count observations
+
+The additive cash-count endpoints cover preview, atomic save/correction, history
+and current-ledger interval comparison. `cash-counts.ts` provides the portable
+input shape; OpenAPI and generated clients include the endpoints. Each save
+carries `review_token` and a stable per-user `idempotency_key`; changed context
+returns 409, and an exact retry returns its existing receipt. `rows` or `text` is
+required, exclusively. Existing public component names and operations are retained.
+
+Only physical cash accounts are eligible. Counted balances and spreadsheet
+expectations do not create ledger money. Date-only counts require explicit
+end-of-day confirmation; timed comparisons need before/after choices for untimed
+entries. Comparison `revision` guards appending movement pages across ledger
+changes. Original source text and reference-only expected values are retained.
+Deploy reconciliation migration 0004/API before clients. Details:
+[Cash counts](../../docs/cash-counts.md).
+
+## Saved reports and effective membership
+
+Authenticated endpoints:
+
+```text
+GET/POST         /api/reports/saved/
+GET/PATCH/DELETE /api/reports/saved/{id}/
+GET              /api/reports/saved/{id}/transactions/?scope=included|available|excluded&search=...&limit=25&offset=0
+POST             /api/reports/saved/{id}/membership/
+```
+
+Create/patch fields are `name` (1–160 trimmed characters), `start_date`, `end_date`,
+`date_view` (daily/monthly/custom), nullable `account`, and `currency`. Dates are
+fixed inclusive bounds of at most 366 days, with a complete previous comparison
+period; daily/monthly modes must match the dates. Account ownership is checked,
+and an account's currency takes precedence. Responses add id and timestamps.
+Membership accepts `{transaction: UUID, action: include|exclude|reset}`. Choices
+are idempotent per transaction; reset returns to the saved filters. Reads/writes
+are owner-scoped, no-store, and never modify ledger records. Invalid data/currency
+returns 400; foreign report/transaction access returns 404.
+
+Membership is `(filter matches OR inclusions) MINUS exclusions`, within the owner's
+report currency. Additions can bypass dates/account. The transaction browser returns
+`count`, nullable `next_offset`, and `results`, capped at 100 entries per request.
+`saved_report` on monthly summaries uses the saved definition and choices. On
+transaction list/activity/totals/export it restricts membership before intersecting other
+filters, so drill-through and export use the same contributing entries. Previous
+comparisons use unmodified filters. Daily summary rows include manually added dates
+outside the saved range. Currency changes retain choices but ignore incompatible
+currencies. Report deletion removes its choices without deleting transactions;
+Save as new in web creates a new definition without copying manual choices.
+Deploy report migrations through `reports.0002_savedreport_filters` with the API
+before the updated web builder.
+
+
+### Expanded custom-report filters
+
+SavedReport/Create/Patch include optional `filters`. Omitting it on PATCH retains
+rules; supplying it replaces them. Fields: `accounts`, `excluded_accounts` (owned,
+same-currency UUID arrays, max 100 each); `categories`, `excluded_categories` (owned
+UUID or `uncategorized` arrays, max 200 each); `types`, `directions`, `sources` (valid
+transaction choice arrays); `search` (max 256); `min_amount`, `max_amount` (nullable,
+nonnegative decimal strings, inclusive). Empty inclusion arrays mean all. Groups
+combine with AND; selections within a group use OR. Include/exclude overlaps and
+unknown fields return 400. Exact categories are used, without descendant expansion.
+A legacy `account` remains supported, but cannot combine with `filters.accounts`.
+
+`POST /api/reports/saved/preview/` accepts draft create fields and optional
+`saved_report` UUID, returning MonthlyReport without writes. Existing manual choices
+apply when the ID is owned; foreign IDs return 404. Manual additions override rules;
+manual exclusions win. Comparisons use the same rules without manual choices.
+Transfers match either selected account once; cash in/out counts transfers crossing
+the selected group and excludes internal transfers. Account drill-through narrows
+the selection further. Summary, transaction browsing/totals, export and previews
+share rule selection. Deploy reports.0002_savedreport_filters before the web client.

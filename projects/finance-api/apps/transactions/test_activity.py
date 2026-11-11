@@ -39,6 +39,13 @@ class TransactionActivityTests(APITestCase):
         self.assertEqual(len(set(ids)), 31)
         self.assertEqual(len(self.client.get(reverse("transaction-list")).data), 31)
 
+    def test_legacy_list_respects_bounds_and_reports_remaining_results(self):
+        response = self.client.get(reverse("transaction-list"), {"limit": 1, "offset": 1})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response["X-Total-Count"], "31")
+        self.assertEqual(response["X-Next-Offset"], "2")
+        self.assertEqual(self.client.get(reverse("transaction-list"), {"limit": 101}).status_code, 400)
+
     def test_filters_search_and_receiving_transfer_perspective(self):
         transfer = Transaction.objects.create(user=self.user, account=self.bank, transfer_account=self.wallet,
                                               date="2026-10-20", type="transfer", amount="100.00", direction="debit")
@@ -63,3 +70,22 @@ class TransactionActivityTests(APITestCase):
         self.assertEqual(result.data, {"count": 31, "next_offset": None, "results": []})
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get(self.url).status_code, 401)
+
+
+class FilteredTotalsTests(APITestCase):
+    def test_totals_cover_every_filtered_row_and_transfers_stay_neutral(self):
+        user = get_user_model().objects.create_user(username="synthetic-filtered-totals")
+        account = Account.objects.create(user=user, name="Synthetic totals", type="bank")
+        other = Account.objects.create(user=user, name="Synthetic receiving", type="cash")
+        self.client.force_authenticate(user)
+        for field in ("account", "category"):
+            self.assertEqual(self.client.get("/api/transactions/totals/", {field: "not-a-uuid"}).status_code, 400)
+        Transaction.objects.bulk_create([Transaction(user=user,account=account,date="2026-01-01",type="expense",amount=1) for _ in range(101)])
+        Transaction.objects.create(user=user,account=account,transfer_account=other,date="2026-01-01",type="transfer",amount=20)
+        result = self.client.get("/api/transactions/totals/").data["currencies"][0]
+        self.assertEqual(result["spending"], "101.00")
+        self.assertEqual(result["moneyOut"], "101.00")
+        self.assertEqual(result["transfers"], "20.00")
+        receiving = self.client.get("/api/transactions/totals/", {"account":str(other.pk)}).data["currencies"][0]
+        self.assertEqual(receiving["moneyIn"], "20.00")
+        self.assertEqual(receiving["spending"], "0.00")

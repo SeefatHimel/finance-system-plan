@@ -37,7 +37,7 @@ def _ledger_direction_for_account(record, account_id):
 
 
 def scan_ledger_page(*, user, limit, offset):
-    queryset = Transaction.objects.filter(user=user).select_related("account", "category", "raw_message").prefetch_related("transfer_evidence").order_by("-date", "-id")
+    queryset = Transaction.objects.filter(user=user).select_related("account", "transfer_account", "category", "raw_message").prefetch_related("transfer_evidence").order_by("-date", "-id")
     total = queryset.count()
     records = list(queryset[offset:offset + limit])
     record_ids = [record.pk for record in records]
@@ -81,6 +81,12 @@ def scan_ledger_page(*, user, limit, offset):
     findings = []
     for record in records:
         warnings = []
+        if record.amount <= 0:
+            warnings.append({"code": "nonpositive_amount", "level": "check", "text": "This historical entry has a nonpositive amount. Review its original evidence before correcting it; no automatic change was made."})
+        if record.type not in {Transaction.Type.TRANSFER, Transaction.Type.ADJUSTMENT} and record.direction != Transaction.default_direction_for_type(record.type):
+            warnings.append({"code": "type_direction_mismatch", "level": "check", "text": "The saved type and debit/credit direction disagree. Review the original evidence and correct the ledger; no automatic change has been made."})
+        if record.type == Transaction.Type.TRANSFER and record.transfer_account_id and record.account.currency != record.transfer_account.currency:
+            warnings.append({"code": "cross_currency_transfer", "level": "check", "text": "This transfer crosses currencies but stores only one amount. Review both account movements; no conversion has been inferred."})
         for code, label, account_id, source_direction in directions[record.pk]:
             ledger_direction = _ledger_direction_for_account(record, account_id)
             if ledger_direction and source_direction != ledger_direction:

@@ -82,10 +82,10 @@ session and CSRF cookies secure.
 
 ## Why is Python pinned to 3.13?
 
-The backend currently uses Django 5.1, which officially supports Python through
-3.13 but not Python 3.14. Render defaults newer services to Python 3.14, which
-breaks Django admin template rendering. The repository-level `.python-version`
-keeps hosted native Python builds on the compatible 3.13 series.
+The backend uses Django 5.2 LTS and keeps Python 3.13 as the tested deployment
+target. The repository-level `.python-version` prevents hosting defaults from
+silently selecting another major runtime. Dependency constraints lock the tested
+Python package set and should be regenerated deliberately with verification.
 
 ## What does CI check before a change reaches main?
 
@@ -166,3 +166,48 @@ environment with `ALLOW_STATEMENT_CODE_REFRESH=1` on that command only. Dry-run
 first and pass its digest to `--apply`. The flag is unset afterward, so the
 maintenance command is disabled by default. Keep the PDF unlock password in a
 temporary environment variable if needed, not in shell arguments or Git.
+
+## Which new settings and health checks are required by the review fixes?
+
+Apply `users.0001_initial` before API traffic and use the same private random
+32+ character `FINANCE_PROXY_AUTH_SECRET` on API/web. Outside Vercel, configure a
+trusted ingress-overwritten client-IP header and block direct web-origin bypass.
+Production sign-in fails closed if identity is unconfigured. Readiness checks DB
+connectivity and pending migrations at `/api/health/ready/`; liveness stays at
+`/api/health/`. DATABASE_URL TLS/timeout options are preserved rather than discarded.
+Python constraints pin the tested dependency set; native build/tests and high-risk
+npm audits run in CI. See the remediation document for remaining low Expo warnings.
+
+## What can the backup restore test prove?
+
+Backup safety tests cover failed dumps, private files, overwrite refusal, tamper
+rejection and atomic restore flags. A native-PG drill restores into a new
+synthetic-only database and compares all public-table counts/fingerprints. Local
+verification included encrypted SMS/PDF bytes across 46 tables. This proves
+preservation under that environment, not production key availability or RPO/RTO.
+Dumps still require encrypted off-machine storage, access control, failure alerts
+and periodic application/decryption recovery exercises.
+
+## How can operations diagnose errors without logging financial input?
+
+Each API response has a generated request ID and app duration, forwarded by the
+web proxy. The dedicated production logger records resolver route patterns,
+method, status and duration only; it excludes raw paths, query/body values,
+headers, user/account IDs and IPs. Hosting must configure alert delivery and log
+retention. Readiness, latency and backup alerts are operational gates, not
+services automatically configured by the source-code change.
+
+## Why did a hosted DATABASE_URL fail before migrations ran?
+
+The former fixed query-option allowlist rejected valid libpq options such as
+Neon's `channel_binding=require`, raising `ImproperlyConfigured` while importing
+settings. No database connection or migration had started at that point. Option
+names now use the installed psycopg/libpq parser; supported values are preserved,
+while duplicate keys and invalid SSL/channel-binding modes or timeout ranges
+remain explicit errors. URI identity cannot be overridden through query options,
+so transaction-pooler detection uses the actual configured host. Driver exceptions
+are suppressed rather than echoed with potentially private connection values.
+The regression tests parse synthetic direct/pooled URLs without connecting, test
+encoded credentials and quoted option values, and verify redacted failures. Keep
+the provider's TLS requirements and redeploy the fixed API; no new migration is
+needed for this compatibility correction.

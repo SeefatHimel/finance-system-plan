@@ -1,0 +1,2 @@
+# Keep the installer itself on the audited security baseline.
+pip==26.2.2

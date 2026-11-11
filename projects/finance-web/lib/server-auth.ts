@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { loginProxyHeaders, refreshProxyHeaders } from "./server-proxy-auth";
 
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -93,12 +94,11 @@ export function clearAuthCookies(response: NextResponse) {
   });
 }
 
-export async function backendLogin(username: string, password: string) {
+export async function backendLogin(username: string, password: string, request?: Request) {
   const response = await fetch(`${getServerApiBaseUrl()}/api/auth/login/`, {
     body: JSON.stringify({ password, username }),
-    headers: {
-      "Content-Type": "application/json"
-    },
+    signal: AbortSignal.timeout(20_000),
+    headers: { "Content-Type": "application/json", ...loginProxyHeaders(request) },
     method: "POST"
   });
 
@@ -115,9 +115,7 @@ async function requestBackendRefresh(refreshToken: string) {
     cache: "no-store",
     signal: AbortSignal.timeout(20_000),
     body: JSON.stringify({ refresh: refreshToken }),
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json", ...refreshProxyHeaders(refreshToken) },
     method: "POST"
   });
 
@@ -134,22 +132,20 @@ async function backendRefresh(refreshToken: string) {
 }
 
 export async function revokeCookieBackedSession() {
-  const refreshToken = cookies().get(refreshCookieName)?.value;
+  const refreshToken = (await cookies()).get(refreshCookieName)?.value;
   if (!refreshToken) {
     return;
   }
 
   await fetch(`${getServerApiBaseUrl()}/api/auth/logout/`, {
     body: JSON.stringify({ refresh: refreshToken }),
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json", ...refreshProxyHeaders(refreshToken) },
     method: "POST"
   });
 }
 
 export async function getCookieBackedAccessToken() {
-  const accessToken = cookies().get(accessCookieName)?.value;
+  const accessToken = (await cookies()).get(accessCookieName)?.value;
   if (accessToken) {
     return {
       accessToken,
@@ -161,7 +157,7 @@ export async function getCookieBackedAccessToken() {
 }
 
 export async function refreshCookieBackedAccessToken() {
-  const refreshToken = cookies().get(refreshCookieName)?.value;
+  const refreshToken = (await cookies()).get(refreshCookieName)?.value;
   if (!refreshToken) {
     throw new AuthRequestError("Not signed in.", 401);
   }
@@ -190,7 +186,7 @@ export async function backendCurrentUser(accessToken: string) {
 }
 
 export async function getCookieBackedCurrentUser() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const accessToken = cookieStore.get(accessCookieName)?.value;
   const refreshToken = cookieStore.get(refreshCookieName)?.value;
 

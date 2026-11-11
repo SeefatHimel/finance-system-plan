@@ -7,6 +7,26 @@ from django.core.validators import MinValueValidator
 from django.db import models
 
 
+class CashCountBatch(models.Model):
+    """Idempotent receipt and encrypted input; never an additional money ledger."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    idempotency_key = models.UUIDField()
+    input_digest = models.CharField(max_length=64)
+    original = models.BinaryField()
+    filename = models.CharField(max_length=180, default="Cash count")
+    receipt = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints: ClassVar = [
+            models.UniqueConstraint(
+                fields=("user", "idempotency_key"), name="cash_count_retry_per_user"
+            )
+        ]
+
+
 class BalanceSnapshot(models.Model):
     class Status(models.TextChoices):
         MATCHED = "matched", "Matched"
@@ -27,10 +47,24 @@ class BalanceSnapshot(models.Model):
         related_name="balance_snapshots",
     )
     checked_at = models.DateTimeField()
+    cash_count_batch = models.ForeignKey(
+        CashCountBatch,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="counts",
+    )
+    # Existing checkpoints were calculated by calendar day, regardless of clock.
+    precision = models.CharField(
+        max_length=16,
+        default="end_of_day",
+        choices=(("end_of_day", "End of day"), ("instant", "Specific time")),
+    )
+    timing_order = models.JSONField(default=dict, blank=True)
     actual_balance = models.DecimalField(
         max_digits=14,
         decimal_places=2,
-        validators=[MinValueValidator(Decimal("0"))],
+        validators=[MinValueValidator(Decimal(0))],
     )
     expected_balance = models.DecimalField(max_digits=14, decimal_places=2)
     difference = models.DecimalField(max_digits=14, decimal_places=2)
@@ -52,7 +86,7 @@ class BalanceSnapshot(models.Model):
 
     class Meta:
         ordering = ("-checked_at", "-created_at")
-        indexes = [
+        indexes: ClassVar = [
             models.Index(fields=("user", "account", "checked_at")),
             models.Index(fields=("user", "status")),
         ]

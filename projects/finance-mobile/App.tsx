@@ -1,3 +1,4 @@
+import { queuedEntryInput } from "./src/manual-entry-identity";
 import { useReviewMutation, reviewSnapshots, restoreReviewRows, type ReviewDecision } from "./src/review-mutation";
 import { ReviewSaveNotice } from "./src/review-save-notice";
 import { reviewDraftError } from "./src/review-validation";
@@ -3022,8 +3023,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       };
 
       try {
+        attemptedTransaction.input = queuedEntryInput(attemptedTransaction.id, attemptedTransaction.input);
         if (attemptedTransaction.input.type === "transfer") {
-          attemptedTransaction.input = { ...attemptedTransaction.input, external_key: attemptedTransaction.input.external_key || `queued-transfer:${attemptedTransaction.id}` };
           const matches = await findTransferMatches(accessToken.trim(), { draft: attemptedTransaction.input });
           if (matches.length) {
             await saveTransactionQueue([...remainingQueue, attemptedTransaction, ...transactionQueue.slice(queueIndex + 1)]);

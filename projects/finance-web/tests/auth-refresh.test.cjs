@@ -161,6 +161,41 @@ test('a successful category deletion forwards its bodyless 204 response', async 
   assert.equal(response.cookies.values.get('finance_refresh')[0], tokens.refresh);
 });
 
+test('proxy retains paging and retry metadata and never browser-caches private responses', async () => {
+  const h = harness(async () => new Response('[]', { headers: {
+    'content-type': 'application/json', 'x-total-count': '143', 'x-next-offset': '',
+    'retry-after': '20', 'cache-control': 'public, max-age=3600'
+  } }));
+  h.jar.set('finance_access', 'synthetic-current-access');
+  const request = new Request('https://finance.invalid/api/backend/api/transactions/');
+  request.nextUrl = new URL(request.url);
+  const response = await h.load('app/api/backend/[...path]/route.js').GET(request, { params: Promise.resolve({ path: ['api','transactions'] }) });
+  assert.equal(response.headers.get('x-total-count'), '143');
+  assert.equal(response.headers.get('x-next-offset'), '');
+  assert.equal(response.headers.get('retry-after'), '20');
+  assert.equal(response.headers.get('cache-control'), 'private, no-store');
+});
+
+test('canceling a page request aborts its upstream proxy fetch', async () => {
+  let upstream, started;
+  const ready = new Promise(resolve => { started = resolve; });
+  const h = harness(async (_url, init) => {
+    upstream = init.signal;
+    started();
+    return new Promise((_resolve, reject) => upstream.addEventListener('abort', () => reject(upstream.reason), {once:true}));
+  });
+  h.jar.set('finance_access', 'synthetic-current-access');
+  const controller = new AbortController();
+  const request = new Request('https://finance.invalid/api/backend/api/transactions/activity/', {signal:controller.signal});
+  request.nextUrl = new URL(request.url);
+  const pending = h.load('app/api/backend/[...path]/route.js').GET(request, { params: Promise.resolve({ path:['api','transactions','activity'] }) });
+  await ready;
+  assert.equal(upstream.aborted, false);
+  controller.abort();
+  await pending;
+  assert.equal(upstream.aborted, true);
+});
+
 test('browser verification shares checks and recovers a stale 401 before signing out', async () => {
   let calls = 0;
   const h = harness(async () => ++calls === 1 ? json({}, 401) : json(user));

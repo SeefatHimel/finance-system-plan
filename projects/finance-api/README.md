@@ -221,8 +221,12 @@ The API project is scaffolded with:
 
 ## Local Setup
 
-The repository pins Python 3.13 in `.python-version`. Django 5.1 does not
-support Python 3.14, so hosted Python runtimes must honor this pin.
+The repository pins Python 3.13 in `.python-version` and uses Django 5.2 LTS.
+Hosted runtimes must honor the pin. `requirements.txt` includes the exact tested
+dependency constraints; update the constraints deliberately alongside testing.
+Development requirements also install the patched installer baseline from
+`requirements-tooling.txt`; production images install that baseline before runtime
+dependencies.
 
 Create a virtual environment:
 
@@ -1852,3 +1856,156 @@ Activity/list queries batch source reads, capped at 20 SMS and 20 statement rows
 record; `complete=false` prevents a verified badge after truncation. Writes re-read
 facts instead of returning stale prefetch data. No migration is required. Verify:
 `python manage.py test apps.transactions.test_balance_provenance apps.transactions.test_activity`.
+
+## Architecture review corrections
+
+Planning edits now serialize with payments and recompute derived debt/card totals.
+New or explicitly edited ledger directions must agree with type; cross-currency
+transfers and currency changes after financial use are rejected. Existing issues
+are surfaced by the issue scanner without rewriting historical evidence.
+Transaction arrays are bounded to 100; activity pages expose count/next_offset,
+and `/api/transactions/totals/` computes whole-filter currency totals in SQL.
+Account balances use SQL sums/latest effective reports rather than materializing
+all transactions. Readiness is `/api/health/ready/`.
+
+Apply `users.0001_initial` and configure matching private proxy secrets on API/web
+before deployment. Auth throttles are shared in PostgreSQL; only signed proxy
+refresh retries receive the encrypted five-second rotation result. See
+[remediation and rollout](../../docs/architecture-review-remediation.md).
+
+### Second review: query and cache efficiency
+
+Account detail reads now summarize only the requested account. List reads reuse
+selected instances and batch timing checks, avoiding per-account queries. Statement
+counts are correlated to returned transactions; overview coverage selects only the
+latest import/check per account. Report queries exclude unused logos/notes.
+API responses default to private no-store unless already explicitly no-store.
+See the remediation document for measured query counts and test coverage.
+
+## Integrity, query and operational checks
+
+- `python manage.py audit_financial_integrity --fail-on-issues` reports private
+  aggregate issue counts without changing financial records.
+- `python manage.py validate_financial_constraints --reviewed` explicitly validates
+  historical PostgreSQL rows after operator review. Migration 0011 stages new
+  write checks; migration 0012 creates ordered partial balance indexes online.
+- `python manage.py benchmark_finance --rows 100000 --concurrency 1,10,25 --requests 25`
+  runs only on an isolated `finance_benchmark_*` database with synthetic users.
+  Use a fresh DB per smaller dataset; never use production.
+- `python manage.py seed_quality_browser` accepts only `finance_e2e_*` databases
+  and requires a test-only `FINANCE_E2E_PASSWORD` of at least 16 characters.
+- `FINANCE_API_REQUEST_LOGS` controls route-pattern/status/duration/request-ID
+  diagnostics. It defaults on outside debug and excludes financial inputs.
+
+Reports aggregate in SQL; latest reports preserve effective selections and
+reviewed blanks. PDF/SMS pairing/correction/Undo and concurrent identical retries
+have integration coverage. Full scope, measured limits and staged rollout are
+in [the quality program](../../docs/quality-improvement-program.md).
+
+Financial aggregate consistency: sending/receiving balances share one SQL
+statement. Report totals, groups and current/previous periods are also projected
+in one statement with decimal-string money values. This prevents a concurrent
+save from partially appearing within that aggregation, including inside an
+existing READ COMMITTED transaction. Login throttle lookup/create now acquires
+its row lock immediately, protecting against expired-window cleanup. The
+committed-write race tests run on PostgreSQL; SQLite keeps development coverage
+for ordinary report shapes, IDs and empty/equal-value groups.
+
+## Hosted PostgreSQL connection options
+
+Keep the database provider's URL security options, including
+`sslmode=require&channel_binding=require`. PostgreSQL option names are validated
+with the installed psycopg/libpq parser and preserved in Django `OPTIONS`, rather
+than limited to a fixed allowlist. Parsing does not connect to the database.
+Repeated options and invalid SSL/channel-binding modes or connect timeouts are
+rejected. Host, database and credentials belong in the URI, not query overrides.
+Option-validation errors omit the raw URL and driver messages that may echo values.
+Use `python manage.py test config.tests.DatabaseSettingsTests` for the focused
+compatibility regressions. No migration is required for this settings fix.
+
+## Bulk spreadsheet entries and wallet counts
+
+`/api/bulk-imports/` stages signed-amount CSV/TSV tables without recording money.
+Versioned review resolves mappings, missing values, duplicates and checkpoint
+timing. Atomic confirmation creates canonical transactions or attaches source
+rows to explicitly chosen existing movements. Match previews distinguish SMS,
+statement PDF and spreadsheet evidence, and use only the reporting account’s
+effective transfer balance. Retries are idempotent. Original
+text is encrypted, and safe batch Undo never deletes pre-existing linked entries.
+
+Apply `reconciliation.0003` and `bulk_imports.0001` / `0002`. Checkpoints distinguish
+whole-day and specific-time comparisons; untimed entries require explicit ordering
+for timed counts. Snapshot mutations share the financial writer lock. Counts do
+not automatically adjust the ledger. Full workflow, limits, ownership guarantees,
+API routes and tests are in [bulk cash import](../../docs/bulk-cash-import.md).
+
+Bulk category suggestions resolve normalized exact names, then conservative
+whole-label synonyms against owned active expense categories. Ambiguous names
+stay unassigned; explicit row/batch choices, including null, win. Optional
+`decisions[row].notes` accepts multiline text up to 4,000 characters, including
+an empty string. New entries use reviewed notes; linking keeps the existing note
+and stores reviewed import notes separately. Original cells stay unchanged.
+Deploy the matching API before web; no migration is added.
+
+## Physical cash counts
+
+Authenticated `/api/cash-counts/` history/save, `/preview/` and `/{id}/` comparison
+endpoints record physical cash observations separately from ledger transactions.
+Only active cash/home_cash accounts can receive new counts; differences can be
+saved for review without adjustments. Date-only counts require explicit end-of-day
+confirmation and timed counts require ordering untimed entries. See
+[Cash counts](../../docs/cash-counts.md) for batch input, duplicates, bounded reads
+and deployment. Apply reconciliation migration 0004 before deploying the web UI.
+Focused checks: `python manage.py test apps.reconciliation.test_cash_counts`; use
+PostgreSQL for concurrent retry coverage.
+
+## Saved reports
+
+Apply `python manage.py migrate` before enabling named reports (`reports.0001_initial` and `reports.0002_savedreport_filters`).
+`/api/reports/saved/` provides authenticated, owner-scoped list/create and detail
+GET/PATCH/DELETE. Definitions store name, fixed inclusive dates (at most 366 days),
+date view, optional owned account and one currency. Account currency takes precedence.
+Membership is `(matching owned transactions OR explicit inclusions) MINUS explicit
+exclusions`, always restricted to the report currency. Choices are separate rows
+with a unique report/transaction constraint; neither report deletion nor membership
+changes update the ledger. Deleted transactions cascade their choices.
+
+`POST /api/reports/saved/{id}/membership/` takes `transaction` and `action`
+(`include`, `exclude`, `reset`). Reset follows filters again. Transaction browsing
+uses `/api/reports/saved/{id}/transactions/` with `scope=included|available|excluded`,
+`search`, `offset` and `limit` (default 25, max 100). Summary and transaction/export
+drill-through accept `saved_report={id}`. Other transaction filters intersect that
+membership. Prior-period comparisons remain unmodified filter results. Daily rows
+also include manually added dates outside the saved range. Currency changes keep
+choices but temporarily ignore choices in other currencies. No exchange conversion
+or immutable report snapshot is provided. Responses are private/no-store.
+
+Verify: `python manage.py test apps.reports` and
+`python manage.py makemigrations --check --dry-run`.
+
+Saved-report summaries and their ordinary previous-period comparison share the
+SQL aggregation path and one database statement. Membership is applied as a
+subquery, without loading ledger rows, account logos or private notes into Python.
+
+
+### Multi-scope report rules and previews
+
+SavedReport.filters is a validated JSON object, with UUID lists for accounts and
+excluded_accounts, category UUID/uncategorized lists for categories and
+excluded_categories, multi-value types/directions/sources, search, and nullable
+min_amount/max_amount decimal strings. Validate ownership, currency, list bounds,
+unknown keys, incompatible include/exclude choices and amount ordering before saving.
+An omitted filters field preserves existing rules on PATCH; supplying it replaces
+the rule definition. Legacy single-account definitions remain supported.
+
+Rules select the ledger through subqueries before SQL aggregation. Date/account/
+category/type/source/direction/search/amount rules apply to both periods; manual
+choices apply only to the current one. Transfers are matched once by either
+selected account; group cash flow counts only movements crossing that group.
+Transaction totals use the same group scope, while additional drill-through account
+filters may narrow it. Both periods retain the one-statement SQL snapshot guarantee.
+
+POST /api/reports/saved/preview/ accepts a full draft definition and optional
+saved_report UUID. Its owner-scoped manual choices apply to the draft without any
+writes. The response has the monthly report shape. Apply reports.0002_savedreport_filters
+before web rollout. Verify `python manage.py test apps.reports apps.transactions.test_activity`.

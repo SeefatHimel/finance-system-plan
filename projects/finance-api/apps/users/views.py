@@ -1,4 +1,6 @@
 from django.utils import timezone
+from django.db import transaction
+from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -58,7 +60,11 @@ class LogoutAllView(APIView):
     permission_classes = (IsAuthenticated,)
 
     @extend_schema(request=None, responses={204: None})
+    @transaction.atomic
     def post(self, request):
+        get_user_model().objects.select_for_update().get(pk=request.user.pk)
+        from .models import RefreshReplay
+        RefreshReplay.objects.filter(user=request.user).delete()
         outstanding_tokens = OutstandingToken.objects.filter(
             user=request.user,
             expires_at__gt=timezone.now(),

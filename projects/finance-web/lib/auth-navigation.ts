@@ -1,3 +1,5 @@
+import { isCustomReportPathname } from "./report-navigation";
+
 export const accessCookieName = "finance_access";
 export const refreshCookieName = "finance_refresh";
 export const sessionExpiredEvent = "finance:session-expired";
@@ -6,11 +8,11 @@ export type LoginReason = "required" | "expired" | "signed-out";
 
 const protectedPaths = new Set([
   "/", "/profile", "/quick-add", "/transactions", "/accounts", "/messages/review", "/sms-settings", "/statements", "/statement-counterparties", "/review",
-  "/reports", "/debts", "/credit-cards", "/recurring-bills", "/reconciliation", "/audit-logs"
+  "/reports", "/custom-reports", "/debts", "/credit-cards", "/recurring-bills", "/reconciliation", "/audit-logs"
 ]);
 
 export function isProtectedPath(pathname: string) {
-  return protectedPaths.has(pathname.replace(/\/$/, "") || "/");
+  return protectedPaths.has(pathname.replace(/\/$/, "") || "/") || isCustomReportPathname(pathname);
 }
 
 export function safeReturnPath(value: string | null | undefined) {

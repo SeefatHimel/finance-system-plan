@@ -1,12 +1,15 @@
 """URL routes for the finance API."""
 
-from django.contrib import admin
-from django.urls import include, path
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from rest_framework.routers import DefaultRouter
-
 from apps.accounts.views import AccountViewSet
 from apps.audit_logs.views import AuditLogEntryViewSet
+from apps.bulk_imports.views import (
+    BulkImportCommitView,
+    BulkImportDetailView,
+    BulkImportReopenView,
+    BulkImportsView,
+    BulkImportUndoView,
+    TransactionBulkSourcesView,
+)
 from apps.categories.views import CategoryViewSet
 from apps.credit_cards.views import CreditCardBillViewSet, CreditCardPaymentCreateView
 from apps.debts.views import DebtPaymentCreateView, DebtViewSet
@@ -29,6 +32,11 @@ from apps.messages.views import (
 )
 from apps.payment_methods.views import PaymentMethodViewSet
 from apps.quick_add.views import QuickAddPresetViewSet, QuickEntryView
+from apps.reconciliation.cash_views import (
+    CashCountComparisonView,
+    CashCountsPreviewView,
+    CashCountsView,
+)
 from apps.reconciliation.views import (
     AccountReconciliationView,
     BalanceSnapshotViewSet,
@@ -54,10 +62,20 @@ from apps.statements.unified_views import (
     UnifiedPendingView,
 )
 from apps.statements.views import StatementIdentifyView, StatementPreviewView
+from apps.transactions.payment_views import (
+    PlanningPaymentDetailView,
+    PlanningPaymentListView,
+)
+from apps.transactions.timeline_balances import (
+    TimelineBalanceDecisionView,
+    TimelineBalanceListView,
+)
+from apps.transactions.timeline_order import TimelineOrderListView, TimelineOrderView
 from apps.transactions.views import TransactionViewSet
-from apps.transactions.timeline_balances import TimelineBalanceListView, TimelineBalanceDecisionView
-from apps.transactions.timeline_order import TimelineOrderView, TimelineOrderListView
-from apps.transactions.payment_views import PlanningPaymentListView, PlanningPaymentDetailView
+from django.contrib import admin
+from django.urls import include, path
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
 router.register("quick-add/presets", QuickAddPresetViewSet, basename="quick-add-preset")
@@ -76,6 +94,15 @@ router.register("statements/rows", StatementRowViewSet, basename="statement-row"
 
 
 urlpatterns = [
+    path("api/cash-counts/", CashCountsView.as_view(), name="cash-counts"),
+    path("api/cash-counts/preview/", CashCountsPreviewView.as_view(), name="cash-counts-preview"),
+    path("api/cash-counts/<uuid:pk>/", CashCountComparisonView.as_view(), name="cash-count-comparison"),
+    path("api/bulk-imports/", BulkImportsView.as_view(), name="bulk-import-list"),
+    path("api/bulk-imports/<uuid:pk>/", BulkImportDetailView.as_view(), name="bulk-import-detail"),
+    path("api/bulk-imports/<uuid:pk>/commit/", BulkImportCommitView.as_view(), name="bulk-import-commit"),
+    path("api/bulk-imports/<uuid:pk>/reopen/", BulkImportReopenView.as_view(), name="bulk-import-reopen"),
+    path("api/bulk-imports/<uuid:pk>/undo/", BulkImportUndoView.as_view(), name="bulk-import-undo"),
+    path("api/transactions/<uuid:pk>/bulk-sources/", TransactionBulkSourcesView.as_view(), name="transaction-bulk-sources"),
     path("api/timeline-balances/", TimelineBalanceListView.as_view(), name="timeline-balance-list"),
     path("api/timeline-balances/<uuid:principal_id>/", TimelineBalanceDecisionView.as_view(), name="timeline-balance-decision"),
     path("api/timeline-order/", TimelineOrderListView.as_view(), name="timeline-order-list"),

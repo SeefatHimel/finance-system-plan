@@ -1898,6 +1898,125 @@ A ledger edit alone does not silently rewrite its saved SMS interpretation. The
 confirmed action refreshes the comparison and exposes latest-action Undo. Failed
 corrections appear in a toast, retaining the selected correction for review.
 
+## Do transaction totals cover the visible page or the full search?
+
+The full search. The table requests only 25/50/100 activity rows with a server
+count and offset; a separate totals endpoint groups the entire filtered result by
+currency. Filters and pagination remain in the URL after editing/canceling and an
+out-of-range page is corrected. A failed refresh preserves existing content.
+Next.js 15 uses awaited cookies, route params and server search params. Production
+proxy identity and refresh retries require the shared private API/web auth secret.
+
+## Does saving a quick entry reload the page or reset active work?
+
+No route refresh is necessary: financial workspaces already subscribe to the
+transaction-change event. Quick-add emits that event and retains the current
+page/filter; the second-pass browser test observed zero route refresh requests.
+Timeline account requests use abort controllers and reject canceled responses.
+The proxy carries abort signals upstream and retains pagination/retry metadata,
+with bounded request deadlines. Cancellation cannot promise database rollback.
+The dashboard streams a loader while its bounded health check resolves.
+
+## How are financial UI regressions checked beyond unit tests?
+
+Fresh Playwright contexts use disposable synthetic API data against a production
+web build. Desktop/mobile tests preserve page/filter state through edit/cancel,
+reload and quick-add, reject late responses and verify keyboard focus/Escape.
+Axe checks the transaction workspace and quick-entry dialog in both themes.
+Browser checks found and fixed an action-menu scroll dismissal and light-theme
+contrast defects. They do not certify accessibility of every route or inspect a
+user's actual data. CI retains synthetic failure traces briefly.
+
+## Does extracting the transaction loader add another cache or ledger copy?
+
+No. It owns one cancellable session-scoped read, starts independent requests
+together, reuses current reference data and bounds invalid pages. The workspace
+still owns stale-result rejection and filters; the API remains authoritative.
+Private API/proxy payloads remain no-store. Larger UI modules can be separated
+incrementally without redesigning financial semantics.
+
+## How can spreadsheet users add cash history without reviewing every row separately?
+
+Import entries opens a dialog inside Transactions, preserving filters and page.
+Users paste cells or upload CSV/TSV/text, map columns/categories once per batch,
+and review 25 rows at a time or only highlights. Important exceptions and possible
+matches expand in place; a bulk review action acknowledges details without choosing
+a link. Missing amounts must be fixed or skipped. Optional wallet counts explain
+end-of-day versus specific-time ordering. One spinner reports each request; edited
+inputs require a new preview. Receipts expose original rows, safe Undo and reopening.
+Spreadsheet evidence is also available from transaction details/editor. The flow
+needs API/database migrations and does not upload Excel files or connect Google
+accounts directly; copy cells or export UTF-8 CSV.
+
+## How does bulk review distinguish descriptions, notes and category suggestions?
+
+The row editor explains Description as the list title and exposes multiline
+Notes with a 4,000-character limit. Edited/cleared notes survive preview refresh;
+original cells stay inspectable. Mapping and row selectors show server
+suggestions and preserve explicit Uncategorized choices. The summary shows
+suggested/unassigned counts. Linking explains that existing ledger values stay
+intact; reviewed notes remain inspectable in Spreadsheet evidence. API must
+deploy before web. Synthetic desktop/mobile tests cover edits, clearing, source
+retention, category defaults/overrides and accessible controls.
+
+### Why is cash counting a separate workflow?
+
+Physical counts happen occasionally and should not clutter SMS/statement review
+or imply that cash must be counted every day. Planning → Cash counts accepts one
+count or a table, validates account/column mappings, and shows counted cash versus
+ledger expectation. A discrepancy can be saved for later review. Unknown times
+stay unknown, with explicit end-of-day or relative timing decisions. History
+comparison opens in place, restores keyboard focus and retains the account filter.
+The UI uses loaders/toasts, bounded lists and stale-response protection. It never
+auto-adjusts cash to make numbers agree. See docs/cash-counts.md.
+
+### How do saved reports and returning to filters work?
+
+The Custom reports library (`/custom-reports`) opens each saved report on its own
+detail page. Separate builders save a report name, fixed dates/date view, currency
+and rules. Saved reports stay live as matching transactions arrive. Users can edit,
+duplicate or delete a saved definition without deleting transactions. Choose Manage
+transactions on the detail page to add existing same-currency entries outside its filters and
+removes individual matches. Removed entries can be added back or reset to follow
+the filters. Rule edits preview live with the report's existing manual choices.
+Duplicate copies rules only.
+
+The standard Reports page stays focused on summaries and offers a shortcut to
+create a custom report from its current filters. Standard filters and library
+search/sort have independent URL and tab-session state. Builder drafts are isolated
+per report and cleared on save/discard; sign-out clears all report state.
+All report routes require authentication. Old saved-report links open the stable
+detail page. Drill-through carries effective saved membership and offers Back to report. Previous-period
+comparisons use the original filters without manual choices.
+
+
+### What can a custom report filter, and how do exclusions behave?
+
+The builder supports multiple accounts/categories with Include and Exclude choices,
+Uncategorized, multiple types/sources/directions, search and inclusive amount limits.
+An empty included group means all; group choices use OR while different groups use
+AND. Category matching is exact. Excluded accounts remove any movement involving
+them. Same-currency transfers match either selected account once; cash flow excludes
+transfers internal to the selected group. Currency changes clear incompatible
+accounts. Manual additions override rules; explicit removals win. The UI states
+these rules and previews the result before saving. Comparisons use the same rules
+without manual choices. Save before drill-through/export; per-report tab-session
+drafts retain unsaved rules. CSV exports the persisted effective selection.
+
+
+### Why are the custom-report list, details and builder separate pages?
+
+The library is for finding and running saved reports; details are for reading the
+result; the builder is for changing the definition. `/custom-reports` has search,
+sort, scope/date metadata and View/Edit/Duplicate/Delete actions. Stable UUID detail
+URLs show totals and breakdowns before read-only transactions and saved rules.
+Create and Edit have separate routes, preview and explicit Save/Cancel. Saving opens
+the saved detail view. Manage transactions explicitly enables add/remove controls.
+Library search/sort survives returning, drafts are isolated per report and unsaved
+changes prompt before in-app navigation. Duplicate copies rules without manual
+choices. Nested routes require authentication and remain valid login/drill-through
+return paths. These are client workflow changes using existing owner-scoped APIs.
+
 ### Why does the web app expose a mobile release manifest?
 
 The public `/mobile-release.json` route reads the highest-code published mobile APK release
