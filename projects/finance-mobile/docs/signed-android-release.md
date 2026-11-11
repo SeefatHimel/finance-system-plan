@@ -25,6 +25,11 @@ automated host tests or Metro export alone.
 - JDK 17 available through `JAVA_HOME`.
 - A physical Android phone for validating SMS capture.
 
+Install the locked mobile dependencies with `npm ci` before assembling. Metro
+0.82 calls the `image-size` 1.x function API while processing bundled images;
+the mobile lockfile pins that compatible version. A release build is the check
+that image bundling and the native package both succeed.
+
 Verify the local toolchain before building:
 
 ```bash
