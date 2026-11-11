@@ -19,7 +19,6 @@ jobs:
     env:
       RELEASE_REPOSITORY: SeefatHimel/finance-system-plan
       EXPO_PUBLIC_API_BASE_URL: https://finance-system-plan.onrender.com
-      FINANCE_UPLOAD_STORE_FILE: ${{ runner.temp }}/finance-upload-key.jks
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,6 +37,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+      - name: Set temporary signing key path
+        run: echo "FINANCE_UPLOAD_STORE_FILE=$RUNNER_TEMP/finance-upload-key.jks" >> "$GITHUB_ENV"
       - name: Verify release configuration and previous version
         working-directory: projects/finance-mobile
         env:
