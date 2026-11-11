@@ -1,0 +1,113 @@
+name: Signed Android release
+
+on:
+  push:
+    tags:
+      - 'mobile-v*-code*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RELEASE_REPOSITORY: SeefatHimel/finance-system-plan
+      EXPO_PUBLIC_API_BASE_URL: https://finance-system-plan.onrender.com
+      FINANCE_UPLOAD_STORE_FILE: ${{ runner.temp }}/finance-upload-key.jks
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Only publish commits already on main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor HEAD origin/main || { echo 'Release tag must point to a commit on main'; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: projects/finance-mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Verify release configuration and previous version
+        working-directory: projects/finance-mobile
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/check-release-version.mjs "$GITHUB_REF_NAME"
+          previous_code=$(gh api "repos/$RELEASE_REPOSITORY/releases?per_page=100" --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' | sed -nE 's/^mobile-v[0-9]+\.[0-9]+\.[0-9]+-code([0-9]+)$/\1/p' | sort -n | tail -1)
+          if [ -n "$previous_code" ]; then
+            current_code=${GITHUB_REF_NAME##*code}
+            (( current_code > previous_code )) || { echo 'Release code must exceed the latest published mobile code'; exit 1; }
+          fi
+          if gh release view "$GITHUB_REF_NAME" --repo "$RELEASE_REPOSITORY" >/dev/null 2>&1; then
+            echo 'This release tag already exists in the download repository'; exit 1
+          fi
+      - name: Install and check mobile source
+        working-directory: projects/finance-mobile
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+      - name: Restore release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.FINANCE_UPLOAD_KEYSTORE_BASE64 }}
+          FINANCE_UPLOAD_STORE_PASSWORD: ${{ secrets.FINANCE_UPLOAD_STORE_PASSWORD }}
+          FINANCE_UPLOAD_KEY_ALIAS: ${{ secrets.FINANCE_UPLOAD_KEY_ALIAS }}
+        run: |
+          test -n "$KEYSTORE_BASE64" && test -n "$FINANCE_UPLOAD_STORE_PASSWORD" && test -n "$FINANCE_UPLOAD_KEY_ALIAS"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$FINANCE_UPLOAD_STORE_FILE"
+          chmod 600 "$FINANCE_UPLOAD_STORE_FILE"
+          keytool -list -keystore "$FINANCE_UPLOAD_STORE_FILE" -storepass "$FINANCE_UPLOAD_STORE_PASSWORD" -alias "$FINANCE_UPLOAD_KEY_ALIAS" >/dev/null
+      - name: Build signed production APK
+        working-directory: projects/finance-mobile/android
+        env:
+          NODE_ENV: production
+          FINANCE_UPLOAD_STORE_PASSWORD: ${{ secrets.FINANCE_UPLOAD_STORE_PASSWORD }}
+          FINANCE_UPLOAD_KEY_ALIAS: ${{ secrets.FINANCE_UPLOAD_KEY_ALIAS }}
+          FINANCE_UPLOAD_KEY_PASSWORD: ${{ secrets.FINANCE_UPLOAD_KEY_PASSWORD }}
+        run: ./gradlew clean assembleRelease --no-daemon
+      - name: Verify the exact APK before publishing
+        id: apk
+        working-directory: projects/finance-mobile
+        run: |
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          test -s "$apk"
+          build_tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          "$build_tools/apksigner" verify --verbose "$apk"
+          cert=$("$build_tools/apksigner" verify --print-certs "$apk" | sed -nE 's/^.*certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sed -n '1p' | tr '[:upper:]' '[:lower:]')
+          test "$cert" = 'a8600562b939c93ea66645547aa1fa225f4628a4cfb53cb180a42df67a857845' || { echo 'Signing certificate differs from installed Finance app'; exit 1; }
+          badging=$("$build_tools/aapt" dump badging "$apk" | sed -n '1p')
+          version_name=${GITHUB_REF_NAME#mobile-v}; version_name=${version_name%-code*}
+          version_code=${GITHUB_REF_NAME##*code}
+          [[ "$badging" == *"name='com.personalfinance.mobile'"* && "$badging" == *"versionCode='$version_code'"* && "$badging" == *"versionName='$version_name'"* ]] || { echo 'APK package or version differs from tag'; exit 1; }
+          unzip -p "$apk" assets/index.android.bundle | grep -a 'https://finance-system-plan.onrender.com' > /dev/null || { echo 'Production API URL missing from APK'; exit 1; }
+          if unzip -p "$apk" assets/index.android.bundle | grep -a '10.0.2.2' > /dev/null; then echo 'Emulator URL found in APK'; exit 1; fi
+          release_apk="$RUNNER_TEMP/finance-mobile-$version_name.apk"
+          cp "$apk" "$release_apk"
+          sha256sum "$release_apk" | tee "$RUNNER_TEMP/apk.sha256"
+          echo "path=$release_apk" >> "$GITHUB_OUTPUT"
+      - name: Publish verified APK to Finance Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "${{ steps.apk.outputs.path }}" \
+            --repo "$RELEASE_REPOSITORY" --draft --title "Finance Android $GITHUB_REF_NAME" \
+            --notes "Signed Finance Android update. Install over the existing app to keep local data."
+          gh release edit "$GITHUB_REF_NAME" --repo "$RELEASE_REPOSITORY" --draft=false
+          asset="$(basename '${{ steps.apk.outputs.path }}')"
+          url="https://github.com/$RELEASE_REPOSITORY/releases/download/$GITHUB_REF_NAME/$asset"
+          curl --fail --head --location --silent --show-error --retry 3 --output /dev/null "$url"
+          echo "Published $url"
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f "$FINANCE_UPLOAD_STORE_FILE"

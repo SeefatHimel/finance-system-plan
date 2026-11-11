@@ -50,6 +50,10 @@ React Native Metro: 8081
   `docs/backup-automation.md`
 - A GitHub Actions workflow for API, web, mobile, contract generation, and
   migration/schema checks on pull requests and pushes to `main`
+- A separate tagged Android release workflow that builds a signed production
+  APK and publishes it to Finance GitHub Releases after checking
+  the version, package, production API address and signing certificate. Its
+  keystore and passwords are GitHub Actions secrets.
 
 ## Why not decide production hosting now?
 

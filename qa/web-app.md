@@ -1897,3 +1897,14 @@ accounts and unlink-to-review, with the original SMS available before confirming
 A ledger edit alone does not silently rewrite its saved SMS interpretation. The
 confirmed action refreshes the comparison and exposes latest-action Undo. Failed
 corrections appear in a toast, retaining the selected correction for review.
+
+### Why does the web app expose a mobile release manifest?
+
+The public `/mobile-release.json` route reads the highest-code published mobile APK release
+from the public Finance GitHub Releases feed. It advertises only an uploaded
+asset with the expected release tag, APK filename and GitHub download URL. It
+does not query the financial API or identify the phone. The response is cached
+for five minutes. Before the first mobile release, the current local build is
+reported without a download link. Invalid release metadata or an unavailable
+GitHub API yields a temporary 503. The release binary and signing key are never
+committed to the web project.
