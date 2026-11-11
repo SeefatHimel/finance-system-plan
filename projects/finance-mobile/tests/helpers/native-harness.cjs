@@ -10,6 +10,7 @@ function nativeHarness(api = {}, os = "android", modules = {}) {
   const native = Object.fromEntries(
     [
       "ActivityIndicator",
+      "Image",
       "KeyboardAvoidingView",
       "Pressable",
       "ScrollView",
@@ -62,6 +63,8 @@ function nativeHarness(api = {}, os = "android", modules = {}) {
       mod,
       mod.exports,
       (name) => {
+        if (name.endsWith(".png")) return { uri: "synthetic-local-image" };
+        if (name.endsWith(".json")) return { __esModule: true, default: JSON.parse(readFileSync(resolve(file, "..", name), "utf8")) };
         if (Object.hasOwn(modules, name)) return modules[name];
         if (name === "react" || name === "react/jsx-runtime")
           return require(name);

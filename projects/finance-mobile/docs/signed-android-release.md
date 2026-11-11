@@ -96,7 +96,11 @@ Android project. Update the version in `package.json`, the root package entries
 in `package-lock.json`, and the SMS device-status `app_version` values in
 `App.tsx`. Android requires a larger `versionCode` for every upgrade.
 
-The current release is **0.1.26**, Android version code **27**. It fixes the
+The current release is **0.1.29**, Android version code **30**. It adds the
+in-app update check in More. Version 0.1.28 added the Finance launcher and
+splash mark and displays saved account logos on mobile. Version 0.1.27 refined
+mobile card corners and bottom navigation icon alignment, and added brief
+reduced-motion-aware expansion for SMS and review details. Version 0.1.26 fixed the
 transaction details header so the title and actions cannot compress each other
 into an oversized blank area. Version 0.1.25 added compact
 slate-blue widget cards and a calmer type and card hierarchy across the mobile
@@ -107,10 +111,10 @@ expandable original and compact correction form.
 The signed-in navigation now has one More list for secondary destinations and a
 screen-specific header; shared mobile type sizes reduce oversized headings and
 supporting copy without shrinking inputs or tap targets.
-The app includes native home-screen widgets. Version code 27 upgrades the
-0.1.25/code-26 build in place. An earlier 0.1.23 build used code 24. Installing a
+The app includes native home-screen widgets. Version code 30 upgrades the
+0.1.28/code-29 build in place. An earlier 0.1.23 build used code 24. Installing a
 code-23 APK over it fails as a downgrade even when both APKs have the same
-signing key. Use this signed code-27 build to update it in place; do not
+signing key. Use this signed code-30 build to update it in place; do not
 uninstall the existing app merely to bypass the version check.
 Existing profile/appearance features require the API with `PATCH /api/auth/me/`.
 No new migration, native module, permission or queue reset is introduced.
@@ -142,10 +146,66 @@ the next build. From the `android` directory, for the current release:
 
 ```bash
 mkdir -p ../dist/releases
-cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.26.apk
+cp app/build/outputs/apk/release/app-release.apk ../dist/releases/finance-mobile-0.1.29.apk
 ```
 
 The `dist/` directory is ignored by Git; release binaries stay out of commits.
+
+## Automatic APK releases outside Google Play
+
+The existing `dist/releases/finance-mobile-0.1.29.apk` is a local install file.
+The Finance source repository is already public, so its GitHub Releases can host
+signed APK assets. The release does not contain financial records. The vault
+project is separate and is not part of this workflow.
+
+In the **source repository's** GitHub Actions secrets, configure:
+
+| Secret | Value |
+| --- | --- |
+| `FINANCE_UPLOAD_KEYSTORE_BASE64` | Base64 of the existing permanent upload keystore, as one line |
+| `FINANCE_UPLOAD_STORE_PASSWORD` | Existing keystore password |
+| `FINANCE_UPLOAD_KEY_ALIAS` | Existing signing alias |
+| `FINANCE_UPLOAD_KEY_PASSWORD` | Existing key password |
+
+To prepare the first secret locally, run
+`base64 < ~/.android/finance-upload-key.jks | tr -d '\n'` and paste its output
+directly into GitHub's secret field. Do not paste it into chat or a tracked file.
+The three other values come from the existing private Gradle signing settings.
+
+Never put the keystore or passwords in Git or release notes. Keep the original
+signing key backed up. Allow GitHub Actions to create releases with its default
+`GITHUB_TOKEN` (repository Actions setting: read and write permissions). The workflow
+rejects an APK whose signing certificate differs from the installed Finance
+app. If that certificate intentionally changes, investigate the update path
+before changing the pinned fingerprint in the workflow.
+
+For each release, update the native, Expo, npm, device-status and documentation
+versions as described above, merge the reviewed code to `main`, then push one
+tag pointing at that commit, for example:
+
+```bash
+git tag mobile-v0.1.30-code31
+git push origin mobile-v0.1.30-code31
+```
+
+`.github/workflows/android-release.yml` checks that the tag is on `main`,
+versions agree, and the code exceeds the latest public release. It runs mobile
+typechecks/tests, builds with the production HTTPS API URL and permanent key,
+checks the package/version/signature/embedded API URL, then uploads the APK as a
+draft release in the Finance repository and publishes it. A failed build or
+verification publishes no update. If publishing fails after the draft is
+created, inspect that draft and repair or delete it before retrying the tag.
+
+The web route `/mobile-release.json` reads the highest-code **published mobile** Finance release and
+advertises its verified-looking asset URL with a five-minute cache. It cannot
+cryptographically prove the remote asset contents; the publishing workflow
+performs the APK verification. The phone checks when More is opened or **Check
+again** is tapped, without sending account data or a login token. Its download
+button opens the browser and Android asks for installation approval. Updates
+are never installed silently. Reuse the package ID and signing key so an update
+preserves the installed app's data.
+Before the first mobile release, the route reports the locally built 0.1.29
+version without a download link. Invalid mobile release metadata fails closed.
 
 The repository already contains the native Android project and SMS capture
 module. Do not run `expo prebuild --clean` before a release unless native files

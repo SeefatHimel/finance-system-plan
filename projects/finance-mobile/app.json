@@ -2,11 +2,14 @@
   "expo": {
     "name": "Finance",
     "slug": "finance-mobile",
-    "version": "0.1.26",
+    "version": "0.1.29",
+    "icon": "./assets/finance-icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "backgroundColor": "#081421"
+      "backgroundColor": "#081421",
+      "image": "./assets/finance-icon.png",
+      "resizeMode": "contain"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -14,7 +17,8 @@
     "android": {
       "allowBackup": false,
       "package": "com.personalfinance.mobile",
-      "versionCode": 27,
+      "versionCode": 30,
+      "icon": "./assets/finance-icon.png",
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"

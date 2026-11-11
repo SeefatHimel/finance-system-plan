@@ -76,6 +76,7 @@ export type Account = {
   is_active?: boolean;
   currency: string;
   id: string;
+  logo?: string;
   latest_reported_balance: string | null;
   latest_reported_balance_date: string | null;
   ledger_balance: string;

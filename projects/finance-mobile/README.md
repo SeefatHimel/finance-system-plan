@@ -97,12 +97,25 @@ vertically so they do not force narrow text columns. Buttons and inputs keep
 48dp touch targets and Android font scaling stays enabled. Install the new build
 to see this screen; physical-phone layout/accessibility checks are still needed.
 
-Institution badges use local initials and distinct colors for recognized bank and
-wallet names, with a neutral fallback for custom accounts. They are not bank or
-wallet logos; no external image request is needed at runtime. This release does
-not change transaction classification, saved financial data, SMS permissions or
-backend APIs. See [the signed release guide](docs/signed-android-release.md)
+The Android launcher, splash and Home header use the same Finance mark as the web app.
+Mobile shows an account's saved logo when one was uploaded through the web
+account editor; otherwise it uses the existing local initials and colors. The
+logo is part of the authenticated account response and needs no third-party
+image request at runtime. No bank or wallet trademarks are bundled with the
+APK. This release does not change transaction classification, saved financial
+data, SMS permissions or backend APIs. See [the signed release guide](docs/signed-android-release.md)
 for the current build and physical-device checks.
+
+Android updates are checked in **More → App updates** against the public
+`/mobile-release.json` on the web app. The check does not call the finance API
+or upload account data. A newer published release shows a download button that
+opens the APK in the browser; Android handles installation approval. Tagged
+releases are built, verified and uploaded to Finance GitHub Releases
+by GitHub Actions after its one-time signing and token setup. The APK is also
+built locally at `android/app/build/outputs/apk/release/app-release.apk` and may
+be copied to `dist/releases/finance-mobile-<version>.apk`. See
+[the signed release guide](docs/signed-android-release.md) for the setup and
+release steps.
 
 The **More → Profile & appearance** screen lets a signed-in user update their
 first name, last name and email through `PATCH /api/auth/me/`. Username stays
@@ -804,8 +817,13 @@ current screen and shows Back only for child screens; the bottom bar remains the
 main route selector. Screen headings use a compact hierarchy across Home,
 Activity, Capture, Review, More, Profile, Quick Add and selectors. Body copy and
 form labels are smaller while native font scaling and 48dp input/action targets
-remain enabled. Debts, credit-card bills, recurring bills and reconciliation
-open only their respective existing forms and load that section's data. Accounts
+remain enabled. Nested cards and controls use coordinated corners, and bottom
+navigation icons occupy equal-size slots so their labels align. Optional SMS
+and review details expand briefly unless the device requests reduced motion;
+their draft controls remain mounted while closed. Transaction detail sheets
+retain the platform slide transition. Debts, credit-card bills, recurring bills
+and reconciliation open only their respective existing forms and load that
+section's data. Accounts
 and SMS settings open their maintained native screens. Visible Back and Android hardware
 Back return to the prior screen. Quick Add's full-entry handoff opens the manual
 entry form directly. Redundant legacy login, connection and SMS panels are no

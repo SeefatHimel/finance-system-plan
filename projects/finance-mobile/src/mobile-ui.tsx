@@ -18,6 +18,7 @@ import { lightMobileStyles } from "./theme-styles";
 import { useLightAppearance } from "./mobile-theme";
 import { mobileType } from "./mobile-type";
 import { reviewSourceSegments } from "./review-source-highlights";
+import { animateDisclosureChange, useReduceMotion } from "./disclosure-motion";
 export const ui = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#081421" },
   content: { padding: 16, gap: 14 },
@@ -40,7 +41,7 @@ export const ui = StyleSheet.create({
     backgroundColor: "#0a1725",
     borderColor: "#294158",
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 12,
     minHeight: 48,
     color: "#f6f8fc",
@@ -49,7 +50,7 @@ export const ui = StyleSheet.create({
   button: {
     minHeight: 48,
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     borderColor: "#294158",
     borderWidth: 1,
     backgroundColor: "#153747",
@@ -62,7 +63,7 @@ export const ui = StyleSheet.create({
     padding: 14,
     gap: 8,
     backgroundColor: "#0e1c2c",
-    borderRadius: 10,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: "#294158",
   },
@@ -268,6 +269,7 @@ export function SourceMessage({
   const isLight = useLightAppearance();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const reduceMotion = useReduceMotion();
   const inlineExpanded = fullBody || expanded;
   const body =
     message.redacted_at || message.status === "redacted" || !message.body
@@ -279,7 +281,7 @@ export function SourceMessage({
     ))
     : body;
   return (
-    <View style={compact ? [ui.card, { padding: 12, gap: 5 }] : ui.card}>
+    <View style={compact ? [ui.card, { padding: 12, gap: 5, borderRadius: 10 }] : ui.card}>
       <Text style={compact ? [ui.muted, { fontSize: 12, lineHeight: 17 }] : ui.muted}>
         {compact ? "Original SMS · " : ""}{message.sender} · {formatTimestamp(message.received_at)}
       </Text>
@@ -289,7 +291,7 @@ export function SourceMessage({
       <View style={ui.row}>
         {!fullBody ? <Pressable accessibilityRole="button"
           accessibilityLabel={expanded ? "Collapse original SMS" : compact ? "Show full original SMS" : "Expand original SMS"}
-          accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={[ui.button, compact && { paddingHorizontal: 10, paddingVertical: 8 }]}>
+          accessibilityState={{ expanded }} onPress={() => { animateDisclosureChange(reduceMotion); setExpanded(value => !value); }} style={[ui.button, compact && { paddingHorizontal: 10, paddingVertical: 8 }]}>
           <Text style={[ui.text, { fontSize: compact ? 13 : 16, lineHeight: compact ? 19 : 24, fontWeight: "700" }]}>{expanded ? "Show less" : compact ? "Show full SMS" : "▸ Expand SMS"}</Text>
         </Pressable> : null}
         {!compact ? <ActionButton label="View full SMS" onPress={() => setOpen(true)} /> : null}

@@ -16,9 +16,12 @@ SMS before editable fields, and loads more candidates as the user approaches the
 end of the current window. Capture puts scanning first and groups completed
 setup controls. Accounts and preset-management rows expand on demand; an account
 balance discrepancy remains visible even when its detail is closed. Activity
-keeps the amount in a dedicated right-hand column. Bank and wallet badges use
-local text/color identifiers, not third-party logos, and custom names receive
-initials. Each account balance retains its own currency; the app does not combine
+keeps the amount in a dedicated right-hand column. Bank and wallet badges show
+saved account logos when uploaded through the web account editor; otherwise
+they use local text/color identifiers and custom names receive initials. No
+remote logo is fetched at runtime. The Android launcher and splash use the same
+Finance mark as the web app. Each account balance retains its own currency; the
+app does not combine
 different accounts into a misleading single total.
 
 ### How does mobile profile editing and appearance work?
@@ -33,6 +36,10 @@ The shared mobile theme also reaches Activity, Accounts, Quick Add, editor and
 selection modals, disclosures, and native date/time fields. Planning tools use
 the navy surface in Dark mode. Appearance changes do not remount workspace
 drafts.
+
+Shared cards and controls use coordinated nested corners, with equal-size
+bottom navigation icon slots. Optional details expand with a short transition
+unless the device requests reduced motion; closed draft controls stay mounted.
 
 ### How does mobile review limit clutter and learned choices?
 
@@ -115,6 +122,16 @@ Each update uses the same signing key and a larger Android version code. The
 Expo Android version code and native Gradle value stay aligned so regenerating
 native files preserves upgrade compatibility. Package, Expo and device-status
 versions identify the same release.
+
+### How do Android users receive a new version without Google Play?
+
+The More screen checks the public `/mobile-release.json` route when opened and
+on request. That route reads the latest published APK-only GitHub Release and
+returns its version and download URL. A tagged GitHub Actions build checks
+mobile tests, production API URL, package ID, Android version and permanent
+signing certificate before publishing. Android still requires the user to
+download and approve installation; this is an update notice, not silent install.
+The signing secrets and Actions release permission need one-time GitHub setup.
 
 ## What is currently implemented in the mobile app?
 
@@ -922,3 +939,15 @@ an explicit release environment value, this project falls back to the emulator
 address, which a physical phone cannot reach. Release builds now fail if the
 deployed HTTPS API URL is absent or points to localhost or the emulator. Verify
 the bundled URL before distributing the APK.
+
+### Can the Android app offer updates without Google Play?
+
+Yes. More → App updates checks the web app's public release manifest, not the
+finance API. It compares the published Android version code with the installed
+code and offers a browser download only when a newer release has a valid HTTPS
+APK URL. Android prompts the user to approve installation; the app does not
+silently install updates. The manifest can announce an unpublished release with
+`apkUrl: null`, which never offers a broken download. The APK is first built
+locally and copied to `dist/releases`, then uploaded separately to a public
+HTTPS host. The same application ID and signing key are required to update in
+place without clearing local data.

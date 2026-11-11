@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { useState } from "react";
+import { Image, Text, View } from "react-native";
 
 // These are in-app identifiers, not copies of bank or wallet trademarks.
 // Match only explicit institution names; a custom account keeps its own initials.
@@ -16,9 +17,13 @@ export function institutionBadge(name: string, type?: string) {
   return { label: initials, background: type === "wallet" ? "#303e54" : "#203a43", foreground: "#dbeef4" };
 }
 
-export function InstitutionMark({ name, type, size = 38 }: { name: string; type?: string; size?: number }) {
+export function InstitutionMark({ name, type, logo, size = 38 }: { name: string; type?: string; logo?: string; size?: number }) {
   const badge = institutionBadge(name, type);
-  return <View accessibilityLabel={`${name} account`} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: badge.background, alignItems: "center", justifyContent: "center" }}>
-    <Text style={{ color: badge.foreground, fontSize: badge.label.length > 2 ? size * 0.24 : size * 0.38, fontWeight: "800" }}>{badge.label === "cash" ? "৳" : badge.label}</Text>
+  const [failedLogo, setFailedLogo] = useState<string | null>(null);
+  // The API normalizes user-uploaded logos to image data URLs; never fetch remote logos.
+  const savedLogo = logo && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(logo) && logo !== failedLogo ? logo : null;
+  return <View accessibilityLabel={`${name} account`} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: badge.background, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+    {savedLogo ? <Image source={{ uri: savedLogo }} onError={() => setFailedLogo(savedLogo)} resizeMode="cover" style={{ width: size, height: size }} />
+      : <Text style={{ color: badge.foreground, fontSize: badge.label.length > 2 ? size * 0.24 : size * 0.38, fontWeight: "800" }}>{badge.label === "cash" ? "৳" : badge.label}</Text>}
   </View>;
 }

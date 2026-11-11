@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useLightAppearance } from "./mobile-theme";
+import { animateDisclosureChange, useReduceMotion } from "./disclosure-motion";
 /** Keep optional controls mounted so opening help never resets a draft. */
 export function Disclosure({
   label,
@@ -12,6 +13,7 @@ export function Disclosure({
   revealKey?: string;
 }) {
   const isLight = useLightAppearance();
+  const reduceMotion = useReduceMotion();
   const [open, setOpen] = useState(false);
   useEffect(() => { if (revealKey) setOpen(true); }, [revealKey]);
   return (
@@ -20,8 +22,8 @@ export function Disclosure({
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         accessibilityLabel={label}
-        onPress={() => setOpen((value) => !value)}
-        style={{ minHeight: 48, justifyContent: "center", padding: 12, borderRadius: 8,
+        onPress={() => { animateDisclosureChange(reduceMotion); setOpen((value) => !value); }}
+        style={{ minHeight: 48, justifyContent: "center", padding: 12, borderRadius: 12,
           backgroundColor: isLight ? "#e1f1ea" : "#153747" }}
       >
         <Text style={{ color: isLight ? "#213846" : "#dce8f6", fontWeight: "700" }}>

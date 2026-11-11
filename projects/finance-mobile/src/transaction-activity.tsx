@@ -609,7 +609,7 @@ export function TransactionActivity({
                 onPress={() => setSelected(row)}
                 style={[s.row, tone === "transfer" ? s.transferRow : tone === "credit" ? s.creditRow : s.debitRow]}
               >
-                <InstitutionMark name={accountNames.get(row.account) ?? "Unknown account"} type={accounts.find(item => item.id === row.account)?.type} size={36} />
+                <InstitutionMark name={accountNames.get(row.account) ?? "Unknown account"} type={accounts.find(item => item.id === row.account)?.type} logo={accounts.find(item => item.id === row.account)?.logo} size={36} />
                 <View style={s.rowBody}>
                   <Text numberOfLines={2} style={s.rowTitle}>
                     {transfer
@@ -685,12 +685,12 @@ const darkActivityStyles = StyleSheet.create({
     alignItems: "center",
   },
   toolbar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
-  iconButton: { minWidth: 48, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "#132a3b" },
+  iconButton: { minWidth: 48, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#132a3b" },
   addButton: { marginLeft: "auto" },
   button: {
     minHeight: 48,
     backgroundColor: "#132a3b",
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 12,
     justifyContent: "center",
   },
@@ -720,7 +720,7 @@ const darkActivityStyles = StyleSheet.create({
   transferRow: { borderLeftColor: "#75b8ff" },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
   rowTitle: { color: "#f6f8fc", fontSize: 14, fontWeight: "600" },
-  typeIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  typeIcon: { width: 36, height: 36, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   typeIconText: { fontSize: 18, fontWeight: "700" },
   debitIcon: { backgroundColor: "#3a232c" },
   creditIcon: { backgroundColor: "#12382f" },

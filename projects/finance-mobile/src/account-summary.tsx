@@ -25,7 +25,7 @@ export function AccountSummary({
     <View style={ui.card}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${account.name}, ledger balance ${formatCurrency(account.ledger_balance, account.currency)}${hasDifference ? ", reported balance needs review" : ""}`}
         accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={ui.row}>
-        <InstitutionMark name={account.name} type={account.type} />
+        <InstitutionMark name={account.name} type={account.type} logo={account.logo} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={1} style={ui.title}>{account.name}</Text>
           <Text style={ui.muted}>{displayLabel(account.type)} · {account.currency}{account.is_active === false ? " · Inactive" : ""}</Text>

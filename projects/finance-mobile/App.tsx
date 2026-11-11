@@ -20,11 +20,14 @@ import { useNavigationContainerRef } from "@react-navigation/native";
 import { mobileDestinations, workspaceTitles, refreshReviewWindow, reviewIndex, reviewSelection, type MobileDestination, type AdvancedTool, isMainTab, type MainTab, type WorkspaceRoute, type WorkspaceParams } from "./src/mobile-navigation";
 import { QuickAddHub, type QuickAddHandle } from "./src/quick-add-hub";
 import { WidgetSettings } from "./src/widget-settings";
+import { AppUpdateCard } from "./src/app-update-card";
+import appConfig from "./app.json";
 import { buildWidgetSnapshot, clearWidgetSnapshot, defaultWidgetPrivacy, parseWidgetAction, readWidgetPrivacy, saveWidgetPrivacy, syncWidgetSnapshot, widgetsAvailable, type MonthlySpending, type WidgetPrivacy, type WidgetAction } from "./src/android-widgets";
 import { quickSessionScope } from "./src/secure-document";
 import { transferComparison, transferBalanceConflicts } from "../finance-contracts/transfer-comparison";
 import { reviewReportedBalance, updateReviewBalanceContext } from "./src/review-balance";
 import { Disclosure } from "./src/disclosure";
+import { animateDisclosureChange, useReduceMotion } from "./src/disclosure-motion";
 import { NativeDateField, NativeTimeField } from "./src/native-time-field";
 import { smsSyncPresentation, smsSyncDiagnostics } from "./src/sms-sync-presentation";
 import { localDay, localTime, type QuickPreset, type QuickDraft } from "../finance-contracts/quick-add";
@@ -41,6 +44,7 @@ import {
   AppState,
   Alert,
   Appearance,
+  Image,
   Modal,
   PermissionsAndroid,
   Platform,
@@ -790,6 +794,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
 }) {
   const styles = isLight ? lightStyles : darkStyles;
   const ui = isLight ? lightUi : darkUi;
+  const reduceMotion = useReduceMotion();
   const quickHub = useRef<QuickAddHandle>(null);
   const sessionGeneration = useRef(0);
   const [editingTransaction, setEditingTransaction] = useState<{ id: string; scope: string } | null>(null);
@@ -1784,7 +1789,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       );
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.26",
+          app_version: appConfig.expo.version,
           background_state: isGranted ? "idle" : "disabled",
           device_id: "android-primary",
           pending_upload_count: pendingSmsCount,
@@ -1806,7 +1811,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     }
     if (accessToken.trim() && nextStatus) {
       await updateSmsDeviceStatus(accessToken.trim(), {
-        app_version: "0.1.26",
+        app_version: appConfig.expo.version,
         background_state: nextStatus.state === "error" ? "error" : nextStatus.state === "running" ? "running" : nextStatus.state === "success" ? "success" : "idle",
         device_id: "android-primary",
         failed_upload_count: nextStatus.rejectedCount,
@@ -1883,7 +1888,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         setSmsPermissionMessage("SMS access is ready. Choose trusted senders and start the sync.");
         if (accessToken.trim()) {
           await updateSmsDeviceStatus(accessToken.trim(), {
-            app_version: "0.1.26",
+            app_version: appConfig.expo.version,
             background_state: smsBackgroundStatus?.state === "running" ? "running" : "idle",
             device_id: "android-primary",
             pending_upload_count: pendingSmsCount,
@@ -1898,7 +1903,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       setSmsPermissionMessage("SMS permission was not granted. Manual raw-message import remains available.");
       if (accessToken.trim()) {
         await updateSmsDeviceStatus(accessToken.trim(), {
-          app_version: "0.1.26",
+          app_version: appConfig.expo.version,
           background_state: "disabled",
           device_id: "android-primary",
           platform: Platform.OS,
@@ -4023,7 +4028,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
 
     return (
       <View key={transaction.id} style={styles.mobileListRow}>
-        <InstitutionMark name={accountName(transaction.account)} type={accounts.find(account => account.id === transaction.account)?.type} size={38} />
+        <InstitutionMark name={accountName(transaction.account)} type={accounts.find(account => account.id === transaction.account)?.type} logo={accounts.find(account => account.id === transaction.account)?.logo} size={38} />
         <View style={styles.mobileRowBody}>
           <Text numberOfLines={1} style={styles.mobileRowTitle}>{title}</Text>
           <Text numberOfLines={1} style={styles.mobileRowMeta}>
@@ -4071,7 +4076,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
             {homeAccounts.map(account => (
               <View key={account.id} style={styles.mobileBalanceCard}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <InstitutionMark name={account.name} type={account.type} size={27} />
+                  <InstitutionMark name={account.name} type={account.type} logo={account.logo} size={27} />
                   <Text numberOfLines={1} style={[styles.mobileBalanceName, { flex: 1 }]}>{account.name}</Text>
                 </View>
                 <Text adjustsFontSizeToFit numberOfLines={1} style={styles.mobileBalanceAmount}>{formatCurrency(account.ledger_balance, account.currency)}</Text>
@@ -4133,7 +4138,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
               onPress={() => openReviewCandidate(reviewCandidates[index - 1].id)}
               style={styles.mobileIconAction}
             >
-              <MaterialCommunityIcons color={index === 0 ? "#50647e" : "#32d8f2"} name="chevron-left" size={23} />
+              <MaterialCommunityIcons color={index === 0 ? "#50647e" : "#32d8f2"} name="chevron-left" size={22} />
             </Pressable>
             <Pressable
               accessibilityLabel="Next message"
@@ -4141,10 +4146,10 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
               onPress={() => openReviewCandidate(reviewCandidates[index + 1].id)}
               style={styles.mobileIconAction}
             >
-              <MaterialCommunityIcons color={index >= reviewCandidates.length - 1 ? "#50647e" : "#32d8f2"} name="chevron-right" size={23} />
+              <MaterialCommunityIcons color={index >= reviewCandidates.length - 1 ? "#50647e" : "#32d8f2"} name="chevron-right" size={22} />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Refresh SMS review inbox" onPress={handleLoadReviewCandidates} style={styles.mobileIconAction}>
-              <MaterialCommunityIcons color="#32d8f2" name="refresh" size={20} />
+              <MaterialCommunityIcons color="#32d8f2" name="refresh" size={22} />
             </Pressable>
           </View>
           <View key={candidate.id} style={styles.mobileReviewCard}>
@@ -4170,7 +4175,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
               {reviewIssue ? <Text accessibilityRole="alert" style={styles.mobileReviewIssue}>{reviewIssue}</Text> : null}
               {draft.balanceNotice ? <Text accessibilityRole="alert" style={styles.mobileReviewIssue}>{draft.balanceNotice}</Text> : null}
               <Pressable accessibilityRole="button" accessibilityState={{ expanded: isEditing }} accessibilityLabel={isEditing ? "Close transaction details" : "Edit transaction details"}
-                onPress={() => setReviewEditCandidateId(isEditing ? null : candidate.id)} style={styles.mobileReviewEditAction}>
+                onPress={() => { animateDisclosureChange(reduceMotion); setReviewEditCandidateId(isEditing ? null : candidate.id); }} style={styles.mobileReviewEditAction}>
                 <Text style={styles.mobileReviewEditText}>{isEditing ? "Done editing" : reviewIssue ? "Fix details" : "Edit details"}</Text>
                 <MaterialCommunityIcons color={isLight ? "#087b8c" : "#32d8f2"} name={isEditing ? "chevron-up" : "chevron-right"} size={20} />
               </Pressable>
@@ -4468,8 +4473,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           {showSmsDiagnostics ? (
             <View style={{ gap: 10 }}>
               <Text style={styles.mobileRowMeta}>Includes sync counts, stage and error codes. SMS text and login tokens are excluded.</Text>
-              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, "0.1.26", getApiBaseUrl())}</Text>
-              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, "0.1.26", getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
+              <Text selectable style={styles.mobileRowMeta}>{smsSyncDiagnostics(smsBackgroundStatus, appConfig.expo.version, getApiBaseUrl())}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void Share.share({ message: smsSyncDiagnostics(smsBackgroundStatus, appConfig.expo.version, getApiBaseUrl()) }).catch(() => Alert.alert("Sharing unavailable", "You can select and copy the diagnostics text."))} style={styles.mobileSecondaryAction}>
                 <Text style={styles.mobileSecondaryActionText}>Share diagnostics</Text>
               </Pressable>
             </View>
@@ -4943,6 +4948,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         <Pressable accessibilityRole="button" onPress={() => navigateWorkspace("widgets")} style={styles.mobileMenuRow}><MaterialCommunityIcons color="#55e6a5" name="widgets-outline" size={22} /><Text style={styles.mobileMenuLabel}>Home-screen widgets</Text><MaterialCommunityIcons color="#647b98" name="chevron-right" size={23} /></Pressable>
         {mobileDestinations.filter(item => item.id === "capture").map(destinationRow)}
       </View>
+      <AppUpdateCard installedVersionCode={appConfig.expo.android.versionCode} installedVersionName={appConfig.expo.version} isLight={isLight} />
       <View style={styles.mobileSystemCard}>
         <View style={styles.mobileSystemHeader}>
           <View style={[styles.mobileSyncDot, state === "error" ? styles.mobileSyncDotError : null]} />
@@ -5098,6 +5104,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         {mobilePanel ? <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={goBack} style={styles.mobileHeaderButton}>
           <MaterialCommunityIcons color={isLight ? "#142b36" : "#dce8f6"} name="arrow-left" size={24} />
         </Pressable> : null}
+        {currentWorkspace.route === "home" ? <Image accessibilityLabel="Finance app" source={require("./assets/finance-icon.png")} style={{ width: 28, height: 28, borderRadius: 6 }} /> : null}
         <View style={styles.mobileHeaderTitleWrap}>
           <Text accessibilityRole="header" numberOfLines={1} style={styles.mobileAppTitle}>{workspaceTitles[currentWorkspace.route as MainTab | "accounts" | "profile" | "widgets"]}</Text>
         </View>
@@ -5136,7 +5143,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
               style={styles.mobileTabItem}
             >
               <View style={styles.mobileTabIconWrap}>
-                <MaterialCommunityIcons color={isActive ? "#32d8f2" : "#7890ad"} name={item.icon} size={24} />
+                <MaterialCommunityIcons color={isActive ? "#32d8f2" : "#7890ad"} name={item.icon} size={22} />
                 {item.key === "review" && reviewCandidates.length ? <View style={styles.mobileTabBadge} /> : null}
               </View>
               <Text style={[styles.mobileTabLabel, isActive ? styles.mobileTabLabelActive : null]}>{item.label}</Text>
@@ -6294,6 +6301,10 @@ const styles = StyleSheet.create({
     paddingTop: 7
   },
   mobileTabIconWrap: {
+    alignItems: "center",
+    height: 28,
+    justifyContent: "center",
+    width: 28,
     position: "relative"
   },
   mobileTabIndicator: {
