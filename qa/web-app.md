@@ -2055,3 +2055,7 @@ account and possible existing SMS/ledger matches before recording. Same-movement
 sources attach to one transaction; uploading alone does not change balances.
 The original-row view retains the printed charge and signed fee separately.
 Shorter exports with the same layout work through the same flow.
+
+### How are category suggestions refreshed without discarding drafts?
+
+Saving an SMS choice emits a category-rule event. SMS review refetches defaults while retaining its per-item draft state. Open combined review refreshes only an untouched category, with stale-response and unmount guards. Explicit categories, explicit clearing and reviewed statement categories take precedence. Pathao rides and Food remain separate, and no page reload or parser rerun is needed.

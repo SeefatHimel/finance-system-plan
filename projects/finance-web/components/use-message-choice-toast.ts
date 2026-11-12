@@ -17,8 +17,9 @@ export function useMessageChoiceToast() {
     inFlight.current.add(candidateId);
     notify(replaceExisting ? "Replacing saved SMS rule…" : "Saving optional SMS rule…", "success", { durationMs: 30000 });
     try {
-      await rememberConfirmedMessageChoice(token, candidateId, replaceExisting);
-      notify("Saved for similar SMS. Future suggestions still need your review.");
+      const result = await rememberConfirmedMessageChoice(token, candidateId, replaceExisting);
+      window.dispatchEvent(new Event("finance:category-rules-changed"));
+      notify(["service_group", "message_type"].includes(result.scope) ? "Saved. Similar pending entries now use this category; your edits stay unchanged." : "Saved for similar SMS. Future suggestions still need your review.");
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Could not save this rule.";
       const status = reason instanceof Error && "status" in reason ? reason.status : null;

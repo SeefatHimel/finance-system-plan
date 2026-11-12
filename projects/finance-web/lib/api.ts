@@ -183,6 +183,7 @@ export const transactionActionSchema = z.object({
 export type TransactionAction = z.infer<typeof transactionActionSchema>;
 
 const parsedMessageCandidateSchema = z.object({
+  suggested_category: z.string().nullable().optional(),
   suggested_note: z.string().optional(),
   undo_action: transactionActionSchema.nullable().optional(),
   identity_suggestions: z.array(z.object({

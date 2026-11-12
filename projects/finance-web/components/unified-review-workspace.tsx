@@ -2,7 +2,8 @@
 import { formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { initialPairCategory } from "@/lib/unified-review-category";
 import { DatePeriodControls } from "@/components/date-period-controls";
 import { ModalDialog } from "@/components/modal-dialog";
 import { StatementRowDialog } from "@/components/statement-row-dialog";
@@ -91,6 +92,23 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
     error: "",
   });
   const [ledgerReviewRetry, setLedgerReviewRetry] = useState(0);
+  const categoryEdited = useRef(smsFormInput?.category !== undefined);
+  useEffect(() => {
+    let active = true;
+    let revision = 0;
+    const refreshCategory = async () => {
+      const ticket = ++revision;
+      const token = getAccessToken();
+      if (!token || categoryEdited.current) return;
+      try {
+        const latest = await previewUnifiedPair(token, pair.row.id, pair.sms.id, pair.sms_account_changed ? pair.sms_summary.account ?? undefined : undefined);
+        if (!active || ticket !== revision || categoryEdited.current) return;
+        setDraft(current => !categoryEdited.current && current.type === latest.row.type ? { ...current, category: initialPairCategory(latest.row, latest.sms, categories) } : current);
+      } catch { /* Keep the current draft; opening the pair again retries the read. */ }
+    };
+    window.addEventListener("finance:category-rules-changed", refreshCategory);
+    return () => { active = false; window.removeEventListener("finance:category-rules-changed", refreshCategory); };
+  }, [pair.row.id, pair.sms.id, pair.sms_account_changed, pair.sms_summary.account, categories]);
   const currentLedgerKey = ledgerSearchKey(draft);
   const ledgerReviewReady = ledgerReview.key === currentLedgerKey && !ledgerReview.error;
   const ledgerMatches = ledgerReviewReady ? ledgerReview.matches : [];
@@ -139,6 +157,7 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
   const draftChanged = JSON.stringify(draft) !== JSON.stringify(savedPairDraft(pair));
   const needsDraftReview = row.review.requires_acknowledgement || draftChanged;
   function updateDraft(value: typeof draft) {
+    if (value.category !== draft.category || value.type !== draft.type) categoryEdited.current = true;
     if (value.balance_after !== draft.balance_after) setBalance(pair.match.late_posting ? "sms" : suggestedBalanceSource(value.balance_after, pair.sms.balance_after, statementIncludesSeparateFee));
     if (ledger) setLedgerCleared(true);
     setDraft(value); setLedger(""); setSeparateLedgerMovement(false); setAckDistinctLedgerMatches(false); setAckConflict(false);

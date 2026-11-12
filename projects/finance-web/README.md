@@ -2210,3 +2210,7 @@ account recognition refresh. Original-row details include the printed charge
 alongside its signed ledger delta. Existing comparison, SMS pairing and ledger
 linking remain in the same workspace. Uploads create pending rows; review funding
 accounts and matches before recording. See [Pathao imports](../../docs/pathao-statements.md).
+
+### Saved categories on pending reviews
+
+After **Save for similar SMS**, SMS review refreshes category defaults without resetting local edits or reloading the page. Combined review and statement editors prefill compatible saved categories on opening; an open pair refreshes an untouched category after a rule save. Pathao rides and Food use separate choices. Older broad Pathao rules must be re-saved once; see [the workflow and limits](../../docs/saved-category-defaults.md).

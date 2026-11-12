@@ -9,6 +9,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { HelpTooltip } from "@/components/help-tooltip";
 import { statementDraftCategory, statementSuggestionAlreadyApplied } from "@/lib/statement-draft-category";
+import { mappedPairCategory } from "@/lib/unified-review-category";
 import { StatementMatchComparison } from "@/components/statement-match-comparison";
 import { StatementDetailChoices } from "@/components/statement-detail-choices";
 import { statementAddBlockers, statementLinkBlockReason, reportedBalanceNeedsAcknowledgment } from "@/lib/statement-review";
@@ -36,7 +37,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
 }) {
   const { notify, dismiss } = useToast();
   const categoryChoice = useCategoryTypeChoice(categories);
-  const [draft, setDraft] = useState(() => ({ ...editable(row), category: row.transaction || row.state === "skipped" ? row.category : row.category ?? statementDraftCategory(row.type, null, categories) }));
+  const [draft, setDraft] = useState(() => ({ ...editable(row), category: row.transaction || row.state === "skipped" ? row.category : row.category ?? mappedPairCategory(row, row.type, categories) ?? statementDraftCategory(row.type, null, categories) }));
   const [rememberChoices, setRememberChoices] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

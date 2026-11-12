@@ -48,3 +48,12 @@ test("saved and manual categories take precedence; invalid mapping is ignored", 
   assert.equal(mappedPairCategory(row("expense", null, "expense", "transfer"), "expense", categories), null);
   assert.equal(mappedPairCategory(row("expense", null, "expense", "inactive"), "expense", categories), null);
 });
+
+test("live SMS category hints prefill pending pairs and explicit null blocks broad legacy rules", () => {
+  const statement = row("expense", null, "expense", null);
+  assert.equal(initialPairCategory(statement, { transaction_type: "expense", category: null, suggested_category: "interior" }, categories), "interior");
+  assert.equal(initialPairCategory(statement, { transaction_type: "expense", category: "interior", suggested_category: null }, categories), null);
+  assert.equal(initialPairCategory(statement, { transaction_type: "expense", category: "interior" }, categories), "interior");
+  assert.equal(initialPairCategory(row("expense", "groceries", "expense", null), { transaction_type: "expense", category: null, suggested_category: "interior" }, categories), "groceries");
+  assert.equal(categoryAfterPairTypeChoice(statement, { transaction_type: "expense", category: null, suggested_category: "interior" }, "groceries", "expense", "custom", categories), "groceries");
+});

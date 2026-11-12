@@ -59,6 +59,7 @@ import { TransferMatchDialog } from "@/components/transfer-match-dialog";
 import { useMessageChoiceToast } from "@/components/use-message-choice-toast";
 import { SmsStatementMatchDialog } from "@/components/sms-statement-match-dialog";
 import { getAccessToken } from "@/lib/auth-storage";
+import { suggestedSmsCategory } from "@/lib/unified-review-category";
 import { useCategoryTypeChoice } from "@/components/use-category-type-choice";
 import { directionForType, transactionTypes } from "@/lib/category-type";
 import { balanceAfterAccountChange } from "@/lib/transaction-balances";
@@ -124,6 +125,12 @@ export function MessageReviewWorkspace() {
   const { session } = useAuth();
   const owner = session.status === "signed-in" ? session.user.id : null;
   const ownerRef = useRef(owner); ownerRef.current = owner;
+  function clearResolvedCandidateLink(id: string | undefined) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("candidate") !== id) return;
+    params.delete("candidate");
+    window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params.toString()}` : ""}${window.location.hash}`);
+  }
   const loadVersion = useRef(0);
   const loadedLimit = useRef(100);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -263,7 +270,8 @@ export function MessageReviewWorkspace() {
   useEffect(() => { const version = loadVersion; void loadData();
     const refresh = () => { void loadData(false); };
     window.addEventListener("finance:transactions-changed", refresh);
-    return () => { version.current++; window.removeEventListener("finance:transactions-changed", refresh); };
+    window.addEventListener("finance:category-rules-changed", refresh);
+    return () => { version.current++; window.removeEventListener("finance:transactions-changed", refresh); window.removeEventListener("finance:category-rules-changed", refresh); };
   }, []);
 
   useEffect(() => {
@@ -277,7 +285,7 @@ export function MessageReviewWorkspace() {
   const valuesFor = useCallback((candidate: ParsedMessageCandidate): ReviewValues => {
     const account = accountDrafts[candidate.id] ?? accountReviewDefaults(candidate);
     const classification = classificationDrafts[candidate.id];
-    return { account: account.account, other: account.other, amount: amountDrafts[candidate.id] ?? candidate.amount ?? "", type: classification?.type ?? candidate.transaction_type, category: classification?.category ?? candidate.category ?? "" };
+    return { account: account.account, other: account.other, amount: amountDrafts[candidate.id] ?? candidate.amount ?? "", type: classification?.type ?? candidate.transaction_type, category: classification?.category ?? suggestedSmsCategory(candidate) ?? "" };
   }, [accountDrafts, amountDrafts, classificationDrafts]);
   const filteredCandidates = useMemo(() => {
     if (reviewState.status !== "ready") return [];
@@ -286,8 +294,8 @@ export function MessageReviewWorkspace() {
       if (!dateInPeriod(candidate.raw_message.received_at, period)) return false;
       if (providerFilter !== "all" && candidate.provider !== providerFilter) return false;
       if (typeFilter !== "all" && candidate.transaction_type !== typeFilter) return false;
-      if (categoryFilter === "uncategorized" && candidate.category) return false;
-      if (categoryFilter !== "all" && categoryFilter !== "uncategorized" && candidate.category !== categoryFilter) return false;
+      if (categoryFilter === "uncategorized" && suggestedSmsCategory(candidate)) return false;
+      if (categoryFilter !== "all" && categoryFilter !== "uncategorized" && suggestedSmsCategory(candidate) !== categoryFilter) return false;
       const values = valuesFor(candidate);
       if (!matchesConfidence(candidate.confidence, confidenceFilter, confidenceMin, confidenceMax)) return false;
       if (accountFilter !== "all" && values.account !== accountFilter && !(values.type === "transfer" && values.other === accountFilter)) return false;
@@ -339,7 +347,7 @@ export function MessageReviewWorkspace() {
     }
     setAccountDrafts((current) => ({ ...current, [activeCandidate.id]: { ...accountDraft, ...patch, ...(patch.transferDirection === undefined && patch.direction && classification?.type === "transfer" ? { transferDirection: patch.direction } : {}) } }));
   }
-  const classification = activeCandidate ? classificationDrafts[activeCandidate.id] ?? { type: activeCandidate.transaction_type as TransactionType, category: activeCandidate.category ?? "", balanceAfter: activeCandidate.balance_after ?? "" } : null;
+  const classification = activeCandidate ? classificationDrafts[activeCandidate.id] ?? { type: activeCandidate.transaction_type as TransactionType, category: suggestedSmsCategory(activeCandidate) ?? "", balanceAfter: activeCandidate.balance_after ?? "" } : null;
   function applyClassification(category: string, type: TransactionType) {
     if (!activeCandidate || !classification) return;
     setClassificationDrafts((current) => ({ ...current, [activeCandidate.id]: { ...classification, type, category } }));
@@ -400,6 +408,7 @@ export function MessageReviewWorkspace() {
         distinct_statement_rows: ids,
         acknowledge_distinct_statements: true,
       });
+      clearResolvedCandidateLink(saved.id);
       if (saved.undo_action) recovery.announce(saved.undo_action, saved.sender_rule ? [actionFor(saved.id)] : []);
       else offer(saved.sender_rule ? saved.id : null, "SMS transaction saved.");
       setStatementDecision(null);
@@ -492,6 +501,7 @@ export function MessageReviewWorkspace() {
         setFieldErrors(errors); setActionError("Choose the other transfer account, or accept an existing match."); focusFieldError(formRef.current, errors); return;
       }
       const saved = await confirmMessageCandidate(accessToken, candidate.id, input);
+      clearResolvedCandidateLink(saved.id);
       if (saved.undo_action) recovery.announce(saved.undo_action, saved.sender_rule ? [actionFor(saved.id)] : []);
       else offer(saved.sender_rule ? saved.id : null, "SMS transaction saved.");
       await loadData(false);
@@ -527,6 +537,7 @@ export function MessageReviewWorkspace() {
         : await confirmMessageCandidate(accessToken, transferDecision.candidate.id, transferDecision.input);
       if (saved.undo_action) recovery.announce(saved.undo_action, transferDecision.candidate.sender_rule ? [actionFor(transferDecision.candidate.id)] : []);
       else offer(transferDecision.candidate.sender_rule ? transferDecision.candidate.id : null, "SMS transaction saved.");
+      clearResolvedCandidateLink(transferDecision.candidate.id);
       setTransferDecision(null);
       await loadData(false);
 
@@ -552,6 +563,7 @@ export function MessageReviewWorkspace() {
         reason: rejectDraft.reason,
         redact_raw_sms: rejectDraft.redact
       });
+      clearResolvedCandidateLink(rejectDraft.candidate.id);
       setRejectDraft(null);
       setActionMessage(rejectDraft.scope === "kind"
         ? "Skip rule saved. Matching non-transaction notices are removed from review and will be skipped in future. Undo in SMS settings."
@@ -839,7 +851,7 @@ export function MessageReviewWorkspace() {
       {rejectDraft ? <ModalDialog labelledBy="reject-title" busy={workingCandidateId === rejectDraft.candidate.id} onCancel={() => setRejectDraft(null)}><button aria-label="Close rejection options" className="decision-modal__close" disabled={workingCandidateId === rejectDraft.candidate.id} onClick={() => setRejectDraft(null)} type="button"><X size={20} /></button><h2 id="reject-title">Reject this message</h2><p>Choose whether to reject only this message or remember a skip rule. Skipping a recognized promotional, OTP/security or balance-notice type applies across your trusted senders and keeps transaction messages enabled. Undo the rule in SMS settings.</p><form onSubmit={(event) => void handleReject(event)}><label className="field"><span className="field__label">Reason</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, reason: event.target.value })} value={rejectDraft.reason}>{[["not_transaction", "Not a transaction"], ["otp_security", "OTP or security"], ["duplicate", "Duplicate"], ["wrong_provider_account", "Wrong provider or account"], ["personal", "Personal or non-financial"], ["unsupported_format", "Unsupported format"], ["other", "Other"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field"><span className="field__label">Apply to</span><select className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, scope: event.target.value as RejectDraft["scope"] })} value={rejectDraft.scope}><option value="message">Only this message</option><option value="kind">This message and skip its non-transaction type</option><option value="sender">This message and disable {rejectDraft.candidate.raw_message.sender}</option><option value="provider">This message and exclude all {formatLabel(rejectDraft.candidate.provider)} messages</option></select></label><label className="field"><span className="field__label">Note (optional)</span><input className="field__control" onChange={(event) => setRejectDraft({ ...rejectDraft, note: event.target.value })} value={rejectDraft.note} /></label><label className="review-remember"><input checked={rejectDraft.redact} onChange={(event) => setRejectDraft({ ...rejectDraft, redact: event.target.checked })} type="checkbox" /><span><strong>Redact original SMS now</strong><small>Parsed metadata remains for audit and duplicate protection.</small></span></label><div className="decision-modal__actions"><button className="button button--ghost" disabled={workingCandidateId === rejectDraft.candidate.id} onClick={() => setRejectDraft(null)} type="button">Cancel</button><button className="button button--danger" disabled={workingCandidateId === rejectDraft.candidate.id} type="submit">{workingCandidateId === rejectDraft.candidate.id ? <ButtonBusy label="Rejecting" /> : "Reject message"}</button></div></form></ModalDialog> : null}
       {transferDecision ? <TransferMatchDialog accounts={reviewState.status === "ready" ? reviewState.accounts : []} original={transferComparison(transferDecision.input, id => accountNameById.get(id))} originalSource="SMS awaiting confirmation" matches={transferDecision.matches} busy={workingCandidateId !== null} error={matchError} onAccept={(match, choices) => void handleTransferDecision(match, choices)} separateLabel={transferDecision.lookupOnly ? "Back to review" : undefined} onSeparate={() => void handleTransferDecision()} onCancel={() => setTransferDecision(null)} /> : null}
       {statementDecision && !statementPair && !editStatementPair ? <SmsStatementMatchDialog key={statementDecision.candidate.id + statementDecision.matches.map(match => `${match.statement.id}:${match.statement.updated_at}`).join(":")} candidate={statementDecision.candidate} input={statementDecision.input} accountName={accountNameById.get(statementDecision.input.account ?? "") ?? "Account not selected"} matches={statementDecision.matches} busy={statementMatchBusy} onCancel={() => setStatementDecision(null)} onReview={match => void openStatementPair(match)} onSeparate={ids => void addSeparateSms(ids)} onRefresh={() => void refreshStatementMatches()} /> : null}
-      {statementPair && reviewState.status === "ready" ? <PairDialog key={`${statementPair.row.id}:${statementPair.row.version}`} pair={statementPair} smsFormInput={statementDecision?.input} accounts={reviewState.accounts} categories={reviewState.categories} onCancel={() => setStatementPair(null)} onSaved={() => { setStatementPair(null); setStatementDecision(null); void loadData(false); }} onEdit={() => { setEditStatementPair(statementPair); setStatementPair(null); }} /> : null}
+      {statementPair && reviewState.status === "ready" ? <PairDialog key={`${statementPair.row.id}:${statementPair.row.version}`} pair={statementPair} smsFormInput={statementDecision?.input} accounts={reviewState.accounts} categories={reviewState.categories} onCancel={() => setStatementPair(null)} onSaved={() => { clearResolvedCandidateLink(statementPair?.sms.id); setStatementPair(null); setStatementDecision(null); void loadData(false); }} onEdit={() => { setEditStatementPair(statementPair); setStatementPair(null); }} /> : null}
       {editStatementPair && reviewState.status === "ready" ? <StatementRowDialog editOnly key={editStatementPair.row.id} row={editStatementPair.row} batch={editStatementPair.batch} accounts={reviewState.accounts} categories={reviewState.categories} onCancel={() => void reopenStatementPair(editStatementPair)} onReload={() => void reopenStatementPair(editStatementPair)} onNext={async () => reopenStatementPair(editStatementPair)} onChange={() => void reopenStatementPair(editStatementPair)} /> : null}
     </div>
   );
