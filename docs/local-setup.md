@@ -850,3 +850,9 @@ No additional migration is needed for this page split. Run web typecheck/lint pl
 synthetic production browser fixture running, use
 `npm run test:e2e -- e2e/custom-reports.spec.ts` to check create/view/edit/duplicate,
 list return context and discard behavior on desktop and mobile.
+
+For duplicate-merge browser verification, migrate transactions through 0014 and
+run `python manage.py seed_merge_browser` after `seed_quality_browser` against a
+disposable `finance_e2e_*` database only. Use the web production build/start for
+cookie-session Playwright tests. See [duplicate merge](duplicate-merge.md) for
+workflow, safeguards and verification details.
