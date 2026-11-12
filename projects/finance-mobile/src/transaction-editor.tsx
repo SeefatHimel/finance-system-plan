@@ -1,3 +1,5 @@
+import {isPathaoSender} from "../../finance-contracts/sender-groups";
+import {PathaoSourceReview} from "./pathao-source-review";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import {
@@ -53,6 +55,7 @@ export function TransactionEditor({
   onSaved: (row: Transaction) => void;
 }) {
   const ui = useMobileUi();
+  const [pathaoCandidate,setPathaoCandidate] = useState<string|null>(null);
   const [row, setRow] = useState<Transaction | null>(null),
     [draft, setDraft] = useState<TransactionDraft | null>(null),
     [loading, setLoading] = useState(true),
@@ -283,7 +286,8 @@ export function TransactionEditor({
         </Text>
       ) : null}
       {sources.length ? <Disclosure label={`Original SMS (${sources.length})`}>
-        {sources.map(message => <SourceMessage key={message.id} message={message} fullBody />)}
+        {sources.map(message => <View key={message.id}><SourceMessage message={message} fullBody />{isPathaoSender(message.sender) && message.parsed?.candidate_id ? <ActionButton label="Compare Pathao SMS sources" onPress={()=>setPathaoCandidate(message.parsed!.candidate_id!)}/> : null}</View>)}
+        {pathaoCandidate ? <PathaoSourceReview id={pathaoCandidate} token={token} keepTransactionId={id} onClose={()=>setPathaoCandidate(null)} onSaved={()=>{if(!alive.current||!ownerCheck.current())return;setPathaoCandidate(null);if(row)onSaved(row);}}/> : null}
       </Disclosure> : null}
       {statements.length ? <Disclosure label={`Original statement rows (${statements.length})`}>
         {statements.map(source => <StatementSourceEvidence key={source.id} source={source} />)}

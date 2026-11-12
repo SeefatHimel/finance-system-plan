@@ -999,3 +999,17 @@ regression. CI runs native SMS unit tests and Android debug compilation; see
 ### Saved-category review defaults
 
 New SMS review drafts prefer the API `suggested_category`, including explicit null; older APIs retain the `category` fallback. Existing local drafts are preserved. This source change ships with the next mobile build; it does not publish an APK. Pathao rides and Food learning is scoped separately by the API.
+
+### Pathao Pay sender group
+
+Capture treats the four known exact aliases as one Pathao Pay group per wallet.
+Choosing an alias offers group setup; existing rule IDs/mappings/tracking states
+are preserved, and only newly created aliases are enabled locally. Native sender
+filtering still receives individual exact rules. A new mobile build is needed
+for this grouped UI; API duplicate protection also covers older clients.
+
+Review offers **Compare SMS sources** before recording a verified duplicate.
+Transactions → Edit → Original SMS also offers the comparison for all-confirmed
+duplicates, retaining the current entry and all SMS/PDF/spreadsheet sources.
+Conflicts remain reviewable instead of guessing. See
+[Pathao SMS sources](../../docs/pathao-sms-sources.md) for limits and Undo.

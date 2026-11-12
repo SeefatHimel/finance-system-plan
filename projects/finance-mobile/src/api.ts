@@ -1132,7 +1132,7 @@ export async function updateTransaction(token: string, id: string, input: Update
   const response = await authenticatedFetch(`/api/transactions/${encodeURIComponent(id)}/`, token, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
   return await response.json() as Transaction;
 }
-export type TransactionSourceMessage = { id: string; sender: string; received_at: string; body: string | null; redacted_at: string | null };
+export type TransactionSourceMessage = { id: string; sender: string; received_at: string; body: string | null; redacted_at: string | null; parsed?: { candidate_id?: string | null } | null };
 export async function getTransactionSourceMessages(token: string, id: string, signal?: AbortSignal): Promise<TransactionSourceMessage[]> {
   const response = await authenticatedFetch(`/api/transactions/${encodeURIComponent(id)}/source-messages/`, token, { signal });
   const values: unknown = await response.json(); if (!Array.isArray(values) || values.some(item => !item || typeof item.id !== "string" || typeof item.sender !== "string" || !(item.body === null || typeof item.body === "string"))) throw new Error("Source messages could not be read."); return values as TransactionSourceMessage[];
@@ -1146,4 +1146,14 @@ export async function getTransactionStatements(token: string, id: string, signal
 export async function getSmsDeviceStatus(token: string, signal?: AbortSignal): Promise<SmsDeviceStatus> {
   const response = await authenticatedFetch("/api/messages/device-status/", token, { signal });
   return await response.json() as SmsDeviceStatus;
+}
+
+export async function setupPathaoSenderGroup(token:string,account:string):Promise<SenderRule[]>{
+  return (await(await authenticatedFetch("/api/messages/sender-groups/pathao-pay/",token,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({account})})).json()) as SenderRule[];
+}
+export async function getPathaoSources(token:string,id:string,signal?:AbortSignal,keep?:string):Promise<import("../../finance-contracts/sender-groups").PathaoSourcePreview>{
+ return (await(await authenticatedFetch(`/api/messages/review/${id}/pathao-sources/${keep?`?keep=${encodeURIComponent(keep)}`:""}`,token,{signal})).json()) as import("../../finance-contracts/sender-groups").PathaoSourcePreview;
+}
+export async function resolvePathaoSources(token:string,id:string,preview_token:string,request_id:string):Promise<{transaction:string;source_count:number;merged_count:number;undo_action:TransactionAction|null}>{
+ return (await(await authenticatedFetch(`/api/messages/review/${id}/pathao-sources/`,token,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({preview_token,request_id,confirmed:true})})).json()) as {transaction:string;source_count:number;merged_count:number;undo_action:TransactionAction|null};
 }

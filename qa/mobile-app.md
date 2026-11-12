@@ -963,3 +963,13 @@ place without clearing local data.
 ### Does mobile review understand live category hints?
 
 New drafts prefer suggested_category when present, including explicit null, and retain the parsed category for older APIs. Existing local drafts keep their edits. The source update requires a new mobile build; saving a web category rule does not itself distribute an APK or silently reset an open native draft.
+
+### What happens to existing Pathao sender rules and tracking switches?
+
+All four known exact aliases display together per wallet. Existing IDs, server
+choices and local tracking switches remain; group setup adds/enables only missing
+aliases. The native bridge still receives exact rules. The review comparison can
+link late notifications or merge verified already-recorded duplicates while
+keeping all original sources. Transactions → Edit → Original SMS provides access
+when all duplicates are already confirmed. New UI requires a mobile rebuild; the
+API protection is shared with older clients.

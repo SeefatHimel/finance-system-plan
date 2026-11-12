@@ -1,3 +1,6 @@
+import {senderRuleGroups,isPathaoSender} from "../finance-contracts/sender-groups";
+import {getPathaoSources,setupPathaoSenderGroup} from "./src/api";
+import {PathaoSourceReview} from "./src/pathao-source-review";
 import { queuedEntryInput } from "./src/manual-entry-identity";
 import { useReviewMutation, reviewSnapshots, restoreReviewRows, type ReviewDecision } from "./src/review-mutation";
 import { ReviewSaveNotice } from "./src/review-save-notice";
@@ -976,6 +979,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
   const [smsSettingsMessage, setSmsSettingsMessage] = useState("");
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [senderRules, setSenderRules] = useState<SenderRule[]>([]);
+  const [pathaoSourceId,setPathaoSourceId]=useState<string|null>(null);
+  useEffect(()=>setPathaoSourceId(null),[localDataScope]);
   const [smsCapturePreference, setSmsCapturePreference] = useState<SmsCapturePreference>({
     created_at: "",
     excluded_message_kinds: ["otp_or_security", "promotional"],
@@ -1055,7 +1060,10 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       } else if (observed) {
         // Another device may own this action; do not announce an unrelated Undo.
         void handleLoadReviewCandidates(); void handleLoadTransactions(); void handleLoadReferenceData();
-      } else void recovery.announce();
+      } else {
+        void recovery.announce();
+        void handleLoadReviewCandidates();
+      }
     },
   });
   const reviewCandidates = reviewMutation.visible(loadedReviewCandidates);
@@ -1641,6 +1649,11 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         transfer_account: draft.transactionType === "transfer" ? draft.transferAccountId : null,
         type: draft.transactionType
       };
+      if (isPathaoSender(candidate.raw_message.sender,candidate.provider)) {
+        const sources=await getPathaoSources(accessToken.trim(),candidate.id);
+        if(owner!==accountScopeRef.current||reviewSubmitting.current!==operation)return;
+        if(sources.transactions.length||sources.blockers.length){setPathaoSourceId(candidate.id);setReviewState("ok");return;}
+      }
       if (draft.transactionType === "transfer" || candidate.possible_internal_transfer || ["receive_money", "bank_transfer_in"].includes(candidate.message_kind)) {
         const matchInput = { candidate: candidate.id, draft: input };
         const matches = await findTransferMatches(accessToken.trim(), matchInput);
@@ -1946,7 +1959,12 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     setSelectedSmsSender(sender);
     setNewSenderRuleName(`${sender} transactions`);
     setNewSenderProvider(inferSmsProvider(sender));
-    setNewSenderAccountId((current) => current || accounts[0]?.id || "");
+    setNewSenderAccountId(current => {
+      if (!isPathaoSender(sender)) return current || accounts[0]?.id || "";
+      const eligible = accounts.filter(account=>account.type==="mobile_wallet" && account.currency==="BDT" && account.is_active);
+      const existing = senderRules.find(rule=>isPathaoSender(rule.sender,rule.provider) && rule.match_type==="exact");
+      return eligible.find(account=>account.id===existing?.account)?.id || eligible.find(account=>account.id===current)?.id || eligible[0]?.id || "";
+    });
     setSmsRuleCreateState("idle");
     setSmsRuleCreateMessage("");
   };
@@ -1958,7 +1976,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       return;
     }
     if (
-      senderRules.some(
+      !isPathaoSender(selectedSmsSender,newSenderProvider) && senderRules.some(
         (rule) => rule.match_type === "exact" && rule.sender.trim().toLowerCase() === selectedSmsSender.trim().toLowerCase()
       )
     ) {
@@ -1970,7 +1988,9 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
     setSmsRuleCreateState("loading");
     setSmsRuleCreateMessage("Creating and enabling sender rule…");
     try {
-      const createdRule = await createSenderRule(accessToken.trim(), {
+      const createdRules = isPathaoSender(selectedSmsSender,newSenderProvider)
+        ? await setupPathaoSenderGroup(accessToken.trim(),newSenderAccountId)
+        : [await createSenderRule(accessToken.trim(), {
         account: newSenderAccountId,
         category: newSenderCategoryId || null,
         default_transaction_type: newSenderTransactionType,
@@ -1978,11 +1998,10 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         name: newSenderRuleName.trim(),
         provider: newSenderProvider,
         sender: selectedSmsSender.trim()
-      });
-      const nextRules = [...senderRules, createdRule].sort(
-        (left, right) => left.priority - right.priority || left.name.localeCompare(right.name)
-      );
-      const nextEnabledIds = Array.from(new Set([...enabledSenderRuleIds, createdRule.id]));
+      })];
+      const existingIds=new Set(senderRules.map(rule=>rule.id));
+      const nextRules=[...new Map([...senderRules,...createdRules].map(rule=>[rule.id,rule])).values()].sort((a,b)=>a.priority-b.priority||a.name.localeCompare(b.name));
+      const nextEnabledIds=Array.from(new Set([...enabledSenderRuleIds,...createdRules.filter(rule=>!existingIds.has(rule.id)).map(rule=>rule.id)]));
       setSenderRules(nextRules);
       setEnabledSenderRuleIds(nextEnabledIds);
       await AsyncStorage.setItem(enabledSenderRulesKey, JSON.stringify(nextEnabledIds));
@@ -1990,7 +2009,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         buildNativeSenderRules(nextRules, nextEnabledIds, smsCapturePreference.excluded_providers)
       );
       setSmsRuleCreateState("ok");
-      setSmsRuleCreateMessage(`${createdRule.sender} is now tracked and mapped to the selected account.`);
+      setSmsRuleCreateMessage(createdRules.length>1 ? "Pathao Pay group ready. Existing tracking choices were kept; new aliases are enabled." : `${createdRules[0].sender} is now tracked and mapped to the selected account.`);
       setSelectedSmsSender("");
       setNewSenderRuleName("");
       setNewSenderCategoryId("");
@@ -4592,7 +4611,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
           <InlineFeedback loadingLabel="Loading sender rules…" message={smsSettingsMessage} state={smsSettingsState} />
           {senderRules.length ? (
             <View style={styles.mobileGroupedList}>
-              {senderRules.map((rule) => {
+              {senderRuleGroups(senderRules).map(group => {
+                const content=group.members.map((rule) => {
                 const providerExcluded = smsCapturePreference.excluded_providers.includes(rule.provider);
                 const isEnabled = enabledSenderRuleIds.includes(rule.id) && !providerExcluded;
                 return (
@@ -4630,6 +4650,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
                     </View>
                   </Pressable>
                 );
+                });
+                return group.grouped ? <Disclosure key={group.key} label={`Pathao Pay · ${group.members.length} sender names · ${group.members.filter(rule=>rule.is_active&&enabledSenderRuleIds.includes(rule.id)&&!smsCapturePreference.excluded_providers.includes(rule.provider)).length} tracking`}>{content}</Disclosure> : content;
               })}
             </View>
           ) : (
@@ -4741,7 +4763,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
                 <View style={styles.mobileSectionHeader}>
                   <View style={styles.mobileRowBody}>
                     <Text style={styles.mobileRuleComposerTitle}>{selectedSmsSender}</Text>
-                    <Text style={styles.mobileRowMeta}>Exact sender match</Text>
+                    <Text style={styles.mobileRowMeta}>{isPathaoSender(selectedSmsSender,newSenderProvider)?"Pathao Pay group · all four exact sender names":"Exact sender match"}</Text>
                   </View>
                   <Pressable
                     accessibilityLabel="Close sender rule editor"
@@ -4752,6 +4774,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
                   </Pressable>
                 </View>
 
+                {!isPathaoSender(selectedSmsSender,newSenderProvider)?<>
                 <Text style={styles.mobileFieldLabel}>Rule name</Text>
                 <View style={styles.mobileInputWrap}>
                   <MaterialCommunityIcons color="#7890ad" name="tag-outline" size={20} />
@@ -4764,11 +4787,12 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
                   />
                 </View>
 
-                <Text style={styles.mobileFieldLabel}>Destination account</Text>
+                </>:<Text style={styles.mobileRowMeta}>Existing rules keep their names, category choices and tracking switches. New sender aliases use automatic message detection.</Text>}
+                <Text style={styles.mobileFieldLabel}>Reporting account</Text>
                 {accounts.length ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View style={styles.mobileChoiceRow}>
-                      {accounts.map((account) => (
+                      {accounts.filter(account=>!isPathaoSender(selectedSmsSender,newSenderProvider)||(account.type==="mobile_wallet"&&account.currency==="BDT"&&account.is_active)).map((account) => (
                         <Pressable
                           key={account.id}
                           onPress={() => setNewSenderAccountId(account.id)}
@@ -4793,6 +4817,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
                   <Text style={styles.mobileErrorText}>Create or load an account before adding this sender.</Text>
                 )}
 
+                {!isPathaoSender(selectedSmsSender,newSenderProvider)?<>
                 <Text style={styles.mobileFieldLabel}>Default category (optional)</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={styles.mobileChoiceRow}>
@@ -4841,6 +4866,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
                   </View>
                 </ScrollView>
 
+                </>:null}
                 <Text style={styles.mobileFieldLabel}>Provider</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={styles.mobileChoiceRow}>
@@ -4883,7 +4909,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
                     <MaterialCommunityIcons color="#06141f" name="shield-plus-outline" size={21} />
                   )}
                   <Text style={styles.mobilePrimaryButtonText}>
-                    {smsRuleCreateState === "loading" ? "Adding sender…" : "Add & track sender"}
+                    {smsRuleCreateState === "loading" ? "Adding sender…" : isPathaoSender(selectedSmsSender,newSenderProvider)?"Set up Pathao Pay group":"Add & track sender"}
                   </Text>
                 </Pressable>
               </View>
@@ -5130,6 +5156,8 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
         <RetainedNavigation navigation={navigation} onRouteChange={changeWorkspace} render={renderWorkspace} />
       </MobileQueryProvider>
 
+      {pathaoSourceId ? <PathaoSourceReview id={pathaoSourceId} token={accessToken.trim()} onClose={()=>setPathaoSourceId(null)} onSaved={()=>{setPathaoSourceId(null);void handleLoadReviewCandidates();void handleLoadTransactions();void handleLoadReferenceData();void recovery.announce();}}/> : null}
+      {selectedReviewCandidate && isPathaoSender(selectedReviewCandidate.raw_message.sender,selectedReviewCandidate.provider) ? <ActionButton compact label="Pathao Pay · compare SMS sources" onPress={()=>setPathaoSourceId(selectedReviewCandidate.id)}/> : null}
       {currentWorkspace.route === "review" && reviewMutation.blocked ? <ReviewSaveNotice review={reviewMutation} candidates={reviewCandidates} onReview={id => openReviewCandidate(id)} onEdit={openTransactionEditor} /> : selectedReviewCandidate ? <View style={[ui.card, { borderRadius: 0, paddingHorizontal: 12, paddingVertical: 8 }]}><Text accessibilityLiveRegion="polite" style={[selectedReviewIssue || reviewState === "error" ? ui.error : ui.muted, { fontSize: 13, lineHeight: 19 }]}>{reviewState === "error" && reviewMessage ? reviewMessage : selectedReviewIssue || `Ready · ${formatCurrency(selectedReviewDraft?.amount)}`}</Text><View style={ui.row}><ActionButton compact label="Reject message" disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => confirmRejectReviewCandidate(selectedReviewCandidate)} /><ActionButton compact label={reviewActionCandidateId ? "Save in progress…" : "Confirm & add"} primary disabled={Boolean(reviewActionCandidateId) || transferBusy} onPress={() => void handleConfirmReviewCandidate(selectedReviewCandidate)} /></View></View> : null}
       {editorSurface}
       <View style={styles.mobileTabBar}>
