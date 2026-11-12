@@ -433,8 +433,15 @@ def evaluate_observation(row, record, observation, compatible_fields, previously
     distance = min(abs((d - observation.date).days) for d in dates_for(row))
     if distance > MATCH_DAYS and not previously_seen:
         return None
-    reference_matches = bool(row.reference.strip()) and (
-        row.reference.strip().casefold() == observation.reference.strip().casefold()
+    from apps.messages.references import reference_facts
+    from apps.transactions.reference_comparison import observation_references
+    source_references = observation_references(record, observation)
+    statement_references = reference_facts(str(row.extracted.get("description", "")), row.reference, statement=True)
+    statement_id, source_id = statement_references["transaction_id"], source_references["transaction_id"]
+    reference_matches = (
+        statement_id.casefold() == source_id.casefold() if statement_id and source_id
+        else bool(row.reference.strip() and observation.reference.strip())
+        and row.reference.strip().casefold() == observation.reference.strip().casefold()
     )
     reported_balance = observation.balance_after
     late_posting = delayed_ebl_posting(row, observation.date, observation.source)
@@ -469,6 +476,7 @@ def evaluate_observation(row, record, observation, compatible_fields, previously
         "observation": observation,
         "distance": distance,
         "reference_matches": reference_matches,
+        "reference_comparison": {"statement": statement_references, "existing": source_references},
         "balance_matches": balance_matches,
         "reported_balance": reported_balance,
         "conflict": conflict,
@@ -591,6 +599,8 @@ def _find_statement_matches(rows):
         .prefetch_related("transfer_evidence")
     )
     history.extend(prefetch_source_observations(additional))
+    from apps.transactions.reference_comparison import prepare_reference_messages
+    prepare_reference_messages(history, batch.user_id)
     by_id = {record.id: record for record in history}
     by_fingerprint = defaultdict(dict)
     for fingerprint, record_id in previous_sources:
@@ -813,6 +823,7 @@ def _find_statement_matches(rows):
                         if record.category
                         else None,
                         "reference": observation.reference,
+                        "reference_comparison": selected["reference_comparison"],
                         "note": observation.note[:500],
                         # Show the saved ledger side separately from the account
                         # observation used for matching. A sender's details must

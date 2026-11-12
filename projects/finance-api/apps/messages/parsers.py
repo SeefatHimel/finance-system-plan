@@ -5,6 +5,7 @@ from .identifiers import sanitize_financial_identifier
 from .models import ParsedMessageCandidate, SenderRule, SenderRuleMapping
 from .safe_sender_regex import sender_pattern_matches
 from .source_direction import source_direction_for_kind
+from .references import preferred_reference
 
 _AMOUNT_PATTERN = re.compile(
     r"(?:tk|bdt)\.?\s*([0-9][0-9,]*(?:\.\d{1,2})?)|"
@@ -22,7 +23,6 @@ _BALANCE_BEFORE_LABEL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _FEE_PATTERN = re.compile(r"(?:charge|fee)\s*(?:is|:)?\s*(?:(?:tk|bdt)\.?\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)", re.IGNORECASE)
-_REFERENCE_PATTERN = re.compile(r"\b(?:trxid|trx id|txnid|txn id|ref|reference)\b\s*[:#-]?\s*([a-z0-9-]+)", re.IGNORECASE)
 _PROVIDER_TIMESTAMP_PATTERN = re.compile(
     r"\b(?:date|time|on)\b\s*[:#-]?\s*([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4}(?:\s+[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?\s*(?:am|pm)?)?)",
     re.IGNORECASE,
@@ -699,8 +699,7 @@ def _extract_fee(body: str):
 
 
 def _extract_reference(body: str) -> str:
-    match = _REFERENCE_PATTERN.search(body)
-    return match.group(1).strip() if match else ""
+    return preferred_reference(body)
 
 
 def _extract_decimal_with_pattern(pattern, body: str):

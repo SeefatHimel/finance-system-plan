@@ -2009,3 +2009,14 @@ POST /api/reports/saved/preview/ accepts a full draft definition and optional
 saved_report UUID. Its owner-scoped manual choices apply to the draft without any
 writes. The response has the monthly report shape. Apply reports.0002_savedreport_filters
 before web rollout. Verify `python manage.py test apps.reports apps.transactions.test_activity`.
+
+### Duplicate ledger consolidation
+
+`transactions` migrations 0013–0014 add source-preserving duplicate merge archives
+and retry receipts. Authenticated preview/apply endpoints consolidate 2–10 exact
+same-path movements with optional pending statement attachment, version checks,
+source ownership/dependency guards and latest-action Undo. Existing records are
+not automatically merged. SMS references now prefer explicit transaction IDs;
+old originals and saved fields remain unchanged. See
+[duplicate merge](../../docs/duplicate-merge.md) for endpoints, deployment order,
+limits and synthetic verification commands.

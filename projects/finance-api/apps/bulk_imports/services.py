@@ -257,6 +257,7 @@ def undo_batch(user, pk):
                 or record_fingerprint(record) != entry.saved_fingerprint
                 or record.statement_rows.exists()
                 or record.parsed_message_candidates.exists()
+                or record.merged_entries.exists()
                 or BulkImportRow.objects.filter(transaction=record)
                 .exclude(batch=batch)
                 .exists()

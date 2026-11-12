@@ -629,6 +629,18 @@ def merge_transfers(*, user, record_id, other_id, balance_choices=()):
     other = get_object_or_404(
         Transaction.objects.select_for_update(), user=user, pk=other_id
     )
+    from apps.bulk_imports.models import BulkImportRow
+    from apps.quick_add.models import QuickEntryReceipt
+    from apps.reports.models import ReportMembership
+
+    from .duplicate_merge import allowed_relations
+    from .models import MergedLedgerEntry
+    for model in (BulkImportRow, QuickEntryReceipt, ReportMembership, MergedLedgerEntry):
+        if model.objects.filter(transaction__in=(record, other)).exists():
+            raise ValidationError({"transaction": "Use Merge duplicates to preserve all attached spreadsheet and ledger sources."})
+    for relation in Transaction._meta.related_objects:
+        if relation.related_model not in allowed_relations() and relation.related_model.objects.filter(**{f"{relation.field.name}__in": (record, other)}).exists():
+            raise ValidationError({"transaction": "Resolve the protected payment or reconciliation link before merging."})
     from .payments import has_payments
     if has_payments(record) or has_payments(other):
         raise ValidationError({"transaction": "Unlink the payment record before merging this movement."})

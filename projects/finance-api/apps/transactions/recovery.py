@@ -13,14 +13,17 @@ from rest_framework.exceptions import APIException
 
 from apps.audit_logs.models import AuditLogEntry
 from apps.audit_logs.services import create_audit_log
+from apps.bulk_imports.models import BulkImportRow
 from apps.messages.models import (
     ParsedMessageCandidate,
     SenderRuleMapping,
     TransferCounterpartyMapping,
 )
+from apps.quick_add.models import QuickEntryReceipt
+from apps.reports.models import ReportMembership
 from apps.statements.models import StatementRow
 
-from .models import Transaction, TransactionAction, TransferEvidence
+from .models import MergedLedgerEntry, Transaction, TransactionAction, TransferEvidence
 
 CANDIDATE_FIELDS = (
     "id",
@@ -46,6 +49,10 @@ MODELS = {
     "statement_rows": StatementRow,
     "sender_mappings": SenderRuleMapping,
     "counterparty_mappings": TransferCounterpartyMapping,
+    "bulk_rows": BulkImportRow,
+    "quick_receipts": QuickEntryReceipt,
+    "memberships": ReportMembership,
+    "merge_archives": MergedLedgerEntry,
 }
 LABELS = {
     "create": "Transaction added",
@@ -55,6 +62,7 @@ LABELS = {
     "link": "Transfer linked",
     "evidence_link": "Evidence linked",
     "merge": "Transfers merged",
+    "duplicate_merge": "Duplicate entries merged",
 }
 
 
@@ -115,9 +123,12 @@ def related_fingerprint(user, ids, *, lock=False):
         queryset = relation.related_model.objects.filter(
             **{f"{relation.field.name}_id__in": ids}
         )
-        values[f"{relation.related_model._meta.label_lower}:{relation.field.name}"] = (
-            rows(protected(queryset))
-        )
+        captured = rows(protected(queryset))
+        # Adding the archive table must not invalidate pre-deployment actions
+        # for entries that have never been merged.
+        if relation.related_model is MergedLedgerEntry and not captured:
+            continue
+        values[f"{relation.related_model._meta.label_lower}:{relation.field.name}"] = captured
     return hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()
 
 
@@ -130,7 +141,9 @@ class ActionRecorder:
         candidate_ids=(),
         statement_ids=(),
         remember=False,
+        merge_sources=False,
     ):
+        self.merge_sources = merge_sources
         self.user = user
         self.ids = {str(value) for value in transaction_ids if value}
         self.candidate_ids = {str(value) for value in candidate_ids if value}
@@ -158,7 +171,10 @@ class ActionRecorder:
         def protected(queryset):
             return queryset.select_for_update(of=("self",)) if lock else queryset
 
+        extra = {name: rows(protected(model.objects.filter(transaction_id__in=self.ids))) if self.merge_sources else {}
+                 for name, model in (("bulk_rows", BulkImportRow), ("quick_receipts", QuickEntryReceipt), ("memberships", ReportMembership), ("merge_archives", MergedLedgerEntry))}
         return {
+            **extra,
             "transactions": rows(
                 protected(Transaction.objects.filter(user=self.user, pk__in=self.ids))
             ),
@@ -239,7 +255,7 @@ class ActionRecorder:
 
 def unchanged(action, *, lock=False):
     for name, model in MODELS.items():
-        expected = action.after[name]
+        expected = action.after.get(name, {})
         if not expected:
             continue
         fields = next((tuple(row) for row in expected.values() if row), ())
@@ -305,11 +321,11 @@ def undo_action(*, user, action_id):
         raise UndoConflict("Unlink this transaction from its payment record before undoing the ledger action.")
     parents = {}
     restored = {
-        name: {key for key, value in action.before[name].items() if value is not None}
+        name: {key for key, value in action.before.get(name, {}).items() if value is not None}
         for name in MODELS
     }
     for name, model in MODELS.items():
-        for row in action.before[name].values():
+        for row in action.before.get(name, {}).values():
             if row is None:
                 continue
             for field in model._meta.fields:
@@ -333,9 +349,8 @@ def undo_action(*, user, action_id):
     try:
         with transaction.atomic():
             # Recreate a merged-away transaction before moving its related rows back.
-            for name in MODELS:
-                model = MODELS[name]
-                for key, row in action.before[name].items():
+            for name, model in MODELS.items():
+                for key, row in action.before.get(name, {}).items():
                     if row is None:
                         continue
                     values = {
@@ -358,7 +373,7 @@ def undo_action(*, user, action_id):
                 "transactions",
             ):
                 removed = [
-                    key for key, row in action.before[name].items() if row is None
+                    key for key, row in action.before.get(name, {}).items() if row is None
                 ]
                 MODELS[name].objects.filter(pk__in=removed).delete()
     except IntegrityError as exc:

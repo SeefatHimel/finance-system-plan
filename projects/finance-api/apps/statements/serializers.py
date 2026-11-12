@@ -316,6 +316,7 @@ class StatementMatchSerializer(serializers.Serializer):
     transfer_account_name = serializers.CharField(allow_null=True)
     category_id = serializers.UUIDField(allow_null=True)
     category_name = serializers.CharField(allow_null=True)
+    reference_comparison = serializers.JSONField()
     reference = serializers.CharField()
     note = serializers.CharField()
     ledger_date = serializers.DateField()

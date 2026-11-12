@@ -1583,3 +1583,16 @@ Previous-period results use the same rules without manual choices. Transfers mat
 both endpoints without duplication, and internal selected-group transfers do not
 inflate cash flow. Owner-scoped draft preview performs no writes. Both periods still
 aggregate in one SQL statement. Existing single-account reports remain compatible.
+
+### How are duplicate ledger entries merged without losing evidence?
+
+A signed, expiring preview binds selected entries and their sources to one keeper.
+Apply locks the user's mutation scope, rechecks identities and source versions,
+moves SMS/PDF/spreadsheet/receipt links, archives removed ledger versions and
+removes duplicate money atomically. An optional pending statement is attached in
+the same operation. Exact amount/direction/path, ownership and dependency guards
+fail closed. Retry receipts prevent replay; archived entry keys prevent recreating
+removed entries. Latest-action Undo restores ledger rows and all changed links.
+Raw SMS text is not copied into recovery payloads. Different transaction IDs on
+one account block consolidation, while human message references are compared
+separately. See [duplicate merge](../docs/duplicate-merge.md).

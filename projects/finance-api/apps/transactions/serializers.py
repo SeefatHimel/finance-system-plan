@@ -199,6 +199,19 @@ class TransactionSerializer(serializers.ModelSerializer):
     account_direction = serializers.SerializerMethodField()
     statement_evidence_count = serializers.SerializerMethodField()
     balance_sources = serializers.SerializerMethodField()
+    source_labels = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_source_labels(self, record):
+        labels = []
+        if record.raw_message_id or record.source == "sms" or getattr(record, "has_merged_sms", False) or any(item.status == "confirmed" for item in record.parsed_message_candidates.all()) or any(item.raw_message_id for item in record.transfer_evidence.all()):
+            labels.append("SMS")
+        if self.get_statement_evidence_count(record):
+            labels.append("PDF")
+        if getattr(record, "has_bulk_source", False):
+            labels.append("Spreadsheet")
+        return labels
+
 
     @extend_schema_field(SourceBalanceMetadataSerializer)
     def get_balance_sources(self, instance):
@@ -238,6 +251,11 @@ class TransactionSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop("allow_linked_correction", None)
+        key = validated_data.get("external_key")
+        if key:
+            from .models import MergedLedgerEntry
+            if MergedLedgerEntry.objects.filter(user=validated_data["user"], external_key=key).exists() and not Transaction.objects.filter(user=validated_data["user"], external_key=key).exists():
+                raise serializers.ValidationError({"external_key": "This entry was merged into a surviving transaction. Review its sources instead of recording it again."})
         if validated_data["type"] != Transaction.Type.TRANSFER:
             key = validated_data.get("external_key")
             if key:
@@ -493,6 +511,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "transfer_evidence",
             "account_direction",
             "statement_evidence_count",
+            "source_labels",
             "balance_sources",
             "account",
             "transfer_account",

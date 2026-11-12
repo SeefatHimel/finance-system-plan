@@ -2,7 +2,7 @@ import csv
 import json
 
 from django.db import transaction as db_transaction
-from django.db.models import Count, Q, Prefetch, OuterRef, Subquery, IntegerField, Value
+from django.db.models import Count, Q, Prefetch, OuterRef, Subquery, IntegerField, Value, Exists
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from drf_spectacular.types import OpenApiTypes
@@ -19,7 +19,7 @@ from apps.audit_logs.services import create_audit_log, transaction_snapshot
 from apps.messages.models import ParsedMessageCandidate, RawMessage
 from apps.statements.serializers import SavedStatementRowSerializer
 
-from . import bulk_revalidation, evidence_refresh, revalidation
+from . import bulk_revalidation, evidence_refresh, revalidation, duplicate_merge
 from .issue_scan import scan_ledger_page
 from .models import Transaction, TransactionAction
 from .recovery import ActionRecorder, describe, undo_action
@@ -395,13 +395,17 @@ class TransactionViewSet(ModelViewSet):
     def get_queryset(self):
         from .balance_provenance import sms_queryset, statement_queryset, LIMIT
         from apps.statements.models import StatementRow
+        from apps.bulk_imports.models import BulkImportRow
+        from .models import MergedLedgerEntry
         statement_count = (
             StatementRow.objects.filter(transaction_id=OuterRef("pk")).order_by()
             .values("transaction_id").annotate(total=Count("pk")).values("total")
         )
         queryset = (
             Transaction.objects.filter(user=self.request.user)
-            .annotate(statement_count=Coalesce(Subquery(statement_count, output_field=IntegerField()), Value(0)))
+            .annotate(statement_count=Coalesce(Subquery(statement_count, output_field=IntegerField()), Value(0)),
+                      has_bulk_source=Exists(BulkImportRow.objects.filter(transaction_id=OuterRef("pk"))),
+                      has_merged_sms=Exists(MergedLedgerEntry.objects.filter(transaction_id=OuterRef("pk"), raw_message__isnull=False)))
             .select_related(
                 "account",
                 "transfer_account",
@@ -505,6 +509,31 @@ class TransactionViewSet(ModelViewSet):
         scope = (saved.filters.get("accounts") or ([str(saved.account_id)] if saved.account_id else [])) if saved else None
         return Response({"currencies": filtered_totals(rows, request.query_params.get("account", ""), selected_accounts=scope)}, headers={"Cache-Control": "private, no-store"})
 
+    @extend_schema(request=duplicate_merge.MergePreviewRequest, responses=duplicate_merge.MergePreviewSerializer)
+    @action(detail=False, methods=("post",), url_path="merge-preview")
+    def merge_preview(self, request):
+        serializer = duplicate_merge.MergePreviewRequest(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(duplicate_merge.preview(request.user, serializer.validated_data), headers={"Cache-Control": "private, no-store"})
+
+    @extend_schema(request=duplicate_merge.MergeRequest, responses=duplicate_merge.MergeResultSerializer)
+    @action(detail=False, methods=("post",), url_path="merge-duplicates")
+    def merge_duplicates(self, request):
+        serializer = duplicate_merge.MergeRequest(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(duplicate_merge.apply(request.user, serializer.validated_data), headers={"Cache-Control": "private, no-store"})
+
+    @extend_schema(responses=duplicate_merge.MergeCandidatesSerializer)
+    @action(detail=True, methods=("get",), url_path="duplicate-candidates")
+    def duplicate_candidates(self, request, pk=None):
+        return Response(duplicate_merge.candidates(request.user, pk), headers={"Cache-Control": "private, no-store"})
+
+    @extend_schema(responses=duplicate_merge.MergedSourceSerializer(many=True))
+    @action(detail=True, methods=("get",), url_path="merged-sources")
+    def merged_sources(self, request, pk=None):
+        record = self.get_object()
+        return Response(list(record.merged_entries.order_by("created_at", "id").values("original_id", "snapshot")[:100]), headers={"Cache-Control": "private, no-store"})
+
     @extend_schema(responses=TransactionSourceMessageSerializer(many=True))
     @action(detail=True, methods=("get",), url_path="source-messages")
     def source_messages(self, request, pk=None):
@@ -520,6 +549,7 @@ class TransactionViewSet(ModelViewSet):
                 user=request.user, status="confirmed"
             ).values_list("raw_message_id", flat=True)
         )
+        message_ids.extend(record.merged_entries.exclude(raw_message=None).values_list("raw_message_id", flat=True))
         if record.raw_message_id:
             message_ids.append(record.raw_message_id)
         messages = RawMessage.objects.filter(

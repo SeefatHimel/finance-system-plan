@@ -1,5 +1,6 @@
 import uuid
 from decimal import Decimal
+from typing import ClassVar
 
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
@@ -226,3 +227,31 @@ class TimelineBalanceAllocation(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=("user", "date"), name="timeline_balance_user_date")]
+
+
+class MergedLedgerEntry(models.Model):
+    """Preserved pre-merge ledger facts; original source objects keep their IDs."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE, related_name="merged_entries")
+    original_id = models.UUIDField()
+    external_key = models.CharField(max_length=180, blank=True, default="")
+    snapshot = models.JSONField(encoder=DjangoJSONEncoder)
+    raw_message = models.ForeignKey("finance_messages.RawMessage", null=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes: ClassVar = [models.Index(fields=("user", "external_key"), name="merged_ledger_request_key")]
+        constraints: ClassVar = [models.UniqueConstraint(fields=("user", "original_id"), name="unique_merged_original")]
+
+
+class LedgerMergeReceipt(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    request_id = models.UUIDField()
+    digest = models.CharField(max_length=64)
+    action = models.ForeignKey(TransactionAction, null=True, on_delete=models.SET_NULL)
+    result = models.JSONField(default=dict)
+
+    class Meta:
+        constraints: ClassVar = [models.UniqueConstraint(fields=("user", "request_id"), name="unique_ledger_merge_request")]
