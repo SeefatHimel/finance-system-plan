@@ -2020,3 +2020,17 @@ not automatically merged. SMS references now prefer explicit transaction IDs;
 old originals and saved fields remain unchanged. See
 [duplicate merge](../../docs/duplicate-merge.md) for endpoints, deployment order,
 limits and synthetic verification commands.
+
+### Bank SMS purpose notes
+
+Bank alerts in the bounded `debited/credited with BDT <amount> as <purpose> on <date>`
+format expose a read-only `suggested_note`. The editable default contains just
+the purpose, with long numeric identifiers masked; other messages retain their
+message-kind/counterparty default. Confirmation uses the same default when no
+nonempty note is supplied. Explicit edited notes take precedence, and reads
+never rewrite transactions. Redacted or excluded originals do not generate new
+purpose suggestions. Plural fees/charges in the primary purpose classify as fees
+rather than generic transfers. Older pending messages receive the hint immediately;
+use **Re-run parser** to refresh their saved classification. No migration is needed.
+
+Regression check: `python manage.py test apps.messages.test_purpose_notes apps.messages.tests apps.transactions.test_transfers`.

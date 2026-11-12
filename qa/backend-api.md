@@ -1596,3 +1596,12 @@ removed entries. Latest-action Undo restores ledger rows and all changed links.
 Raw SMS text is not copied into recovery payloads. Different transaction IDs on
 one account block consolidation, while human message references are compared
 separately. See [duplicate merge](../docs/duplicate-merge.md).
+
+### How do bank SMS purposes become ledger notes?
+
+The parser recognizes the bounded purpose between the transaction's `as` and
+dated `on` clauses. The API exposes it as `suggested_note`, masking long numeric
+identifiers. A shared helper also supplies confirmation defaults, while an
+explicit nonempty edited note wins. Redacted/excluded originals are not used
+for new hints. Plural charges in that primary purpose classify as fees. Existing
+ledger notes are never rewritten; older pending classification requires re-parsing.

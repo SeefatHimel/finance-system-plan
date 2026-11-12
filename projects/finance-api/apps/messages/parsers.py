@@ -3,9 +3,10 @@ from decimal import Decimal, InvalidOperation
 
 from .identifiers import sanitize_financial_identifier
 from .models import ParsedMessageCandidate, SenderRule, SenderRuleMapping
+from .notes import bank_purpose
+from .references import preferred_reference
 from .safe_sender_regex import sender_pattern_matches
 from .source_direction import source_direction_for_kind
-from .references import preferred_reference
 
 _AMOUNT_PATTERN = re.compile(
     r"(?:tk|bdt)\.?\s*([0-9][0-9,]*(?:\.\d{1,2})?)|"
@@ -460,7 +461,9 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
         transaction_type = ParsedMessageCandidate.TransactionType.TRANSFER
         confidence = Decimal("0.86") if amount is not None else Decimal("0.54")
         notes.append("Detected ATM cash-withdrawal wording.")
-    elif _contains_any_phrase(normalized, ("fee", "charge", "vat")):
+    elif _contains_any_phrase(normalized, ("fee", "charge", "vat")) or _contains_any_phrase(
+        bank_purpose(body).lower(), ("fees", "charges")
+    ):
         message_kind = ParsedMessageCandidate.MessageKind.FEE
         transaction_type = ParsedMessageCandidate.TransactionType.FEE
         confidence = Decimal("0.80") if amount is not None else Decimal("0.48")
@@ -495,7 +498,7 @@ def _parse_bank_card_message(*, raw_message, sender_rule, provider: str):
         confidence = Decimal("0.78") if amount is not None else Decimal("0.48")
         notes.append("Detected bank transfer wording.")
 
-    counterparty_text = _extract_merchant_text(body) or _extract_counterparty_text(body)
+    counterparty_text = _extract_merchant_text(body) or _extract_counterparty_text(body) or bank_purpose(body)
     raw_identifiers = _extract_identifier_evidence(body, message_kind, sanitize=False)
     sender_payment_method = _find_payment_method_for_identifiers(
         user=raw_message.user,

@@ -984,10 +984,9 @@ class MessageCandidateConfirmView(APIView):
         return Response(ParsedMessageCandidateSerializer(candidate).data)
 
     def _build_transaction_note(self, candidate):
-        parts = [candidate.get_message_kind_display()]
-        if candidate.counterparty_text:
-            parts.append(candidate.counterparty_text)
-        return " · ".join(parts)
+        from .notes import suggested_note
+
+        return suggested_note(candidate)
 
     def _get_candidate(self, user, candidate_id):
         return get_object_or_404(

@@ -218,6 +218,13 @@ class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
     undo_action = TransactionActionSerializer(read_only=True, default=None, allow_null=True)
     raw_message = RawMessageSerializer(read_only=True)
     identity_suggestions = serializers.SerializerMethodField()
+    suggested_note = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField())
+    def get_suggested_note(self, instance):
+        from .notes import suggested_note
+
+        return suggested_note(instance)
 
     @extend_schema_field(IdentitySuggestionSerializer(many=True))
     def get_identity_suggestions(self, instance):
@@ -235,6 +242,7 @@ class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ParsedMessageCandidate
         fields = (
+            "suggested_note",
             "undo_action",
             "id",
             "raw_message",

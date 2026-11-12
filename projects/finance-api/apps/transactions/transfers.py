@@ -15,6 +15,7 @@ from apps.messages.models import (
     ParsedMessageCandidate,
     SenderRuleMapping,
 )
+from apps.messages.notes import suggested_note
 
 from .balance_reports import (
     account_reports,
@@ -126,7 +127,7 @@ def sms_transfer_data(candidate, overrides=None):
         "counterparty_text": overrides.get(
             "counterparty_text", candidate.counterparty_text
         ),
-        "note": overrides.get("note") or candidate.get_message_kind_display(),
+        "note": overrides.get("note") or suggested_note(candidate),
         "source": Transaction.Source.SMS,
         "raw_message": candidate.raw_message,
         "payment_method": overrides.get("payment_method", candidate.payment_method),
