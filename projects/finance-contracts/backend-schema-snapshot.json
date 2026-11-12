@@ -14991,6 +14991,10 @@
         "printed_direction_marker": {
           "$ref": "#/components/schemas/PrintedDirectionMarkerEnum"
         },
+        "printed_fee": {
+          "nullable": true,
+          "type": "string"
+        },
         "provider_type": {
           "type": "string"
         },

@@ -1078,3 +1078,11 @@ ledger mutation. Web review uses it as an editable default and sends the existin
 confirmation `note`. Older clients can ignore the hint, and newer clients fall
 back when an older API omits it. OpenAPI, generated types and the Django schema
 snapshot include the field.
+
+### Does Pathao PDF support require a new API?
+
+No. Existing statement endpoints accept the `pathao_pay` profile and mobile-wallet
+accounts. The only additive row field is optional nullable `printed_fee`, the
+original Charge/Fee decimal string. Existing `signed_fee`, principal, direction,
+balance and matching/decision contracts keep their meanings. API and web changes
+should deploy together; there is no database migration.

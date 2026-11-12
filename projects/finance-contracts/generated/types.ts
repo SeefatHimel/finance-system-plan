@@ -1536,6 +1536,7 @@ export interface StatementRow {
   direction: "debit" | "credit";
   amount: string | null;
   signed_fee: string;
+  printed_fee?: string | null;
   balance_after: string | null;
   issues: string[];
   bounds: number[];

@@ -1155,3 +1155,12 @@ available, otherwise returns the message-kind/counterparty default. Clients
 submit the reviewed `note` through existing confirmation fields; the hint is not
 a separate persisted note and does not update saved ledger transactions. Older
 clients may ignore it and newer clients retain a fallback for older APIs.
+
+### Pathao Pay statements
+
+Statement profile strings may be `pathao_pay`, using the existing mobile-wallet
+statement endpoints and matching contracts. `StatementRow.printed_fee` is an
+optional nullable decimal string containing the original Charge/Fee cell;
+`signed_fee` remains the signed wallet delta. Positive printed charges debit the
+wallet and negative printed charges rebate it. Existing consumers may omit the
+new field; no endpoint or required-property change is introduced.

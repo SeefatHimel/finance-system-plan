@@ -8892,6 +8892,10 @@ components:
         signed_fee:
           type: string
           description: Separate signed wallet charge; negative values debit the wallet.
+        printed_fee:
+          type: string
+          nullable: true
+          description: Optional original Pathao Charge/Fee cell; positive is a charge and negative a rebate. signed_fee is its ledger delta.
         balance_after:
           type: string
           nullable: true
