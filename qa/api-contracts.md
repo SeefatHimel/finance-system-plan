@@ -1070,3 +1070,11 @@ Apply returns the surviving ID, removed IDs and Undo metadata. Transaction
 responses add source labels; statement comparisons add typed reference facts.
 Original financial/source values are not bulk rewritten. API/migrations deploy
 before web. Full contract: [duplicate merge](../docs/duplicate-merge.md).
+
+### What is the SMS suggested-note contract?
+
+`ParsedMessageCandidate.suggested_note` is an additive read-only string, not a
+ledger mutation. Web review uses it as an editable default and sends the existing
+confirmation `note`. Older clients can ignore the hint, and newer clients fall
+back when an older API omits it. OpenAPI, generated types and the Django schema
+snapshot include the field.

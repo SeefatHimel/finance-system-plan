@@ -1146,3 +1146,12 @@ reference comparison metadata. A signed user/source-bound preview, UUID request
 ID and explicit confirmation protect atomic source-preserving consolidation with
 Undo. Deploy transaction migrations 0013–0014/API before web; no existing money or
 references are rewritten automatically. Details: [duplicate merge](../../docs/duplicate-merge.md).
+
+### SMS note suggestions
+
+`ParsedMessageCandidate.suggested_note` is an additive read-only string used as
+an editable default in SMS review. It extracts a bounded bank purpose when
+available, otherwise returns the message-kind/counterparty default. Clients
+submit the reviewed `note` through existing confirmation fields; the hint is not
+a separate persisted note and does not update saved ledger transactions. Older
+clients may ignore it and newer clients retain a fallback for older APIs.
