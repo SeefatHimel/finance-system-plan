@@ -26,7 +26,7 @@ import { useToast } from "@/components/toast-provider";
 
 const PairDialog = dynamic(() => import("@/components/unified-review-workspace").then(module => module.PairDialog));
 
-const labels: Record<string, string> = { ebl_bank: "EBL bank", ebl_credit_card: "EBL credit card", city_bank: "City Bank", bkash: "bKash", new: "New · review to add", possible_match: "Match available", needs_correction: "Fix needed", posted: "Done · added", linked: "Done · linked", skipped: "Skipped", pending: "Pending" };
+const labels: Record<string, string> = { ebl_bank: "EBL bank", ebl_credit_card: "EBL credit card", city_bank: "City Bank", bkash: "bKash", pathao_pay: "Pathao Pay", new: "New · review to add", possible_match: "Match available", needs_correction: "Fix needed", posted: "Done · added", linked: "Done · linked", skipped: "Skipped", pending: "Pending" };
 const emptyFilters = { state: "", sms_status: "", direction: "", type: "", category: "", search: "", date_from: "", date_to: "", ordering: "source" };
 
 export function StatementImportWorkspace({ initialImportId, initialRowId }: { initialImportId?: string; initialRowId?: string }) {
@@ -41,6 +41,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadFormOpen, setUploadFormOpen] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const uploadRequest = useRef<AbortController | null>(null);
   const identityRequest = useRef<AbortController | null>(null);
@@ -260,7 +261,7 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
     setSelectedRow(null); notify("No more unresolved rows after this row in the current filters.");
   }
   function filter(key: keyof typeof emptyFilters, value: string) { setFilters((old) => ({ ...old, [key]: value })); }
-  const eligibleTypes = identification?.profile === "ebl_credit_card" ? ["credit_card"] : identification?.profile === "bkash" ? ["mobile_wallet"] : identification?.profile ? ["bank", "savings"] : ["bank", "savings", "mobile_wallet", "credit_card"];
+  const eligibleTypes = identification?.profile === "ebl_credit_card" ? ["credit_card"] : ["bkash", "pathao_pay"].includes(identification?.profile ?? "") ? ["mobile_wallet"] : identification?.profile ? ["bank", "savings"] : ["bank", "savings", "mobile_wallet", "credit_card"];
   const uploadAccounts = accounts.filter((a) => a.is_active && a.currency === "BDT" && eligibleTypes.includes(a.type));
   return <div className="workspace-grid statement-preview">
     <details className="panel statement-library" open={libraryOpen} onToggle={event => setLibraryOpen(event.currentTarget.open)}><summary>{batchId ? "Upload or choose another statement" : "Statement library"}</summary><div className="workspace-grid">
@@ -277,13 +278,13 @@ export function StatementImportWorkspace({ initialImportId, initialRowId }: { in
       <div className="statement-actions"><button className="button" type="button" disabled={historyLoading || !historyOffset} onClick={() => setHistoryOffset(Math.max(0, historyOffset - 20))}>Newer imports</button><button className="button" type="button" disabled={historyLoading || !history?.next} onClick={() => setHistoryOffset(historyOffset + 20)}>Older imports</button><button className="button button--ghost" type="button" onClick={() => setRetry((n) => n + 1)}>Reload import list</button></div>
     </div></section>
     <section className="panel"><div className="panel__body">
-      <details open={!history?.results.length}><summary><strong>Import a statement PDF</strong></summary><p className="section-subtitle">Upload an EBL bank or credit-card, City Bank savings, or bKash digital statement, then review matches and approve new movements.</p>
+      <details open={uploadFormOpen} onToggle={event => setUploadFormOpen(event.currentTarget.open)}><summary><strong>Import a statement PDF</strong></summary><p className="section-subtitle">Upload an EBL bank or credit-card, City Bank savings, bKash or Pathao Pay digital statement, then review matches and approve new movements.</p>
       <p><Link href="/statement-counterparties">Identify recurring statement codes</Link></p>
       <p className="inline-note">Uploads save a draft and an encrypted copy of the original PDF, without adding transactions. Passwords are never stored.</p>
       {setupError ? <p role="alert" className="form-error">{setupError}</p> : null}
       <form className="form-grid" autoComplete="off" onSubmit={upload}>
         <label className="field"><span className="field__label">Statement account</span><select className="field__control" required disabled={setupLoading || uploading} value={uploadAccounts.some(a => a.id === account) ? account : ""} onChange={(e) => setAccount(e.target.value)}><option value="">{setupLoading ? "Loading accounts…" : "Choose the reporting account"}</option>{uploadAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.type.replaceAll("_", " ")}</option>)}</select></label>
-        <label className="field"><span className="field__label">Statement PDF</span><input className="field__control" type="file" accept=".pdf,application/pdf" required disabled={uploading} onChange={(e) => { const selected = e.target.files?.[0] ?? null; setFile(selected); setPassword(""); setUploadError(null); void identifyFile(selected, ""); }} /><span className="field__hint">Up to 4 MiB and 30 pages. Digital EBL credit-card statements are supported; scans still need OCR.</span></label>
+        <label className="field"><span className="field__label">Statement PDF</span><input className="field__control" type="file" accept=".pdf,application/pdf" required disabled={uploading} onChange={(e) => { const selected = e.target.files?.[0] ?? null; setFile(selected); setPassword(""); setUploadError(null); void identifyFile(selected, ""); }} /><span className="field__hint">Up to 4 MiB and 30 pages. Digital statements are supported; scanned PDFs still need OCR.</span></label>
         <DocumentPasswordField id="statement-document-unlock" disabled={uploading} value={password} onChange={value => { setPassword(value); identityRequest.current?.abort(); identityRequest.current = null; setIdentifying(false); setIdentification(null); setIdentityError(null); }} />
         {file ? <div className="field--wide" aria-live="polite">
           {identifying ? <p className="inline-note">Checking the statement account…</p> : null}

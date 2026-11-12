@@ -2046,3 +2046,12 @@ form draft keeps edits when navigating the review queue. Clients without the new
 field retain the message-kind/counterparty fallback. The original SMS is kept
 separately as evidence. Re-running the parser is an explicit form reset, so users
 review its refreshed defaults before confirming.
+
+### How does a user import Pathao Pay statements?
+
+Use Review inbox → Statements, upload a digital export and select its mobile
+wallet. A saved identifier can suggest the account. Review Add Money's funding
+account and possible existing SMS/ledger matches before recording. Same-movement
+sources attach to one transaction; uploading alone does not change balances.
+The original-row view retains the printed charge and signed fee separately.
+Shorter exports with the same layout work through the same flow.

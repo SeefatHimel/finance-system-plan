@@ -166,7 +166,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
           <p className="statement-evidence-text">{source.description}</p>
           {row.citytouch_printed_code ? <p>Citytouch code printed in PDF: {row.citytouch_printed_code}</p> : null}
           {source.printed_direction_marker ? <p>Printed card column: {source.printed_direction_marker === "D" ? "D · debit charge" : "C · credit payment or adjustment"} · Source: {source.source_currency} {source.source_amount} · Settlement: {source.settlement_currency} {source.amount} · Statement date: {source.statement_date}</p> : null}
-          <p>Principal: {source.amount ?? "Unreadable"} · Signed fee: {source.signed_fee} · Reported balance after this row: {source.balance_after ?? (batch.profile === "ebl_credit_card" ? "Not printed on card statement" : "Unreadable")}</p>
+          <p>Principal: {source.amount ?? "Unreadable"} · Signed fee: {source.signed_fee}{source.printed_fee != null ? ` · Printed charge/fee: ${source.printed_fee}` : ""} · Reported balance after this row: {source.balance_after ?? (batch.profile === "ebl_credit_card" ? "Not printed on card statement" : "Unreadable")}</p>
           {source.value_date ? <p>Printed value date: {source.value_date}</p> : null}
           {source.issues.length ? <ul>{source.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : null}
           <p className="inline-note">This masked extraction stays unchanged as source evidence. Corrections below apply to the draft.</p>

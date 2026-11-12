@@ -1733,7 +1733,7 @@ const statementRowSchema = z.object({
   description: z.string(), citytouch_printed_code: z.string().nullable().optional(), provider_type: z.string(), reference: z.string(),
   statement_date: z.string().nullable().optional(), source_currency: z.string().optional(), source_amount: z.string().optional(),
   settlement_currency: z.string().optional(), printed_direction_marker: z.enum(["D", "C"]).optional(),
-  direction: z.enum(["debit", "credit"]), amount: z.string().nullable(), signed_fee: z.string(),
+  direction: z.enum(["debit", "credit"]), amount: z.string().nullable(), signed_fee: z.string(), printed_fee: z.string().nullable().optional(),
   balance_after: z.string().nullable(), issues: z.array(z.string()), bounds: z.array(z.number())
 });
 const statementPreviewSchema = z.object({

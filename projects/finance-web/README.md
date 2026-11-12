@@ -2200,3 +2200,13 @@ and switching queue items preserves local edits. Older API responses fall back
 to the existing message-kind/counterparty label. The full SMS remains in source
 evidence. For an older incorrectly classified charge, use **Re-run parser**
 before confirming and review the refreshed form.
+
+### Pathao Pay statement review
+
+Statements accepts digital Pathao Pay PDFs, including shorter monthly exports
+with the same layout. Identification offers mobile-wallet accounts, and saved
+imports display **Pathao Pay**. The upload accordion preserves the user’s open/closed choice while history and
+account recognition refresh. Original-row details include the printed charge
+alongside its signed ledger delta. Existing comparison, SMS pairing and ledger
+linking remain in the same workspace. Uploads create pending rows; review funding
+accounts and matches before recording. See [Pathao imports](../../docs/pathao-statements.md).
