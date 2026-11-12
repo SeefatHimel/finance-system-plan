@@ -4791,3 +4791,44 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 #report-overview, #report-breakdowns, #report-transactions, #report-definition { scroll-margin-top: 110px; }
 @media (max-width: 1180px) { .report-builder-layout { grid-template-columns: minmax(0, 1fr); } .report-builder-preview { position: static; } .report-builder-preview .metric-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .report-library-toolbar, .report-breakdown-grid { grid-template-columns: minmax(0, 1fr); } .report-library-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .report-library-title { grid-column: 1 / -1; } .report-library-row-actions .button { flex: 1 1 auto; } .report-builder-preview .metric-row { grid-template-columns: minmax(0, 1fr); } .report-definition-list > div { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+
+/* Duplicate consolidation is a review surface, not another money-entry form. */
+.duplicate-merge-dialog { width: min(1060px, calc(100vw - 24px)); max-width: min(1060px, calc(100vw - 24px)); padding: 0; max-height: calc(100dvh - 24px); overflow: hidden; border: 1px solid var(--panel-border); border-radius: 18px; background: var(--panel); color: var(--foreground); }
+.duplicate-merge-dialog[open] { display: flex; flex-direction: column; }
+.duplicate-merge-header, .duplicate-merge-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--panel-border); flex-shrink: 0; }
+.duplicate-merge-header h2 { margin: 0; }
+.duplicate-merge-header p { margin: 6px 0 0; color: var(--muted); }
+.duplicate-merge-body { overflow-y: auto; min-height: 0; flex: 1; padding: 24px; }
+.duplicate-merge-body fieldset { border: 0; padding: 0; margin: 0 0 24px; min-width: 0; }
+.duplicate-merge-body legend { font-weight: 700; font-size: 1.05rem; margin-bottom: 8px; }
+.duplicate-merge-choices, .duplicate-merge-keepers { display: grid; gap: 10px; }
+.duplicate-merge-choices label, .duplicate-merge-keepers label { display: flex; align-items: center; gap: 12px; border: 1px solid var(--panel-border); border-radius: 12px; padding: 14px; min-width: 0; cursor: pointer; }
+.duplicate-merge-choices label.is-selected { border-color: var(--accent); }
+.duplicate-merge-choices label > span, .duplicate-merge-keepers label > span { display: grid; gap: 5px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.duplicate-merge-choices label > strong { white-space: nowrap; }
+.duplicate-merge-choices small, .duplicate-merge-keepers small { color: var(--muted); }
+.duplicate-merge-result { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 16px 0; font-size: 1.1rem; }
+.duplicate-merge-result > strong { color: var(--accent); }
+.duplicate-merge-evidence { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 20px 0; }
+.duplicate-merge-evidence > section { min-width: 0; border: 1px solid var(--panel-border); border-radius: 12px; padding: 16px; }
+.duplicate-merge-evidence h4 { margin: 0 0 16px; }
+.duplicate-merge-evidence dl { margin: 0 0 16px; display: grid; gap: 10px; }
+.duplicate-merge-evidence dt { color: var(--muted); font-size: .875rem; }
+.duplicate-merge-evidence dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.duplicate-merge-original { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .875rem; max-height: 280px; overflow: auto; }
+.duplicate-merge-evidence article { padding-top: 16px; border-top: 1px solid var(--panel-border); margin-top: 12px; }
+.duplicate-merge-confirm { display: flex; align-items: flex-start; gap: 12px; padding: 18px 0; font-weight: 600; cursor: pointer; }
+.duplicate-merge-confirm input { margin-top: 4px; flex-shrink: 0; }
+.duplicate-merge-footer { border-top: 1px solid var(--panel-border); border-bottom: 0; justify-content: flex-end; flex-wrap: wrap; }
+.duplicate-merge-callout { padding: 16px; border: 1px solid var(--panel-border); border-radius: 12px; margin-bottom: 20px; }
+.duplicate-merge-callout p { margin: 8px 0 14px; }
+@media (max-width: 640px) {
+  .duplicate-merge-header, .duplicate-merge-footer, .duplicate-merge-body { padding: 16px; }
+  .duplicate-merge-evidence { grid-template-columns: 1fr; }
+  .duplicate-merge-header h2 { font-size: 1.2rem; }
+  .duplicate-merge-choices label { flex-wrap: wrap; }
+  .duplicate-merge-choices label > strong { margin-left: 28px; }
+  .duplicate-merge-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .duplicate-merge-footer .button--primary { grid-column: 1 / -1; }
+}
+.duplicate-merge-header .icon-button { background: transparent; color: inherit; border: 1px solid var(--panel-border); border-radius: 10px; flex-shrink: 0; }

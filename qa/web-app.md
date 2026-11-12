@@ -2027,3 +2027,14 @@ for five minutes. Before the first mobile release, the current local build is
 reported without a download link. Invalid release metadata or an unavailable
 GitHub API yields a temporary 503. The release binary and signing key are never
 committed to the web project.
+
+### How does a user consolidate duplicate SMS, table and statement entries?
+
+An in-page Merge duplicates dialog offers a keeper selection, original-source
+comparison and explicit N-to-one result. A single final confirmation removes the
+duplicate ledger entries while preserving their originals. The statement entry
+point can attach the pending PDF row at the same time. The list keeps its filters,
+source badges reflect retained attachments and a success toast offers Undo.
+Stale previews are discarded; errors stay in toasts. Transaction IDs and message
+references are labelled separately, and preserved ledger versions are accessible
+in transaction details without counting them as independent sources.

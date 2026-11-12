@@ -1,5 +1,6 @@
 "use client";
 
+import { mergedSources } from "@/lib/duplicate-merge-api";
 import { BulkSourceRows } from "./bulk-import-sources";
 import { listBulkSources, type BulkSource } from "@/lib/bulk-import-api";
 import { useEffect, useRef, useState } from "react";
@@ -51,6 +52,22 @@ function SourceSummary({ label, observation, record, balances, currency, subtitl
     <span>{observation.dateKind === "received" ? "Received " : ""}<time className={changed("date")} dateTime={observation.date ?? undefined}>{observation.date ? formatCalendarDate(observation.date) : "Date not reported"}</time>{observation.time ? <span className={changed("time")}>{` · ${formatClockTime(observation.time)}`}</span> : " · Time not reported"}</span>{subtitle ? <small className={changed("account")}>{subtitle}</small> : null}
     {differences.length ? <span className="transaction-view-source__warnings">{differences.map(item => <span key={item.field}><WarningCircle size={13} aria-hidden="true" />{item.label}</span>)}</span> : null}
     </div><div className="transaction-view-source__money"><strong className={changed("amount")}>{sourceMoney(observation.amount, sourceCurrency)}</strong></div></div>;
+}
+
+function MergedLedgerHistory({ id }: { id: string }) {
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<Awaited<ReturnType<typeof mergedSources>> | null>(null);
+  const [revision, setRevision] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const { notify } = useToast();
+  useEffect(() => {
+    if (!open) return;
+    const token = getAccessToken(); if (!token) return;
+    const controller = new AbortController(); setFailed(false);
+    void mergedSources(token, id, controller.signal).then(result => { if (!controller.signal.aborted) setRows(result); }).catch(error => { if (!controller.signal.aborted) { setFailed(true); notify(errorMessage(error), "error"); } });
+    return () => controller.abort();
+  }, [id, open, revision, notify]);
+  return <details className="transaction-view-disclosure" onToggle={event => setOpen(event.currentTarget.open)}><summary>Pre-merge ledger versions</summary>{open ? <div className="transaction-view-originals">{failed ? <button type="button" className="button button--ghost" onClick={() => setRevision(value => value + 1)}>Retry merge history</button> : rows === null ? <p role="status">Loading preserved versions…</p> : rows.length ? rows.map(row => <article key={row.original_id}><strong>{displayLabel(String(row.snapshot.source))} · {String(row.snapshot.date)}</strong><p>Original ledger ID: {row.original_id}</p><dl className="transaction-view-facts">{["type", "amount", "balance_after", "reference", "counterparty_text", "note"].map(field => <div key={field}><dt>{displayLabel(field)}</dt><dd>{String(row.snapshot[field] ?? "Not reported")}</dd></div>)}</dl></article>) : <p>No duplicate entries have been merged into this transaction.</p>}</div> : null}</details>;
 }
 
 function OriginalSources({ detail }: { detail: Detail }) {
@@ -118,6 +135,7 @@ export function TransactionDetailDialog({ transactionId, orderedIds, accounts, c
         {identifiers.length ? <details className="transaction-view-disclosure"><summary><FileText size={20} aria-hidden="true" />Saved identifiers<CaretDown className="transaction-view-disclosure__caret" size={16} aria-hidden="true" /></summary><dl className="transaction-view-facts">{identifiers.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></details> : null}
         <OriginalSources key={`original:${record.id}`} detail={detail} />
         {detail.bulk ? <BulkSourceRows rows={detail.bulk} /> : null}
+        <MergedLedgerHistory key={`merged:${record.id}`} id={record.id} />
         <History key={`history:${record.id}`} id={record.id} />
       </>}
     </div><footer className="transaction-view-footer"><button className="button button--ghost" type="button" onClick={onClose}>Close</button><button className="button button--primary" type="button" disabled={!record} onClick={() => onEdit(transactionId)}><PencilSimple size={17} aria-hidden="true" />Edit transaction</button></footer>

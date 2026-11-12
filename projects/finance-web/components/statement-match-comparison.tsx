@@ -50,8 +50,8 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
   const ledgerFrom = accounts.find(account => account.name === match.account_name)?.id ?? null;
   const ledgerTo = match.transfer_account_name ? accounts.find(account => account.name === match.transfer_account_name)?.id ?? null : null;
   const differences = statementComparisonDifferences(
-    { amount: row.amount, account: statementFrom, transferAccount: statementTo, date: row.date, time: row.time, type: row.type, category: row.category, balance: row.balance_after, reference: row.reference, description: statementDescription },
-    { amount: match.amount, account: ledgerFrom, transferAccount: ledgerTo, date: match.date, time: match.time, type: match.type, category: match.category_id, balance: match.effective_balance_after, reference: match.reference, description: ledgerDescription },
+    { amount: row.amount, account: statementFrom, transferAccount: statementTo, date: row.date, time: row.time, type: row.type, category: row.category, balance: row.balance_after, reference: match.reference_comparison ? match.reference_comparison.statement.transaction_id : row.reference, description: statementDescription },
+    { amount: match.amount, account: ledgerFrom, transferAccount: ledgerTo, date: match.date, time: match.time, type: match.type, category: match.category_id, balance: match.effective_balance_after, reference: match.reference_comparison ? match.reference_comparison.existing.transaction_id : match.reference, description: ledgerDescription },
   );
   const description = (text: string, codes: string[]) => descriptionDifferenceParts(text, codes).map((part, index) => part.different ? <mark className="statement-description-difference" title="Only printed in this description; verify its role in the originals" key={index}>{part.text}</mark> : <span key={index}>{part.text}</span>);
   const comparison = [
@@ -60,7 +60,8 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
     { label: "Date / time", statement: `${formatCalendarDate(row.date)}${row.time ? ` · ${row.time}` : ""}`, ledger: `${formatCalendarDate(match.date)}${match.time ? ` · ${match.time}` : ""}`, different: differences.date || differences.time },
     { label: "Type / category", statement: `${row.type.replaceAll("_", " ")} · ${categoryName(row.category)}`, ledger: `${match.type.replaceAll("_", " ")} · ${match.category_name ?? "Uncategorized"}`, different: differences.classification },
     { label: "Reported balance after", statement: balanceText(row.balance_after), ledger: balanceText(match.effective_balance_after), different: differences.balance },
-    { label: "Reference", statement: row.reference || "Not reported", ledger: match.reference || "Not reported", different: differences.reference },
+    { label: match.reference_comparison ? "Transaction ID" : "Reference", statement: (match.reference_comparison?.statement.transaction_id ?? row.reference) || "Not established", ledger: (match.reference_comparison?.existing.transaction_id ?? match.reference) || "Not established", different: differences.reference },
+    ...(match.reference_comparison ? [{ label: "Message reference", statement: match.reference_comparison.statement.message_reference || "Not reported", ledger: match.reference_comparison.existing.message_reference || "Not reported", different: false }] : []),
     { label: "Description", statement: description(statementDescription, differences.descriptionNumbers.statement), ledger: description(ledgerDescription || "No description", differences.descriptionNumbers.ledger), different: false },
   ];
   const hintId = `statement-match-hint-${match.id}`;
@@ -75,7 +76,7 @@ export function StatementMatchComparison({ row, batch, match, accounts, categori
         {differences.time ? <span className="status-badge status-badge--warning">Different time</span> : null}
         {differences.path ? <span className="status-badge status-badge--warning">Different account path</span> : null}
         {differences.classification ? <span className="status-badge status-badge--warning">Different type / category</span> : null}
-        {differences.reference ? <span className="status-badge status-badge--warning">Different reference</span> : null}
+        {differences.reference ? <span className="status-badge status-badge--warning">Different transaction ID</span> : null}
         {differences.descriptionNumbers.hasDifference ? <span className="status-badge status-badge--warning">Number/code text differs</span> : null}
       </p> : null}
       {differences.descriptionNumbers.hasDifference ? <p>Highlighted numbers may have different roles. A shared amount or merchant name does not confirm a match.</p> : null}

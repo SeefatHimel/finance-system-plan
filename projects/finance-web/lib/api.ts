@@ -176,7 +176,7 @@ const evidenceDirectionRefreshPageSchema = z.object({
 });
 export type EvidenceDirectionRefreshPage = z.infer<typeof evidenceDirectionRefreshPageSchema>;
 
-const transactionActionSchema = z.object({
+export const transactionActionSchema = z.object({
   id: z.string(), kind: z.string(), label: z.string(), transaction: z.string().nullable(),
   created_at: z.string(), expires_at: z.string(), can_undo: z.boolean(), undone: z.boolean()
 });
@@ -280,6 +280,7 @@ const transactionSchema = z.object({
   account_direction: z.string(),
   transfer_evidence: z.array(transferEvidenceSchema),
   statement_evidence_count: z.number().default(0),
+  source_labels: z.array(z.string()).optional(),
   account: z.string(),
   amount: z.string(),
   balance_after: z.string().nullable(),
@@ -1765,6 +1766,7 @@ const savedStatementSchema = z.object({
 const statementDetailFieldSchema = z.enum(["counterparty_text", "reference", "note", "sender_account_identifier", "sender_card_identifier", "receiver_account_identifier", "receiver_card_identifier"]);
 const statementDetailSuggestionSchema = z.object({ field: statementDetailFieldSchema, label: z.string(), existing_value: z.string(), suggested_value: z.string() });
 const statementMatchSchema = z.object({
+  reference_comparison: z.object({ statement: z.object({ transaction_id: z.string(), message_reference: z.string(), saved_reference: z.string() }), existing: z.object({ transaction_id: z.string(), message_reference: z.string(), saved_reference: z.string() }) }).optional(),
   strength: z.enum(["strong", "possible"]).default("possible"), merchant_similarity: z.number().default(0), time_difference_minutes: z.number().nullable().default(null),
   id: z.string(), date: z.string(), time: z.string().nullable(), type: z.string(), source: z.string(), amount: z.string(), account_name: z.string(),
   transfer_account_name: z.string().nullable(), category_id: z.string().nullable(), category_name: z.string().nullable(), reference: z.string(), note: z.string(), balance_after: z.string().nullable(),

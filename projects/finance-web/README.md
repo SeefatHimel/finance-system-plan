@@ -2179,3 +2179,15 @@ Verify `node --test tests/report-navigation.test.cjs tests/auth-session.test.cjs
 and `npm run test:e2e -- e2e/custom-reports.spec.ts` against the disposable synthetic
 fixture. Browser checks should also cover library search restoration, direct detail
 reload, read-only transaction inspection, explicit membership editing and CSV export.
+
+### Merge duplicates in place
+
+Transactions → More actions → **Merge duplicates**, or statement review →
+**Review duplicate ledger entries**, opens a lazy-loaded review dialog. Choose
+entries, choose which saved values to retain, inspect originals and confirm once.
+The statement route attaches its pending row in the same operation; source badges
+show SMS/PDF/spreadsheet attachments. Filters stay in place, errors use toasts,
+stale previews require refresh and latest-action Undo restores the source links.
+Details expose preserved ledger versions separately from original sources.
+Requires API transaction migrations 0013–0014. Workflow, safeguards and browser
+checks: [duplicate merge](../../docs/duplicate-merge.md).

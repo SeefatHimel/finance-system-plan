@@ -6,6 +6,7 @@ import { formatCalendarDate } from "../../finance-contracts/presentation";
 import { CalendarDateInput } from "@/components/calendar-date-input";
 import { useState, type KeyboardEvent } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { HelpTooltip } from "@/components/help-tooltip";
 import { statementDraftCategory, statementSuggestionAlreadyApplied } from "@/lib/statement-draft-category";
 import { StatementMatchComparison } from "@/components/statement-match-comparison";
@@ -21,6 +22,8 @@ import { useToast } from "@/components/toast-provider";
 import { getAccessToken } from "@/lib/auth-storage";
 import { transactionTypes } from "@/lib/category-type";
 import { decideStatementRow, updateStatementRow, type Account, type Category, type SavedStatement, type SavedStatementRow, type StatementCategoryChoice, type StatementDecision, type StatementRowEdit, type TransactionType } from "@/lib/api";
+
+const DuplicateMergeDialog = dynamic(() => import("./duplicate-merge-dialog").then(module => module.DuplicateMergeDialog));
 
 function editable(row: SavedStatementRow): StatementRowEdit {
   return { version: row.version, date: row.date, time: row.time, value_date: row.value_date, direction: row.direction, amount: row.amount, balance_after: row.balance_after, type: row.type, other_account: row.other_account, category: row.category, reference: row.reference, counterparty_text: row.counterparty_text, note: row.note, classification_confirmed: row.classification_confirmed };
@@ -41,6 +44,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
   const [balanceSelections, setBalanceSelections] = useState<Record<string, StatementBalanceSelection>>({});
   const [categorySelections, setCategorySelections] = useState<Record<string, { version: number; choice: StatementCategoryChoice }>>({});
   const [detailSelections, setDetailSelections] = useState<Record<string, { version: number; values: DetailSelections }>>({});
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [confirmSeparate, setConfirmSeparate] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [verifiedSms, setVerifiedSms] = useState<string | null>(null);
@@ -270,6 +274,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         </section> : null}
         {!editOnly && !isResolved && row.review.matches.length ? <section className="statement-matches" aria-labelledby="statement-matches-title">
           <h3 id="statement-matches-title">Possible matches</h3>
+          {row.review.matches.length > 1 ? <div className="duplicate-merge-callout"><strong>Already recorded more than once?</strong><p>Merge existing duplicates and attach this statement in one step.</p><button className="button button--ghost" type="button" disabled={busy || dirty} onClick={() => setMergeOpen(true)}>Review duplicate ledger entries</button>{dirty ? <p className="inline-note">Save draft changes before reviewing a merge.</p> : null}</div> : null}
           <p className="inline-note">Compare the same movement. Linking counts it once; selected balance and detail changes are reviewed before acceptance.</p>
           <div className="statement-match-list">{row.review.matches.map((match) => <StatementMatchComparison key={match.id}
             row={row} batch={batch} match={match} accounts={accounts} categories={categories}
@@ -297,6 +302,7 @@ export function StatementRowDialog({ row, batch, accounts, categories, onChange,
         </div>
       </footer>
     </ModalDialog>
+    {mergeOpen ? <DuplicateMergeDialog anchorId={row.review.matches[0].id} initialIds={row.review.matches.map(match => match.id).slice(0, 10)} statementRow={row.id} onClose={() => setMergeOpen(false)} onMerged={() => { setMergeOpen(false); onReload(); onCancel(); }} /> : null}
     {categoryChoice.confirmation}
     {confirmSeparate ? <ModalDialog labelledBy="statement-separate-title" busy={busy} onCancel={() => setConfirmSeparate(false)}><h2 id="statement-separate-title">Add a separate movement?</h2><p>A ledger entry or pending SMS may describe this row. Continue only if you have checked that this is another transaction, such as a genuine repeat purchase.</p><div className="decision-modal__actions"><button className="button" type="button" disabled={busy} onClick={() => setConfirmSeparate(false)}>Back to matches</button><button className="button button--primary" type="button" disabled={busy} onClick={() => void decide("create", undefined, true)}>Confirm separate movement</button></div></ModalDialog> : null}
     {confirmUnlink ? <ModalDialog labelledBy="statement-unlink-title" busy={busy} onCancel={() => setConfirmUnlink(false)}><h2 id="statement-unlink-title">Unlink this evidence?</h2><p>The transaction stays in your ledger. This row returns to review, where it may suggest that transaction again.</p><div className="decision-modal__actions"><button className="button" type="button" disabled={busy} onClick={() => setConfirmUnlink(false)}>Cancel</button><button className="button button--primary" type="button" disabled={busy} onClick={() => void decide("unlink")}>Unlink evidence only</button></div></ModalDialog> : null}

@@ -70,6 +70,7 @@ type LoadState = TransactionLoadState;
 
 const BulkImportDialog = dynamic(() => import("@/components/bulk-import-dialog").then(module => module.BulkImportDialog));
 
+const DuplicateMergeDialog = dynamic(() => import("@/components/duplicate-merge-dialog").then(module => module.DuplicateMergeDialog));
 const TransactionDetailDialog = dynamic(() => import("@/components/transaction-detail-dialog").then(module => module.TransactionDetailDialog));
 
 const transactionSources: TransactionSource[] = ["web", "mobile", "sms", "import", "system"];
@@ -205,6 +206,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   const [formError, setFormError] = useFeedbackMessage("error");
   const [, setFormMessage] = useFeedbackMessage("success");
   const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
+  const [mergeId, setMergeId] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [editingReportedBalances, setEditingReportedBalances] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -892,12 +894,13 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
     return <HelpTooltip label={`${label}: ${text}`} textTrigger={<span>{text}</span>}>{text}</HelpTooltip>;
   }
   function sourceBadges(transaction: Transaction) {
-    const sms = transaction.source === "sms" || transaction.raw_message || transaction.transfer_evidence.some(item => item.raw_message || item.source === "sms");
+    const sms = transaction.source_labels?.includes("SMS") || transaction.source === "sms" || transaction.raw_message || transaction.transfer_evidence.some(item => item.raw_message || item.source === "sms");
     return <span className="transaction-badges">
       <span className="transaction-mini-badge">{displayLabel(transaction.type)}</span>
       {sms ? <span className="transaction-mini-badge transaction-mini-badge--source" title={transaction.raw_message || transaction.transfer_evidence.some(item => item.raw_message) ? "Saved SMS evidence is attached" : "Recorded from SMS; the original message may no longer be available"}>SMS</span> : null}
+      {transaction.source_labels?.includes("Spreadsheet") ? <span className="transaction-mini-badge transaction-mini-badge--source">Spreadsheet</span> : null}
       {transaction.statement_evidence_count > 0 ? <span className="transaction-mini-badge transaction-mini-badge--source" title={`${transaction.statement_evidence_count} attached statement rows`}>PDF</span> : null}
-      {!sms && !transaction.statement_evidence_count ? <span className="transaction-mini-badge">{transaction.source === "web" ? "Manual" : displayLabel(transaction.source)}</span> : null}
+      {!sms && !transaction.statement_evidence_count && !transaction.source_labels?.includes("Spreadsheet") ? <span className="transaction-mini-badge">{transaction.source === "web" ? "Manual" : displayLabel(transaction.source)}</span> : null}
       {transaction.needs_review ? <span className="transaction-mini-badge transaction-mini-badge--review">Needs review</span> : null}
     </span>;
   }
@@ -947,7 +950,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
         <button className="button button--ghost" onClick={() => setRevalidationId(transaction.id)} type="button">Revalidate</button>
         <Link className="button button--ghost" href={`/audit-logs?entity_type=transactions.transaction&entity_id=${transaction.id}`}>History</Link>
         <button className="button button--danger" disabled={deletingTransactionId === transaction.id} onClick={() => void handleDeleteTransaction(transaction)} type="button">{deletingTransactionId === transaction.id ? <ButtonBusy label="Deleting" /> : "Delete"}</button>
-      </TransactionActionMenu>
+      <button type="button" className="button button--ghost" onClick={() => setMergeId(transaction.id)}>Merge duplicates</button></TransactionActionMenu>
     </div>;
   }
 
@@ -987,6 +990,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
       </ModalDialog> : null}
       {revalidationId ? <TransactionRevalidationDialog key={revalidationId} transactionId={revalidationId} onClose={() => setRevalidationId(null)} onEdit={() => { const id = revalidationId; setRevalidationId(null); void selectTransactionForEdit(id); }} /> : null}
       {categoryChoice.confirmation}
+      {mergeId ? <DuplicateMergeDialog anchorId={mergeId} onClose={() => setMergeId(null)} onMerged={() => setMergeId(null)} /> : null}
       {viewingId ? <TransactionDetailDialog transactionId={viewingId} orderedIds={loadState.transactions.map(transaction => transaction.id)} accounts={loadState.accounts} categories={loadState.categories} selectedAccount={displayedFilters.account} onNavigate={setViewingId} onClose={() => setViewingId(null)} onEdit={id => { setViewingId(null); void selectTransactionForEdit(id); }} /> : null}
       {editorMode ? (
         <ModalDialog labelledBy="transaction-editor-title" className="form-drawer transaction-editor-drawer" busy={isSubmitting || isUpdating} onCancel={closeEditor}>
