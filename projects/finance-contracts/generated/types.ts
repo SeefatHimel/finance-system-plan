@@ -1336,6 +1336,7 @@ export interface SourceBalanceObservation {
 export type TimeKindEnum = "reported" | "received";
 
 export interface Transaction {
+  source_labels?: string[];
   balance_sources: SourceBalanceMetadata;
   undo_action?: TransactionAction | null;
   reported_balances?: AccountReportedBalance[];
@@ -1737,6 +1738,7 @@ export interface StatementImport {
 }
 
 export interface StatementMatch {
+  reference_comparison?: unknown;
   id: string;
   date: string;
   time: string | null;
@@ -2334,4 +2336,75 @@ export interface ReportPreviewRequest {
   currency?: string;
   filters?: ReportRules;
   saved_report?: string;
+}
+
+export interface MergeCandidates {
+  entry: MergeEntry;
+  candidates: MergeEntry[];
+}
+
+export interface MergeEntry {
+  id: string;
+  account: string;
+  account_name: string;
+  currency: string;
+  transfer_account_name: string | null;
+  date: string;
+  time: string | null;
+  type: string;
+  direction: string;
+  amount: string;
+  balance_after: string | null;
+  reference: string;
+  description: string;
+  note: string;
+  source: string;
+  sources?: MergeSource[];
+}
+
+export interface MergePreview {
+  entries: MergeEntry[];
+  keep: string;
+  statement: MergeSource | null;
+  blockers: string[];
+  removed_count: number;
+  retained_fields: string;
+  preview_token: string;
+}
+
+export interface MergePreviewRequest {
+  transactions: string[];
+  keep: string;
+  statement_row?: string | null;
+}
+
+export interface MergeRequest {
+  transactions: string[];
+  keep: string;
+  statement_row?: string | null;
+  preview_token: string;
+  request_id: string;
+  confirmed: boolean;
+}
+
+export interface MergeResult {
+  transaction: string;
+  removed: string[];
+  statement_row: string | null;
+  undo_action: TransactionAction;
+}
+
+export interface MergeSource {
+  kind: string;
+  id: string;
+  account: string | null;
+  text: string;
+  transaction_id: string;
+  message_reference: string;
+  saved_reference: string;
+}
+
+export interface MergedSource {
+  original_id: string;
+  snapshot: unknown;
 }

@@ -1058,3 +1058,15 @@ membership and export keep their existing contracts. Next.js UUID routes are cli
 navigation, not API routes. Missing or foreign definitions remain inaccessible,
 and nested routes are protected login return destinations. Duplicate saves a new
 definition without copying explicit membership choices.
+
+### What is the duplicate-merge API boundary?
+
+Authenticated `duplicate-candidates`, `merge-preview`, `merge-duplicates` and
+`merged-sources` transaction endpoints expose bounded source comparisons. Preview
+requires 2–10 distinct owned IDs and a keeper; apply also requires a 15-minute
+signed token, UUID request ID and explicit confirmation. A stale preview returns
+409 before writes. Optional `statement_row` links a pending PDF row atomically.
+Apply returns the surviving ID, removed IDs and Undo metadata. Transaction
+responses add source labels; statement comparisons add typed reference facts.
+Original financial/source values are not bulk rewritten. API/migrations deploy
+before web. Full contract: [duplicate merge](../docs/duplicate-merge.md).

@@ -1135,3 +1135,14 @@ Transfers match either selected account once; cash in/out counts transfers cross
 the selected group and excludes internal transfers. Account drill-through narrows
 the selection further. Summary, transaction browsing/totals, export and previews
 share rule selection. Deploy reports.0002_savedreport_filters before the web client.
+
+## Duplicate ledger merges
+
+The transaction API adds `GET {id}/duplicate-candidates/`, `POST merge-preview/`,
+`POST merge-duplicates/` and `GET {id}/merged-sources/`, under `/api/transactions/`.
+Typed merge request/preview/result schemas preserve existing public component and
+operation names. Transaction responses add source labels; StatementMatch adds
+reference comparison metadata. A signed user/source-bound preview, UUID request
+ID and explicit confirmation protect atomic source-preserving consolidation with
+Undo. Deploy transaction migrations 0013–0014/API before web; no existing money or
+references are rewritten automatically. Details: [duplicate merge](../../docs/duplicate-merge.md).
