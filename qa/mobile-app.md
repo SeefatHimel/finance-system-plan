@@ -959,3 +959,7 @@ silently install updates. The manifest can announce an unpublished release with
 locally and copied to `dist/releases`, then uploaded separately to a public
 HTTPS host. The same application ID and signing key are required to update in
 place without clearing local data.
+
+### Does mobile review understand live category hints?
+
+New drafts prefer suggested_category when present, including explicit null, and retain the parsed category for older APIs. Existing local drafts keep their edits. The source update requires a new mobile build; saving a web category rule does not itself distribute an APK or silently reset an open native draft.

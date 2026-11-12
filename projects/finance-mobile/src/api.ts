@@ -172,6 +172,7 @@ export type RawMessage = {
 };
 
 export type ParsedMessageCandidate = {
+  suggested_category?: string | null;
   undo_action?: TransactionAction | null;
   identity_suggestions?: IdentitySuggestion[];
   suggested_transfer_direction?: "" | "debit" | "credit";

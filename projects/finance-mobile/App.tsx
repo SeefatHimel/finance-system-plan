@@ -1678,7 +1678,7 @@ function FinanceApp({ themePreference, isLight, chooseTheme }: {
       balanceNotice: "",
       direction,
       amount: candidate.amount ?? "",
-      categoryId: candidate.category ?? "",
+      categoryId: (candidate.suggested_category === undefined ? candidate.category : candidate.suggested_category) ?? "",
       counterpartyText: candidate.counterparty_text,
       date: timestampFields(candidate.raw_message.received_at).date,
       note: "",

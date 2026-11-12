@@ -147,3 +147,16 @@ test("App ignores a pre-save refresh response and keeps the last pending decisio
   assert.match(text(h.tree), /Save not confirmed/);
   assert(button(h.tree, "Check save status")); assert.equal(posts, 1);
 });
+
+for (const [label, extra, expected] of [
+  ["live hint", { category: null, suggested_category: "food" }, "food"],
+  ["explicit null", { category: "food", suggested_category: null }, ""],
+  ["older API", { category: "food" }, "food"],
+]) test(`new native review drafts respect category ${label}`, async t => {
+  const h = await mobileAppHarness(t, {
+    listMessageCandidates: async () => ({ count: 1, results: [candidate("category-hint", extra)] }),
+  });
+  await h.review();
+  await act(async () => button(h.tree, "Edit transaction details").props.onPress());
+  assert.equal(h.fields().props.draft.categoryId, expected);
+});

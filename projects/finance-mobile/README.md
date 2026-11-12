@@ -995,3 +995,7 @@ following a lost response creates one movement; conflicting details are rejected
 by the API. Rebuild the app for this change. `npm test` includes the identity
 regression. CI runs native SMS unit tests and Android debug compilation; see
 [review validation and remaining dependency risk](../../docs/architecture-review-remediation.md).
+
+### Saved-category review defaults
+
+New SMS review drafts prefer the API `suggested_category`, including explicit null; older APIs retain the `category` fallback. Existing local drafts are preserved. This source change ships with the next mobile build; it does not publish an APK. Pathao rides and Food learning is scoped separately by the API.
