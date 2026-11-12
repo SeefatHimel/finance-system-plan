@@ -326,7 +326,7 @@ paths:
                 required: [saved, scope, account]
                 properties:
                   saved: {type: boolean}
-                  scope: {type: string, enum: [cash_withdrawal, counterparty, message_type]}
+                  scope: {type: string, enum: [cash_withdrawal, counterparty, message_type, service_group]}
                   account: {type: string}
                   destination: {type: string}
         '400': {description: Original source cannot support a safe reusable rule.}
@@ -6714,6 +6714,12 @@ components:
       required:
         [id, raw_message, sender_rule, account, payment_method, category, destination_account, destination_payment_method, transaction, possible_related_candidate, provider, message_kind, source_direction, transaction_type, amount, sender_account_identifier, sender_card_identifier, receiver_account_identifier, receiver_card_identifier, counterparty_text, reference, balance_after, fee_amount, possible_internal_transfer, related_match_reason, confidence, status, parser_name, parser_notes, rejection_reason, rejection_note, rejected_at, created_at, updated_at]
       properties:
+        suggested_category:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+          description: Live owner-scoped review category default. Null deliberately suppresses unsafe legacy Pathao purchase-wide categories. Preserve explicit local edits; older APIs may omit this field.
         suggested_note:
           type: string
           readOnly: true

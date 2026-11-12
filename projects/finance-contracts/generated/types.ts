@@ -730,6 +730,7 @@ export interface DashboardSummary {
 }
 
 export interface ParsedMessageCandidate {
+  suggested_category?: string | null;
   suggested_note?: string;
   undo_action?: TransactionAction | null;
   identity_suggestions?: IdentitySuggestion[];

@@ -2309,7 +2309,8 @@
                       "enum": [
                         "cash_withdrawal",
                         "counterparty",
-                        "message_type"
+                        "message_type",
+                        "service_group"
                       ],
                       "type": "string"
                     }
@@ -10602,6 +10603,12 @@
           ],
           "readOnly": true
         },
+        "suggested_category": {
+          "format": "uuid",
+          "nullable": true,
+          "readOnly": true,
+          "type": "string"
+        },
         "suggested_note": {
           "readOnly": true,
           "type": "string"
@@ -10680,6 +10687,7 @@
         "sender_rule",
         "source_direction",
         "status",
+        "suggested_category",
         "suggested_note",
         "suggested_transfer_direction",
         "transaction",

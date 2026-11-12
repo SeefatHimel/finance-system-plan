@@ -1086,3 +1086,7 @@ accounts. The only additive row field is optional nullable `printed_fee`, the
 original Charge/Fee decimal string. Existing `signed_fee`, principal, direction,
 balance and matching/decision contracts keep their meanings. API and web changes
 should deploy together; there is no database migration.
+
+### Why is suggested_category separate from category?
+
+The stored parser category remains inspectable while a nullable read-only UUID supplies the latest review default. Null can deliberately suppress unsafe legacy Pathao rules; missing means an older API and permits the parsed-category fallback. Existing confirmation requests still send a reviewed category or explicit null. The service_group remember scope identifies Pathao rides/Food learning without adding endpoints or schema migrations.

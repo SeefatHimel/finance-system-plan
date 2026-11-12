@@ -113,13 +113,13 @@ export class FinanceApiClient {
   replace_existing?: boolean;
 }): Promise<{
   saved: boolean;
-  scope: "cash_withdrawal" | "counterparty" | "message_type";
+  scope: "cash_withdrawal" | "counterparty" | "message_type" | "service_group";
   account: string;
   destination?: string;
 }> {
     return this.request<{
   saved: boolean;
-  scope: "cash_withdrawal" | "counterparty" | "message_type";
+  scope: "cash_withdrawal" | "counterparty" | "message_type" | "service_group";
   account: string;
   destination?: string;
 }>("/api/messages/review/{candidate_id}/remember/".replace('{candidate_id}', encodeURIComponent(pathParams.candidate_id)), { method: "POST", body });

@@ -1164,3 +1164,7 @@ optional nullable decimal string containing the original Charge/Fee cell;
 `signed_fee` remains the signed wallet delta. Positive printed charges debit the
 wallet and negative printed charges rebate it. Existing consumers may omit the
 new field; no endpoint or required-property change is introduced.
+
+### Live pending-category hint
+
+`ParsedMessageCandidate.suggested_category` is an additive read-only nullable UUID. When present, use it as the review default instead of the parsed `category`; explicit null suppresses an unsafe or unavailable default. Preserve manual drafts. If omitted by an older API, fall back to `category`. Confirmation retains the existing explicit category/null field. Remember responses can return `scope: service_group` for account-scoped Pathao rides/Food learning. No original financial fields or ledger records change when a hint is read.
