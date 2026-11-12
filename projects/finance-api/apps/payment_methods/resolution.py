@@ -174,7 +174,7 @@ def text_identifier_evidence(text):
 
 def statement_account_suggestion(*, user, profile, hint, methods=None):
     eligible_types = (
-        {"mobile_wallet"} if profile == "bkash"
+        {"mobile_wallet"} if profile in {"bkash", "pathao_pay"}
         else {"credit_card"} if profile == "ebl_credit_card"
         else {"bank", "savings"}
     )

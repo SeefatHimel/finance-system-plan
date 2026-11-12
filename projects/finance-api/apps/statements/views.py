@@ -109,13 +109,14 @@ class StatementPreviewView(APIView):
                 row.pop("bkash_identifier", None)
                 row.pop("ebl_identifier", None)
         allowed_types = (
-            {"mobile_wallet"} if preview["profile"] == "bkash"
+            {"mobile_wallet"} if preview["profile"] in {"bkash", "pathao_pay"}
             else {"credit_card"} if preview["profile"] == "ebl_credit_card"
             else {"bank", "savings"}
         )
         if account and account.type not in allowed_types:
             account_guidance = {
                 "bkash": "Choose a wallet account for this bKash statement.",
+                "pathao_pay": "Choose a wallet account for this Pathao Pay statement.",
                 "ebl_credit_card": "Choose a credit-card account for this EBL card statement.",
             }.get(preview["profile"], "Choose a bank or savings account for this bank statement.")
             raise ValidationError(

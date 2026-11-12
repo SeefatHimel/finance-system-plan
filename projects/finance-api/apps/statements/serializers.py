@@ -134,6 +134,7 @@ class StatementRowSerializer(serializers.Serializer):
     direction = serializers.ChoiceField(choices=["debit", "credit"])
     amount = serializers.CharField(allow_null=True)
     signed_fee = serializers.CharField()
+    printed_fee = serializers.CharField(allow_null=True, required=False)
     balance_after = serializers.CharField(allow_null=True)
     issues = serializers.ListField(child=serializers.CharField())
     bounds = serializers.ListField(child=serializers.FloatField())

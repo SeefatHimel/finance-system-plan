@@ -1605,3 +1605,13 @@ identifiers. A shared helper also supplies confirmation defaults, while an
 explicit nonempty edited note wins. Redacted/excluded originals are not used
 for new hints. Plural charges in that primary purpose classify as fees. Existing
 ledger notes are never rewritten; older pending classification requires re-parsing.
+
+### How are Pathao Pay PDF amounts and signs validated?
+
+The bounded PDF worker reads In/Out/Charge/Fee/Balance by positioned columns,
+validates repeated page headings and account/period identity, and checks every
+Decimal balance transition and summary total. Arithmetic flags discrepancies
+without reversing source direction. Nonzero inline charges/rebates become
+separate review rows. Principal source-direction mismatches block both adding
+and linking. The generic owner-scoped SMS/ledger matching and encrypted original
+archive are reused; no schema migration or private financial fixture is needed.

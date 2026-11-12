@@ -65,6 +65,12 @@ def transfer_hint(row):
 
     if row.batch.profile == "city_bank" and code_for_row(row):
         return True
+    if (
+        row.batch.profile == "pathao_pay"
+        and row.component == "principal"
+        and re.search(r"withdraw|cash\s*out", text, re.IGNORECASE)
+    ):
+        return True
     return row.component == "principal" and bool(
         re.search(
             r"transfer|npsb|eft|(?:card|bank)\s*to\s*bkash|add\s*money|send\s*money",
@@ -83,6 +89,19 @@ def bkash_funding_credit(original, profile, component="principal"):
         and re.fullmatch(r"(?:card|bank)\s+to\s+bkash", str(original.get("provider_type") or "").strip(), re.IGNORECASE)
         is not None
     )
+
+
+def pathao_transfer(original, profile):
+    """Funding/withdrawal is an owned-account draft; never guess the other account."""
+    if profile != "pathao_pay":
+        return False
+    kind = str(original.get("provider_type") or "").strip()
+    if original.get("direction") == "credit":
+        return bool(re.fullmatch(
+            r"add\s+money(?:\s+(?:card|bank))?|top\s*up|cash\s*in",
+            kind, re.IGNORECASE,
+        ))
+    return bool(re.fullmatch(r"(?:cash\s*)?withdraw(?:al)?|cash\s*out", kind, re.IGNORECASE))
 
 
 def bkash_bill_category_name(original):
@@ -176,7 +195,7 @@ def save_import(*, user, account, digest, preview):
             user=user, name__in=["Utilities & Bills", "Electricity", "Internet", "Mobile Recharge"],
             kind="expense", is_active=True,
         )}
-    elif batch.profile == "ebl_credit_card":
+    elif batch.profile in {"ebl_credit_card", "pathao_pay"}:
         from apps.categories.models import Category
 
         card_categories = {category.name: category for category in Category.objects.filter(
@@ -208,10 +227,15 @@ def save_import(*, user, account, digest, preview):
             and direction == "credit"
             and original["provider_type"] == "Cash back"
         )
+        pathao_funding = pathao_transfer(original, batch.profile)
+        pathao_cashback = (
+            batch.profile == "pathao_pay" and direction == "credit"
+            and original["provider_type"].strip().casefold() == "cashback"
+        )
         kind = "income" if direction == "credit" else "expense"
         if card_cashback:
             kind = "income"
-        elif card_payment:
+        elif card_payment or pathao_funding:
             kind = "transfer"
         elif direction == "credit" and re.search(
             r"reverse|refund|reversal", original["description"], re.IGNORECASE
@@ -219,9 +243,9 @@ def save_import(*, user, account, digest, preview):
             kind = "refund"
         elif bkash_funding_credit(original, batch.profile):
             kind = "transfer"
-        if card_payment:
+        if card_payment or pathao_funding:
             category = card_categories.get("Account Transfer")
-        elif card_cashback:
+        elif card_cashback or pathao_cashback:
             category = card_categories.get("Interest & Rewards")
         elif direction == "debit" and bill_name:
             category = bill_categories.get(bill_name) or bill_categories.get("Utilities & Bills")
@@ -316,6 +340,15 @@ def financial_issues(row):
         issues.append("Enter a transaction date.")
     if row.amount is None or row.amount <= 0:
         issues.append("Enter a positive amount.")
+    if (
+        row.batch.profile == "pathao_pay" and row.component == "principal"
+        and row.extracted.get("direction") in {"debit", "credit"}
+        and row.direction != row.extracted["direction"]
+    ):
+        issues.append(
+            "Saved debit/credit disagrees with the Pathao Pay PDF direction. "
+            "Check the original In/Out column, then restore the draft direction before adding or linking."
+        )
     return issues
 
 

@@ -72,6 +72,8 @@ def lines(words):
 
 
 def detect_profile(text):
+    if re.search(r"Pathao\s+Pay\s+Statement", text, re.IGNORECASE) and "Transactions" in text:
+        return "pathao_pay"
     if (
         "Electronic Credit Card Statement" in text
         and "EBL" in text
@@ -87,7 +89,7 @@ def detect_profile(text):
         return "ebl_bank"
     raise StatementParseError(
         "unsupported_layout",
-        "This statement layout is not supported yet. Use an EBL bank or credit-card, City Bank savings, or bKash digital statement.",
+        "This statement layout is not supported yet. Use an EBL bank or credit-card, City Bank savings, bKash, or Pathao Pay digital statement.",
     )
 
 
@@ -371,6 +373,9 @@ def extract_statement(data: bytes, password="", *, include_private_identifiers=F
             "This PDF contains pages without readable text. Scanned statements need OCR, which is not supported yet.",
         )
     profile = detect_profile(pages[0][3])
+    if profile == "pathao_pay":
+        from .pathao import extract_pathao
+        return extract_pathao(pages)
     if profile == "ebl_credit_card":
         return extract_ebl_credit_card(pages)
     full_text = "\n".join(p[3] for p in pages)

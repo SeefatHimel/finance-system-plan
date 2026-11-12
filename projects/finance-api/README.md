@@ -2034,3 +2034,14 @@ rather than generic transfers. Older pending messages receive the hint immediate
 use **Re-run parser** to refresh their saved classification. No migration is needed.
 
 Regression check: `python manage.py test apps.messages.test_purpose_notes apps.messages.tests apps.transactions.test_transfers`.
+
+## Pathao Pay PDF statements
+
+Digital Pathao Pay exports now use the `pathao_pay` statement profile and a BDT
+mobile-wallet reporting account. Positioned In/Out columns preserve direction;
+Charge/Fee is retained as `printed_fee` and a separate signed fee/rebate. Totals
+and every balance transition are checked independently. Add Money drafts require
+a reviewed funding account, and existing SMS/ledger matching retains both sources
+without recording the movement twice. No database migration is needed. See
+[Pathao statement imports](../../docs/pathao-statements.md) for use, limits and
+regression coverage.
