@@ -243,6 +243,8 @@ class RawMessageImportView(APIView):
         return queryset.filter(body_hash=body_hash).first()
 
     def _create_candidate(self, raw_message, *, parsed=None):
+        from .pathao_sources import original_id
+        from .sender_groups import sender_group
         parsed = parsed or parse_raw_message(raw_message)
         return ParsedMessageCandidate.objects.create(
             user=raw_message.user,
@@ -254,6 +256,7 @@ class RawMessageImportView(APIView):
             destination_account=parsed["destination_account"],
             destination_payment_method=parsed["destination_payment_method"],
             provider=parsed["provider"],
+            source_transaction_id=original_id(raw_message.body) if sender_group(parsed["provider"], raw_message.sender) else "",
             message_kind=parsed["message_kind"],
             transaction_type=parsed["transaction_type"],
             amount=parsed["amount"],
@@ -784,6 +787,21 @@ class MessageCandidateConfirmView(APIView):
         from .identity_suggestions import validate_short_identity_choices
 
         validate_short_identity_choices(candidate, payload)
+        from .pathao_sources import assert_plan, attach_sources, source_plan
+        pathao_plan = source_plan(candidate)
+        assert_plan(pathao_plan)
+        if pathao_plan["records"]:
+            record = pathao_plan["records"][0]
+            if any((key in payload and payload[key] is not None and payload[key] != expected)
+                   for key, expected in (("amount", candidate.amount), ("account", sms_reporting_account(candidate)), ("balance_after", candidate.balance_after))):
+                raise ValidationError({"pathao_sources": "Compare the saved transaction before changing these source values."})
+            from apps.transactions.recovery import ActionRecorder
+            recorder = ActionRecorder(request.user, transaction_ids=(record.pk,), candidate_ids=[item.pk for item in pathao_plan["sources"]])
+            attach_sources(candidate, record, plan=pathao_plan)
+            recorder.finish(record, "evidence_link")
+            candidate.refresh_from_db()
+            candidate.undo_action = record.undo_action
+            return Response(ParsedMessageCandidateSerializer(candidate).data)
 
         account = payload.get("account") or candidate.account
         transfer_account = payload.get("transfer_account", candidate.destination_account)
@@ -938,9 +956,9 @@ class MessageCandidateConfirmView(APIView):
                 entity=transaction_record, after=transaction_snapshot(transaction_record),
                 metadata={"candidate": str(candidate.id)},
             )
-        candidate.transaction = transaction_record
-        candidate.status = ParsedMessageCandidate.Status.CONFIRMED
-        candidate.save(update_fields=("transaction", "status", "updated_at"))
+        from apps.reconciliation.evidence import finish_sms_link
+        finish_sms_link(candidate, transaction_record)
+        candidate.refresh_from_db()
 
         if payload["remember_mapping"] and observation:
             from .transfer_suggestions import remember_transfer_path

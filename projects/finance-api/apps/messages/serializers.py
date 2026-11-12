@@ -28,10 +28,18 @@ CAPTURE_MESSAGE_KIND_CHOICES = tuple(
 
 
 class SenderRuleSerializer(serializers.ModelSerializer):
+    sender_group = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField())
+    def get_sender_group(self, instance):
+        from .sender_groups import rule_group
+        return rule_group(instance)
+
     class Meta:
         model = SenderRule
         fields = (
             "id",
+            "sender_group",
             "account",
             "payment_method",
             "category",

@@ -13,6 +13,7 @@ from apps.bulk_imports.views import (
 from apps.categories.views import CategoryViewSet
 from apps.credit_cards.views import CreditCardBillViewSet, CreditCardPaymentCreateView
 from apps.debts.views import DebtPaymentCreateView, DebtViewSet
+from apps.messages.pathao_views import PathaoGroupView, PathaoSourcesView
 from apps.messages.views import (
     MessageCandidateBulkReprocessView,
     MessageCandidateConfirmView,
@@ -93,7 +94,10 @@ router.register("statements/imports", StatementImportViewSet, basename="statemen
 router.register("statements/rows", StatementRowViewSet, basename="statement-row")
 
 
+
 urlpatterns = [
+    path("api/messages/sender-groups/pathao-pay/", PathaoGroupView.as_view(), name="pathao-sender-group"),
+    path("api/messages/review/<uuid:candidate_id>/pathao-sources/", PathaoSourcesView.as_view(), name="pathao-sms-sources"),
     path("api/cash-counts/", CashCountsView.as_view(), name="cash-counts"),
     path("api/cash-counts/preview/", CashCountsPreviewView.as_view(), name="cash-counts-preview"),
     path("api/cash-counts/<uuid:pk>/", CashCountComparisonView.as_view(), name="cash-count-comparison"),

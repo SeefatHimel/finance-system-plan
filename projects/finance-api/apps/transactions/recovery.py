@@ -147,6 +147,22 @@ class ActionRecorder:
         self.user = user
         self.ids = {str(value) for value in transaction_ids if value}
         self.candidate_ids = {str(value) for value in candidate_ids if value}
+        if self.candidate_ids:
+            from apps.messages.pathao_sources import source_id, source_plan
+            from .transfers import sms_reporting_account
+
+            compared = set()
+            candidates = ParsedMessageCandidate.objects.filter(
+                user=user, pk__in=self.candidate_ids, provider="pathao_pay"
+            ).select_related("raw_message", "account", "destination_account")
+            for candidate in candidates:
+                identity = source_id(candidate)
+                account = sms_reporting_account(candidate)
+                key = (identity, account.pk if account else None)
+                if not identity or key in compared:
+                    continue
+                compared.add(key)
+                self.candidate_ids.update(str(item.pk) for item in source_plan(candidate)["sources"])
         self.statement_ids = {str(value) for value in statement_ids if value}
         self.rules = (
             list(

@@ -82,6 +82,11 @@ def missing_report_choice(
 
 def finish_sms_link(candidate, record):
     """One canonical candidate link; preserve originals and retention on every route."""
+    from apps.messages.pathao_sources import attach_sources, source_plan
+    plan = source_plan(candidate)
+    if plan["identity"] and len(plan["sources"]) > 1:
+        attach_sources(candidate, record, plan=plan)
+        return
     if candidate.transaction_id and candidate.transaction_id != record.pk:
         raise ValidationError(
             {"sms": "This SMS is already attached to another transaction."}

@@ -2,6 +2,7 @@ import uuid
 from datetime import timedelta
 from decimal import Decimal
 from hashlib import sha256
+from typing import ClassVar
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -411,6 +412,8 @@ class ParsedMessageCandidate(models.Model):
     suggested_transfer_direction = models.CharField(max_length=6, blank=True, default="", choices=(("debit", "Debit"), ("credit", "Credit")))
     # Captured from the message kind before user classification or ledger edits.
     source_direction = models.CharField(max_length=6, blank=True, default="")
+    # Provider reference captured from the original, retained through SMS redaction.
+    source_transaction_id = models.CharField(max_length=120, blank=True, default="", editable=False)
     transfer_suggestion_reason = models.CharField(max_length=255, blank=True, default="")
     reference = models.CharField(max_length=120, blank=True, default="")
     balance_after = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)
@@ -437,10 +440,23 @@ class ParsedMessageCandidate(models.Model):
         indexes = [
             models.Index(fields=("user", "status")),
             models.Index(fields=("user", "created_at")),
+            models.Index(fields=("user", "provider", "source_transaction_id"), name="sms_provider_source_id"),
         ]
 
     def __str__(self) -> str:
         return f"{self.raw_message.sender} {self.status}"
+
+
+class SmsSourceReviewReceipt(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    request_id = models.UUIDField()
+    digest = models.CharField(max_length=64)
+    result = models.JSONField(default=dict)
+    action = models.ForeignKey("transactions.TransactionAction", on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints: ClassVar = [models.UniqueConstraint(fields=("user", "request_id"), name="unique_sms_source_review_request")]
 
 
 class SmsDeviceStatus(models.Model):

@@ -2049,3 +2049,12 @@ regression coverage.
 ### Live saved-category defaults
 
 Pending SMS responses expose `suggested_category` from current, compatible owner-scoped rules. Reads do not reparse SMS or modify candidates/transactions. Category lookups are batched per serializer page. Pathao purchase categories use account-scoped rides/Food rules shared with statement review, rather than sender-wide purchase mappings. See [saved category defaults](../../docs/saved-category-defaults.md) for precedence, compatibility and one-time re-saving of legacy Pathao choices. No migration is required.
+
+## Pathao Pay sender aliases and repeat SMS
+
+Known exact aliases are grouped without recreating existing rules. Verified
+repeat notifications attach to one transaction; existing duplicates have an
+owner-scoped, signed comparison/merge with idempotent retries and Undo. Apply
+`python manage.py migrate` before API deployment (messages migration 0017).
+See [Pathao SMS sources](../../docs/pathao-sms-sources.md) for matching conditions,
+existing-data recovery, retention and endpoints.
