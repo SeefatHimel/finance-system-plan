@@ -4656,6 +4656,84 @@ paths:
               schema:
                 $ref: '#/components/schemas/MergePreview'
           description: ''
+  /api/messages/review/{candidate_id}/pathao-sources/:
+    get:
+      operationId: messages_review_pathao_sources_retrieve
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: keep
+        schema:
+          type: string
+          format: uuid
+        description: Saved transaction to retain in this source group.
+      tags:
+      - messages
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PathaoSourcePreview'
+          description: ''
+    post:
+      operationId: messages_review_pathao_sources_create
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - messages
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceResolveRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PathaoSourceResult'
+          description: ''
+  /api/messages/sender-groups/pathao-pay/:
+    post:
+      operationId: messages_sender_groups_pathao_pay_create
+      tags:
+      - messages
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PathaoGroupRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SenderRule'
+          description: ''
 components:
   securitySchemes:
     bearerAuth:
@@ -6398,6 +6476,10 @@ components:
       required:
         [id, account, payment_method, category, name, provider, sender, match_type, pattern, default_transaction_type, priority, is_active, notes, created_at, updated_at]
       properties:
+        sender_group:
+          type: string
+          readOnly: true
+          description: Known exact sender alias group; empty for ungrouped rules.
         id:
           type: string
           format: uuid
@@ -11485,3 +11567,156 @@ components:
       required:
       - original_id
       - snapshot
+    PathaoGroupRequest:
+      type: object
+      properties:
+        account:
+          type: string
+          format: uuid
+      required:
+      - account
+    PathaoSavedEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        account_name:
+          type: string
+        date:
+          type: string
+          format: date
+        amount:
+          type: string
+        direction:
+          type: string
+        balance_after:
+          type: string
+          nullable: true
+        description:
+          type: string
+        note:
+          type: string
+        type:
+          type: string
+      required:
+      - account_name
+      - amount
+      - balance_after
+      - date
+      - description
+      - direction
+      - id
+      - note
+      - type
+    PathaoSmsSource:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sender:
+          type: string
+        text:
+          type: string
+        received_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+        transaction:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+          nullable: true
+        direction:
+          type: string
+        balance_after:
+          type: string
+          nullable: true
+        fee_amount:
+          type: string
+          nullable: true
+      required:
+      - amount
+      - balance_after
+      - direction
+      - fee_amount
+      - id
+      - received_at
+      - sender
+      - status
+      - text
+      - transaction
+    PathaoSourcePreview:
+      type: object
+      properties:
+        available:
+          type: boolean
+        reference:
+          type: string
+        keep:
+          type: string
+          format: uuid
+          nullable: true
+        preview_token:
+          type: string
+        can_resolve:
+          type: boolean
+        blockers:
+          type: array
+          items:
+            type: string
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/PathaoSmsSource'
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PathaoSavedEntry'
+      required:
+      - available
+      - blockers
+      - can_resolve
+      - keep
+      - preview_token
+      - reference
+      - sources
+      - transactions
+    PathaoSourceResult:
+      type: object
+      properties:
+        transaction:
+          type: string
+          format: uuid
+        source_count:
+          type: integer
+        merged_count:
+          type: integer
+        undo_action:
+          allOf:
+          - $ref: '#/components/schemas/TransactionAction'
+          nullable: true
+      required:
+      - merged_count
+      - source_count
+      - transaction
+      - undo_action
+    SourceResolveRequest:
+      type: object
+      properties:
+        preview_token:
+          type: string
+          maxLength: 2000
+        request_id:
+          type: string
+          format: uuid
+        confirmed:
+          type: boolean
+      required:
+      - confirmed
+      - preview_token
+      - request_id

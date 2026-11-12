@@ -2208,6 +2208,100 @@
         ]
       }
     },
+    "/api/messages/review/{candidate_id}/pathao-sources/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "keep",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathaoSourcePreview"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceResolveRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceResolveRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathaoSourceResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/messages/review/{candidate_id}/reject/": {
       "post": {
         "parameters": [
@@ -2408,6 +2502,52 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SmsStatementMatches"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/messages/sender-groups/pathao-pay/": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathaoGroupRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PathaoGroupRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PathaoGroupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SenderRule"
+                  },
+                  "type": "array"
                 }
               }
             }
@@ -11476,6 +11616,10 @@
           "maxLength": 120,
           "type": "string"
         },
+        "sender_group": {
+          "readOnly": true,
+          "type": "string"
+        },
         "updated_at": {
           "format": "date-time",
           "readOnly": true,
@@ -11750,6 +11894,194 @@
           "type": "string"
         }
       },
+      "type": "object"
+    },
+    "PathaoGroupRequest": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "account"
+      ],
+      "type": "object"
+    },
+    "PathaoSavedEntry": {
+      "properties": {
+        "account_name": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "string"
+        },
+        "balance_after": {
+          "nullable": true,
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "type": "string"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "account_name",
+        "amount",
+        "balance_after",
+        "date",
+        "description",
+        "direction",
+        "id",
+        "note",
+        "type"
+      ],
+      "type": "object"
+    },
+    "PathaoSmsSource": {
+      "properties": {
+        "amount": {
+          "nullable": true,
+          "type": "string"
+        },
+        "balance_after": {
+          "nullable": true,
+          "type": "string"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "fee_amount": {
+          "nullable": true,
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "received_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "sender": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "transaction": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "balance_after",
+        "direction",
+        "fee_amount",
+        "id",
+        "received_at",
+        "sender",
+        "status",
+        "text",
+        "transaction"
+      ],
+      "type": "object"
+    },
+    "PathaoSourcePreview": {
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "blockers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "can_resolve": {
+          "type": "boolean"
+        },
+        "keep": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "preview_token": {
+          "type": "string"
+        },
+        "reference": {
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/components/schemas/PathaoSmsSource"
+          },
+          "type": "array"
+        },
+        "transactions": {
+          "items": {
+            "$ref": "#/components/schemas/PathaoSavedEntry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "available",
+        "blockers",
+        "can_resolve",
+        "keep",
+        "preview_token",
+        "reference",
+        "sources",
+        "transactions"
+      ],
+      "type": "object"
+    },
+    "PathaoSourceResult": {
+      "properties": {
+        "merged_count": {
+          "type": "integer"
+        },
+        "source_count": {
+          "type": "integer"
+        },
+        "transaction": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "undo_action": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/TransactionAction"
+            }
+          ],
+          "nullable": true
+        }
+      },
+      "required": [
+        "merged_count",
+        "source_count",
+        "transaction",
+        "undo_action"
+      ],
       "type": "object"
     },
     "PaymentMethod": {
@@ -13313,6 +13645,10 @@
           "maxLength": 120,
           "type": "string"
         },
+        "sender_group": {
+          "readOnly": true,
+          "type": "string"
+        },
         "updated_at": {
           "format": "date-time",
           "readOnly": true,
@@ -13326,6 +13662,7 @@
         "name",
         "provider",
         "sender",
+        "sender_group",
         "updated_at"
       ],
       "type": "object"
@@ -13744,6 +14081,27 @@
         "time",
         "time_kind",
         "usable"
+      ],
+      "type": "object"
+    },
+    "SourceResolveRequest": {
+      "properties": {
+        "confirmed": {
+          "type": "boolean"
+        },
+        "preview_token": {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        "request_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "confirmed",
+        "preview_token",
+        "request_id"
       ],
       "type": "object"
     },

@@ -592,6 +592,7 @@ export interface PaymentMethodPatchRequest {
 }
 
 export interface SenderRule {
+  sender_group?: string;
   id: string;
   account: string;
   payment_method: string | null;
@@ -2410,4 +2411,57 @@ export interface MergeSource {
 export interface MergedSource {
   original_id: string;
   snapshot: unknown;
+}
+
+export interface PathaoGroupRequest {
+  account: string;
+}
+
+export interface PathaoSavedEntry {
+  id: string;
+  account_name: string;
+  date: string;
+  amount: string;
+  direction: string;
+  balance_after: string | null;
+  description: string;
+  note: string;
+  type: string;
+}
+
+export interface PathaoSmsSource {
+  id: string;
+  sender: string;
+  text: string;
+  received_at: string;
+  status: string;
+  transaction: string | null;
+  amount: string | null;
+  direction: string;
+  balance_after: string | null;
+  fee_amount: string | null;
+}
+
+export interface PathaoSourcePreview {
+  available: boolean;
+  reference: string;
+  keep: string | null;
+  preview_token: string;
+  can_resolve: boolean;
+  blockers: string[];
+  sources: PathaoSmsSource[];
+  transactions: PathaoSavedEntry[];
+}
+
+export interface PathaoSourceResult {
+  transaction: string;
+  source_count: number;
+  merged_count: number;
+  undo_action: TransactionAction | null;
+}
+
+export interface SourceResolveRequest {
+  preview_token: string;
+  request_id: string;
+  confirmed: boolean;
 }

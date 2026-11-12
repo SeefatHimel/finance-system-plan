@@ -1168,3 +1168,12 @@ new field; no endpoint or required-property change is introduced.
 ### Live pending-category hint
 
 `ParsedMessageCandidate.suggested_category` is an additive read-only nullable UUID. When present, use it as the review default instead of the parsed `category`; explicit null suppresses an unsafe or unavailable default. Preserve manual drafts. If omitted by an older API, fall back to `category`. Confirmation retains the existing explicit category/null field. Remember responses can return `scope: service_group` for account-scoped Pathao rides/Food learning. No original financial fields or ledger records change when a hint is read.
+
+### Pathao Pay sender groups and source recovery
+
+`sender-groups.ts` shares the four exact aliases and wallet-scoped display grouping
+without replacing individual rule IDs. `SenderRule.sender_group` is response-only.
+The Pathao group setup and signed source-preview/resolve endpoints are documented
+in `openapi.yaml`; generated clients and backend schema snapshots include them.
+Resolution requires `confirmed`, a 15-minute preview token and an idempotent UUID
+request ID. See [source recovery](../../docs/pathao-sms-sources.md).
