@@ -219,6 +219,20 @@ class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
     raw_message = RawMessageSerializer(read_only=True)
     identity_suggestions = serializers.SerializerMethodField()
     suggested_note = serializers.SerializerMethodField()
+    suggested_category = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.UUIDField(allow_null=True))
+    def get_suggested_category(self, instance):
+        from .category_suggestions import CategorySuggestions
+
+        if self.context.get("suppress_category_suggestion"):
+            return None
+        if not hasattr(self, "_category_suggestions"):
+            self._category_suggestions = {}
+        if instance.user_id not in self._category_suggestions:
+            self._category_suggestions[instance.user_id] = CategorySuggestions(instance.user_id)
+        category = self._category_suggestions[instance.user_id].category(instance)
+        return str(category.pk) if category else None
 
     @extend_schema_field(serializers.CharField())
     def get_suggested_note(self, instance):
@@ -242,6 +256,7 @@ class ParsedMessageCandidateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ParsedMessageCandidate
         fields = (
+            "suggested_category",
             "suggested_note",
             "undo_action",
             "id",

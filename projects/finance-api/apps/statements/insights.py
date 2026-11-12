@@ -48,9 +48,16 @@ def merchant_text(value):
     )[:180]
 
 
-def pattern(row):
+def pattern(row, *, grouped=True):
     from .counterparties import code_for_row
     from .ebl_identifiers import OPERATION
+
+    if grouped and row.batch.profile == "pathao_pay" and row.component == "principal" and row.extracted.get("provider_type", "").strip().casefold() == "make payment" and row.extracted.get("direction") == "debit":
+        from apps.messages.category_suggestions import pathao_group, pathao_key
+
+        group = pathao_group(row.extracted.get("description", ""))
+        if group:
+            return pathao_key(group), f"Pathao {group}"
 
     if row.batch.profile == "ebl_bank" and OPERATION.search(row.extracted.get("description", "")):
         return None, ""
@@ -119,7 +126,7 @@ def suggestions(rows):
             user_id=batch.user_id, is_active=True, currency=batch.currency,
             type__in=["bank", "savings", "credit_card"],
         ).exclude(pk=batch.account_id))
-    keys = {pattern(row)[0] for row in rows} - {None}
+    keys = {pattern(row, grouped=grouped)[0] for row in rows for grouped in (True, False)} - {None}
     mappings = {
         m.pattern_key: m
         for m in StatementMapping.objects.filter(
@@ -248,7 +255,7 @@ def suggestions(rows):
                 ),
             }
             continue
-        mapping = mappings.get(pattern(row)[0])
+        mapping = mappings.get(pattern(row)[0]) or mappings.get(pattern(row, grouped=False)[0])
         if not mapping and transfer_hint(row):
             matches = named_methods(
                 row.extracted.get("description", ""), methods, batch.account_id
@@ -290,6 +297,12 @@ def suggestions(rows):
 
 def remember(row, user):
     key, label = pattern(row)
+    grouped_pathao = row.batch.profile == "pathao_pay" and label in {"Pathao rides", "Pathao food"}
+    if grouped_pathao:
+        from apps.messages.category_suggestions import compatible
+
+        if row.type != "expense" or row.direction != "debit" or not compatible(row.category, "expense", user.pk):
+            return
     if key:
         StatementMapping.objects.update_or_create(
             user=user,
@@ -302,7 +315,7 @@ def remember(row, user):
                 "direction": row.direction,
                 "category": row.category,
                 "other_account": row.other_account,
-                "note_template": row.note[:500] if row.note and row.note.strip() != str(row.extracted.get("description") or "").strip() else "",
+                "note_template": row.note[:500] if not grouped_pathao and row.note and row.note.strip() != str(row.extracted.get("description") or "").strip() else "",
             },
         )
 

@@ -19,7 +19,14 @@ from .serializers import (
     StatementImportSerializer,
     StatementRowEditSerializer,
 )
-from .unified import candidate_for_reviewed_account, competing_sources, confirm_pair, pair_signals, queue, summary
+from .unified import (
+    candidate_for_reviewed_account,
+    competing_sources,
+    confirm_pair,
+    pair_signals,
+    queue,
+    summary,
+)
 
 
 class PendingReviewFilters(serializers.Serializer):
@@ -334,7 +341,7 @@ def preview_pair(request, data):
         {
             "row": row_data,
             "batch": StatementImportSerializer(row.batch).data,
-            "sms": ParsedMessageCandidateSerializer(candidate).data,
+            "sms": ParsedMessageCandidateSerializer(candidate, context={"suppress_category_suggestion": projected.account_id != candidate.account_id}).data,
             "sms_summary": summary(projected),
             "match": signals,
             "competing_sources": competition,

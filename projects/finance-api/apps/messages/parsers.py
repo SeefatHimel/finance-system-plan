@@ -157,6 +157,10 @@ def parse_raw_message(raw_message, *, sender_rule=None):
         if sender_rule
         else None
     )
+    if provider == "pathao_pay" and parsed["message_kind"] == "purchase":
+        # Category-only service rules are projected into review defaults. Never
+        # reuse a sender-wide purchase rule across Pathao rides and Food.
+        mapping = None
     generic_bank_deposit = is_generic_bank_deposit(
         provider=provider,
         message_kind=parsed["message_kind"],

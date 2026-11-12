@@ -1615,3 +1615,7 @@ without reversing source direction. Nonzero inline charges/rebates become
 separate review rows. Principal source-direction mismatches block both adding
 and linking. The generic owner-scoped SMS/ledger matching and encrypted original
 archive are reused; no schema migration or private financial fixture is needed.
+
+### How do saved categories apply to already pending SMS?
+
+A read-only `suggested_category` is resolved from compatible active owner/account rules. The serializer batches rule lookups, so the query count does not grow per candidate. Pathao rides and Food use separate account/profile keys in existing StatementMapping storage, shared with PDF review. Original SMS merchants determine the service; edited labels cannot broaden it. Ambiguous services, inactive/foreign categories and changed accounts decline the hint. Legacy broad Pathao purchase rules require one explicit scoped re-save.

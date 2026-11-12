@@ -2045,3 +2045,7 @@ a reviewed funding account, and existing SMS/ledger matching retains both source
 without recording the movement twice. No database migration is needed. See
 [Pathao statement imports](../../docs/pathao-statements.md) for use, limits and
 regression coverage.
+
+### Live saved-category defaults
+
+Pending SMS responses expose `suggested_category` from current, compatible owner-scoped rules. Reads do not reparse SMS or modify candidates/transactions. Category lookups are batched per serializer page. Pathao purchase categories use account-scoped rides/Food rules shared with statement review, rather than sender-wide purchase mappings. See [saved category defaults](../../docs/saved-category-defaults.md) for precedence, compatibility and one-time re-saving of legacy Pathao choices. No migration is required.

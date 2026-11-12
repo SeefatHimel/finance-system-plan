@@ -1,4 +1,5 @@
 import logging
+from copy import copy
 from datetime import timedelta
 
 from django.conf import settings
@@ -666,7 +667,7 @@ class MessageCandidateStatementMatchesView(APIView):
 @extend_schema(
     request={"application/json": {"type": "object", "properties": {"replace_existing": {"type": "boolean", "default": False}}}},
     responses={200: {"type": "object", "required": ["saved", "scope", "account"], "properties": {
-        "saved": {"type": "boolean"}, "scope": {"type": "string", "enum": ["cash_withdrawal", "counterparty", "message_type"]},
+        "saved": {"type": "boolean"}, "scope": {"type": "string", "enum": ["cash_withdrawal", "counterparty", "message_type", "service_group"]},
         "account": {"type": "string"}, "destination": {"type": "string"},
     }}},
 )
@@ -698,6 +699,12 @@ class RememberConfirmedMessageChoiceView(APIView):
         if not candidate.sender_rule_id:
             return Response({"detail": "This SMS has no trusted sender rule to learn from."}, status=status.HTTP_400_BAD_REQUEST)
         replace_existing = request.data.get("replace_existing") is True
+        if candidate.provider == "pathao_pay" and candidate.message_kind == "purchase":
+            from .category_suggestions import remember_pathao_category
+
+            if not remember_pathao_category(candidate, record, replace=replace_existing):
+                return Response({"detail": "A different category is already saved for this Pathao service group. Review it before replacing the rule."}, status=status.HTTP_409_CONFLICT)
+            return Response({"saved": True, "scope": "service_group", "account": record.account.name})
         if candidate.message_kind == ParsedMessageCandidate.MessageKind.CASH_OUT:
             source = record.account
             destination = record.transfer_account
@@ -781,7 +788,12 @@ class MessageCandidateConfirmView(APIView):
         account = payload.get("account") or candidate.account
         transfer_account = payload.get("transfer_account", candidate.destination_account)
         payment_method = payload.get("payment_method", candidate.payment_method)
-        category = payload.get("category") if "category" in payload else candidate.category
+        from .category_suggestions import CategorySuggestions
+
+        category_candidate = copy(candidate)
+        category_candidate.account = account
+        category_candidate.transaction_type = payload.get("type") or candidate.transaction_type
+        category = payload.get("category") if "category" in payload else CategorySuggestions(request.user.pk).category(category_candidate)
         amount = payload.get("amount") or candidate.amount
         balance_after = (
             payload.get("balance_after")
@@ -934,7 +946,13 @@ class MessageCandidateConfirmView(APIView):
             from .transfer_suggestions import remember_transfer_path
             remember_transfer_path(candidate, transaction_record, observation)
 
-        if payload["remember_mapping"] and candidate.sender_rule and not is_generic_bank_deposit(
+        if payload["remember_mapping"] and candidate.provider == "pathao_pay" and candidate.message_kind == "purchase":
+            from .category_suggestions import remember_pathao_category
+
+            if not remember_pathao_category(candidate, transaction_record):
+                raise ValidationError({"category": "A different Pathao service category is already saved. Save this entry first, then explicitly replace the saved rule."})
+
+        if payload["remember_mapping"] and not (candidate.provider == "pathao_pay" and candidate.message_kind == "purchase") and candidate.sender_rule and not is_generic_bank_deposit(
             provider=candidate.provider,
             message_kind=candidate.message_kind,
             body=candidate.raw_message.body,
