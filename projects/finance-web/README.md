@@ -2214,3 +2214,13 @@ accounts and matches before recording. See [Pathao imports](../../docs/pathao-st
 ### Saved categories on pending reviews
 
 After **Save for similar SMS**, SMS review refreshes category defaults without resetting local edits or reloading the page. Combined review and statement editors prefill compatible saved categories on opening; an open pair refreshes an untouched category after a rule save. Pathao rides and Food use separate choices. Older broad Pathao rules must be re-saved once; see [the workflow and limits](../../docs/saved-category-defaults.md).
+
+### Pathao Pay SMS source comparison
+
+SMS settings groups the four known exact Pathao aliases per wallet and can add
+missing rules without changing existing choices. The inbox offers **Compare SMS
+sources**; **Transactions → Edit → Original SMS → Compare Pathao SMS sources**
+handles already-recorded duplicates. Review the original notifications, keep one
+entry and retain every linked source with a single Undo action. No financial
+source is automatically remapped or merged based only on amount.
+See [Pathao SMS sources](../../docs/pathao-sms-sources.md).

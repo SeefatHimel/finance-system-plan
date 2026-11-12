@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import {isPathaoSender} from "../../finance-contracts/sender-groups";
+import {PathaoSourceReview} from "./pathao-source-review";
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 
 import { listTransactionSourceMessages, type TransactionSourceMessage } from "@/lib/api";
@@ -15,6 +17,7 @@ type MessageState =
 const receivedTimeFormatter = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 export function TransactionSourceMessages({ transactionId, expanded = false, showEmpty = false, loadOnExpand = false, allowLearning = false, onMessages, onLoadError }: { transactionId: string; expanded?: boolean; showEmpty?: boolean; loadOnExpand?: boolean; allowLearning?: boolean; onMessages?: Dispatch<SetStateAction<TransactionSourceMessage[] | null>>; onLoadError?: Dispatch<SetStateAction<string>> }) {
+  const [pathaoCandidate, setPathaoCandidate] = useState<string|null>(null);
   const [state, setState] = useState<MessageState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState(expanded);
@@ -56,12 +59,14 @@ export function TransactionSourceMessages({ transactionId, expanded = false, sho
           <p><strong>{message.sender}</strong> · Received <time dateTime={message.received_at}>{receivedTimeFormatter.format(new Date(message.received_at))}</time></p>
           {message.parsed ? <p className="inline-note">SMS parsed amount: {message.parsed.amount ?? "Unknown"} · Reported balance after: {message.parsed.balance_after ?? "Not reported"}{message.parsed.reference ? ` · Reference: ${message.parsed.reference}` : ""}</p> : null}
           <p className="transaction-source-messages__body">{message.body ?? (message.status === "redacted" ? "Original SMS was redacted and is no longer available." : "Original SMS was removed or excluded and is no longer available.")}</p>
+          {isPathaoSender(message.sender) && message.parsed?.candidate_id ? <button className="button button--ghost button--small" type="button" onClick={()=>setPathaoCandidate(message.parsed!.candidate_id!)}>Compare Pathao SMS sources</button> : null}
           {allowLearning && message.parsed?.can_remember_cash_route && message.parsed.candidate_id ? learningCandidateId === message.parsed.candidate_id
             ? <MessageChoiceLearning candidateId={message.parsed.candidate_id} messageKind="cash_out" onDone={() => setLearningCandidateId(null)} previouslySaved />
             : <button className="button button--ghost button--small" type="button" onClick={() => setLearningCandidateId(message.parsed?.candidate_id ?? null)}>Remember this cash withdrawal route</button> : null}
         </article>
       )) : null}
       {state.status === "ready" && state.messages.some((message) => message.status === "redacted") ? <p className="inline-note">For an older redacted transaction SMS, choose Keep in <Link href="/sms-settings">SMS settings</Link>, then use the mobile History scan with Refresh previous imports. The original can return only if that exact SMS is still on your phone; manually redacted messages also require the explicit restore choice.</p> : null}
+      {pathaoCandidate ? <PathaoSourceReview candidateId={pathaoCandidate} keepTransactionId={transactionId} onClose={()=>setPathaoCandidate(null)} onSaved={()=>{setPathaoCandidate(null);setAttempt(n=>n+1);}}/> : null}
     </details>
   );
 }

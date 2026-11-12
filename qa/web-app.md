@@ -2059,3 +2059,12 @@ Shorter exports with the same layout work through the same flow.
 ### How are category suggestions refreshed without discarding drafts?
 
 Saving an SMS choice emits a category-rule event. SMS review refetches defaults while retaining its per-item draft state. Open combined review refreshes only an untouched category, with stale-response and unmount guards. Explicit categories, explicit clearing and reviewed statement categories take precedence. Pathao rides and Food remain separate, and no page reload or parser rerun is needed.
+
+### Can users fix Pathao duplicates without losing their original evidence?
+
+Yes. **Compare SMS sources** shows the original notifications and saved entries.
+An explicit merge retains the selected transaction and all linked SMS, PDF and
+spreadsheet sources, with latest-action Undo. Transactions → Edit → Original SMS
+provides the comparison even if the inbox is empty, keeping the current entry.
+Sender settings groups existing exact aliases without recreating their rules.
+Financial conflicts remain blocked for source review; amount alone is insufficient.

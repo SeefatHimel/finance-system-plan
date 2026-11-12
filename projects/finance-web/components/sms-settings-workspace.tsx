@@ -1,4 +1,6 @@
 "use client";
+import {senderRuleGroups} from "../../finance-contracts/sender-groups";
+import {setupPathaoGroup} from "@/lib/pathao-sources-api";
 
 import { PaymentIdentityFields, type ExtraIdentifier, type IdentifierKind } from "@/components/payment-identity-fields";
 
@@ -785,6 +787,10 @@ export function SmsSettingsWorkspace() {
             Define which senders are trusted and where their transactions should land.
           </p>
 
+          <form className="setup-form" onSubmit={event=>{event.preventDefault();if(isSavingSenderRule)return;const token=getAccessToken();if(!token)return;const account=String(new FormData(event.currentTarget).get("pathao_account")??"");setIsSavingSenderRule(true);void setupPathaoGroup(token,account).then(()=>loadData(false)).then(()=>notify("Pathao Pay sender group ready. Existing rules and choices were kept.")).catch(error=>notify(error instanceof Error?error.message:"Could not set up Pathao Pay.","error")).finally(()=>setIsSavingSenderRule(false));}}>
+            <label className="field"><span className="field__label">Pathao Pay wallet</span><select name="pathao_account" className="field__control" required disabled={isSavingSenderRule}><option value="">Choose wallet</option>{settingsState.accounts.filter(a=>a.is_active&&a.type==="mobile_wallet"&&a.currency==="BDT").map(a=><option value={a.id} key={a.id}>{a.name}</option>)}</select></label>
+            <div><p>One group for Pathao.Pay, Pathao Pay., PathaoPay. and PathaoPay. Existing rules, account choices and enabled states are preserved.</p><button className="button" type="submit" disabled={isSavingSenderRule}>{isSavingSenderRule?"Setting up…":"Set up Pathao Pay group"}</button></div>
+          </form>
           <form className="setup-form" onSubmit={handleSenderRuleSubmit}>
             <label className="field">
               <span className="field__label">Account</span>
@@ -895,7 +901,8 @@ export function SmsSettingsWorkspace() {
             {settingsState.senderRules.length === 0 ? (
               <p className="muted-text">No sender rules yet.</p>
             ) : (
-              settingsState.senderRules.map((rule) => (
+              senderRuleGroups(settingsState.senderRules).map(group => {
+                const content = group.members.map(rule => (
                 <div className="list-row" key={rule.id}>
                   <div>
                     <strong>{rule.name}</strong>
@@ -918,7 +925,9 @@ export function SmsSettingsWorkspace() {
                     </button>
                   </div>
                 </div>
-              ))
+                ));
+                return group.grouped ? <details className="raw-message" key={group.key}><summary>Pathao Pay · {group.members.length} sender names · {accountNameById.get(group.members[0].account) ?? "Unknown account"}</summary>{content}</details> : content;
+              })
             )}
           </div>
 

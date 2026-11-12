@@ -4832,3 +4832,19 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
   .duplicate-merge-footer .button--primary { grid-column: 1 / -1; }
 }
 .duplicate-merge-header .icon-button { background: transparent; color: inherit; border: 1px solid var(--panel-border); border-radius: 10px; flex-shrink: 0; }
+
+/* Source comparison stays in the current review/editor, with one stable footer. */
+.viewport-modal.pathao-source-dialog { max-width: 900px; overflow: hidden; }
+.pathao-source-dialog .form-drawer__body { display: grid; gap: 20px; min-height: 0; overflow-y: auto; padding: 20px 24px; }
+.pathao-source-dialog .form-drawer__body > p { margin: 0; }
+.pathao-source-dialog .list-stack { display: grid; gap: 12px; }
+.pathao-source-dialog .raw-message { margin: 0; padding: 12px; min-width: 0; overflow-wrap: anywhere; }
+.pathao-source-dialog fieldset { display: grid; gap: 12px; min-width: 0; border: 1px solid var(--panel-border); border-radius: 12px; padding: 16px; }
+.pathao-source-dialog fieldset legend { font-weight: 700; padding: 0 6px; }
+.pathao-source-dialog fieldset > p { margin: 0; color: var(--muted); }
+.pathao-source-dialog .checkbox-field { align-items: flex-start; gap: 10px; overflow-wrap: anywhere; }
+.pathao-source-dialog .form-drawer__footer { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--panel-border); }
+@media (max-width: 600px) {
+  .pathao-source-dialog .form-drawer__body, .pathao-source-dialog .form-drawer__footer { padding: 16px; }
+  .pathao-source-dialog .form-drawer__footer .button { flex: 1 1 140px; }
+}

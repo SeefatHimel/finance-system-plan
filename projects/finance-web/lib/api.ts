@@ -119,6 +119,7 @@ const paymentMethodSchema = z.object({
 });
 
 const senderRuleSchema = z.object({
+  sender_group: z.string().optional(),
   account: z.string(),
   category: z.string().nullable(),
   default_transaction_type: z.string(),
