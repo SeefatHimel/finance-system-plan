@@ -111,6 +111,7 @@ function confidencePercent(value: string) {
 }
 
 function normalizedNote(candidate: ParsedMessageCandidate) {
+  if (candidate.suggested_note) return candidate.suggested_note;
   const parts = [formatLabel(candidate.message_kind)];
   if (candidate.counterparty_text) parts.push(candidate.counterparty_text);
   return parts.join(" · ");
@@ -794,7 +795,7 @@ export function MessageReviewWorkspace() {
                     <div className="field"><label className="field__label" htmlFor="sms-review-time">Time</label><ClockTimeInput id="sms-review-time" value={nativeDrafts.current.text(activeCandidate.id, "time", timeInputFromTimestamp(activeCandidate.raw_message.received_at))} name="time" {...feedback("time")} aria-describedby={[feedback("time")["aria-describedby"], "sms-review-time-hint"].filter(Boolean).join(" ")} onValueChange={time => { nativeDrafts.current.capture(activeCandidate.id, "time", time); setTimeRevision(value => value + 1); setFieldErrors(current => { const next = { ...current }; delete next.time; return next; }); }} /><small id="sms-review-time-hint">Starts from SMS receipt time; verify the event time in the original message.</small><FieldError prefix="review" field="time" errors={fieldErrors} /></div>
                   </div>
                   <label className="field" data-review-field="counterparty_text" data-review-attention={fieldAttention("counterparty_text")}><span className="field__label">Merchant / counterparty</span><input className="field__control" defaultValue={nativeDrafts.current.text(activeCandidate.id, "counterparty_text", activeCandidate.counterparty_text)} name="counterparty_text" {...feedback("counterparty_text")} /><FieldError prefix="review" field="counterparty_text" errors={fieldErrors} /></label>
-                  <label className="field field--wide" data-review-field="note" data-review-attention={fieldAttention("note")}><span className="field__label inline-help">Ledger note<HelpTooltip label="About the ledger note">The full SMS is not copied into your transaction note.</HelpTooltip></span><input aria-label="Ledger note" className="field__control" defaultValue={nativeDrafts.current.text(activeCandidate.id, "note", normalizedNote(activeCandidate))} name="note" {...feedback("note")} /><FieldError prefix="review" field="note" errors={fieldErrors} /></label>
+                  <label className="field field--wide" data-review-field="note" data-review-attention={fieldAttention("note")}><span className="field__label inline-help">Ledger note<HelpTooltip label="About the ledger note">A short purpose from the SMS can prefill this note. You can edit it; the full SMS stays separate.</HelpTooltip></span><input aria-label="Ledger note" className="field__control" defaultValue={nativeDrafts.current.text(activeCandidate.id, "note", normalizedNote(activeCandidate))} name="note" {...feedback("note")} /><FieldError prefix="review" field="note" errors={fieldErrors} /></label>
                   <details className="review-payment-details review-more-details field--wide" data-review-field="extras" data-review-attention={fieldAttention("reference") || fieldAttention("payment_method")}>
                     <summary>More details <span>Reference and payment method</span></summary>
                     <div className="compact-editor-grid">

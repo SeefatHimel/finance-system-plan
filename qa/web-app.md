@@ -2038,3 +2038,11 @@ source badges reflect retained attachments and a success toast offers Undo.
 Stale previews are discarded; errors stay in toasts. Transaction IDs and message
 references are labelled separately, and preserved ledger versions are accessible
 in transaction details without counting them as independent sources.
+
+### Does an automatic SMS note overwrite user edits?
+
+No. `suggested_note` supplies the initial Ledger note value; the existing per-item
+form draft keeps edits when navigating the review queue. Clients without the new
+field retain the message-kind/counterparty fallback. The original SMS is kept
+separately as evidence. Re-running the parser is an explicit form reset, so users
+review its refreshed defaults before confirming.

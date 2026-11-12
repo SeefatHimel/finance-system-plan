@@ -2191,3 +2191,12 @@ stale previews require refresh and latest-action Undo restores the source links.
 Details expose preserved ledger versions separately from original sources.
 Requires API transaction migrations 0013–0014. Workflow, safeguards and browser
 checks: [duplicate merge](../../docs/duplicate-merge.md).
+
+### Automatic SMS purpose notes
+
+SMS review prefills **Ledger note** from the API's `suggested_note`, including a
+concise bank purpose such as account service charges. The field stays editable,
+and switching queue items preserves local edits. Older API responses fall back
+to the existing message-kind/counterparty label. The full SMS remains in source
+evidence. For an older incorrectly classified charge, use **Re-run parser**
+before confirming and review the refreshed form.
