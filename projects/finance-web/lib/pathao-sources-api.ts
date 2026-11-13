@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { authenticatedFetch, transactionActionSchema } from "./api";
+import {
+  authenticatedFetch,
+  transactionActionSchema,
+  senderRuleSchema,
+} from "./api";
 const previewSchema = z.object({
   available: z.boolean(),
   reference: z.string(),
@@ -83,9 +87,14 @@ export async function resolvePathaoSources(
     );
 }
 export async function setupPathaoGroup(token: string, account: string) {
-  await authenticatedFetch("/api/messages/sender-groups/pathao-pay/", token, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ account }),
-  });
+  const response = await authenticatedFetch(
+    "/api/messages/sender-groups/pathao-pay/",
+    token,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ account }),
+    },
+  );
+  return z.array(senderRuleSchema).parse(await response.json());
 }

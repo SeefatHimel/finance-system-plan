@@ -118,7 +118,7 @@ const paymentMethodSchema = z.object({
   provider: z.string()
 });
 
-const senderRuleSchema = z.object({
+export const senderRuleSchema = z.object({
   sender_group: z.string().optional(),
   account: z.string(),
   category: z.string().nullable(),
