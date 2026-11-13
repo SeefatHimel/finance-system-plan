@@ -2465,3 +2465,59 @@ export interface SourceResolveRequest {
   request_id: string;
   confirmed: boolean;
 }
+
+export interface BulkApprovalRequest {
+  token: string;
+  request_id: string;
+  confirmed: boolean;
+}
+
+export interface BulkApprovalResult {
+  batch: string;
+  approved: BulkApprovedPair[];
+  needs_review: number;
+  undo_action: TransactionAction | null;
+  replayed: boolean;
+}
+
+export interface BulkApprovedPair {
+  statement: string;
+  sms: string;
+  transaction: string;
+}
+
+export interface BulkPairSelection {
+  pairs: PairSelection[];
+}
+
+export interface PairSelection {
+  statement: string;
+  sms: string;
+}
+
+export interface BulkApprovalPreview {
+  items: BulkApprovalItem[];
+  ready_count: number;
+  needs_review: number;
+  totals: Record<string, Record<string, string>>;
+  expires_at: string;
+  token: string | null;
+}
+
+export interface BulkApprovalItem {
+  id: string;
+  statement: UnifiedPendingSource;
+  sms: UnifiedPendingSource;
+  category: BulkApprovalName | null;
+  other_account: BulkApprovalName | null;
+  ready: boolean;
+  blockers: string[];
+  statement_text: string;
+  sms_text: string;
+  balance_source: string;
+}
+
+export interface BulkApprovalName {
+  id: string;
+  name: string;
+}

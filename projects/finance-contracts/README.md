@@ -1,5 +1,16 @@
 # finance-contracts
 
+## Bulk source-pair approval
+
+`POST /api/review/bulk/preview/` accepts 1–25 distinct `{statement, sms}` pairs and
+returns source comparisons, ready/blocked items, currency-separated decimal totals,
+a 15-minute signed token and expiry. `POST /api/review/bulk/approve/` requires that
+token, a stable UUID `request_id` and `confirmed: true`. It returns approved source/
+transaction IDs, the needs-review count, a nullable Undo action and `replayed`.
+409 requires a new preview; uncertain network outcomes retry the same token/UUID.
+`unified-bulk.ts` shares bounded queue selection helpers. See
+[bulk pair approval](../../docs/bulk-pair-approval.md) for retention and Undo limits.
+
 Transfer SMS evidence correction uses the existing
 `POST /api/transactions/{id}/correct-sms-evidence/` signed-preview contract.
 `move` can also repair an attached report when the saved SMS already identifies

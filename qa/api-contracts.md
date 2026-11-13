@@ -1,5 +1,14 @@
 # API Contracts Q&A
 
+### What does bulk approval add to the API contract?
+
+Two authenticated no-store POSTs: `/api/review/bulk/preview/` accepts 1–25 source
+pairs and returns comparisons plus a signed 15-minute token; `/approve/` takes
+the token, UUID request ID and explicit confirmation. The ready group is atomic;
+409 means refresh/review, while an uncertain response retries the same request.
+The receipt returns source/transaction IDs, a replay flag and one nullable Undo
+action. Amounts/totals are decimal strings and currencies remain separate.
+
 ### Does repairing a transfer report account need a new API?
 
 No. The signed correct-sms-evidence action accepts the existing candidate, action

@@ -4734,6 +4734,48 @@ paths:
                 items:
                   $ref: '#/components/schemas/SenderRule'
           description: ''
+  /api/review/bulk/approve/:
+    post:
+      operationId: review_bulk_approve_create
+      tags:
+      - Unified review
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkApprovalRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkApprovalResult'
+          description: ''
+  /api/review/bulk/preview/:
+    post:
+      operationId: review_bulk_preview_create
+      tags:
+      - Unified review
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkPairSelection'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkApprovalPreview'
+          description: ''
 components:
   securitySchemes:
     bearerAuth:
@@ -11720,3 +11762,161 @@ components:
       - confirmed
       - preview_token
       - request_id
+    BulkApprovalRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          maxLength: 16000
+        request_id:
+          type: string
+          format: uuid
+        confirmed:
+          type: boolean
+      required:
+      - confirmed
+      - request_id
+      - token
+    BulkApprovalResult:
+      type: object
+      properties:
+        batch:
+          type: string
+          format: uuid
+        approved:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkApprovedPair'
+        needs_review:
+          type: integer
+        undo_action:
+          allOf:
+          - $ref: '#/components/schemas/TransactionAction'
+          nullable: true
+        replayed:
+          type: boolean
+      required:
+      - approved
+      - batch
+      - needs_review
+      - replayed
+      - undo_action
+    BulkApprovedPair:
+      type: object
+      properties:
+        statement:
+          type: string
+          format: uuid
+        sms:
+          type: string
+          format: uuid
+        transaction:
+          type: string
+          format: uuid
+      required:
+      - sms
+      - statement
+      - transaction
+    BulkPairSelection:
+      type: object
+      properties:
+        pairs:
+          type: array
+          items:
+            $ref: '#/components/schemas/PairSelection'
+      required:
+      - pairs
+    PairSelection:
+      type: object
+      properties:
+        statement:
+          type: string
+          format: uuid
+        sms:
+          type: string
+          format: uuid
+      required:
+      - sms
+      - statement
+    BulkApprovalPreview:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkApprovalItem'
+        ready_count:
+          type: integer
+        needs_review:
+          type: integer
+        totals:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: string
+        expires_at:
+          type: string
+          format: date-time
+        token:
+          type: string
+          nullable: true
+      required:
+      - expires_at
+      - items
+      - needs_review
+      - ready_count
+      - token
+      - totals
+    BulkApprovalItem:
+      type: object
+      properties:
+        id:
+          type: string
+        statement:
+          $ref: '#/components/schemas/UnifiedPendingSource'
+        sms:
+          $ref: '#/components/schemas/UnifiedPendingSource'
+        category:
+          allOf:
+          - $ref: '#/components/schemas/BulkApprovalName'
+          nullable: true
+        other_account:
+          allOf:
+          - $ref: '#/components/schemas/BulkApprovalName'
+          nullable: true
+        ready:
+          type: boolean
+        blockers:
+          type: array
+          items:
+            type: string
+        statement_text:
+          type: string
+        sms_text:
+          type: string
+        balance_source:
+          type: string
+          description: 'The selected report: sms or statement.'
+      required:
+      - balance_source
+      - blockers
+      - category
+      - id
+      - other_account
+      - ready
+      - sms
+      - sms_text
+      - statement
+      - statement_text
+    BulkApprovalName:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+      - id
+      - name

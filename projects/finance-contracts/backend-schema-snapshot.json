@@ -4522,6 +4522,72 @@
         ]
       }
     },
+    "/api/review/bulk/approve/": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkApprovalResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/review/bulk/preview/": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkPairSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkApprovalPreview"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/review/pair/": {
       "get": {
         "parameters": [
@@ -7919,6 +7985,203 @@
         ""
       ]
     },
+    "BulkApprovalItem": {
+      "properties": {
+        "balance_source": {
+          "type": "string"
+        },
+        "blockers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "category": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/BulkApprovalName"
+            }
+          ],
+          "nullable": true
+        },
+        "id": {
+          "type": "string"
+        },
+        "other_account": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/BulkApprovalName"
+            }
+          ],
+          "nullable": true
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "sms": {
+          "$ref": "#/components/schemas/UnifiedPendingSource"
+        },
+        "sms_text": {
+          "type": "string"
+        },
+        "statement": {
+          "$ref": "#/components/schemas/UnifiedPendingSource"
+        },
+        "statement_text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "balance_source",
+        "blockers",
+        "category",
+        "id",
+        "other_account",
+        "ready",
+        "sms",
+        "sms_text",
+        "statement",
+        "statement_text"
+      ],
+      "type": "object"
+    },
+    "BulkApprovalName": {
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "type": "object"
+    },
+    "BulkApprovalPreview": {
+      "properties": {
+        "expires_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/BulkApprovalItem"
+          },
+          "type": "array"
+        },
+        "needs_review": {
+          "type": "integer"
+        },
+        "ready_count": {
+          "type": "integer"
+        },
+        "token": {
+          "nullable": true,
+          "type": "string"
+        },
+        "totals": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "expires_at",
+        "items",
+        "needs_review",
+        "ready_count",
+        "token",
+        "totals"
+      ],
+      "type": "object"
+    },
+    "BulkApprovalRequest": {
+      "properties": {
+        "confirmed": {
+          "type": "boolean"
+        },
+        "request_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "token": {
+          "maxLength": 16000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "confirmed",
+        "request_id",
+        "token"
+      ],
+      "type": "object"
+    },
+    "BulkApprovalResult": {
+      "properties": {
+        "approved": {
+          "items": {
+            "$ref": "#/components/schemas/BulkApprovedPair"
+          },
+          "type": "array"
+        },
+        "batch": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "needs_review": {
+          "type": "integer"
+        },
+        "replayed": {
+          "type": "boolean"
+        },
+        "undo_action": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/TransactionAction"
+            }
+          ],
+          "nullable": true
+        }
+      },
+      "required": [
+        "approved",
+        "batch",
+        "needs_review",
+        "replayed",
+        "undo_action"
+      ],
+      "type": "object"
+    },
+    "BulkApprovedPair": {
+      "properties": {
+        "sms": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "statement": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "transaction": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sms",
+        "statement",
+        "transaction"
+      ],
+      "type": "object"
+    },
     "BulkImportList": {
       "properties": {
         "account": {
@@ -8014,6 +8277,20 @@
         "summary",
         "timezone",
         "version"
+      ],
+      "type": "object"
+    },
+    "BulkPairSelection": {
+      "properties": {
+        "pairs": {
+          "items": {
+            "$ref": "#/components/schemas/PairSelection"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "pairs"
       ],
       "type": "object"
     },
@@ -10547,6 +10824,23 @@
           "type": "string"
         },
         "sms_account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "statement": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sms",
+        "statement"
+      ],
+      "type": "object"
+    },
+    "PairSelection": {
+      "properties": {
+        "sms": {
           "format": "uuid",
           "type": "string"
         },
