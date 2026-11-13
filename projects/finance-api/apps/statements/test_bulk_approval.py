@@ -196,6 +196,8 @@ class BulkApprovalTests(APITestCase):
         other, sms = self.extra()
         other.category = None
         other.save()
+        sms.category = None
+        sms.save()
         value = self.preview()
         self.assertEqual(value["ready_count"], 1, value)
         self.assertEqual(value["needs_review"], 1)
@@ -413,6 +415,17 @@ class BulkApprovalTests(APITestCase):
         self.sms.amount = "100.25"
         self.sms.save()
         self.assertEqual(self.preview()["ready_count"], 0)
+        self.assertEqual(
+            self.preview(
+                [
+                    {
+                        **self.pairs[0],
+                        "edits": {"description": "Synthetic edited fee source"},
+                    }
+                ]
+            )["ready_count"],
+            0,
+        )
 
     def test_missing_source_balance_is_not_replaced_with_zero(self):
         self.sms.balance_after = None
@@ -424,6 +437,159 @@ class BulkApprovalTests(APITestCase):
         self.assertEqual(str(Transaction.objects.get().balance_after), "900.00")
         self.sms.refresh_from_db()
         self.assertIsNone(self.sms.balance_after)
+
+    def test_missing_category_uses_same_sms_hint_and_is_undone_with_draft(self):
+        self.row.category = None
+        self.row.save()
+        original = deepcopy(self.row.extracted)
+        value = self.preview()
+        self.assertEqual(value["ready_count"], 1, value)
+        self.assertEqual(value["items"][0]["final"]["category"], str(self.category.pk))
+        self.assertEqual(value["items"][0]["category_origin"], "suggested")
+        self.row.refresh_from_db()
+        self.assertIsNone(self.row.category_id)
+        result = self.approve(value)
+        self.assertEqual(result.status_code, 200, result.data)
+        self.assertEqual(Transaction.objects.get().category_id, self.category.pk)
+        undo = self.client.post(
+            reverse("transaction-undo"),
+            {"action": result.data["undo_action"]["id"]},
+            format="json",
+        )
+        self.assertEqual(undo.status_code, 200, undo.data)
+        self.row.refresh_from_db()
+        self.assertIsNone(self.row.category_id)
+        self.assertEqual(self.row.extracted, original)
+
+    def test_explicit_metadata_is_previewed_signed_applied_and_undoable(self):
+        from django.core import signing
+
+        category = Category.objects.create(
+            user=self.user, name="Synthetic travel", kind="expense"
+        )
+        original = deepcopy(self.row.extracted)
+        pair = {
+            **self.pairs[0],
+            "edits": {
+                "category": str(category.pk),
+                "description": "Synthetic edited description",
+                "note": "Private synthetic review note",
+            },
+        }
+        value = self.preview([pair])
+        self.assertEqual(value["ready_count"], 1, value)
+        self.assertEqual(value["items"][0]["final"], pair["edits"])
+        signed = signing.loads(value["token"], salt=bulk_approval.SALT)
+        self.assertNotIn("Private synthetic", str(signed))
+        self.assertEqual(Transaction.objects.count(), 0)
+        # A client cannot swap metadata after reviewing the signed preview.
+        self.assertEqual(self.approve(value, pairs=self.pairs).status_code, 409)
+        result = self.approve(value, pairs=[pair])
+        self.assertEqual(result.status_code, 200, result.data)
+        record = Transaction.objects.get()
+        self.assertEqual(record.category_id, category.pk)
+        self.assertEqual(record.counterparty_text, pair["edits"]["description"])
+        self.assertEqual(record.note, pair["edits"]["note"])
+        self.assertEqual(str(record.amount), "100.00")
+        self.sms.refresh_from_db()
+        self.assertEqual(self.sms.category_id, self.category.pk)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.extracted, original)
+        undone = self.client.post(
+            reverse("transaction-undo"),
+            {"action": result.data["undo_action"]["id"]},
+            format="json",
+        )
+        self.assertEqual(undone.status_code, 200, undone.data)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.category_id, self.category.pk)
+        self.assertEqual(self.row.counterparty_text, "Synthetic Cafe")
+        self.assertEqual(self.row.note, "Synthetic Cafe")
+
+    def test_metadata_cannot_resolve_financial_or_identity_conflicts(self):
+        pair = {
+            **self.pairs[0],
+            "edits": {
+                "category": str(self.category.pk),
+                "description": "Synthetic Cafe",
+                "note": "Reviewed",
+            },
+        }
+        self.sms.balance_after = "901.00"
+        self.sms.save()
+        value = self.preview([pair])
+        self.assertEqual(value["ready_count"], 0, value)
+        self.assertTrue(
+            any("balances differ" in reason for reason in value["items"][0]["blockers"])
+        )
+        self.sms.balance_after = "900.00"
+        self.sms.counterparty_text = "Synthetic different merchant"
+        self.sms.save()
+        value = self.preview([pair])
+        self.assertEqual(value["ready_count"], 0, value)
+        self.assertTrue(
+            any("wording differ" in reason for reason in value["items"][0]["blockers"])
+        )
+
+    def test_category_ownership_activity_kind_and_input_limits(self):
+        for category in (
+            Category.objects.create(user=self.other_user, name="Synthetic foreign"),
+            Category.objects.create(
+                user=self.user, name="Synthetic inactive", is_active=False
+            ),
+            Category.objects.create(
+                user=self.user, name="Synthetic salary", kind="income"
+            ),
+        ):
+            value = self.preview(
+                [{**self.pairs[0], "edits": {"category": str(category.pk)}}]
+            )
+            self.assertEqual(value["ready_count"], 0, value)
+        for edits in (
+            {"amount": "1"},
+            {"description": "x" * 256},
+            {"note": "x" * 4001},
+        ):
+            response = self.client.post(
+                reverse("unified-bulk-preview"),
+                {"pairs": [{**self.pairs[0], "edits": edits}]},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 400, response.data)
+        response = self.client.post(
+            reverse("unified-bulk-preview"),
+            {"pairs": [{**self.pairs[0], "direction": "credit"}]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_selected_category_revision_and_detailed_blockers(self):
+        chosen = Category.objects.create(
+            user=self.user, name="Synthetic chosen", kind="expense"
+        )
+        pair = {**self.pairs[0], "edits": {"category": str(chosen.pk)}}
+        value = self.preview([pair])
+        chosen.is_active = False
+        chosen.save()
+        self.assertEqual(self.approve(value, pairs=[pair]).status_code, 409)
+        self.batch.checks = [
+            {
+                "label": "Synthetic closing balance",
+                "expected": "900.00",
+                "observed": "899.00",
+                "passed": False,
+            }
+        ]
+        self.batch.save()
+        reasons = self.preview()["items"][0]["blockers"]
+        self.assertTrue(
+            any(
+                "Synthetic closing balance" in reason
+                and "900.00" in reason
+                and "899.00" in reason
+                for reason in reasons
+            )
+        )
 
 
 class ConcurrentBulkApprovalTests(TransactionTestCase):

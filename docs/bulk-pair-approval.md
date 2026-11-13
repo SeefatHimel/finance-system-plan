@@ -5,7 +5,8 @@
 Open **Review inbox → Matched sources**, filter the queue, and select individual
 pairs or **Select this page**. Selections survive pagination, up to 25 pairs;
 changing filters or refreshing matches clears them. **Review selected** opens a
-read-only preview in the same page. It shows source values, highlighted
+preview in the same page, without writing any data. It shows final transaction
+values, source comparisons, highlighted
 agreements/differences, totals per currency and reasons for individual review.
 Source excerpts can be expanded without losing the selection.
 
@@ -15,12 +16,28 @@ pending with an individual-review shortcut. Transfers appear in a separate total
 they are not presented as income or spending. Filters stay in place after saving.
 Errors use toasts, with an inline refresh/retry action when necessary.
 
-This first version deliberately excludes uncertain matches. A ready pair needs:
+Before confirming, edit **Category**, **Description** or **Notes** directly in each
+card. Category defaults use the same precedence as individual review: a compatible
+saved statement category, a compatible statement mapping, then the live compatible
+SMS suggestion when types agree. Suggestions are visible defaults, not saved rules.
+**Apply category to compatible pairs** affects only selected pairs whose unchanged
+transaction type supports that category; other types keep their choice.
+
+Any edit clears confirmation and disables approval until **Recheck changes** runs
+on the server. The final preview shows the exact metadata and financial values to
+be recorded. No edit changes amount, debit/credit, account path, dates, reported
+balance, fees or original source identity. Changing text cannot upgrade a weak
+match or dismiss a conflict. Blockers name the source warning, failed check and
+expected/observed values when available. Individual review opens original sources;
+unapplied bulk edits are not saved by switching to that review.
+
+Bulk approval deliberately excludes uncertain matches. A ready pair needs:
 
 - Owned, active, same-currency accounts, compatible active category and explicit
   original debit/credit evidence agreeing with the saved draft.
 - A strong, unambiguous pending SMS/statement match, exactly equal amounts and
-  compatible transaction types/categories. Known reported balances must agree;
+  compatible transaction types and a chosen or suggested compatible category.
+  Known reported balances must agree;
   a missing report remains unknown, never zero.
 - Matching statement date and local SMS receipt date. A different statement
   value date requires individual review. Receipt time is labelled as such;
@@ -40,19 +57,24 @@ context, use individual review or a smaller selection.
 Authenticated, owner-scoped, no-store endpoints:
 
 ```text
-POST /api/review/bulk/preview/  {pairs: [{statement: UUID, sms: UUID}]}
-POST /api/review/bulk/approve/  {token: string, request_id: UUID, confirmed: true}
+POST /api/review/bulk/preview/  {pairs: [{statement: UUID, sms: UUID, edits?: {category: UUID|null, description: string, note: string}}]}
+POST /api/review/bulk/approve/  {token: string, request_id: UUID, confirmed: true, pairs?: [...ready pairs with reviewed edits]}
 ```
 
 Preview performs no writes. It returns all preview items, ready/needs-review
 counts, decimal-string totals by currency, an expiry and a signed token for only
 the ready group. Tokens expire after 15 minutes and bind user, approval policy,
 source versions/values, relevant account/category revisions and current eligibility.
-Tokens contain source IDs and fingerprints, not SMS text. Excerpts are limited
+The token covers final metadata by fingerprint; it contains source IDs and
+fingerprints, not descriptions, notes or SMS text. Approval sends the reviewed
+ready pairs and metadata separately; changing them without a new preview returns
+409. Only category, description (255 characters) and notes (4,000 characters) may
+be submitted as edits. Unknown edit fields are rejected. Omitted approval pairs
+recompute defaults for older clients. A refresh is required for older-policy tokens. Excerpts are limited
 to 1,200 characters and obey existing retention permissions.
 
 Approval takes the existing per-user financial-write lock and locks selected
-source rows in deterministic order. It reruns eligibility and duplicate checks,
+source rows and category records in deterministic order. It reruns eligibility and duplicate checks,
 then calls the canonical single-pair confirmation service for every ready pair
 inside one database transaction. Any stale source, new competitor, changed ledger
 suggestion or confirmation failure rolls back the entire ready group, including
@@ -75,7 +97,7 @@ No saved parser directions or source descriptions are overwritten by approval.
 
 The batch creates one latest-action **Undo batch**, available for 24 hours while
 all affected records and source links remain unchanged. Undo deletes only the
-new ledger records/reports, restores SMS and statement sources to pending review,
+new ledger records/reports, restores SMS and statement sources and their previous draft metadata to pending review,
 and records the recovery. If any member or linked evidence changed, the entire
 Undo is rejected rather than partly removing money. A subsequent financial action
 supersedes latest-action Undo, matching the existing recovery model.
@@ -85,7 +107,8 @@ supersedes latest-action Undo, matching the existing recovery model.
 This is an API, database, contracts and web change; no mobile release is needed.
 Deploy the API with `python manage.py migrate` through
 `statements.0015_unifiedapprovalbatch` before the updated web app. It creates an
-empty receipt table and does not change existing financial data.
+empty receipt table and does not change existing financial data. This metadata
+update needs no additional migration; deploy API before web.
 
 Focused API checks:
 

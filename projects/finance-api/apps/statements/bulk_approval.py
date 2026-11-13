@@ -3,6 +3,7 @@
 import hashlib
 import json
 from collections import Counter, defaultdict
+from copy import copy
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -12,11 +13,13 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
+from apps.categories.models import Category
+from apps.messages.category_suggestions import CategorySuggestions, compatible
 from apps.messages.models import ParsedMessageCandidate
 from apps.transactions.recovery import ActionRecorder, describe
 from apps.transactions.transfers import lock_transfer_user, sms_recorded_elsewhere
 
-from .insights import analyze
+from .insights import analyze, suggestions
 from .models import StatementRow, UnifiedApprovalBatch
 from .services import ReviewConflict, find_matches, posting_issues, row_snapshot
 from .unified import (
@@ -30,14 +33,8 @@ from .unified import (
 LIMIT = 25
 MAX_CONTEXT = 5000
 PREVIEW_SECONDS = 900
-POLICY = 1
+POLICY = 2
 SALT = "statements.bulk-pair-approval"
-CATEGORY_TYPES = {
-    "expense": {"expense", "fee"},
-    "income": {"income", "refund"},
-    "transfer": {"transfer"},
-    "debt": {"lend", "borrow", "repayment_received", "repayment_paid"},
-}
 
 
 def digest(value):
@@ -101,7 +98,43 @@ def prepare(user, pairs, *, lock=False):
     return row_map, sms_map, matches
 
 
-def inspect_pair(row, sms, matches, *, shared=False):
+def final_values(row, sms, edits, categories, sms_hints):
+    """Use the same category precedence as individual review; never change money."""
+
+    def eligible(category_id):
+        category = categories.get(str(category_id))
+        return category if compatible(category, row.type, row.batch.user_id) else None
+
+    suggestion = getattr(row, "_suggestion", None) or {}
+    category = eligible(row.category_id)
+    if category is None and suggestion.get("type") == row.type:
+        category = eligible(suggestion.get("category"))
+    if category is None and row.type == sms.transaction_type:
+        hint = sms_hints.category(sms)
+        category = eligible(hint.pk) if hint else None
+    origin = "saved" if category and category.pk == row.category_id else "suggested"
+    if "category" in edits:
+        category = eligible(edits["category"])
+        origin = "chosen"
+    if category is None:
+        origin = "missing"
+    return (
+        category,
+        {
+            "category": str(category.pk) if category else None,
+            "description": edits.get(
+                "description",
+                row.counterparty_text
+                or str(row.extracted.get("description") or "")[:255]
+                or sms.counterparty_text[:255],
+            ),
+            "note": edits.get("note", row.note),
+        },
+        origin,
+    )
+
+
+def inspect_pair(row, sms, matches, *, category, final, category_origin, shared=False):
     reasons = []
     try:
         signals = pair_signals(row, sms)
@@ -114,7 +147,14 @@ def inspect_pair(row, sms, matches, *, shared=False):
     if not signals:
         reasons.append("These sources are no longer compatible pending matches.")
     elif signals["strength"] != "strong":
-        reasons.append("The source evidence needs an individual match decision.")
+        if "Counterparty wording differs." in signals["reasons"]:
+            reasons.append(
+                "Original statement and SMS counterparty wording differ. Compare the originals individually; editing the description does not verify this match."
+            )
+        elif not signals["conflict"]:
+            reasons.append(
+                "This pair is not a strong identity match. Compare the reference and original counterparty wording individually."
+            )
     if shared or competing:
         reasons.append(
             "Another source can claim this movement. Choose the pair individually."
@@ -123,7 +163,9 @@ def inspect_pair(row, sms, matches, *, shared=False):
         reasons.append(
             "An SMS for this movement is already recorded. Review the existing transaction."
         )
-    reasons.extend(posting_issues(row))
+    proposed = copy(row)
+    proposed.category = category
+    reasons.extend(posting_issues(proposed))
     account, direction, received = sms_observation(sms)
     if row.date != received.date() or (row.value_date and row.value_date != row.date):
         reasons.append("Transaction/value dates differ. Review the dates individually.")
@@ -158,17 +200,8 @@ def inspect_pair(row, sms, matches, *, shared=False):
         reasons.append("This movement has a fee. Review its components individually.")
     if row.batch.rows.filter(position=row.position, component="fee").exists():
         reasons.append("A separate fee row needs individual review.")
-    if not row.category_id:
-        reasons.append("Choose a category in individual review first.")
-    elif (
-        row.category.user_id != row.batch.user_id
-        or row.type not in CATEGORY_TYPES.get(row.category.kind, {row.type})
-    ):
-        reasons.append("The saved category is incompatible with this transaction.")
-    if sms.category_id and row.category_id and sms.category_id != row.category_id:
-        reasons.append(
-            "Source categories differ. Choose the final category individually."
-        )
+    if category is None:
+        reasons.append("Choose an active, compatible category in this preview.")
     if row.type == "transfer":
         counterpart = (
             sms.account_id if direction == "credit" else sms.destination_account_id
@@ -191,23 +224,30 @@ def inspect_pair(row, sms, matches, *, shared=False):
             reasons.append(
                 "An existing ledger movement may match, or its checks are incomplete. Review individually."
             )
-    if (
-        row.extracted.get("issues")
-        or getattr(row, "_draft_issues", [])
-        or row.batch.warnings
-        or any(check.get("passed") is False for check in row.batch.checks)
+    for label, issues in (
+        ("Original statement", row.extracted.get("issues") or []),
+        ("Saved draft", getattr(row, "_draft_issues", [])),
+        ("Statement warning", row.batch.warnings or []),
     ):
-        reasons.append("Statement source or saved-draft checks need individual review.")
+        for issue in issues:
+            reasons.append(f"{label}: {issue}")
+    for check in row.batch.checks:
+        if check.get("passed") is False:
+            label = check.get("label") or check.get("name") or "Source check"
+            details = ""
+            if check.get("expected") is not None or check.get("observed") is not None:
+                details = f" Expected {check.get('expected', 'unknown')}; observed {check.get('observed', 'unknown')}."
+            reasons.append(f"Statement check failed: {label}.{details}")
     statement, message = summary(row), summary(sms)
     result = {
         "id": f"{row.pk}:{sms.pk}",
         "statement": statement,
         "sms": message,
         "category": (
-            {"id": str(row.category_id), "name": row.category.name}
-            if row.category_id
-            else None
+            {"id": str(category.pk), "name": category.name} if category else None
         ),
+        "final": final,
+        "category_origin": category_origin,
         "other_account": (
             {"id": str(row.other_account_id), "name": row.other_account.name}
             if row.other_account_id
@@ -222,11 +262,14 @@ def inspect_pair(row, sms, matches, *, shared=False):
         "balance_source": "sms" if sms.balance_after is not None else "statement",
     }
     proof = {
-        "result": result,
+        "result": {
+            key: value for key, value in result.items() if key != "category_origin"
+        },
         "row": row_snapshot(row),
         "source": row.extracted,
         "account_revision": row.batch.account.updated_at,
         "category_revision": row.category.updated_at if row.category_id else None,
+        "final_category_revision": category.updated_at if category else None,
         "other_revision": (
             row.other_account.updated_at if row.other_account_id else None
         ),
@@ -238,15 +281,54 @@ def inspect_pair(row, sms, matches, *, shared=False):
 
 def inspect(user, pairs, *, lock=False):
     rows, messages, matches = prepare(user, pairs, lock=lock)
+    category_ids = set()
+    grouped = defaultdict(list)
+    for row in rows.values():
+        grouped[row.batch_id].append(row)
+    for chosen in grouped.values():
+        hints = suggestions(chosen)
+        for row in chosen:
+            row._suggestion = hints.get(row.pk)
+            category_ids.add(str(row.category_id))
+            category_ids.add(str((row._suggestion or {}).get("category")))
+    for pair in pairs:
+        category_ids.add(str(pair.get("edits", {}).get("category")))
+    sms_hints = CategorySuggestions(user.pk)
+    for sms in messages.values():
+        hint = sms_hints.category(sms)
+        if hint:
+            category_ids.add(str(hint.pk))
+    category_query = Category.objects.filter(
+        user=user, pk__in=[key for key in category_ids if key != "None"]
+    ).order_by("pk")
+    if lock:
+        category_query = category_query.select_for_update()
+    categories = {str(category.pk): category for category in category_query}
     row_claims = Counter(str(pair["statement"]) for pair in pairs)
     sms_claims = Counter(str(pair["sms"]) for pair in pairs)
     results, proofs = [], []
     for pair in pairs:
         row_id, sms_id = str(pair["statement"]), str(pair["sms"])
+        row, sms = rows[row_id], messages[sms_id]
+        category, final, origin = final_values(
+            row, sms, pair.get("edits", {}), categories, sms_hints
+        )
+        if matches is not None and final["description"] != row.counterparty_text:
+            projected = copy(row)
+            projected.counterparty_text = final["description"]
+            try:
+                found, truncated = find_matches([projected])
+            except (InvalidOperation, ValueError, TypeError):
+                found, truncated = {row.pk: []}, True
+            old, old_truncated = matches[row_id]
+            matches[row_id] = (old + found[row.pk], old_truncated or truncated)
         item, fingerprint = inspect_pair(
-            rows[row_id],
+            row,
             messages[sms_id],
             matches,
+            category=category,
+            final=final,
+            category_origin=origin,
             shared=row_claims[row_id] > 1 or sms_claims[sms_id] > 1,
         )
         results.append(item)
@@ -307,7 +389,7 @@ def receipt_result(receipt, *, replayed):
 
 
 @transaction.atomic
-def approve(*, user, token, request_id, request):
+def approve(*, user, token, request_id, request, pairs=None):
     lock_transfer_user(user)
     token_digest = hashlib.sha256(token.encode()).hexdigest()
     receipt = (
@@ -334,7 +416,16 @@ def approve(*, user, token, request_id, request):
     expected = signed.get("ready", [])
     if not 1 <= len(expected) <= LIMIT:
         raise ValidationError({"token": "The preview has no eligible approval group."})
-    results, current, rows, messages = inspect(user, expected, lock=True)
+    if pairs is None:
+        pairs = expected
+    expected_ids = {(item["statement"], item["sms"]) for item in expected}
+    supplied = {(str(item["statement"]), str(item["sms"])): item for item in pairs}
+    if supplied.keys() != expected_ids or len(pairs) != len(expected):
+        raise ReviewConflict(
+            "The selected approval group changed. Refresh the preview."
+        )
+    ordered = [supplied[(item["statement"], item["sms"])] for item in expected]
+    results, current, rows, messages = inspect(user, ordered, lock=True)
     if current != expected:
         raise ReviewConflict(
             "Sources, settings or matches changed. Nothing was approved. Refresh and review the preview again."
@@ -354,7 +445,16 @@ def approve(*, user, token, request_id, request):
                 "balance_source": item["balance_source"],
                 "acknowledge_match": True,
                 "acknowledge_conflict": False,
-                "acknowledge_issues": False,
+                # Only the signed, financially unchanged metadata draft is acknowledged.
+                "acknowledge_issues": True,
+                "draft": {
+                    "version": row.version,
+                    "category": Category.objects.get(
+                        pk=item["final"]["category"], user=user, is_active=True
+                    ),
+                    "counterparty_text": item["final"]["description"],
+                    "note": item["final"]["note"],
+                },
                 "remember_choices": False,
             },
         )

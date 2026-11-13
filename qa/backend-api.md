@@ -1,5 +1,15 @@
 # Backend API Q&A
 
+### Can bulk approval correct simple metadata without weakening source checks?
+
+Yes. Category defaults share statement mappings and live SMS suggestions with
+individual review. Preview accepts only compatible owned categories, bounded
+description and notes; exact final metadata is included in its fingerprint.
+Approval rechecks the submitted values and passes only these metadata edits to the
+canonical confirmation service inside the atomic batch. Source identity and all
+financial conflicts remain blocked. Undo restores pre-edit draft metadata and
+sources. Original extraction/SMS values never follow those edits automatically.
+
 ### How is a bulk source approval kept safe and retryable?
 
 A read-only signed preview covers at most 25 unambiguous SMS/PDF pairs. Approval

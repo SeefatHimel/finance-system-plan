@@ -2,6 +2,12 @@
 
 ## Bulk pair approval
 
+Bulk previews now include final category, description and notes, using the same
+category defaults as individual review. Bounded metadata edits are fingerprinted
+and checked again at approval; financial/source conflicts remain blocked. Undo
+restores the previous statement draft metadata. There is no new migration beyond
+statements `0015`; deploy API before the updated web client.
+
 Authenticated preview/approval endpoints under `/api/review/bulk/` approve up to
 25 unambiguous SMS/PDF pairs. Fresh checks, a per-user lock and one atomic group
 preserve sources and produce one Undo action. Durable request receipts prevent
