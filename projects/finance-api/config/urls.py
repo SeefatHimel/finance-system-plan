@@ -62,6 +62,7 @@ from apps.statements.unified_views import (
     UnifiedPairView,
     UnifiedPendingView,
 )
+from apps.statements.bulk_approval_views import BulkApprovalPreviewView, BulkApprovalView
 from apps.statements.views import StatementIdentifyView, StatementPreviewView
 from apps.transactions.payment_views import (
     PlanningPaymentDetailView,
@@ -122,6 +123,8 @@ urlpatterns = [
     path("api/review/pending/", UnifiedPendingView.as_view(), name="unified-pending"),
     path("api/review/pair/", UnifiedPairView.as_view(), name="unified-pair"),
     path("api/review/pair/preview/", UnifiedPairPreviewView.as_view(), name="unified-pair-preview"),
+    path("api/review/bulk/preview/", BulkApprovalPreviewView.as_view(), name="unified-bulk-preview"),
+    path("api/review/bulk/approve/", BulkApprovalView.as_view(), name="unified-bulk-approve"),
     path("api/statements/counterparty-codes/", StatementCounterpartyCodeView.as_view(), name="statement-counterparty-codes"),
     path("api/statements/counterparty-codes/skip/", StatementIdentifierSkipView.as_view(), name="statement-identifier-skip"),
     path("api/statements/counterparty-codes/cleanup-ebl/", RetiredEblCleanupView.as_view(), name="retired-ebl-cleanup"),

@@ -58,6 +58,7 @@ LABELS = {
     "create": "Transaction added",
     "update": "Transaction updated",
     "bulk_revalidate": "Transactions corrected",
+    "bulk_approve": "Batch approved",
     "confirm": "SMS added",
     "link": "Transfer linked",
     "evidence_link": "Evidence linked",

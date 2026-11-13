@@ -1,5 +1,13 @@
 # finance-api
 
+## Bulk pair approval
+
+Authenticated preview/approval endpoints under `/api/review/bulk/` approve up to
+25 unambiguous SMS/PDF pairs. Fresh checks, a per-user lock and one atomic group
+preserve sources and produce one Undo action. Durable request receipts prevent
+retries from adding money twice. Migrate through statements `0015` before deploying
+the web client. See [workflow and consistency](../../docs/bulk-pair-approval.md).
+
 ## Transfer report account ownership
 
 Statement matching attributes pre-evidence SMS transfer balances to the saved

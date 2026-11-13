@@ -1,5 +1,14 @@
 # Backend API Q&A
 
+### How is a bulk source approval kept safe and retryable?
+
+A read-only signed preview covers at most 25 unambiguous SMS/PDF pairs. Approval
+locks the user and source rows, rechecks evidence, arithmetic and ledger duplicates,
+and runs canonical pair confirmation atomically. Any failure rolls back the whole
+ready group. A unique per-user request receipt makes interrupted retries durable,
+even after later actions or Undo. All sources remain linked. One latest-action
+Undo restores the whole batch only while its recorded state is unchanged.
+
 ### How do legacy bank-to-card transfers avoid false balance conflicts?
 
 A transfer's account is its sender, while its original SMS may report the

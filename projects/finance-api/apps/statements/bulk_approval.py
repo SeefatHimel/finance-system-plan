@@ -1,0 +1,382 @@
+"""Bounded, source-preserving approval of independently reviewed SMS/PDF pairs."""
+
+import hashlib
+import json
+from collections import Counter, defaultdict
+from datetime import timedelta
+from decimal import Decimal, InvalidOperation
+
+from django.core import signing
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db import transaction
+from django.utils import timezone
+from rest_framework.exceptions import NotFound, ValidationError
+
+from apps.messages.models import ParsedMessageCandidate
+from apps.transactions.recovery import ActionRecorder, describe
+from apps.transactions.transfers import lock_transfer_user, sms_recorded_elsewhere
+
+from .insights import analyze
+from .models import StatementRow, UnifiedApprovalBatch
+from .services import ReviewConflict, find_matches, posting_issues, row_snapshot
+from .unified import (
+    confirm_pair,
+    has_competing_sources,
+    pair_signals,
+    sms_observation,
+    summary,
+)
+
+LIMIT = 25
+MAX_CONTEXT = 5000
+PREVIEW_SECONDS = 900
+POLICY = 1
+SALT = "statements.bulk-pair-approval"
+CATEGORY_TYPES = {
+    "expense": {"expense", "fee"},
+    "income": {"income", "refund"},
+    "transfer": {"transfer"},
+    "debt": {"lend", "borrow", "repayment_received", "repayment_paid"},
+}
+
+
+def digest(value):
+    return hashlib.sha256(
+        json.dumps(value, cls=DjangoJSONEncoder, sort_keys=True).encode()
+    ).hexdigest()
+
+
+def prepare(user, pairs, *, lock=False):
+    """Share statement arithmetic and ledger scans across pairs in each import."""
+    row_ids = {str(pair["statement"]) for pair in pairs}
+    sms_ids = {str(pair["sms"]) for pair in pairs}
+    rows = StatementRow.objects.filter(pk__in=row_ids, batch__user=user).select_related(
+        "batch__account",
+        "category",
+        "other_account",
+        "transaction",
+    )
+    sms = ParsedMessageCandidate.objects.filter(
+        pk__in=sms_ids, user=user
+    ).select_related(
+        "raw_message",
+        "account",
+        "destination_account",
+        "category",
+    )
+    if lock:
+        rows, sms = rows.select_for_update(of=("self",)), sms.select_for_update(
+            of=("self",)
+        )
+    row_map, sms_map = {str(row.pk): row for row in rows.order_by("pk")}, {
+        str(item.pk): item for item in sms.order_by("pk")
+    }
+    if row_map.keys() != row_ids or sms_map.keys() != sms_ids:
+        raise NotFound("One or more selected sources are no longer available.")
+    batches = {row.batch_id: row.batch for row in row_map.values()}
+    context = list(
+        StatementRow.objects.filter(batch_id__in=batches).select_related(
+            "batch__account", "category", "other_account"
+        )[: MAX_CONTEXT + 1]
+    )
+    if len(context) > MAX_CONTEXT:
+        return row_map, sms_map, None
+    grouped = defaultdict(list)
+    for row in context:
+        grouped[row.batch_id].append(row_map.get(str(row.pk), row))
+    matches = {}
+    for batch_id, siblings in grouped.items():
+        chosen = [row for row in siblings if str(row.pk) in row_ids]
+        try:
+            analyze(batches[batch_id], siblings)
+            found, truncated = find_matches(chosen)
+        except (InvalidOperation, ValueError, TypeError):
+            # Older/unreadable extracted values must never turn into an approval.
+            for row in chosen:
+                row._draft_issues = [
+                    "Original financial values need individual review."
+                ]
+            found, truncated = {row.pk: [] for row in chosen}, True
+        matches.update({str(row.pk): (found[row.pk], truncated) for row in chosen})
+    return row_map, sms_map, matches
+
+
+def inspect_pair(row, sms, matches, *, shared=False):
+    reasons = []
+    try:
+        signals = pair_signals(row, sms)
+        competing = signals and has_competing_sources(row, sms)
+    except (InvalidOperation, ValueError, TypeError):
+        signals, competing = None, False
+        reasons.append(
+            "Original financial evidence is unreadable. Review this pair individually."
+        )
+    if not signals:
+        reasons.append("These sources are no longer compatible pending matches.")
+    elif signals["strength"] != "strong":
+        reasons.append("The source evidence needs an individual match decision.")
+    if shared or competing:
+        reasons.append(
+            "Another source can claim this movement. Choose the pair individually."
+        )
+    if sms_recorded_elsewhere(sms):
+        reasons.append(
+            "An SMS for this movement is already recorded. Review the existing transaction."
+        )
+    reasons.extend(posting_issues(row))
+    account, direction, received = sms_observation(sms)
+    if row.date != received.date() or (row.value_date and row.value_date != row.date):
+        reasons.append("Transaction/value dates differ. Review the dates individually.")
+    if row.amount != sms.amount:
+        reasons.append(
+            "Amounts differ. Bulk approval does not make rounding corrections."
+        )
+    original_direction = row.reviewed_source_direction or row.extracted.get("direction")
+    if (
+        original_direction not in {"debit", "credit"}
+        or original_direction != row.direction
+        or sms.source_direction != direction
+    ):
+        reasons.append(
+            "Verify the original debit/credit direction before bulk approval."
+        )
+    if row.type != sms.transaction_type:
+        reasons.append("Transaction types differ. Choose the final type individually.")
+    if (
+        row.balance_after is not None
+        and sms.balance_after is not None
+        and row.balance_after != sms.balance_after
+    ):
+        reasons.append(
+            "Reported balances differ. Choose the correct report individually."
+        )
+    try:
+        source_fee = Decimal(str(row.extracted.get("signed_fee") or "0"))
+    except (InvalidOperation, ValueError):
+        source_fee = None
+    if source_fee is None or sms.fee_amount or source_fee:
+        reasons.append("This movement has a fee. Review its components individually.")
+    if row.batch.rows.filter(position=row.position, component="fee").exists():
+        reasons.append("A separate fee row needs individual review.")
+    if not row.category_id:
+        reasons.append("Choose a category in individual review first.")
+    elif (
+        row.category.user_id != row.batch.user_id
+        or row.type not in CATEGORY_TYPES.get(row.category.kind, {row.type})
+    ):
+        reasons.append("The saved category is incompatible with this transaction.")
+    if sms.category_id and row.category_id and sms.category_id != row.category_id:
+        reasons.append(
+            "Source categories differ. Choose the final category individually."
+        )
+    if row.type == "transfer":
+        counterpart = (
+            sms.account_id if direction == "credit" else sms.destination_account_id
+        )
+        if not row.classification_confirmed or counterpart != row.other_account_id:
+            reasons.append(
+                "Confirm both owned transfer accounts in individual review first."
+            )
+    if account and (account.user_id != row.batch.user_id or not account.is_active):
+        reasons.append("Choose an active reporting account owned by you.")
+    if row.other_account_id and row.other_account.user_id != row.batch.user_id:
+        reasons.append("Choose an owned transfer destination.")
+    if matches is None:
+        reasons.append(
+            "Too much statement context for bulk approval. Review a smaller selection."
+        )
+    else:
+        found, truncated = matches[str(row.pk)]
+        if found or truncated:
+            reasons.append(
+                "An existing ledger movement may match, or its checks are incomplete. Review individually."
+            )
+    if (
+        row.extracted.get("issues")
+        or getattr(row, "_draft_issues", [])
+        or row.batch.warnings
+        or any(check.get("passed") is False for check in row.batch.checks)
+    ):
+        reasons.append("Statement source or saved-draft checks need individual review.")
+    statement, message = summary(row), summary(sms)
+    result = {
+        "id": f"{row.pk}:{sms.pk}",
+        "statement": statement,
+        "sms": message,
+        "category": (
+            {"id": str(row.category_id), "name": row.category.name}
+            if row.category_id
+            else None
+        ),
+        "other_account": (
+            {"id": str(row.other_account_id), "name": row.other_account.name}
+            if row.other_account_id
+            else None
+        ),
+        "ready": not reasons,
+        "blockers": list(dict.fromkeys(reasons)),
+        "statement_text": str(row.extracted.get("description", ""))[:1200],
+        "sms_text": (
+            sms.raw_message.body[:1200] if not sms.raw_message.redacted_at else ""
+        ),
+        "balance_source": "sms" if sms.balance_after is not None else "statement",
+    }
+    proof = {
+        "result": result,
+        "row": row_snapshot(row),
+        "source": row.extracted,
+        "account_revision": row.batch.account.updated_at,
+        "category_revision": row.category.updated_at if row.category_id else None,
+        "other_revision": (
+            row.other_account.updated_at if row.other_account_id else None
+        ),
+        "sms_category": str(sms.category_id) if sms.category_id else None,
+        "sms_raw_revision": sms.raw_message.body_hash,
+    }
+    return result, digest(proof)
+
+
+def inspect(user, pairs, *, lock=False):
+    rows, messages, matches = prepare(user, pairs, lock=lock)
+    row_claims = Counter(str(pair["statement"]) for pair in pairs)
+    sms_claims = Counter(str(pair["sms"]) for pair in pairs)
+    results, proofs = [], []
+    for pair in pairs:
+        row_id, sms_id = str(pair["statement"]), str(pair["sms"])
+        item, fingerprint = inspect_pair(
+            rows[row_id],
+            messages[sms_id],
+            matches,
+            shared=row_claims[row_id] > 1 or sms_claims[sms_id] > 1,
+        )
+        results.append(item)
+        if item["ready"]:
+            proofs.append(
+                {"statement": row_id, "sms": sms_id, "fingerprint": fingerprint}
+            )
+    return results, proofs, rows, messages
+
+
+def preview(*, user, pairs):
+    results, proofs, _, _ = inspect(user, pairs)
+    totals = defaultdict(
+        lambda: {"debit": Decimal(0), "credit": Decimal(0), "transfer": Decimal(0)}
+    )
+    for item in results:
+        if item["ready"]:
+            source = item["statement"]
+            totals[source["currency"]][
+                "transfer" if source["type"] == "transfer" else source["direction"]
+            ] += Decimal(source["amount"])
+    return {
+        "items": results,
+        "ready_count": len(proofs),
+        "needs_review": len(results) - len(proofs),
+        "totals": {
+            currency: {key: str(value) for key, value in amounts.items()}
+            for currency, amounts in totals.items()
+        },
+        "expires_at": (timezone.now() + timedelta(seconds=PREVIEW_SECONDS)).isoformat(),
+        "token": (
+            signing.dumps(
+                {
+                    "user": str(user.pk),
+                    "policy": POLICY,
+                    "ready": proofs,
+                    "needs_review": len(results) - len(proofs),
+                },
+                salt=SALT,
+                compress=True,
+            )
+            if proofs
+            else None
+        ),
+    }
+
+
+def receipt_result(receipt, *, replayed):
+    return {
+        "batch": str(receipt.pk),
+        "approved": receipt.approved,
+        "needs_review": receipt.needs_review,
+        "undo_action": (
+            describe(receipt.action, check=True) if receipt.action_id else None
+        ),
+        "replayed": replayed,
+    }
+
+
+@transaction.atomic
+def approve(*, user, token, request_id, request):
+    lock_transfer_user(user)
+    token_digest = hashlib.sha256(token.encode()).hexdigest()
+    receipt = (
+        UnifiedApprovalBatch.objects.filter(user=user, request_id=request_id)
+        .select_related("action")
+        .first()
+    )
+    if receipt:
+        if receipt.token_digest != token_digest:
+            raise ReviewConflict(
+                "This request ID was already used for a different preview."
+            )
+        return receipt_result(receipt, replayed=True)
+    try:
+        signed = signing.loads(token, salt=SALT, max_age=PREVIEW_SECONDS)
+    except signing.BadSignature as error:
+        raise ReviewConflict(
+            "The approval preview expired or is invalid. Refresh the preview."
+        ) from error
+    if signed.get("user") != str(user.pk) or signed.get("policy") != POLICY:
+        raise ReviewConflict(
+            "This preview belongs to another user or an older approval policy."
+        )
+    expected = signed.get("ready", [])
+    if not 1 <= len(expected) <= LIMIT:
+        raise ValidationError({"token": "The preview has no eligible approval group."})
+    results, current, rows, messages = inspect(user, expected, lock=True)
+    if current != expected:
+        raise ReviewConflict(
+            "Sources, settings or matches changed. Nothing was approved. Refresh and review the preview again."
+        )
+    recovery = ActionRecorder(user, candidate_ids=messages, statement_ids=rows)
+    approved = []
+    for item in results:
+        row, sms = rows[item["statement"]["id"]], messages[item["sms"]["id"]]
+        record, unchanged = confirm_pair(
+            user=user,
+            row=row,
+            candidate=sms,
+            request=request,
+            payload={
+                "statement_version": row.version,
+                "sms_updated_at": sms.updated_at,
+                "balance_source": item["balance_source"],
+                "acknowledge_match": True,
+                "acknowledge_conflict": False,
+                "acknowledge_issues": False,
+                "remember_choices": False,
+            },
+        )
+        if unchanged:
+            raise ReviewConflict(
+                "A source was already recorded. Nothing was approved; refresh the preview."
+            )
+        recovery.ids.add(str(record.pk))
+        approved.append(
+            {
+                "statement": str(row.pk),
+                "sms": str(sms.pk),
+                "transaction": str(record.pk),
+            }
+        )
+    action = recovery.finish(record, "bulk_approve")
+    receipt = UnifiedApprovalBatch.objects.create(
+        user=user,
+        request_id=request_id,
+        token_digest=token_digest,
+        approved=approved,
+        needs_review=signed["needs_review"],
+        action=action,
+    )
+    return receipt_result(receipt, replayed=False)

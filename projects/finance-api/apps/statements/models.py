@@ -53,6 +53,27 @@ class StatementOriginalFile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
+class UnifiedApprovalBatch(models.Model):
+    """Durable retry receipt; contains source IDs, never original PDF/SMS text."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    request_id = models.UUIDField()
+    token_digest = models.CharField(max_length=64)
+    approved = models.JSONField(default=list)
+    needs_review = models.PositiveIntegerField(default=0)
+    action = models.ForeignKey(
+        "transactions.TransactionAction", null=True, on_delete=models.SET_NULL,
+        related_name="approval_batches",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=("user", "request_id"), name="unified_approval_request_per_user",
+        )]
+
+
 class StatementRow(models.Model):
     class State(models.TextChoices):
         PENDING = "pending", "Pending"
