@@ -1,5 +1,17 @@
 # finance-api
 
+## Bulk review query optimization
+
+Bulk preview batches competitor, recorded-SMS and fee discovery, including shared
+merchant edits. Approval reuses request-local statement rows and unchanged draft
+arithmetic, while retaining fresh per-pair ledger/source checks and canonical
+source linking, audits, retries and Undo. A changed arithmetic input triggers a
+fresh analysis. No API contract or schema changes are needed for this optimization.
+
+Synthetic 25-pair endpoint counts fell from 138 to 16 for preview and 1,334 to 914
+for approval; a shared merchant edit fell from 263/1,534 to 20/993 respectively.
+See [query budgets and reproduction](../../docs/bulk-pair-approval.md#backend-query-budgets-and-request-local-checks).
+
 ## Source-bound reporting-account review
 
 Bulk preview groups the standard masked-account advisory by import. An explicit

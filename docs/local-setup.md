@@ -1,5 +1,13 @@
 # Local Setup
 
+## Bulk review query regression checks
+
+With a disposable API test database configured, run
+`FINANCE_QUERY_BENCHMARK=1 python manage.py test apps.statements.test_bulk_performance --noinput`
+from `projects/finance-api`. This prints synthetic endpoint query counts and local
+timings; tests enforce query budgets. PostgreSQL is required for the separate
+locking/concurrent-retry tests. See [bulk review](bulk-pair-approval.md#backend-query-budgets-and-request-local-checks).
+
 ## Bulk statement account confirmation
 
 Run `python manage.py migrate` in `projects/finance-api` through

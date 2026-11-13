@@ -142,6 +142,59 @@ and records the recovery. If any member or linked evidence changed, the entire
 Undo is rejected rather than partly removing money. A subsequent financial action
 supersedes latest-action Undo, matching the existing recovery model.
 
+## Backend query budgets and request-local checks
+
+Bulk preview shares statement rows, fee positions, recorded-SMS discovery and
+competing-source discovery across the selection. Edited merchant values are
+checked against the ledger together per import, rather than one scan per edit.
+Discovery pools are capped at 5,000 candidates/rows; overflow falls back to the
+canonical per-pair discovery without relaxing eligibility or growing memory
+without a bound. Other-account imports and printed value dates remain in scope.
+
+Approval still takes the per-user financial-write lock and reloads/locks the
+selected SMS and row in each canonical confirmation. Shared statement context is
+request-local, updated with each newly locked row, and discarded after the
+request. The selected category objects come from the locked category lookup.
+
+Draft arithmetic issues are reused only while every arithmetic input and original
+extraction remains identical, including opening/closing balances and all sibling
+rows. Metadata edits and posting state do not change that arithmetic. A changed
+input falls back to full analysis; disposition totals are never cached this way.
+Each pair still runs a fresh ledger discovery and fresh source/duplicate checks
+inside approval. Its ledger result is reused only by the immediately following
+statement decision for the identical checked draft. This removes duplicate scans
+without hiding records written earlier in the batch. Source links, individual
+audits, the atomic receipt, idempotent retry and latest-action Undo stay canonical.
+
+Measured on synthetic clean expense pairs in one import, without existing ledger
+history. Baseline is commit `c76406d`; counts include statements captured around
+the endpoint call. Optimized counts were verified on SQLite and local PostgreSQL.
+These are query budgets, not a production response-time guarantee.
+
+| Pairs / edits | Preview before | Preview after | Approval before | Approval after |
+| --- | ---: | ---: | ---: | ---: |
+| 1 / defaults | 18 | 16 | 110 | 98 |
+| 5 / defaults | 38 | 16 | 314 | 234 |
+| 25 / defaults | 138 | 16 | 1,334 | 914 |
+| 25 / shared merchant | 263 | 20 | 1,534 | 993 |
+
+For 25 unchanged pairs, statement analysis falls from 26 passes to one and ledger
+matching from 51 passes to 26 (one initial group scan plus a fresh scan per pair).
+Writes and audits still scale with the number of movements. Existing history,
+transfers, fee evidence and multiple imports can add work.
+
+Reproduce the current budgets using a disposable test database:
+
+```bash
+cd projects/finance-api
+FINANCE_QUERY_BENCHMARK=1 python manage.py test apps.statements.test_bulk_performance --noinput
+```
+
+The tests print counts and local elapsed time only when the environment flag is
+set. They assert query ceilings rather than unstable timing limits, and use only
+synthetic fixtures. Run the full PostgreSQL suite for lock/concurrency coverage.
+This optimization changes no API response shape, database schema or web workflow.
+
 ## Deployment and verification
 
 This is an API, database, contracts and web change; no mobile release is needed.

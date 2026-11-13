@@ -1,5 +1,16 @@
 # Backend API Q&A
 
+### How is bulk review optimized without trusting stale checks?
+
+Preview batches source/duplicate discovery and edited-merchant matching per import.
+Approval shares statement rows only within its locked request. Arithmetic issues
+are reused only when all source and arithmetic inputs remain identical; changes
+trigger full analysis. Every pair still checks the live ledger and pending sources
+before writing, including entries created earlier in that batch. Only the exact
+same draft can reuse that in-call ledger result in the statement decision. Canonical
+links, audit writes, atomic receipts and Undo are retained. Synthetic query-budget
+tests cover 1/5/25 pairs and group merchant edits, with PostgreSQL concurrency tests.
+
 ### Why can an ordinary Pathao pair become eligible for bulk approval?
 
 The PDF's known Make Payment prefix is normalized for Pathao source comparison;
