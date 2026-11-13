@@ -19,8 +19,9 @@ from apps.messages.models import ParsedMessageCandidate
 from apps.transactions.recovery import ActionRecorder, describe
 from apps.transactions.transfers import lock_transfer_user, sms_recorded_elsewhere
 
+from .account_verification import ACCOUNT_WARNING, is_verified, verification_summary
 from .insights import analyze, suggestions
-from .models import StatementRow, UnifiedApprovalBatch
+from .models import StatementOriginalFile, StatementRow, UnifiedApprovalBatch
 from .services import ReviewConflict, find_matches, posting_issues, row_snapshot
 from .unified import (
     confirm_pair,
@@ -33,7 +34,7 @@ from .unified import (
 LIMIT = 25
 MAX_CONTEXT = 5000
 PREVIEW_SECONDS = 900
-POLICY = 2
+POLICY = 3
 SALT = "statements.bulk-pair-approval"
 
 
@@ -230,6 +231,12 @@ def inspect_pair(row, sms, matches, *, category, final, category_origin, shared=
         ("Statement warning", row.batch.warnings or []),
     ):
         for issue in issues:
+            if label == "Statement warning" and issue == ACCOUNT_WARNING:
+                if not is_verified(row.batch):
+                    reasons.append(
+                        "Confirm the reporting account once for this statement in the account review above."
+                    )
+                continue
             reasons.append(f"{label}: {issue}")
     for check in row.batch.checks:
         if check.get("passed") is False:
@@ -268,6 +275,9 @@ def inspect_pair(row, sms, matches, *, category, final, category_origin, shared=
         "row": row_snapshot(row),
         "source": row.extracted,
         "account_revision": row.batch.account.updated_at,
+        "account_review": (
+            row.batch.reviewed_account_fingerprint if is_verified(row.batch) else None
+        ),
         "category_revision": row.category.updated_at if row.category_id else None,
         "final_category_revision": category.updated_at if category else None,
         "other_revision": (
@@ -340,7 +350,21 @@ def inspect(user, pairs, *, lock=False):
 
 
 def preview(*, user, pairs):
-    results, proofs, _, _ = inspect(user, pairs)
+    results, proofs, rows, _ = inspect(user, pairs)
+    batches = {
+        row.batch_id: row.batch
+        for row in rows.values()
+        if ACCOUNT_WARNING in row.batch.warnings
+    }
+    originals = set(
+        StatementOriginalFile.objects.filter(batch_id__in=batches).values_list(
+            "batch_id", flat=True
+        )
+    )
+    imports = [
+        {**verification_summary(batch), "has_original_file": batch.pk in originals}
+        for batch in batches.values()
+    ]
     totals = defaultdict(
         lambda: {"debit": Decimal(0), "credit": Decimal(0), "transfer": Decimal(0)}
     )
@@ -352,6 +376,7 @@ def preview(*, user, pairs):
             ] += Decimal(source["amount"])
     return {
         "items": results,
+        "imports": imports,
         "ready_count": len(proofs),
         "needs_review": len(results) - len(proofs),
         "totals": {

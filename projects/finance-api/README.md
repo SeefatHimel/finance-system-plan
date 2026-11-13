@@ -1,5 +1,15 @@
 # finance-api
 
+## Source-bound reporting-account review
+
+Bulk preview groups the standard masked-account advisory by import. An explicit
+signed `POST /api/review/statement-account/verify/` confirmation is audited and
+saved against that import's account/source context. It resolves only that advisory;
+all financial checks and other warnings remain. Original extraction is untouched.
+Pathao matching ignores the known Make Payment prefix, preserving actual service
+name differences and all money/reference checks. Deploy statements migration
+`0016` and API before web. See [bulk review](../../docs/bulk-pair-approval.md).
+
 ## Bulk pair approval
 
 Bulk previews now include final category, description and notes, using the same

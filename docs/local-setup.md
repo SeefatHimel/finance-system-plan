@@ -1,5 +1,13 @@
 # Local Setup
 
+## Bulk statement account confirmation
+
+Run `python manage.py migrate` in `projects/finance-api` through
+`statements.0016` before starting the updated web app. This adds empty account
+review metadata; existing imports are not automatically confirmed. In the bulk
+preview, check the original statement and confirm its reporting account once.
+See [bulk review](bulk-pair-approval.md) for eligibility and Undo behavior.
+
 ## Original-source storage update
 
 After pulling this change, install the updated API requirements and run

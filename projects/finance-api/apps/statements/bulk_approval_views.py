@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from apps.transactions.serializers import TransactionActionSerializer
 
 from . import bulk_approval
+from .account_verification import verify_account
 from .review_views import NoStoreMixin
 from .unified_views import PairSelection, UnifiedPendingSourceSerializer
 
@@ -79,8 +80,49 @@ class BulkApprovalItemSerializer(serializers.Serializer):
     )
 
 
+class StatementAccountReviewSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    account_name = serializers.CharField()
+    account_hint = serializers.CharField()
+    profile = serializers.CharField()
+    verified = serializers.BooleanField()
+    verified_at = serializers.DateTimeField(allow_null=True)
+    token = serializers.CharField()
+    has_original_file = serializers.BooleanField(required=False)
+
+
+class StatementAccountReviewRequestSerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=2000)
+    confirmed = serializers.BooleanField()
+
+    def validate_confirmed(self, value):
+        if not value:
+            raise serializers.ValidationError(
+                "Check the original statement and confirm its reporting account."
+            )
+        return value
+
+
+class StatementAccountReviewView(NoStoreMixin, APIView):
+    permission_classes = (IsAuthenticated,)
+    parser_classes = (JSONParser,)
+
+    @extend_schema(
+        request=StatementAccountReviewRequestSerializer,
+        responses=StatementAccountReviewSerializer,
+        tags=["Unified review"],
+    )
+    def post(self, request):
+        serializer = StatementAccountReviewRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(
+            verify_account(user=request.user, token=serializer.validated_data["token"])
+        )
+
+
 class BulkApprovalPreviewSerializer(serializers.Serializer):
     items = BulkApprovalItemSerializer(many=True)
+    imports = StatementAccountReviewSerializer(many=True)
     ready_count = serializers.IntegerField()
     needs_review = serializers.IntegerField()
     totals = serializers.DictField(

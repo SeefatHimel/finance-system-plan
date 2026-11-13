@@ -591,6 +591,138 @@ class BulkApprovalTests(APITestCase):
             )
         )
 
+    def pathao_pair(self):
+        from .account_verification import ACCOUNT_WARNING
+
+        self.batch.profile = "pathao_pay"
+        self.batch.account_hint = "1234"
+        self.batch.warnings = [ACCOUNT_WARNING]
+        self.batch.save()
+        self.row.counterparty_text = "Make Payment · Pathao Bike"
+        self.row.extracted = {
+            **self.row.extracted,
+            "description": "Make Payment · Pathao Bike",
+            "provider_type": "Make Payment",
+        }
+        self.row.save()
+        self.sms.provider = "pathao_pay"
+        self.sms.message_kind = "purchase"
+        self.sms.counterparty_text = "Pathao Bike"
+        self.sms.save()
+
+    def confirm_account(self, value, **fields):
+        return self.client.post(
+            reverse("statement-account-review"),
+            {"token": value["imports"][0]["token"], "confirmed": True, **fields},
+            format="json",
+        )
+
+    def test_realistic_pathao_prefix_and_account_review_enable_bulk(self):
+        from .account_verification import ACCOUNT_WARNING
+
+        self.extra()
+        self.pathao_pair()
+        value = self.preview()
+        self.assertEqual(value["ready_count"], 0, value)
+        self.assertEqual(len(value["imports"]), 1)
+        self.assertFalse(value["imports"][0]["verified"])
+        self.assertEqual(value["imports"][0]["account_hint"], "•••• 1234")
+        self.assertEqual(
+            value["items"][0]["blockers"],
+            [
+                "Confirm the reporting account once for this statement in the account review above."
+            ],
+        )
+        reviewed = self.confirm_account(value)
+        self.assertEqual(reviewed.status_code, 200, reviewed.data)
+        self.assertTrue(reviewed.data["verified"])
+        self.assertEqual(self.confirm_account(value).status_code, 200)
+        self.assertEqual(
+            AuditLogEntry.objects.filter(
+                metadata__decision="statement_account_review"
+            ).count(),
+            1,
+        )
+        self.assertEqual(Transaction.objects.count(), 0)
+        fresh = self.preview()
+        self.assertEqual(fresh["ready_count"], 2, fresh)
+        self.assertTrue(fresh["imports"][0]["verified"])
+        result = self.approve(fresh)
+        self.assertEqual(result.status_code, 200, result.data)
+        self.assertEqual(Transaction.objects.count(), 2)
+        self.row.refresh_from_db()
+        self.sms.refresh_from_db()
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.warnings, [ACCOUNT_WARNING])
+        self.assertEqual(
+            self.row.extracted["description"], "Make Payment · Pathao Bike"
+        )
+        self.assertEqual(self.sms.counterparty_text, "Pathao Bike")
+        undo = self.client.post(
+            reverse("transaction-undo"),
+            {"action": result.data["undo_action"]["id"]},
+            format="json",
+        )
+        self.assertEqual(undo.status_code, 200, undo.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        self.assertTrue(self.preview()["imports"][0]["verified"])
+
+    def test_account_review_does_not_waive_other_warnings_or_conflicts(self):
+        self.pathao_pair()
+        self.assertEqual(self.confirm_account(self.preview()).status_code, 200)
+        self.batch.warnings += ["Synthetic missing page warning"]
+        self.batch.save()
+        value = self.preview()
+        self.assertEqual(value["ready_count"], 0, value)
+        self.assertIn(
+            "Statement warning: Synthetic missing page warning",
+            value["items"][0]["blockers"],
+        )
+        self.batch.warnings = self.batch.warnings[:1]
+        self.batch.save()
+        self.sms.counterparty_text = "Pathao Car"
+        self.sms.save()
+        pair = {**self.pairs[0], "edits": {"description": "Pathao Pay"}}
+        self.assertEqual(self.preview([pair])["ready_count"], 0)
+        self.sms.counterparty_text = "Pathao Bike"
+        self.sms.balance_after = "899.00"
+        self.sms.save()
+        self.assertEqual(self.preview([pair])["ready_count"], 0)
+
+    def test_account_review_requires_confirmation_owner_and_fresh_context(self):
+        self.pathao_pair()
+        value = self.preview()
+        self.assertEqual(self.confirm_account(value, confirmed=False).status_code, 400)
+        self.client.force_authenticate(self.other_user)
+        self.assertEqual(self.confirm_account(value).status_code, 404)
+        self.client.force_authenticate(self.user)
+        with patch(
+            "django.core.signing.time.time",
+            return_value=timezone.now().timestamp() + 1000,
+        ):
+            self.assertEqual(self.confirm_account(value).status_code, 409)
+        self.account.name = "Synthetic renamed bank"
+        self.account.save()
+        self.assertEqual(self.confirm_account(value).status_code, 409)
+        self.batch.refresh_from_db()
+        self.assertIsNone(self.batch.account_verified_at)
+        self.assertEqual(self.confirm_account(self.preview()).status_code, 200)
+        self.batch.account_hint = "5678"
+        self.batch.save()
+        self.assertFalse(self.preview()["imports"][0]["verified"])
+
+    def test_pathao_operation_normalization_is_narrow(self):
+        from .unified import pair_signals
+
+        self.pathao_pair()
+        self.row.refresh_from_db()
+        self.sms.refresh_from_db()
+        self.assertEqual(pair_signals(self.row, self.sms)["strength"], "strong")
+        self.batch.profile = "city_bank"
+        self.batch.save()
+        self.row.refresh_from_db()
+        self.assertEqual(pair_signals(self.row, self.sms)["strength"], "possible")
+
 
 class ConcurrentBulkApprovalTests(TransactionTestCase):
     @skipUnlessDBFeature("has_select_for_update")

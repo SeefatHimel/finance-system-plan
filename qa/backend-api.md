@@ -1,5 +1,14 @@
 # Backend API Q&A
 
+### Why can an ordinary Pathao pair become eligible for bulk approval?
+
+The PDF's known Make Payment prefix is normalized for Pathao source comparison;
+actual service names, amounts, directions, balances, dates and references retain
+their existing checks. The standard account advisory is resolved by one explicit,
+signed, audited confirmation per import. A context fingerprint invalidates the
+review when account/source identity changes. Other warnings remain blocked. The
+confirmation adds no money and survives Undo of a later transaction batch.
+
 ### Can bulk approval correct simple metadata without weakening source checks?
 
 Yes. Category defaults share statement mappings and live SMS suggestions with

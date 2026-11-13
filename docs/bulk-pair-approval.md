@@ -52,7 +52,7 @@ Bulk approval deliberately excludes uncertain matches. A ready pair needs:
   value date requires individual review. Receipt time is labelled as such;
   statement time is retained, without inventing a time for an untimed row.
 - No competing sources, existing ledger suggestions, incomplete duplicate checks,
-  fees/components, source warnings, failed source checks or draft discrepancies.
+  fees/components, unresolved source warnings, failed source checks or draft discrepancies.
 - For transfers, both owned accounts already selected and classification confirmed.
 
 A strong match label alone does not imply bulk eligibility. Original SMS/PDF
@@ -61,6 +61,32 @@ be linked in individual review; bulk approval never silently merges or rewrites
 an existing ledger entry. If the selection exceeds the bounded 5,000-row statement
 context, use individual review or a smaller selection.
 
+## Reporting-account confirmation and Pathao wording
+
+When an import carries the standard masked-account verification advisory, bulk
+shows one account-review panel for that import, regardless of how many pairs are
+selected. Check the original PDF (available inline when archived) or your original
+copy against the selected reporting account. Tick the explicit confirmation and
+choose **Confirm account and recheck**. No entries are created by that step.
+
+The saved decision binds the owner, PDF digest, selected account/revision, profile,
+currency and masked identifier. It is reused for subsequent pairs from that same
+import. Changing that context requires confirmation again. The timestamp and
+fingerprint are separate review metadata; original account identity, warnings,
+PDF and extracted values stay unchanged. Confirmation is audited and idempotent.
+Undoing a transaction batch retains this independent account confirmation.
+
+Only the exact standard account advisory stops blocking after this confirmation.
+Other warnings, failed checks, unreadable evidence and financial conflicts remain
+blocked. The UI labels this **Account confirmed by you**, not provider verification.
+
+For Pathao Pay statements, the known leading **Make Payment** operation prefix
+and its separator are ignored when comparing counterparties. Thus **Make Payment ·
+Pathao Bike** can agree with **Pathao Bike**. Bike, Car, Food and other genuine
+merchant differences remain distinct. The normal account, direction, amount,
+date, balance, reference and duplicate checks still apply. Setting the displayed
+merchant to Pathao Pay never overrides source identity checks.
+
 ## API and consistency
 
 Authenticated, owner-scoped, no-store endpoints:
@@ -68,9 +94,14 @@ Authenticated, owner-scoped, no-store endpoints:
 ```text
 POST /api/review/bulk/preview/  {pairs: [{statement: UUID, sms: UUID, edits?: {category: UUID|null, description: string, note: string}}]}
 POST /api/review/bulk/approve/  {token: string, request_id: UUID, confirmed: true, pairs?: [...ready pairs with reviewed edits]}
+POST /api/review/statement-account/verify/ {token: string, confirmed: true}
 ```
 
-Preview performs no writes. It returns all preview items, ready/needs-review
+Preview performs no writes. Its `imports` array includes one account-review
+context/token per selected import with the standard account advisory. Verification
+tokens are user/context-bound and expire after 15 minutes; stale tokens return 409.
+
+Preview returns all preview items, ready/needs-review
 counts, decimal-string totals by currency, an expiry and a signed token for only
 the ready group. Tokens expire after 15 minutes and bind user, approval policy,
 source versions/values, relevant account/category revisions and current eligibility.
@@ -116,8 +147,10 @@ supersedes latest-action Undo, matching the existing recovery model.
 This is an API, database, contracts and web change; no mobile release is needed.
 Deploy the API with `python manage.py migrate` through
 `statements.0015_unifiedapprovalbatch` before the updated web app. It creates an
-empty receipt table and does not change existing financial data. This metadata
-update needs no additional migration; deploy API before web.
+empty receipt table and does not change existing financial data. The reporting-account
+confirmation update additionally requires `statements.0016`; it adds empty review
+metadata fields without automatically confirming any existing import. Deploy API
+and migrations before web.
 
 Focused API checks:
 

@@ -17,6 +17,7 @@ from rest_framework.views import APIView
 
 from apps.payment_methods.resolution import statement_account_suggestion
 
+from .account_verification import ACCOUNT_WARNING
 from .serializers import (
     StatementIdentifyRequestSerializer,
     StatementIdentifySerializer,
@@ -136,9 +137,7 @@ class StatementPreviewView(APIView):
         if suggestion and (suggestion["ambiguous"] or suggestion.get("requires_review")):
             preview["warnings"].append(suggestion["reason"])
         preview["account_identity"] = "matched_suffix" if suffix_matches else "verify"
-        preview["warnings"].append(
-            "Verify the selected account against the masked statement identifier. A suffix match is only a hint, not proof of ownership."
-        )
+        preview["warnings"].append(ACCOUNT_WARNING)
         return Response(preview)
 
     @extend_schema(

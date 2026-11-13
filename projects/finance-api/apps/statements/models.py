@@ -20,6 +20,8 @@ class StatementImport(models.Model):
     currency = models.CharField(max_length=3)
     account_hint = models.CharField(max_length=16, blank=True)
     account_identity = models.CharField(max_length=32)
+    reviewed_account_fingerprint = models.CharField(max_length=64, blank=True)
+    account_verified_at = models.DateTimeField(null=True, blank=True)
     period_start = models.DateField(null=True)
     period_end = models.DateField(null=True)
     page_count = models.PositiveIntegerField()

@@ -3,6 +3,7 @@
 import base64
 import binascii
 import json
+import re
 from copy import copy
 from collections import defaultdict
 from datetime import timedelta
@@ -153,10 +154,16 @@ def pair_signals(row, candidate):
     near_balance = not late_posting and insignificant_bdt_balance_difference(
         row.balance_after, candidate.balance_after, row.batch.currency
     )
-    merchant = merchant_text(
-        row.counterparty_text or row.extracted.get("description", "")
-    )
-    sms_merchant = merchant_text(candidate.counterparty_text)
+    statement_merchant = row.counterparty_text or row.extracted.get("description", "")
+    sms_counterparty = candidate.counterparty_text
+    if row.batch.profile == "pathao_pay":
+        # The PDF prints the operation before the service name. This does not
+        # make Pathao Bike, Pathao Car or Food interchangeable merchants.
+        prefix = r"^\s*make\s+payment\b\s*(?:[·:|–—-]\s*)?"
+        statement_merchant = re.sub(prefix, "", statement_merchant, flags=re.IGNORECASE)
+        sms_counterparty = re.sub(prefix, "", sms_counterparty, flags=re.IGNORECASE)
+    merchant = merchant_text(statement_merchant)
+    sms_merchant = merchant_text(sms_counterparty)
     same_merchant = bool(merchant and merchant == sms_merchant)
     merchant_conflict = bool(merchant and sms_merchant and merchant != sms_merchant)
     same_counterpart = bool(
