@@ -1,5 +1,13 @@
 # API Contracts Q&A
 
+### How are edited bulk values tied to the reviewed preview?
+
+Pairs may carry an `edits` object limited to category, description and note.
+Preview returns final metadata plus its category origin; final values enter the
+signed fingerprint, while private text stays outside the token. Approval resends
+ready pairs/edits and rejects a different group or values. Omitted pairs recompute
+defaults for older clients. No financial edit fields are accepted by this contract.
+
 ### What does bulk approval add to the API contract?
 
 Two authenticated no-store POSTs: `/api/review/bulk/preview/` accepts 1–25 source

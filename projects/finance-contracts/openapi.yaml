@@ -11762,6 +11762,18 @@ components:
       - confirmed
       - preview_token
       - request_id
+    PairSelection:
+      type: object
+      properties:
+        statement:
+          type: string
+          format: uuid
+        sms:
+          type: string
+          format: uuid
+      required:
+      - sms
+      - statement
     BulkApprovalRequest:
       type: object
       properties:
@@ -11773,10 +11785,41 @@ components:
           format: uuid
         confirmed:
           type: boolean
+        pairs:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkPairInput'
       required:
       - confirmed
       - request_id
       - token
+    BulkPairInput:
+      type: object
+      properties:
+        statement:
+          type: string
+          format: uuid
+        sms:
+          type: string
+          format: uuid
+        edits:
+          $ref: '#/components/schemas/BulkMetadata'
+      required:
+      - sms
+      - statement
+    BulkMetadata:
+      type: object
+      properties:
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        description:
+          type: string
+          maxLength: 255
+        note:
+          type: string
+          maxLength: 4000
     BulkApprovalResult:
       type: object
       properties:
@@ -11823,21 +11866,9 @@ components:
         pairs:
           type: array
           items:
-            $ref: '#/components/schemas/PairSelection'
+            $ref: '#/components/schemas/BulkPairInput'
       required:
       - pairs
-    PairSelection:
-      type: object
-      properties:
-        statement:
-          type: string
-          format: uuid
-        sms:
-          type: string
-          format: uuid
-      required:
-      - sms
-      - statement
     BulkApprovalPreview:
       type: object
       properties:
@@ -11885,6 +11916,10 @@ components:
           allOf:
           - $ref: '#/components/schemas/BulkApprovalName'
           nullable: true
+        final:
+          $ref: '#/components/schemas/BulkFinalValues'
+        category_origin:
+          type: string
         ready:
           type: boolean
         blockers:
@@ -11902,6 +11937,8 @@ components:
       - balance_source
       - blockers
       - category
+      - category_origin
+      - final
       - id
       - other_account
       - ready
@@ -11920,3 +11957,18 @@ components:
       required:
       - id
       - name
+    BulkFinalValues:
+      type: object
+      properties:
+        category:
+          type: string
+          format: uuid
+          nullable: true
+        description:
+          type: string
+        note:
+          type: string
+      required:
+      - category
+      - description
+      - note

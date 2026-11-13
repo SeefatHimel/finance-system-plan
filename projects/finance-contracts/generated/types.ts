@@ -2466,10 +2466,28 @@ export interface SourceResolveRequest {
   confirmed: boolean;
 }
 
+export interface PairSelection {
+  statement: string;
+  sms: string;
+}
+
 export interface BulkApprovalRequest {
   token: string;
   request_id: string;
   confirmed: boolean;
+  pairs?: BulkPairInput[];
+}
+
+export interface BulkPairInput {
+  statement: string;
+  sms: string;
+  edits?: BulkMetadata;
+}
+
+export interface BulkMetadata {
+  category?: string | null;
+  description?: string;
+  note?: string;
 }
 
 export interface BulkApprovalResult {
@@ -2487,12 +2505,7 @@ export interface BulkApprovedPair {
 }
 
 export interface BulkPairSelection {
-  pairs: PairSelection[];
-}
-
-export interface PairSelection {
-  statement: string;
-  sms: string;
+  pairs: BulkPairInput[];
 }
 
 export interface BulkApprovalPreview {
@@ -2510,6 +2523,8 @@ export interface BulkApprovalItem {
   sms: UnifiedPendingSource;
   category: BulkApprovalName | null;
   other_account: BulkApprovalName | null;
+  final: BulkFinalValues;
+  category_origin: string;
   ready: boolean;
   blockers: string[];
   statement_text: string;
@@ -2520,4 +2535,10 @@ export interface BulkApprovalItem {
 export interface BulkApprovalName {
   id: string;
   name: string;
+}
+
+export interface BulkFinalValues {
+  category: string | null;
+  description: string;
+  note: string;
 }

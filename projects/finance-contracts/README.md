@@ -1,5 +1,12 @@
 # finance-contracts
 
+Bulk pair inputs optionally include `edits` with only `category` (nullable UUID),
+`description` (255 characters) and `note` (4,000 characters). Preview items expose
+`final` metadata and `category_origin`. Approval optionally includes the exact
+ready `pairs` and reviewed edits; the signed fingerprint rejects changed values.
+Text is sent separately, not embedded in the signed token. Older clients can omit
+pairs and use freshly computed defaults. Policy changes invalidate older previews.
+
 ## Bulk source-pair approval
 
 `POST /api/review/bulk/preview/` accepts 1–25 distinct `{statement, sms}` pairs and

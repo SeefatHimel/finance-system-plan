@@ -8004,6 +8004,12 @@
           ],
           "nullable": true
         },
+        "category_origin": {
+          "type": "string"
+        },
+        "final": {
+          "$ref": "#/components/schemas/BulkFinalValues"
+        },
         "id": {
           "type": "string"
         },
@@ -8035,6 +8041,8 @@
         "balance_source",
         "blockers",
         "category",
+        "category_origin",
+        "final",
         "id",
         "other_account",
         "ready",
@@ -8108,6 +8116,12 @@
         "confirmed": {
           "type": "boolean"
         },
+        "pairs": {
+          "items": {
+            "$ref": "#/components/schemas/BulkPairInput"
+          },
+          "type": "array"
+        },
         "request_id": {
           "format": "uuid",
           "type": "string"
@@ -8179,6 +8193,24 @@
         "sms",
         "statement",
         "transaction"
+      ],
+      "type": "object"
+    },
+    "BulkFinalValues": {
+      "properties": {
+        "category": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "description",
+        "note"
       ],
       "type": "object"
     },
@@ -8280,11 +8312,45 @@
       ],
       "type": "object"
     },
+    "BulkMetadata": {
+      "properties": {
+        "category": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "note": {
+          "maxLength": 4000,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "BulkPairInput": {
+      "properties": {
+        "edits": {
+          "$ref": "#/components/schemas/BulkMetadata"
+        },
+        "sms": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "statement": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sms",
+        "statement"
+      ],
+      "type": "object"
+    },
     "BulkPairSelection": {
       "properties": {
         "pairs": {
           "items": {
-            "$ref": "#/components/schemas/PairSelection"
+            "$ref": "#/components/schemas/BulkPairInput"
           },
           "type": "array"
         }
@@ -10824,23 +10890,6 @@
           "type": "string"
         },
         "sms_account": {
-          "format": "uuid",
-          "type": "string"
-        },
-        "statement": {
-          "format": "uuid",
-          "type": "string"
-        }
-      },
-      "required": [
-        "sms",
-        "statement"
-      ],
-      "type": "object"
-    },
-    "PairSelection": {
-      "properties": {
-        "sms": {
           "format": "uuid",
           "type": "string"
         },
