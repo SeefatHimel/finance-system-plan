@@ -610,6 +610,137 @@ class BulkApprovalTests(APITestCase):
         self.sms.counterparty_text = "Pathao Bike"
         self.sms.save()
 
+    def test_bulk_checks_detect_a_ledger_match_created_during_approval(self):
+        self.extra()
+        value = self.preview()
+        original = bulk_approval.confirm_pair
+        calls = []
+
+        def introduce_conflict(**kwargs):
+            result = original(**kwargs)
+            calls.append(1)
+            if len(calls) == 1:
+                # Simulate an in-batch financial side effect. A cached empty
+                # ledger result would incorrectly approve the next pair.
+                record = result[0]
+                record.amount = "200.00"
+                record.date = self.row.date + timedelta(days=1)
+                record.reference = "SYNTH-TWO"
+                record.balance_after = "700.00"
+                record.counterparty_text = "Synthetic Market"
+                record.save()
+            return result
+
+        with patch.object(bulk_approval, "confirm_pair", side_effect=introduce_conflict):
+            result = self.approve(value)
+        self.assertEqual(result.status_code, 400, result.data)
+        self.assertEqual(Transaction.objects.count(), 0)
+        self.assertEqual(UnifiedApprovalBatch.objects.count(), 0)
+        self.assertEqual(StatementRow.objects.filter(state="pending").count(), 2)
+
+    def test_request_arithmetic_reuse_invalidates_on_financial_changes(self):
+        from .services import CheckedStatementMatches, ReviewConflict, row_snapshot
+
+        rows, _, _ = bulk_approval.prepare(self.user, self.pairs)
+        row = rows[str(self.row.pk)]
+        siblings = row._bulk_statement_rows
+        checked = row._bulk_arithmetic
+        self.assertEqual(checked.for_row(row, siblings), ())
+        row.note = "Synthetic changed note"
+        self.assertEqual(checked.for_row(row, siblings), ())
+        row.amount += 1
+        self.assertIsNone(checked.for_row(row, siblings))
+        row.amount -= 1
+        row.extracted["signed_fee"] = "-1.00"
+        self.assertIsNone(checked.for_row(row, siblings))
+        row.extracted["signed_fee"] = "0.00"
+        self.assertEqual(checked.for_row(row, siblings), ())
+        row.batch.closing_balance += 1
+        self.assertIsNone(checked.for_row(row, siblings))
+        matches = CheckedStatementMatches(row_snapshot(row), {row.pk: []}, False)
+        row.reference = "SYNTH-CHANGED"
+        with self.assertRaises(ReviewConflict):
+            matches.for_row(row)
+
+    def test_batched_competitors_agree_with_canonical_discovery(self):
+        from .bulk_source_checks import competing_pairs
+        from .unified import has_competing_sources
+
+        self.row.refresh_from_db()
+        self.sms.refresh_from_db()
+        rival = self.candidate(reference="SYNTH-ONE", source_direction="debit")
+        for reference, amount, status, user in (
+            ("SYNTH-ONE", "100.00", "needs_review", self.user),
+            ("SYNTH-OTHER", "100.00", "needs_review", self.user),
+            ("SYNTH-ONE", "99.50", "needs_review", self.user),
+            ("SYNTH-ONE", "100.00", "confirmed", self.user),
+            ("SYNTH-ONE", "100.00", "needs_review", self.other_user),
+        ):
+            with self.subTest(reference=reference, amount=amount, status=status, user=user.pk):
+                rival.reference, rival.amount, rival.status, rival.user = reference, amount, status, user
+                rival.save()
+                actual = competing_pairs(self.user, [(self.row, self.sms)])
+                self.assertEqual(
+                    actual[(str(self.row.pk), str(self.sms.pk))],
+                    has_competing_sources(self.row, self.sms),
+                )
+
+    def test_batched_recorded_sms_keeps_legacy_and_evidence_protection(self):
+        from .bulk_source_checks import recorded_sms
+        from apps.transactions.transfers import sms_recorded_elsewhere, sms_external_key
+
+        record = Transaction.objects.create(
+            user=self.user, account=self.account, type="expense", direction="debit",
+            amount="100.00", date=self.row.date, external_key=sms_external_key(self.sms),
+        )
+        self.assertTrue(sms_recorded_elsewhere(self.sms))
+        self.assertEqual(recorded_sms(self.user, [self.sms]), {str(self.sms.pk)})
+        record.external_key = "synthetic-legacy"
+        record.raw_message = self.sms.raw_message
+        record.save()
+        self.assertEqual(recorded_sms(self.user, [self.sms]), {str(self.sms.pk)})
+        record.raw_message = None
+        record.save()
+        evidence = TransferEvidence.objects.create(
+            user=self.user, transaction=record, account=self.account,
+            raw_message=self.sms.raw_message, direction="debit", date=self.row.date,
+            source="sms", external_key="synthetic-evidence",
+        )
+        self.assertTrue(sms_recorded_elsewhere(self.sms))
+        self.assertEqual(recorded_sms(self.user, [self.sms]), {str(self.sms.pk)})
+        evidence.delete()
+        self.assertFalse(sms_recorded_elsewhere(self.sms))
+        self.assertEqual(recorded_sms(self.user, [self.sms]), set())
+
+    def test_batched_statement_rivals_include_value_dates_and_other_imports(self):
+        from copy import copy
+        from .bulk_source_checks import competing_pairs
+        from .unified import has_competing_sources
+
+        self.row.refresh_from_db()
+        self.sms.refresh_from_db()
+        batch = copy(self.row.batch)
+        batch.pk = None
+        batch.file_digest = "synthetic-other-import"
+        batch.save()
+        rival = copy(self.row)
+        rival.pk, rival.batch = None, batch
+        rival.date += timedelta(days=10)
+        rival.value_date = self.row.date
+        rival.save()
+        key = (str(self.row.pk), str(self.sms.pk))
+        self.assertTrue(has_competing_sources(self.row, self.sms))
+        self.assertTrue(competing_pairs(self.user, [(self.row, self.sms)])[key])
+        batch.account = self.wallet
+        batch.save()
+        self.assertFalse(has_competing_sources(self.row, self.sms))
+        self.assertFalse(competing_pairs(self.user, [(self.row, self.sms)])[key])
+        with patch("apps.statements.bulk_source_checks.MAX_SOURCES", 0):
+            self.assertEqual(
+                competing_pairs(self.user, [(self.row, self.sms)])[key],
+                has_competing_sources(self.row, self.sms),
+            )
+
     def confirm_account(self, value, **fields):
         return self.client.post(
             reverse("statement-account-review"),

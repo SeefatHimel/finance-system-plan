@@ -20,9 +20,16 @@ from apps.transactions.recovery import ActionRecorder, describe
 from apps.transactions.transfers import lock_transfer_user, sms_recorded_elsewhere
 
 from .account_verification import ACCOUNT_WARNING, is_verified, verification_summary
+from .bulk_source_checks import competing_pairs, recorded_sms
 from .insights import analyze, suggestions
 from .models import StatementOriginalFile, StatementRow, UnifiedApprovalBatch
-from .services import ReviewConflict, find_matches, posting_issues, row_snapshot
+from .services import (
+    CheckedStatementArithmetic,
+    ReviewConflict,
+    find_matches,
+    posting_issues,
+    row_snapshot,
+)
 from .unified import (
     confirm_pair,
     has_competing_sources,
@@ -58,6 +65,7 @@ def prepare(user, pairs, *, lock=False):
         pk__in=sms_ids, user=user
     ).select_related(
         "raw_message",
+        "user",
         "account",
         "destination_account",
         "category",
@@ -74,7 +82,8 @@ def prepare(user, pairs, *, lock=False):
     batches = {row.batch_id: row.batch for row in row_map.values()}
     context = list(
         StatementRow.objects.filter(batch_id__in=batches).select_related(
-            "batch__account", "category", "other_account"
+            "batch__account", "category", "other_account", "transaction__account",
+            "transaction__transfer_account",
         )[: MAX_CONTEXT + 1]
     )
     if len(context) > MAX_CONTEXT:
@@ -85,9 +94,16 @@ def prepare(user, pairs, *, lock=False):
     matches = {}
     for batch_id, siblings in grouped.items():
         chosen = [row for row in siblings if str(row.pk) in row_ids]
+        fee_positions = {row.position for row in siblings if row.component == "fee"}
+        for row in chosen:
+            row._bulk_has_fee = row.position in fee_positions
+            row._bulk_statement_rows = siblings
         try:
             analyze(batches[batch_id], siblings)
-            found, truncated = find_matches(chosen)
+            arithmetic = CheckedStatementArithmetic.capture(batches[batch_id], siblings)
+            for row in chosen:
+                row._bulk_arithmetic = arithmetic
+            found, truncated = find_matches(chosen, context_rows=siblings)
         except (InvalidOperation, ValueError, TypeError):
             # Older/unreadable extracted values must never turn into an approval.
             for row in chosen:
@@ -135,11 +151,16 @@ def final_values(row, sms, edits, categories, sms_hints):
     )
 
 
-def inspect_pair(row, sms, matches, *, category, final, category_origin, shared=False):
+def inspect_pair(
+    row, sms, matches, *, category, final, category_origin, shared=False,
+    competing=None, recorded=None,
+):
     reasons = []
     try:
         signals = pair_signals(row, sms)
-        competing = signals and has_competing_sources(row, sms)
+        competing = signals and (
+            has_competing_sources(row, sms) if competing is None else competing
+        )
     except (InvalidOperation, ValueError, TypeError):
         signals, competing = None, False
         reasons.append(
@@ -160,7 +181,8 @@ def inspect_pair(row, sms, matches, *, category, final, category_origin, shared=
         reasons.append(
             "Another source can claim this movement. Choose the pair individually."
         )
-    if sms_recorded_elsewhere(sms):
+    already_recorded = sms_recorded_elsewhere(sms) if recorded is None else recorded
+    if already_recorded:
         reasons.append(
             "An SMS for this movement is already recorded. Review the existing transaction."
         )
@@ -199,7 +221,10 @@ def inspect_pair(row, sms, matches, *, category, final, category_origin, shared=
         source_fee = None
     if source_fee is None or sms.fee_amount or source_fee:
         reasons.append("This movement has a fee. Review its components individually.")
-    if row.batch.rows.filter(position=row.position, component="fee").exists():
+    has_fee = getattr(row, "_bulk_has_fee", None)
+    if has_fee is None:
+        has_fee = row.batch.rows.filter(position=row.position, component="fee").exists()
+    if has_fee:
         reasons.append("A separate fee row needs individual review.")
     if category is None:
         reasons.append("Choose an active, compatible category in this preview.")
@@ -291,6 +316,15 @@ def inspect_pair(row, sms, matches, *, category, final, category_origin, shared=
 
 def inspect(user, pairs, *, lock=False):
     rows, messages, matches = prepare(user, pairs, lock=lock)
+    selected = [
+        (rows[str(pair["statement"])], messages[str(pair["sms"])]) for pair in pairs
+    ]
+    try:
+        competitors = competing_pairs(user, selected)
+    except (InvalidOperation, ValueError, TypeError):
+        # The per-pair guarded path reports malformed historical evidence.
+        competitors = {}
+    recorded = recorded_sms(user, list(messages.values()))
     category_ids = set()
     grouped = defaultdict(list)
     for row in rows.values():
@@ -316,22 +350,36 @@ def inspect(user, pairs, *, lock=False):
     categories = {str(category.pk): category for category in category_query}
     row_claims = Counter(str(pair["statement"]) for pair in pairs)
     sms_claims = Counter(str(pair["sms"]) for pair in pairs)
+    finals, projected_batches = {}, defaultdict(list)
+    for pair in pairs:
+        row_id, sms_id = str(pair["statement"]), str(pair["sms"])
+        row, sms = rows[row_id], messages[sms_id]
+        finals[(row_id, sms_id)] = final_values(
+            row, sms, pair.get("edits", {}), categories, sms_hints
+        )
+        final = finals[(row_id, sms_id)][1]
+        if (
+            matches is not None and row_claims[row_id] == 1
+            and final["description"] != row.counterparty_text
+        ):
+            projected = copy(row)
+            projected.counterparty_text = final["description"]
+            projected_batches[row.batch_id].append(projected)
+    for projected in projected_batches.values():
+        try:
+            found, truncated = find_matches(
+                projected, context_rows=projected[0]._bulk_statement_rows
+            )
+        except (InvalidOperation, ValueError, TypeError):
+            found, truncated = {row.pk: [] for row in projected}, True
+        for row in projected:
+            old, old_truncated = matches[str(row.pk)]
+            matches[str(row.pk)] = (old + found[row.pk], old_truncated or truncated)
     results, proofs = [], []
     for pair in pairs:
         row_id, sms_id = str(pair["statement"]), str(pair["sms"])
         row, sms = rows[row_id], messages[sms_id]
-        category, final, origin = final_values(
-            row, sms, pair.get("edits", {}), categories, sms_hints
-        )
-        if matches is not None and final["description"] != row.counterparty_text:
-            projected = copy(row)
-            projected.counterparty_text = final["description"]
-            try:
-                found, truncated = find_matches([projected])
-            except (InvalidOperation, ValueError, TypeError):
-                found, truncated = {row.pk: []}, True
-            old, old_truncated = matches[row_id]
-            matches[row_id] = (old + found[row.pk], old_truncated or truncated)
+        category, final, origin = finals[(row_id, sms_id)]
         item, fingerprint = inspect_pair(
             row,
             messages[sms_id],
@@ -340,7 +388,10 @@ def inspect(user, pairs, *, lock=False):
             final=final,
             category_origin=origin,
             shared=row_claims[row_id] > 1 or sms_claims[sms_id] > 1,
+            competing=competitors.get((row_id, sms_id)),
+            recorded=sms_id in recorded,
         )
+        row._bulk_final_category = category
         results.append(item)
         if item["ready"]:
             proofs.append(
@@ -464,6 +515,8 @@ def approve(*, user, token, request_id, request, pairs=None):
             row=row,
             candidate=sms,
             request=request,
+            statement_rows=row._bulk_statement_rows,
+            checked_arithmetic=row._bulk_arithmetic,
             payload={
                 "statement_version": row.version,
                 "sms_updated_at": sms.updated_at,
@@ -474,9 +527,7 @@ def approve(*, user, token, request_id, request, pairs=None):
                 "acknowledge_issues": True,
                 "draft": {
                     "version": row.version,
-                    "category": Category.objects.get(
-                        pk=item["final"]["category"], user=user, is_active=True
-                    ),
+                    "category": row._bulk_final_category,
                     "counterparty_text": item["final"]["description"],
                     "note": item["final"]["note"],
                 },

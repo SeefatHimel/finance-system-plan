@@ -3,6 +3,8 @@
 import hashlib
 import json
 import re
+from dataclasses import dataclass
+from copy import deepcopy
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
@@ -520,7 +522,7 @@ def evaluate_observation(row, record, observation, compatible_fields, previously
     }
 
 
-def find_matches(rows):
+def find_matches(rows, *, context_rows=None):
     """Apply statement-wide ambiguity even when an editor requests one row.
 
     Supplied objects take precedence over persisted siblings, so corrected drafts
@@ -532,13 +534,18 @@ def find_matches(rows):
     ):
         return {r.id: [] for r in requested}, False
     batch = requested[0].batch
-    siblings = list(
-        batch.rows.exclude(id__in=[r.id for r in requested]).select_related(
-            "batch__account",
-            "other_account",
-            "category",
+    requested_ids = {r.id for r in requested}
+    if context_rows is None:
+        siblings = list(
+            batch.rows.exclude(id__in=requested_ids).select_related(
+                "batch__account", "other_account", "category",
+            )
         )
-    )
+    else:
+        # Internal request-local statement context, never a cached ledger result.
+        if any(r.batch_id != batch.pk for r in context_rows):
+            raise ReviewConflict("The statement context changed. Refresh the review.")
+        siblings = [r for r in context_rows if r.pk not in requested_ids]
     matches, truncated = _find_statement_matches(requested + siblings)
     return {r.id: matches[r.id] for r in requested}, truncated
 
@@ -1018,9 +1025,80 @@ def touch(row, user, before, metadata=None):
     )
 
 
+@dataclass(frozen=True)
+class CheckedStatementArithmetic:
+    """Memoize draft issues only while every arithmetic input stays identical.
+
+    Posting/link state affects disposition totals, not draft arithmetic. Those
+    totals are never served from this object. Source or money edits fall back to
+    a full analysis; merchant/category/note edits can reuse the checked issues.
+    """
+
+    signature: tuple
+    issues: dict
+
+    @staticmethod
+    def inputs(batch, rows):
+        return (
+            batch.pk,
+            batch.opening_balance,
+            batch.closing_balance,
+            batch.currency,
+            tuple(
+                (
+                    r.pk,
+                    r.position,
+                    r.component,
+                    r.type,
+                    r.direction,
+                    r.amount,
+                    r.balance_after,
+                    r.reviewed_source_direction,
+                    r.extracted,
+                )
+                for r in rows
+            ),
+        )
+
+    @classmethod
+    def capture(cls, batch, rows):
+        return cls(
+            deepcopy(cls.inputs(batch, rows)),
+            {r.pk: tuple(r._draft_issues) for r in rows},
+        )
+
+    def for_row(self, row, rows):
+        if self.inputs(row.batch, rows) != self.signature:
+            return None
+        return self.issues.get(row.pk)
+
+
+@dataclass(frozen=True)
+class CheckedStatementMatches:
+    """Reuse one fresh match result only for the exact same in-call draft."""
+
+    snapshot: dict
+    results: dict
+    truncated: bool
+
+    def for_row(self, row):
+        if row_snapshot(row) != self.snapshot or row.pk not in self.results:
+            raise ReviewConflict("The checked draft changed. Refresh the review.")
+        return self.results, self.truncated
+
+
 def decide_locked(
-    *, row, user, payload, request, combining_pending_sms=False,
-    require_category_choice=True, source_amounts=(),
+    *,
+    row,
+    user,
+    payload,
+    request,
+    combining_pending_sms=False,
+    require_category_choice=True,
+    source_amounts=(),
+    statement_rows=None,
+    checked_matches=None,
+    checked_arithmetic=None,
 ):
     # Internal source amounts come only from locked, validated pending SMS/PDF
     # decisions. This is not a public field permitting arbitrary ledger edits.
@@ -1104,16 +1182,29 @@ def decide_locked(
         ]
         if base_issues:
             raise ValidationError({"row": base_issues})
-        matches, truncated = find_matches([row])
+        if checked_matches is not None:
+            matches, truncated = checked_matches.for_row(row)
+        elif statement_rows is not None:
+            matches, truncated = find_matches([row], context_rows=statement_rows)
+        else:
+            matches, truncated = find_matches([row])
         if truncated:
             raise ValidationError(
                 {
                     "row": "The statement matching window is too busy to review safely. Import a shorter statement period or resolve other pending rows."
                 }
             )
-        records = list(row.batch.rows.select_related("batch"))
-        analyze(row.batch, records)
-        draft_issues = next((r._draft_issues for r in records if r.id == row.id), [])
+        records = (
+            statement_rows if statement_rows is not None
+            else list(row.batch.rows.select_related("batch"))
+        )
+        draft_issues = (
+            checked_arithmetic.for_row(row, records) if checked_arithmetic is not None
+            else None
+        )
+        if draft_issues is None:
+            analyze(row.batch, records)
+            draft_issues = next((r._draft_issues for r in records if r.id == row.id), [])
         requires_ack = (
             bool(draft_issues)
             or bool(row.extracted.get("issues"))

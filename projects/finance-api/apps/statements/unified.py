@@ -46,6 +46,7 @@ from .rounding import (
     nearby_candidates,
 )
 from .services import (
+    CheckedStatementMatches,
     ReviewConflict,
     dates_for,
     delayed_ebl_posting,
@@ -744,7 +745,8 @@ def queue(user, filters):
 
 
 @transaction.atomic
-def confirm_pair(*, user, row, candidate, payload, request):
+def confirm_pair(*, user, row, candidate, payload, request, statement_rows=None,
+                 checked_arithmetic=None):
     lock_transfer_user(user)
     from .models import StatementRow
 
@@ -755,9 +757,15 @@ def confirm_pair(*, user, row, candidate, payload, request):
     )
     candidate = (
         ParsedMessageCandidate.objects.select_for_update(of=("self",))
-        .select_related("account", "destination_account", "raw_message")
+        .select_related("account", "destination_account", "raw_message", "user")
         .get(pk=candidate.pk, user=user)
     )
+    if statement_rows is not None:
+        # Keep the fresh locked instance in the request's shared sibling list.
+        # Later pairs must see state/links written earlier in this transaction.
+        if any(item.batch_id != row.batch_id for item in statement_rows):
+            raise ReviewConflict("The statement context changed. Refresh the review.")
+        statement_rows[:] = [row if item.pk == row.pk else item for item in statement_rows]
     if (
         row.transaction_id
         and row.transaction_id == candidate.transaction_id
@@ -887,8 +895,14 @@ def confirm_pair(*, user, row, candidate, payload, request):
     dismissed_ledger_matches = [
         str(item) for item in payload.get("dismissed_ledger_matches", [])
     ]
+    checked_matches = None
     if not target:
-        matches, truncated = find_matches([row])
+        matches, truncated = (
+            find_matches([row], context_rows=statement_rows)
+            if statement_rows is not None else find_matches([row])
+        )
+        if statement_rows is not None:
+            checked_matches = CheckedStatementMatches(row_snapshot(row), matches, truncated)
         if truncated:
             raise ValidationError(
                 {"row": "Too much ledger history to review safely. Narrow the statement period."}
@@ -967,6 +981,8 @@ def confirm_pair(*, user, row, candidate, payload, request):
         # target together. Preserve the target's category when attaching its
         # statement evidence; direct statement links ask separately.
         require_category_choice=False, source_amounts=(candidate.amount,),
+        statement_rows=statement_rows, checked_matches=checked_matches,
+        checked_arithmetic=checked_arithmetic,
     )
     record = row.transaction
     if has_fee and balance_source == "statement" and not target:
