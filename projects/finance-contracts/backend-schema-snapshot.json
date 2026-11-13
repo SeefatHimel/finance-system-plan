@@ -4831,6 +4831,39 @@
         ]
       }
     },
+    "/api/review/statement-account/verify/": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementAccountReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementAccountReview"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/schema/": {
       "get": {
         "parameters": [
@@ -8075,6 +8108,12 @@
           "format": "date-time",
           "type": "string"
         },
+        "imports": {
+          "items": {
+            "$ref": "#/components/schemas/StatementAccountReview"
+          },
+          "type": "array"
+        },
         "items": {
           "items": {
             "$ref": "#/components/schemas/BulkApprovalItem"
@@ -8103,6 +8142,7 @@
       },
       "required": [
         "expires_at",
+        "imports",
         "items",
         "needs_review",
         "ready_count",
@@ -14470,6 +14510,63 @@
       "required": [
         "account",
         "name"
+      ],
+      "type": "object"
+    },
+    "StatementAccountReview": {
+      "properties": {
+        "account_hint": {
+          "type": "string"
+        },
+        "account_name": {
+          "type": "string"
+        },
+        "has_original_file": {
+          "type": "boolean"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "token": {
+          "type": "string"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "verified_at": {
+          "format": "date-time",
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "account_hint",
+        "account_name",
+        "id",
+        "profile",
+        "token",
+        "verified",
+        "verified_at"
+      ],
+      "type": "object"
+    },
+    "StatementAccountReviewRequest": {
+      "properties": {
+        "confirmed": {
+          "type": "boolean"
+        },
+        "token": {
+          "maxLength": 2000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "confirmed",
+        "token"
       ],
       "type": "object"
     },

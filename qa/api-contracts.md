@@ -1,5 +1,13 @@
 # API Contracts Q&A
 
+### What binds a statement-account confirmation to its source?
+
+The preview returns a signed 15-minute token bound to owner, import and a context
+fingerprint covering PDF digest, selected account/revision, profile, currency and
+masked identity. The verification POST requires explicit confirmation, validates
+the live context and stores separate audited review metadata. It is idempotent;
+404/409 protect ownership and stale contexts. No original observation is rewritten.
+
 ### How are edited bulk values tied to the reviewed preview?
 
 Pairs may carry an `edits` object limited to category, description and note.

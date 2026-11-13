@@ -1,5 +1,15 @@
 # finance-contracts
 
+## Statement account review in bulk previews
+
+`BulkApprovalPreview.imports` contains account-review contexts for selected imports
+with the standard account advisory. Each has an import ID, account name, masked
+hint, profile, confirmation status/time, signed token and optional PDF availability.
+`POST /api/review/statement-account/verify/` takes `{token, confirmed: true}` and
+returns the saved context. Tokens expire after 15 minutes; changed context returns
+409 and foreign ownership returns 404. The operation is audited, no-store and
+idempotent. It creates no ledger money. Migrate statements `0016` before web.
+
 Bulk pair inputs optionally include `edits` with only `category` (nullable UUID),
 `description` (255 characters) and `note` (4,000 characters). Preview items expose
 `final` metadata and `category_origin`. Approval optionally includes the exact

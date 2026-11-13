@@ -2510,6 +2510,7 @@ export interface BulkPairSelection {
 
 export interface BulkApprovalPreview {
   items: BulkApprovalItem[];
+  imports: StatementAccountReview[];
   ready_count: number;
   needs_review: number;
   totals: Record<string, Record<string, string>>;
@@ -2541,4 +2542,20 @@ export interface BulkFinalValues {
   category: string | null;
   description: string;
   note: string;
+}
+
+export interface StatementAccountReview {
+  id: string;
+  account_name: string;
+  account_hint: string;
+  profile: string;
+  verified: boolean;
+  verified_at: string | null;
+  token: string;
+  has_original_file?: boolean;
+}
+
+export interface StatementAccountReviewRequest {
+  token: string;
+  confirmed: boolean;
 }
