@@ -2068,3 +2068,17 @@ spreadsheet sources, with latest-action Undo. Transactions → Edit → Original
 provides the comparison even if the inbox is empty, keeping the current entry.
 Sender settings groups existing exact aliases without recreating their rules.
 Financial conflicts remain blocked for source review; amount alone is insufficient.
+
+### How does the sender settings redesign reduce confusion?
+
+The sender list is the default view; add/edit forms appear only in focused dialogs.
+Every row shows the reporting account, default category and rule status. Pathao's
+four aliases stay grouped per wallet, including during search/filtering. A manager
+exposes individual alias settings, while broad matching and priority stay under
+Advanced options. Rule enablement is distinguished from mobile Capture tracking
+and provider-wide pauses. Validated write responses update the local list without
+losing filters; errors retain the draft and appear in toasts. The selected settings
+tab is stored in the URL, so refresh returns to the same section. Tabs support
+arrow-key navigation, and dialogs manage initial and return focus.
+Section changes wait for active saves, and preference responses merge into the
+latest state instead of replacing newer sender changes.

@@ -2224,3 +2224,26 @@ handles already-recorded duplicates. Review the original notifications, keep one
 entry and retain every linked source with a single Undo action. No financial
 source is automatically remapped or merged based only on amount.
 See [Pathao SMS sources](../../docs/pathao-sms-sources.md).
+
+### Sender settings: list first, focused edits
+
+`/sms-settings?section=senders` opens the sender rules tab directly and preserves
+that tab on refresh. Tabs support arrow-key, Home and End navigation. The page
+lists connections, reporting accounts, default categories and rule status.
+Search and status filters keep Pathao aliases grouped
+per wallet; matching one alias never hides the others from the manager.
+
+**Add sender** opens a small form for account, provider and sender name. Category,
+payment method, display name, fallback type, matching pattern and priority remain
+under **Advanced options**. The Pathao preset reuses the four existing exact rules
+and creates missing ones. **Manage** opens the alias list; **Edit** changes one
+rule. Removal requires a separate confirmation inside the editor. Rules can be
+enabled/disabled in the list; provider-wide pauses link to Capture & privacy.
+
+Rule activity and mobile device tracking are separate and labelled accordingly.
+Successful writes update the local list from validated API responses, preserving
+search/filters without refetching the full settings page. Failed saves keep the
+draft and show a toast. Existing IDs, mappings and financial evidence are retained.
+Settings tabs wait for an active save to finish, and capture preference responses
+merge into current state so they cannot restore an older sender list.
+This is a web workflow change and requires no backend migration or mobile build.
