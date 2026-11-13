@@ -16,12 +16,21 @@ pending with an individual-review shortcut. Transfers appear in a separate total
 they are not presented as income or spending. Filters stay in place after saving.
 Errors use toasts, with an inline refresh/retry action when necessary.
 
-Before confirming, edit **Category**, **Description** or **Notes** directly in each
+Before confirming, edit **Category**, **Merchant / counterparty** or **Notes** directly in each
 card. Category defaults use the same precedence as individual review: a compatible
 saved statement category, a compatible statement mapping, then the live compatible
 SMS suggestion when types agree. Suggestions are visible defaults, not saved rules.
 **Apply category to compatible pairs** affects only selected pairs whose unchanged
 transaction type supports that category; other types keep their choice.
+
+Expand **Set category or merchant for selected pairs** to use the shared controls.
+Enter a merchant (for example, Pathao Pay) and choose **Apply merchant to N selected
+pairs** to set it once for the current selection. Notes remain untouched. The API
+field is still named `description` for compatibility; it saves the ledger merchant
+as `counterparty_text`. Original provider/service wording (such as Pathao Bike)
+stays in source evidence. This does not change the account/provider or create a
+rule for future messages. Edited blocked pairs remain unposted until their checks
+are resolved individually.
 
 Any edit clears confirmation and disables approval until **Recheck changes** runs
 on the server. The final preview shows the exact metadata and financial values to

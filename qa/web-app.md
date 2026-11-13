@@ -1,5 +1,14 @@
 # Web App Q&A
 
+### Can the same merchant be set for several matched pairs?
+
+Yes. Expand the selected-pair editing tools, enter a merchant/counterparty and
+apply it to all pairs in the displayed selection count. Notes and original source
+wording remain separate. The existing `description` API edit saves the reviewed
+merchant as `counterparty_text`. Recheck clears final confirmation, and financial
+or source-identity conflicts still require individual review. This does not learn
+a rule for future messages or change the reporting account/provider.
+
 ### What can users edit in the bulk preview?
 
 Category, description and notes, with the same category defaults as individual

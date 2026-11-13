@@ -2,7 +2,7 @@
 
 ## Bulk approval in Matched sources
 
-Each bulk card shows final financial values with editable category, description
+Each bulk card shows final financial values with editable category, merchant/counterparty
 and notes. Live category suggestions match individual review; a group category
 applies only to compatible selected types. Edits clear confirmation and require
 **Recheck changes** in the fixed footer before approval. Financial conflicts stay
@@ -15,6 +15,15 @@ pairs stay pending for individual review. Approval and **Undo batch** refresh
 matches with filters retained. Errors use toasts; stale previews require refresh.
 This requires the bulk approval API and statements migration `0015` before web.
 See [bulk pair approval](../../docs/bulk-pair-approval.md).
+
+### Shared merchant names in bulk review
+
+Expand **Set category or merchant for selected pairs**, enter the reviewed merchant
+(e.g. Pathao Pay), and apply it to the displayed selection count. It updates only
+the merchant/counterparty draft; notes, source text, amounts, dates, balances and
+account paths stay unchanged. Recheck before approval. This is a current-batch
+edit, not an automatic rule for future SMS. The existing API `description` edit
+field maps to the saved transaction's `counterparty_text`; no API change is needed.
 
 ## Review transfer report accounts while pairing
 

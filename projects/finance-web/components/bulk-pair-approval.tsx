@@ -73,6 +73,7 @@ export function BulkPairApproval({
   const [edits, setEdits] = useState<Record<string, BulkPairEdits>>({});
   const [dirty, setDirty] = useState(false);
   const [groupCategory, setGroupCategory] = useState("");
+  const [groupMerchant, setGroupMerchant] = useState("");
   const [preview, setPreview] = useState<BulkApprovalPreview | null>(null);
   const [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -223,6 +224,19 @@ export function BulkPairApproval({
     setDirty(true);
     setConfirmed(false);
   }
+  function applyMerchant() {
+    const merchant = groupMerchant.trim();
+    if (!merchant || !preview) return;
+    setEdits((current) => {
+      const next = { ...current };
+      for (const item of preview.items) {
+        next[item.id] = { ...current[item.id], description: merchant };
+      }
+      return next;
+    });
+    setDirty(true);
+    setConfirmed(false);
+  }
   const close = () => {
     if (!inFlight.current) onClose();
   };
@@ -291,37 +305,67 @@ export function BulkPairApproval({
               pending with their edits unsaved. A fresh server check runs before
               anything is saved.
             </p>
-            <div className="bulk-pair-group-edit">
-              <label className="field">
-                <span className="field__label">
-                  Category for compatible selected pairs
-                </span>
-                <select
-                  className="field__control"
-                  value={groupCategory}
-                  disabled={busy || retry}
-                  onChange={(event) => setGroupCategory(event.target.value)}
+            <details className="bulk-pair-group-tools">
+              <summary>Set category or merchant for selected pairs</summary>
+              <div className="bulk-pair-group-edit">
+                <label className="field">
+                  <span className="field__label">
+                    Category for compatible selected pairs
+                  </span>
+                  <select
+                    className="field__control"
+                    value={groupCategory}
+                    disabled={busy || retry}
+                    onChange={(event) => setGroupCategory(event.target.value)}
+                  >
+                    <option value="">Choose a category</option>
+                    {categories
+                      .filter((category) => category.is_active)
+                      .map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <button
+                  className="button button--ghost"
+                  disabled={!groupCategory || busy || retry}
+                  onClick={applyCategory}
                 >
-                  <option value="">Choose a category</option>
-                  {categories
-                    .filter((category) => category.is_active)
-                    .map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <button
-                className="button button--ghost"
-                disabled={!groupCategory || busy || retry}
-                onClick={applyCategory}
-              >
-                Apply category to compatible pairs
-              </button>
-            </div>
+                  Apply category to compatible pairs
+                </button>
+              </div>
+              <div className="bulk-pair-group-edit">
+                <label className="field">
+                  <span className="field__label">
+                    Merchant / counterparty for all {pairs.length} selected
+                    pairs
+                  </span>
+                  <input
+                    className="field__control"
+                    placeholder="For example, Pathao Pay"
+                    maxLength={255}
+                    value={groupMerchant}
+                    disabled={busy || retry}
+                    onChange={(event) => setGroupMerchant(event.target.value)}
+                  />
+                </label>
+                <button
+                  className="button button--ghost"
+                  disabled={!groupMerchant.trim() || busy || retry}
+                  onClick={applyMerchant}
+                >
+                  Apply merchant to {pairs.length} selected pairs
+                </button>
+              </div>
+              <p className="field__hint">
+                Applies to this selection only. Notes and original source
+                wording stay unchanged.
+              </p>
+            </details>
             <p className="field__hint">
-              Category, description and notes can change here. Financial values
+              Category, merchant and notes can change here. Financial values
               stay fixed. Recheck changes before approving; original sources
               stay unchanged.
             </p>
@@ -428,10 +472,12 @@ export function BulkPairApproval({
                         </select>
                       </label>
                       <label className="field">
-                        <span className="field__label">Description</span>
+                        <span className="field__label">
+                          Merchant / counterparty
+                        </span>
                         <input
                           className="field__control"
-                          aria-label={`Description for ${item.statement.description}`}
+                          aria-label={`Merchant or counterparty for ${item.statement.description}`}
                           maxLength={255}
                           disabled={busy || retry}
                           value={edits[item.id]?.description ?? ""}
