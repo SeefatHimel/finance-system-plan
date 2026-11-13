@@ -5024,3 +5024,13 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
   .bulk-pair-fields { grid-template-columns:minmax(0,1fr); }
   .bulk-approval-toolbar .statement-actions .button { flex:1 1 100%; }
 }
+
+.bulk-pair-group-edit { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; padding:16px; margin:16px 0; background:var(--background); border-radius:10px; }
+.bulk-pair-group-edit .field { flex:1 1 240px; margin:0; }
+.bulk-pair-final { padding:16px; border:1px solid var(--panel-border); border-radius:10px; background:var(--background); }
+.bulk-pair-final__facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 16px; margin:12px 0 18px; font-size:14px; color:var(--muted); overflow-wrap:anywhere; }
+.bulk-pair-edit-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.bulk-pair-edit-fields .field { margin:0; min-width:0; }
+.bulk-pair-edit-note { grid-column:1/-1; }
+.bulk-pair-edit-fields textarea { resize:vertical; min-height:72px; }
+@media(max-width:700px) { .bulk-pair-edit-fields,.bulk-pair-final__facts { grid-template-columns:minmax(0,1fr); } .bulk-pair-group-edit .button { width:100%; } }

@@ -4,7 +4,7 @@ import {
   pendingSourceSchema,
   transactionActionSchema,
 } from "./api";
-import type { BulkPairSelection } from "../../finance-contracts/unified-bulk";
+import type { BulkPairInput } from "../../finance-contracts/unified-bulk";
 
 const named = z.object({ id: z.string(), name: z.string() });
 const previewSchema = z.object({
@@ -23,6 +23,12 @@ const previewSchema = z.object({
       sms: pendingSourceSchema,
       category: named.nullable(),
       other_account: named.nullable(),
+      final: z.object({
+        category: z.string().nullable(),
+        description: z.string(),
+        note: z.string(),
+      }),
+      category_origin: z.string(),
       ready: z.boolean(),
       blockers: z.array(z.string()),
       statement_text: z.string(),
@@ -48,7 +54,7 @@ export type BulkApprovalPreview = z.infer<typeof previewSchema>;
 export type BulkApprovalResult = z.infer<typeof resultSchema>;
 export async function previewBulkApproval(
   token: string,
-  pairs: BulkPairSelection[],
+  pairs: BulkPairInput[],
   signal?: AbortSignal,
 ) {
   return previewSchema.parse(
@@ -66,6 +72,7 @@ export async function approveBulkPairs(
   token: string,
   previewToken: string,
   requestId: string,
+  pairs: BulkPairInput[],
 ) {
   return resultSchema.parse(
     await (
@@ -76,6 +83,7 @@ export async function approveBulkPairs(
           token: previewToken,
           request_id: requestId,
           confirmed: true,
+          pairs,
         }),
       })
     ).json(),

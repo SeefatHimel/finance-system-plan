@@ -1,5 +1,13 @@
 # Web App Q&A
 
+### What can users edit in the bulk preview?
+
+Category, description and notes, with the same category defaults as individual
+review. A category can be applied to compatible selected pairs without changing
+their type/direction. Amount, accounts, date/time, fees and balances stay fixed.
+Edits clear final confirmation and require a server recheck; the footer then lets
+users approve the ready subset. Conflicts stay blocked with specific explanations.
+
 ### Can users approve several matched source pairs together?
 
 Yes: select up to 25 pairs across pages, review a same-page preview of values,

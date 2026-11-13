@@ -2,6 +2,13 @@
 
 ## Bulk approval in Matched sources
 
+Each bulk card shows final financial values with editable category, description
+and notes. Live category suggestions match individual review; a group category
+applies only to compatible selected types. Edits clear confirmation and require
+**Recheck changes** in the fixed footer before approval. Financial conflicts stay
+blocked with specific source/check explanations. This update requires the updated
+API first and adds no database migration.
+
 Select up to 25 pairs across queue pages, open **Review selected**, inspect source
 values and totals, then approve the ready subset with one confirmation. Uncertain
 pairs stay pending for individual review. Approval and **Undo batch** refresh

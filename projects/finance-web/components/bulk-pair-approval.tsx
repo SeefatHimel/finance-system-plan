@@ -6,7 +6,13 @@ import {
   formatCalendarDate,
   formatClockTime,
 } from "../../finance-contracts/presentation";
-import type { BulkPairSelection } from "../../finance-contracts/unified-bulk";
+import type {
+  BulkPairSelection,
+  BulkPairInput,
+  BulkPairEdits,
+} from "../../finance-contracts/unified-bulk";
+import { categoryTypeProposal } from "@/lib/category-type";
+import type { Category, TransactionType } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import {
   approveBulkPairs,
@@ -51,16 +57,22 @@ function Comparison({
 
 export function BulkPairApproval({
   pairs,
+  categories,
   onClose,
   onApproved,
   onIndividual,
 }: {
   pairs: BulkPairSelection[];
+  categories: Category[];
   onClose: () => void;
   onApproved: (result: BulkApprovalResult) => void;
   onIndividual: (pair: BulkPairSelection) => void;
 }) {
   const { notify } = useToast();
+  const [requestPairs, setRequestPairs] = useState<BulkPairInput[]>(pairs);
+  const [edits, setEdits] = useState<Record<string, BulkPairEdits>>({});
+  const [dirty, setDirty] = useState(false);
+  const [groupCategory, setGroupCategory] = useState("");
   const [preview, setPreview] = useState<BulkApprovalPreview | null>(null);
   const [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -89,9 +101,17 @@ export function BulkPairApproval({
     setFailed(false);
     setRetry(false);
     requestId.current = crypto.randomUUID();
-    void previewBulkApproval(token, pairs, controller.signal)
+    void previewBulkApproval(token, requestPairs, controller.signal)
       .then((value) => {
-        if (!controller.signal.aborted) setPreview(value);
+        if (!controller.signal.aborted) {
+          setPreview(value);
+          setEdits(
+            Object.fromEntries(
+              value.items.map((item) => [item.id, item.final]),
+            ),
+          );
+          setDirty(false);
+        }
       })
       .catch((error) => {
         if (!controller.signal.aborted) {
@@ -108,7 +128,7 @@ export function BulkPairApproval({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [pairs, epoch, notify]);
+  }, [requestPairs, epoch, notify]);
   useEffect(() => {
     if (!preview) return;
     const timer = setTimeout(
@@ -119,7 +139,14 @@ export function BulkPairApproval({
   }, [preview]);
   async function approve() {
     const token = getAccessToken();
-    if (!token || !preview?.token || !confirmed || stale || inFlight.current)
+    if (
+      !token ||
+      !preview?.token ||
+      !confirmed ||
+      stale ||
+      dirty ||
+      inFlight.current
+    )
       return;
     inFlight.current = true;
     setBusy(true);
@@ -128,6 +155,13 @@ export function BulkPairApproval({
         token,
         preview.token,
         requestId.current,
+        preview.items
+          .filter((item) => item.ready)
+          .map((item) => ({
+            statement: item.statement.id,
+            sms: item.sms.id,
+            edits: item.final,
+          })),
       );
       if (alive.current) onApproved(result);
     } catch (error) {
@@ -145,6 +179,49 @@ export function BulkPairApproval({
       inFlight.current = false;
       if (alive.current) setBusy(false);
     }
+  }
+  function changeItem(id: string, change: Partial<BulkPairEdits>) {
+    setEdits((current) => ({
+      ...current,
+      [id]: { ...current[id], ...change },
+    }));
+    setDirty(true);
+    setConfirmed(false);
+  }
+  function recheck() {
+    setRequestPairs(
+      pairs.map((pair) => ({
+        ...pair,
+        edits: edits[`${pair.statement}:${pair.sms}`],
+      })),
+    );
+    setEpoch((value) => value + 1);
+  }
+  function applyCategory() {
+    const category = categories.find(
+      (item) => item.id === groupCategory && item.is_active,
+    );
+    if (!category || !preview) return;
+    const compatibleItems = preview.items.filter(
+      (item) =>
+        !categoryTypeProposal(category, item.statement.type as TransactionType),
+    );
+    if (!compatibleItems.length) {
+      notify(
+        "This category does not fit any selected transaction type.",
+        "error",
+      );
+      return;
+    }
+    setEdits((current) => {
+      const next = { ...current };
+      for (const item of compatibleItems) {
+        next[item.id] = { ...current[item.id], category: category.id };
+      }
+      return next;
+    });
+    setDirty(true);
+    setConfirmed(false);
   }
   const close = () => {
     if (!inFlight.current) onClose();
@@ -202,7 +279,8 @@ export function BulkPairApproval({
                 <strong>{pairs.length}</strong> selected
               </span>
               <span>
-                <strong>{preview.ready_count}</strong> ready
+                <strong>{preview.ready_count}</strong>{" "}
+                {dirty ? "previously ready · recheck" : "ready"}
               </span>
               <span>
                 <strong>{preview.needs_review}</strong> need individual review
@@ -210,7 +288,42 @@ export function BulkPairApproval({
             </div>
             <p className="inline-note">
               Only ready pairs will be approved. Rows needing review stay
-              pending. A fresh server check runs before anything is saved.
+              pending with their edits unsaved. A fresh server check runs before
+              anything is saved.
+            </p>
+            <div className="bulk-pair-group-edit">
+              <label className="field">
+                <span className="field__label">
+                  Category for compatible selected pairs
+                </span>
+                <select
+                  className="field__control"
+                  value={groupCategory}
+                  disabled={busy || retry}
+                  onChange={(event) => setGroupCategory(event.target.value)}
+                >
+                  <option value="">Choose a category</option>
+                  {categories
+                    .filter((category) => category.is_active)
+                    .map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <button
+                className="button button--ghost"
+                disabled={!groupCategory || busy || retry}
+                onClick={applyCategory}
+              >
+                Apply category to compatible pairs
+              </button>
+            </div>
+            <p className="field__hint">
+              Category, description and notes can change here. Financial values
+              stay fixed. Recheck changes before approving; original sources
+              stay unchanged.
             </p>
             <div className="bulk-pair-totals">
               {Object.entries(preview.totals).map(([currency, totals]) => (
@@ -228,67 +341,172 @@ export function BulkPairApproval({
                   <header>
                     <div>
                       <strong>
-                        {item.statement.description || item.sms.description || "Money movement"}
+                        {item.statement.description ||
+                          item.sms.description ||
+                          "Money movement"}
                       </strong>
                       <span>
                         {item.statement.account_name}
                         {item.other_account
                           ? ` → ${item.other_account.name}`
-                          : ""} ·{" "}
-                        {item.category?.name ?? "Category needed"} ·{" "}
+                          : ""}{" "}
+                        · {item.category?.name ?? "Category needed"} ·{" "}
                         {item.statement.direction}
                       </span>
                     </div>
                     <span
                       className={`status-badge ${item.ready ? "status-badge--ok" : "status-badge--warning"}`}
                     >
-                      {item.ready ? "Ready" : "Needs review"}
+                      {dirty
+                        ? "Recheck changes"
+                        : item.ready
+                          ? "Ready"
+                          : "Needs review"}
                     </span>
                   </header>
-                  <div className="bulk-pair-fields">
-                    <Comparison
-                      label="Reporting account"
-                      left={item.statement.account_name}
-                      right={item.sms.account_name}
-                    />
-                    <Comparison
-                      label="Debit / credit"
-                      left={item.statement.direction}
-                      right={item.sms.direction}
-                    />
-                    <Comparison
-                      label="Amount"
-                      left={
-                        item.statement.amount === null
-                          ? null
-                          : `${item.statement.currency} ${item.statement.amount}`
-                      }
-                      right={
-                        item.sms.amount === null
-                          ? null
-                          : `${item.sms.currency} ${item.sms.amount}`
-                      }
-                    />
-                    <Comparison
-                      label="Transaction date"
-                      left={formatCalendarDate(item.statement.date)}
-                      right={formatCalendarDate(item.sms.date)}
-                    />
-                    <Comparison
-                      label="Type"
-                      left={item.statement.type.replaceAll("_", " ")}
-                      right={item.sms.type.replaceAll("_", " ")}
-                    />
-                    <Comparison
-                      label="Reported balance after"
-                      left={item.statement.balance_after}
-                      right={item.sms.balance_after}
-                    />
-                  </div>
+                  <section
+                    className="bulk-pair-final"
+                    aria-label={`Final transaction for ${item.statement.description}`}
+                  >
+                    <strong>Final transaction</strong>
+                    <div className="bulk-pair-final__facts">
+                      <span>
+                        {item.statement.currency} {item.statement.amount} ·{" "}
+                        {item.statement.direction} ·{" "}
+                        {item.statement.type.replaceAll("_", " ")}
+                      </span>
+                      <span>
+                        {item.statement.account_name}
+                        {item.other_account
+                          ? ` → ${item.other_account.name}`
+                          : ""}
+                      </span>
+                      <span>
+                        {formatCalendarDate(item.statement.date)} ·{" "}
+                        {formatClockTime(item.statement.time)}
+                      </span>
+                      <span>
+                        Reported balance after:{" "}
+                        {item[item.balance_source].balance_after ??
+                          "Not reported"}
+                      </span>
+                    </div>
+                    <div className="bulk-pair-edit-fields">
+                      <label className="field">
+                        <span className="field__label">
+                          Category
+                          {item.category_origin === "suggested"
+                            ? " · suggested"
+                            : ""}
+                        </span>
+                        <select
+                          className="field__control"
+                          aria-label={`Category for ${item.statement.description}`}
+                          disabled={busy || retry}
+                          value={edits[item.id]?.category ?? ""}
+                          onChange={(event) =>
+                            changeItem(item.id, {
+                              category: event.target.value || null,
+                            })
+                          }
+                        >
+                          <option value="">Choose a category</option>
+                          {categories
+                            .filter(
+                              (category) =>
+                                category.is_active &&
+                                !categoryTypeProposal(
+                                  category,
+                                  item.statement.type as TransactionType,
+                                ),
+                            )
+                            .map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span className="field__label">Description</span>
+                        <input
+                          className="field__control"
+                          aria-label={`Description for ${item.statement.description}`}
+                          maxLength={255}
+                          disabled={busy || retry}
+                          value={edits[item.id]?.description ?? ""}
+                          onChange={(event) =>
+                            changeItem(item.id, {
+                              description: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="field bulk-pair-edit-note">
+                        <span className="field__label">Notes</span>
+                        <textarea
+                          className="field__control"
+                          aria-label={`Notes for ${item.statement.description}`}
+                          rows={2}
+                          maxLength={4000}
+                          disabled={busy || retry}
+                          value={edits[item.id]?.note ?? ""}
+                          onChange={(event) =>
+                            changeItem(item.id, { note: event.target.value })
+                          }
+                        />
+                      </label>
+                    </div>
+                  </section>
+                  <details>
+                    <summary>Compare PDF and SMS values</summary>
+                    <div className="bulk-pair-fields">
+                      <Comparison
+                        label="Reporting account"
+                        left={item.statement.account_name}
+                        right={item.sms.account_name}
+                      />
+                      <Comparison
+                        label="Debit / credit"
+                        left={item.statement.direction}
+                        right={item.sms.direction}
+                      />
+                      <Comparison
+                        label="Amount"
+                        left={
+                          item.statement.amount === null
+                            ? null
+                            : `${item.statement.currency} ${item.statement.amount}`
+                        }
+                        right={
+                          item.sms.amount === null
+                            ? null
+                            : `${item.sms.currency} ${item.sms.amount}`
+                        }
+                      />
+                      <Comparison
+                        label="Transaction date"
+                        left={formatCalendarDate(item.statement.date)}
+                        right={formatCalendarDate(item.sms.date)}
+                      />
+                      <Comparison
+                        label="Type"
+                        left={item.statement.type.replaceAll("_", " ")}
+                        right={item.sms.type.replaceAll("_", " ")}
+                      />
+                      <Comparison
+                        label="Reported balance after"
+                        left={item.statement.balance_after}
+                        right={item.sms.balance_after}
+                      />
+                    </div>
+                  </details>
                   <p className="bulk-pair-result">
-                    {item.ready
-                      ? `Record ${item.statement.currency} ${item.statement.amount} once · balance ${item[item.balance_source].balance_after ?? "unknown"}. Both source reports remain attached.`
-                      : "No transaction will be recorded for this pair."}
+                    {dirty
+                      ? "Changes are not saved. Recheck this preview to update eligibility and totals."
+                      : item.ready
+                        ? `Record ${item.statement.currency} ${item.statement.amount} once · balance ${item[item.balance_source].balance_after ?? "unknown"}. Both source reports remain attached.`
+                        : "No transaction will be recorded for this pair."}
                   </p>
                   {item.blockers.length ? (
                     <ul className="bulk-pair-blockers">
@@ -368,20 +586,18 @@ export function BulkPairApproval({
                 </article>
               ))}
             </div>
-            {stale ? (
+            {stale || dirty ? (
               <div className="bulk-pair-refresh" role="status">
-                <strong>Refresh this preview before approving.</strong>
+                <strong>
+                  {dirty
+                    ? "Recheck your changes before approving."
+                    : "Refresh this preview before approving."}
+                </strong>
                 <span>
                   Source values or eligibility may have changed. Nothing from a
                   failed approval group is saved.
                 </span>
-                <button
-                  className="button"
-                  disabled={busy}
-                  onClick={() => setEpoch((value) => value + 1)}
-                >
-                  Refresh preview
-                </button>
+                <span>Use the preview button below to run fresh checks.</span>
               </div>
             ) : null}
             {retry ? (
@@ -395,11 +611,12 @@ export function BulkPairApproval({
                 <input
                   type="checkbox"
                   checked={confirmed}
-                  disabled={busy || stale}
+                  disabled={busy || stale || dirty}
                   onChange={(event) => setConfirmed(event.target.checked)}
                 />
                 <span>
-                  I reviewed the {preview.ready_count} ready pairs and approve
+                  I reviewed the {preview.ready_count} ready{" "}
+                  {preview.ready_count === 1 ? "pair" : "pairs"} and approve
                   recording each once.
                 </span>
               </label>
@@ -425,19 +642,29 @@ export function BulkPairApproval({
         >
           Back to matches
         </button>
-        <button
-          className="button button--primary"
-          disabled={loading || busy || stale || !confirmed || !preview?.token}
-          onClick={() => void approve()}
-        >
-          {busy ? (
-            <ButtonBusy label="Approving batch" />
-          ) : retry ? (
-            "Retry approval"
-          ) : (
-            `Approve ready${preview ? ` (${preview.ready_count})` : ""}`
-          )}
-        </button>
+        {dirty || stale ? (
+          <button
+            className="button button--primary"
+            disabled={loading || busy}
+            onClick={recheck}
+          >
+            {dirty ? "Recheck changes" : "Refresh preview"}
+          </button>
+        ) : (
+          <button
+            className="button button--primary"
+            disabled={loading || busy || !confirmed || !preview?.token}
+            onClick={() => void approve()}
+          >
+            {busy ? (
+              <ButtonBusy label="Approving batch" />
+            ) : retry ? (
+              "Retry approval"
+            ) : (
+              `Approve ready${preview ? ` (${preview.ready_count})` : ""}`
+            )}
+          </button>
+        )}
       </footer>
     </ModalDialog>
   );
