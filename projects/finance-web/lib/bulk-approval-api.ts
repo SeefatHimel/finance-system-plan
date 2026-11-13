@@ -7,7 +7,33 @@ import {
 import type { BulkPairInput } from "../../finance-contracts/unified-bulk";
 
 const named = z.object({ id: z.string(), name: z.string() });
+const accountReviewSchema = z.object({
+  id: z.string(),
+  account_name: z.string(),
+  account_hint: z.string(),
+  profile: z.string(),
+  verified: z.boolean(),
+  verified_at: z.string().nullable(),
+  token: z.string(),
+  has_original_file: z.boolean().optional().default(false),
+});
+export type StatementAccountReview = z.infer<typeof accountReviewSchema>;
+export async function verifyStatementAccount(
+  token: string,
+  previewToken: string,
+) {
+  return accountReviewSchema.parse(
+    await (
+      await authenticatedFetch("/api/review/statement-account/verify/", token, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: previewToken, confirmed: true }),
+      })
+    ).json(),
+  );
+}
 const previewSchema = z.object({
+  imports: z.array(accountReviewSchema).optional().default([]),
   token: z.string().nullable(),
   expires_at: z.string(),
   ready_count: z.number(),

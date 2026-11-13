@@ -5034,3 +5034,12 @@ input[type="date"], input[type="time"], input[type="month"] { color-scheme: dark
 .bulk-pair-edit-note { grid-column:1/-1; }
 .bulk-pair-edit-fields textarea { resize:vertical; min-height:72px; }
 @media(max-width:700px) { .bulk-pair-edit-fields,.bulk-pair-final__facts { grid-template-columns:minmax(0,1fr); } .bulk-pair-group-edit .button { width:100%; } }
+
+.bulk-account-reviews { display:grid; gap:12px; margin:18px 0; }
+.bulk-account-reviews h3 { margin:0; font-size:17px; }
+.bulk-account-reviews > p { margin:0; }
+.bulk-account-review { padding:16px; border:1px solid var(--panel-border); border-radius:10px; background:var(--background); }
+.bulk-account-review header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.bulk-account-review > p { color:var(--muted); font-size:14px; }
+.bulk-account-review .bulk-pair-confirm { padding:12px 0; font-size:14px; }
+.bulk-account-review summary { color:var(--accent); cursor:pointer; font-size:14px; }

@@ -1,5 +1,13 @@
 # Web App Q&A
 
+### How does a user resolve a repeated statement-account blocker?
+
+The bulk preview shows one panel per import with the account name and masked hint.
+Open its original PDF when available, explicitly confirm the reporting account,
+then select Confirm account and recheck. Existing metadata edits are preserved,
+confirmation is saved for that source context, and ready counts refresh. Genuine
+conflicts stay blocked. The status means confirmed by the user, not by the provider.
+
 ### Can the same merchant be set for several matched pairs?
 
 Yes. Expand the selected-pair editing tools, enter a merchant/counterparty and

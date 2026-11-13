@@ -1,5 +1,14 @@
 # finance-web
 
+## Resolve account review once per statement
+
+Bulk preview offers one reporting-account panel per affected import. Compare the
+original PDF, tick the account confirmation and choose **Confirm account and
+recheck**. It saves that statement-specific review and refreshes eligibility without
+losing merchant/category/notes edits. The confirmed status survives later batches
+and batch Undo. Other warnings and conflicts remain visible and blocking.
+Requires the API account-review endpoint and statements migration `0016` first.
+
 ## Bulk approval in Matched sources
 
 Each bulk card shows final financial values with editable category, merchant/counterparty

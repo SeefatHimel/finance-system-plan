@@ -16,12 +16,15 @@ import type { Category, TransactionType } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import {
   approveBulkPairs,
+  verifyStatementAccount,
+  type StatementAccountReview,
   previewBulkApproval,
   type BulkApprovalPreview,
   type BulkApprovalResult,
 } from "@/lib/bulk-approval-api";
 import { ModalDialog } from "./modal-dialog";
 import { LoadingState, ButtonBusy } from "./loading-state";
+import { StatementOriginalViewer } from "./statement-original-viewer";
 import { SourceEvidenceText } from "./source-evidence-text";
 import { useToast } from "./toast-provider";
 
@@ -74,6 +77,10 @@ export function BulkPairApproval({
   const [dirty, setDirty] = useState(false);
   const [groupCategory, setGroupCategory] = useState("");
   const [groupMerchant, setGroupMerchant] = useState("");
+  const [accountChecks, setAccountChecks] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [reviewingAccount, setReviewingAccount] = useState<string | null>(null);
   const [preview, setPreview] = useState<BulkApprovalPreview | null>(null);
   const [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -106,6 +113,7 @@ export function BulkPairApproval({
       .then((value) => {
         if (!controller.signal.aborted) {
           setPreview(value);
+          setAccountChecks({});
           setEdits(
             Object.fromEntries(
               value.items.map((item) => [item.id, item.final]),
@@ -197,6 +205,39 @@ export function BulkPairApproval({
       })),
     );
     setEpoch((value) => value + 1);
+  }
+  async function confirmStatementAccount(item: StatementAccountReview) {
+    const token = getAccessToken();
+    if (!token || !accountChecks[item.id] || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setReviewingAccount(item.id);
+    try {
+      await verifyStatementAccount(token, item.token);
+      if (alive.current) {
+        notify(
+          `Reporting account confirmed for this statement: ${item.account_name}.`,
+          "success",
+        );
+        recheck();
+      }
+    } catch (error) {
+      if (alive.current) {
+        setStale(true);
+        notify(
+          error instanceof Error
+            ? error.message
+            : "Could not confirm the statement account.",
+          "error",
+        );
+      }
+    } finally {
+      inFlight.current = false;
+      if (alive.current) {
+        setBusy(false);
+        setReviewingAccount(null);
+      }
+    }
   }
   function applyCategory() {
     const category = categories.find(
@@ -297,7 +338,7 @@ export function BulkPairApproval({
                 {dirty ? "previously ready · recheck" : "ready"}
               </span>
               <span>
-                <strong>{preview.needs_review}</strong> need individual review
+                <strong>{preview.needs_review}</strong> need attention
               </span>
             </div>
             <p className="inline-note">
@@ -305,6 +346,87 @@ export function BulkPairApproval({
               pending with their edits unsaved. A fresh server check runs before
               anything is saved.
             </p>
+            {preview.imports.length ? (
+              <section
+                className="bulk-account-reviews"
+                aria-label="Statement reporting account review"
+              >
+                <h3>Confirm the account once per statement</h3>
+                <p className="field__hint">
+                  A matching suffix is a hint. Check the original PDF against
+                  the selected account. Your confirmation is saved for this
+                  import and does not waive transaction conflicts.
+                </p>
+                {preview.imports.map((item) => (
+                  <article className="bulk-account-review" key={item.id}>
+                    <header>
+                      <strong>{item.account_name}</strong>
+                      <span
+                        className={`status-badge ${item.verified ? "status-badge--ok" : "status-badge--warning"}`}
+                      >
+                        {item.verified
+                          ? "Account confirmed by you"
+                          : "Account confirmation needed"}
+                      </span>
+                    </header>
+                    <p>
+                      Statement account: {item.account_hint} ·{" "}
+                      {item.profile.replaceAll("_", " ")}
+                    </p>
+                    {item.verified ? (
+                      <p className="field__hint">
+                        Saved for this statement. Its transactions still undergo
+                        their own checks.
+                      </p>
+                    ) : (
+                      <>
+                        {item.has_original_file ? (
+                          <details>
+                            <summary>Check original PDF</summary>
+                            <StatementOriginalViewer batchId={item.id} />
+                          </details>
+                        ) : (
+                          <p className="field__hint">
+                            No PDF is archived for this import. Check your
+                            original copy before confirming.
+                          </p>
+                        )}
+                        <label className="bulk-pair-confirm">
+                          <input
+                            type="checkbox"
+                            disabled={busy || retry}
+                            checked={accountChecks[item.id] ?? false}
+                            onChange={(event) =>
+                              setAccountChecks((current) => ({
+                                ...current,
+                                [item.id]: event.target.checked,
+                              }))
+                            }
+                          />
+                          <span>
+                            I checked the original statement and confirm it
+                            belongs to {item.account_name} ({item.account_hint}
+                            ).
+                          </span>
+                        </label>
+                        <button
+                          type="button"
+                          className="button button--primary button--small"
+                          disabled={!accountChecks[item.id] || busy || retry}
+                          onClick={() => void confirmStatementAccount(item)}
+                        >
+                          {reviewingAccount === item.id ? (
+                            <ButtonBusy label="Confirming account" />
+                          ) : (
+                            "Confirm account and recheck"
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </article>
+                ))}
+              </section>
+            ) : null}
             <details className="bulk-pair-group-tools">
               <summary>Set category or merchant for selected pairs</summary>
               <div className="bulk-pair-group-edit">
@@ -668,8 +790,9 @@ export function BulkPairApproval({
               </label>
             ) : (
               <p className="inline-note">
-                No selected pairs qualify yet. Open individual review to resolve
-                the listed issues.
+                {preview.imports.some((item) => !item.verified)
+                  ? "Confirm the statement reporting account above, then recheck the pairs. Other listed conflicts may still need individual review."
+                  : "No selected pairs qualify yet. Resolve the listed issues and recheck; financial conflicts require individual review."}
               </p>
             )}
             <p className="field__hint">
@@ -703,7 +826,11 @@ export function BulkPairApproval({
             onClick={() => void approve()}
           >
             {busy ? (
-              <ButtonBusy label="Approving batch" />
+              <ButtonBusy
+                label={
+                  reviewingAccount ? "Confirming account" : "Approving batch"
+                }
+              />
             ) : retry ? (
               "Retry approval"
             ) : (
