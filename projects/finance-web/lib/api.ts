@@ -1982,7 +1982,7 @@ export async function getTransaction(token: string, id: string, signal?: AbortSi
   return transactionSchema.parse(await response.json());
 }
 
-const pendingSourceSchema = z.object({
+export const pendingSourceSchema = z.object({
   source: z.enum(["sms", "statement"]), id: z.string(), account: z.string().nullable(), account_name: z.string(), currency: z.string(),
   date: z.string().nullable(), value_date: z.string().nullable().default(null), time: z.string().nullable(), amount: z.string().nullable(), balance_after: z.string().nullable(), direction: z.enum(["debit", "credit"]),
   type: z.string(), description: z.string(), reference: z.string(), updated_at: z.string(), version: z.number().nullable(), batch: z.string().nullable(), needs_correction: z.boolean()

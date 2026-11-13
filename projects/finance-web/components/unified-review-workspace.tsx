@@ -1,5 +1,9 @@
 "use client";
 import { formatCalendarDate, formatClockTime, formatTimestamp } from "../../finance-contracts/presentation";
+import { BULK_APPROVAL_LIMIT, pairSelectionKey, selectPagePairs, type BulkPairSelection } from "../../finance-contracts/unified-bulk";
+import { BulkPairApproval } from "./bulk-pair-approval";
+import { useTransactionRecovery, RecentTransactionAction } from "./transaction-recovery";
+import type { BulkApprovalResult } from "@/lib/bulk-approval-api";
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -365,6 +369,10 @@ export function PairDialog({ pair, smsFormInput, onCancel, onSaved, onEdit, acco
 
 export function UnifiedReviewWorkspace() {
   const { notify } = useToast();
+  const recovery = useTransactionRecovery();
+  const [bulkSelected,setBulkSelected] = useState<BulkPairSelection[]>([]);
+  const [bulkOpen,setBulkOpen] = useState(false);
+  const [bulkResult,setBulkResult] = useState<BulkApprovalResult|null>(null);
   const [page, setPage] = useState<UnifiedPendingPage | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -382,7 +390,25 @@ export function UnifiedReviewWorkspace() {
   const [selection, setSelection] = useState<{ statement: string; sms: string } | null>(null);
   const [pair, setPair] = useState<UnifiedPair | null>(null), [pairLoading, setPairLoading] = useState(false);
   const [editPair, setEditPair] = useState<UnifiedPair | null>(null);
-  const resetPagination = () => { setCursor(""); setCursorHistory([]); };
+  const resetPagination = () => { setCursor(""); setCursorHistory([]); setBulkSelected([]); };
+  const selectedKeys = useMemo(()=>new Set(bulkSelected.map(pairSelectionKey)),[bulkSelected]);
+  function toggleBulkPair(item:UnifiedPendingPair) {
+    const pair={statement:item.statement.id,sms:item.sms.id};
+    const key=pairSelectionKey(pair);
+    if(!selectedKeys.has(key)&&bulkSelected.length>=BULK_APPROVAL_LIMIT){notify(`Select up to ${BULK_APPROVAL_LIMIT} pairs per approval batch.`,"error");return;}
+    setBulkSelected(current=>selectedKeys.has(key)?current.filter(item=>pairSelectionKey(item)!==key):[...current,pair]);
+  }
+  function bulkApproved(result:BulkApprovalResult) {
+    setBulkResult(result);setBulkOpen(false);setBulkSelected([]);
+    if(result.undo_action?.can_undo) recovery.announce(result.undo_action);
+    else notify(`${result.approved.length} pairs were already processed. No duplicate entries were added.`);
+    window.dispatchEvent(new Event("finance:transactions-changed"));
+  }
+  useEffect(()=>{
+    const refreshMatches=()=>{setBulkSelected([]);setEpoch(value=>value+1);};
+    window.addEventListener("finance:transactions-changed",refreshMatches);
+    return()=>window.removeEventListener("finance:transactions-changed",refreshMatches);
+  },[]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -417,7 +443,7 @@ export function UnifiedReviewWorkspace() {
     return () => controller.abort();
   }, [selection, notify]);
 
-  function refresh() { setSelection(null); setPair(null); setPairLoading(false); setEpoch(value => value + 1); }
+  function refresh() { setSelection(null); setPair(null); setPairLoading(false); setBulkSelected([]); setEpoch(value => value + 1); }
   function clearFilters() { setAccount(""); setCondition("all"); setPeriod(allDates); setSearch(""); setQuery(""); resetPagination(); }
   function returnToPair() { if (!editPair) return; setSelection({ statement: editPair.row.id, sms: editPair.sms.id }); setEditPair(null); setEpoch(value => value + 1); }
   const showPagination = cursorHistory.length > 0 || Boolean(page?.next_cursor);
@@ -428,11 +454,15 @@ export function UnifiedReviewWorkspace() {
     <div className="unified-review-filters"><label className="field"><span className="field__label">Account</span><select className="field__control" value={account} onChange={event => { setAccount(event.target.value); resetPagination(); }}><option value="">All accounts</option>{accounts.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="field"><span className="field__label">Review condition</span><select className="field__control" value={condition} onChange={event => { setCondition(event.target.value); resetPagination(); }}><option value="all">All possible pairs</option><option value="needs_decision">Needs match decision</option><option value="strong">Strong matches</option><option value="possible">Possible matches</option><option value="balance_differs">Balance differs</option><option value="type_differs">Type differs</option><option value="needs_correction">Needs correction</option></select></label><form onSubmit={event => { event.preventDefault(); setQuery(search); resetPagination(); }} className="unified-review-search"><label className="field"><span className="field__label">Search possible pairs</span><input className="field__control" type="search" maxLength={255} value={search} onChange={event => setSearch(event.target.value)} /></label><button className="button" type="submit">Search</button></form></div>
     {page ? <><div className="unified-review-overview" aria-label="Pending source overview"><span><strong>{page.overview.matched}</strong> unique {page.overview.matched === 1 ? "pair" : "pairs"}</span><button className="button button--ghost button--small" type="button" onClick={() => { setCondition("needs_decision"); resetPagination(); }}><strong>{page.overview.ambiguous}</strong> sources need a match decision</button><Link href="/statements"><strong>{page.overview.statement_only}</strong> statement-only</Link><Link href="/messages/review"><strong>{page.overview.sms_only}</strong> SMS-only</Link></div><p className="field__hint">Possible pairs can share a source. Nothing is recorded until you review and confirm one choice.</p></> : null}
     <p className="inline-note">{loading ? "Finding possible pairs…" : error ? "Matches could not be loaded." : `${page?.count ?? 0} possible ${page?.count === 1 ? "pair" : "pairs"} found`} · Nothing is added until you confirm.</p>
+    <RecentTransactionAction />
+    {bulkResult?<p className="bulk-approval-result" role="status">{recovery.latest?.id===bulkResult.undo_action?.id&&recovery.latest?.undone?"Batch undone. Sources are back in review.":`${bulkResult.approved.length} approved · ${bulkResult.needs_review} need individual review. All sources stay attached.`}</p>:null}
+    {page?.results.length?<div className="bulk-approval-toolbar"><span role="status">{bulkSelected.length} selected · up to {BULK_APPROVAL_LIMIT} per batch</span><div className="statement-actions"><button className="button button--ghost button--small" type="button" disabled={loading||pairLoading||bulkSelected.length>=BULK_APPROVAL_LIMIT} onClick={()=>setBulkSelected(current=>selectPagePairs(current,page.results.map(item=>({statement:item.statement.id,sms:item.sms.id}))))}>Select this page (up to {BULK_APPROVAL_LIMIT})</button><button className="button button--ghost button--small" type="button" disabled={!bulkSelected.length} onClick={()=>setBulkSelected([])}>Clear selection</button><button className="button button--primary button--small" type="button" disabled={!bulkSelected.length||loading||pairLoading||!settingsReady} onClick={()=>setBulkOpen(true)}>Review selected ({bulkSelected.length})</button></div></div>:null}
     {error ? <div className="form-error" role="alert"><strong>Could not load matched sources.</strong> Your filters are still selected. {error} <button className="button button--small" type="button" onClick={refresh}>Retry</button></div> : null}{settingsError ? <p className="form-error" role="alert">Could not load accounts and categories: {settingsError} <button className="button" type="button" onClick={() => setSettingsEpoch(value => value + 1)}>Retry</button></p> : !settingsReady ? <p role="status">Loading accounts and categories…</p> : null}{pairLoading ? <p role="status">Loading matched sources…</p> : null}
     {!loading && !error && page?.count === 0 ? <div className="unified-review-empty" role="status"><h3>{condition === "all" && !query && !account && period.mode === "all" ? "No possible pairs found" : "No pairs match these filters"}</h3><p>Unmatched sources stay in their individual review pages.</p><div className="statement-actions">{condition !== "all" || query || account || period.mode !== "all" ? <button className="button" type="button" onClick={clearFilters}>Clear filters</button> : null}<Link className="button" href="/messages/review">Review SMS</Link><Link className="button" href="/statements">Review statements</Link><button className="button" type="button" onClick={refresh}>Refresh matching</button></div></div> : null}
-    <div className="unified-review-list" aria-busy={loading}>{loading && !page ? Array.from({ length: 3 }, (_, index) => <div className="unified-review-skeleton" key={index} />) : page?.results.map(item => <article className="unified-review-item" key={item.id}><div className="unified-review-item__main"><header><strong>{item.statement.account_name}</strong><span className="unified-review-amount">{item.statement.amount === null ? "Amount needed" : `${item.statement.currency} ${item.statement.amount}`} · {item.statement.direction}</span></header><p><time dateTime={`${item.statement.date ?? ""}${item.statement.time ? `T${item.statement.time}` : ""}`}>{formatStatementDateTime(item.statement.date, item.statement.time)}</time></p><div className="unified-review-source-summary"><span><small>Statement</small>{item.statement.description || "No description"}</span><span><small>SMS</small>{item.sms.description || "No description"}</span></div></div><div className="unified-review-item__actions"><div className="unified-review-badges">{item.needs_decision ? <span className="status-badge status-badge--warning">Needs match decision</span> : <span className={`status-badge ${item.match.strength === "strong" ? "status-badge--ok" : "status-badge--idle"}`}>{item.match.strength === "strong" ? "Strong match" : "Review match"}</span>}{item.match.conflict ? <span className="status-badge status-badge--warning">Reported balances differ</span> : null}<SourceDifferenceBadges item={item} />{item.statement.type !== item.sms.type ? <span className="status-badge status-badge--warning">Type differs</span> : null}{item.needs_correction ? <span className="status-badge status-badge--warning">Needs correction</span> : null}</div><button className="button button--primary" type="button" disabled={loading || pairLoading || !settingsReady} onClick={() => setSelection({ statement: item.statement.id, sms: item.sms.id })}>{item.needs_decision ? "Choose this pair" : "Review pair"}</button></div></article>)}</div>
+    <div className="unified-review-list" aria-busy={loading}>{loading && !page ? Array.from({ length: 3 }, (_, index) => <div className="unified-review-skeleton" key={index} />) : page?.results.map(item => <article className="unified-review-item" key={item.id}><label className="unified-review-select"><input type="checkbox" aria-label={`Select pair ${item.statement.account_name} ${item.statement.date} ${item.statement.amount} ${item.id}`} checked={selectedKeys.has(item.id)} disabled={loading||pairLoading} onChange={()=>toggleBulkPair(item)}/><span className="sr-only">Select pair</span></label><div className="unified-review-item__main"><header><strong>{item.statement.account_name}</strong><span className="unified-review-amount">{item.statement.amount === null ? "Amount needed" : `${item.statement.currency} ${item.statement.amount}`} · {item.statement.direction}</span></header><p><time dateTime={`${item.statement.date ?? ""}${item.statement.time ? `T${item.statement.time}` : ""}`}>{formatStatementDateTime(item.statement.date, item.statement.time)}</time></p><div className="unified-review-source-summary"><span><small>Statement</small>{item.statement.description || "No description"}</span><span><small>SMS</small>{item.sms.description || "No description"}</span></div></div><div className="unified-review-item__actions"><div className="unified-review-badges">{item.needs_decision ? <span className="status-badge status-badge--warning">Needs match decision</span> : <span className={`status-badge ${item.match.strength === "strong" ? "status-badge--ok" : "status-badge--idle"}`}>{item.match.strength === "strong" ? "Strong match" : "Review match"}</span>}{item.match.conflict ? <span className="status-badge status-badge--warning">Reported balances differ</span> : null}<SourceDifferenceBadges item={item} />{item.statement.type !== item.sms.type ? <span className="status-badge status-badge--warning">Type differs</span> : null}{item.needs_correction ? <span className="status-badge status-badge--warning">Needs correction</span> : null}</div><button className="button button--primary" type="button" disabled={loading || pairLoading || !settingsReady} onClick={() => setSelection({ statement: item.statement.id, sms: item.sms.id })}>{item.needs_decision ? "Choose this pair" : "Review pair"}</button></div></article>)}</div>
     {showPagination ? <div className="statement-actions unified-review-pagination"><button className="button" type="button" disabled={loading || cursorHistory.length === 0} onClick={() => { const history = cursorHistory.slice(0, -1); setCursor(cursorHistory[cursorHistory.length - 1] ?? ""); setCursorHistory(history); }}>Previous page</button><button className="button" type="button" disabled={loading || !page?.next_cursor} onClick={() => { if (!page?.next_cursor) return; setCursorHistory(history => [...history, cursor]); setCursor(page.next_cursor ?? ""); }}>Next page</button></div> : null}
   </div></section>
+  {bulkOpen?<BulkPairApproval pairs={bulkSelected} onClose={()=>setBulkOpen(false)} onApproved={bulkApproved} onIndividual={pair=>{setBulkOpen(false);setSelection(pair);}}/>:null}
   {pair ? <PairDialog key={`${pair.row.id}:${pair.sms.id}:${pair.row.version}`} pair={pair} accounts={accounts} categories={categories} onCancel={() => { setSelection(null); setPair(null); }} onSaved={refresh} onEdit={() => { setEditPair(pair); setSelection(null); setPair(null); }} /> : null}
   {editPair ? <StatementRowDialog editOnly key={editPair.row.id} row={editPair.row} batch={editPair.batch} accounts={accounts} categories={categories} onCancel={returnToPair} onReload={returnToPair} onNext={async () => returnToPair()} onChange={returnToPair} /> : null}
   </div>;

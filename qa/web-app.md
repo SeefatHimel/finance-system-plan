@@ -1,5 +1,14 @@
 # Web App Q&A
 
+### Can users approve several matched source pairs together?
+
+Yes: select up to 25 pairs across pages, review a same-page preview of values,
+differences, totals and blockers, then confirm the ready subset once. Ambiguous
+sources, fees, possible ledger matches and conflicting values require individual
+review. Refreshing a stale preview clears confirmation; uncertain requests reuse
+their UUID. Approval and Undo batch retain filters and refresh the queue. Undo
+uses the existing 24-hour latest-action rule, without adding a per-row checklist.
+
 ### Can an incorrect SMS balance-report account be repaired while pairing?
 
 Yes. Expand Review report accounts on an existing transfer suggestion, compare the

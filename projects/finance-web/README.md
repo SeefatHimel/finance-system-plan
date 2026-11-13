@@ -1,5 +1,14 @@
 # finance-web
 
+## Bulk approval in Matched sources
+
+Select up to 25 pairs across queue pages, open **Review selected**, inspect source
+values and totals, then approve the ready subset with one confirmation. Uncertain
+pairs stay pending for individual review. Approval and **Undo batch** refresh
+matches with filters retained. Errors use toasts; stale previews require refresh.
+This requires the bulk approval API and statements migration `0015` before web.
+See [bulk pair approval](../../docs/bulk-pair-approval.md).
+
 ## Review transfer report accounts while pairing
 
 Each existing transfer suggestion in SMS + statement review has a lazy **Review

@@ -114,8 +114,8 @@ export function TransactionRecoveryProvider({ children }: { children: ReactNode 
     if (!action || owner === null || ownerRef.current !== owner) return;
     version.current++; setLatest(action);
     const actions = [];
-    if (action.transaction) actions.push({ label: "Edit", onClick: () => edit(action.transaction!) });
-    if (action.can_undo) actions.push({ label: "Undo", onClick: () => void undo(action) });
+    if (action.transaction && action.kind !== "bulk_approve") actions.push({ label: "Edit", onClick: () => edit(action.transaction!) });
+    if (action.can_undo) actions.push({ label: action.kind === "bulk_approve" ? "Undo batch" : "Undo", onClick: () => void undo(action) });
     notify(action.label, "success", { actions: [...actions, ...extraActions], durationMs: 15000 });
   }, [edit, notify, owner, undo]);
 
@@ -140,8 +140,8 @@ export function RecentTransactionAction() {
   return <div className="recent-action" aria-label="Last transaction action">
     <span>Last action · <strong>{latest.label}</strong></span>
     <div className="recent-action__buttons">
-      {latest.transaction ? <button className="button button--ghost" type="button" disabled={busy} onClick={() => edit(latest.transaction!)}>Edit</button> : null}
-      <button className="button button--ghost" type="button" disabled={busy || !latest.can_undo} onClick={() => undo(latest)}>{busy ? "Undoing…" : "Undo"}</button>
+      {latest.transaction && latest.kind !== "bulk_approve" ? <button className="button button--ghost" type="button" disabled={busy} onClick={() => edit(latest.transaction!)}>Edit</button> : null}
+      <button className="button button--ghost" type="button" disabled={busy || !latest.can_undo} onClick={() => undo(latest)}>{busy ? "Undoing…" : latest.kind === "bulk_approve" ? "Undo batch" : "Undo"}</button>
       <HelpTooltip label="About undo">Undo is available for the latest action for 24 hours, while its transaction and linked reports remain unchanged. It reverses that action; original SMS already removed by your retention policy cannot be restored.</HelpTooltip>
     </div>
   </div>;
