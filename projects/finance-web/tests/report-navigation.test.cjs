@@ -79,7 +79,9 @@ test('report library search and sort restore without mutating saved definitions'
   assert.deepEqual(filterReportLibrary(reports,'','period').map(row=>row.id),['c','a','b']);
   assert.deepEqual(filterReportLibrary(reports,'unknown','name'),[]);
   assert.deepEqual(reports.map(row=>row.id),['a','b','c']);
-  assert.deepEqual(reportListState(reportListQuery('Household','name')),{search:'Household',sort:'name'});
+  assert.deepEqual(reportListState(reportListQuery('Household','name')),{search:'Household',sort:'name',currency:''});
+  assert.deepEqual(reportListState(reportListQuery('Household','period','USD')),{search:'Household',sort:'period',currency:'USD'});
+  assert.deepEqual(filterReportLibrary(reports,'','name','USD').map(row=>row.id),['c']);
   assert.equal(reportListState('?sort=invalid').sort,'updated');
   assert.equal(reportScopeSummary({account:'legacy',filters:{excluded_categories:['uncategorized']}}),'1 account · All categories · 1 exclusion');
 });

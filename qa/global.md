@@ -478,3 +478,14 @@ report details. The details page supports comparisons, breakdowns, export and
 explicit transaction-selection management. Duplicate creates another definition;
 delete never deletes ledger transactions. This separates discovery, reading and
 editing while keeping one effective selection for all results.
+## Custom account statements
+
+### Can a user make a date-range report per account with an editable starting balance?
+
+Yes. Saved reports have an Account statements view with opening, full-range
+transactions, money in/out and closing per selected account. Users can retain
+ledger opening, use an eligible last reported balance carried forward to the
+range, or save a signed manual opening for that report. The setting never repairs
+or reconciles the ledger. Actual ledger references remain visible. Analysis and
+account statements are distinct views because filtering out a category or manually
+removing an analysis entry must not masquerade as an account's true closing balance.

@@ -18,6 +18,7 @@ from apps.transactions.serializers import TransactionSerializer
 from .models import ReportMembership, SavedReport
 from .periods import custom_bounds
 from .rules import ReportRulesSerializer, filter_report_records
+from .statements import AccountStatementQuery, AccountStatementPageSerializer, OpeningBalanceSerializer
 
 
 def report_records(report, *, start=None, end=None, manual=True):
@@ -34,10 +35,11 @@ def report_records(report, *, start=None, end=None, manual=True):
 class SavedReportSerializer(serializers.ModelSerializer):
     account = serializers.PrimaryKeyRelatedField(queryset=Account.objects.none(), allow_null=True, required=False)
     filters = ReportRulesSerializer(required=False, default=dict)
+    opening_balances = serializers.DictField(child=OpeningBalanceSerializer(), required=False, default=dict)
 
     class Meta:
         model = SavedReport
-        fields = ("id", "name", "start_date", "end_date", "date_view", "account", "currency", "filters", "created_at", "updated_at")
+        fields = ("id", "name", "start_date", "end_date", "date_view", "account", "currency", "filters", "report_view", "opening_balances", "created_at", "updated_at")
         read_only_fields = ("id", "created_at", "updated_at")
 
     def __init__(self, *args, **kwargs):
@@ -70,7 +72,32 @@ class SavedReportSerializer(serializers.ModelSerializer):
         ids = rules.get("accounts", []) + rules.get("excluded_accounts", [])
         if Account.objects.filter(user=self.context["request"].user, pk__in=ids).exclude(currency=attrs["currency"]).exists():
             raise serializers.ValidationError({"filters": "All selected accounts must use the report currency."})
+        openings = value("opening_balances", {})
+        if Account.objects.filter(user=self.context["request"].user, pk__in=openings).exclude(currency=attrs["currency"]).exists():
+            raise serializers.ValidationError({"opening_balances": "Opening balances must use the report currency."})
         return attrs
+
+    def validate_opening_balances(self, values):
+        from uuid import UUID
+        from .statements import OpeningBalanceSerializer
+        if len(values) > 100:
+            raise serializers.ValidationError("Set opening balances for at most 100 accounts.")
+        result = {}
+        for key, value in values.items():
+            try:
+                account_id = str(UUID(key))
+            except (ValueError, TypeError, AttributeError) as exc:
+                raise serializers.ValidationError("Opening balances must reference your account IDs.") from exc
+            if account_id in result:
+                raise serializers.ValidationError("Do not repeat an account with different ID formatting.")
+            serializer = OpeningBalanceSerializer(data=value)
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
+            result[account_id] = {"mode": data["mode"], **({"amount": f'{data["amount"]:.2f}'} if data["mode"] == "manual" else {})}
+        accounts = Account.objects.filter(user=self.context["request"].user, pk__in=result)
+        if accounts.count() != len(result):
+            raise serializers.ValidationError("Choose your own accounts for opening balances.")
+        return result
 
 
 class ReportPreviewSerializer(SavedReportSerializer):
@@ -177,3 +204,10 @@ class SavedReportViewSet(ModelViewSet):
                 raise serializers.ValidationError({"transaction": "Choose a transaction in the report currency."})
             ReportMembership.objects.update_or_create(report=report, transaction=record, defaults={"included": values["action"] == "include"})
         return Response(self.get_serializer(report).data)
+
+    @extend_schema(parameters=[AccountStatementQuery], responses=AccountStatementPageSerializer)
+    @action(detail=True, methods=("get",), url_path="account-statements")
+    def account_statements(self, request, pk=None):
+        from .statements import statement_response, statement_snapshot
+        with statement_snapshot():
+            return statement_response(self.get_object(), request.query_params)

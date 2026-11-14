@@ -1,5 +1,14 @@
 # finance-contracts
 
+## Custom report account statements
+
+Custom reports include a default `report_view` and owner/currency-validated
+`opening_balances` settings. The account-statements endpoint returns paginated
+running balances or complete selected-account CSV (`export=csv`, 50,000-row cap).
+Generated client return types include JSON/Blob unions for endpoints offering both.
+See [report semantics](../../docs/custom-reports.md) before interpreting report-only
+openings, reported/card references, unknown times, or analysis-versus-ledger scope.
+
 ## Statement account review in bulk previews
 
 `BulkApprovalPreview.imports` contains account-review contexts for selected imports

@@ -4391,6 +4391,79 @@
         ]
       }
     },
+    "/api/reports/saved/{id}/account-statements/": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "account",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "export",
+            "schema": {
+              "enum": [
+                "csv"
+              ],
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatementPage"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/reports/saved/{id}/membership/": {
       "post": {
         "parameters": [
@@ -7802,6 +7875,202 @@
       ],
       "type": "object"
     },
+    "AccountStatementEntry": {
+      "properties": {
+        "category": {
+          "nullable": true,
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "money_in": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,22}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "money_out": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,22}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "running_balance": {
+          "format": "decimal",
+          "nullable": true,
+          "pattern": "^-?\\d{0,22}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "time": {
+          "format": "time",
+          "nullable": true,
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "date",
+        "description",
+        "id",
+        "money_in",
+        "money_out",
+        "running_balance",
+        "time",
+        "type"
+      ],
+      "type": "object"
+    },
+    "AccountStatementPage": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+        },
+        "accounts": {
+          "items": {
+            "$ref": "#/components/schemas/AccountStatementSummary"
+          },
+          "type": "array"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "end_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "next_offset": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "notice": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/components/schemas/AccountStatementEntry"
+          },
+          "type": "array"
+        },
+        "start_date": {
+          "format": "date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "account",
+        "accounts",
+        "count",
+        "end_date",
+        "next_offset",
+        "notice",
+        "offset",
+        "results",
+        "start_date"
+      ],
+      "type": "object"
+    },
+    "AccountStatementSummary": {
+      "properties": {
+        "account": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "closing_balance": {
+          "format": "decimal",
+          "nullable": true,
+          "pattern": "^-?\\d{0,22}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "last_reported_balance": {
+          "format": "decimal",
+          "nullable": true,
+          "pattern": "^-?\\d{0,22}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "last_reported_date": {
+          "format": "date",
+          "nullable": true,
+          "type": "string"
+        },
+        "ledger_closing_balance": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,22}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "ledger_opening_balance": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,22}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "money_in": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,22}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "money_out": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,22}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "opening_balance": {
+          "format": "decimal",
+          "nullable": true,
+          "pattern": "^-?\\d{0,22}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "opening_mode": {
+          "$ref": "#/components/schemas/OpeningModeEnum"
+        },
+        "reported_opening_balance": {
+          "format": "decimal",
+          "nullable": true,
+          "pattern": "^-?\\d{0,22}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "reported_unavailable_reason": {
+          "type": "string"
+        },
+        "transaction_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "account",
+        "closing_balance",
+        "currency",
+        "last_reported_balance",
+        "last_reported_date",
+        "ledger_closing_balance",
+        "ledger_opening_balance",
+        "money_in",
+        "money_out",
+        "name",
+        "opening_balance",
+        "opening_mode",
+        "reported_opening_balance",
+        "reported_unavailable_reason",
+        "transaction_count"
+      ],
+      "type": "object"
+    },
     "AccountTypeEnum": {
       "enum": [
         "cash",
@@ -10628,6 +10897,14 @@
       ],
       "type": "string"
     },
+    "ModeEnum": {
+      "enum": [
+        "ledger",
+        "reported",
+        "manual"
+      ],
+      "type": "string"
+    },
     "ObservedCode": {
       "properties": {
         "account": {
@@ -10706,6 +10983,30 @@
         "results"
       ],
       "type": "object"
+    },
+    "OpeningBalance": {
+      "properties": {
+        "amount": {
+          "format": "decimal",
+          "pattern": "^-?\\d{0,12}(?:\\.\\d{0,2})?$",
+          "type": "string"
+        },
+        "mode": {
+          "$ref": "#/components/schemas/ModeEnum"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "type": "object"
+    },
+    "OpeningModeEnum": {
+      "enum": [
+        "ledger",
+        "reported",
+        "manual"
+      ],
+      "type": "string"
     },
     "OriginEnum": {
       "enum": [
@@ -11921,6 +12222,15 @@
         "name": {
           "maxLength": 160,
           "type": "string"
+        },
+        "opening_balances": {
+          "additionalProperties": {
+            "$ref": "#/components/schemas/OpeningBalance"
+          },
+          "type": "object"
+        },
+        "report_view": {
+          "$ref": "#/components/schemas/ReportViewEnum"
         },
         "start_date": {
           "format": "date",
@@ -13261,6 +13571,15 @@
           "maxLength": 160,
           "type": "string"
         },
+        "opening_balances": {
+          "additionalProperties": {
+            "$ref": "#/components/schemas/OpeningBalance"
+          },
+          "type": "object"
+        },
+        "report_view": {
+          "$ref": "#/components/schemas/ReportViewEnum"
+        },
         "saved_report": {
           "format": "uuid",
           "type": "string",
@@ -13384,6 +13703,13 @@
         "results"
       ],
       "type": "object"
+    },
+    "ReportViewEnum": {
+      "enum": [
+        "analysis",
+        "account_statement"
+      ],
+      "type": "string"
     },
     "RevalidationApply": {
       "properties": {
@@ -13751,6 +14077,15 @@
         "name": {
           "maxLength": 160,
           "type": "string"
+        },
+        "opening_balances": {
+          "additionalProperties": {
+            "$ref": "#/components/schemas/OpeningBalance"
+          },
+          "type": "object"
+        },
+        "report_view": {
+          "$ref": "#/components/schemas/ReportViewEnum"
         },
         "start_date": {
           "format": "date",

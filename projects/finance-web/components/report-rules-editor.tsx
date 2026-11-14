@@ -36,14 +36,14 @@ function RuleChoices({ label, values, selected, onChange }: { label: string; val
   return <fieldset className="report-choice-group"><legend>{label}</legend><div>{values.map(value => <label key={value}><input type="checkbox" checked={selected.includes(value)} onChange={() => onChange(selected.includes(value) ? selected.filter(row => row !== value) : [...selected, value])} /> {displayLabel(value)}</label>)}</div><small className="muted-text">No selection includes all.</small></fieldset>;
 }
 
-export function ReportRulesEditor({ value, onChange, currency, accounts, categories }: { value: ReportRules; onChange: (rules: ReportRules) => void; currency: string; accounts: Account[]; categories: Category[] }) {
+export function ReportRulesEditor({ value, onChange, currency, accounts, categories, accountsOnly = false }: { accountsOnly?: boolean; value: ReportRules; onChange: (rules: ReportRules) => void; currency: string; accounts: Account[]; categories: Category[] }) {
   return <div className="report-rules-editor">
-    <p className="muted-text">Match any included account and any included category, then apply exclusions and the filters below. Manual additions override these rules; removed transactions stay excluded.</p>
+    <p className="muted-text">{accountsOnly ? "Choose any number of accounts in this currency. Statements use every recorded movement in the selected dates; analysis-only filters and manual membership are kept separately." : "Match any included account and any included category, then apply exclusions. Manual additions override these rules; removed transactions stay excluded."}</p>
     <div className="report-scope-grid">
       <ScopePicker label="Accounts" field="accounts" value={value} onChange={onChange} options={accounts.map(row => ({ id: row.id, name: row.name, detail: row.currency === currency ? row.currency : `${row.currency} · switch report currency to select`, disabled: row.currency !== currency }))} />
-      <ScopePicker label="Categories" field="categories" value={value} onChange={onChange} options={[{ id: "uncategorized", name: "Uncategorized" }, ...categories.map(row => ({ id: row.id, name: row.name, detail: displayLabel(row.kind) }))]} />
+      {!accountsOnly ? <ScopePicker label="Categories" field="categories" value={value} onChange={onChange} options={[{ id: "uncategorized", name: "Uncategorized" }, ...categories.map(row => ({ id: row.id, name: row.name, detail: `${row.parent ? `${categories.find(parent => parent.id === row.parent)?.name ?? "Parent category"} · ` : ""}${displayLabel(row.kind)}` }))]} /> : null}
     </div>
-    <p className="muted-text">Transfers match either selected account and count once. Excluding an account removes transactions involving it. Category selections use the exact category.</p>
+    {!accountsOnly ? <><p className="muted-text">Transfers match either selected account and count once. Excluding an account removes transactions involving it. Category selections use the exact category.</p>
     <label className="field"><span className="field__label">Search merchant, reference or notes</span><input className="field__control" value={value.search} maxLength={256} onChange={event => onChange({ ...value, search: event.target.value })} placeholder="e.g. groceries or a project reference" /></label>
     <details className="report-advanced-filters"><summary>Transaction filters and amount limits</summary><div className="report-advanced-filters__body">
       <RuleChoices label="Transaction types" values={["expense", "fee", "refund", "income", "transfer", "adjustment", "lend", "borrow", "repayment_received", "repayment_paid"]} selected={value.types} onChange={types => onChange({ ...value, types })} />
@@ -52,6 +52,6 @@ export function ReportRulesEditor({ value, onChange, currency, accounts, categor
       <p className="muted-text">For selected accounts, transfer direction follows those accounts; an internal transfer can match either direction. Amount limits apply to each transaction.</p>
       <div className="transaction-form"><label className="field"><span className="field__label">Minimum amount ({currency})</span><input type="number" min="0" step="0.01" className="field__control" value={value.min_amount ?? ""} onChange={event => onChange({ ...value, min_amount: event.target.value || null })} /></label><label className="field"><span className="field__label">Maximum amount ({currency})</span><input type="number" min="0" step="0.01" className="field__control" value={value.max_amount ?? ""} onChange={event => onChange({ ...value, max_amount: event.target.value || null })} /></label></div>
     </div></details>
-    <button className="button button--ghost" type="button" onClick={() => onChange(emptyReportRules())}>Clear all report rules</button>
+    <button className="button button--ghost" type="button" onClick={() => onChange(emptyReportRules())}>Clear all report rules</button></> : null}
   </div>;
 }

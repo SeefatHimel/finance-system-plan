@@ -93,7 +93,8 @@ def response_type(operation: dict[str, Any]) -> str:
             continue
         content = response.get("content", {})
         if "application/json" in content:
-            return ts_type(content["application/json"].get("schema"))
+            result = ts_type(content["application/json"].get("schema"))
+            return result + " | Blob" if "text/csv" in content or "application/pdf" in content else result
         if "text/csv" in content or "application/pdf" in content:
             return "Blob"
         if status == "204":

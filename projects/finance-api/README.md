@@ -1,5 +1,14 @@
 # finance-api
 
+## Custom report account statements
+
+Saved reports support per-account statements with opening, movement, closing and
+paginated running balances. Opening settings are report metadata: ledger, eligible
+last reported balance carried forward, or a signed manual amount. They never
+change account or transaction balances. See [report semantics](../../docs/custom-reports.md).
+Apply `reports.0003_account_statement_settings` before deploying the updated web
+client. Verify with `python manage.py test apps.reports` against a disposable database.
+
 ## Bulk review query optimization
 
 Bulk preview batches source discovery. Eligible ordinary approvals now retain

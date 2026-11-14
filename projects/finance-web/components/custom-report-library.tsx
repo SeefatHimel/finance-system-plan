@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowClockwise, Plus } from "@phosphor-icons/react";
+import { ArrowClockwise, Plus, Files, ArrowRight, ChartBar, Receipt, TrendUp } from "@phosphor-icons/react";
 import { listSavedReports, deleteSavedReport, type SavedReport } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { customReportListKey, customReportPath, customReportEditPath } from "@/lib/report-navigation";
 import { filterReportLibrary, reportListQuery, reportListState, reportScopeSummary, type ReportListSort } from "@/lib/custom-report-library";
 import { formatCalendarDate, formatTimestamp } from "../../finance-contracts/presentation";
 import { ModalDialog } from "@/components/modal-dialog";
+import { reportStarters } from "@/lib/report-presentation";
+import { savedReportRules } from "@/lib/report-rules";
 
 export function CustomReportLibrary() {
   const [reports, setReports] = useState<SavedReport[]>([]);
@@ -17,6 +19,7 @@ export function CustomReportLibrary() {
   const [revision, setRevision] = useState(0);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<ReportListSort>("updated");
+  const [currency, setCurrency] = useState("");
   const [ready, setReady] = useState(false);
   const [deleting, setDeleting] = useState<SavedReport | null>(null);
   const [busy, setBusy] = useState(false);
@@ -26,16 +29,16 @@ export function CustomReportLibrary() {
     const restore = () => {
       let query = window.location.search;
       if (!query) { try { query = sessionStorage.getItem(customReportListKey) ?? ""; } catch {} }
-      const state = reportListState(query); setSearch(state.search); setSort(state.sort); setReady(true);
+      const state = reportListState(query); setSearch(state.search); setSort(state.sort); setCurrency(state.currency); setReady(true);
     };
     restore(); window.addEventListener("popstate", restore); return () => window.removeEventListener("popstate", restore);
   }, []);
   useEffect(() => {
     if (!ready) return;
-    const query = reportListQuery(search, sort);
+    const query = reportListQuery(search, sort, currency);
     window.history.replaceState(window.history.state, "", `/custom-reports${query ? `?${query}` : ""}`);
     try { sessionStorage.setItem(customReportListKey, query); } catch {}
-  }, [ready, search, sort]);
+  }, [ready, search, sort, currency]);
   useEffect(() => {
     const token = getAccessToken(); if (!token) { setError("Sign in to view your reports."); setLoading(false); return; }
     const controller = new AbortController(); setLoading(true); setError("");
@@ -51,26 +54,26 @@ export function CustomReportLibrary() {
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not delete report."); setDeleting(null); }
     finally { mutation.current = false; setBusy(false); }
   }
-  const visible = filterReportLibrary(reports, search, sort);
-  return <div className="workspace-grid report-workspace">
-    <header className="report-page-heading"><div><h1>Custom reports</h1><p>Find a saved report, open its results, or create a new one.</p></div><div className="report-actions"><button className="icon-button" aria-label="Refresh report list" disabled={loading} onClick={() => setRevision(value => value + 1)}><ArrowClockwise size={20} /></button><Link className="button button--primary" href="/custom-reports/new"><Plus size={18} /> New report</Link></div></header>
+  const visible = filterReportLibrary(reports, search, sort, currency);
+  return <div className="workspace-grid report-workspace custom-report-library">
+    <header className="report-page-heading"><div><span className="report-eyebrow">Your reporting workspace</span><h1>Custom reports</h1><p>Save the questions you ask about your money. Return to the answers anytime.</p></div><div className="report-actions"><button className="icon-button" aria-label="Refresh report list" disabled={loading} onClick={() => setRevision(value => value + 1)}><ArrowClockwise size={20} /></button><Link className="button button--primary" href="/custom-reports/new"><Plus size={18} aria-hidden="true" /> New report</Link></div></header>
     <section className="panel"><div className="panel__body">
-      <div className="report-library-toolbar"><label className="field"><span className="field__label">Search reports</span><input type="search" className="field__control" value={search} maxLength={256} placeholder="Search by report name or currency" onChange={event => setSearch(event.target.value)} /></label><label className="field"><span className="field__label">Sort reports</span><select aria-label="Sort reports" className="field__control" value={sort} onChange={event => setSort(event.target.value as ReportListSort)}><option value="updated">Recently updated</option><option value="name">Report name</option><option value="period">Newest reporting period</option></select></label></div>
+      <div className="report-library-toolbar"><label className="field"><span className="field__label">Search reports</span><input type="search" className="field__control" value={search} maxLength={256} placeholder="Search by report name or currency" onChange={event => setSearch(event.target.value)} /></label><label className="field"><span className="field__label">Report currency</span><select className="field__control" aria-label="Report currency" value={currency} onChange={event => setCurrency(event.target.value)}><option value="">All currencies</option>{Array.from(new Set([...reports.map(row => row.currency), ...(currency ? [currency] : [])])).sort().map(value => <option key={value}>{value}</option>)}</select></label><label className="field"><span className="field__label">Sort reports</span><select aria-label="Sort reports" className="field__control" value={sort} onChange={event => setSort(event.target.value as ReportListSort)}><option value="updated">Recently updated</option><option value="name">Report name</option><option value="period">Newest reporting period</option></select></label></div>
       {error ? <div role="alert" className="form-error"><p>{error}</p><button className="button button--ghost" onClick={() => setRevision(value => value + 1)}>Retry loading reports</button></div> : null}
       {message ? <p role="status">{message}</p> : null}
       {loading ? <p role="status">Loading your saved reports…</p> : null}
       {!loading && !error ? <>
-        <p className="muted-text">{visible.length} {visible.length === 1 ? "report" : "reports"}{search ? ` matching “${search}”` : " saved"}</p>
+        <div className="report-library-count"><span><Files size={16} aria-hidden="true" />{visible.length} {visible.length === 1 ? "report" : "reports"}{search ? ` matching “${search}”` : " saved"}</span>{search || currency ? <button className="report-text-button" onClick={() => { setSearch(""); setCurrency(""); }}>Clear filters</button> : <small>Fixed periods · Live matching activity</small>}</div>
         <div className="report-library-list">{visible.map(row => <article className="report-library-row" key={row.id} aria-labelledby={`report-${row.id}`}>
-          <div className="report-library-title"><h2 id={`report-${row.id}`}><Link href={customReportPath(row.id)}>{row.name}</Link></h2><span className="report-currency-label">{row.currency}</span></div>
-          <div><small className="field__label">Period</small><p>{formatCalendarDate(row.start_date)}–{formatCalendarDate(row.end_date)}</p></div>
-          <div><small className="field__label">Scope</small><p>{reportScopeSummary(row)}</p></div>
-          <div><small className="field__label">Updated</small><p>{formatTimestamp(row.updated_at)}</p></div>
-          <div className="report-library-row-actions"><Link className="button button--primary" href={customReportPath(row.id)}>View report</Link><Link className="button button--ghost" href={customReportEditPath(row.id)}>Edit</Link><Link className="button button--ghost" href={`/custom-reports/new?copy_from=${row.id}`}>Duplicate</Link><button className="button button--ghost" onClick={() => setDeleting(row)}>Delete</button></div>
+          <div className="report-library-title"><div className="report-library-icon"><ChartBar size={22} aria-hidden="true" /></div><div><h2 id={`report-${row.id}`}><Link href={customReportPath(row.id)}>{row.name}</Link></h2><span className="report-currency-label">{row.currency} · {savedReportRules(row).types.length ? savedReportRules(row).types.map(type => type.replaceAll("_", " ")).join(", ") : "All activity"}</span></div></div>
+          <div className="report-library-period"><small className="field__label">Reporting period</small><p>{row.date_view === "monthly" ? new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${row.start_date}T00:00:00Z`)) : `${formatCalendarDate(row.start_date)}–${formatCalendarDate(row.end_date)}`}</p><small className="muted-text">{reportScopeSummary(row)}</small></div>
+          <div className="report-library-updated"><small className="field__label">Definition updated</small><p>{formatTimestamp(row.updated_at)}</p></div>
+          <div className="report-library-row-actions"><Link className="button button--ghost" href={customReportPath(row.id)}>View report<ArrowRight size={16} aria-hidden="true" /></Link><details className="report-more-actions"><summary role="button" aria-label={`More actions for ${row.name}`}>More</summary><div className="report-action-menu"><Link href={customReportEditPath(row.id)}>Edit</Link><Link href={`/custom-reports/new?copy_from=${row.id}`}>Duplicate</Link><button type="button" onClick={() => setDeleting(row)}>Delete</button></div></details></div>
         </article>)}</div>
-        {!visible.length ? <div className="report-library-empty"><h2>{search ? "No matching reports" : "Create your first custom report"}</h2><p>{search ? "Try another name or clear the search." : "Choose accounts, categories and exclusions, then save a report you can run again."}</p>{search ? <button className="button button--ghost" onClick={() => setSearch("")}>Clear search</button> : <Link className="button button--primary" href="/custom-reports/new">Create report</Link>}</div> : null}
+        {!visible.length ? <div className="report-library-empty"><Files size={36} aria-hidden="true" /><h2>{search || currency ? "No matching reports" : "Create your first custom report"}</h2><p>{search || currency ? "Try another name or clear the filters." : "Start with a template below, or choose your own accounts, categories and exclusions."}</p>{search || currency ? <button className="button button--ghost" onClick={() => { setSearch(""); setCurrency(""); }}>Clear filters</button> : <Link className="button button--primary" href="/custom-reports/new">Create report</Link>}</div> : null}
       </> : null}
     </div></section>
+    <section className="report-starters" aria-label="Report templates"><div className="report-panel-heading"><div><span className="report-eyebrow">A useful starting point</span><h2>Start with a template</h2></div><p>Customize every selection before saving.</p></div><div className="report-starter-grid">{reportStarters.map((starter, index) => { const Icon = [Files, ChartBar, Receipt, TrendUp][index]; return <Link className="report-starter" href={`/custom-reports/new?template=${starter.id}`} key={starter.id}><Icon size={24} aria-hidden="true" /><strong>{starter.name}</strong><span>{starter.description}</span><small>Customize report <ArrowRight size={13} aria-hidden="true" /></small></Link>; })}</div></section>
     {deleting ? <ModalDialog labelledBy="delete-library-report" busy={busy} onCancel={() => setDeleting(null)}><div className="panel__body"><h2 id="delete-library-report">Delete {deleting.name}?</h2><p>The saved definition and its manual transaction choices will be deleted. Your ledger transactions stay unchanged.</p><div className="report-actions"><button className="button button--ghost" disabled={busy} onClick={() => setDeleting(null)}>Cancel</button><button className="button button--primary" disabled={busy} onClick={() => void remove()}>{busy ? "Deleting…" : "Delete report"}</button></div></div></ModalDialog> : null}
   </div>;
 }

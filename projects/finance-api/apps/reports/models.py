@@ -14,6 +14,8 @@ class SavedReport(models.Model):
     account = models.ForeignKey("accounts.Account", null=True, blank=True, on_delete=models.PROTECT)
     currency = models.CharField(max_length=3, default="BDT")
     filters = models.JSONField(default=dict, blank=True)
+    report_view = models.CharField(max_length=24, default="analysis", choices=(("analysis", "Analysis"), ("account_statement", "Account statement")))
+    opening_balances = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

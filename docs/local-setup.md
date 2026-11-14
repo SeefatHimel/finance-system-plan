@@ -869,6 +869,21 @@ synthetic production browser fixture running, use
 `npm run test:e2e -- e2e/custom-reports.spec.ts` to check create/view/edit/duplicate,
 list return context and discard behavior on desktop and mobile.
 
+### Report design and account statements
+
+Apply `reports.0003_account_statement_settings` with `python manage.py migrate`
+before deploying the updated web client. It adds a default report view and
+per-account report-only opening settings. No ledger/account starting balance is
+rewritten. See [Custom reports and account statements](custom-reports.md).
+
+Run `python manage.py test apps.reports` on PostgreSQL, including concurrent
+statement-read verification. Web checks include
+`node --test tests/report-navigation.test.cjs tests/report-presentation.test.cjs`,
+typecheck/lint/build, and `npm run test:e2e -- e2e/custom-reports.spec.ts` in the
+disposable browser workspace described above. Use the Chromium revision matching
+the installed Playwright package. Regenerate/check the API schema and TypeScript
+client when changing statement fields; commands are in the contracts README.
+
 For duplicate-merge browser verification, migrate transactions through 0014 and
 run `python manage.py seed_merge_browser` after `seed_quality_browser` against a
 disposable `finance_e2e_*` database only. Use the web production build/start for

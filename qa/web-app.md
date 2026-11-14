@@ -2051,6 +2051,31 @@ changes prompt before in-app navigation. Duplicate copies rules without manual
 choices. Nested routes require authentication and remain valid login/drill-through
 return paths. These are client workflow changes using existing owner-scoped APIs.
 
+### How are custom reports easier to build and interpret?
+
+The library has currency filtering, compact report rows and editable starter
+templates. The builder separates name/period from selection, provides fixed-date
+shortcuts and removable scope chips, and prevents invalid amount ranges from
+being previewed or saved. Detail pages expose scope before results. Analysis has
+daily/monthly income/spending or cash-flow charts and accessible table views;
+category/merchant rankings separate net refunds and offer transaction drill-through.
+Shares exclude net-refund categories, and comparisons avoid misleading percentages
+for zero/negative baselines. Charts reuse API aggregates and load their renderer
+separately. Mobile has a preview jump link and wrapping controls.
+
+### How do per-account reports choose starting and ending balances?
+
+Each saved report can default to Analysis or Account statements, and its detail
+view can switch between both. Statements list every recorded account movement in
+the saved dates, independently of analysis filters/manual membership. Each account
+shows opening, money in/out, closing and paginated running balances. Opening can
+use ledger history, an eligible earlier reported balance carried forward, or a
+signed manual amount. Editing/saving this setting changes only the report. The
+original reported amount/date and ledger opening/closing remain inspectable.
+Unknown/ambiguous/card reference balances require manual confirmation. CSV uses
+the same complete statement; account/view selection survives drill-through and
+reload. See docs/custom-reports.md for the exact semantics and limitations.
+
 ### Why does the web app expose a mobile release manifest?
 
 The public `/mobile-release.json` route reads the highest-code published mobile APK release

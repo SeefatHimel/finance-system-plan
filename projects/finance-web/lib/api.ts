@@ -98,7 +98,8 @@ const categorySchema = z.object({
   is_active: z.boolean().default(true),
   id: z.string(),
   kind: z.string(),
-  name: z.string()
+  name: z.string(),
+  parent: z.string().nullable().optional()
 });
 
 const categoryUsageSchema = z.object({
@@ -1409,10 +1410,39 @@ const reportRulesSchema = z.object({
 const savedReportSchema = z.object({
   id: z.string().uuid(), name: z.string(), start_date: z.string(), end_date: z.string(),
   date_view: z.enum(["daily", "monthly", "custom"]), account: z.string().nullable(), currency: z.string(),
-  created_at: z.string(), updated_at: z.string(), filters: reportRulesSchema.default(emptyReportRules())
+  created_at: z.string(), updated_at: z.string(), filters: reportRulesSchema.default(emptyReportRules()),
+  report_view: z.enum(["analysis", "account_statement"]).default("analysis"),
+  opening_balances: z.record(z.string(), z.object({ mode: z.enum(["ledger", "reported", "manual"]), amount: z.string().optional() })).default({})
 });
 export type SavedReport = z.infer<typeof savedReportSchema>;
-export type SavedReportInput = Pick<SavedReport, "name" | "start_date" | "end_date" | "date_view" | "account" | "currency" | "filters">;
+export type SavedReportInput = Pick<SavedReport, "name" | "start_date" | "end_date" | "date_view" | "account" | "currency" | "filters"> & Partial<Pick<SavedReport, "report_view" | "opening_balances">>;
+export type ReportOpeningBalance = SavedReport["opening_balances"][string];
+
+const accountStatementSummarySchema = z.object({
+  account: z.string(), name: z.string(), currency: z.string(), opening_mode: z.enum(["ledger", "reported", "manual"]),
+  opening_balance: z.string().nullable(), closing_balance: z.string().nullable(),
+  ledger_opening_balance: z.string(), ledger_closing_balance: z.string(), money_in: z.string(), money_out: z.string(), transaction_count: z.number(),
+  reported_opening_balance: z.string().nullable(), last_reported_balance: z.string().nullable(), last_reported_date: z.string().nullable(), reported_unavailable_reason: z.string(),
+});
+const accountStatementPageSchema = z.object({
+  start_date: z.string(), end_date: z.string(), accounts: z.array(accountStatementSummarySchema), account: z.string().nullable(),
+  count: z.number(), offset: z.number(), next_offset: z.number().nullable(), notice: z.string(),
+  results: z.array(z.object({ id: z.string(), date: z.string(), time: z.string().nullable(), type: z.string(), description: z.string(), category: z.string().nullable(), money_in: z.string(), money_out: z.string(), running_balance: z.string().nullable() })),
+});
+export type AccountStatementPage = z.infer<typeof accountStatementPageSchema>;
+export async function getAccountStatements(token: string, id: string, account = "", offset = 0, signal?: AbortSignal): Promise<AccountStatementPage> {
+  const params = new URLSearchParams({ offset: String(offset), limit: "25", ...(account ? { account } : {}) });
+  const response = await authenticatedFetch(`/api/reports/saved/${id}/account-statements/?${params}`, token, { signal });
+  return accountStatementPageSchema.parse(await response.json());
+}
+export async function saveReportOpeningBalances(token: string, report: SavedReport, account: string, value: ReportOpeningBalance) {
+  const response = await authenticatedFetch(`/api/reports/saved/${report.id}/`, token, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opening_balances: { ...report.opening_balances, [account]: value } }) });
+  return savedReportSchema.parse(await response.json());
+}
+export async function exportAccountStatement(token: string, report: string, account: string): Promise<Blob> {
+  const response = await authenticatedFetch(`/api/reports/saved/${report}/account-statements/?${new URLSearchParams({ account, export: "csv" })}`, token);
+  return response.blob();
+}
 
 export async function previewSavedReport(token: string, input: SavedReportInput, saved_report?: string, signal?: AbortSignal): Promise<MonthlyReport> {
   const response = await authenticatedFetch("/api/reports/saved/preview/", token, { method: "POST", signal,

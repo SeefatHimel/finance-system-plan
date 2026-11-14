@@ -1670,3 +1670,23 @@ duplicates require an explicit signed preview; the existing merge engine retains
 SMS, statement and spreadsheet links. Retry receipts and one Undo action cover
 the whole operation. Legacy redacted evidence is not guessed. Migration 0017
 adds indexed source identity and request receipts, without rewriting ledger data.
+
+## Account-statement reporting
+
+### How are opening, closing and running balances calculated without rewriting history?
+
+SavedReport stores a default `report_view` and an `opening_balances` JSON map of
+owner-account choices. Missing settings use the ledger immediately before the
+range. Reported openings reuse eligible account-bound evidence strictly before
+the range, adjusted by intervening ledger movements. Manual openings accept signed
+amounts, including zero. Neither choice writes Account.starting_balance or ledger
+transactions. Credit-card references and ambiguous timing are not converted by
+guessing; unavailable reported openings remain null until a valid choice is made.
+
+The statement action uses all account movements in the inclusive period, so
+analysis categories/types and report membership cannot distort account closing.
+Both sides of transfers use the shared ledger policy. SQL aggregates compute
+movements and window sums compute running balances before LIMIT/OFFSET. PostgreSQL
+reads use a read-only repeatable-read transaction; a concurrent-write test verifies
+the opening/closing/page snapshot. Owner/currency validation, bounded pages and
+CSV caps are enforced. Apply reports.0003_account_statement_settings first.

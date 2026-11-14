@@ -1123,3 +1123,21 @@ returns a no-store signed 15-minute preview; POST requires explicit confirmation
 and a request UUID. The server checks source and related ledger fingerprints
 under the user lock, rejects stale/foreign previews, preserves original evidence,
 and returns an Undo action. Retry receipts reject reuse after Undo.
+
+## Account-statement contract
+
+### What do the statement endpoint and opening settings guarantee?
+
+Saved reports now expose `report_view: analysis|account_statement` and an
+`opening_balances` map keyed by owner account UUID. Each choice has mode
+ledger/reported/manual; only manual accepts an amount, which is signed and
+currency-scoped. GET `/api/reports/saved/{id}/account-statements/` returns account
+opening/movement/closing summaries and one account's bounded transaction page with
+running balances. `export=csv` returns a Blob for the full selected account, capped
+at 50,000 rows. Generated TypeScript represents the JSON/Blob response union.
+
+The statement uses full account/date movements, not analysis-only filters or
+manual membership. Unknown reported openings are null, not zero or silent ledger
+fallbacks. Future reports are not opening anchors. The response explains display
+ordering for unknown times; opening and closing are independent of that ordering.
+All routes are owner-scoped, privately uncached and covered by schema snapshots.

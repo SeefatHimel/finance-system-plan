@@ -2177,6 +2177,11 @@ single-account reports remain readable and are converted when next saved.
 
 ## Custom-report workflow: library, results and builder
 
+The current analysis and account-statement behavior is documented in
+[Custom reports and account statements](../../docs/custom-reports.md). Deploy the
+API with `reports.0003_account_statement_settings` before this version of the web
+client. It adds report-only metadata and never changes ledger balances.
+
 Custom reports use separate route contexts:
 
 - `/custom-reports`: searchable, sortable saved-report library. Each entry shows
