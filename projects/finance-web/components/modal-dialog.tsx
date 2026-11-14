@@ -5,9 +5,9 @@ import { createPortal } from "react-dom";
 import { useToast } from "@/components/toast-provider";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
-type Props = { initialFocus?: string; children: ReactNode; labelledBy: string; className?: string; busy?: boolean; onCancel: () => void };
+type Props = { initialFocus?: string; fallbackFocus?: string; children: ReactNode; labelledBy: string; className?: string; busy?: boolean; onCancel: () => void };
 
-function DialogSurface({ children, labelledBy, className = "decision-modal", busy = false, onCancel, returnFocus, initialFocus }: Props & { returnFocus: HTMLElement | null }) {
+function DialogSurface({ children, labelledBy, className = "decision-modal", busy = false, onCancel, returnFocus, initialFocus, fallbackFocus }: Props & { returnFocus: HTMLElement | null }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const { registerModal } = useToast();
   useEffect(() => {
@@ -21,10 +21,11 @@ function DialogSurface({ children, labelledBy, className = "decision-modal", bus
       element.close();
       releaseScroll();
       queueMicrotask(() => {
-        if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+        const target = returnFocus?.isConnected && returnFocus !== document.body ? returnFocus : fallbackFocus ? document.querySelector<HTMLElement>(fallbackFocus) : null;
+        target?.focus({ preventScroll: true });
       });
     };
-  }, [registerModal, returnFocus]);
+  }, [registerModal, returnFocus, fallbackFocus]);
   useEffect(() => {
     if (initialFocus) dialog.current?.querySelector<HTMLElement>(initialFocus)?.focus({ preventScroll: true });
   }, [initialFocus]);

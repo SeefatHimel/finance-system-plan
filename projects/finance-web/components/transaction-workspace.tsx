@@ -824,12 +824,12 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   }, [loadState]);
 
   if (loadState.status === "loading") {
-    if (isEmbedded) return <ModalDialog className="form-drawer embedded-editor-status" labelledBy="embedded-editor-loading-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-loading-title">Opening transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body"><LoadingState compact detail="Loading account and category choices" label="Preparing editor" /></div></ModalDialog>;
+    if (isEmbedded) return <ModalDialog fallbackFocus="#report-drill-title, #account-statement-title" className="form-drawer embedded-editor-status" labelledBy="embedded-editor-loading-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-loading-title">Opening transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body"><LoadingState compact detail="Loading account and category choices" label="Preparing editor" /></div></ModalDialog>;
     return <LoadingState detail="Syncing ledger entries, accounts, and categories" label="Loading transactions" />;
   }
 
   if (loadState.status === "error") {
-    if (isEmbedded) return <ModalDialog className="form-drawer embedded-editor-status" labelledBy="embedded-editor-error-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-error-title">Could not open transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body"><p role="alert">{loadState.message}</p><button className="button button--ghost" type="button" onClick={() => void loadData(filtersRef.current)}>Retry</button></div></ModalDialog>;
+    if (isEmbedded) return <ModalDialog fallbackFocus="#report-drill-title, #account-statement-title" className="form-drawer embedded-editor-status" labelledBy="embedded-editor-error-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-error-title">Could not open transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body"><p role="alert">{loadState.message}</p><button className="button button--ghost" type="button" onClick={() => void loadData(filtersRef.current)}>Retry</button></div></ModalDialog>;
     return (
       <div className="panel">
         <div className="panel__body empty-state">
@@ -957,7 +957,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
   return (
     <div className={isEmbedded ? "" : "workspace-grid"}>
       {!isEmbedded && reportReturn ? <Link className="button button--ghost" href={reportReturn}>← Back to report</Link> : null}
-      {isEmbedded && !editorMode ? <ModalDialog className="form-drawer embedded-editor-status" labelledBy="embedded-editor-pending-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-pending-title">Opening transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body">{formError ? <p role="alert">{formError}</p> : <p role="status">Preparing {embeddedCreate ? "full entry" : "saved entry and sources"}…</p>}{formError && embeddedEditId ? <button className="button button--ghost" type="button" onClick={() => void selectTransactionForEdit(embeddedEditId)}>Retry</button> : null}</div></ModalDialog> : null}
+      {isEmbedded && !editorMode ? <ModalDialog fallbackFocus="#report-drill-title, #account-statement-title" className="form-drawer embedded-editor-status" labelledBy="embedded-editor-pending-title" onCancel={() => onEmbeddedClose?.()}><div className="form-drawer__header"><h2 id="embedded-editor-pending-title">Opening transaction</h2><button className="icon-button" type="button" onClick={() => onEmbeddedClose?.()} aria-label="Close transaction editor"><X size={20} /></button></div><div className="panel__body">{formError ? <p role="alert">{formError}</p> : <p role="status">Preparing {embeddedCreate ? "full entry" : "saved entry and sources"}…</p>}{formError && embeddedEditId ? <button className="button button--ghost" type="button" onClick={() => void selectTransactionForEdit(embeddedEditId)}>Retry</button> : null}</div></ModalDialog> : null}
       {filterPanel ? <ModalDialog className="form-drawer transaction-filter-dialog" labelledBy="transaction-filter-title" onCancel={() => setFilterPanel(null)}>
         <div className="form-drawer__header"><div><h2 id="transaction-filter-title">Filter transactions</h2><p>Choose what appears in the list.</p></div><button className="icon-button" type="button" aria-label="Close filters" onClick={() => setFilterPanel(null)}><X size={20} /></button></div>
         <form onSubmit={applyPanelFilters} noValidate className="transaction-filter-dialog__form">
@@ -993,7 +993,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
       {mergeId ? <DuplicateMergeDialog anchorId={mergeId} onClose={() => setMergeId(null)} onMerged={() => setMergeId(null)} /> : null}
       {viewingId ? <TransactionDetailDialog transactionId={viewingId} orderedIds={loadState.transactions.map(transaction => transaction.id)} accounts={loadState.accounts} categories={loadState.categories} selectedAccount={displayedFilters.account} onNavigate={setViewingId} onClose={() => setViewingId(null)} onEdit={id => { setViewingId(null); void selectTransactionForEdit(id); }} /> : null}
       {editorMode ? (
-        <ModalDialog labelledBy="transaction-editor-title" className="form-drawer transaction-editor-drawer" busy={isSubmitting || isUpdating} onCancel={closeEditor}>
+        <ModalDialog labelledBy="transaction-editor-title" fallbackFocus={isEmbedded ? "#report-drill-title, #account-statement-title" : undefined} className="form-drawer transaction-editor-drawer" busy={isSubmitting || isUpdating} onCancel={closeEditor}>
             <div className="form-drawer__header">
               <div>
                 <h2 id="transaction-editor-title">
@@ -1002,7 +1002,7 @@ export function TransactionWorkspace({ embeddedEditId, embeddedBalanceSuggestion
                 <p>
                   {editorMode === "create"
                     ? "Manual entry is available for activity that did not arrive through mobile sync."
-                    : "Correct the selected ledger entry without leaving your transaction list."}
+                    : "Correct the selected ledger entry without leaving this page."}
                 </p>
                 {editorMode === "edit" ? <p className="transaction-editor-context"><strong>{accountNames.get(editingAccountId) ?? "Choose account"}</strong> · BDT {editingAmount || "—"} · {editingDate}{editingTime ? ` · ${editingTime.slice(0, 5)}` : ""}</p> : null}
                 {requiresLinkedCorrection ? <p className="transaction-editor-warning">This changes a linked ledger entry. Review its source evidence and confirm the correction before saving.</p> : null}

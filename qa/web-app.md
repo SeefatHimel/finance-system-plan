@@ -2164,3 +2164,17 @@ and verified owner changes clear memory. No financial data is saved to browser
 storage and server requests never share this private cache. Other-device changes
 require expiry or Refresh. Tests count network requests as well as checking modal
 focus, table paging, cached return, mutations and manual refresh.
+
+### How does editing from a report keep the displayed financial data correct?
+
+Report details and account-statement rows invoke the existing embedded transaction
+editor. This edits the real ledger entry, while report membership and opening
+settings remain separate. Existing validation, source-evidence checks, linked
+correction confirmation, cancellation and Undo stay in that editor. Saving updates
+the inspected entry from its response, invalidates report cache entries, and uses
+the transaction-change event to refresh totals, breakdowns, selected rows and
+account statements without navigation. Filtered lists are read again from the
+server and clamp pages if an entry leaves the selection. Undo refreshes inspected
+entries as well as totals and balances. Failed saves preserve drafts and unchanged
+totals; cancelling makes no write. Browser tests cover these behaviors, both sides
+of transfers, preserved manual openings, and focus after a category disappears.

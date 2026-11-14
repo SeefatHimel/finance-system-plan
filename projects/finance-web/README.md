@@ -2292,3 +2292,9 @@ draft and show a toast. Existing IDs, mappings and financial evidence are retain
 Settings tabs wait for an active save to finish, and capture preference responses
 merge into current state so they cannot restore an older sender list.
 This is a web workflow change and requires no backend migration or mobile build.
+
+Report transaction details and account-statement rows can open the shared embedded
+ledger editor. Successful saves refresh report totals, selection and running/
+closing balances in place; source validation, cancellation and Undo remain shared
+with the transaction workspace. Run `npm run test:e2e -- e2e/report-editing.spec.ts`
+against disposable local fixtures to verify this flow.

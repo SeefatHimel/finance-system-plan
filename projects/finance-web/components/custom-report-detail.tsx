@@ -112,7 +112,7 @@ export function CustomReportDetail({ id }: { id: string }) {
       </>}
       <CustomReportDefinition report={definition} accounts={accounts} categories={categories} />
     </>}
-    {selection && definition ? <ReportTransactionModal selection={selection} accounts={accounts} categories={categories} currency={definition.currency} onClose={() => setSelection(null)} /> : null}
+    {selection && definition ? <ReportTransactionModal selection={selection} accounts={accounts} categories={categories} currency={definition.currency} revision={revision} onClose={() => setSelection(null)} /> : null}
     {deleting && definition ? <ModalDialog labelledBy="delete-detail-report" busy={deleteBusy} onCancel={() => setDeleting(false)}><div className="panel__body"><h2 id="delete-detail-report">Delete {definition.name}?</h2><p>This deletes the saved report and manual report choices. Your ledger transactions stay unchanged.</p><div className="report-actions"><button className="button button--ghost" disabled={deleteBusy} onClick={() => setDeleting(false)}>Cancel</button><button className="button button--primary" disabled={deleteBusy} onClick={() => void remove()}>{deleteBusy ? "Deleting…" : "Delete report"}</button></div></div></ModalDialog> : null}
   </div>;
 }

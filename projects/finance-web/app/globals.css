@@ -2972,6 +2972,7 @@ textarea {
 .report-modal-body .table-wrap { margin-top: 18px; }
 .report-modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: 20px; padding: 16px 24px; border-top: 1px solid var(--panel-border); flex-shrink: 0; }
 .report-modal-footer > a { margin-right: auto; }
+@media(max-width:600px) { .report-modal-footer { flex-wrap: wrap; gap: 10px; } .report-modal-footer > a { flex-basis: 100%; } .report-modal-footer > .button { flex: 1; } }
 .report-modal-pagination { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 18px; font-size: 13px; }
 .report-transaction-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 22px; margin-top: 24px; }
 .report-transaction-facts dt { color: var(--muted); font-size: 12px; margin-bottom: 8px; }

@@ -892,6 +892,6 @@ workflow, safeguards and verification details.
 
 Report modal/cache regressions: in `projects/finance-web`, run
 `node --test tests/report-cache.test.cjs` and
-`npm run test:e2e -- e2e/custom-reports.spec.ts` against the disposable synthetic
+`npm run test:e2e -- e2e/custom-reports.spec.ts e2e/report-editing.spec.ts` against the disposable synthetic
 browser fixture. The browser suite checks actual request counts, cached return,
 write/Refresh invalidation and dialog focus. This web-only change adds no migration.

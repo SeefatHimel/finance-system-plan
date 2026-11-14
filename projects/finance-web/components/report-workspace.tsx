@@ -65,6 +65,6 @@ export function ReportWorkspace() {
       {error ? <p role="alert" className="form-error">{error}</p> : null}{loading ? <p role="status">Updating report…</p> : null}
     </div></section>
     {report ? <ReportResults report={report} loading={loading} onDrill={(extra, label) => { const href = drill(extra); const params = new URL(href, window.location.origin).searchParams; params.delete("report_return"); setSelection({ label, filters: Object.fromEntries(params), href }); }} drill={!error ? drill : undefined} cashDescription={resultAccount ? "Money in/out includes transfers through the selected account." : undefined} /> : null}
-    {selection && report ? <ReportTransactionModal selection={selection} accounts={accounts} categories={report.categories.flatMap(row => row.id ? [{ id: row.id, name: row.name }] : [])} currency={report.currency} onClose={() => setSelection(null)} /> : null}
+    {selection && report ? <ReportTransactionModal selection={selection} accounts={accounts} categories={report.categories.flatMap(row => row.id ? [{ id: row.id, name: row.name }] : [])} currency={report.currency} revision={revision} onClose={() => setSelection(null)} /> : null}
   </div>;
 }

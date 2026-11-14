@@ -164,3 +164,28 @@ and server isolation. Browser regression tests count actual requests through
 category → modal → transaction inspection → close/reopen and full-workspace return,
 then verify fresh reads after membership edits and Refresh. They also check focus
 restoration and the account-statement/starting-balance dialog flow.
+
+## Editing from a report
+
+Transaction details expose **Edit transaction**, and account-statement descriptions
+open the same embedded editor. Editing changes the ledger entry across the app;
+it is distinct from report-only membership and opening-balance settings. The
+existing editor retains current-record reads, owner checks, field validation,
+attached-source review, linked-entry correction checks, cancellation and Undo.
+It loads editor choices and source evidence without loading the transaction
+workspace's history or totals, and leaves the report mounted underneath.
+
+After a successful save, the saved response updates the inspected entry directly.
+The existing transaction-change event refreshes the report totals, breakdowns,
+report transaction membership and statement balances/running rows. No route reload
+is needed. Filtered modal lists rerun against the server's saved selection; edits
+to date, category or account may remove an entry from the list, and pages clamp
+when their final entry moves out. Manual report openings remain explicit choices.
+Transfers refresh both sending and receiving accounts. Other ledger changes,
+including Undo, refresh an entry still being inspected. Closing after its original
+category link disappears restores focus to the report overview.
+
+Failed saves retain the editor draft and keep report totals unchanged. Cancelling
+an edit does not write or refresh the report. `e2e/report-editing.spec.ts` exercises
+these cases, range changes, transfer balances, report-only openings and Undo on
+desktop and mobile against disposable synthetic records.

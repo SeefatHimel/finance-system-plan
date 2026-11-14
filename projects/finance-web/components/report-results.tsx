@@ -25,7 +25,7 @@ export function ReportResults({ report, loading = false, drill, compact = false,
     : <span className={className}>{children}</span>;
   return <div className="workspace-grid report-workspace" aria-busy={loading} style={{ opacity: loading ? 0.6 : 1 }}>
     <section className={`panel${enhanced ? " report-overview-panel" : ""}`} id="report-overview"><div className="panel__body">
-      <h2 className="section-title">{compact ? "Live preview" : "Report overview"}</h2>
+      <h2 className="section-title" id="report-overview-title" tabIndex={-1}>{compact ? "Live preview" : "Report overview"}</h2>
       <p className="muted-text">{report.transaction_count} {report.transaction_count === 1 ? "transaction" : "transactions"} · {formatCalendarDate(report.start_date)}–{formatCalendarDate(report.end_date)} · {report.currency}</p>
       {enhanced ? <div className="report-metrics">{[
         { label: "Earned income", amount: report.income_total, previous: report.previous.income_total, icon: TrendUp },
