@@ -265,7 +265,11 @@ class BulkApprovalTests(APITestCase):
                 raise ValidationError("Synthetic late conflict")
             return original(**kwargs)
 
-        with patch.object(bulk_approval, "confirm_pair", side_effect=fail_second):
+        # Exercise the retained canonical fallback. The batch-writer rollback
+        # and late-conflict cases are covered separately below.
+        with patch.object(bulk_approval, "write_ordinary_pairs", return_value={}), patch.object(
+            bulk_approval, "confirm_pair", side_effect=fail_second
+        ):
             response = self.approve(value)
         self.assertEqual(response.status_code, 400, response.data)
         self.assertEqual(Transaction.objects.count(), 0)
@@ -631,7 +635,9 @@ class BulkApprovalTests(APITestCase):
                 record.save()
             return result
 
-        with patch.object(bulk_approval, "confirm_pair", side_effect=introduce_conflict):
+        with patch.object(bulk_approval, "write_ordinary_pairs", return_value={}), patch.object(
+            bulk_approval, "confirm_pair", side_effect=introduce_conflict
+        ):
             result = self.approve(value)
         self.assertEqual(result.status_code, 400, result.data)
         self.assertEqual(Transaction.objects.count(), 0)

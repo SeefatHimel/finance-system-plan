@@ -9,7 +9,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.core import signing
 from django.core.serializers.json import DjangoJSONEncoder
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -21,6 +21,7 @@ from apps.transactions.transfers import lock_transfer_user, sms_recorded_elsewhe
 
 from .account_verification import ACCOUNT_WARNING, is_verified, verification_summary
 from .bulk_source_checks import competing_pairs, recorded_sms
+from .bulk_writer import write_ordinary_pairs
 from .insights import analyze, suggestions
 from .models import StatementOriginalFile, StatementRow, UnifiedApprovalBatch
 from .services import (
@@ -507,33 +508,48 @@ def approve(*, user, token, request_id, request, pairs=None):
             "Sources, settings or matches changed. Nothing was approved. Refresh and review the preview again."
         )
     recovery = ActionRecorder(user, candidate_ids=messages, statement_ids=rows)
+    try:
+        written = write_ordinary_pairs(
+            user=user,
+            results=results,
+            rows=rows,
+            messages=messages,
+            request=request,
+        )
+    except IntegrityError as error:
+        raise ReviewConflict(
+            "A source or entry changed. Nothing was approved. Refresh the review."
+        ) from error
     approved = []
     for item in results:
         row, sms = rows[item["statement"]["id"]], messages[item["sms"]["id"]]
-        record, unchanged = confirm_pair(
-            user=user,
-            row=row,
-            candidate=sms,
-            request=request,
-            statement_rows=row._bulk_statement_rows,
-            checked_arithmetic=row._bulk_arithmetic,
-            payload={
-                "statement_version": row.version,
-                "sms_updated_at": sms.updated_at,
-                "balance_source": item["balance_source"],
-                "acknowledge_match": True,
-                "acknowledge_conflict": False,
-                # Only the signed, financially unchanged metadata draft is acknowledged.
-                "acknowledge_issues": True,
-                "draft": {
-                    "version": row.version,
-                    "category": row._bulk_final_category,
-                    "counterparty_text": item["final"]["description"],
-                    "note": item["final"]["note"],
+        if item["id"] in written:
+            record, unchanged = written[item["id"]], False
+        else:
+            record, unchanged = confirm_pair(
+                user=user,
+                row=row,
+                candidate=sms,
+                request=request,
+                statement_rows=row._bulk_statement_rows,
+                checked_arithmetic=row._bulk_arithmetic,
+                payload={
+                    "statement_version": row.version,
+                    "sms_updated_at": sms.updated_at,
+                    "balance_source": item["balance_source"],
+                    "acknowledge_match": True,
+                    "acknowledge_conflict": False,
+                    # Only the signed, financially unchanged metadata draft is acknowledged.
+                    "acknowledge_issues": True,
+                    "draft": {
+                        "version": row.version,
+                        "category": row._bulk_final_category,
+                        "counterparty_text": item["final"]["description"],
+                        "note": item["final"]["note"],
+                    },
+                    "remember_choices": False,
                 },
-                "remember_choices": False,
-            },
-        )
+            )
         if unchanged:
             raise ReviewConflict(
                 "A source was already recorded. Nothing was approved; refresh the preview."

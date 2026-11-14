@@ -61,7 +61,7 @@ def transaction_snapshot(transaction) -> dict[str, object]:
     }
 
 
-def create_audit_log(
+def build_audit_log(
     *,
     user,
     action: str,
@@ -70,7 +70,8 @@ def create_audit_log(
     after: dict[str, object] | None = None,
     metadata: dict[str, object] | None = None,
 ) -> AuditLogEntry:
-    return AuditLogEntry.objects.create(
+    """Build the same audit record for immediate or atomic batch persistence."""
+    return AuditLogEntry(
         user=user,
         action=action,
         entity_type=entity._meta.label_lower,
@@ -82,3 +83,24 @@ def create_audit_log(
             **(metadata or {}),
         },
     )
+
+
+def create_audit_log(
+    *,
+    user,
+    action: str,
+    entity: Model,
+    before: dict[str, object] | None = None,
+    after: dict[str, object] | None = None,
+    metadata: dict[str, object] | None = None,
+) -> AuditLogEntry:
+    entry = build_audit_log(
+        user=user,
+        action=action,
+        entity=entity,
+        before=before,
+        after=after,
+        metadata=metadata,
+    )
+    entry.save()
+    return entry
