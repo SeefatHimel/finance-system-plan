@@ -14,7 +14,7 @@ test("library, builder and saved results have distinct routes", async ({ page, c
   const name = `Synthetic report ${info.project.name} ${Date.now()}`;
   const ids: string[] = [];
   try {
-    await page.goto("/custom-reports");
+    await page.goto("/custom-reports?currency=BDT");
     await expect(page.getByLabel("Search reports", { exact: true })).toBeVisible();
     await expect(page.getByLabel("Report name", { exact: true })).toHaveCount(0);
     await page.getByRole("link", { name: "New report", exact: true }).click();
@@ -63,7 +63,8 @@ test("account statements retain report-only reported and editable opening balanc
   const name = `Synthetic statement ${info.project.name} ${Date.now()}`;
   const headers = { origin: baseURL! };
   const accounts: string[] = [], transactions: string[] = [];
-  let reportId = "";
+  let reportId = "", statementReads = 0;
+  page.on("request", request => { if (request.method() === "GET" && request.url().includes("/account-statements/")) statementReads++; });
   try {
     for (const [suffix, type, starting_balance] of [["bank", "bank", "1000.00"], ["cash", "cash", "0.00"]]) {
       const response = await context.request.post("/api/backend/api/accounts/", { headers, data: { name: `${name} ${suffix}`, type, currency: "BDT", starting_balance } });
@@ -80,22 +81,29 @@ test("account statements retain report-only reported and editable opening balanc
     }
     const response = await context.request.post("/api/backend/api/reports/saved/", { headers, data: { name, start_date: "2026-01-01", end_date: "2026-01-31", date_view: "monthly", currency: "BDT", report_view: "account_statement", filters: { accounts } } });
     expect(response.status()).toBe(201); reportId = (await response.json()).id;
-    await page.goto(`/custom-reports/${reportId}?statement_account=${accounts[0]}`);
-    const summary = page.getByRole("table", { name: "Opening and closing balance by account" }).getByRole("row").filter({ hasText: `${name} bank` });
+    await page.goto(`/custom-reports/${reportId}`);
+    const summary = page.locator(".report-statement-accounts tbody tr").filter({ hasText: `${name} bank` });
     await expect(summary).toContainText("BDT 900.00");
     await expect(summary).toContainText("BDT 800.00");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await summary.getByRole("button", { name: `${name} bank`, exact: true }).click();
+    await expect(page.getByRole("dialog", { name: `${name} bank`, exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await summary.getByRole("button", { name: `${name} bank`, exact: true }).click();
+    await expect(page.getByRole("dialog", { name: `${name} bank`, exact: true })).toBeVisible();
+    expect(statementReads).toBe(1);
     await page.getByRole("button", { name: "Edit opening balance", exact: true }).click();
     await page.getByLabel("Starting balance basis", { exact: true }).selectOption("reported");
-    await expect(page.getByRole("dialog")).toContainText("BDT 700.00");
+    await expect(page.getByRole("dialog", { name: `Opening balance for ${name} bank`, exact: true })).toContainText("BDT 700.00");
     await page.getByRole("button", { name: "Save opening balance", exact: true }).click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: `Opening balance for ${name} bank`, exact: true })).toHaveCount(0);
     await expect(summary).toContainText("BDT 700.00");
     await page.getByRole("button", { name: "Edit opening balance", exact: true }).click();
     await page.getByLabel("Starting balance basis", { exact: true }).selectOption("manual");
     await expect(page.getByLabel("Starting balance (BDT, signed)", { exact: true })).toHaveValue("800.00");
     await page.getByLabel("Starting balance (BDT, signed)", { exact: true }).fill("0");
     await page.getByRole("button", { name: "Save opening balance", exact: true }).click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: `Opening balance for ${name} bank`, exact: true })).toHaveCount(0);
     await page.reload();
     await expect(summary).toContainText("BDT 0.00");
     await expect(summary).toContainText("−BDT 100.00");
@@ -165,4 +173,99 @@ test("cancel discards editing without changing the saved report", async ({ page,
   } finally {
     await context.request.delete(`/api/backend/api/reports/saved/${id}/`, { headers: { origin: baseURL! } });
   }
+});
+
+test("report drill-down keeps context and reuses requests until an edit or refresh", async ({ page, context, baseURL }, info) => {
+  const headers = { origin: baseURL! };
+  const name = `Synthetic cached report ${info.project.name} ${Date.now()}`;
+  const response = await context.request.post("/api/backend/api/reports/saved/", { headers, data: { name, start_date: "2026-01-01", end_date: "2026-01-31", date_view: "monthly", currency: "BDT", filters: {} } });
+  expect(response.status()).toBe(201); const { id } = await response.json();
+  const requests: string[] = [];
+  page.on("request", request => { if (request.method() === "GET" && request.url().includes("/api/backend/api/")) requests.push(request.url()); });
+  const count = (path: string) => requests.filter(url => new URL(url).pathname === `/api/backend${path}`).length;
+  try {
+    await page.goto("/custom-reports");
+    await page.getByLabel("Search reports", { exact: true }).fill(name);
+    const savedRow = page.locator(".report-library-row").filter({ hasText: name });
+    await expect(savedRow).toHaveCount(1);
+    await savedRow.getByRole("link", { name: "View report", exact: true }).focus();
+    await savedRow.getByRole("link", { name: "View report", exact: true }).press("Enter");
+    await expect(page).toHaveURL(new RegExp(`/custom-reports/${id}$`));
+    await expect(page.getByRole("heading", { name: "Report overview", exact: true })).toBeVisible();
+    await expect(page.getByRole("table", { name: `Transactions selected by ${name}`, exact: true })).toBeVisible();
+    await page.getByRole("group", { name: "Breakdown view", exact: true }).getByRole("button", { name: "Table", exact: true }).click();
+    await page.getByLabel("Interval", { exact: true }).selectOption("month");
+    const category = page.getByRole("table", { name: "Net spending by categories compared with the previous period", exact: true }).getByRole("link").first();
+    const categoryName = await category.innerText();
+    const summaries = count("/api/reports/monthly/"), definitions = count(`/api/reports/saved/${id}/`), accounts = count("/api/accounts/"), categories = count("/api/categories/");
+    await category.click();
+    const dialog = page.getByRole("dialog", { name: categoryName, exact: true });
+    await expect(dialog.getByRole("table")).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: categoryName, exact: true })).toBeFocused();
+    expect(count("/api/transactions/activity/")).toBe(1);
+    await dialog.getByRole("button", { name: "Next transactions", exact: true }).click();
+    await expect(dialog).toContainText("26–50");
+    await dialog.getByRole("button", { name: "Previous transactions", exact: true }).click();
+    await expect(dialog).toContainText("1–25");
+    const firstPage = count("/api/transactions/activity/");
+    expect(firstPage).toBe(2);
+    await expect(page).toHaveURL(new RegExp(`/custom-reports/${id}$`));
+    await dialog.getByRole("table").getByRole("button").first().click();
+    await expect(page.getByRole("heading", { name: "Transaction details", exact: true })).toBeVisible();
+    expect(count("/api/transactions/activity/")).toBe(firstPage);
+    await page.getByRole("button", { name: `Back to ${categoryName}`, exact: true }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(category).toBeFocused();
+    await expect(page.getByLabel("Interval", { exact: true })).toHaveValue("month");
+    await category.click(); await expect(dialog.getByRole("table")).toBeVisible();
+    expect(count("/api/transactions/activity/")).toBe(firstPage);
+    await dialog.getByRole("link", { name: "Open in Transactions", exact: true }).click();
+    await expect(page).toHaveURL(/\/transactions\?/);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByText(/Showing 1/).first()).toBeVisible();
+    const accountsBeforeReturn = count("/api/accounts/"), categoriesBeforeReturn = count("/api/categories/");
+    await page.getByRole("link", { name: "Back to report", exact: false }).click();
+    await expect(page.getByRole("heading", { name: "Report overview", exact: true })).toBeVisible();
+    expect(count("/api/accounts/")).toBe(accountsBeforeReturn);
+    expect(count("/api/categories/")).toBe(categoriesBeforeReturn);
+    expect(count("/api/reports/monthly/")).toBe(summaries);
+    expect(count(`/api/reports/saved/${id}/`)).toBe(definitions);
+    expect(accounts).toBe(1);
+    expect(categories).toBe(1);
+    await page.getByRole("link", { name: "All custom reports", exact: false }).click();
+    await expect(page.getByLabel("Search reports", { exact: true })).toHaveValue(name);
+    expect(count("/api/reports/saved/")).toBe(1);
+    await page.locator(".report-library-row").filter({ hasText: name }).getByRole("link", { name: "View report", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Report overview", exact: true })).toBeVisible();
+    expect(count("/api/reports/monthly/")).toBe(summaries);
+    await page.getByRole("button", { name: "Manage transactions", exact: true }).click();
+    await page.getByRole("button", { name: "Remove from report", exact: true }).first().click();
+    await expect.poll(() => count("/api/reports/monthly/")).toBe(summaries + 1);
+    await expect(page.getByRole("button", { name: "Refresh report", exact: true })).toBeEnabled();
+    await page.getByRole("button", { name: "Refresh report", exact: true }).click();
+    await expect.poll(() => count("/api/reports/monthly/")).toBe(summaries + 2);
+  } finally { await context.request.delete(`/api/backend/api/reports/saved/${id}/`, { headers }); }
+});
+
+test("standard report details recover from a failed request without losing filters", async ({ page }) => {
+  let reads = 0;
+  await page.route("**/api/backend/api/transactions/activity/?*", async route => {
+    if (++reads === 1) await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ detail: "Synthetic temporary outage" }) });
+    else await route.continue();
+  });
+  await page.goto("/reports?start_date=2026-01-01&end_date=2026-01-31&currency=BDT&date_view=monthly");
+  const category = page.getByRole("link", { name: /Uncategorized/ }).first();
+  await category.click();
+  const dialog = page.getByRole("dialog", { name: "Uncategorized", exact: true });
+  await expect(dialog.getByRole("alert")).toBeVisible();
+  await dialog.getByRole("button", { name: "Retry transactions", exact: true }).click();
+  await expect(dialog.getByRole("table")).toBeVisible();
+  expect(reads).toBe(2);
+  await dialog.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(category).toBeFocused();
+  await expect(page).toHaveURL(/start_date=2026-01-01/);
+  await expect(page).toHaveURL(/end_date=2026-01-31/);
+  await category.click(); await expect(dialog.getByRole("table")).toBeVisible();
+  expect(reads).toBe(2);
 });

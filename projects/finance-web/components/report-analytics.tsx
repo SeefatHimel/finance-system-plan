@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
+import { ReportDrillLink, type ReportDrill } from "@/components/report-drill-link";
 import { useState } from "react";
 import { ArrowRight, ChartBar, Table } from "@phosphor-icons/react";
 import type { MonthlyReport } from "@/lib/api";
@@ -19,7 +19,7 @@ function ViewToggle({ table, onChange, label }: { table: boolean; onChange: (val
   </div>;
 }
 
-export function ReportAnalytics({ report, drill }: { report: MonthlyReport; drill?: Drill }) {
+export function ReportAnalytics({ report, drill, onDrill }: { report: MonthlyReport; drill?: Drill; onDrill?: ReportDrill }) {
   const [group, setGroup] = useState<"categories" | "merchants">("categories");
   const [breakdownTable, setBreakdownTable] = useState(false);
   const [activityTable, setActivityTable] = useState(false);
@@ -31,7 +31,7 @@ export function ReportAnalytics({ report, drill }: { report: MonthlyReport; dril
   const breakdown = reportBreakdownRows(rows);
   const trend = reportTrend(report.daily, interval);
   const trendRows = trend.map(row => ({ label: row.date, current: Number(cash ? row.cash_in_total : row.income_total), previous: Number(cash ? row.cash_out_total : row.expense_total) }));
-  const nameLink = (name: string, extra: Record<string, string>) => drill ? <Link href={drill(extra)}>{name}<ArrowRight size={14} aria-hidden="true" /></Link> : name;
+  const nameLink = (name: string, extra: Record<string, string>) => drill ? <ReportDrillLink href={drill(extra)} extra={extra} label={name} onDrill={onDrill}>{name}<ArrowRight size={14} aria-hidden="true" /></ReportDrillLink> : name;
   const changeText = (now: string, previous: string) => {
     const change = reportChange(now, previous);
     return `${change.direction === "up" ? "+" : ""}${money(change.amount)}${change.percent !== null && change.direction !== "same" ? ` (${change.percent.toFixed(1)}% ${change.direction === "up" ? "more" : "less"})` : ""}`;

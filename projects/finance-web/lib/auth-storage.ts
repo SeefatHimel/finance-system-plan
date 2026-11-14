@@ -1,4 +1,5 @@
 import type { AuthTokens } from "./api";
+import { clearReportCache } from "./report-cache";
 
 const accessTokenKey = "finance.accessToken";
 const refreshTokenKey = "finance.refreshToken";
@@ -41,6 +42,7 @@ export function getRefreshToken() {
 }
 
 export function clearTokens() {
+  clearReportCache();
   try {
     window.sessionStorage.removeItem("finance.reports.filters.v1");
     window.sessionStorage.removeItem("finance.customReports.filters.v1");

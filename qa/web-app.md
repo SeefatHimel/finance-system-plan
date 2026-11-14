@@ -2141,3 +2141,26 @@ tab is stored in the URL, so refresh returns to the same section. Tabs support
 arrow-key navigation, and dialogs manage initial and return focus.
 Section changes wait for active saves, and preference responses merge into the
 latest state instead of replacing newer sender changes.
+
+## Report drill-downs and request reuse
+
+### Why use modals below the report detail page?
+
+The library is a saved-report list; New report opens the separate builder. Opening
+category, merchant or account analysis keeps the report mounted and shows a
+bounded transaction page in a native dialog. Closing it preserves chart settings,
+scroll and focus. A transaction can be inspected from data already returned;
+account statements open from the balance summary. Full transaction-page URLs
+remain available for new tabs and editing outside the report.
+
+### How are repeated report reads avoided without retaining stale financial data indefinitely?
+
+A browser-only TanStack QueryClient deduplicates identical in-flight reads and
+reuses report results for five minutes across client navigation. Every saved
+selection/account/page has its own key. Successful API writes and manual Refresh
+invalidate results; a new generation prevents pre-write reads from warming the
+new cache. Read-only report previews do not invalidate it. Logout, session expiry
+and verified owner changes clear memory. No financial data is saved to browser
+storage and server requests never share this private cache. Other-device changes
+require expiry or Refresh. Tests count network requests as well as checking modal
+focus, table paging, cached return, mutations and manual refresh.

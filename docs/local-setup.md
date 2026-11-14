@@ -889,3 +889,9 @@ run `python manage.py seed_merge_browser` after `seed_quality_browser` against a
 disposable `finance_e2e_*` database only. Use the web production build/start for
 cookie-session Playwright tests. See [duplicate merge](duplicate-merge.md) for
 workflow, safeguards and verification details.
+
+Report modal/cache regressions: in `projects/finance-web`, run
+`node --test tests/report-cache.test.cjs` and
+`npm run test:e2e -- e2e/custom-reports.spec.ts` against the disposable synthetic
+browser fixture. The browser suite checks actual request counts, cached return,
+write/Refresh invalidation and dialog focus. This web-only change adds no migration.

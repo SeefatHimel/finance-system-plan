@@ -489,3 +489,13 @@ range, or save a signed manual opening for that report. The setting never repair
 or reconciles the ledger. Actual ledger references remain visible. Analysis and
 account statements are distinct views because filtering out a category or manually
 removing an analysis entry must not masquerade as an account's true closing balance.
+
+### How does reporting keep context and avoid repeated API calls?
+
+The web flow is saved-report library → report detail → contextual inspection
+modal. Five-minute tab-memory query reuse survives client navigation, with
+in-flight deduplication, complete selection/page keys, mutation/Refresh
+invalidation and session-owner clearing. Financial data is never persisted in
+browser storage or shared by a server-wide report cache. The existing owner-scoped
+API remains authoritative; modals do not relax report membership or account/date
+boundaries. See docs/custom-reports.md for freshness and invalidation limits.

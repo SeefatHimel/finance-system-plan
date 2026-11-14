@@ -2961,6 +2961,23 @@ textarea {
   width: calc(100vw - 32px);
 }
 .viewport-modal:not([open]) { display: none; }
+.viewport-modal.report-detail-modal { display: flex; flex-direction: column; padding: 0; max-width: 1080px; overflow: hidden; border: 1px solid var(--panel-border); border-radius: 14px; }
+.viewport-modal.report-detail-modal:not([open]) { display: none; }
+.report-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 22px 24px; border-bottom: 1px solid var(--panel-border); flex-shrink: 0; }
+.report-modal-header h2 { margin: 6px 0; font-size: 23px; overflow-wrap: anywhere; }
+.report-modal-header p { color: var(--muted); margin: 0; font-size: 13px; }
+.report-modal-header .icon-button { flex-shrink: 0; }
+.report-modal-body { min-height: 0; overflow-y: auto; padding: 20px 24px; }
+.report-modal-body > .report-chart-note:first-child { margin-top: 0; }
+.report-modal-body .table-wrap { margin-top: 18px; }
+.report-modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: 20px; padding: 16px 24px; border-top: 1px solid var(--panel-border); flex-shrink: 0; }
+.report-modal-footer > a { margin-right: auto; }
+.report-modal-pagination { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 18px; font-size: 13px; }
+.report-transaction-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 22px; margin-top: 24px; }
+.report-transaction-facts dt { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.report-transaction-facts dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-detail-modal .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media(max-width:600px) { .report-modal-header, .report-modal-body, .report-modal-footer { padding: 16px; } .report-modal-header h2 { font-size: 20px; } .report-transaction-facts { grid-template-columns: 1fr; } .report-modal-pagination .button { padding: 8px 10px; font-size: 12px; } }
 .viewport-modal::backdrop { background: rgb(2 8 15 / 76%); }
 .viewport-modal.form-drawer { border: 1px solid var(--panel-border); border-radius: 14px; padding: 0; }
 .viewport-modal.embedded-editor-status { height: auto; max-width: 560px; }

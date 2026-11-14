@@ -8,6 +8,7 @@ import { canUseLocalTokenStorage, clearTokens, getAccessToken, getRefreshToken, 
 import { loginHref, safeReturnPath, sessionChannelName, sessionExpiredEvent, type LoginReason } from "@/lib/auth-navigation";
 import { getCookieSessionUser, loginWithCookieSession, logoutCookieSession } from "@/lib/session-api";
 import { LoadingState } from "@/components/loading-state";
+import { setReportCacheOwner } from "@/lib/report-cache";
 import { useToast } from "@/components/toast-provider";
 
 type SessionState = { status: "checking" | "signed-out" }
@@ -58,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const user = canUseLocalTokenStorage() ? await getLocalSessionUser() : await getCookieSessionUser();
         if (currentVersion !== version.current) return;
+        setReportCacheOwner(user ? String(user.id) : null);
         setSession(user ? { status: "signed-in", user } : { status: "signed-out" });
       } catch (error) {
         if (currentVersion !== version.current) return;

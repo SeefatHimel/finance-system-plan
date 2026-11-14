@@ -1,5 +1,11 @@
 # finance-web
 
+Custom reports start at the saved-report library. Category/merchant/account
+inspection uses accessible modals while report pages remain mounted. Report reads
+are deduplicated and reused in tab memory for five minutes across client navigation;
+API writes, Refresh and session/owner changes invalidate them. No financial data is
+persisted in browser storage. See [navigation and cache policy](../../docs/custom-reports.md#navigation-and-request-reuse).
+
 ## Resolve account review once per statement
 
 Bulk preview offers one reporting-account panel per affected import. Compare the

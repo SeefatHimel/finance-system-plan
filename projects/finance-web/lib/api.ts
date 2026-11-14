@@ -1,5 +1,6 @@
 import type { QuickPreset, PresetInput, QuickEntryInput } from "../../finance-contracts/quick-add";
 import { z } from "zod";
+import { reportWriteCompleted } from "./report-cache";
 import { emptyReportRules } from "./report-rules";
 
 import type {
@@ -792,6 +793,7 @@ export async function authenticatedFetch(path: string, accessToken: string, init
       throw Object.assign(await responseError(proxyResponse), { status: proxyResponse.status });
     }
 
+    reportWriteCompleted(path, init?.method);
     return proxyResponse;
   }
 
@@ -828,6 +830,7 @@ export async function authenticatedFetch(path: string, accessToken: string, init
       });
 
       if (retryResponse.ok) {
+        reportWriteCompleted(path, init?.method);
         return retryResponse;
       }
       if (retryResponse.status !== 401) {
@@ -844,6 +847,7 @@ export async function authenticatedFetch(path: string, accessToken: string, init
     throw Object.assign(await responseError(response), { status: response.status });
   }
 
+  reportWriteCompleted(path, init?.method);
   return response;
 }
 

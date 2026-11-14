@@ -2,8 +2,47 @@
 
 The report library, saved detail view, and Create/Edit builders remain separate.
 The library searches names/currencies, filters by currency, restores search/sort
-on return, and offers Account statement, Account overview, Spending review, and
+on return, and initially shows only the saved-report list. New report opens the
+builder, which offers Account statement, Account overview, Spending review, and
 Income review templates. Templates are editable starting points, not saved data.
+Period/account query parameters on the library no longer open the builder
+automatically; creation always uses `/custom-reports/new`. Legacy saved-report ID
+bookmarks still redirect to the corresponding detail page.
+
+## Navigation and request reuse
+
+The flow is library → saved report → detail modal. Category, merchant and analysis
+account drill-downs use a paginated transaction modal on both `/reports` and saved
+reports. Individual transactions can be inspected inside that modal, or opened
+from the report's transaction list. Existing row data supplies transaction facts;
+inspection does not fetch each transaction again. Account-statement summaries
+remain on the report; selecting an account opens its balances and running ledger
+in a modal. Opening-balance editing remains an explicit nested dialog.
+
+Closing a modal retains the report's chart/table settings, interval and scroll
+position. Native dialogs contain keyboard focus, support Escape, and restore the
+trigger's focus. A visible Done/close control is always available. Analysis links
+retain real transaction-page URLs for modifier-click/new-tab and the optional
+Open in Transactions action. The full transaction workspace remains available for
+editing and broader investigation.
+
+Report reads use the existing TanStack Query dependency through a browser-only
+QueryClient: five-minute freshness and retention, identical in-flight request
+deduplication, no focus/reconnect polling, no financial data in browser storage.
+The library, saved definitions, summaries, report account/category labels,
+statement pages and modal pages share this cache across client navigation. Keys
+include the saved report, full filter selection, account and page as applicable.
+Leaving one consumer does not abort a read another consumer still needs.
+
+Successful API writes invalidate report reads, including report edits, membership,
+opening settings and ledger/account/category changes. Report preview POSTs are
+read-only and do not invalidate. Manual Refresh bypasses reuse. A generation
+boundary prevents a response started before an edit from warming the new cache.
+Logout/session expiry clears it; verified owner changes also clear it. Server-side
+execution never shares this cache between requests. Another device's changes
+become visible after freshness expires or the user refreshes; the UI discloses
+this five-minute policy. No API contract or database migration changes are needed
+for modal navigation and request reuse.
 
 ## Analysis
 
@@ -99,6 +138,13 @@ The account-statement/opening-balance workflow follows this product's canonical
 ledger and balance-evidence semantics; it is not copied accounting behavior from
 either reference product.
 
+The modal choice keeps a short inspection task in report context. It follows the
+[WAI-ARIA dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/)
+for contained focus, Escape and focus restoration. Request reuse follows
+[TanStack Query's documented freshness policy](https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults)
+and [QueryClient fetchQuery](https://tanstack.com/query/latest/docs/reference/QueryClient),
+with explicit invalidation for this application's imperative API layer.
+
 ## Deployment and verification
 
 Deploy the API and apply `reports.0003_account_statement_settings` before the web
@@ -111,3 +157,10 @@ web typecheck/lint/build, generated-contract typecheck and schema drift checks.
 chart/table controls, validation, and report-only opening changes on desktop and
 mobile against disposable synthetic fixtures. Never run fixtures against real
 financial data.
+
+`tests/report-cache.test.cjs` verifies freshness expiry, concurrent reuse, filter/
+page isolation, writes, late-response invalidation, owner changes, failed reads
+and server isolation. Browser regression tests count actual requests through
+category → modal → transaction inspection → close/reopen and full-workspace return,
+then verify fresh reads after membership edits and Refresh. They also check focus
+restoration and the account-statement/starting-balance dialog flow.

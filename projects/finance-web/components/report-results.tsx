@@ -1,15 +1,15 @@
 "use client";
 
-import Link from "next/link";
+import { ReportDrillLink, type ReportDrill } from "@/components/report-drill-link";
 import { ArrowRight, TrendUp, TrendDown, Wallet } from "@phosphor-icons/react";
 import { formatCurrency, formatCalendarDate } from "../../finance-contracts/presentation";
 import type { MonthlyReport } from "@/lib/api";
 import { reportChange } from "@/lib/report-presentation";
 import { ReportAnalytics } from "@/components/report-analytics";
 
-export function ReportResults({ report, loading = false, drill, compact = false, cashDescription, enhanced = false }: {
+export function ReportResults({ report, loading = false, drill, compact = false, cashDescription, enhanced = false, onDrill }: {
   report: MonthlyReport; loading?: boolean; drill?: (extra?: Record<string, string>) => string;
-  compact?: boolean; cashDescription?: string; enhanced?: boolean;
+  compact?: boolean; cashDescription?: string; enhanced?: boolean; onDrill?: ReportDrill;
 }) {
   const money = (amount: string | number) => formatCurrency(amount, report.currency);
   const difference = (now: string, before: string) => {
@@ -21,7 +21,7 @@ export function ReportResults({ report, loading = false, drill, compact = false,
     return change.direction === "same" ? "No change" : `${change.direction === "up" ? "+" : ""}${money(change.amount)}${change.percent !== null ? ` · ${change.percent.toFixed(1)}% ${change.direction === "up" ? "more" : "less"}` : ""}`;
   };
   const drillLink = (children: React.ReactNode, extra?: Record<string, string>, className?: string) => drill && !loading
-    ? <Link className={className} href={drill(extra)}>{children}</Link>
+    ? <ReportDrillLink className={className} href={drill(extra)} extra={extra} label={extra?.category ? report.categories.find(row => (row.id ?? "uncategorized") === extra.category)?.name ?? "Category" : extra?.account ? report.accounts.find(row => row.id === extra.account)?.name ?? "Account" : extra?.search ? "Merchant transactions" : "Report transactions"} onDrill={onDrill}>{children}</ReportDrillLink>
     : <span className={className}>{children}</span>;
   return <div className="workspace-grid report-workspace" aria-busy={loading} style={{ opacity: loading ? 0.6 : 1 }}>
     <section className={`panel${enhanced ? " report-overview-panel" : ""}`} id="report-overview"><div className="panel__body">
@@ -42,7 +42,7 @@ export function ReportResults({ report, loading = false, drill, compact = false,
       </div><p className="muted-text">{cashDescription ?? "Money in/out excludes transfers between your accounts."} Principal is financing, not earnings or consumption.</p></details> : null}
       {drill ? <div className="report-actions">{drillLink(<>View these transactions <ArrowRight size={17} /></>, undefined, "button button--ghost")}</div> : null}
     </div></section>
-    {!compact && enhanced ? <ReportAnalytics report={report} drill={loading ? undefined : drill} /> : !compact ? <div className="report-breakdown-grid" id="report-breakdowns">
+    {!compact && enhanced ? <ReportAnalytics report={report} drill={loading ? undefined : drill} onDrill={onDrill} /> : !compact ? <div className="report-breakdown-grid" id="report-breakdowns">
       <section className="panel"><div className="panel__body"><h2 className="section-title">Net spending by category</h2><div className="list-stack">{report.categories.map(row => <div key={row.id ?? "uncategorized"}>{drillLink(<><span>{row.name}<small className="report-comparison">{difference(row.amount, row.previous_amount)}</small></span><strong>{money(row.amount)} <ArrowRight size={15} /></strong></>, { category: row.id ?? "uncategorized", spending: "true" }, "list-row")}</div>)}{!report.categories.length ? <p>No spending or refunds in this report.</p> : null}</div></div></section>
       <section className="panel"><div className="panel__body"><h2 className="section-title">Merchants and counterparties</h2><div className="list-stack">{report.merchants.map(row => <div key={row.search}>{drillLink(<><span>{row.name} <small className="muted-text">· {row.count} movements</small><small className="report-comparison">{difference(row.amount, row.previous_amount)}</small></span><strong>{money(row.amount)} <ArrowRight size={15} /></strong></>, { search: `merchant:${JSON.stringify(row.search)}`, spending: "true" }, "list-row")}</div>)}{!report.merchants.length ? <p>No merchants in this report.</p> : null}</div></div></section>
       <section className="panel report-account-breakdown"><div className="panel__body"><h2 className="section-title">Account movement</h2><div className="table-wrap"><table className="data-table"><thead><tr><th>Account</th><th>Money in</th><th>Money out</th></tr></thead><tbody>{report.accounts.map(row => <tr key={row.id}><td>{drillLink(<>{row.name} <ArrowRight size={15} /></>, { account: row.id })}</td><td>{money(row.money_in)}</td><td>{money(row.money_out)}</td></tr>)}</tbody></table></div>{!report.accounts.length ? <p>No account movements in this report.</p> : null}</div></section>
