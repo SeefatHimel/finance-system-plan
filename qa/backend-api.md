@@ -2,14 +2,15 @@
 
 ### How is bulk review optimized without trusting stale checks?
 
-Preview batches source/duplicate discovery and edited-merchant matching per import.
-Approval shares statement rows only within its locked request. Arithmetic issues
-are reused only when all source and arithmetic inputs remain identical; changes
-trigger full analysis. Every pair still checks the live ledger and pending sources
-before writing, including entries created earlier in that batch. Only the exact
-same draft can reuse that in-call ledger result in the statement decision. Canonical
-links, audit writes, atomic receipts and Undo are retained. Synthetic query-budget
-tests cover 1/5/25 pairs and group merchant edits, with PostgreSQL concurrency tests.
+Preview batches source discovery; approval reproduces the signed proof under the
+user/source/category locks. Eligible ordinary movements use the same transaction
+serializer with locked owner-scoped relations, then bulk-create transactions and
+re-read the live ledger before confirming sources. Any other match, including a
+cross-pair duplicate, aborts the transaction. Individual audit transitions and row
+version increments are retained while inserts/updates are grouped. Transfers,
+complex source plans and immediate redaction retain canonical confirmation.
+Both paths share the atomic receipt, retries and Undo. Tests compare canonical
+values/history, late rollback, mixed paths and 1/5/25-pair query budgets on PostgreSQL.
 
 ### Why can an ordinary Pathao pair become eligible for bulk approval?
 

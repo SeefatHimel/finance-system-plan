@@ -2,15 +2,18 @@
 
 ## Bulk review query optimization
 
-Bulk preview batches competitor, recorded-SMS and fee discovery, including shared
-merchant edits. Approval reuses request-local statement rows and unchanged draft
-arithmetic, while retaining fresh per-pair ledger/source checks and canonical
-source linking, audits, retries and Undo. A changed arithmetic input triggers a
-fresh analysis. No API contract or schema changes are needed for this optimization.
+Bulk preview batches source discovery. Eligible ordinary approvals now retain
+transaction-serializer validation while batching inserts, source updates, per-entry
+audit transitions and import timestamps. A final live-ledger scan includes staged
+records and aborts cross-pair duplicates before source confirmation. Transfers,
+complex/multi-SMS plans and immediate-redaction preferences retain canonical
+confirmation; mixed groups share the same atomic receipt and Undo action.
 
-Synthetic 25-pair endpoint counts fell from 138 to 16 for preview and 1,334 to 914
-for approval; a shared merchant edit fell from 263/1,534 to 20/993 respectively.
-See [query budgets and reproduction](../../docs/bulk-pair-approval.md#backend-query-budgets-and-request-local-checks).
+Synthetic 25-pair approval counts fell from 914 to 84; merchant edits fell from
+993 to 89 (88 on PostgreSQL). Pathao provider-ID cases fell from 1,014 to 184;
+a 200-entry history case uses 87. Preview remains 16/20 queries. No API contract,
+schema migration or frontend update is needed. See
+[query budgets and reproduction](../../docs/bulk-pair-approval.md#backend-query-budgets-and-request-local-checks).
 
 ## Source-bound reporting-account review
 

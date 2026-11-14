@@ -115,8 +115,10 @@ to 1,200 characters and obey existing retention permissions.
 
 Approval takes the existing per-user financial-write lock and locks selected
 source rows and category records in deterministic order. It reruns eligibility and duplicate checks,
-then calls the canonical single-pair confirmation service for every ready pair
-inside one database transaction. Any stale source, new competitor, changed ledger
+then writes eligible ordinary pairs in batches using the transaction serializer
+and a final live-ledger check. Transfers, multi-SMS source plans and immediate
+redaction use canonical single-pair confirmation. Both paths share one database
+transaction and recovery action. Any stale source, new competitor, changed ledger
 suggestion or confirmation failure rolls back the entire ready group, including
 source links, audits, recovery action and receipt. Refresh the preview after a
 409; the user must review and confirm again.
@@ -151,37 +153,50 @@ Discovery pools are capped at 5,000 candidates/rows; overflow falls back to the
 canonical per-pair discovery without relaxing eligibility or growing memory
 without a bound. Other-account imports and printed value dates remain in scope.
 
-Approval still takes the per-user financial-write lock and reloads/locks the
-selected SMS and row in each canonical confirmation. Shared statement context is
-request-local, updated with each newly locked row, and discarded after the
-request. The selected category objects come from the locked category lookup.
+Approval reproduces the signed eligibility proof under the per-user financial-write
+lock, with selected rows, SMS and categories locked. Eligible new expense, income,
+refund and debt movements use `bulk_writer.py`: the ordinary transaction serializer
+still validates every value. Owner-scoped locked account, category and original-SMS
+objects resolve foreign keys without repeating their database lookups. An account
+revision or original-SMS change after inspection aborts the batch. Existing ledger
+and merge-archive keys are checked before staging.
 
-Draft arithmetic issues are reused only while every arithmetic input and original
-extraction remains identical, including opening/closing balances and all sibling
-rows. Metadata edits and posting state do not change that arithmetic. A changed
-input falls back to full analysis; disposition totals are never cached this way.
-Each pair still runs a fresh ledger discovery and fresh source/duplicate checks
-inside approval. Its ledger result is reused only by the immediately following
-statement decision for the identical checked draft. This removes duplicate scans
-without hiding records written earlier in the batch. Source links, individual
-audits, the atomic receipt, idempotent retry and latest-action Undo stay canonical.
+Ordinary transactions are staged with `bulk_create`, then ledger discovery runs
+again for the selected rows per import **before any source is marked confirmed**.
+The newly staged record for that exact row is expected; any other candidate,
+including a duplicate created elsewhere in this batch, or truncated history rolls
+back the whole group. Statement-row links and SMS confirmation updates are batched
+only after this check.
+Every source stays attached and every per-entry audit transition/version increment
+is retained; audit inserts and import timestamps are batched. The existing
+`ActionRecorder`, signed receipt, retry and Undo model remain shared across paths.
+No conflicting insert is silently ignored.
 
-Measured on synthetic clean expense pairs in one import, without existing ledger
-history. Baseline is commit `c76406d`; counts include statements captured around
-the endpoint call. Optimized counts were verified on SQLite and local PostgreSQL.
-These are query budgets, not a production response-time guarantee.
+Transfers, non-ordinary types, multi-SMS/complex Pathao source plans, immediate
+SMS-redaction preferences and legacy identifier values retain canonical
+confirmation and all existing source handling. They can add queries. Mixed groups remain atomic and the canonical path
+sees the ordinary records already staged in that transaction. Request-local
+statement/arithmetic reuse remains guarded by identical original inputs; nothing
+is cached across requests. Disposition totals are never served from this cache.
 
-| Pairs / edits | Preview before | Preview after | Approval before | Approval after |
-| --- | ---: | ---: | ---: | ---: |
-| 1 / defaults | 18 | 16 | 110 | 98 |
-| 5 / defaults | 38 | 16 | 314 | 234 |
-| 25 / defaults | 138 | 16 | 1,334 | 914 |
-| 25 / shared merchant | 263 | 20 | 1,534 | 993 |
+Measured with synthetic clean pairs in one import; the current comparison starts
+at `5ccd2d3` (the first optimization). Counts include SQL statements captured around
+the endpoint call. SQLite counts are shown below; PostgreSQL matches except the
+25-pair merchant-edit case is 88 rather than 89 due to insert chunking. These are
+query budgets, not production response-time guarantees.
 
-For 25 unchanged pairs, statement analysis falls from 26 passes to one and ledger
-matching from 51 passes to 26 (one initial group scan plus a fresh scan per pair).
-Writes and audits still scale with the number of movements. Existing history,
-transfers, fee evidence and multiple imports can add work.
+| Pairs / edits | Preview (unchanged) | Approval before | Approval now |
+| --- | ---: | ---: | ---: |
+| 1 / defaults | 16 | 98 | 84 |
+| 5 / defaults | 16 | 234 | 84 |
+| 25 / defaults | 16 | 914 | 84 |
+| 25 / shared merchant | 20 | 993 | 89 |
+| 25 / Pathao provider IDs | 16 | 1,014 | 184 |
+
+A further scenario with 200 existing ledger entries approves 25 pairs in 87
+queries. Provider-ID checks, source observations and per-entry audits remain
+present. The initial pre-optimization baseline (`c76406d`) was 1,334 approval
+queries and 138 preview queries for 25 ordinary pairs.
 
 Reproduce the current budgets using a disposable test database:
 
@@ -209,7 +224,7 @@ Focused API checks:
 
 ```bash
 cd projects/finance-api
-python manage.py test apps.statements.test_bulk_approval apps.statements.test_unified
+python manage.py test apps.statements.test_bulk_approval apps.statements.test_bulk_writer apps.statements.test_bulk_performance apps.statements.test_unified
 ```
 
 Use disposable PostgreSQL for concurrency verification; SQLite cannot exercise
